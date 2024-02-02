@@ -33,7 +33,7 @@ func TestExecutorRetry(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	instrancer := consul.NewInstancer(consul.NewClient(client), logger.Sugar(), serverName, nil, true)
+	instrancer := consul.NewInstancer(consul.NewClient(client), logger.Sugar(), serverName, true)
 
 	endpointer := endpointer.NewEndpointer(instrancer, factory, logger.Sugar())
 
