@@ -24,17 +24,24 @@ type Instancer struct {
 	logger      *zap.SugaredLogger
 	service     string
 	tags        []string
-	passingOnly bool
+	passingOnly bool // 只返回正常的实例
 	quitc       chan struct{}
 }
 
-func NewInstancer(client Client, logger *zap.SugaredLogger, service string, tags []string, passingOnly bool) *Instancer {
+type InstancerOption func(*Instancer)
+
+func TagsInstancerOptions(tags []string) InstancerOption {
+	return func(r *Instancer) {
+		r.tags = tags
+	}
+}
+
+func NewInstancer(client Client, logger *zap.SugaredLogger, service string, passingOnly bool) *Instancer {
 	s := &Instancer{
 		cache:       instance.NewCache(),
 		client:      client,
 		logger:      logger,
 		service:     service,
-		tags:        tags,
 		passingOnly: passingOnly,
 		quitc:       make(chan struct{}),
 	}

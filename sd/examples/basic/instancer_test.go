@@ -22,7 +22,7 @@ func TestInstancer(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
 	ch := make(chan events.Event)
-	instrancer := consul.NewInstancer(consul.NewClient(client), logger.Sugar(), "test", nil, true)
+	instrancer := consul.NewInstancer(consul.NewClient(client), logger.Sugar(), "test", true)
 
 	var wait sync.WaitGroup
 	wait.Add(1)

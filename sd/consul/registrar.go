@@ -12,19 +12,47 @@ type Registrar struct {
 	logger       *zap.SugaredLogger
 }
 
-func NewRegistrar(client Client, logger *zap.SugaredLogger, id, name string, tags []string, address string, port int) *Registrar {
+type RegistrarOption func(*Registrar)
 
-	return &Registrar{
+func IDRegistrarOptions(id string) RegistrarOption {
+	return func(r *Registrar) {
+		r.registration.ID = id
+	}
+}
+
+func TagsRegistrarOptions(tags []string) RegistrarOption {
+	return func(r *Registrar) {
+		r.registration.Tags = tags
+	}
+}
+
+func NamespaceRegistrarOptions(namespace string) RegistrarOption {
+	return func(r *Registrar) {
+		r.registration.Namespace = namespace
+	}
+}
+
+func CheckRegistrarOptions(check *stdconsul.AgentServiceCheck) RegistrarOption {
+	return func(r *Registrar) {
+		r.registration.Check = check
+	}
+}
+
+func NewRegistrar(client Client, logger *zap.SugaredLogger, name string, address string, port int, options ...RegistrarOption) *Registrar {
+
+	r := &Registrar{
 		client: client,
 		registration: &stdconsul.AgentServiceRegistration{
-			ID:      id,
 			Name:    name,
-			Tags:    tags,
 			Port:    port,
 			Address: address,
 		},
 		logger: logger,
 	}
+	for _, option := range options {
+		option(r)
+	}
+	return r
 }
 
 func (p *Registrar) Register() {
