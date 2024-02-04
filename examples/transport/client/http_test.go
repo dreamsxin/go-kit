@@ -1,6 +1,7 @@
 package http
 
 import (
+	"cl-base-rd/examples/common"
 	"context"
 	"io"
 	"net/http"
@@ -11,14 +12,6 @@ import (
 
 	transportclient "github.com/dreamsxin/go-kit/transport/http/client"
 )
-
-type UserData struct {
-	Foo string `json:"foo"`
-}
-
-func (e UserData) Headers() http.Header {
-	return http.Header{"X-Email": []string{"dreamsxin@qq.com"}}
-}
 
 // go test -v -count=1 -run TestHttpClient .\http_test.go
 func TestHttpClient(t *testing.T) {
@@ -55,7 +48,7 @@ func TestHttpClient(t *testing.T) {
 		},
 	).Endpoint()
 
-	if _, err := client(context.Background(), &UserData{Foo: "foo"}); err != nil {
+	if _, err := client(context.Background(), &common.UserData{Foo: "foo"}); err != nil {
 		t.Fatal(err)
 	}
 

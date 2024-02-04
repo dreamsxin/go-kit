@@ -43,3 +43,11 @@ func NewTestServer(host string) *TestServer {
 
 	return &TestServer{host: host}
 }
+
+type UserData struct {
+	Foo string `json:"foo"`
+}
+
+func (e UserData) Headers() http.Header {
+	return http.Header{"X-Email": []string{"dreamsxin@qq.com"}}
+}

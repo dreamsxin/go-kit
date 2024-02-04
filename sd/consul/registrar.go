@@ -1,6 +1,8 @@
 package consul
 
 import (
+	"strconv"
+
 	stdconsul "github.com/hashicorp/consul/api"
 	"go.uber.org/zap"
 )
@@ -51,6 +53,9 @@ func NewRegistrar(client Client, logger *zap.SugaredLogger, name string, address
 	}
 	for _, option := range options {
 		option(r)
+	}
+	if r.registration.ID == "" {
+		r.registration.ID = r.registration.Name + "-" + r.registration.Address + "-" + strconv.Itoa(r.registration.Port)
 	}
 	return r
 }
