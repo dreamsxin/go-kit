@@ -23,6 +23,7 @@ type Client struct {
 	bufferedStream bool
 }
 
+// 创建 http 请求客户端
 func NewClient(method string, tgt *url.URL, enc EncodeRequestFunc, dec DecodeResponseFunc, options ...ClientOption) *Client {
 	return NewExplicitClient(makeCreateRequestFunc(method, tgt, enc), dec, options...)
 }
@@ -37,29 +38,6 @@ func NewExplicitClient(req EncodeRequestFunc, dec DecodeResponseFunc, options ..
 		option(c)
 	}
 	return c
-}
-
-type ClientOption func(*Client)
-
-func SetClient(client HTTPClient) ClientOption {
-	return func(c *Client) { c.client = client }
-}
-
-func ClientBefore(before ...RequestFunc) ClientOption {
-	return func(c *Client) { c.before = append(c.before, before...) }
-}
-
-func ClientAfter(after ...ResponseFunc) ClientOption {
-	return func(c *Client) { c.after = append(c.after, after...) }
-}
-
-func ClientFinalizer(f ...ResponseFunc) ClientOption {
-	return func(s *Client) { s.finalizer = append(s.finalizer, f...) }
-}
-
-// 设置 body 读取方式为缓存流的方式，需自行关闭和清空
-func BufferedStream(buffered bool) ClientOption {
-	return func(c *Client) { c.bufferedStream = buffered }
 }
 
 func (c Client) Endpoint() endpoint.Endpoint {

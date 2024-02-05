@@ -1,7 +1,6 @@
 package http
 
 import (
-	"cl-base-rd/examples/common"
 	"context"
 	"io"
 	"net/http"
@@ -9,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/dreamsxin/go-kit/examples/common"
 
 	transportclient "github.com/dreamsxin/go-kit/transport/http/client"
 )
