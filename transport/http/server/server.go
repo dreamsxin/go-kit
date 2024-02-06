@@ -30,6 +30,7 @@ func NewServer(
 		dec:          dec,
 		enc:          enc,
 		errorEncoder: DefaultErrorEncoder,
+		// errorHandler: NewLogErrorHandler(zap.NewNop().Sugar()),
 	}
 	for _, option := range options {
 		option(s)
@@ -44,7 +45,7 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(s.finalizer) > 0 {
 		defer func() {
 			for _, f := range s.finalizer {
-				f(ctx, r, iw)
+				ctx = f(ctx, r, iw)
 			}
 		}()
 		//w = iw.reimplementInterfaces()
@@ -63,7 +64,9 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	response, err := s.e(ctx, request)
 	if err != nil {
-		s.errorHandler.Handle(ctx, err)
+		if s.errorHandler != nil {
+			s.errorHandler.Handle(ctx, err)
+		}
 		s.errorEncoder(ctx, err, iw)
 		return
 	}

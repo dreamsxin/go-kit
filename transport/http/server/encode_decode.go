@@ -19,6 +19,10 @@ func NopRequestDecoder(ctx context.Context, r *http.Request) (interface{}, error
 // 将用户发送数据传递给 http.Response 对象
 type EncodeResponseFunc func(context.Context, http.ResponseWriter, interface{}) error
 
+func NopResponseEncoder(context.Context, http.ResponseWriter, interface{}) error {
+	return nil
+}
+
 // 将用户发送的数据转为 json 并写入 http.ResponseWriter
 func EncodeJSONResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
