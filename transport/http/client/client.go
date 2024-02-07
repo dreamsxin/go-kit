@@ -7,6 +7,7 @@ import (
 	"net/url"
 
 	"github.com/dreamsxin/go-kit/endpoint"
+	transporthttp "github.com/dreamsxin/go-kit/transport/http"
 )
 
 type HTTPClient interface {
@@ -17,9 +18,9 @@ type Client struct {
 	client         HTTPClient
 	req            EncodeRequestFunc
 	dec            DecodeResponseFunc
-	before         []RequestFunc  /* 发出请求前，改变 context */
-	after          []ResponseFunc /* 成功返回后执行，改变 context */
-	finalizer      []ResponseFunc /* 不管是否成功，都将执行 */
+	before         []RequestFunc   /* 发出请求前，改变 context */
+	after          []ResponseFunc  /* 成功返回后执行，改变 context */
+	finalizer      []FinalizerFunc /* 不管是否成功，都将执行 */
 	bufferedStream bool
 }
 
@@ -50,8 +51,10 @@ func (c Client) Endpoint() endpoint.Endpoint {
 		)
 		if c.finalizer != nil {
 			defer func() {
+				ctx = context.WithValue(ctx, transporthttp.ContextKeyResponseHeaders, resp.Header)
+				ctx = context.WithValue(ctx, transporthttp.ContextKeyResponseSize, resp.ContentLength)
 				for _, f := range c.finalizer {
-					ctx = f(ctx, resp, err)
+					f(ctx, err)
 				}
 			}()
 		}

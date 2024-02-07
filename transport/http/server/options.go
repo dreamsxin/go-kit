@@ -1,5 +1,7 @@
 package server
 
+import "github.com/dreamsxin/go-kit/transport"
+
 type ServerOption func(*Server)
 
 func ServerBefore(before ...RequestFunc) ServerOption {
@@ -10,14 +12,14 @@ func ServerAfter(after ...ResponseFunc) ServerOption {
 	return func(s *Server) { s.after = append(s.after, after...) }
 }
 
-func ServerErrorEncoder(ee ErrorEncoder) ServerOption {
+func ServerErrorEncoder(ee transport.ErrorEncoder) ServerOption {
 	return func(s *Server) { s.errorEncoder = ee }
 }
 
-func ServerErrorHandler(errorHandler ErrorHandler) ServerOption {
+func ServerErrorHandler(errorHandler transport.ErrorHandler) ServerOption {
 	return func(s *Server) { s.errorHandler = errorHandler }
 }
 
-func ServerFinalizer(f ...ResponseFunc) ServerOption {
+func ServerFinalizer(f ...FinalizerFunc) ServerOption {
 	return func(s *Server) { s.finalizer = append(s.finalizer, f...) }
 }

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/dreamsxin/go-kit/endpoint"
+	"github.com/dreamsxin/go-kit/transport"
 )
 
 // 包装服务端点，实现 http.Handler 接口
@@ -13,9 +14,9 @@ type Server struct {
 	enc          EncodeResponseFunc
 	before       []RequestFunc
 	after        []ResponseFunc
-	errorEncoder ErrorEncoder
-	finalizer    []ResponseFunc
-	errorHandler ErrorHandler
+	errorEncoder transport.ErrorEncoder
+	finalizer    []FinalizerFunc
+	errorHandler transport.ErrorHandler
 }
 
 // 创建服务端，封装端点
@@ -29,8 +30,8 @@ func NewServer(
 		e:            e,
 		dec:          dec,
 		enc:          enc,
-		errorEncoder: DefaultErrorEncoder,
-		// errorHandler: NewLogErrorHandler(zap.NewNop().Sugar()),
+		errorEncoder: transport.DefaultErrorEncoder,
+		// errorHandler: transport.NewLogErrorHandler(zap.NewNop().Sugar()),
 	}
 	for _, option := range options {
 		option(s)
@@ -45,7 +46,7 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(s.finalizer) > 0 {
 		defer func() {
 			for _, f := range s.finalizer {
-				ctx = f(ctx, r, iw)
+				f(ctx, r, iw)
 			}
 		}()
 		//w = iw.reimplementInterfaces()

@@ -70,4 +70,10 @@ const (
 
 	// Its value is r.Header.Get("Accept").
 	ContextKeyRequestAccept
+
+	// Its value is of type http.Header
+	ContextKeyResponseHeaders
+
+	// Its value is of type int64.
+	ContextKeyResponseSize
 )

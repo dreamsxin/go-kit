@@ -197,7 +197,7 @@ func TestServerFinalizer(t *testing.T) {
 			w.Write([]byte(responseBody))
 			return nil
 		},
-		transportserver.ServerFinalizer(func(ctx context.Context, r *http.Request, w *transportserver.InterceptingWriter) context.Context {
+		transportserver.ServerFinalizer(func(ctx context.Context, r *http.Request, w *transportserver.InterceptingWriter) {
 			if want, have := statusCode, w.GetCode(); want != have {
 				t.Errorf("StatusCode: want %d, have %d", want, have)
 			}
@@ -213,7 +213,6 @@ func TestServerFinalizer(t *testing.T) {
 			}
 
 			close(done)
-			return ctx
 		}),
 	)
 
