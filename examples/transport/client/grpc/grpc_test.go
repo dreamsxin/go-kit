@@ -3,13 +3,12 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"net"
 	"testing"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	test "github.com/dreamsxin/go-kit/examples/transport/_grpc_test"
-	"github.com/dreamsxin/go-kit/examples/transport/_grpc_test/pb"
 )
 
 const (
@@ -17,23 +16,8 @@ const (
 )
 
 func TestGRPCClient(t *testing.T) {
-	var (
-		server  = grpc.NewServer()
-		service = test.NewService()
-	)
 
-	sc, err := net.Listen("tcp", hostPort)
-	if err != nil {
-		t.Fatalf("unable to listen: %+v", err)
-	}
-	defer server.GracefulStop()
-
-	go func() {
-		pb.RegisterTestServer(server, test.NewBinding(service))
-		_ = server.Serve(sc)
-	}()
-
-	cc, err := grpc.Dial(hostPort, grpc.WithInsecure())
+	cc, err := grpc.Dial(hostPort, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("unable to Dial: %+v", err)
 	}

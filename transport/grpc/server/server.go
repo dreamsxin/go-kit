@@ -10,14 +10,11 @@ import (
 	"github.com/dreamsxin/go-kit/transport"
 )
 
-// Handler which should be called from the gRPC binding of the service
-// implementation. The incoming request parameter, and returned response
-// parameter, are both gRPC types, not user-domain.
 type Handler interface {
 	ServeGRPC(ctx context.Context, request interface{}) (context.Context, interface{}, error)
 }
 
-// Server wraps an endpoint and implements grpc.Handler.
+// 封装 Endpoint 实现 grpc.Handler 接口
 type Server struct {
 	e            endpoint.Endpoint
 	dec          DecodeRequestFunc
@@ -28,11 +25,6 @@ type Server struct {
 	errorHandler transport.ErrorHandler
 }
 
-// NewServer constructs a new server, which implements wraps the provided
-// endpoint and implements the Handler interface. Consumers should write
-// bindings that adapt the concrete gRPC methods from their compiled protobuf
-// definitions to individual handlers. Request and response objects are from the
-// caller business domain, not gRPC request and reply types.
 func NewServer(
 	e endpoint.Endpoint,
 	dec DecodeRequestFunc,
@@ -51,9 +43,7 @@ func NewServer(
 	return s
 }
 
-// ServeGRPC implements the Handler interface.
 func (s Server) ServeGRPC(ctx context.Context, req interface{}) (retctx context.Context, resp interface{}, err error) {
-	// Retrieve gRPC metadata.
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		md = metadata.MD{}
