@@ -17,12 +17,14 @@ const (
 
 func TestGRPCClient(t *testing.T) {
 
+	// 建立 grpc 连接
 	cc, err := grpc.Dial(hostPort, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("unable to Dial: %+v", err)
 	}
 
-	client := test.NewClient(cc)
+	// 实例化 client
+	client := NewClient(cc)
 
 	var (
 		a   = "the answer to life the universe and everything"

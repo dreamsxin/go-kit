@@ -18,7 +18,7 @@ const (
 
 /* client before functions */
 
-func injectCorrelationID(ctx context.Context, md *metadata.MD) context.Context {
+func InjectCorrelationID(ctx context.Context, md *metadata.MD) context.Context {
 	if hdr, ok := ctx.Value(correlationID).(string); ok {
 		fmt.Printf("\tClient found correlationID %q in context, set metadata header\n", hdr)
 		(*md)[string(correlationID)] = append((*md)[string(correlationID)], hdr)
@@ -26,7 +26,7 @@ func injectCorrelationID(ctx context.Context, md *metadata.MD) context.Context {
 	return ctx
 }
 
-func displayClientRequestHeaders(ctx context.Context, md *metadata.MD) context.Context {
+func DisplayClientRequestHeaders(ctx context.Context, md *metadata.MD) context.Context {
 	if len(*md) > 0 {
 		fmt.Println("\tClient >> Request Headers:")
 		for key, val := range *md {
@@ -37,8 +37,7 @@ func displayClientRequestHeaders(ctx context.Context, md *metadata.MD) context.C
 }
 
 /* server before functions */
-
-func extractCorrelationID(ctx context.Context, md metadata.MD) context.Context {
+func ExtractCorrelationID(ctx context.Context, md metadata.MD) context.Context {
 	if hdr, ok := md[string(correlationID)]; ok {
 		cID := hdr[len(hdr)-1]
 		ctx = context.WithValue(ctx, correlationID, cID)
@@ -47,7 +46,7 @@ func extractCorrelationID(ctx context.Context, md metadata.MD) context.Context {
 	return ctx
 }
 
-func displayServerRequestHeaders(ctx context.Context, md metadata.MD) context.Context {
+func DisplayServerRequestHeaders(ctx context.Context, md metadata.MD) context.Context {
 	if len(md) > 0 {
 		fmt.Println("\tServer << Request Headers:")
 		for key, val := range md {
@@ -59,12 +58,12 @@ func displayServerRequestHeaders(ctx context.Context, md metadata.MD) context.Co
 
 /* server after functions */
 
-func injectResponseHeader(ctx context.Context, md *metadata.MD, _ *metadata.MD) context.Context {
+func InjectResponseHeader(ctx context.Context, md *metadata.MD, _ *metadata.MD) context.Context {
 	*md = metadata.Join(*md, metadata.Pairs(string(responseHDR), "has-a-value"))
 	return ctx
 }
 
-func displayServerResponseHeaders(ctx context.Context, md *metadata.MD, _ *metadata.MD) context.Context {
+func DisplayServerResponseHeaders(ctx context.Context, md *metadata.MD, _ *metadata.MD) context.Context {
 	if len(*md) > 0 {
 		fmt.Println("\tServer >> Response Headers:")
 		for key, val := range *md {
@@ -74,12 +73,12 @@ func displayServerResponseHeaders(ctx context.Context, md *metadata.MD, _ *metad
 	return ctx
 }
 
-func injectResponseTrailer(ctx context.Context, _ *metadata.MD, md *metadata.MD) context.Context {
+func InjectResponseTrailer(ctx context.Context, _ *metadata.MD, md *metadata.MD) context.Context {
 	*md = metadata.Join(*md, metadata.Pairs(string(responseTRLR), "has-a-value-too"))
 	return ctx
 }
 
-func injectConsumedCorrelationID(ctx context.Context, _ *metadata.MD, md *metadata.MD) context.Context {
+func InjectConsumedCorrelationID(ctx context.Context, _ *metadata.MD, md *metadata.MD) context.Context {
 	if hdr, ok := ctx.Value(correlationID).(string); ok {
 		fmt.Printf("\tServer found correlationID %q in context, set consumed trailer\n", hdr)
 		*md = metadata.Join(*md, metadata.Pairs(string(correlationIDTRLR), hdr))
@@ -87,7 +86,7 @@ func injectConsumedCorrelationID(ctx context.Context, _ *metadata.MD, md *metada
 	return ctx
 }
 
-func displayServerResponseTrailers(ctx context.Context, _ *metadata.MD, md *metadata.MD) context.Context {
+func DisplayServerResponseTrailers(ctx context.Context, _ *metadata.MD, md *metadata.MD) context.Context {
 	if len(*md) > 0 {
 		fmt.Println("\tServer >> Response Trailers:")
 		for key, val := range *md {
@@ -99,7 +98,7 @@ func displayServerResponseTrailers(ctx context.Context, _ *metadata.MD, md *meta
 
 /* client after functions */
 
-func displayClientResponseHeaders(ctx context.Context, md metadata.MD, _ metadata.MD) context.Context {
+func DisplayClientResponseHeaders(ctx context.Context, md metadata.MD, _ metadata.MD) context.Context {
 	if len(md) > 0 {
 		fmt.Println("\tClient << Response Headers:")
 		for key, val := range md {
@@ -109,7 +108,7 @@ func displayClientResponseHeaders(ctx context.Context, md metadata.MD, _ metadat
 	return ctx
 }
 
-func displayClientResponseTrailers(ctx context.Context, _ metadata.MD, md metadata.MD) context.Context {
+func DisplayClientResponseTrailers(ctx context.Context, _ metadata.MD, md metadata.MD) context.Context {
 	if len(md) > 0 {
 		fmt.Println("\tClient << Response Trailers:")
 		for key, val := range md {
@@ -119,7 +118,7 @@ func displayClientResponseTrailers(ctx context.Context, _ metadata.MD, md metada
 	return ctx
 }
 
-func extractConsumedCorrelationID(ctx context.Context, _ metadata.MD, md metadata.MD) context.Context {
+func ExtractConsumedCorrelationID(ctx context.Context, _ metadata.MD, md metadata.MD) context.Context {
 	if hdr, ok := md[string(correlationIDTRLR)]; ok {
 		fmt.Printf("\tClient received consumed correlationID %q in metadata trailer, set context\n", hdr[len(hdr)-1])
 		ctx = context.WithValue(ctx, correlationIDTRLR, hdr[len(hdr)-1])

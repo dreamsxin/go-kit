@@ -23,7 +23,7 @@ type Client struct {
 	finalizer   []FinalizerFunc
 }
 
-// 创建 grpc 客户端
+// 创建 grpc 客户端，生成端点
 func NewClient(
 	cc *grpc.ClientConn,
 	serviceName string,
