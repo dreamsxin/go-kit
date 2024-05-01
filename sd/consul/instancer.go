@@ -36,7 +36,7 @@ func TagsInstancerOptions(tags []string) InstancerOption {
 	}
 }
 
-func NewInstancer(client Client, logger *log.Logger, service string, passingOnly bool) *Instancer {
+func NewInstancer(client Client, logger *log.Logger, service string, passingOnly bool, options ...InstancerOption) *Instancer {
 	s := &Instancer{
 		cache:       instance.NewCache(),
 		client:      client,
@@ -51,6 +51,9 @@ func NewInstancer(client Client, logger *log.Logger, service string, passingOnly
 		s.logger.Sugar().Errorln("instances", len(instances))
 	} else {
 		s.logger.Sugar().Debugln("err", err)
+	}
+	for _, option := range options {
+		option(s)
 	}
 
 	s.cache.Update(events.Event{Instances: instances, Err: err})
