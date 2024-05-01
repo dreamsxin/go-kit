@@ -8,7 +8,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/sd/events"
 
-	"go.uber.org/zap"
+	"github.com/dreamsxin/go-kit/log"
 )
 
 // 缓存端点实例
@@ -19,7 +19,7 @@ type EndpointCache struct {
 	cache              map[string]EndpointCloser
 	err                error
 	endpoints          []Endpoint
-	logger             *zap.SugaredLogger
+	logger             *log.Logger
 	invalidateDeadline time.Time
 	timeNow            func() time.Time
 }
@@ -29,7 +29,7 @@ type EndpointCloser struct {
 	io.Closer
 }
 
-func NewEndpointCache(factory Factory, logger *zap.SugaredLogger, options EndpointerOptions) *EndpointCache {
+func NewEndpointCache(factory Factory, logger *log.Logger, options EndpointerOptions) *EndpointCache {
 	return &EndpointCache{
 		options: options,
 		factory: factory,
@@ -49,7 +49,7 @@ func (c *EndpointCache) Update(event events.Event) {
 		return
 	}
 
-	c.logger.Debugln("err", event.Err)
+	c.logger.Sugar().Debugln("err", event.Err)
 	if !c.options.InvalidateOnError {
 		return
 	}
@@ -73,7 +73,7 @@ func (c *EndpointCache) updateCache(instances []string) {
 
 		service, closer, err := c.factory(instance)
 		if err != nil {
-			c.logger.Debugln("instance", instance, "err", err)
+			c.logger.Sugar().Debugln("instance", instance, "err", err)
 			continue
 		}
 		cache[instance] = EndpointCloser{service, closer}

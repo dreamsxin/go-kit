@@ -6,8 +6,8 @@ import (
 	"time"
 
 	consul "github.com/hashicorp/consul/api"
-	"go.uber.org/zap"
 
+	"github.com/dreamsxin/go-kit/log"
 	"github.com/dreamsxin/go-kit/sd/events"
 	"github.com/dreamsxin/go-kit/sd/instance"
 	"github.com/dreamsxin/go-kit/utils"
@@ -21,7 +21,7 @@ var errStopped = errors.New("quit and closed consul instancer")
 type Instancer struct {
 	cache       *instance.Cache
 	client      Client
-	logger      *zap.SugaredLogger
+	logger      *log.Logger
 	service     string
 	tags        []string
 	passingOnly bool // 只返回正常的实例
@@ -36,7 +36,7 @@ func TagsInstancerOptions(tags []string) InstancerOption {
 	}
 }
 
-func NewInstancer(client Client, logger *zap.SugaredLogger, service string, passingOnly bool) *Instancer {
+func NewInstancer(client Client, logger *log.Logger, service string, passingOnly bool) *Instancer {
 	s := &Instancer{
 		cache:       instance.NewCache(),
 		client:      client,
@@ -48,9 +48,9 @@ func NewInstancer(client Client, logger *zap.SugaredLogger, service string, pass
 
 	instances, index, err := s.getInstances(defaultIndex, nil)
 	if err == nil {
-		s.logger.Debugln("instances", len(instances))
+		s.logger.Sugar().Errorln("instances", len(instances))
 	} else {
-		s.logger.Debugln("err", err)
+		s.logger.Sugar().Debugln("err", err)
 	}
 
 	s.cache.Update(events.Event{Instances: instances, Err: err})
@@ -74,24 +74,24 @@ func (s *Instancer) loop(lastIndex uint64) {
 		instances, index, err = s.getInstances(lastIndex, s.quitc)
 		switch {
 		case errors.Is(err, errStopped):
-			s.logger.Debugln("loop", errStopped)
+			s.logger.Sugar().Debugln("loop", errStopped)
 			return // stopped via quitc
 		case err != nil:
-			s.logger.Debugln("loop", err, d.Seconds())
+			s.logger.Sugar().Debugln("loop", err, d.Seconds())
 			time.Sleep(d)
 			d = utils.Exponential(d)
 			s.cache.Update(events.Event{Err: err})
 		case index == defaultIndex:
-			s.logger.Debugln("loop", "index is not sane", d.Seconds())
+			s.logger.Sugar().Debugln("loop", "index is not sane", d.Seconds())
 			time.Sleep(d)
 			d = utils.Exponential(d)
 		case index < lastIndex:
-			s.logger.Debugln("loop", "index is less than previous; resetting to default", d.Seconds())
+			s.logger.Sugar().Debugln("loop", "index is less than previous; resetting to default", d.Seconds())
 			lastIndex = defaultIndex
 			time.Sleep(d)
 			d = utils.Exponential(d)
 		default:
-			s.logger.Debugln("loop", "default", "index", index)
+			s.logger.Sugar().Debugln("loop", "default", "index", index)
 			lastIndex = index
 			s.cache.Update(events.Event{Instances: instances})
 			d = 10 * time.Millisecond
@@ -117,11 +117,11 @@ func (s *Instancer) getInstances(lastIndex uint64, interruptc chan struct{}) ([]
 	)
 
 	go func() {
-		s.logger.Debugln("getInstances", "lastIndex", lastIndex)
+		s.logger.Sugar().Debugln("getInstances", "lastIndex", lastIndex)
 		entries, meta, err := s.client.Service(s.service, tag, s.passingOnly, &consul.QueryOptions{
 			WaitIndex: lastIndex,
 		})
-		s.logger.Debugln("getInstances", entries, meta, err)
+		s.logger.Sugar().Debugln("getInstances", entries, meta, err)
 		if err != nil {
 			errc <- err
 			return
@@ -137,13 +137,13 @@ func (s *Instancer) getInstances(lastIndex uint64, interruptc chan struct{}) ([]
 
 	select {
 	case err := <-errc:
-		s.logger.Debugln("getInstances", err)
+		s.logger.Sugar().Debugln("getInstances", err)
 		return nil, 0, err
 	case res := <-resc:
-		s.logger.Debugln("getInstances", res)
+		s.logger.Sugar().Debugln("getInstances", res)
 		return res.instances, res.index, nil
 	case <-interruptc:
-		s.logger.Debugln("getInstances", errStopped)
+		s.logger.Sugar().Debugln("getInstances", errStopped)
 		return nil, 0, errStopped
 	}
 }

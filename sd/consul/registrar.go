@@ -3,15 +3,16 @@ package consul
 import (
 	"strconv"
 
+	"github.com/dreamsxin/go-kit/log"
+
 	stdconsul "github.com/hashicorp/consul/api"
-	"go.uber.org/zap"
 )
 
 // 服务注册类
 type Registrar struct {
 	client       Client
 	registration *stdconsul.AgentServiceRegistration
-	logger       *zap.SugaredLogger
+	logger       *log.Logger
 }
 
 type RegistrarOption func(*Registrar)
@@ -40,7 +41,7 @@ func CheckRegistrarOptions(check *stdconsul.AgentServiceCheck) RegistrarOption {
 	}
 }
 
-func NewRegistrar(client Client, logger *zap.SugaredLogger, name string, address string, port int, options ...RegistrarOption) *Registrar {
+func NewRegistrar(client Client, logger *log.Logger, name string, address string, port int, options ...RegistrarOption) *Registrar {
 
 	r := &Registrar{
 		client: client,
@@ -62,16 +63,16 @@ func NewRegistrar(client Client, logger *zap.SugaredLogger, name string, address
 
 func (p *Registrar) Register() {
 	if err := p.client.Register(p.registration); err != nil {
-		p.logger.Debugln("err", err)
+		p.logger.Sugar().Debugln("err", err)
 	} else {
-		p.logger.Debugln("action", "register")
+		p.logger.Sugar().Debugln("action", "register")
 	}
 }
 
 func (p *Registrar) Deregister() {
 	if err := p.client.Deregister(p.registration); err != nil {
-		p.logger.Debugln("err", err)
+		p.logger.Sugar().Debugln("err", err)
 	} else {
-		p.logger.Debugln("action", "deregister")
+		p.logger.Sugar().Debugln("action", "deregister")
 	}
 }

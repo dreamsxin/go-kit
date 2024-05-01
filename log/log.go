@@ -5,3 +5,7 @@ import (
 )
 
 type Logger = zap.Logger
+
+func NewDevelopment() (*Logger, error) {
+	return zap.NewDevelopment()
+}

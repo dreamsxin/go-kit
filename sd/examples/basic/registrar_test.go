@@ -19,7 +19,7 @@ func TestRegistrar(t *testing.T) {
 
 	logger, _ := zap.NewDevelopment()
 
-	registrar := consul.NewRegistrar(consul.NewClient(client), logger.Sugar(), "test", "localhost", 8500)
+	registrar := consul.NewRegistrar(consul.NewClient(client), logger, "test", "localhost", 8500)
 	registrar.Register()
 	//defer registrar.Deregister()
 	//time.Sleep(30 * time.Second)
@@ -35,7 +35,7 @@ func TestDeregister(t *testing.T) {
 
 	logger, _ := zap.NewDevelopment()
 
-	registrar := consul.NewRegistrar(consul.NewClient(client), logger.Sugar(), "test", "localhost", 8500)
+	registrar := consul.NewRegistrar(consul.NewClient(client), logger, "test", "localhost", 8500)
 	//删除旧的服务实例
 	registrar.Deregister()
 }
@@ -50,7 +50,7 @@ func TestRegistrarCheck(t *testing.T) {
 
 	logger, _ := zap.NewDevelopment()
 
-	registrar := consul.NewRegistrar(consul.NewClient(client), logger.Sugar(), "news", "localhost", 7888, consul.CheckRegistrarOptions(&capi.AgentServiceCheck{
+	registrar := consul.NewRegistrar(consul.NewClient(client), logger, "news", "localhost", 7888, consul.CheckRegistrarOptions(&capi.AgentServiceCheck{
 		CheckID:                        "status",
 		HTTP:                           "http://localhost:7888/",
 		Timeout:                        "5s",  //超时

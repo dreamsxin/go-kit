@@ -3,7 +3,6 @@ package http
 import (
 	"context"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/endpoint"
 	"github.com/dreamsxin/go-kit/examples/common"
+	"github.com/dreamsxin/go-kit/log"
 	"github.com/dreamsxin/go-kit/sd/consul"
 	"github.com/dreamsxin/go-kit/sd/endpointer"
 	"github.com/dreamsxin/go-kit/sd/endpointer/balancer"
@@ -21,13 +21,12 @@ import (
 	transportclient "github.com/dreamsxin/go-kit/transport/http/client"
 
 	capi "github.com/hashicorp/consul/api"
-	"go.uber.org/zap"
 )
 
 // go test -v -count=1 -run TestExecutorHttpClient .\http_executor_test.go
 func TestExecutorHttpClient(t *testing.T) {
 
-	logger, _ := zap.NewDevelopment()
+	logger, _ := log.NewDevelopment()
 
 	// 连接 consul
 	cfg := capi.DefaultConfig()
@@ -59,13 +58,13 @@ func TestExecutorHttpClient(t *testing.T) {
 
 	// 注册服务
 	serverName := "test"
-	registrar := consul.NewRegistrar(consul.NewClient(client), logger.Sugar(), serverName, serverURL.Host, port)
+	registrar := consul.NewRegistrar(consul.NewClient(client), logger, serverName, serverURL.Host, port)
 	registrar.Register()
 	defer registrar.Deregister()
 
 	// 创建端点工厂
 	factory := func(instance string) (endpoint.Endpoint, io.Closer, error) {
-		log.Println("instance", instance)
+		logger.Sugar().Debugln("instance", instance)
 		// 客户端
 		ep := transportclient.NewClient(
 			"POST",
@@ -82,10 +81,10 @@ func TestExecutorHttpClient(t *testing.T) {
 	}
 
 	// 创建服务发现器
-	instrancer := consul.NewInstancer(consul.NewClient(client), logger.Sugar(), serverName, true)
+	instrancer := consul.NewInstancer(consul.NewClient(client), logger, serverName, true)
 
 	// 创建端点生成器
-	endpointer := endpointer.NewEndpointer(instrancer, factory, logger.Sugar())
+	endpointer := endpointer.NewEndpointer(instrancer, factory, logger)
 
 	// 创建负载均衡器
 	robin := balancer.NewRoundRobin(endpointer)

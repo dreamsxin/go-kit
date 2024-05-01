@@ -8,13 +8,13 @@ import (
 
 	"github.com/dreamsxin/go-kit/endpoint"
 	"github.com/dreamsxin/go-kit/examples/common"
+	"github.com/dreamsxin/go-kit/log"
 	"github.com/dreamsxin/go-kit/sd/consul"
 	"github.com/dreamsxin/go-kit/sd/endpointer"
 	"github.com/dreamsxin/go-kit/sd/endpointer/balancer"
 	"github.com/dreamsxin/go-kit/sd/endpointer/executor"
 
 	capi "github.com/hashicorp/consul/api"
-	"go.uber.org/zap"
 )
 
 // go test -v -count=1 -run TestExecutorRetry .\executor_test.go
@@ -27,15 +27,15 @@ func TestExecutorRetry(t *testing.T) {
 		return ep, nil, nil
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger, _ := log.NewDevelopment()
 
 	client, err := capi.NewClient(capi.DefaultConfig())
 	if err != nil {
 		panic(err)
 	}
-	instrancer := consul.NewInstancer(consul.NewClient(client), logger.Sugar(), serverName, true)
+	instrancer := consul.NewInstancer(consul.NewClient(client), logger, serverName, true)
 
-	endpointer := endpointer.NewEndpointer(instrancer, factory, logger.Sugar())
+	endpointer := endpointer.NewEndpointer(instrancer, factory, logger)
 
 	robin := balancer.NewRoundRobin(endpointer)
 	retry := executor.Retry(5, time.Duration(1*time.Second), robin)
