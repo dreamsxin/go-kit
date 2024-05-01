@@ -1,3 +1,3 @@
 # 说明
 
-https://github.com/go-kit/kit
+https://github.com/dreamsxin/go-kit
