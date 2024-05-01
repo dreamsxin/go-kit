@@ -24,7 +24,7 @@ func NewLogErrorHandler(logger *log.Logger) *LogErrorHandler {
 }
 
 func (h *LogErrorHandler) Handle(ctx context.Context, err error) {
-	h.logger.Errorln("err", err)
+	h.logger.Sugar().Errorln("err", err)
 }
 
 type ErrorHandlerFunc func(ctx context.Context, err error)
