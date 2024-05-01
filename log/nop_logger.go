@@ -4,4 +4,4 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewNopLogger() Logger { return *zap.NewNop() }
+func NewNopLogger() *Logger { return zap.NewNop() }
