@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/dreamsxin/go-kit/log"
 	"github.com/dreamsxin/go-kit/transport/http/interfaces"
-	"go.uber.org/zap"
 )
 
 type ErrorHandler interface {
@@ -14,10 +14,10 @@ type ErrorHandler interface {
 }
 
 type LogErrorHandler struct {
-	logger *zap.SugaredLogger
+	logger *log.Logger
 }
 
-func NewLogErrorHandler(logger *zap.SugaredLogger) *LogErrorHandler {
+func NewLogErrorHandler(logger *log.Logger) *LogErrorHandler {
 	return &LogErrorHandler{
 		logger: logger,
 	}

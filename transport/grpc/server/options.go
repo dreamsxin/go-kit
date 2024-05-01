@@ -1,8 +1,8 @@
 package server
 
 import (
+	"github.com/dreamsxin/go-kit/log"
 	"github.com/dreamsxin/go-kit/transport"
-	"go.uber.org/zap"
 )
 
 type ServerOption func(*Server)
@@ -15,7 +15,7 @@ func ServerAfter(after ...ResponseFunc) ServerOption {
 	return func(s *Server) { s.after = append(s.after, after...) }
 }
 
-func ServerErrorLogger(logger *zap.SugaredLogger) ServerOption {
+func ServerErrorLogger(logger *log.Logger) ServerOption {
 	return func(s *Server) { s.errorHandler = transport.NewLogErrorHandler(logger) }
 }
 
