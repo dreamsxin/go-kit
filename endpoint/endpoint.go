@@ -23,3 +23,7 @@ func InvalidateOnError(timeout time.Duration) EndpointerOption {
 		opts.InvalidateTimeout = timeout
 	}
 }
+
+type Failer interface {
+	Failed() error
+}
