@@ -5,6 +5,7 @@ go 1.21.4
 require (
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5
 	github.com/google/go-cmp v0.6.0
+	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/consul/api v1.27.0
 	github.com/sony/gobreaker v1.0.0
 	github.com/streadway/handy v0.0.0-20200128134331-0f66f006fb2e
