@@ -1,7 +1,9 @@
 package generator
 
 import (
+	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,10 +14,11 @@ import (
 
 // Options 生成器配置选项
 type Options struct {
-	OutputDir   string   // 输出目录
-	ImportPath  string   // 项目导入路径
-	ServiceName string   // 服务名称 (可选，默认从IDL获取)
-	Protocols   []string // 支持的协议 (http, grpc等)
+	TemplateFS  *embed.FS // 模板文件系统
+	OutputDir   string    // 输出目录
+	ImportPath  string    // 项目导入路径
+	ServiceName string    // 服务名称 (可选，默认从IDL获取)
+	Protocols   []string  // 支持的协议 (http, grpc等)
 }
 
 // Generator 代码生成器
@@ -27,22 +30,11 @@ type Generator struct {
 
 // New 创建代码生成器实例
 func New(opts Options) (*Generator, error) {
-	// 获取模板目录的绝对路径
-	baseDir, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	templatePath := filepath.Join(baseDir, "templates")
 
-	// 检查模板目录是否存在
-	if _, err := os.Stat(templatePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("template directory not found: %s", templatePath)
-	}
-
-	// 解析所有模板文件
-	filenames, err := filepath.Glob(filepath.Join(templatePath, "*.tmpl"))
+	// 从嵌入文件系统解析模板
+	filenames, err := fs.Glob(opts.TemplateFS, "templates/*.tmpl")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read template files: %v", err)
+		return nil, fmt.Errorf("failed to find template files: %v", err)
 	}
 	fmt.Println("Template filenames:", filenames)
 
@@ -51,7 +43,7 @@ func New(opts Options) (*Generator, error) {
 		"lower": strings.ToLower,
 	}
 	// 解析模板文件
-	tmpl, err := template.New("").Funcs(funcMap).ParseFiles(filenames...)
+	tmpl, err := template.New("").Funcs(funcMap).ParseFS(opts.TemplateFS, filenames...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse templates: %v", err)
 	}

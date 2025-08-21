@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"flag"
 	"fmt"
 	"log"
@@ -9,6 +10,9 @@ import (
 	"github.com/dreamsxin/go-kit/cmd/microgen/generator"
 	"github.com/dreamsxin/go-kit/cmd/microgen/parser"
 )
+
+//go:embed templates/*.tmpl
+var templateFS embed.FS
 
 // 配置参数结构体
 type config struct {
@@ -57,11 +61,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to parse IDL: %v", err)
 	}
-
 	// 初始化生成器
 	log.Printf("Initializing code generator for package: %s", ast.PackageName)
 	gen, err := generator.New(generator.Options{
-		OutputDir: cfg.outputDir,
+		TemplateFS: &templateFS,
+		OutputDir:  cfg.outputDir,
 	})
 	if err != nil {
 		log.Fatalf("Failed to create generator: %v", err)
