@@ -1,0 +1,29 @@
+package {{.Service.PackageName}}
+
+import (
+	"context"
+	"github.com/dreamsxin/go-kit/endpoint"
+)
+
+// Service defines the business logic interface
+type {{.Service.ServiceName}}Service interface {
+{{range .Methods}}
+	{{.Name}}(context.Context, {{.Input}}) ({{.Output}}, error)
+{{end}}
+}
+
+// NewService creates a new implementation of the service
+func NewService() {{.Service.ServiceName}}Service {
+	return &serviceImpl{}
+}
+
+// serviceImpl is the concrete implementation of the service
+ type serviceImpl struct{}
+
+{{range .Service.Methods}}
+// {{.Name}} implements the {{$.Service.ServiceName}}Service interface
+func (s *serviceImpl) {{.Name}}(ctx context.Context, req {{.Input}}) ({{.Output}}, error) {
+	// TODO: Implement business logic
+	return {{.Output}}{}, nil
+}
+{{end}}

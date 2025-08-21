@@ -38,11 +38,6 @@ func MakeHTTPHandler(s Service, logger *log.Logger) http.Handler {
 	// GET     /profiles/:id                       retrieves the given profile by id
 	// PUT     /profiles/:id                       post updated profile information about the profile
 	// PATCH   /profiles/:id                       partial updated profile information
-	// DELETE  /profiles/:id                       remove the given profile
-	// GET     /profiles/:id/addresses/            retrieve addresses associated with the profile
-	// GET     /profiles/:id/addresses/:addressID  retrieve a particular profile address
-	// POST    /profiles/:id/addresses/            add a new address
-	// DELETE  /profiles/:id/addresses/:addressID  remove an address
 
 	r.Methods("POST").Path("/profiles/").Handler(httptransportserver.NewServer(
 		e.PostProfileEndpoint,

@@ -1,0 +1,47 @@
+package {{.PackageName}}
+
+import (
+	"context"
+
+	"github.com/dreamsxin/go-kit/endpoint"
+)
+
+// Endpoints 封装所有服务端点
+ type Endpoints struct {
+{{range .Methods}}	{{.Name}}Endpoint endpoint.Endpoint
+{{end}}
+}
+
+// MakeServerEndpoints 创建服务端端点
+func MakeServerEndpoints(svc {{.ServiceName}}) Endpoints {
+	return Endpoints{
+{{range .Methods}}		{{.Name}}Endpoint: Make{{.Name}}Endpoint(svc),
+{{end}}
+	}
+}
+
+{{range .Methods}}
+// Make{{.Name}}Endpoint 创建单个端点
+func Make{{.Name}}Endpoint(svc {{.Name}}) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.({{.Input}})
+		resp, err := svc.{{.Name}}(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		return resp, nil
+	}
+}
+{{end}}
+
+// 客户端方法
+{{range .Methods}}
+// {{.Name}} 调用服务端端点
+func (e Endpoints) {{.Name}}(ctx context.Context, req {{.Input}}) ({{.Output}}, error) {
+	resp, err := e.{{.Name}}Endpoint(ctx, req)
+	if err != nil {
+		return {{.Output}}{}, err
+	}
+	return resp.({{.Output}}), nil
+}
+{{end}}

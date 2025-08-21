@@ -8,7 +8,7 @@
 
 ## 目录结构
 
-```plaintext
+```plainText
 go-kit/
 ├── endpoint/          # 端点管理与中间件
 ├── examples/          # 示例代码

@@ -1,0 +1,73 @@
+package {{.PackageName}}
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+
+	"github.com/gorilla/mux"
+	"github.com/dreamsxin/go-kit/transport"
+	kithttpserver "github.com/dreamsxin/go-kit/transport/http/server"
+)
+
+// NewHTTPHandler returns an HTTP handler for the service.
+func NewHTTPHandler(endpoints {{.ServiceName}}Endpoints) http.Handler {
+	r := mux.NewRouter()
+	o := []kithttpserver.ServerOption{}
+
+{{range .Methods}}
+	// {{.Name}} handler
+	{{.Name | lower}}Handler := kithttpserver.NewServer(
+		endpoints.{{.Name}}Endpoint,
+		decode{{.Name}}Request,
+		encodeResponse,
+		o...,
+	)
+	r.Handle("/{{$.ServiceName | lower}}/{{.Name | lower}}", {{.Name | lower}}Handler).Methods("POST")
+{{end}}
+
+	return r
+}
+
+// decode{{.ServiceName}}Request decodes HTTP request to service request.
+{{range .Methods}}
+func decode{{.Name}}Request(_ context.Context, r *http.Request) (interface{}, error) {
+	var req {{$.ServiceName}}{{.Name}}Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, err
+	}
+	return req, nil
+}
+{{end}}
+
+// encodeResponse encodes service response to HTTP response.
+func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	if e, ok := response.(error); ok && e != nil {
+		// Handle error
+		encodeError(w, e)
+		return nil
+	}
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+// encodeError encodes error to HTTP response.
+func encodeError(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	// Map error to HTTP status code
+	statusCode := http.StatusInternalServerError
+
+	switch err {
+	// Add error type checks and status code mappings here
+	default:
+		statusCode = http.StatusInternalServerError
+	}
+
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"error": err.Error(),
+	})
+}

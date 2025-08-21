@@ -23,3 +23,16 @@ Get the profile you just created
 $ curl localhost:8080/profiles/1234
 {"profile":{"id":"1234","name":"Go Kit"}}
 ```
+
+## 目录结构
+
+```plainText
+examples/profilesvc/
+├── README.md          # 使用说明文档
+├── client/client.go   # 服务客户端实现（含服务发现与负载均衡）
+├── cmd/profilesvc/main.go  # 服务启动入口
+├── service.go         # 业务逻辑定义（Profile CRUD接口）
+├── endpoints.go       # 端点封装（服务与传输层桥接）
+├── transport.go       # HTTP传输层实现
+└── middlewares.go     # 中间件（日志）
+```

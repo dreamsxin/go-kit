@@ -175,8 +175,3 @@ type putProfileResponse struct {
 }
 
 func (r putProfileResponse) error() error { return nil }
-
-type patchProfileRequest struct {
-	ID      string
-	Profile Profile
-}
