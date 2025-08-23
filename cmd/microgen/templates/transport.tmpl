@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/dreamsxin/go-kit/transport"
 	kithttpserver "github.com/dreamsxin/go-kit/transport/http/server"
 )
 
@@ -32,7 +31,7 @@ func NewHTTPHandler(endpoints {{.ServiceName}}Endpoints) http.Handler {
 // decode{{.ServiceName}}Request decodes HTTP request to service request.
 {{range .Methods}}
 func decode{{.Name}}Request(_ context.Context, r *http.Request) (interface{}, error) {
-	var req {{$.ServiceName}}{{.Name}}Request
+	var req {{.Name}}Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, err
 	}

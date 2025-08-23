@@ -16,19 +16,23 @@ var templateFS embed.FS
 
 // 配置参数结构体
 type config struct {
-	idlPath   string
-	outputDir string
+	idlPath    string
+	outputDir  string
+	ImportPath string
 }
 
 // 解析命令行参数
 func parseFlags() config {
 	idlPath := flag.String("idl", "", "Path to IDL file")
 	outputDir := flag.String("out", ".", "Output directory")
+	importPath := flag.String("import", "", "Import path")
+
 	flag.Parse()
 
 	return config{
-		idlPath:   *idlPath,
-		outputDir: *outputDir,
+		idlPath:    *idlPath,
+		outputDir:  *outputDir,
+		ImportPath: *importPath,
 	}
 }
 
@@ -66,6 +70,7 @@ func main() {
 	gen, err := generator.New(generator.Options{
 		TemplateFS: &templateFS,
 		OutputDir:  cfg.outputDir,
+		ImportPath: cfg.ImportPath,
 	})
 	if err != nil {
 		log.Fatalf("Failed to create generator: %v", err)

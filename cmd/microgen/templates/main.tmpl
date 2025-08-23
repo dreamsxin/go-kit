@@ -1,76 +1,41 @@
 package main
 
 import (
-	"context"
 	"flag"
-	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"github.com/dreamsxin/go-kit/endpoint"
-	"github.com/dreamsxin/go-kit/log/zap"
-	"github.com/dreamsxin/go-kit/metrics/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.uber.org/zap"
+	"github.com/dreamsxin/go-kit/log"
+	"{{.ImportPath}}"
 )
 
 func main() {
 	// 命令行参数解析
 	var (
 		httpAddr = flag.String("http.addr", ":8080", "HTTP listen address")
-		debugAddr = flag.String("debug.addr", ":8081", "Debug and metrics listen address")
 	)
 	flag.Parse()
 
 	// 日志配置
-	logger, err := zap.NewProduction()
+	logger, err := log.NewDevelopment()
 	if err != nil {
-		log.Fatalf("failed to create logger: %v", err)
+		fmt.Fprintf(os.Stderr, "Log error: %v\n", err)
+		os.Exit(1)
 	}
-	defer logger.Sync()
-	kitLogger := zap.NewZapLogger(logger)
-
-	// 指标配置
-	fieldKeys := []string{"method", "error"}
-	requestCount := prometheus.NewCounterFrom(prometheus.CounterOpts{
-		Namespace: "{{.ServiceName | lower}}",
-		Subsystem: "api",
-		Name:      "request_count",
-		Help:      "Number of requests received.",
-	}, fieldKeys)
-	requestLatency := prometheus.NewSummaryFrom(prometheus.SummaryOpts{
-		Namespace: "{{.ServiceName | lower}}",
-		Subsystem: "api",
-		Name:      "request_latency_microseconds",
-		Help:      "Total duration of requests in microseconds.",
-	}, fieldKeys)
 
 	// 服务初始化
-	var svc {{.ServiceName}}
-	svc = {{.ServiceName | lower}}.NewService()
-	svc = {{.ServiceName | lower}}.NewLoggingMiddleware(kitLogger)(svc)
-	svc = {{.ServiceName | lower}}.NewMetricsMiddleware(requestCount, requestLatency)(svc)
+	var svc {{.Service.PackageName}}.{{.Service.ServiceName}}
+
+	svc = {{.Service.PackageName}}.NewService()
 
 	// 端点创建
-	endpoints := {{.ServiceName | lower}}.MakeServerEndpoints(svc)
+	endpoints := {{.Service.PackageName}}.MakeServerEndpoints(svc)
 
 	// HTTP 传输层
-	handler := {{.ServiceName | lower}}.NewHTTPHandler(endpoints, kitLogger)
-
-	// 启动调试服务器（指标）
-	go func() {
-		logger.Info("debug server listening on %s", *debugAddr)
-		m := http.NewServeMux()
-		m.Handle("/metrics", promhttp.Handler())
-		log.Fatal(http.ListenAndServe(*debugAddr, m))
-	}()
-
-	// 启动 HTTP 服务器
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	handler := {{.Service.PackageName}}.NewHTTPHandler(endpoints)
 
 	// 优雅关闭
 	errChan := make(chan error)
@@ -81,10 +46,10 @@ func main() {
 	}()
 
 	go func() {
-		logger.Info("HTTP server listening on %s", *httpAddr)
+		logger.Sugar().Infof("HTTP server listening on %s", *httpAddr)
 		errChan <- http.ListenAndServe(*httpAddr, handler)
 	}()
 
 	// 等待退出信号
-	logger.Info("exiting: %v", <-errChan)
+	logger.Sugar().Infof("exiting: %v", <-errChan)
 }

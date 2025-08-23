@@ -2,12 +2,11 @@ package {{.Service.PackageName}}
 
 import (
 	"context"
-	"github.com/dreamsxin/go-kit/endpoint"
 )
 
 // Service defines the business logic interface
 type {{.Service.ServiceName}}Service interface {
-{{range .Methods}}
+{{range .Service.Methods}}
 	{{.Name}}(context.Context, {{.Input}}) ({{.Output}}, error)
 {{end}}
 }

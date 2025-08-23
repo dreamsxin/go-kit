@@ -60,6 +60,7 @@ func New(opts Options) (*Generator, error) {
 
 // Generate 根据服务定义生成代码
 func (g *Generator) Generate(service *parser.Service) error {
+
 	// 创建项目目录结构
 	if err := g.createDirStructure(service); err != nil {
 		return err
@@ -86,14 +87,8 @@ func (g *Generator) Generate(service *parser.Service) error {
 
 // 创建目录结构 - 根据服务名动态生成
 func (g *Generator) createDirStructure(service *parser.Service) error {
-	// 确定服务名称
-	serviceName := service.ServiceName
-	if g.config.ServiceName != "" {
-		serviceName = g.config.ServiceName
-	}
-
 	// 创建cmd目录
-	cmdDir := filepath.Join(g.outputDir, "cmd", serviceName)
+	cmdDir := filepath.Join(g.outputDir, "cmd", service.PackageName)
 	if err := os.MkdirAll(cmdDir, 0755); err != nil {
 		return fmt.Errorf("failed to create cmd directory: %v", err)
 	}
@@ -165,13 +160,13 @@ func (g *Generator) generateTransportFile(service *parser.Service) error {
 
 // 生成主程序文件
 func (g *Generator) generateMainFile(service *parser.Service) error {
-	// 确定服务名称
-	serviceName := service.ServiceName
-	if g.config.ServiceName != "" {
-		serviceName = g.config.ServiceName
+	// 准备模板数据
+	data := map[string]interface{}{
+		"Service":    service,
+		"ImportPath": g.config.ImportPath,
 	}
 
-	filePath := filepath.Join(g.outputDir, "cmd", serviceName, "main.go")
+	filePath := filepath.Join(g.outputDir, "cmd", service.PackageName, "main.go")
 	f, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create main file: %v", err)
@@ -179,5 +174,5 @@ func (g *Generator) generateMainFile(service *parser.Service) error {
 	defer f.Close()
 
 	// 执行模板
-	return g.templates.ExecuteTemplate(f, "main.tmpl", service)
+	return g.templates.ExecuteTemplate(f, "main.tmpl", data)
 }

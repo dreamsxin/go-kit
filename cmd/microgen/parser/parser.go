@@ -45,22 +45,22 @@ func Parse(idlPath string) (*Service, error) {
 		PackageName: packageName,
 	}
 	ast.Inspect(file, func(n ast.Node) bool {
-		// 查找接口定义
-		if iface, ok := n.(*ast.InterfaceType); ok {
-			// 获取接口名称
-			if ident, ok := n.(*ast.Ident); ok {
-				service.ServiceName = ident.Name
-			}
+		// 先查找TypeSpec节点
+		if ts, ok := n.(*ast.TypeSpec); ok {
+			// 查找接口定义
+			if iface, ok := ts.Type.(*ast.InterfaceType); ok {
+				service.ServiceName = ts.Name.Name
 
-			// 解析接口方法
-			for _, m := range iface.Methods.List {
-				method, err := parseMethod(m)
-				if err != nil {
-					// 可以考虑在这里记录警告日志，而不是直接返回错误
-					// 以便继续解析其他方法
-					continue
+				// 解析接口方法
+				for _, m := range iface.Methods.List {
+					method, err := parseMethod(m)
+					if err != nil {
+						// 可以考虑在这里记录警告日志，而不是直接返回错误
+						// 以便继续解析其他方法
+						continue
+					}
+					service.Methods = append(service.Methods, method)
 				}
-				service.Methods = append(service.Methods, method)
 			}
 		}
 		return true
@@ -86,8 +86,12 @@ func parseMethod(field *ast.Field) (Method, error) {
 	}
 
 	// 解析输入参数
-	if funcType.Params.List != nil && len(funcType.Params.List) > 0 {
-		inputType, err := getTypeName(funcType.Params.List[0].Type)
+	for _, param := range funcType.Params.List {
+		if isContextType(param.Type) {
+			continue
+		}
+
+		inputType, err := getTypeName(param.Type)
 		if err != nil {
 			return method, fmt.Errorf("invalid input type for method %s: %v", method.Name, err)
 		}
@@ -95,15 +99,29 @@ func parseMethod(field *ast.Field) (Method, error) {
 	}
 
 	// 解析返回值
-	if funcType.Results.List != nil && len(funcType.Results.List) > 0 {
-		outputType, err := getTypeName(funcType.Results.List[0].Type)
+	for _, param := range funcType.Results.List {
+		if isContextType(param.Type) {
+			continue
+		}
+		outputType, err := getTypeName(param.Type)
 		if err != nil {
 			return method, fmt.Errorf("invalid output type for method %s: %v", method.Name, err)
 		}
 		method.Output = outputType
+		break
 	}
 
 	return method, nil
+}
+
+// 辅助函数：判断是否为context.Context类型
+func isContextType(expr ast.Expr) bool {
+	selExpr, ok := expr.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	ident, ok := selExpr.X.(*ast.Ident)
+	return ok && ident.Name == "context" && selExpr.Sel.Name == "Context"
 }
 
 // 获取类型名称，支持结构体和指针类型
