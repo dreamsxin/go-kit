@@ -1,30 +1,31 @@
-package {{.PackageName}}
+package {{.Service.PackageName}}
 
 import (
 	"context"
 
 	"github.com/dreamsxin/go-kit/endpoint"
+	idl "{{.ImportPath}}"
 )
 
 // Endpoints 封装所有服务端点
- type {{.ServiceName}}Endpoints struct {
-{{range .Methods}}	{{.Name}}Endpoint endpoint.Endpoint
+ type {{.Service.ServiceName}}Endpoints struct {
+{{range .Service.Methods}}	{{.Name}}Endpoint endpoint.Endpoint
 {{end}}
 }
 
 // MakeServerEndpoints 创建服务端端点
-func MakeServerEndpoints(svc {{.ServiceName}}) {{.ServiceName}}Endpoints {
-	return {{.ServiceName}}Endpoints{
-{{range .Methods}}		{{.Name}}Endpoint: Make{{.Name}}Endpoint(svc),
+func MakeServerEndpoints(svc {{.Service.ServiceName}}) {{.Service.ServiceName}}Endpoints {
+	return {{.Service.ServiceName}}Endpoints{
+{{range .Service.Methods}}		{{.Name}}Endpoint: Make{{.Name}}Endpoint(svc),
 {{end}}
 	}
 }
 
-{{range .Methods}}
+{{range .Service.Methods}}
 // Make{{.Name}}Endpoint 创建单个端点
-func Make{{.Name}}Endpoint(svc {{$.ServiceName}}) endpoint.Endpoint {
+func Make{{.Name}}Endpoint(svc {{$.Service.ServiceName}}) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.({{.Input}})
+		req := request.(idl.{{.Input}})
 		resp, err := svc.{{.Name}}(ctx, req)
 		if err != nil {
 			return nil, err
@@ -35,13 +36,14 @@ func Make{{.Name}}Endpoint(svc {{$.ServiceName}}) endpoint.Endpoint {
 {{end}}
 
 // 客户端方法
-{{range .Methods}}
+{{range .Service.Methods}}
 // {{.Name}} 调用服务端端点
-func (e {{$.ServiceName}}Endpoints) {{.Name}}(ctx context.Context, req {{.Input}}) ({{.Output}}, error) {
+func (e {{$.Service.ServiceName}}Endpoints) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
 	resp, err := e.{{.Name}}Endpoint(ctx, req)
 	if err != nil {
-		return {{.Output}}{}, err
+		return idl.{{.Output}}{}, err
+
 	}
-	return resp.({{.Output}}), nil
+	return resp.(idl.{{.Output}}), nil
 }
 {{end}}

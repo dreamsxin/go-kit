@@ -61,12 +61,12 @@ func main() {
 
 	// 解析IDL文件
 	log.Printf("Parsing IDL file: %s", cfg.idlPath)
-	ast, err := parser.Parse(cfg.idlPath)
+	packageName, services, err := parser.Parse(cfg.idlPath)
 	if err != nil {
 		log.Fatalf("Failed to parse IDL: %v", err)
 	}
 	// 初始化生成器
-	log.Printf("Initializing code generator for package: %s", ast.PackageName)
+	log.Printf("Initializing code generator for package: %s", packageName)
 	gen, err := generator.New(generator.Options{
 		TemplateFS: &templateFS,
 		OutputDir:  cfg.outputDir,
@@ -78,7 +78,7 @@ func main() {
 
 	// 生成代码
 	log.Println("Starting code generation...")
-	if err := gen.Generate(ast); err != nil {
+	if err := gen.Generate(services); err != nil {
 		log.Fatalf("Code generation failed: %v", err)
 	}
 

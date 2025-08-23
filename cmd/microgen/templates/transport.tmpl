@@ -1,4 +1,4 @@
-package {{.PackageName}}
+package {{.Service.PackageName}}
 
 import (
 	"context"
@@ -7,14 +7,15 @@ import (
 
 	"github.com/gorilla/mux"
 	kithttpserver "github.com/dreamsxin/go-kit/transport/http/server"
+	idl "{{.ImportPath}}"
 )
 
 // NewHTTPHandler returns an HTTP handler for the service.
-func NewHTTPHandler(endpoints {{.ServiceName}}Endpoints) http.Handler {
+func NewHTTPHandler(endpoints {{.Service.ServiceName}}Endpoints) http.Handler {
 	r := mux.NewRouter()
 	o := []kithttpserver.ServerOption{}
 
-{{range .Methods}}
+{{range .Service.Methods}}
 	// {{.Name}} handler
 	{{.Name | lower}}Handler := kithttpserver.NewServer(
 		endpoints.{{.Name}}Endpoint,
@@ -22,16 +23,16 @@ func NewHTTPHandler(endpoints {{.ServiceName}}Endpoints) http.Handler {
 		encodeResponse,
 		o...,
 	)
-	r.Handle("/{{$.ServiceName | lower}}/{{.Name | lower}}", {{.Name | lower}}Handler).Methods("POST")
+	r.Handle("/{{$.Service.ServiceName | lower}}/{{.Name | lower}}", {{.Name | lower}}Handler).Methods("POST")
 {{end}}
 
 	return r
 }
 
-// decode{{.ServiceName}}Request decodes HTTP request to service request.
-{{range .Methods}}
+// decode{{.Service.ServiceName}}Request decodes HTTP request to service request.
+{{range .Service.Methods}}
 func decode{{.Name}}Request(_ context.Context, r *http.Request) (interface{}, error) {
-	var req {{.Name}}Request
+	var req idl.{{.Input}}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, err
 	}

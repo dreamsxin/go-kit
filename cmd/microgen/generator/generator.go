@@ -59,49 +59,70 @@ func New(opts Options) (*Generator, error) {
 }
 
 // Generate 根据服务定义生成代码
-func (g *Generator) Generate(service *parser.Service) error {
-
+func (g *Generator) Generate(services []*parser.Service) error {
 	// 创建项目目录结构
-	if err := g.createDirStructure(service); err != nil {
+	if err := g.createDirStructure(); err != nil {
 		return err
 	}
 
-	// 生成服务代码文件
-	if err := g.generateServiceFile(service); err != nil {
-		return err
+	// 为每个服务生成代码文件
+	for _, service := range services {
+		// 生成服务代码文件
+		if err := g.generateServiceFile(service); err != nil {
+			return err
+		}
+
+		// 生成端点代码文件
+		if err := g.generateEndpointsFile(service); err != nil {
+			return err
+		}
+
+		// 生成传输层代码文件
+		if err := g.generateTransportFile(service); err != nil {
+			return err
+		}
 	}
 
-	// 生成端点代码文件
-	if err := g.generateEndpointsFile(service); err != nil {
-		return err
-	}
-
-	// 生成传输层代码文件
-	if err := g.generateTransportFile(service); err != nil {
-		return err
-	}
-
-	// 生成主程序文件
-	return g.generateMainFile(service)
+	// 生成主程序文件（包含所有服务）
+	return g.generateMainFile(services)
 }
 
-// 创建目录结构 - 根据服务名动态生成
-func (g *Generator) createDirStructure(service *parser.Service) error {
-	// 创建cmd目录
-	cmdDir := filepath.Join(g.outputDir, "cmd", service.PackageName)
-	if err := os.MkdirAll(cmdDir, 0755); err != nil {
-		return fmt.Errorf("failed to create cmd directory: %v", err)
+// 创建目录结构 - 多服务共享结构
+func (g *Generator) createDirStructure() error {
+	// 创建基础目录
+	dirs := []string{
+		filepath.Join(g.outputDir, "cmd"),
+		filepath.Join(g.outputDir, "client"),
+		filepath.Join(g.outputDir, "api"),
+		filepath.Join(g.outputDir, "service"), // 服务根目录
 	}
 
-	// 创建client目录
-	clientDir := filepath.Join(g.outputDir, "client")
-	if err := os.MkdirAll(clientDir, 0755); err != nil {
-		return fmt.Errorf("failed to create client directory: %v", err)
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %v", err)
+		}
+	}
+	return nil
+}
+
+// 生成主程序文件（支持多服务）
+func (g *Generator) generateMainFile(services []*parser.Service) error {
+	// 准备模板数据
+	data := map[string]interface{}{
+		"Services":   services,
+		"ImportPath": g.config.ImportPath,
+		"NeedMux":    len(services) > 1,
 	}
 
-	// 创建api目录存放接口定义
-	apiDir := filepath.Join(g.outputDir, "api")
-	return os.MkdirAll(apiDir, 0755)
+	filePath := filepath.Join(g.outputDir, "cmd", "main.go")
+	f, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to create main file: %v", err)
+	}
+	defer f.Close()
+
+	// 执行模板
+	return g.templates.ExecuteTemplate(f, "main.tmpl", data)
 }
 
 // 生成服务实现文件
@@ -112,7 +133,11 @@ func (g *Generator) generateServiceFile(service *parser.Service) error {
 		"ImportPath": g.config.ImportPath,
 	}
 
-	filePath := filepath.Join(g.outputDir, "service.go")
+	// 创建服务目录
+	serviceDir := filepath.Join(g.outputDir, "service", service.PackageName)
+	os.MkdirAll(serviceDir, 0755)
+
+	filePath := filepath.Join(serviceDir, "service.go")
 	f, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create service file: %v", err)
@@ -128,15 +153,22 @@ func (g *Generator) generateServiceFile(service *parser.Service) error {
 
 // 生成端点文件
 func (g *Generator) generateEndpointsFile(service *parser.Service) error {
-	filePath := filepath.Join(g.outputDir, "endpoints.go")
+	serviceDir := filepath.Join(g.outputDir, "service", service.PackageName)
+	filePath := filepath.Join(serviceDir, "endpoints.go")
 	f, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create endpoints file: %v", err)
 	}
 	defer f.Close()
 
+	// 准备模板数据
+	data := map[string]interface{}{
+		"Service":    service,
+		"ImportPath": g.config.ImportPath,
+	}
+
 	// 执行模板
-	if err := g.templates.ExecuteTemplate(f, "endpoints.tmpl", service); err != nil {
+	if err := g.templates.ExecuteTemplate(f, "endpoints.tmpl", data); err != nil {
 		return fmt.Errorf("failed to execute endpoints template: %v", err)
 	}
 	return nil
@@ -144,35 +176,24 @@ func (g *Generator) generateEndpointsFile(service *parser.Service) error {
 
 // 生成传输层文件
 func (g *Generator) generateTransportFile(service *parser.Service) error {
-	filePath := filepath.Join(g.outputDir, "transport.go")
+	serviceDir := filepath.Join(g.outputDir, "service", service.PackageName)
+	filePath := filepath.Join(serviceDir, "transport.go")
 	f, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create transport file: %v", err)
 	}
 	defer f.Close()
 
+	// 准备模板数据
+	data := map[string]interface{}{
+		"Service":     service,
+		"ImportPath":  g.config.ImportPath,
+		"RoutePrefix": service.PackageName,
+	}
+
 	// 执行模板
-	if err := g.templates.ExecuteTemplate(f, "transport.tmpl", service); err != nil {
+	if err := g.templates.ExecuteTemplate(f, "transport.tmpl", data); err != nil {
 		return fmt.Errorf("failed to execute transport template: %v", err)
 	}
 	return nil
-}
-
-// 生成主程序文件
-func (g *Generator) generateMainFile(service *parser.Service) error {
-	// 准备模板数据
-	data := map[string]interface{}{
-		"Service":    service,
-		"ImportPath": g.config.ImportPath,
-	}
-
-	filePath := filepath.Join(g.outputDir, "cmd", service.PackageName, "main.go")
-	f, err := os.Create(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to create main file: %v", err)
-	}
-	defer f.Close()
-
-	// 执行模板
-	return g.templates.ExecuteTemplate(f, "main.tmpl", data)
 }

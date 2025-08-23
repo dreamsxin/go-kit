@@ -9,7 +9,12 @@ import (
 	"syscall"
 
 	"github.com/dreamsxin/go-kit/log"
-	"{{.ImportPath}}"
+	{{if .NeedMux}}
+	"github.com/gorilla/mux"
+	{{end}}
+	{{range $service := .Services}}
+	"{{$.ImportPath}}/service/{{$service.PackageName}}"
+	{{end}}
 )
 
 func main() {
@@ -26,16 +31,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 服务初始化
-	var svc {{.Service.PackageName}}.{{.Service.ServiceName}}
+	{{if .NeedMux}}
+	// 创建主路由器
+	r := mux.NewRouter()
+	{{end}}
 
-	svc = {{.Service.PackageName}}.NewService()
+	// 注册所有服务
+	{{range $index, $service := .Services}}
+	// {{$service.ServiceName}}服务初始化
+	{{$service.ServiceName | lower}}Svc := {{$service.PackageName}}.NewService()
+	{{$service.ServiceName | lower}}Endpoints := {{$service.PackageName}}.MakeServerEndpoints({{$service.ServiceName | lower}}Svc)
+	{{$service.ServiceName | lower}}Handler := {{$service.PackageName}}.NewHTTPHandler({{$service.ServiceName | lower}}Endpoints)
 
-	// 端点创建
-	endpoints := {{.Service.PackageName}}.MakeServerEndpoints(svc)
-
-	// HTTP 传输层
-	handler := {{.Service.PackageName}}.NewHTTPHandler(endpoints)
+	// 注册带服务前缀的路由
+	{{if $.NeedMux}}{{if eq $index 0}}
+	subRouter := r.PathPrefix("/{{$service.ServiceName | lower}}").Subrouter()
+	{{else}}
+	subRouter = r.PathPrefix("/{{$service.ServiceName | lower}}").Subrouter()
+	{{end}}
+	subRouter.PathPrefix("/").Handler(http.StripPrefix("/{{$service.ServiceName | lower}}", {{$service.ServiceName | lower}}Handler))
+	{{else if eq $index 0}}
+	// 单服务直接使用处理器
+	handler := {{$service.ServiceName | lower}}Handler
+	{{end}}{{end}}
 
 	// 优雅关闭
 	errChan := make(chan error)
@@ -47,7 +65,11 @@ func main() {
 
 	go func() {
 		logger.Sugar().Infof("HTTP server listening on %s", *httpAddr)
+		{{if .NeedMux}}
+		errChan <- http.ListenAndServe(*httpAddr, r)
+		{{else}}
 		errChan <- http.ListenAndServe(*httpAddr, handler)
+		{{end}}
 	}()
 
 	// 等待退出信号

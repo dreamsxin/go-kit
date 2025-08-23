@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"path/filepath"
+	"strings"
 )
 
 // AST结构定义
@@ -22,51 +23,53 @@ type Method struct {
 }
 
 // Parse 解析IDL文件生成服务定义
-func Parse(idlPath string) (*Service, error) {
+func Parse(idlPath string) (packageName string, services []*Service, err error) {
 	absPath, err := filepath.Abs(idlPath)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	// 读取文件内容
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, absPath, nil, parser.ParseComments)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	// 提取 IDL 文件中的包名
-	packageName := file.Name.Name
+	packageName = file.Name.Name
 
 	fmt.Println("Package Name:", packageName)
 
-	// 提取服务接口定义
-	service := &Service{
-		PackageName: packageName,
-	}
+	// 提取所有服务接口定义
+	services = []*Service{}
 	ast.Inspect(file, func(n ast.Node) bool {
-		// 先查找TypeSpec节点
+		// 查找所有接口定义
 		if ts, ok := n.(*ast.TypeSpec); ok {
-			// 查找接口定义
 			if iface, ok := ts.Type.(*ast.InterfaceType); ok {
-				service.ServiceName = ts.Name.Name
+				service := &Service{
+					ServiceName: ts.Name.Name,
+					PackageName: strings.ToLower(ts.Name.Name),
+				}
 
 				// 解析接口方法
 				for _, m := range iface.Methods.List {
 					method, err := parseMethod(m)
 					if err != nil {
-						// 可以考虑在这里记录警告日志，而不是直接返回错误
-						// 以便继续解析其他方法
+						// 记录警告但继续解析其他方法
+						fmt.Printf("Warning: failed to parse method: %v\n", err)
 						continue
 					}
 					service.Methods = append(service.Methods, method)
 				}
+
+				services = append(services, service)
 			}
 		}
 		return true
 	})
 
-	return service, nil
+	return packageName, services, nil
 }
 
 // 解析方法定义

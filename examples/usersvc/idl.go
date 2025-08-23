@@ -73,3 +73,18 @@ type UserService interface {
 	// 删除用户
 	DeleteUser(ctx context.Context, req DeleteUserRequest) (DeleteUserResponse, error)
 }
+
+// ManageService 定义用户服务的核心接口
+type ManageService interface {
+	// 创建用户
+	CreateUser(ctx context.Context, req CreateUserRequest) (CreateUserResponse, error)
+
+	// 获取用户
+	GetUser(ctx context.Context, req GetUserRequest) (GetUserResponse, error)
+
+	// 更新用户
+	UpdateUser(ctx context.Context, req UpdateUserRequest) (UpdateUserResponse, error)
+
+	// 删除用户
+	DeleteUser(ctx context.Context, req DeleteUserRequest) (DeleteUserResponse, error)
+}

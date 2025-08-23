@@ -2,17 +2,18 @@ package {{.Service.PackageName}}
 
 import (
 	"context"
+	idl "{{.ImportPath}}"
 )
 
 // Service defines the business logic interface
-type {{.Service.ServiceName}}Service interface {
+type {{.Service.ServiceName}} interface {
 {{range .Service.Methods}}
-	{{.Name}}(context.Context, {{.Input}}) ({{.Output}}, error)
+	{{.Name}}(context.Context, idl.{{.Input}}) (idl.{{.Output}}, error)
 {{end}}
 }
 
 // NewService creates a new implementation of the service
-func NewService() {{.Service.ServiceName}}Service {
+func NewService() {{.Service.ServiceName}} {
 	return &serviceImpl{}
 }
 
@@ -20,9 +21,9 @@ func NewService() {{.Service.ServiceName}}Service {
  type serviceImpl struct{}
 
 {{range .Service.Methods}}
-// {{.Name}} implements the {{$.Service.ServiceName}}Service interface
-func (s *serviceImpl) {{.Name}}(ctx context.Context, req {{.Input}}) ({{.Output}}, error) {
+// {{.Name}} implements the {{$.Service.ServiceName}} interface
+func (s *serviceImpl) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
 	// TODO: Implement business logic
-	return {{.Output}}{}, nil
+	return idl.{{.Output}}{}, nil
 }
 {{end}}
