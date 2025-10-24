@@ -277,6 +277,11 @@ func (g *Generator) generateReadme(services []*parser.Service) error {
 
 	filePath := filepath.Join(g.outputDir, "README.md")
 
+	// 创建自定义函数映射
+	funcMap := template.FuncMap{
+		"lower": strings.ToLower,
+	}
+
 	readmeTemplate := `# {{range .Services}}{{.ServiceName}}{{end}} 微服务
 
 ## API 端点
@@ -284,7 +289,7 @@ func (g *Generator) generateReadme(services []*parser.Service) error {
 - **POST** /{{$.Service.PackageName}}/{{.Name | lower}}
 {{end}}{{end}}
 `
-	tmpl, err := template.New("readme").Parse(readmeTemplate)
+	tmpl, err := template.New("readme").Funcs(funcMap).Parse(readmeTemplate)
 	if err != nil {
 		return err
 	}

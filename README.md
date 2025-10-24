@@ -150,6 +150,32 @@ func NewDelayingLimiter(limit Waiter) endpoint.Middleware {
 - 限流配置：令牌桶参数需根据服务承载能力合理设置
 - 端点缓存：结合服务发现组件使用时，需正确实现 Factory 接口
 
+## 代码自动生成
+
+```shell
+# 使用 examples/usersvc 作为模板生成代码
+.\microgen.exe \
+    -idl ./examples/usersvc/idl.go \
+    -out ./generated-usersvc \
+    -import github.com/dreamsxin/go-kit/examples/usersvc \
+    -protocols http \
+    -service UserService
+```
+
+### 运行生成的代码
+
+```shell
+# 进入生成的服务目录
+cd generated-usersvc
+
+# 安装依赖
+go mod init github.com/your-project/usersvc
+go mod tidy
+
+# 运行服务
+go run ./cmd/usersvc/main.go -http.addr :8080
+```
+
 ## Donation
 
 - [捐贈（Donation）](https://github.com/dreamsxin/cphalcon7/blob/master/DONATE.md)
