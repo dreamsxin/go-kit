@@ -2,23 +2,34 @@ package {{.Service.PackageName}}
 
 import (
 	"context"
+	"log"
+	"time"
 
 	"github.com/dreamsxin/go-kit/endpoint"
 	idl "{{.ImportPath}}"
 )
 
 // Endpoints 封装所有服务端点
- type {{.Service.ServiceName}}Endpoints struct {
+type {{.Service.ServiceName}}Endpoints struct {
 {{range .Service.Methods}}	{{.Name}}Endpoint endpoint.Endpoint
 {{end}}
 }
 
 // MakeServerEndpoints 创建服务端端点
-func MakeServerEndpoints(svc {{.Service.ServiceName}}) {{.Service.ServiceName}}Endpoints {
-	return {{.Service.ServiceName}}Endpoints{
+func MakeServerEndpoints(svc {{.Service.ServiceName}}, logger *log.Logger) {{.Service.ServiceName}}Endpoints {
+	endpoints := {{.Service.ServiceName}}Endpoints{
 {{range .Service.Methods}}		{{.Name}}Endpoint: Make{{.Name}}Endpoint(svc),
 {{end}}
 	}
+
+	// 应用中间件
+{{range .Service.Methods}}	endpoints.{{.Name}}Endpoint = LoggingMiddleware(logger)(endpoints.{{.Name}}Endpoint)
+	endpoints.{{.Name}}Endpoint = CircuitBreakerMiddleware()(endpoints.{{.Name}}Endpoint)
+	endpoints.{{.Name}}Endpoint = TimeoutMiddleware(30*time.Second)(endpoints.{{.Name}}Endpoint)
+	endpoints.{{.Name}}Endpoint = RetryMiddleware(3, 2*time.Second)(endpoints.{{.Name}}Endpoint)
+{{end}}
+
+	return endpoints
 }
 
 {{range .Service.Methods}}
@@ -42,8 +53,55 @@ func (e {{$.Service.ServiceName}}Endpoints) {{.Name}}(ctx context.Context, req i
 	resp, err := e.{{.Name}}Endpoint(ctx, req)
 	if err != nil {
 		return idl.{{.Output}}{}, err
-
 	}
 	return resp.(idl.{{.Output}}), nil
 }
 {{end}}
+
+// 端点中间件
+func LoggingMiddleware(logger *log.Logger) endpoint.Middleware {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+			logger.Printf("Endpoint called: %T", request)
+			start := time.Now()
+			defer func() {
+				logger.Printf("Endpoint completed in %v", time.Since(start))
+			}()
+			return next(ctx, request)
+		}
+	}
+}
+
+func CircuitBreakerMiddleware() endpoint.Middleware {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+			// TODO: 实现熔断器逻辑
+			return next(ctx, request)
+		}
+	}
+}
+
+func TimeoutMiddleware(timeout time.Duration) endpoint.Middleware {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+			return next(ctx, request)
+		}
+	}
+}
+
+func RetryMiddleware(maxRetries int, backoff time.Duration) endpoint.Middleware {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+			for i := 0; i < maxRetries; i++ {
+				response, err = next(ctx, request)
+				if err == nil {
+					return response, nil
+				}
+				time.Sleep(backoff * time.Duration(i+1))
+			}
+			return nil, err
+		}
+	}
+}

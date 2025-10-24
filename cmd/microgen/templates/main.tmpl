@@ -1,77 +1,86 @@
 package main
 
 import (
+	"context"
 	"flag"
-	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
-	"github.com/dreamsxin/go-kit/log"
-	{{if .NeedMux}}
-	"github.com/gorilla/mux"
-	{{end}}
-	{{range $service := .Services}}
-	"{{$.ImportPath}}/service/{{$service.PackageName}}"
-	{{end}}
+{{range .Services}}
+	"{{$.ImportPath}}/service/{{.PackageName}}"
+{{end}}
 )
 
 func main() {
-	// 命令行参数解析
 	var (
 		httpAddr = flag.String("http.addr", ":8080", "HTTP listen address")
 	)
 	flag.Parse()
 
-	// 日志配置
-	logger, err := log.NewDevelopment()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Log error: %v\n", err)
-		os.Exit(1)
+	// 创建日志记录器
+	logger := log.New(os.Stdout, "{{range .Services}}{{.ServiceName}}{{end}} ", log.LstdFlags)
+
+	// 创建服务实例
+{{range .Services}}
+	{{.PackageName}}Svc := {{.PackageName}}.NewService(nil)
+{{end}}
+
+	// 创建端点
+{{range .Services}}
+	{{.PackageName}}Endpoints := {{.PackageName}}.MakeServerEndpoints({{.PackageName}}Svc, logger)
+{{end}}
+
+	// 创建 HTTP 处理器
+{{if .NeedMux}}
+	// 多服务使用多路复用器
+	mux := http.NewServeMux()
+	{{range .Services}}mux.Handle("/{{.PackageName}}/", {{.PackageName}}.NewHTTPHandler({{.PackageName}}Endpoints))
+	{{end}}
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+{{else}}
+	{{range .Services}}handler := {{.PackageName}}.NewHTTPHandler({{.PackageName}}Endpoints){{end}}
+{{end}}
+
+	// 创建 HTTP 服务器
+{{if .NeedMux}}
+	httpServer := &http.Server{
+		Addr:    *httpAddr,
+		Handler: mux,
 	}
+{{else}}
+	{{range .Services}}httpServer := &http.Server{
+		Addr:    *httpAddr,
+		Handler: handler,
+	}{{end}}
+{{end}}
 
-	{{if .NeedMux}}
-	// 创建主路由器
-	r := mux.NewRouter()
-	{{end}}
-
-	// 注册所有服务
-	{{range $index, $service := .Services}}
-	// {{$service.ServiceName}}服务初始化
-	{{$service.ServiceName | lower}}Svc := {{$service.PackageName}}.NewService()
-	{{$service.ServiceName | lower}}Endpoints := {{$service.PackageName}}.MakeServerEndpoints({{$service.ServiceName | lower}}Svc)
-	{{$service.ServiceName | lower}}Handler := {{$service.PackageName}}.NewHTTPHandler({{$service.ServiceName | lower}}Endpoints)
-
-	// 注册带服务前缀的路由
-	{{if $.NeedMux}}{{if eq $index 0}}
-	subRouter := r.PathPrefix("/{{$service.ServiceName | lower}}").Subrouter()
-	{{else}}
-	subRouter = r.PathPrefix("/{{$service.ServiceName | lower}}").Subrouter()
-	{{end}}
-	subRouter.PathPrefix("/").Handler(http.StripPrefix("/{{$service.ServiceName | lower}}", {{$service.ServiceName | lower}}Handler))
-	{{else if eq $index 0}}
-	// 单服务直接使用处理器
-	handler := {{$service.ServiceName | lower}}Handler
-	{{end}}{{end}}
+	// 启动服务器
+	go func() {
+		logger.Printf("transport=HTTP addr=%s", *httpAddr)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatalf("HTTP server failed: %v", err)
+		}
+	}()
 
 	// 优雅关闭
-	errChan := make(chan error)
-	go func() {
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-		errChan <- fmt.Errorf("received signal: %v", <-sigChan)
-	}()
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
 
-	go func() {
-		logger.Sugar().Infof("HTTP server listening on %s", *httpAddr)
-		{{if .NeedMux}}
-		errChan <- http.ListenAndServe(*httpAddr, r)
-		{{else}}
-		errChan <- http.ListenAndServe(*httpAddr, handler)
-		{{end}}
-	}()
+	logger.Println("Shutting down server...")
 
-	// 等待退出信号
-	logger.Sugar().Infof("exiting: %v", <-errChan)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(ctx); err != nil {
+		logger.Fatalf("Server shutdown failed: %v", err)
+	}
+
+	logger.Println("Server exited")
 }

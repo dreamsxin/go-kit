@@ -2,6 +2,9 @@ package {{.Service.PackageName}}
 
 import (
 	"context"
+	"log"
+	"time"
+
 	idl "{{.ImportPath}}"
 )
 
@@ -12,18 +15,87 @@ type {{.Service.ServiceName}} interface {
 {{end}}
 }
 
+// ServiceConfig 服务配置
+type ServiceConfig struct {
+	LogLevel    string        `json:"log_level"`
+	Timeout     time.Duration `json:"timeout"`
+	MaxRetries  int           `json:"max_retries"`
+}
+
 // NewService creates a new implementation of the service
-func NewService() {{.Service.ServiceName}} {
-	return &serviceImpl{}
+func NewService(cfg *ServiceConfig) {{.Service.ServiceName}} {
+	return &serviceImpl{
+		config: cfg,
+		logger: log.Default(),
+	}
 }
 
 // serviceImpl is the concrete implementation of the service
- type serviceImpl struct{}
+type serviceImpl struct {
+	config *ServiceConfig
+	logger *log.Logger
+}
 
 {{range .Service.Methods}}
 // {{.Name}} implements the {{$.Service.ServiceName}} interface
 func (s *serviceImpl) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
+	start := time.Now()
+	defer func() {
+		s.logger.Printf("{{.Name}} executed in %v", time.Since(start))
+	}()
+
 	// TODO: Implement business logic
 	return idl.{{.Output}}{}, nil
+}
+{{end}}
+
+// ServiceMiddleware 服务中间件接口
+type ServiceMiddleware func({{.Service.ServiceName}}) {{.Service.ServiceName}}
+
+// LoggingMiddleware 日志中间件
+func LoggingMiddleware(logger *log.Logger) ServiceMiddleware {
+	return func(next {{.Service.ServiceName}}) {{.Service.ServiceName}} {
+		return &loggingMiddleware{
+			next:   next,
+			logger: logger,
+		}
+	}
+}
+
+type loggingMiddleware struct {
+	next   {{.Service.ServiceName}}
+	logger *log.Logger
+}
+
+{{range .Service.Methods}}
+func (lm *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
+	lm.logger.Printf("Calling {{.Name}} with request: %+v", req)
+	resp, err := lm.next.{{.Name}}(ctx, req)
+	if err != nil {
+		lm.logger.Printf("{{.Name}} failed: %v", err)
+	} else {
+		lm.logger.Printf("{{.Name}} succeeded")
+	}
+	return resp, err
+}
+{{end}}
+
+// MetricsMiddleware 指标中间件
+func MetricsMiddleware() ServiceMiddleware {
+	return func(next {{.Service.ServiceName}}) {{.Service.ServiceName}} {
+		return &metricsMiddleware{
+			next: next,
+		}
+	}
+}
+
+type metricsMiddleware struct {
+	next {{.Service.ServiceName}}
+}
+
+{{range .Service.Methods}}
+func (mm *metricsMiddleware) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
+	// TODO: 添加指标收集逻辑
+	return mm.next.{{.Name}}(ctx, req)
 }
 {{end}}

@@ -5,32 +5,52 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/dreamsxin/go-kit/transport/http"
 	"github.com/gorilla/mux"
-	kithttpserver "github.com/dreamsxin/go-kit/transport/http/server"
 	idl "{{.ImportPath}}"
 )
 
-// NewHTTPHandler returns an HTTP handler for the service.
-func NewHTTPHandler(endpoints {{.Service.ServiceName}}Endpoints) http.Handler {
-	r := mux.NewRouter()
-	o := []kithttpserver.ServerOption{}
+// HTTP 传输层实现
+type httpTransport struct {
+	endpoints {{.Service.ServiceName}}Endpoints
+}
 
+// NewHTTPHandler 创建 HTTP 处理器
+func NewHTTPHandler(endpoints {{.Service.ServiceName}}Endpoints) http.Handler {
+	transport := &httpTransport{endpoints: endpoints}
+	
+	r := mux.NewRouter()
 {{range .Service.Methods}}
-	// {{.Name}} handler
-	{{.Name | lower}}Handler := kithttpserver.NewServer(
-		endpoints.{{.Name}}Endpoint,
-		decode{{.Name}}Request,
-		encodeResponse,
-		o...,
+	r.Methods("POST").Path("/{{$.Service.PackageName}}/{{.Name | lower}}").Handler(
+		httptransport.NewServer(
+			endpoints.{{.Name}}Endpoint,
+			decode{{.Name}}Request,
+			encodeResponse,
+			httptransport.ServerErrorEncoder(encodeError),
+		),
 	)
-	r.Handle("/{{$.Service.ServiceName | lower}}/{{.Name | lower}}", {{.Name | lower}}Handler).Methods("POST")
 {{end}}
+
+	// 健康检查端点
+	r.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+	})
+
+	// 指标端点
+	r.Methods("GET").Path("/metrics").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"service": "{{.Service.ServiceName}}",
+			"status":  "running",
+		})
+	})
 
 	return r
 }
 
-// decode{{.Service.ServiceName}}Request decodes HTTP request to service request.
 {{range .Service.Methods}}
+// decode{{.Name}}Request 解码请求
 func decode{{.Name}}Request(_ context.Context, r *http.Request) (interface{}, error) {
 	var req idl.{{.Input}}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -40,34 +60,46 @@ func decode{{.Name}}Request(_ context.Context, r *http.Request) (interface{}, er
 }
 {{end}}
 
-// encodeResponse encodes service response to HTTP response.
-func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
+// encodeResponse 编码响应
+func encodeResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	if e, ok := response.(error); ok && e != nil {
-		// Handle error
-		encodeError(w, e)
-		return nil
-	}
-
 	return json.NewEncoder(w).Encode(response)
 }
 
-// encodeError encodes error to HTTP response.
-func encodeError(w http.ResponseWriter, err error) {
+// encodeError 编码错误
+func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	// Map error to HTTP status code
-	statusCode := http.StatusInternalServerError
-
-	switch err {
-	// Add error type checks and status code mappings here
+	
+	var statusCode int
+	switch err.(type) {
+	case *ValidationError:
+		statusCode = http.StatusBadRequest
+	case *NotFoundError:
+		statusCode = http.StatusNotFound
 	default:
 		statusCode = http.StatusInternalServerError
 	}
-
+	
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]string{
 		"error": err.Error(),
+		"code":  http.StatusText(statusCode),
 	})
+}
+
+// 自定义错误类型
+type ValidationError struct {
+	Message string
+}
+
+func (e *ValidationError) Error() string {
+	return e.Message
+}
+
+type NotFoundError struct {
+	Message string
+}
+
+func (e *NotFoundError) Error() string {
+	return e.Message
 }

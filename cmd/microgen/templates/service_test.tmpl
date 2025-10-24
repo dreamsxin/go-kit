@@ -1,0 +1,44 @@
+package {{.Service.PackageName}}_test
+
+import (
+	"context"
+	"testing"
+
+	"{{.ImportPath}}/service/{{.Service.PackageName}}"
+	idl "{{.ImportPath}}"
+)
+
+func Test{{.Service.ServiceName}}(t *testing.T) {
+	svc := {{.Service.PackageName}}.NewService(nil)
+	ctx := context.Background()
+
+{{range .Service.Methods}}
+	t.Run("{{.Name}}", func(t *testing.T) {
+		req := idl.{{.Input}}{}
+		resp, err := svc.{{.Name}}(ctx, req)
+		if err != nil {
+			t.Errorf("{{.Name}} failed: %v", err)
+		}
+		if resp == nil {
+			t.Error("{{.Name}} returned nil response")
+		}
+	})
+{{end}}
+}
+
+func Test{{.Service.ServiceName}}Middleware(t *testing.T) {
+	ctx := context.Background()
+	
+{{range .Service.Methods}}
+	t.Run("{{.Name}}WithLogging", func(t *testing.T) {
+		svc := {{$.Service.PackageName}}.NewService(nil)
+		loggingSvc := {{$.Service.PackageName}}.LoggingMiddleware(nil)(svc)
+		
+		req := idl.{{.Input}}{}
+		_, err := loggingSvc.{{.Name}}(ctx, req)
+		if err != nil {
+			t.Errorf("{{.Name}} with logging failed: %v", err)
+		}
+	})
+{{end}}
+}

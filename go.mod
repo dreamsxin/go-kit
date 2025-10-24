@@ -7,6 +7,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/consul/api v1.27.0
+	github.com/manifoldco/promptui v0.9.0
 	github.com/sony/gobreaker v1.0.0
 	github.com/streadway/handy v0.0.0-20200128134331-0f66f006fb2e
 	go.uber.org/zap v1.26.0
@@ -17,6 +18,7 @@ require (
 
 require (
 	github.com/armon/go-metrics v0.4.1 // indirect
+	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/fatih/color v1.14.1 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect

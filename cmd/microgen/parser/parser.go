@@ -20,6 +20,7 @@ type Method struct {
 	Name   string
 	Input  string
 	Output string
+	Doc    string // 方法注释
 }
 
 // Parse 解析IDL文件生成服务定义
@@ -38,8 +39,6 @@ func Parse(idlPath string) (packageName string, services []*Service, err error) 
 
 	// 提取 IDL 文件中的包名
 	packageName = file.Name.Name
-
-	fmt.Println("Package Name:", packageName)
 
 	// 提取所有服务接口定义
 	services = []*Service{}
@@ -82,10 +81,20 @@ func parseMethod(field *ast.Field) (Method, error) {
 		Name: field.Names[0].Name,
 	}
 
+	// 解析注释
+	if field.Doc != nil {
+		method.Doc = strings.TrimSpace(field.Doc.Text())
+	}
+
 	// 解析函数签名
 	funcType, ok := field.Type.(*ast.FuncType)
 	if !ok {
 		return method, fmt.Errorf("method %s has invalid type", method.Name)
+	}
+
+	// 验证方法签名
+	if err := validateMethodSignature(funcType); err != nil {
+		return method, fmt.Errorf("invalid method signature for %s: %v", method.Name, err)
 	}
 
 	// 解析输入参数
@@ -117,7 +126,32 @@ func parseMethod(field *ast.Field) (Method, error) {
 	return method, nil
 }
 
-// 辅助函数：判断是否为context.Context类型
+// 验证方法签名
+func validateMethodSignature(funcType *ast.FuncType) error {
+	// 检查参数数量
+	if len(funcType.Params.List) < 2 {
+		return fmt.Errorf("method must have at least context.Context and request parameter")
+	}
+
+	// 检查第一个参数是否为 context.Context
+	if !isContextType(funcType.Params.List[0].Type) {
+		return fmt.Errorf("first parameter must be context.Context")
+	}
+
+	// 检查返回值数量
+	if len(funcType.Results.List) != 2 {
+		return fmt.Errorf("method must return exactly 2 values: response and error")
+	}
+
+	// 检查最后一个返回值是否为 error
+	if !isErrorType(funcType.Results.List[1].Type) {
+		return fmt.Errorf("last return value must be error")
+	}
+
+	return nil
+}
+
+// 判断是否为 context.Context 类型
 func isContextType(expr ast.Expr) bool {
 	selExpr, ok := expr.(*ast.SelectorExpr)
 	if !ok {
@@ -125,6 +159,12 @@ func isContextType(expr ast.Expr) bool {
 	}
 	ident, ok := selExpr.X.(*ast.Ident)
 	return ok && ident.Name == "context" && selExpr.Sel.Name == "Context"
+}
+
+// 判断是否为 error 类型
+func isErrorType(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == "error"
 }
 
 // 获取类型名称，支持结构体和指针类型

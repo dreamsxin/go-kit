@@ -1,0 +1,33 @@
+# {{.ServiceName}} 服务配置
+server:
+  port: 8080
+  timeout: 30s
+  graceful_shutdown_timeout: 30s
+
+logging:
+  level: "info"
+  format: "json"
+
+database:
+  host: "localhost"
+  port: 5432
+  name: "{{.ServiceName}}"
+  user: "postgres"
+  password: "password"
+  max_connections: 20
+  max_idle_connections: 5
+
+monitoring:
+  enabled: true
+  port: 9090
+  metrics_path: "/metrics"
+
+middleware:
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 5
+    timeout: 60s
+  retry:
+    enabled: true
+    max_attempts: 3
+    backoff: 2s
