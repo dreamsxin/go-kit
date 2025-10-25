@@ -1,105 +1,44 @@
 package {{.Service.PackageName}}
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 
-	"github.com/dreamsxin/go-kit/transport/http"
+	"github.com/dreamsxin/go-kit/endpoint"
 	"github.com/gorilla/mux"
 	idl "{{.ImportPath}}"
+	"{{.ImportPath}}/endpoint/{{.Service.PackageName}}"
 )
 
-// HTTP 传输层实现
-type httpTransport struct {
-	endpoints {{.Service.ServiceName}}Endpoints
-}
-
-// NewHTTPHandler 创建 HTTP 处理器
-func NewHTTPHandler(endpoints {{.Service.ServiceName}}Endpoints) http.Handler {
-	transport := &httpTransport{endpoints: endpoints}
-	
+// NewHTTPHandler 创建HTTP处理器
+func NewHTTPHandler(endpoints {{.Service.PackageName}}.{{.Service.ServiceName}}Endpoints) http.Handler {
 	r := mux.NewRouter()
 {{range .Service.Methods}}
-	r.Methods("POST").Path("/{{$.Service.PackageName}}/{{.Name | lower}}").Handler(
-		httptransport.NewServer(
-			endpoints.{{.Name}}Endpoint,
-			decode{{.Name}}Request,
-			encodeResponse,
-			httptransport.ServerErrorEncoder(encodeError),
-		),
+	r.Methods("POST").Path("/{{.Name | lower}}").Handler(
+		Make{{.Name}}HTTPHandler(endpoints.{{.Name}}Endpoint),
 	)
 {{end}}
-
-	// 健康检查端点
-	r.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
-	})
-
-	// 指标端点
-	r.Methods("GET").Path("/metrics").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"service": "{{.Service.ServiceName}}",
-			"status":  "running",
-		})
-	})
-
 	return r
 }
 
 {{range .Service.Methods}}
-// decode{{.Name}}Request 解码请求
-func decode{{.Name}}Request(_ context.Context, r *http.Request) (interface{}, error) {
-	var req idl.{{.Input}}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
-	}
-	return req, nil
-}
-{{end}}
+// Make{{.Name}}HTTPHandler 创建HTTP端点处理器
+func Make{{.Name}}HTTPHandler(ep endpoint.Endpoint) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req idl.{{.Input}}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 
-// encodeResponse 编码响应
-func encodeResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	return json.NewEncoder(w).Encode(response)
-}
+		resp, err := ep(r.Context(), req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
-// encodeError 编码错误
-func encodeError(_ context.Context, err error, w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	
-	var statusCode int
-	switch err.(type) {
-	case *ValidationError:
-		statusCode = http.StatusBadRequest
-	case *NotFoundError:
-		statusCode = http.StatusNotFound
-	default:
-		statusCode = http.StatusInternalServerError
-	}
-	
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(map[string]string{
-		"error": err.Error(),
-		"code":  http.StatusText(statusCode),
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
 	})
 }
-
-// 自定义错误类型
-type ValidationError struct {
-	Message string
-}
-
-func (e *ValidationError) Error() string {
-	return e.Message
-}
-
-type NotFoundError struct {
-	Message string
-}
-
-func (e *NotFoundError) Error() string {
-	return e.Message
-}
+{{end}}

@@ -10,8 +10,9 @@ import (
 	"syscall"
 	"time"
 
-{{range .Services}}
-	"{{$.ImportPath}}/service/{{.PackageName}}"
+{{range .Services}}	"{{$.ImportPath}}/service/{{.PackageName}}"
+	{{.PackageName}}Endpoint "{{$.ImportPath}}/endpoint/{{.PackageName}}"
+	{{.PackageName}}Transport "{{$.ImportPath}}/transport/{{.PackageName}}"
 {{end}}
 )
 
@@ -25,40 +26,33 @@ func main() {
 	logger := log.New(os.Stdout, "{{range .Services}}{{.ServiceName}}{{end}} ", log.LstdFlags)
 
 	// 创建服务实例
-{{range .Services}}
-	{{.PackageName}}Svc := {{.PackageName}}.NewService(nil)
+{{range .Services}}	{{.PackageName}}Svc := {{.PackageName}}.NewService(nil)
 {{end}}
 
 	// 创建端点
-{{range .Services}}
-	{{.PackageName}}Endpoints := {{.PackageName}}.MakeServerEndpoints({{.PackageName}}Svc, logger)
+{{range .Services}}	{{.PackageName}}Endpoints := {{.PackageName}}Endpoint.MakeServerEndpoints({{.PackageName}}Svc, logger)
 {{end}}
 
 	// 创建 HTTP 处理器
-{{if .NeedMux}}
-	// 多服务使用多路复用器
+{{if .NeedMux}}	// 多服务使用多路复用器
 	mux := http.NewServeMux()
-	{{range .Services}}mux.Handle("/{{.PackageName}}/", {{.PackageName}}.NewHTTPHandler({{.PackageName}}Endpoints))
-	{{end}}
+{{range .Services}}	mux.Handle("/{{.PackageName}}/", {{.PackageName}}Transport.NewHTTPHandler({{.PackageName}}Endpoints))
+{{end}}
+	
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-{{else}}
-	{{range .Services}}handler := {{.PackageName}}.NewHTTPHandler({{.PackageName}}Endpoints){{end}}
+
+	httpHandler := mux
+{{else}}	// 单服务直接使用处理器
+	httpHandler := {{index .Services 0}}Transport.NewHTTPHandler({{index .Services 0}}Endpoints)
 {{end}}
 
 	// 创建 HTTP 服务器
-{{if .NeedMux}}
 	httpServer := &http.Server{
 		Addr:    *httpAddr,
-		Handler: mux,
+		Handler: httpHandler,
 	}
-{{else}}
-	{{range .Services}}httpServer := &http.Server{
-		Addr:    *httpAddr,
-		Handler: handler,
-	}{{end}}
-{{end}}
 
 	// 启动服务器
 	go func() {

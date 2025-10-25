@@ -7,6 +7,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/endpoint"
 	idl "{{.ImportPath}}"
+	"{{.ImportPath}}/service/{{.Service.PackageName}}"
 )
 
 // Endpoints 封装所有服务端点
@@ -16,14 +17,14 @@ type {{.Service.ServiceName}}Endpoints struct {
 }
 
 // MakeServerEndpoints 创建服务端端点
-func MakeServerEndpoints(svc {{.Service.ServiceName}}, logger *log.Logger) {{.Service.ServiceName}}Endpoints {
+func MakeServerEndpoints(svc {{.Service.PackageName}}.{{.Service.ServiceName}}, logger *log.Logger) {{.Service.ServiceName}}Endpoints {
 	endpoints := {{.Service.ServiceName}}Endpoints{
 {{range .Service.Methods}}		{{.Name}}Endpoint: Make{{.Name}}Endpoint(svc),
 {{end}}
 	}
 
 	// 应用中间件
-{{range .Service.Methods}}	endpoints.{{.Name}}Endpoint = LoggingMiddleware(logger)(endpoints.{{.Name}}Endpoint)
+{{range .Service.Methods}}	endpoints.{{.Name}}Endpoint = EndpointLoggingMiddleware(logger)(endpoints.{{.Name}}Endpoint)
 	endpoints.{{.Name}}Endpoint = CircuitBreakerMiddleware()(endpoints.{{.Name}}Endpoint)
 	endpoints.{{.Name}}Endpoint = TimeoutMiddleware(30*time.Second)(endpoints.{{.Name}}Endpoint)
 	endpoints.{{.Name}}Endpoint = RetryMiddleware(3, 2*time.Second)(endpoints.{{.Name}}Endpoint)
@@ -34,7 +35,7 @@ func MakeServerEndpoints(svc {{.Service.ServiceName}}, logger *log.Logger) {{.Se
 
 {{range .Service.Methods}}
 // Make{{.Name}}Endpoint 创建单个端点
-func Make{{.Name}}Endpoint(svc {{$.Service.ServiceName}}) endpoint.Endpoint {
+func Make{{.Name}}Endpoint(svc {{$.Service.PackageName}}.{{$.Service.ServiceName}}) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(idl.{{.Input}})
 		resp, err := svc.{{.Name}}(ctx, req)
@@ -59,7 +60,7 @@ func (e {{$.Service.ServiceName}}Endpoints) {{.Name}}(ctx context.Context, req i
 {{end}}
 
 // 端点中间件
-func LoggingMiddleware(logger *log.Logger) endpoint.Middleware {
+func EndpointLoggingMiddleware(logger *log.Logger) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 			logger.Printf("Endpoint called: %T", request)

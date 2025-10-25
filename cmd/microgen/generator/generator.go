@@ -119,6 +119,8 @@ func (g *Generator) createDirStructure() error {
 		filepath.Join(g.outputDir, "client"),
 		filepath.Join(g.outputDir, "api"),
 		filepath.Join(g.outputDir, "service"),
+		filepath.Join(g.outputDir, "endpoint"),
+		filepath.Join(g.outputDir, "transport"),
 		filepath.Join(g.outputDir, "config"),
 		filepath.Join(g.outputDir, "docs"),
 		filepath.Join(g.outputDir, "test"),
@@ -160,26 +162,29 @@ func (g *Generator) generateServiceFile(service *parser.Service) error {
 
 // 生成端点文件
 func (g *Generator) generateEndpointsFile(service *parser.Service) error {
-	serviceDir := filepath.Join(g.outputDir, "service", service.PackageName)
+	endpointDir := filepath.Join(g.outputDir, "endpoint", service.PackageName)
+	os.MkdirAll(endpointDir, 0755)
+
 	data := map[string]interface{}{
 		"Service":    service,
 		"ImportPath": g.config.ImportPath,
 	}
 
-	filePath := filepath.Join(serviceDir, "endpoints.go")
+	filePath := filepath.Join(endpointDir, "endpoints.go")
 	return g.executeTemplate("endpoints.tmpl", filePath, data)
 }
 
 // 生成传输层文件
 func (g *Generator) generateTransportFile(service *parser.Service) error {
-	serviceDir := filepath.Join(g.outputDir, "service", service.PackageName)
+	transportDir := filepath.Join(g.outputDir, "transport", service.PackageName)
+	os.MkdirAll(transportDir, 0755)
 	data := map[string]interface{}{
 		"Service":     service,
 		"ImportPath":  g.config.ImportPath,
 		"RoutePrefix": service.PackageName,
 	}
 
-	filePath := filepath.Join(serviceDir, "transport.go")
+	filePath := filepath.Join(transportDir, "transport.go")
 	return g.executeTemplate("transport.tmpl", filePath, data)
 }
 

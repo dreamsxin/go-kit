@@ -157,7 +157,7 @@ func NewDelayingLimiter(limit Waiter) endpoint.Middleware {
 .\microgen.exe \
     -idl ./examples/usersvc/idl.go \
     -out ./generated-usersvc \
-    -import github.com/dreamsxin/go-kit/examples/usersvc \
+    -import github.com/your-project/usersvc \
     -protocols http \
     -service UserService
 ```
