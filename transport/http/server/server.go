@@ -58,7 +58,9 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	request, err := s.dec(ctx, r)
 	if err != nil {
-		s.errorHandler.Handle(ctx, err)
+		if s.errorHandler != nil {
+			s.errorHandler.Handle(ctx, err)
+		}
 		s.errorEncoder(ctx, err, iw)
 		return
 	}
@@ -77,7 +79,9 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.enc(ctx, iw, response); err != nil {
-		s.errorHandler.Handle(ctx, err)
+		if s.errorHandler != nil {
+			s.errorHandler.Handle(ctx, err)
+		}
 		s.errorEncoder(ctx, err, iw)
 		return
 	}
