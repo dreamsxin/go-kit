@@ -1,10 +1,12 @@
 package {{.Service.PackageName}}
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
 	"github.com/dreamsxin/go-kit/endpoint"
+	httptransport "github.com/dreamsxin/go-kit/transport/http/server"
 	"github.com/gorilla/mux"
 	idl "{{.ImportPath}}"
 	"{{.ImportPath}}/endpoint/{{.Service.PackageName}}"
@@ -14,29 +16,39 @@ import (
 func NewHTTPHandler(endpoints {{.Service.PackageName}}.{{.Service.ServiceName}}Endpoints) http.Handler {
 	r := mux.NewRouter()
 {{range .Service.Methods}}
-	r.Handle("/{{.Name | lower}}", Make{{.Name}}HTTPHandler(endpoints.{{.Name}}Endpoint)).Methods("POST")
+	// 使用 httptransport.NewServer 创建标准HTTP处理器
+	{{.Name | lower}}Handler := httptransport.NewServer(
+		endpoints.{{.Name}}Endpoint,
+		decode{{.Name}}Request,
+		encode{{.Name}}Response,
+	)
+	r.Handle("/{{.Name | lower}}", {{.Name | lower}}Handler).Methods("POST")
 {{end}}
 	return r
 }
 
 {{range .Service.Methods}}
-// Make{{.Name}}HTTPHandler 创建HTTP端点处理器
+// decode{{.Name}}Request 解码请求
+func decode{{.Name}}Request(_ context.Context, r *http.Request) (interface{}, error) {
+	var req idl.{{.Input}}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, err
+	}
+	return req, nil
+}
+
+// encode{{.Name}}Response 编码响应
+func encode{{.Name}}Response(_ context.Context, w http.ResponseWriter, response interface{}) error {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	return json.NewEncoder(w).Encode(response)
+}
+
+// Make{{.Name}}HTTPHandler 创建HTTP端点处理器（兼容旧版本）
 func Make{{.Name}}HTTPHandler(ep endpoint.Endpoint) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req idl.{{.Input}}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		resp, err := ep(r.Context(), req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
-	})
+	return httptransport.NewServer(
+		ep,
+		decode{{.Name}}Request,
+		encode{{.Name}}Response,
+	)
 }
 {{end}}
