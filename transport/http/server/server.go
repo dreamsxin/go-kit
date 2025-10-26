@@ -26,15 +26,20 @@ func NewServer(
 	enc EncodeResponseFunc,
 	options ...ServerOption,
 ) *Server {
+	if e == nil || dec == nil || enc == nil {
+		panic("essential parameters cannot be nil")
+	}
 	s := &Server{
 		e:            e,
 		dec:          dec,
 		enc:          enc,
 		errorEncoder: transport.DefaultErrorEncoder,
-		// errorHandler: transport.NewLogErrorHandler(zap.NewNop().Sugar()),
 	}
 	for _, option := range options {
 		option(s)
+	}
+	if s.errorHandler == nil {
+		s.errorHandler = transport.NewLogErrorHandler(nil)
 	}
 	return s
 }
@@ -58,18 +63,14 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	request, err := s.dec(ctx, r)
 	if err != nil {
-		if s.errorHandler != nil {
-			s.errorHandler.Handle(ctx, err)
-		}
+		s.errorHandler.Handle(ctx, err)
 		s.errorEncoder(ctx, err, iw)
 		return
 	}
 
 	response, err := s.e(ctx, request)
 	if err != nil {
-		if s.errorHandler != nil {
-			s.errorHandler.Handle(ctx, err)
-		}
+		s.errorHandler.Handle(ctx, err)
 		s.errorEncoder(ctx, err, iw)
 		return
 	}
@@ -79,9 +80,7 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.enc(ctx, iw, response); err != nil {
-		if s.errorHandler != nil {
-			s.errorHandler.Handle(ctx, err)
-		}
+		s.errorHandler.Handle(ctx, err)
 		s.errorEncoder(ctx, err, iw)
 		return
 	}
