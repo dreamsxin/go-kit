@@ -1,4 +1,4 @@
-package {{.Service.PackageName}}_test
+package test
 
 import (
 	"context"
@@ -15,12 +15,9 @@ func Test{{.Service.ServiceName}}(t *testing.T) {
 {{range .Service.Methods}}
 	t.Run("{{.Name}}", func(t *testing.T) {
 		req := idl.{{.Input}}{}
-		resp, err := svc.{{.Name}}(ctx, req)
+		_, err := svc.{{.Name}}(ctx, req)
 		if err != nil {
 			t.Errorf("{{.Name}} failed: %v", err)
-		}
-		if resp == nil {
-			t.Error("{{.Name}} returned nil response")
 		}
 	})
 {{end}}

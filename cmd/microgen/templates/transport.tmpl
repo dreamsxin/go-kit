@@ -14,9 +14,7 @@ import (
 func NewHTTPHandler(endpoints {{.Service.PackageName}}.{{.Service.ServiceName}}Endpoints) http.Handler {
 	r := mux.NewRouter()
 {{range .Service.Methods}}
-	r.Methods("POST").Path("/{{.Name | lower}}").Handler(
-		Make{{.Name}}HTTPHandler(endpoints.{{.Name}}Endpoint),
-	)
+	r.Handle("/{{.Name | lower}}", Make{{.Name}}HTTPHandler(endpoints.{{.Name}}Endpoint)).Methods("POST")
 {{end}}
 	return r
 }

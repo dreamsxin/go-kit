@@ -88,6 +88,11 @@ func (g *Generator) Generate(services []*parser.Service) error {
 				return err
 			}
 		}
+
+		// 生成客户端演示文件
+		if err := g.generateClientDemo(service); err != nil {
+			return err
+		}
 	}
 
 	// 生成主程序文件
@@ -188,6 +193,19 @@ func (g *Generator) generateTransportFile(service *parser.Service) error {
 	return g.executeTemplate("transport.tmpl", filePath, data)
 }
 
+// 生成客户端演示文件
+func (g *Generator) generateClientDemo(service *parser.Service) error {
+	clientDir := filepath.Join(g.outputDir, "client", service.PackageName)
+	os.MkdirAll(clientDir, 0755)
+	data := map[string]interface{}{
+		"Service":    service,
+		"ImportPath": g.config.ImportPath,
+	}
+
+	filePath := filepath.Join(clientDir, "demo.go")
+	return g.executeTemplate("client.tmpl", filePath, data)
+}
+
 // 生成测试文件
 func (g *Generator) generateTestFile(service *parser.Service) error {
 	data := map[string]interface{}{
@@ -196,48 +214,7 @@ func (g *Generator) generateTestFile(service *parser.Service) error {
 	}
 
 	filePath := filepath.Join(g.outputDir, "test", service.PackageName+"_test.go")
-
-	testTemplate := `package test
-
-import (
-	"context"
-	"testing"
-
-	"{{.ImportPath}}/service/{{.Service.PackageName}}"
-	idl "{{.ImportPath}}"
-)
-
-func Test{{.Service.ServiceName}}(t *testing.T) {
-	svc := {{.Service.PackageName}}.NewService(nil)
-	ctx := context.Background()
-
-{{range .Service.Methods}}
-	t.Run("{{.Name}}", func(t *testing.T) {
-		req := idl.{{.Input}}{}
-		resp, err := svc.{{.Name}}(ctx, req)
-		if err != nil {
-			t.Errorf("{{.Name}} failed: %v", err)
-		}
-		if resp == nil {
-			t.Error("{{.Name}} returned nil response")
-		}
-	})
-{{end}}
-}
-`
-
-	tmpl, err := template.New("test").Parse(testTemplate)
-	if err != nil {
-		return err
-	}
-
-	f, err := os.Create(filePath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	return tmpl.Execute(f, data)
+	return g.executeTemplate("service_test.tmpl", filePath, data)
 }
 
 // 生成配置文件
@@ -290,8 +267,8 @@ func (g *Generator) generateReadme(services []*parser.Service) error {
 	readmeTemplate := `# {{range .Services}}{{.ServiceName}}{{end}} 微服务
 
 ## API 端点
-{{range .Services}}{{range .Methods}}
-- **POST** /{{$.Service.PackageName}}/{{.Name | lower}}
+{{range .Services}}{{$service := .}}{{range .Methods}}
+- **POST** /{{$service.PackageName}}/{{.Name | lower}}
 {{end}}{{end}}
 `
 	tmpl, err := template.New("readme").Funcs(funcMap).Parse(readmeTemplate)

@@ -1,0 +1,92 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	idl "{{.ImportPath}}"
+)
+
+// {{.Service.ServiceName}}Client {{.Service.ServiceName}}服务客户端
+type {{.Service.ServiceName}}Client struct {
+	baseURL    string
+	httpClient *http.Client
+}
+
+// New{{.Service.ServiceName}}Client 创建新的客户端实例
+func New{{.Service.ServiceName}}Client(baseURL string) *{{.Service.ServiceName}}Client {
+	return &{{.Service.ServiceName}}Client{
+		baseURL: baseURL,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
+}
+
+{{range .Service.Methods}}
+// {{.Name}} 调用{{.Name}}方法
+func (c *{{$.Service.ServiceName}}Client) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
+	url := fmt.Sprintf("%s/{{$.Service.ServiceName | lower}}/{{.Name | lower}}", c.baseURL)
+
+	// 序列化请求
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return idl.{{.Output}}{}, fmt.Errorf("failed to marshal request: %v", err)
+	}
+
+	// 创建HTTP请求
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return idl.{{.Output}}{}, fmt.Errorf("failed to create request: %v", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	// 发送请求
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return idl.{{.Output}}{}, fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态
+	if resp.StatusCode != http.StatusOK {
+		return idl.{{.Output}}{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	// 反序列化响应
+	var response idl.{{.Output}}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return idl.{{.Output}}{}, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return response, nil
+}
+{{end}}
+
+// 演示如何使用客户端
+func main() {
+	// 创建客户端实例
+	client := New{{.Service.ServiceName}}Client("http://localhost:8080")
+	ctx := context.Background()
+
+	log.Println("Starting {{.Service.ServiceName}} client demo...")
+
+{{range .Service.Methods}}
+	// 演示{{.Name}}方法
+	log.Printf("Testing {{.Name}} method...")
+	{{.Name | lower}}Req := idl.{{.Input}}{}
+	{{.Name | lower}}Resp, err := client.{{.Name}}(ctx, {{.Name | lower}}Req)
+	if err != nil {
+		log.Printf("{{.Name}} failed: %v", err)
+	} else {
+		log.Printf("{{.Name}} succeeded: %+v", {{.Name | lower}}Resp)
+	}
+{{end}}
+
+	log.Println("Client demo completed!")
+}

@@ -20,14 +20,30 @@ type ServiceConfig struct {
 	LogLevel    string        `json:"log_level"`
 	Timeout     time.Duration `json:"timeout"`
 	MaxRetries  int           `json:"max_retries"`
+	EnableLogging bool        `json:"enable_logging"`
+	EnableMetrics bool        `json:"enable_metrics"`
 }
 
-// NewService creates a new implementation of the service
+// NewService creates a new implementation of the service with optional middleware
 func NewService(cfg *ServiceConfig) {{.Service.ServiceName}} {
-	return &serviceImpl{
+	baseService := &serviceImpl{
 		config: cfg,
 		logger: log.Default(),
 	}
+	
+	var service {{.Service.ServiceName}} = baseService
+	
+	// 应用日志中间件
+	if cfg != nil && cfg.EnableLogging {
+		service = LoggingMiddleware(log.Default())(service)
+	}
+	
+	// 应用指标中间件
+	if cfg != nil && cfg.EnableMetrics {
+		service = MetricsMiddleware()(service)
+	}
+	
+	return service
 }
 
 // serviceImpl is the concrete implementation of the service

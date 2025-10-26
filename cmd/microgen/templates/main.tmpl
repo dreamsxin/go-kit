@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,7 +15,71 @@ import (
 	{{.PackageName}}Endpoint "{{$.ImportPath}}/endpoint/{{.PackageName}}"
 	{{.PackageName}}Transport "{{$.ImportPath}}/transport/{{.PackageName}}"
 {{end}}
+	"github.com/gorilla/mux"
 )
+
+// 使用 gorilla/mux 的 Walk 方法动态获取和打印路由信息
+func printAllRoutes(r *mux.Router, logger *log.Logger) {
+    logger.Println("=== All Registered HTTP Routes (Full Path) ===")
+    
+    err := r.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+        // 获取路径模板
+        pathTemplate, err := route.GetPathTemplate()
+        if err != nil {
+            return nil // 跳过无法获取路径的路由
+        }
+        
+        // 构建完整路径：考虑祖先路由的路径前缀
+        fullPath := pathTemplate
+        if len(ancestors) > 0 {
+            // 从最外层到最内层构建完整路径
+            var pathBuilder strings.Builder
+            for _, ancestor := range ancestors {
+                ancestorPath, err := ancestor.GetPathTemplate()
+                if err == nil && ancestorPath != "" {
+                    // 清理路径，确保正确的格式
+                    if strings.HasSuffix(ancestorPath, "/") && strings.HasPrefix(pathBuilder.String(), "/") {
+                        pathBuilder.WriteString(strings.TrimPrefix(ancestorPath, "/"))
+                    } else {
+                        pathBuilder.WriteString(ancestorPath)
+                    }
+                }
+            }
+            // 添加当前路由的路径
+            if pathBuilder.Len() > 0 {
+                basePath := pathBuilder.String()
+                if strings.HasSuffix(basePath, "/") && strings.HasPrefix(pathTemplate, "/") {
+                    fullPath = basePath + strings.TrimPrefix(pathTemplate, "/")
+                } else if !strings.HasSuffix(basePath, "/") && !strings.HasPrefix(pathTemplate, "/") {
+                    fullPath = basePath + "/" + pathTemplate
+                } else {
+                    fullPath = basePath + pathTemplate
+                }
+            }
+        }
+        
+        // 获取HTTP方法
+        methods, err := route.GetMethods()
+        if err != nil {
+            // 如果没有特定方法，可能是匹配所有方法
+            logger.Printf("  ALL %s", fullPath)
+        } else {
+            logger.Printf("  %s %s", strings.Join(methods, ","), fullPath)
+        }
+        
+        // 可选：打印处理器信息
+        handler := route.GetHandler()
+        logger.Printf("    Handler: %T", handler)
+        
+        return nil
+    })
+    
+    if err != nil {
+        logger.Printf("Error walking routes: %v", err)
+    }
+    
+    logger.Println("==============================================")
+}
 
 func main() {
 	var (
@@ -33,30 +98,48 @@ func main() {
 {{range .Services}}	{{.PackageName}}Endpoints := {{.PackageName}}Endpoint.MakeServerEndpoints({{.PackageName}}Svc, logger)
 {{end}}
 
-	// 创建 HTTP 处理器
-{{if .NeedMux}}	// 多服务使用多路复用器
-	mux := http.NewServeMux()
-{{range .Services}}	mux.Handle("/{{.PackageName}}/", {{.PackageName}}Transport.NewHTTPHandler({{.PackageName}}Endpoints))
-{{end}}
-	
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	// 创建 HTTP 处理器 - 统一使用 gorilla/mux
+	r := mux.NewRouter()
+	// 添加路由调试中间件
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			logger.Printf("Request received: %s %s", r.Method, r.URL.Path)
+			next.ServeHTTP(w, r)
+		})
 	})
-
-	httpHandler := mux
-{{else}}	// 单服务直接使用处理器
-	httpHandler := {{index .Services 0}}Transport.NewHTTPHandler({{index .Services 0}}Endpoints)
+{{range .Services}}	r.PathPrefix("/{{.PackageName}}").Handler(http.StripPrefix("/{{.PackageName}}", {{.PackageName}}Transport.NewHTTPHandler({{.PackageName}}Endpoints)))
 {{end}}
+
+	// 注册健康检查路由
+	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}).Methods("GET")
+
+	// 添加根路径重定向到健康检查
+	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/health", http.StatusFound)
+			return
+		}
+		http.NotFound(w, r)
+	}).Methods("GET")
+
+	// 打印路由信息 - 使用动态路由遍历
+	logger.Println("Starting server with the following routes:")
+	printAllRoutes(r, logger)
 
 	// 创建 HTTP 服务器
 	httpServer := &http.Server{
 		Addr:    *httpAddr,
-		Handler: httpHandler,
+		Handler: r, // 使用 gorilla/mux 路由器
 	}
 
 	// 启动服务器
 	go func() {
-		logger.Printf("transport=HTTP addr=%s", *httpAddr)
+		logger.Printf("Server listening on %s", *httpAddr)
+		logger.Printf("Health check: http://localhost%s/health", strings.TrimSuffix(*httpAddr, ":"))
+		
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatalf("HTTP server failed: %v", err)
 		}
