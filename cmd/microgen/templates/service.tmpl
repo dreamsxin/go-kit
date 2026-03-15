@@ -2,79 +2,163 @@ package {{.Service.PackageName}}
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
 	"time"
 
 	idl "{{.ImportPath}}"
+{{- if .WithModel}}
+	"{{.ImportPath}}/repository"
+{{- end}}
 )
 
-// Service defines the business logic interface
+// ─────────────────────────── 接口定义 ───────────────────────────
+
+// {{.Service.ServiceName}} 定义业务逻辑接口
 type {{.Service.ServiceName}} interface {
 {{range .Service.Methods}}
-	{{.Name}}(context.Context, idl.{{.Input}}) (idl.{{.Output}}, error)
+	// {{.Name}}{{if .Doc}} — {{.Doc}}{{end}}
+	{{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error)
 {{end}}
 }
+
+// ─────────────────────────── 配置 ───────────────────────────
 
 // ServiceConfig 服务配置
 type ServiceConfig struct {
-	LogLevel    string        `json:"log_level"`
-	Timeout     time.Duration `json:"timeout"`
-	MaxRetries  int           `json:"max_retries"`
-	EnableLogging bool        `json:"enable_logging"`
-	EnableMetrics bool        `json:"enable_metrics"`
+	LogLevel      string        `json:"log_level"`
+	Timeout       time.Duration `json:"timeout"`
+	EnableLogging bool          `json:"enable_logging"`
+	EnableMetrics bool          `json:"enable_metrics"`
 }
 
-// NewService creates a new implementation of the service with optional middleware
-func NewService(cfg *ServiceConfig) {{.Service.ServiceName}} {
-	baseService := &serviceImpl{
-		config: cfg,
-		logger: log.Default(),
-	}
-	
-	var service {{.Service.ServiceName}} = baseService
-	
-	// 应用日志中间件
-	if cfg != nil && cfg.EnableLogging {
-		service = LoggingMiddleware(log.Default())(service)
-	}
-	
-	// 应用指标中间件
-	if cfg != nil && cfg.EnableMetrics {
-		service = MetricsMiddleware()(service)
-	}
-	
-	return service
+// defaultConfig 默认配置
+var defaultConfig = &ServiceConfig{
+	LogLevel:      "info",
+	Timeout:       30 * time.Second,
+	EnableLogging: true,
 }
 
-// serviceImpl is the concrete implementation of the service
-type serviceImpl struct {
-	config *ServiceConfig
-	logger *log.Logger
-}
+{{if .WithModel}}
+// ─────────────────────────── Repository 依赖 ───────────────────────────
 
-{{range .Service.Methods}}
-// {{.Name}} implements the {{$.Service.ServiceName}} interface
-func (s *serviceImpl) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
-	start := time.Now()
-	defer func() {
-		s.logger.Printf("{{.Name}} executed in %v", time.Since(start))
-	}()
-
-	// TODO: Implement business logic
-	return idl.{{.Output}}{}, nil
+// Repos 聚合所有 repository 依赖，便于统一注入
+type Repos struct {
+{{- range .GormModels}}
+	{{.Name}}Repo *repository.{{.Name}}Repository
+{{- end}}
 }
 {{end}}
 
-// ServiceMiddleware 服务中间件接口
+// ─────────────────────────── 构造 ───────────────────────────
+
+{{if .WithModel}}
+// NewService 创建服务实例（不带 repo，repo 字段为 nil，方法中需要自行判断）
+//
+// 推荐使用 NewServiceWithRepo 注入数据库依赖。
+func NewService(cfg *ServiceConfig) {{.Service.ServiceName}} {
+	return NewServiceWithRepo(cfg, Repos{})
+}
+
+// NewServiceWithRepo 创建服务实例并注入 repository 依赖
+//
+// cfg 为空时使用默认配置。
+func NewServiceWithRepo(cfg *ServiceConfig, repos Repos) {{.Service.ServiceName}} {
+	if cfg == nil {
+		cfg = defaultConfig
+	}
+	return newServiceImpl(cfg, repos)
+}
+
+// newServiceImpl 创建底层实现并包装中间件
+func newServiceImpl(cfg *ServiceConfig, repos Repos) {{.Service.ServiceName}} {
+	var svc {{.Service.ServiceName}} = &serviceImpl{
+		config: cfg,
+		logger: log.Default(),
+		repos:  repos,
+	}
+
+	if cfg.EnableLogging {
+		svc = LoggingMiddleware(log.Default())(svc)
+	}
+	if cfg.EnableMetrics {
+		svc = MetricsMiddleware()(svc)
+	}
+
+	return svc
+}
+{{else}}
+// NewService 创建服务实例
+//
+// cfg 为空时使用默认配置。
+func NewService(cfg *ServiceConfig) {{.Service.ServiceName}} {
+	if cfg == nil {
+		cfg = defaultConfig
+	}
+	return newServiceImpl(cfg)
+}
+
+// newServiceImpl 创建底层实现并包装中间件
+func newServiceImpl(cfg *ServiceConfig) {{.Service.ServiceName}} {
+	var svc {{.Service.ServiceName}} = &serviceImpl{
+		config: cfg,
+		logger: log.Default(),
+	}
+
+	if cfg.EnableLogging {
+		svc = LoggingMiddleware(log.Default())(svc)
+	}
+	if cfg.EnableMetrics {
+		svc = MetricsMiddleware()(svc)
+	}
+
+	return svc
+}
+{{end}}
+
+// ─────────────────────────── 实现 ───────────────────────────
+
+// serviceImpl 服务具体实现
+type serviceImpl struct {
+	config *ServiceConfig
+	logger *log.Logger
+{{- if .WithModel}}
+	repos  Repos
+{{- end}}
+}
+
+{{range .Service.Methods}}
+// {{.Name}} 实现 {{$.Service.ServiceName}}.{{.Name}}
+func (s *serviceImpl) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
+	// TODO: 实现业务逻辑
+	// 示例参数校验：
+	// if err := validateXxx(req); err != nil {
+	// 	return idl.{{.Output}}{}, err
+	// }
+	_ = req
+	return idl.{{.Output}}{}, errors.New("{{.Name}}: not implemented")
+}
+{{end}}
+
+// ─────────────────────────── 工具函数 ───────────────────────────
+
+// errorf 格式化业务错误
+func errorf(format string, args ...interface{}) error {
+	return fmt.Errorf(format, args...)
+}
+
+// ─────────────────────────── 中间件 ───────────────────────────
+
+// ServiceMiddleware 服务中间件类型
 type ServiceMiddleware func({{.Service.ServiceName}}) {{.Service.ServiceName}}
 
-// LoggingMiddleware 日志中间件
+// ── Logging ──
+
+// LoggingMiddleware 日志中间件：记录每次方法调用的耗时与错误
 func LoggingMiddleware(logger *log.Logger) ServiceMiddleware {
 	return func(next {{.Service.ServiceName}}) {{.Service.ServiceName}} {
-		return &loggingMiddleware{
-			next:   next,
-			logger: logger,
-		}
+		return &loggingMiddleware{next: next, logger: logger}
 	}
 }
 
@@ -84,24 +168,25 @@ type loggingMiddleware struct {
 }
 
 {{range .Service.Methods}}
-func (lm *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
-	lm.logger.Printf("Calling {{.Name}} with request: %+v", req)
-	resp, err := lm.next.{{.Name}}(ctx, req)
-	if err != nil {
-		lm.logger.Printf("{{.Name}} failed: %v", err)
-	} else {
-		lm.logger.Printf("{{.Name}} succeeded")
-	}
-	return resp, err
+func (m *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (resp idl.{{.Output}}, err error) {
+	start := time.Now()
+	defer func() {
+		if err != nil {
+			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
+		} else {
+			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
+		}
+	}()
+	return m.next.{{.Name}}(ctx, req)
 }
 {{end}}
 
-// MetricsMiddleware 指标中间件
+// ── Metrics ──
+
+// MetricsMiddleware 指标中间件（占位，可替换为 Prometheus 等实现）
 func MetricsMiddleware() ServiceMiddleware {
 	return func(next {{.Service.ServiceName}}) {{.Service.ServiceName}} {
-		return &metricsMiddleware{
-			next: next,
-		}
+		return &metricsMiddleware{next: next}
 	}
 }
 
@@ -110,8 +195,8 @@ type metricsMiddleware struct {
 }
 
 {{range .Service.Methods}}
-func (mm *metricsMiddleware) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
-	// TODO: 添加指标收集逻辑
-	return mm.next.{{.Name}}(ctx, req)
+func (m *metricsMiddleware) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
+	// TODO: 在此添加指标埋点（如 Prometheus counter/histogram）
+	return m.next.{{.Name}}(ctx, req)
 }
 {{end}}

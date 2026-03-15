@@ -1,0 +1,17 @@
+# Generated service directories
+generated-*/
+
+# Compiled executables
+*.exe
+
+# Go build cache
+*.test
+*.out
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

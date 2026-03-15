@@ -9,6 +9,9 @@ import (
 	"github.com/dreamsxin/go-kit/transport/http/interfaces"
 )
 
+// NopErrorHandler is an ErrorHandler that discards all errors silently.
+var NopErrorHandler ErrorHandler = ErrorHandlerFunc(func(_ context.Context, _ error) {})
+
 type ErrorHandler interface {
 	Handle(ctx context.Context, err error)
 }
@@ -18,6 +21,9 @@ type LogErrorHandler struct {
 }
 
 func NewLogErrorHandler(logger *log.Logger) *LogErrorHandler {
+	if logger == nil {
+		logger = log.NewNopLogger()
+	}
 	return &LogErrorHandler{
 		logger: logger,
 	}

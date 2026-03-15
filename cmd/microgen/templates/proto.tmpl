@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package {{.Service.PackageName}};
+
+option go_package = "{{.ImportPath}}/pb/{{.Service.PackageName}}";
+
+// {{.Service.ServiceName}} gRPC 服务定义
+service {{.Service.ServiceName}} {
+{{range .Service.Methods}}  // {{.Doc}}
+  rpc {{.Name}} ({{.Name}}Request) returns ({{.Name}}Response);
+{{end}}}
+
+{{range .Service.Methods}}
+// {{.Name}}Request {{.Name}} 请求
+message {{.Name}}Request {
+  // TODO: 根据 idl.{{.Input}} 填充字段
+  // 示例: string id = 1;
+}
+
+// {{.Name}}Response {{.Name}} 响应
+message {{.Name}}Response {
+  // TODO: 根据 idl.{{.Output}} 填充字段
+  // 示例: bool success = 1; string error = 2;
+}
+
+{{end}}

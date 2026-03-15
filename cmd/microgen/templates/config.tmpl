@@ -1,33 +1,44 @@
 # {{.ServiceName}} 服务配置
+# 字段与 config/config.go 中的 Config struct 一一对应。
+# 未填写的字段将使用代码中 Default() 的内置默认值。
+
 server:
-  port: 8080
-  timeout: 30s
-  graceful_shutdown_timeout: 30s
+  http_addr: ":8080"
+{{- if .WithGRPC}}
+  grpc_addr: ":8081"
+{{- end}}
+  read_timeout: "15s"
+  write_timeout: "15s"
+  graceful_shutdown_timeout: "30s"
+{{- if .WithSwag}}
+  # swagger_host 是 Swagger UI 中展示的 host（如 "localhost:8080" 或 "api.example.com"）。
+  # 留空时服务启动后自动用 http_addr 推导（":8080" → "localhost:8080"）。
+  swagger_host: ""
+{{- end}}
 
 logging:
   level: "info"
   format: "json"
 
-database:
-  host: "localhost"
-  port: 5432
-  name: "{{.ServiceName}}"
-  user: "postgres"
-  password: "password"
-  max_connections: 20
-  max_idle_connections: 5
+{{- if .WithDB}}
 
-monitoring:
-  enabled: true
-  port: 9090
-  metrics_path: "/metrics"
+database:
+  driver: "{{.DBDriver}}"
+  dsn: "{{.DBConfigDSN}}"
+  max_open_conns: 20
+  max_idle_conns: 5
+  conn_max_lifetime: "1h"
+{{- end}}
 
 middleware:
   circuit_breaker:
     enabled: true
     failure_threshold: 5
-    timeout: 60s
+    timeout: "60s"
+  rate_limit:
+    enabled: true
+    requests_per_second: 100
   retry:
     enabled: true
     max_attempts: 3
-    backoff: 2s
+    backoff: "2s"

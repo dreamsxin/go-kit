@@ -1,0 +1,114 @@
+package {{.Service.PackageName}}
+
+import (
+	"context"
+	"log"
+	"os"
+
+	grpcserver "github.com/dreamsxin/go-kit/transport/grpc/server"
+	grpcclient "github.com/dreamsxin/go-kit/transport/grpc/client"
+	"github.com/dreamsxin/go-kit/transport"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	{{.Service.PackageName}}ep "{{.ImportPath}}/endpoint/{{.Service.PackageName}}"
+	idl "{{.ImportPath}}"
+	pb "{{.ImportPath}}/pb/{{.Service.PackageName}}"
+)
+
+// stdErrHandler 使用标准库 log 输出 gRPC 服务端错误（避免 nil errorHandler panic）
+var stdErrHandler = transport.ErrorHandlerFunc(func(_ context.Context, err error) {
+	log.New(os.Stderr, "[grpc] ", log.LstdFlags).Println("error:", err)
+})
+
+// ─────────────────────────── gRPC Server ───────────────────────────
+
+// grpcServer gRPC 服务器实现（包装 endpoint 到 pb.XxxServer）
+type grpcServer struct {
+	pb.Unimplemented{{.Service.ServiceName}}Server
+{{range .Service.Methods}}	{{.Name | lower}} grpcserver.Handler
+{{end}}
+}
+
+// NewGRPCServer 创建 gRPC 服务处理器
+func NewGRPCServer(endpoints {{.Service.PackageName}}ep.{{.Service.ServiceName}}Endpoints) pb.{{.Service.ServiceName}}Server {
+	return &grpcServer{
+{{range .Service.Methods}}		{{.Name | lower}}: grpcserver.NewServer(
+			endpoints.{{.Name}}Endpoint,
+			decodeGRPC{{.Name}}Request,
+			encodeGRPC{{.Name}}Response,
+			grpcserver.ServerErrorHandler(stdErrHandler),
+		),
+{{end}}
+	}
+}
+
+// RegisterGRPCServer 注册 gRPC 服务到 grpc.Server
+func RegisterGRPCServer(srv *grpc.Server, endpoints {{.Service.PackageName}}ep.{{.Service.ServiceName}}Endpoints) {
+	pb.Register{{.Service.ServiceName}}Server(srv, NewGRPCServer(endpoints))
+}
+
+{{range .Service.Methods}}
+// {{.Name}} 实现 pb.{{$.Service.ServiceName}}Server 接口
+func (s *grpcServer) {{.Name}}(ctx context.Context, req *pb.{{.Name}}Request) (*pb.{{.Name}}Response, error) {
+	_, resp, err := s.{{.Name | lower}}.ServeGRPC(ctx, req)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return resp.(*pb.{{.Name}}Response), nil
+}
+
+// decodeGRPC{{.Name}}Request 将 protobuf 请求解码为内部 IDL 请求
+func decodeGRPC{{.Name}}Request(_ context.Context, grpcReq interface{}) (interface{}, error) {
+	pbReq := grpcReq.(*pb.{{.Name}}Request)
+	_ = pbReq
+	// TODO: 将 pb.{{.Name}}Request 字段映射到 idl.{{.Input}}
+	// 示例：
+	//   return idl.{{.Input}}{
+	//       Field: pbReq.Field,
+	//   }, nil
+	return idl.{{.Input}}{}, nil
+}
+
+// encodeGRPC{{.Name}}Response 将内部 IDL 响应编码为 protobuf 响应
+func encodeGRPC{{.Name}}Response(_ context.Context, response interface{}) (interface{}, error) {
+	resp := response.(idl.{{.Output}})
+	_ = resp
+	// TODO: 将 idl.{{.Output}} 字段映射到 pb.{{.Name}}Response
+	// 示例：
+	//   return &pb.{{.Name}}Response{
+	//       Field: resp.Field,
+	//   }, nil
+	return &pb.{{.Name}}Response{}, nil
+}
+{{end}}
+
+// ─────────────────────────── gRPC Client Endpoints ───────────────────────────
+{{range .Service.Methods}}
+// NewGRPC{{.Name}}Client 创建 gRPC {{.Name}} 客户端端点
+func NewGRPC{{.Name}}Client(conn *grpc.ClientConn) func(ctx context.Context, request interface{}) (interface{}, error) {
+	return grpcclient.NewClient(
+		conn,
+		"{{$.Service.PackageName}}.{{$.Service.ServiceName}}",
+		"{{.Name}}",
+		encodeGRPCClient{{.Name}}Request,
+		decodeGRPCClient{{.Name}}Response,
+		&pb.{{.Name}}Response{}, // grpcReply 必须是指针，由 grpc.Invoke 填充
+	).Endpoint()
+}
+
+func encodeGRPCClient{{.Name}}Request(_ context.Context, request interface{}) (interface{}, error) {
+	req := request.(idl.{{.Input}})
+	_ = req
+	// TODO: 将 idl.{{.Input}} 映射到 pb.{{.Name}}Request
+	return &pb.{{.Name}}Request{}, nil
+}
+
+func decodeGRPCClient{{.Name}}Response(_ context.Context, response interface{}) (interface{}, error) {
+	resp := response.(*pb.{{.Name}}Response)
+	_ = resp
+	// TODO: 将 pb.{{.Name}}Response 映射到 idl.{{.Output}}
+	return idl.{{.Output}}{}, nil
+}
+{{end}}

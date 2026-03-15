@@ -1,0 +1,28 @@
+package model
+
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
+
+// ModelVersion 用于确保 model 包被正确引用（在 main.go 的 _ = model.ModelVersion 中使用）
+const ModelVersion = "v1"
+
+{{range .Models}}
+// {{.Name}}{{if .Comment}} — {{.Comment}}{{end}}
+type {{.Name}} struct {
+{{- range .Fields}}
+	{{.Name}} {{.Type}}{{if or .JSONTag .GormTag}} `{{if .JSONTag}}json:"{{.JSONTag}}"{{end}}{{if and .JSONTag .GormTag}} {{end}}{{if .GormTag}}gorm:"{{.GormTag}}"{{end}}`{{end}}{{if .Comment}} // {{.Comment}}{{end}}
+{{- end}}
+	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
+	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index"`
+}
+
+// TableName 指定表名（gorm 约定）
+func ({{.Name}}) TableName() string {
+	return "{{.TableName}}"
+}
+
+{{end}}

@@ -3,52 +3,124 @@ package {{.Service.PackageName}}
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/dreamsxin/go-kit/endpoint"
+	"github.com/dreamsxin/go-kit/transport"
 	httptransport "github.com/dreamsxin/go-kit/transport/http/server"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/schema"
 	idl "{{.ImportPath}}"
 	"{{.ImportPath}}/endpoint/{{.Service.PackageName}}"
 )
 
-// NewHTTPHandler 创建HTTP处理器
-func NewHTTPHandler(endpoints {{.Service.PackageName}}.{{.Service.ServiceName}}Endpoints) http.Handler {
+// ─────────────────────────── 公共组件 ───────────────────────────
+
+// safeErrorHandler 使用标准库 log，避免 go-kit 默认 nil zap logger panic
+var safeErrorHandler = transport.ErrorHandlerFunc(func(ctx context.Context, err error) {
+	log.Printf("[transport:{{.Service.PackageName}}] error: %v", err)
+})
+
+// queryDecoder 复用 gorilla/schema decoder（线程安全）
+var queryDecoder = schema.NewDecoder()
+
+func init() {
+	queryDecoder.SetAliasTag("json")
+	queryDecoder.IgnoreUnknownKeys(true)
+}
+
+// errorResponse 统一错误响应格式
+type errorResponse struct {
+	Error string `json:"error"`
+	Code  int    `json:"code,omitempty"`
+}
+
+// encodeError 将 error 写入 HTTP 响应（统一错误格式）
+func encodeError(_ context.Context, err error, w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusBadRequest)
+	json.NewEncoder(w).Encode(errorResponse{Error: err.Error()})
+}
+
+// decodeQueryParams 使用 gorilla/schema 将 QueryString 解析到 struct
+func decodeQueryParams(r *http.Request, dst interface{}) error {
+	if err := r.ParseForm(); err != nil {
+		return err
+	}
+	return queryDecoder.Decode(dst, r.URL.Query())
+}
+
+// decodeBodyParams 将 JSON body 解析到 struct（POST/PUT/DELETE 通用）
+func decodeBodyParams(r *http.Request, dst interface{}) error {
+	defer r.Body.Close()
+	return json.NewDecoder(r.Body).Decode(dst)
+}
+
+// ─────────────────────────── 路由注册 ───────────────────────────
+
+// NewHTTPHandler 创建 HTTP 处理器，将所有路由挂载到返回的 http.Handler。
+//
+// 路由规则（由 microgen 根据方法名前缀自动推导）：
+// 完整对外路径结构：[-prefix]/servicename/route
+// 当前前缀（含服务名）：{{.RoutePrefix}}
+{{range .Service.Methods}}//   {{.HTTPMethod | upper}} {{$.RoutePrefix}}{{.Route}}  →  {{.Name}}
+{{end}}func NewHTTPHandler(endpoints {{.Service.PackageName}}.{{.Service.ServiceName}}Endpoints) http.Handler {
 	r := mux.NewRouter()
 {{range .Service.Methods}}
-	// 使用 httptransport.NewServer 创建标准HTTP处理器
-	{{.Name | lower}}Handler := httptransport.NewServer(
-		endpoints.{{.Name}}Endpoint,
-		decode{{.Name}}Request,
-		encode{{.Name}}Response,
-	)
-	r.Handle("/{{.Name | lower}}", {{.Name | lower}}Handler).Methods("POST")
+	r.Handle("{{.Route}}", Make{{.Name}}HTTPHandler(endpoints.{{.Name}}Endpoint)).
+		Methods("{{.HTTPMethod | upper}}"{{if eq (.HTTPMethod) "get"}}, "HEAD"{{end}})
 {{end}}
 	return r
 }
 
+// ─────────────────────────── 端点实现 ───────────────────────────
 {{range .Service.Methods}}
-// decode{{.Name}}Request 解码请求
+// ── {{.Name}} ──────────────────────────────────────────────────
+
+// @Summary      {{.Summary}}
+// @Description  {{if .Doc}}{{.Doc}}{{else}}{{.Summary}}{{end}}
+// @Tags         {{.Tags}}
+// @Accept       json
+// @Produce      json
+{{- if eq .HTTPMethod "get"}}
+// @Param        request  query  idl.{{trimStar .Input}}  false  "查询参数"
+{{- else}}
+// @Param        request  body   idl.{{trimStar .Input}}  true   "请求体"
+{{- end}}
+// @Success      200  {object}  idl.{{trimStar .Output}}
+// @Failure      400  {object}  errorResponse
+// @Failure      500  {object}  errorResponse
+// @Router       {{$.RoutePrefix}}{{.Route}} [{{.HTTPMethod}}]
 func decode{{.Name}}Request(_ context.Context, r *http.Request) (interface{}, error) {
-	var req idl.{{.Input}}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var req idl.{{trimStar .Input}}
+{{- if eq .HTTPMethod "get"}}
+	// GET：从 QueryString 解析参数
+	if err := decodeQueryParams(r, &req); err != nil {
 		return nil, err
 	}
+{{- else}}
+	// {{.HTTPMethod | upper}}：从 JSON body 解析参数
+	if err := decodeBodyParams(r, &req); err != nil {
+		return nil, err
+	}
+{{- end}}
 	return req, nil
 }
 
-// encode{{.Name}}Response 编码响应
 func encode{{.Name}}Response(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	return json.NewEncoder(w).Encode(response)
 }
 
-// Make{{.Name}}HTTPHandler 创建HTTP端点处理器（兼容旧版本）
+// Make{{.Name}}HTTPHandler 创建独立的 HTTP handler
 func Make{{.Name}}HTTPHandler(ep endpoint.Endpoint) http.Handler {
 	return httptransport.NewServer(
 		ep,
 		decode{{.Name}}Request,
 		encode{{.Name}}Response,
+		httptransport.ServerErrorHandler(safeErrorHandler),
+		httptransport.ServerErrorEncoder(encodeError),
 	)
 }
 {{end}}
