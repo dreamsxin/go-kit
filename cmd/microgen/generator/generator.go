@@ -14,18 +14,18 @@ import (
 	"github.com/dreamsxin/go-kit/cmd/microgen/parser"
 )
 
-// protocHint 输出手动执行 protoc 的提示信息
+// protocHint prints instructions for manually running protoc after .proto generation.
 func protocHint(svcPkg, absPbDir string) {
-	fmt.Printf("\n💡 gRPC proto 文件已生成，请手动执行 protoc 生成 pb.go：\n\n")
-	fmt.Printf("   # 1. 安装插件（仅首次）\n")
-	fmt.Printf("   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest\n")
-	fmt.Printf("   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest\n\n")
-	fmt.Printf("   # 2. 生成 %s\n", svcPkg)
-	fmt.Printf("   protoc \\\n")
-	fmt.Printf("     --proto_path=%s \\\n", absPbDir)
-	fmt.Printf("     --go_out=%s --go_opt=paths=source_relative \\\n", absPbDir)
-	fmt.Printf("     --go-grpc_out=%s --go-grpc_opt=paths=source_relative \\\n", absPbDir)
-	fmt.Printf("     %s\n\n", filepath.Join(absPbDir, svcPkg+".proto"))
+	fmt.Printf("\n[protoc] .proto file generated. Run protoc manually to produce pb.go:\n\n")
+	fmt.Printf("  # Step 1 - install plugins (first time only)\n")
+	fmt.Printf("  go install google.golang.org/protobuf/cmd/protoc-gen-go@latest\n")
+	fmt.Printf("  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest\n\n")
+	fmt.Printf("  # Step 2 - generate %s\n", svcPkg)
+	fmt.Printf("  protoc \\\n")
+	fmt.Printf("    --proto_path=%s \\\n", absPbDir)
+	fmt.Printf("    --go_out=%s --go_opt=paths=source_relative \\\n", absPbDir)
+	fmt.Printf("    --go-grpc_out=%s --go-grpc_opt=paths=source_relative \\\n", absPbDir)
+	fmt.Printf("    %s\n\n", filepath.Join(absPbDir, svcPkg+".proto"))
 }
 
 // invalidPkgChar 匹配 Go package 名中不合法的字符（非字母、数字、下划线）
@@ -821,7 +821,7 @@ func (g *Generator) runSwagInit() error {
 	swagBin, err := exec.LookPath("swag")
 	if err != nil {
 		// swag 未安装，提示用户手动运行
-		fmt.Printf("⚠  swag not found in PATH; run manually:\n   cd %s && swag init -g cmd/main.go -o docs\n", g.outputDir)
+		fmt.Printf("[warn] swag not found in PATH; run manually:\n  cd %s && swag init -g cmd/main.go -o docs\n", g.outputDir)
 		return nil
 	}
 
@@ -830,10 +830,10 @@ func (g *Generator) runSwagInit() error {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		// swag init 失败不是致命错误，打印输出供调试
-		fmt.Printf("⚠  swag init failed (non-fatal):\n%s\n", string(out))
+		fmt.Printf("[warn] swag init failed (non-fatal):\n%s\n", string(out))
 		return nil
 	}
-	fmt.Printf("✓  swag init completed\n")
+	fmt.Printf("[ok] swag init completed\n")
 	return nil
 }
 
