@@ -1,9 +1,10 @@
 .PHONY: all build test lint clean help \
         install-microgen \
         gen gen-http gen-grpc gen-full \
-        run run-demo \
+        run-demo swag-demo \
         proto \
         swag \
+        coverage \
         deps tools
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -61,9 +62,8 @@ gen: install-microgen
 		-db.driver $(DB_DRIVER) \
 		-swag
 	@echo ">>> Done. Next steps:"
-	@echo "    cd $(OUT) && go mod init $(IMPORT) && go mod tidy"
-	@echo "    swag init -g cmd/main.go"
-	@echo "    go run ./cmd/main.go"
+	@echo "    cd $(OUT) && go mod tidy"
+	@echo "    go run ./cmd/main.go -http.addr :8080"
 
 ## gen-http: 仅生成 HTTP 服务（不含 model/swag）
 gen-http: install-microgen
@@ -105,33 +105,46 @@ gen-full: install-microgen
 # 运行示例（generated-usersvc）
 # ──────────────────────────────────────────────────────────────────────────────
 
-## run-demo: 直接运行 generated-usersvc 示例服务
+## run-demo: 运行生成的示例服务（默认使用 OUT 目录）
 run-demo:
+	@if [ ! -d "$(OUT)" ]; then \
+		echo "Error: output directory '$(OUT)' not found. Run 'make gen' first."; \
+		exit 1; \
+	fi
 	@echo ">>> Starting demo service on $(HTTP_PORT)..."
-	@cd generated-usersvc && go run ./cmd/main.go -http.addr $(HTTP_PORT)
+	@cd $(OUT) && go run ./cmd/main.go -http.addr $(HTTP_PORT)
 
-## swag-demo: 为 generated-usersvc 重新生成 Swagger 文档
+## swag-demo: 为生成的服务重新生成 Swagger 文档
 swag-demo:
-	@echo ">>> Running swag init for generated-usersvc..."
-	@cd generated-usersvc && swag init -g cmd/main.go -o docs
+	@if [ ! -d "$(OUT)" ]; then \
+		echo "Error: output directory '$(OUT)' not found. Run 'make gen' first."; \
+		exit 1; \
+	fi
+	@echo ">>> Running swag init for $(OUT)..."
+	@cd $(OUT) && swag init -g cmd/main.go -o docs
 	@echo ">>> Done. Start with: make run-demo"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # gRPC protobuf 代码生成
 # ──────────────────────────────────────────────────────────────────────────────
 
-## proto: 从 pb/ 目录下所有 .proto 文件生成 pb.go（需安装 protoc）
-## 用法: make proto OUT=./your-service
-## 注意: 在 Linux/macOS 上使用 find；Windows 请直接运行 protoc 命令
+## proto: 从指定 .proto 文件生成 pb.go（需安装 protoc）
+## 用法:
+##   make proto PROTO_DIR=./generated/pb/userservice
+##   或手动执行生成时打印的 protoc 提示命令
+## 注意: Windows 下建议直接复制 microgen 输出的 protoc 命令手动执行
+PROTO_DIR ?= $(OUT)/pb
+
 proto:
-	@echo ">>> Generating protobuf Go files from $(OUT)/pb/..."
-	@protoc \
-		--go_out=$(OUT) \
-		--go-grpc_out=$(OUT) \
-		--go_opt=paths=source_relative \
-		--go-grpc_opt=paths=source_relative \
-		--proto_path=$(OUT) \
-		$(OUT)/pb/*/*.proto
+	@echo ">>> Generating protobuf Go files..."
+	@for dir in $(shell find $(PROTO_DIR) -name "*.proto" -exec dirname {} \; | sort -u); do \
+		echo "  protoc: $$dir"; \
+		protoc \
+			--proto_path=$$dir \
+			--go_out=$$dir --go_opt=paths=source_relative \
+			--go-grpc_out=$$dir --go-grpc_opt=paths=source_relative \
+			$$dir/*.proto; \
+	done
 	@echo ">>> Done. pb.go files generated."
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -210,8 +223,8 @@ help:
 	@echo "  └───────────────────────────────────────────────────────────┘"
 	@echo ""
 	@echo "  ┌─ 运行示例 ──────────────────────────────────────────────┐"
-	@echo "  │  make run-demo      启动 generated-usersvc（:8080）       │"
-	@echo "  │  make swag-demo     重新生成 Swagger 文档                 │"
+	@echo "  │  make run-demo      启动生成的服务（$(OUT)，端口 $(HTTP_PORT)） │"
+	@echo "  │  make swag-demo     重新生成 Swagger 文档（$(OUT)）       │"
 	@echo "  └───────────────────────────────────────────────────────────┘"
 	@echo ""
 	@echo "  ┌─ 工具 ──────────────────────────────────────────────────┐"

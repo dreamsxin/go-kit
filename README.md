@@ -18,8 +18,23 @@
   - [Transport — 传输层](#3-transport--传输层)
   - [CircuitBreaker — 熔断器](#4-circuitbreaker--熔断器)
   - [RateLimit — 限流](#5-ratelimit--限流)
-  - [SD — 服务发现](#6-sd--服务发现)
-  - [Log — 日志](#7-log--日志)
+  - [Executor — 重试执行器](#6-executor--重试执行器)
+    - [三种重试策略](#三种重试策略)
+    - [指数退避算法](#指数退避算法)
+    - [RetryError 错误诊断](#retryerror-错误诊断)
+    - [并发执行模型](#并发执行模型)
+  - [SD — 服务发现](#7-sd--服务发现)
+    - [Consul 集成](#consul-集成)
+    - [重试执行器](#重试执行器)
+    - [不依赖 Consul 的单元测试](#不依赖-consul-的单元测试)
+    - [服务端 + 客户端完整场景示例](#服务端--客户端完整场景示例)
+  - [Log — 日志](#8-log--日志)
+  - [中间件链路打印](#9-中间件链路打印--调用链--文件行号)
+    - [打印调用者文件名与行号](#91-打印调用者文件名与行号)
+    - [Request-ID 链路透传中间件](#92-request-id-链路透传中间件)
+    - [完整链路中间件组合示例](#93-完整链路中间件组合示例)
+  - [MetricsMiddleware — 内置指标收集](#10-metricsmiddleware--内置指标收集)
+  - [ErrorHandlingMiddleware — 错误包装](#11-errorhandlingmiddleware--错误包装)
 - [代码生成工具 microgen](#代码生成工具-microgen)
 - [开发命令](#开发命令)
 - [依赖](#依赖)
@@ -43,6 +58,12 @@
 | **重试执行器** | 支持最大次数、超时、指数退避和自定义 Callback |
 | **结构化日志** | 基于 `go.uber.org/zap`，提供 Nop/Development 两种 Logger |
 | **代码生成** | `microgen` 工具，一键生成 service/endpoint/transport/model 全套代码 |
+
+> **设计理念：各组件相互独立，按需引入。**
+> 只需要 HTTP 服务？仅 import `transport/http/server`。
+> 只需要熔断？仅 import `endpoint/circuitbreaker`。
+> 只需要限流？仅 import `endpoint/ratelimit`。
+> 各包之间无强依赖，`endpoint.Endpoint` 是唯一的"胶水"类型——任何中间件、任何传输层、任何服务发现实现，都只认这一个接口，可以自由组合、替换或丢弃。
 
 ---
 
@@ -91,6 +112,7 @@ func main() {
 
 ```go
 import (
+    "time"
     "github.com/dreamsxin/go-kit/endpoint"
     "github.com/dreamsxin/go-kit/endpoint/circuitbreaker"
     "github.com/dreamsxin/go-kit/endpoint/ratelimit"
@@ -333,11 +355,41 @@ ctx.Value(httptransport.ContextKeyRequestXRequestID)  // X-Request-Id Header
 **增强响应接口（response 实现以下接口时自动生效）：**
 
 ```go
-// 自定义 HTTP 状态码
+// 自定义 HTTP 状态码（默认 200）
 type StatusCoder interface { StatusCode() int }
 
-// 追加响应 Header
+// 追加任意响应 Header
 type Headerer interface { Headers() http.Header }
+```
+
+**错误编码（`ErrorEncoder`）：**
+
+`transport.DefaultErrorEncoder` 是服务器的默认错误编码器，按以下规则处理：
+1. error 实现了 `json.Marshaler` → 返回 JSON body，`Content-Type: application/json`
+2. error 实现了 `StatusCoder` → 使用其 `StatusCode()`，否则默认 `500`
+3. error 实现了 `Headerer` → 将其 `Headers()` 合并入响应 Header
+
+```go
+// 自定义错误类型，自动控制 HTTP 状态码和 Header
+type APIError struct {
+    Code    int    `json:"code"`
+    Message string `json:"message"`
+}
+func (e *APIError) Error() string       { return e.Message }
+func (e *APIError) StatusCode() int     { return e.Code }
+func (e *APIError) MarshalJSON() ([]byte, error) {
+    return json.Marshal(struct{ Code int; Message string }{e.Code, e.Message})
+}
+
+// 替换为完全自定义的 ErrorEncoder
+httpserver.ServerErrorEncoder(func(ctx context.Context, err error, w http.ResponseWriter) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusBadRequest)
+    json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+})
+
+// 完全屏蔽错误日志
+httpserver.ServerErrorHandler(transport.NopErrorHandler)
 ```
 
 #### 3.2 HTTP Client
@@ -367,6 +419,43 @@ client := httpclient.NewClient(
 
 ep := client.Endpoint()
 resp, err := ep(ctx, myRequest)
+```
+
+**`BufferedStream` 模式（流式响应）：**
+
+默认情况下 response body 在 decode 后自动关闭。启用 `BufferedStream(true)` 时，body 的关闭权移交给调用方，适合文件下载、SSE 等场景：
+
+```go
+client := httpclient.NewClient(
+    http.MethodGet, tgt,
+    httpclient.EncodeJSONRequest,
+    func(ctx context.Context, r *http.Response) (interface{}, error) {
+        // 不要在此处关闭 r.Body，由调用方负责
+        return r.Body, nil
+    },
+    httpclient.BufferedStream(true),
+)
+ep := client.Endpoint()
+resp, _ := ep(ctx, nil)
+body := resp.(io.ReadCloser)
+defer body.Close() // 调用方负责关闭，关闭时同时取消 context
+```
+
+**`NewExplicitClient` — 完全自定义 Request 构建：**
+
+当需要完整控制 `*http.Request`（如动态签名、非标准路径）时，使用 `NewExplicitClient` 跳过内置的 URL+方法绑定：
+
+```go
+// EncodeRequestFunc 签名：func(ctx, *http.Request, request) (*http.Request, error)
+// 入参 *http.Request 可能为 nil，需自行构建
+customEnc := func(ctx context.Context, _ *http.Request, req interface{}) (*http.Request, error) {
+    r, _ := http.NewRequestWithContext(ctx, http.MethodPost,
+        "https://api.example.com/v2/users", nil)
+    r.Header.Set("X-Signature", computeHMAC(req))
+    json.NewEncoder(/* body */).Encode(req)
+    return r, nil
+}
+client := httpclient.NewExplicitClient(customEnc, decodeMyResponse)
 ```
 
 #### 3.3 gRPC Server
@@ -404,30 +493,56 @@ grpcServer = grpc.NewServer(
 #### 3.4 gRPC Client
 
 ```go
-import grpcclient "github.com/dreamsxin/go-kit/transport/grpc/client"
+import (
+    grpcclient "github.com/dreamsxin/go-kit/transport/grpc/client"
+    "google.golang.org/grpc/metadata"
+)
 
-conn, _ := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+conn, _ := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 client := grpcclient.NewClient(
     conn,
-    "MyService",        // serviceName
+    "MyService",        // serviceName（不含前导 /）
     "CreateUser",       // method
-    encodeGRPCRequest,  // EncodeRequestFunc
-    decodeGRPCResponse, // DecodeResponseFunc
-    &pb.CreateUserResponse{}, // grpcReply：接收响应的 proto 结构体指针
+    encodeGRPCRequest,  // EncodeRequestFunc: func(ctx, req) (interface{}, error)
+    decodeGRPCResponse, // DecodeResponseFunc: func(ctx, reply) (interface{}, error)
+    &pb.CreateUserResponse{}, // grpcReply：接收响应的 proto 结构体指针（每次调用复用）
     // Options（可选）：
     grpcclient.ClientBefore(
-        grpcclient.SetRequestHeader("x-correlation-id", correlationID),
+        // RequestFunc 签名：func(context.Context, *metadata.MD) context.Context
+        // 在此向 outgoing metadata 写入自定义 key（如 correlation-id、auth token）
+        func(ctx context.Context, md *metadata.MD) context.Context {
+            md.Set("x-correlation-id", correlationIDFromCtx(ctx))
+            md.Set("authorization", "Bearer "+tokenFromCtx(ctx))
+            return ctx
+        },
     ),
-    grpcclient.ClientAfter(func(ctx context.Context, header metadata.MD, trailer metadata.MD) context.Context {
-        return ctx
+    grpcclient.ClientAfter(
+        // ResponseFunc 签名：func(context.Context, metadata.MD, metadata.MD) context.Context
+        // 可从 header/trailer 中读取服务端返回的 metadata
+        func(ctx context.Context, header metadata.MD, trailer metadata.MD) context.Context {
+            if traceID := header.Get("x-trace-id"); len(traceID) > 0 {
+                ctx = context.WithValue(ctx, traceIDKey, traceID[0])
+            }
+            return ctx
+        },
+    ),
+    grpcclient.ClientFinalizer(func(ctx context.Context, err error) {
+        // 请求完成后执行（无论成败），适合记录耗时日志
     }),
-    grpcclient.ClientFinalizer(func(ctx context.Context, err error) {}),
 )
 
 ep := client.Endpoint()
 resp, err := ep(ctx, &pb.CreateUserRequest{Username: "alice"})
 ```
+
+**gRPC Client 钩子函数签名对照：**
+
+| 钩子 | 函数签名 | 调用时机 |
+|---|---|---|
+| `ClientBefore` | `func(context.Context, *metadata.MD) context.Context` | 发送请求前，写入 outgoing metadata |
+| `ClientAfter` | `func(context.Context, metadata.MD, metadata.MD) context.Context` | 收到响应后，读取 header/trailer |
+| `ClientFinalizer` | `func(context.Context, error)` | 请求结束（无论成败） |
 
 ---
 
@@ -518,7 +633,154 @@ ep = ratelimit.NewErroringLimiter(
 
 ---
 
-### 6. SD — 服务发现
+### 6. Executor — 重试执行器
+
+`sd/endpointer/executor` 包提供**带重试能力的 Endpoint 包装器**，配合 Balancer 在每次重试时自动切换到不同的后端实例，实现故障转移。
+
+```go
+import (
+    "github.com/dreamsxin/go-kit/sd/endpointer/executor"
+    "github.com/dreamsxin/go-kit/sd/interfaces"
+)
+```
+
+执行器的入参是任意实现了 `interfaces.Balancer` 的负载均衡器（如 `balancer.NewRoundRobin`），出参是一个标准 `endpoint.Endpoint`，可无缝嵌入中间件链。
+
+#### 三种重试策略
+
+```go
+// --- 策略一：Retry — 固定最大次数 ---
+// 最多调用 max 次（首次 + max-1 次重试），整体受 timeout 控制
+// 超出次数或超时时，返回包含所有历史错误的 RetryError
+retryEp := executor.Retry(3, 500*time.Millisecond, lb)
+
+// --- 策略二：RetryAlways — 超时内无限重试 ---
+// 只要未超时就一直重试，适合幂等的读操作
+// ⚠ 注意：若后端持续失败，会在 timeout 到期前一直重试，CPU/连接开销较大
+retryEp := executor.RetryAlways(2*time.Second, lb)
+
+// --- 策略三：RetryWithCallback — 自定义回调精确控制 ---
+// 每次失败后调用 cb(尝试次数 n, 本次错误)，由回调决定是否继续
+retryEp := executor.RetryWithCallback(
+    500*time.Millisecond, lb,
+    func(n int, received error) (keepTrying bool, replacement error) {
+        // 业务错误（参数非法、未授权）不应重试，立即返回
+        if errors.Is(received, ErrInvalidArgument) || errors.Is(received, ErrUnauthorized) {
+            return false, received
+        }
+        // 超过 5 次不再尝试，附加重试次数信息
+        if n >= 5 {
+            return false, fmt.Errorf("giving up after %d retries: %w", n, received)
+        }
+        // 其他错误（网络抖动、超时）继续重试
+        return true, nil
+    },
+)
+```
+
+**回调签名：**
+
+```go
+// n：当前是第几次尝试（从 1 开始）
+// received：本次调用返回的错误
+// keepTrying：是否继续下一次重试
+// replacement：替换最终返回的 error（nil 则使用 received）
+type RetryCallback func(n int, received error) (keepTrying bool, replacement error)
+```
+
+#### 指数退避算法
+
+每次重试失败后，执行器会等待一段时间再发起下一次请求。等待时间采用**带随机抖动的指数退避**策略：
+
+```
+初始等待：10ms
+每次失败后：等待时间 × 2，再乘以 [0.5, 1.5) 随机系数（避免惊群）
+上限：1 分钟
+```
+
+实际代码（`utils.Exponential`）：
+
+```go
+func Exponential(d time.Duration) time.Duration {
+    d *= 2
+    // 乘以 [0.5, 1.5) 的随机系数，引入抖动
+    d = time.Duration(int64(float64(d.Nanoseconds()) * (rand.Float64() + 0.5)))
+    if d > time.Minute {
+        d = time.Minute
+    }
+    return d
+}
+```
+
+典型退避序列（参考值）：
+
+| 第 N 次失败 | 标称等待 | 实际范围（含抖动） |
+|---|---|---|
+| 1 | 20ms | 10–30ms |
+| 2 | 40ms | 20–60ms |
+| 3 | 80ms | 40–120ms |
+| 4 | 160ms | 80–240ms |
+| 5 | 320ms | 160–480ms |
+| … | … | 上限 1 分钟 |
+
+> **注意：** 退避等待发生在**失败后、下次重试前**。整体超时（`timeout`）从第一次调用开始计时，退避时间会消耗整体超时，因此建议 `timeout` 值要大于预期最大重试次数 × 单次平均耗时。
+
+#### RetryError 错误诊断
+
+当所有重试均失败时，返回 `executor.RetryError`，其中包含所有历史错误，便于排查：
+
+```go
+resp, err := retryEp(ctx, req)
+if err != nil {
+    var retryErr executor.RetryError
+    if errors.As(err, &retryErr) {
+        // RawErrors：每次尝试的原始错误列表（按顺序）
+        for i, e := range retryErr.RawErrors {
+            fmt.Printf("attempt %d: %v\n", i+1, e)
+        }
+        // Final：最终决定性错误（通常与最后一次 RawErrors 相同，
+        // 或为 RetryCallback 通过 replacement 替换的错误）
+        fmt.Printf("final error: %v\n", retryErr.Final)
+    }
+}
+```
+
+`RetryError.Error()` 字符串格式：
+
+```
+connection refused (previously: dial timeout; context deadline exceeded)
+```
+
+即：**最终错误 + 括号内所有历史错误**，一行输出完整重试轨迹，便于日志搜索。
+
+#### 并发执行模型
+
+每次重试均在**新 goroutine** 中并发执行，通过 channel 等待结果：
+
+```go
+// 内部伪代码
+for i := 1; ; i++ {
+    go func() {
+        ep, _ := balancer.Endpoint() // 每次从 Balancer 取一个（不同）节点
+        resp, err := ep(ctx, req)
+        // 结果写入 responses / errs channel
+    }()
+    select {
+    case <-ctx.Done():   return nil, ctx.Err()     // 整体超时
+    case resp := <-responses: return resp, nil     // 成功
+    case err := <-errs:  // 失败 → 检查 callback → 退避 → 继续循环
+    }
+}
+```
+
+**关键行为：**
+- 每次重试都调用 `b.Endpoint()` 重新选节点，配合 RoundRobin 自动切换到下一个实例
+- `context.WithTimeout` 在整个重试过程共享，所有 goroutine 均受同一超时控制
+- goroutine 泄露保护：新 goroutine 中的 `ep(ctx, req)` 会因 `ctx` 被 cancel 而提前返回
+
+---
+
+### 7. SD — 服务发现
 
 服务发现模块由四个层次组成：
 
@@ -577,85 +839,619 @@ defer registrar.Deregister()
 
 ```go
 import (
+    "io"
+    "time"
+    "context"
+
     "github.com/dreamsxin/go-kit/sd/consul"
     "github.com/dreamsxin/go-kit/sd/endpointer"
     "github.com/dreamsxin/go-kit/sd/endpointer/balancer"
     "github.com/dreamsxin/go-kit/sd/endpointer/executor"
     "github.com/dreamsxin/go-kit/endpoint"
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/credentials/insecure"
 )
 
-// 1. 创建 Consul Instancer（自动监听健康实例变更）
+// 1. 创建 Consul Instancer（自动监听健康实例变更，passingOnly=true 只返回健康节点）
 instancer := consul.NewInstancer(consulClient, logger, "my-service", true)
 defer instancer.Stop()
 
-// 2. 工厂函数：instance 地址 → Endpoint
-factory := func(instance string) (endpoint.Endpoint, io.Closer, error) {
-    conn, err := grpc.Dial(instance, grpc.WithTransportCredentials(insecure.NewCredentials()))
-    // ... 创建 gRPC client endpoint
-    return clientEp, conn, err
-}
+// 2. 工厂函数：instance 地址（"host:port"）→ Endpoint + io.Closer
+//    每当 Consul 发现新实例时自动调用；实例下线时自动调用 Closer.Close()
+factory := endpoint.Factory(func(instance string) (endpoint.Endpoint, io.Closer, error) {
+    conn, err := grpc.NewClient(instance, grpc.WithTransportCredentials(insecure.NewCredentials()))
+    if err != nil {
+        return nil, nil, err
+    }
+    ep := makeGRPCEndpoint(conn) // 用 conn 构建具体的 gRPC client endpoint
+    return ep, conn, nil
+})
 
-// 3. 创建 Endpointer（自动维护活跃端点列表）
+// 3. 创建 Endpointer（自动维护活跃端点列表，出错 5s 后失效缓存触发重建）
 ep := endpointer.NewEndpointer(
     instancer, factory, logger,
-    endpoint.InvalidateOnError(5*time.Second),
+    endpoint.InvalidateOnError(5*time.Second), // 可选：错误发现后多久清空端点缓存
 )
 
-// 4. 轮询负载均衡
+// 4. 轮询负载均衡（无锁原子操作，高并发友好）
 lb := balancer.NewRoundRobin(ep)
 
-// 5. 带重试的请求
+// 5. 带重试的请求 — 最多 3 次，整体超时 500ms，每次自动切换到不同节点
 retryEp := executor.Retry(3, 500*time.Millisecond, lb)
 resp, err := retryEp(ctx, request)
 ```
 
-#### 重试策略
+#### 重试执行器
+
+SD 与 Executor 的配合很简单：用 `balancer.NewRoundRobin(ep)` 得到 Balancer，再传给 `executor.Retry` / `executor.RetryAlways` / `executor.RetryWithCallback` 即可。详细的重试策略、指数退避算法、`RetryError` 诊断和并发执行模型请参阅 [第 6 节 Executor — 重试执行器](#6-executor--重试执行器)。
 
 ```go
-// 最多重试 max 次，整体超时 timeout
-executor.Retry(max int, timeout time.Duration, b Balancer) endpoint.Endpoint
+lb := balancer.NewRoundRobin(ep)
 
-// 在超时内无限重试
-executor.RetryAlways(timeout time.Duration, b Balancer) endpoint.Endpoint
-
-// 自定义回调控制是否继续重试
-executor.RetryWithCallback(timeout time.Duration, b Balancer,
-    func(n int, received error) (keepTrying bool, replacement error) {
-        if errors.Is(received, ErrNotFound) {
-            return false, received  // 不可重试的错误，立即停止
-        }
-        return true, nil  // 继续重试
-    },
-) endpoint.Endpoint
+// 最多 3 次，整体超时 500ms，每次自动切换到不同节点
+retryEp := executor.Retry(3, 500*time.Millisecond, lb)
+resp, err := retryEp(ctx, request)
 ```
 
 #### 不依赖 Consul 的单元测试
 
 ```go
-// 用 instance/Cache 替代真实 Consul，完全内存驱动
-import "github.com/dreamsxin/go-kit/sd/instance"
+// 用 instance/Cache 直接注入地址，完全内存驱动，无需启动 Consul
+import (
+    "github.com/dreamsxin/go-kit/sd/instance"
+    "github.com/dreamsxin/go-kit/sd/events"
+)
 
 cache := instance.NewCache()
+// 模拟两个实例上线
 cache.Update(events.Event{Instances: []string{"127.0.0.1:8080", "127.0.0.1:8081"}})
 
 ep := endpointer.NewEndpointer(cache, factory, logger)
+lb := balancer.NewRoundRobin(ep)
+retryEp := executor.Retry(2, 200*time.Millisecond, lb)
+
+// 模拟一个实例下线
+cache.Update(events.Event{Instances: []string{"127.0.0.1:8080"}})
 ```
+
+#### 服务端 + 客户端完整场景示例
+
+下面的示例将**服务注册（Server 端）**与**服务发现 + 负载均衡 + 重试（Client 端）**串联在一起，展示真实微服务场景下的完整用法。
+
+**Server 端 — 启动时注册，退出时注销：**
+
+```go
+package main
+
+import (
+    "net/http"
+    "os"
+    "os/signal"
+    "syscall"
+
+    "github.com/dreamsxin/go-kit/log"
+    "github.com/dreamsxin/go-kit/sd/consul"
+    stdconsul "github.com/hashicorp/consul/api"
+)
+
+func main() {
+    logger, _ := log.NewDevelopment()
+    defer logger.Sync()
+
+    // 1. 连接 Consul（默认 127.0.0.1:8500）
+    consulAPI, _ := stdconsul.NewClient(stdconsul.DefaultConfig())
+    consulClient := consul.NewClient(consulAPI)
+
+    // 2. 注册服务，带 HTTP 健康检查
+    registrar := consul.NewRegistrar(
+        consulClient, logger,
+        "user-service",    // 服务名
+        "192.168.1.10",    // 本机地址（Consul 可访问的 IP）
+        8080,              // 端口
+        consul.IDRegistrarOptions("user-service-1"),
+        consul.TagsRegistrarOptions([]string{"v1", "grpc"}),
+        consul.CheckRegistrarOptions(&stdconsul.AgentServiceCheck{
+            HTTP:                           "http://192.168.1.10:8080/health",
+            Interval:                       "10s",
+            DeregisterCriticalServiceAfter: "30s", // 健康检查失败 30s 后自动注销
+        }),
+    )
+    registrar.Register()
+    defer registrar.Deregister() // 进程退出时自动注销，避免僵尸节点
+
+    // 3. 启动 HTTP 服务（省略业务代码）
+    srv := &http.Server{Addr: ":8080", Handler: buildRouter()}
+    go srv.ListenAndServe()
+
+    // 4. 等待退出信号
+    quit := make(chan os.Signal, 1)
+    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+    <-quit
+}
+```
+
+**Client 端 — 自动发现、轮询、重试：**
+
+```go
+package main
+
+import (
+    "context"
+    "io"
+    "time"
+
+    "github.com/dreamsxin/go-kit/log"
+    "github.com/dreamsxin/go-kit/endpoint"
+    "github.com/dreamsxin/go-kit/sd/consul"
+    "github.com/dreamsxin/go-kit/sd/endpointer"
+    "github.com/dreamsxin/go-kit/sd/endpointer/balancer"
+    "github.com/dreamsxin/go-kit/sd/endpointer/executor"
+    stdconsul "github.com/hashicorp/consul/api"
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/credentials/insecure"
+)
+
+func main() {
+    logger, _ := log.NewDevelopment()
+    defer logger.Sync()
+
+    // 1. 连接 Consul
+    consulAPI, _ := stdconsul.NewClient(stdconsul.DefaultConfig())
+    consulClient := consul.NewClient(consulAPI)
+
+    // 2. 订阅 user-service 的健康实例列表（长轮询，自动推送变更）
+    instancer := consul.NewInstancer(
+        consulClient, logger,
+        "user-service",
+        true, // passingOnly：只返回通过健康检查的实例
+        consul.TagsInstancerOptions([]string{"v1"}), // 只发现带 v1 标签的实例
+    )
+    defer instancer.Stop()
+
+    // 3. 工厂函数：每个实例地址建立一个 gRPC 连接
+    factory := endpoint.Factory(func(instance string) (endpoint.Endpoint, io.Closer, error) {
+        conn, err := grpc.NewClient(instance,
+            grpc.WithTransportCredentials(insecure.NewCredentials()),
+        )
+        if err != nil {
+            return nil, nil, err
+        }
+        ep := makeUserServiceEndpoint(conn) // 构建具体 gRPC call
+        return ep, conn, nil
+    })
+
+    // 4. Endpointer 自动维护活跃连接池
+    //    InvalidateOnError: Consul 报错后 10s 清空缓存，防止打到已下线实例
+    ep := endpointer.NewEndpointer(
+        instancer, factory, logger,
+        endpoint.InvalidateOnError(10*time.Second),
+    )
+
+    // 5. 负载均衡：无锁原子轮询
+    lb := balancer.NewRoundRobin(ep)
+
+    // 6. 重试执行器：最多 3 次，整体超时 1s，每次自动切换到下一个节点
+    retryEp := executor.Retry(3, time.Second, lb)
+
+    // 7. 发起请求（与普通 endpoint.Endpoint 用法完全一致）
+    ctx := context.Background()
+    resp, err := retryEp(ctx, &GetUserRequest{ID: 42})
+    _ = resp
+    _ = err
+}
+```
+
+> **关键点：**
+> - Consul 实例变更（上下线）通过**事件驱动**实时推送，Client 端无需轮询
+> - `endpoint.Factory` 负责连接生命周期管理，实例下线时自动 `Close()` 连接
+> - 重试时每次调用 `lb.Endpoint()` 会选出不同实例，天然实现故障转移
+> - 整个链路的**唯一公共接口**是 `endpoint.Endpoint`，SD/Retry/Middleware 均可自由组合
 
 ---
 
-### 7. Log — 日志
+### 8. Log — 日志
 
-日志模块是 `go.uber.org/zap` 的轻量封装：
+日志模块是 `go.uber.org/zap` 的轻量封装，`log.Logger` 即 `*zap.Logger`，可直接使用全部 zap API。
 
 ```go
 import "github.com/dreamsxin/go-kit/log"
 
-// 开发模式（彩色输出，含调用位置）
+// 开发模式：彩色输出，自动附带调用位置（DPanic 级别在开发时 panic）
 logger, err := log.NewDevelopment()
+if err != nil {
+    panic(err)
+}
+defer logger.Sync()
 
-// 静默丢弃所有日志（用于测试或不需要日志的场景）
+// 生产模式：JSON 输出，高性能，建议正式部署使用
+import "go.uber.org/zap"
+logger, err = zap.NewProduction()
+
+// 静默丢弃所有日志（用于测试或完全不需要日志的场景）
+// 定义在 log/nop_logger.go：func NewNopLogger() *Logger { return zap.NewNop() }
 logger = log.NewNopLogger()
 ```
+
+**结构化字段写法：**
+
+```go
+logger.Info("user created",
+    zap.String("username", "alice"),
+    zap.Uint("user_id", 42),
+    zap.Duration("took", time.Since(start)),
+    zap.Error(err),
+)
+// 输出（生产模式 JSON）：
+// {"level":"info","ts":1710000000.123,"msg":"user created","username":"alice","user_id":42,"took":"1.2ms","error":null}
+```
+
+**在 Transport 层接入错误日志：**
+
+```go
+import "github.com/dreamsxin/go-kit/transport"
+
+// NewLogErrorHandler 将传输层错误写入 logger，不会影响业务流程
+handler := httpserver.NewServer(
+    ep,
+    decodeRequest,
+    httpserver.EncodeJSONResponse,
+    httpserver.ServerErrorHandler(transport.NewLogErrorHandler(logger)),
+)
+```
+
+---
+
+### 9. 中间件链路打印 — 调用链 + 文件行号
+
+#### 9.1 打印调用者文件名与行号
+
+使用 `runtime.Caller` 在中间件内记录**调用者**的精确位置，便于快速定位问题。
+
+```go
+package middleware
+
+import (
+    "context"
+    "fmt"
+    "runtime"
+    "time"
+
+    "github.com/dreamsxin/go-kit/endpoint"
+    "go.uber.org/zap"
+)
+
+// CallerInfo 返回调用栈第 skip 层的 "file:line" 字符串。
+// skip=0 是 CallerInfo 本身，skip=1 是调用 CallerInfo 的函数，依此类推。
+func CallerInfo(skip int) string {
+    _, file, line, ok := runtime.Caller(skip)
+    if !ok {
+        return "unknown"
+    }
+    // 只保留最后两段路径，避免绝对路径过长
+    short := file
+    cnt := 0
+    for i := len(file) - 1; i > 0; i-- {
+        if file[i] == '/' {
+            cnt++
+            if cnt == 2 {
+                short = file[i+1:]
+                break
+            }
+        }
+    }
+    return fmt.Sprintf("%s:%d", short, line)
+}
+
+// TracingMiddleware 在每次调用时打印：
+//   - 请求进入时的调用位置（文件:行号）
+//   - 调用耗时
+//   - 错误信息（如有）
+func TracingMiddleware(logger *zap.Logger) endpoint.Middleware {
+    return func(next endpoint.Endpoint) endpoint.Endpoint {
+        return func(ctx context.Context, req interface{}) (resp interface{}, err error) {
+            // skip=1：跳过 CallerInfo 本身，定位到匿名 Endpoint 函数调用处
+            // 如需定位到更上层（调用方业务代码），可调大 skip 值
+            caller := CallerInfo(1)
+            start := time.Now()
+            logger.Info("endpoint called",
+                zap.String("caller", caller),
+                zap.Any("request", req),
+            )
+            defer func() {
+                logger.Info("endpoint returned",
+                    zap.String("caller", caller),
+                    zap.Duration("took", time.Since(start)),
+                    zap.Error(err),
+                )
+            }()
+            return next(ctx, req)
+        }
+    }
+}
+```
+
+**输出示例：**
+
+```
+2026-03-15T10:00:00.000+0800  INFO  endpoint called   {"caller": "usersvc/handler.go:42", "request": {...}}
+2026-03-15T10:00:00.003+0800  INFO  endpoint returned {"caller": "usersvc/handler.go:42", "took": "3ms", "error": null}
+```
+
+---
+
+#### 9.2 Request-ID 链路透传中间件
+
+在分布式场景中，通过 `context` 透传 `request-id`，让同一请求经过的每一层中间件都打印相同 ID，方便串联完整调用链。
+
+```go
+package middleware
+
+import (
+    "context"
+    "time"
+
+    "github.com/dreamsxin/go-kit/endpoint"
+    "github.com/google/uuid"
+    "go.uber.org/zap"
+)
+
+type contextKey string
+
+const RequestIDKey contextKey = "request_id"
+
+// RequestIDMiddleware 从 context 中读取 request-id（不存在则自动生成），
+// 注入到 context 后传递给下游，同时在日志中透传。
+func RequestIDMiddleware(logger *zap.Logger) endpoint.Middleware {
+    return func(next endpoint.Endpoint) endpoint.Endpoint {
+        return func(ctx context.Context, req interface{}) (interface{}, error) {
+            rid, _ := ctx.Value(RequestIDKey).(string)
+            if rid == "" {
+                rid = uuid.New().String()
+                ctx = context.WithValue(ctx, RequestIDKey, rid)
+            }
+            caller := CallerInfo(1)
+            start := time.Now()
+            logger.Info(">> request",
+                zap.String("request_id", rid),
+                zap.String("caller", caller),
+                zap.Any("req", req),
+            )
+            resp, err := next(ctx, req)
+            logger.Info("<< response",
+                zap.String("request_id", rid),
+                zap.String("caller", caller),
+                zap.Duration("took", time.Since(start)),
+                zap.Error(err),
+            )
+            return resp, err
+        }
+    }
+}
+```
+
+**HTTP Server 端注入 Request-ID（从 Header 读取）：**
+
+```go
+import (
+    "net/http"
+    "context"
+    httptransport "github.com/dreamsxin/go-kit/transport/http"
+)
+
+// 在 ServerBefore 中将 HTTP Header 中的 X-Request-ID 写入 context
+func injectRequestID(ctx context.Context, r *http.Request) context.Context {
+    rid := r.Header.Get("X-Request-ID")
+    if rid == "" {
+        rid = uuid.New().String()
+    }
+    return context.WithValue(ctx, middleware.RequestIDKey, rid)
+}
+
+handler := httpserver.NewServer(
+    ep,
+    decodeRequest,
+    httpserver.EncodeJSONResponse,
+    httpserver.ServerBefore(injectRequestID),
+)
+```
+
+---
+
+#### 9.3 完整链路中间件组合示例
+
+```go
+import (
+    "github.com/dreamsxin/go-kit/endpoint"
+    "github.com/dreamsxin/go-kit/endpoint/circuitbreaker"
+    "github.com/dreamsxin/go-kit/endpoint/ratelimit"
+    "github.com/sony/gobreaker"
+    "golang.org/x/time/rate"
+)
+
+ep = endpoint.Chain(
+    RequestIDMiddleware(logger),   // 1. 最外层：注入/透传 request-id，打印链路入口
+    TracingMiddleware(logger),     // 2. 打印调用文件:行号 + 耗时
+    ratelimit.NewErroringLimiter(  // 3. 限流
+        rate.NewLimiter(rate.Every(time.Second), 100),
+    ),
+    circuitbreaker.Gobreaker(      // 4. 熔断
+        gobreaker.NewCircuitBreaker(gobreaker.Settings{Name: "my-svc"}),
+    ),
+)(myEndpoint)
+```
+
+**执行顺序（洋葱模型）：**
+
+```
+HTTP Request
+  └─ RequestIDMiddleware  pre   → 生成/读取 request-id，打印 ">> request"
+       └─ TracingMiddleware pre  → 记录 caller file:line，计时开始
+            └─ RateLimit        → 检查限流
+                 └─ CircuitBreaker → 检查熔断
+                      └─ myEndpoint（业务逻辑）
+                 └─ CircuitBreaker post
+            └─ RateLimit post
+       └─ TracingMiddleware post → 打印耗时、error
+  └─ RequestIDMiddleware  post  → 打印 "<< response"
+```
+
+**日志输出示例（同一请求的完整链路）：**
+
+```
+# RequestIDMiddleware 打印（最外层 pre）
+INFO  >> request   {"request_id": "a1b2-c3d4", "caller": "transport_http.go:55", "req": {"name":"alice"}}
+
+# TracingMiddleware 打印（第二层 pre）
+INFO  endpoint called  {"caller": "transport_http.go:55", "request": {"name":"alice"}}
+
+# ... 业务逻辑执行 ...
+
+# TracingMiddleware 打印（第二层 post）
+INFO  endpoint returned {"caller": "transport_http.go:55", "took": "2ms", "error": null}
+
+# RequestIDMiddleware 打印（最外层 post）
+INFO  << response  {"request_id": "a1b2-c3d4", "caller": "transport_http.go:55", "took": "2ms", "error": null}
+```
+
+> **提示：** 相同的 `request_id` 贯穿所有层，`grep request_id=a1b2-c3d4` 即可过滤出一次请求的完整调用链。
+
+---
+
+### 10. MetricsMiddleware — 内置指标收集
+
+`endpoint.MetricsMiddleware` 是一个轻量的进程内指标中间件，无需引入外部 Prometheus/StatsD 依赖，适合快速埋点或单机场景。
+
+```go
+import "github.com/dreamsxin/go-kit/endpoint"
+
+// 1. 创建指标收集器（普通结构体，零值可用）
+metrics := &endpoint.Metrics{}
+
+// 2. 包裹端点
+ep = endpoint.MetricsMiddleware(metrics)(ep)
+
+// 3. 任意时刻读取指标
+fmt.Printf("total:   %d\n", metrics.RequestCount)
+fmt.Printf("success: %d\n", metrics.SuccessCount)
+fmt.Printf("errors:  %d\n", metrics.ErrorCount)
+fmt.Printf("avg_ms:  %.2f\n",
+    float64(metrics.TotalDuration.Milliseconds())/float64(metrics.RequestCount))
+fmt.Printf("last_at: %s\n", metrics.LastRequestTime.Format(time.RFC3339))
+```
+
+**`Metrics` 字段说明：**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `RequestCount` | `int64` | 总调用次数 |
+| `SuccessCount` | `int64` | 成功次数（err == nil） |
+| `ErrorCount` | `int64` | 失败次数（err != nil） |
+| `TotalDuration` | `time.Duration` | 所有调用累计耗时 |
+| `LastRequestTime` | `time.Time` | 最近一次请求时间 |
+
+> **注意：** `Metrics` 结构体字段使用非原子的 `int64` 累加，适合单 goroutine 或低并发场景。高并发生产环境建议配合 `sync/atomic` 封装，或使用 Prometheus `Counter`/`Histogram`。
+
+**与 Prometheus 集成示意（扩展用法）：**
+
+```go
+import (
+    "github.com/dreamsxin/go-kit/endpoint"
+    "github.com/prometheus/client_golang/prometheus"
+    "github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+    reqTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+        Name: "endpoint_requests_total",
+        Help: "Total endpoint requests",
+    }, []string{"method", "status"})
+
+    reqDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+        Name:    "endpoint_duration_seconds",
+        Buckets: prometheus.DefBuckets,
+    }, []string{"method"})
+)
+
+// 自定义 Prometheus 中间件（替代或叠加 MetricsMiddleware）
+func PrometheusMiddleware(method string) endpoint.Middleware {
+    return func(next endpoint.Endpoint) endpoint.Endpoint {
+        return func(ctx context.Context, req interface{}) (interface{}, error) {
+            start := time.Now()
+            resp, err := next(ctx, req)
+            status := "ok"
+            if err != nil {
+                status = "error"
+            }
+            reqTotal.WithLabelValues(method, status).Inc()
+            reqDuration.WithLabelValues(method).Observe(time.Since(start).Seconds())
+            return resp, err
+        }
+    }
+}
+```
+
+---
+
+### 11. ErrorHandlingMiddleware — 错误包装
+
+`endpoint.ErrorHandlingMiddleware` 将端点返回的错误包装为带操作名的 `ErrorWrapper`，便于在调用链中追溯错误来源，同时保留 `errors.As` / `errors.Is` 链式解包能力。
+
+```go
+import "github.com/dreamsxin/go-kit/endpoint"
+
+// 包裹端点，所有错误自动带上 "CreateUser" 操作标签
+ep = endpoint.ErrorHandlingMiddleware("CreateUser")(ep)
+
+// 调用端点
+_, err := ep(ctx, req)
+if err != nil {
+    // err.Error() → "CreateUser: connection refused"
+    fmt.Println(err)
+
+    // 解包原始错误（支持 errors.As / errors.Is）
+    var wrapper *endpoint.ErrorWrapper
+    if errors.As(err, &wrapper) {
+        fmt.Println("operation:", wrapper.Operation) // "CreateUser"
+        fmt.Println("cause:",     wrapper.Err)       // 原始 error
+    }
+}
+```
+
+**`ErrorWrapper` 结构：**
+
+```go
+type ErrorWrapper struct {
+    Operation string // 操作名，如 "CreateUser"、"GetProfile"
+    Err       error  // 原始错误（Unwrap() 返回此值）
+}
+```
+
+**组合使用场景——多层服务调用时的错误溯源：**
+
+```go
+// 每层包裹自己的操作名，形成清晰的调用链
+userEp  = endpoint.ErrorHandlingMiddleware("UserService.Get")(userEp)
+orderEp = endpoint.ErrorHandlingMiddleware("OrderService.Create")(orderEp)
+
+// 错误输出：
+// "OrderService.Create: UserService.Get: user not found"
+```
+
+> **与 Transport 层配合：** `transport.DefaultErrorEncoder` 会检查 error 是否实现了 `StatusCoder` / `Headerer` 接口，可在自定义 Error 类型中同时实现这两个接口，精确控制 HTTP 响应状态码和 Header：
+>
+> ```go
+> type AppError struct {
+>     Code    int
+>     Message string
+> }
+> func (e *AppError) Error() string       { return e.Message }
+> func (e *AppError) StatusCode() int     { return e.Code }           // 控制 HTTP 状态码
+> func (e *AppError) Headers() http.Header {                          // 追加响应 Header
+>     h := http.Header{}
+>     h.Set("X-Error-Code", strconv.Itoa(e.Code))
+>     return h
+> }
+> ```
 
 ---
 
@@ -812,16 +1608,25 @@ make build
 make install-microgen
 
 # 代码生成快捷命令
-make gen          # HTTP + SQLite + model + swag
+make gen          # HTTP + SQLite + model + swag（输出到 OUT=./generated）
 make gen-http     # 仅 HTTP（最小化）
 make gen-grpc     # HTTP + gRPC + model + swag
 make gen-full     # HTTP + gRPC + model + swag + tests
 
-# 从 .proto 文件重新生成 pb.go（需 protoc）
-make proto
+# 自定义参数
+make gen IDL=./myapp/idl.go OUT=./myapp IMPORT=github.com/myorg/myapp
+make gen DB_DRIVER=mysql
 
-# 启动生成的示例服务
-make run-demo
+# 启动生成的示例服务（需先 make gen）
+make run-demo                    # 默认使用 OUT=./generated，端口 :8080
+make run-demo OUT=./myapp HTTP_PORT=:9090
+
+# 重新生成 Swagger 文档
+make swag-demo OUT=./myapp
+
+# 从 .proto 文件重新生成 pb.go（需安装 protoc，Linux/macOS）
+make proto OUT=./myapp
+# Windows 下直接使用 microgen 生成时打印的 protoc 命令手动执行
 
 # 查看所有目标
 make help
