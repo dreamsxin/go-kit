@@ -26,8 +26,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
-	"syscall"
+{{if or .WithConfig (and .WithSwag .WithConfig)}}	"strings"
+{{end}}	"syscall"
 	"time"
 
 {{range .Services}}	"{{$.ImportPath}}/service/{{.PackageName}}"

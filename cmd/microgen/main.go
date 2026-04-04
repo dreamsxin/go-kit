@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"embed"
 	"flag"
 	"fmt"
@@ -8,8 +9,15 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dreamsxin/go-kit/cmd/microgen/dbschema"
 	"github.com/dreamsxin/go-kit/cmd/microgen/generator"
 	"github.com/dreamsxin/go-kit/cmd/microgen/parser"
+
+	// 注册数据库驱动（仅在 from-db 模式下实际使用）
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/microsoft/go-mssqldb"
 )
 
 //go:embed templates/*.tmpl
@@ -17,68 +25,75 @@ var templateFS embed.FS
 
 // config 命令行参数配置
 type config struct {
-	idlPath     string
+	// ── IDL 模式 ──
+	idlPath string
+
+	// ── DB 模式 ──
+	fromDB   bool     // 是否从数据库生成
+	dbDSN    string   // 数据库连接 DSN
+	dbName   string   // 数据库名（MySQL/SQLServer 需要）
+	dbTables []string // 指定要生成的表（空 = 全部）
+
+	// ── 公共 ──
 	outputDir   string
 	ImportPath  string
 	protocols   []string
 	withConfig  bool
 	withDocs    bool
 	withTests   bool
-	withModel   bool   // 是否生成 gorm model + repository
-	withGRPC    bool   // 是否生成 gRPC 传输层（可通过 -protocols grpc 隐式开启）
-	withDB      bool   // main 是否包含数据库初始化
-	dbDriver    string // gorm 数据库驱动: sqlite(默认)/mysql/postgres/sqlserver/clickhouse
-	withSwag    bool   // 是否生成 swaggo 注释 + docs stub + /swagger/ 路由
+	withModel   bool
+	withGRPC    bool
+	withDB      bool
+	dbDriver    string
+	withSwag    bool
 	serviceName string
-	routePrefix string // HTTP 路由前缀，留空时使用服务名（如 /userservice）
+	routePrefix string
 }
 
 func parseFlags() config {
-	idlPath := flag.String("idl", "", "Path to IDL file (required)")
+	// ── IDL 模式 ──
+	idlPath := flag.String("idl", "", "Path to IDL file (idl mode)")
+
+	// ── DB 模式 ──
+	fromDB := flag.Bool("from-db", false, "Generate from database schema instead of IDL file")
+	dsn := flag.String("dsn", "", "Database DSN (required for -from-db)")
+	dbName := flag.String("dbname", "", "Database name (required for MySQL/SQLServer in -from-db mode)")
+	tables := flag.String("tables", "", "Comma-separated table names to generate (empty = all tables)")
+
+	// ── 公共 ──
 	outputDir := flag.String("out", ".", "Output directory")
 	importPath := flag.String("import", "", "Go module import path for the generated project")
 	protocols := flag.String("protocols", "http", "Supported protocols, comma-separated: http,grpc")
 	withConfig := flag.Bool("config", true, "Generate config/config.yaml")
 	withDocs := flag.Bool("docs", true, "Generate README.md")
 	withTests := flag.Bool("tests", false, "Generate unit test files")
-	withModel := flag.Bool("model", false, "Generate gorm model & repository layer")
-	withDB := flag.Bool("db", false, "Include database initialization in main.go")
-	dbDriver := flag.String("db.driver", "sqlite", "Gorm database driver: sqlite(default), mysql, postgres, sqlserver, clickhouse")
+	withModel := flag.Bool("model", true, "Generate gorm model & repository layer")
+	withDB := flag.Bool("db", true, "Include database initialization in main.go")
+	driver := flag.String("driver", "mysql", "Database driver: sqlite, mysql, postgres, sqlserver, clickhouse")
 	withSwag := flag.Bool("swag", false, "Generate swaggo annotations + docs stub + /swagger/ UI route")
-	serviceName := flag.String("service", "", "Override service name (default: first interface name in IDL)")
-	routePrefix := flag.String("prefix", "", "HTTP route prefix (e.g. /api/v1). Defaults to /<servicename> if empty")
+	serviceName := flag.String("service", "", "Service name (default: derived from -dbname or first IDL interface)")
+	routePrefix := flag.String("prefix", "", "HTTP route prefix (e.g. /api/v1)")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, `microgen - Go microservice code generator
-
-Usage:
-  microgen -idl <idl_file> -out <output_dir> -import <import_path> [options]
-
-Options:
-`)
+		fmt.Fprintf(os.Stderr, "microgen - Go microservice code generator\n\n")
+		fmt.Fprintf(os.Stderr, "Usage:\n")
+		fmt.Fprintf(os.Stderr, "  # 从 IDL 文件生成\n")
+		fmt.Fprintf(os.Stderr, "  microgen -idl <idl_file> -out <dir> -import <path> [options]\n\n")
+		fmt.Fprintf(os.Stderr, "  # 从数据库生成\n")
+		fmt.Fprintf(os.Stderr, "  microgen -from-db -driver <driver> -dsn <dsn> [-dbname <db>] -out <dir> -import <path> [options]\n\n")
+		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
-		fmt.Fprintf(os.Stderr, `
-Examples:
-  # 生成 HTTP 服务（默认 sqlite）
-  microgen -idl ./examples/usersvc/idl.go -out ./generated -import github.com/example/myapp -model -db
-
-  # 指定 MySQL 驱动
-  microgen -idl ./examples/usersvc/idl.go -out ./generated -import github.com/example/myapp -model -db -db.driver mysql
-
-  # HTTP + gRPC + PostgreSQL
-  microgen -idl ./examples/usersvc/idl.go -out ./generated -import github.com/example/myapp \
-    -protocols http,grpc -model -db -db.driver postgres
-
-  # HTTP + Swagger 文档
-  microgen -idl ./examples/usersvc/idl.go -out ./generated -import github.com/example/myapp -swag
-
-  # 指定路由前缀
-  microgen -idl ./examples/usersvc/idl.go -out ./generated -import github.com/example/myapp -prefix /api/v1
-
-  # 完整版（HTTP + gRPC + model + swagger）
-  microgen -idl ./examples/usersvc/idl.go -out ./generated -import github.com/example/myapp \
-    -protocols http,grpc -model -db -swag
-`)
+		fmt.Fprintf(os.Stderr, "\nExamples:\n")
+		fmt.Fprintf(os.Stderr, "  # 从 IDL 生成\n")
+		fmt.Fprintf(os.Stderr, "  microgen -idl ./idl.go -out ./gen -import github.com/example/app\n\n")
+		fmt.Fprintf(os.Stderr, "  # 从 MySQL 生成（所有表）\n")
+		fmt.Fprintf(os.Stderr, "  microgen -from-db -driver mysql -dsn \"root:pass@tcp(127.0.0.1:3306)/mydb?charset=utf8mb4&parseTime=True\" -dbname mydb -out ./gen -import github.com/example/app -service MyApp\n\n")
+		fmt.Fprintf(os.Stderr, "  # 从 MySQL 生成（指定表）\n")
+		fmt.Fprintf(os.Stderr, "  microgen -from-db -driver mysql -dsn \"root:pass@tcp(127.0.0.1:3306)/mydb?charset=utf8mb4&parseTime=True\" -dbname mydb -tables \"users,orders\" -out ./gen -import github.com/example/app\n\n")
+		fmt.Fprintf(os.Stderr, "  # 从 PostgreSQL 生成\n")
+		fmt.Fprintf(os.Stderr, "  microgen -from-db -driver postgres -dsn \"host=127.0.0.1 user=postgres password=pass dbname=mydb sslmode=disable\" -out ./gen -import github.com/example/app\n\n")
+		fmt.Fprintf(os.Stderr, "  # 从 SQLite 生成\n")
+		fmt.Fprintf(os.Stderr, "  microgen -from-db -driver sqlite -dsn \"app.db\" -out ./gen -import github.com/example/app -service MyApp\n\n")
 	}
 
 	flag.Parse()
@@ -91,8 +106,21 @@ Examples:
 		}
 	}
 
+	var tableList []string
+	if *tables != "" {
+		for _, t := range strings.Split(*tables, ",") {
+			if t = strings.TrimSpace(t); t != "" {
+				tableList = append(tableList, t)
+			}
+		}
+	}
+
 	return config{
 		idlPath:     *idlPath,
+		fromDB:      *fromDB,
+		dbDSN:       *dsn,
+		dbName:      *dbName,
+		dbTables:    tableList,
 		outputDir:   *outputDir,
 		ImportPath:  *importPath,
 		protocols:   protos,
@@ -102,7 +130,7 @@ Examples:
 		withModel:   *withModel,
 		withGRPC:    hasGRPC,
 		withDB:      *withDB,
-		dbDriver:    *dbDriver,
+		dbDriver:    *driver,
 		withSwag:    *withSwag,
 		serviceName: *serviceName,
 		routePrefix: *routePrefix,
@@ -110,11 +138,23 @@ Examples:
 }
 
 func (c config) validate() error {
-	if c.idlPath == "" {
-		return fmt.Errorf("IDL file path is required (-idl flag)")
+	if !c.fromDB && c.idlPath == "" {
+		return fmt.Errorf("either -idl or -from-db is required")
 	}
-	if _, err := os.Stat(c.idlPath); os.IsNotExist(err) {
-		return fmt.Errorf("IDL file not found: %s", c.idlPath)
+	if c.fromDB {
+		if c.dbDSN == "" {
+			return fmt.Errorf("-dsn is required when using -from-db")
+		}
+		d := strings.ToLower(c.dbDriver)
+		if d == "mysql" || d == "sqlserver" || d == "mssql" {
+			if c.dbName == "" {
+				return fmt.Errorf("-dbname is required for driver %q", c.dbDriver)
+			}
+		}
+	} else {
+		if _, err := os.Stat(c.idlPath); os.IsNotExist(err) {
+			return fmt.Errorf("IDL file not found: %s", c.idlPath)
+		}
 	}
 	for _, p := range c.protocols {
 		p = strings.TrimSpace(p)
@@ -122,9 +162,8 @@ func (c config) validate() error {
 			return fmt.Errorf("unsupported protocol: %q (allowed: http, grpc)", p)
 		}
 	}
-	// 驱动校验由 generator.New 负责，这里只做非空检测
 	if c.dbDriver == "" {
-		return fmt.Errorf("db.driver cannot be empty")
+		return fmt.Errorf("driver cannot be empty")
 	}
 	return nil
 }
@@ -137,15 +176,17 @@ func main() {
 		log.Fatalf("Invalid configuration: %v\n\nRun with -help for usage.", err)
 	}
 
-	// ─── 解析 IDL（完整模式：含结构体/model）───
-	log.Printf("Parsing IDL: %s", cfg.idlPath)
-	result, err := parser.ParseFull(cfg.idlPath)
-	if err != nil {
-		log.Fatalf("Failed to parse IDL: %v", err)
-	}
+	var (
+		result  *parser.ParseResult
+		idlPath string
+	)
 
-	log.Printf("Found %d service(s), %d struct(s) in package %q",
-		len(result.Services), len(result.Models), result.PackageName)
+	if cfg.fromDB {
+		result, idlPath = runFromDB(cfg)
+	} else {
+		result = runFromIDL(cfg)
+		idlPath = cfg.idlPath
+	}
 
 	if cfg.serviceName == "" && len(result.Services) > 0 {
 		cfg.serviceName = result.Services[0].ServiceName
@@ -166,7 +207,7 @@ func main() {
 		WithDB:      cfg.withDB,
 		DBDriver:    cfg.dbDriver,
 		WithSwag:    cfg.withSwag,
-		IDLSrcPath:  cfg.idlPath,
+		IDLSrcPath:  idlPath,
 		RoutePrefix: cfg.routePrefix,
 	})
 	if err != nil {
@@ -194,13 +235,121 @@ func main() {
 	}
 	if cfg.withGRPC {
 		log.Printf("   gRPC      : .proto files written to pb/  ← see protoc hints above")
-		log.Printf("   Next step : run the protoc commands printed above to generate pb.go")
 	}
 	if cfg.withSwag {
 		log.Printf("   Swagger   : docs stub written to docs/docs.go")
 		log.Printf("   Next step : cd %s && go mod tidy", cfg.outputDir)
 		log.Printf("             : go install github.com/swaggo/swag/cmd/swag@latest")
 		log.Printf("             : swag init -g cmd/main.go")
-		log.Printf("             : go run ./cmd/main.go  # then visit http://localhost:8080/swagger/index.html")
 	}
+}
+
+// ─────────────────────────── IDL 模式 ───────────────────────────
+
+func runFromIDL(cfg config) *parser.ParseResult {
+	log.Printf("Parsing IDL: %s", cfg.idlPath)
+	result, err := parser.ParseFull(cfg.idlPath)
+	if err != nil {
+		log.Fatalf("Failed to parse IDL: %v", err)
+	}
+	log.Printf("Found %d service(s), %d struct(s) in package %q",
+		len(result.Services), len(result.Models), result.PackageName)
+	return result
+}
+
+// ─────────────────────────── DB 模式 ───────────────────────────
+
+func runFromDB(cfg config) (*parser.ParseResult, string) {
+	driver := strings.ToLower(cfg.dbDriver)
+	sqlDriver := gormDriverToSQL(driver)
+
+	log.Printf("Connecting to database [driver=%s] ...", driver)
+	db, err := sql.Open(sqlDriver, cfg.dbDSN)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Failed to connect to database: %v\nDSN: %s", err, cfg.dbDSN)
+	}
+	log.Printf("Database connected.")
+
+	// 内省表结构
+	intro, err := dbschema.NewIntrospector(driver)
+	if err != nil {
+		log.Fatalf("Introspector error: %v", err)
+	}
+
+	schemas, err := intro.Tables(db, cfg.dbName, cfg.dbTables)
+	if err != nil {
+		log.Fatalf("Failed to introspect tables: %v", err)
+	}
+	if len(schemas) == 0 {
+		log.Fatalf("No tables found in database %q (tables filter: %v)", cfg.dbName, cfg.dbTables)
+	}
+	log.Printf("Found %d table(s): %s", len(schemas), tableNames(schemas))
+
+	// 推导服务名
+	svcName := cfg.serviceName
+	if svcName == "" {
+		if cfg.dbName != "" {
+			svcName = dbschema.SnakeToCamel(cfg.dbName) + "Service"
+		} else {
+			svcName = "AppService"
+		}
+	}
+
+	// 推导包名（取 import path 最后一段）
+	pkgName := lastPathSegment(cfg.ImportPath)
+	if pkgName == "" {
+		pkgName = strings.ToLower(svcName)
+	}
+
+	// 生成 idl.go 到输出目录
+	log.Printf("Writing idl.go to %s ...", cfg.outputDir)
+	idlPath, err := dbschema.WriteIDL(schemas, pkgName, cfg.outputDir)
+	if err != nil {
+		log.Fatalf("Failed to write idl.go: %v", err)
+	}
+	log.Printf("idl.go written: %s", idlPath)
+
+	// 直接从 schema 构建 ParseResult（不重新解析 idl.go）
+	result := dbschema.ToParseResult(schemas, svcName, pkgName)
+	log.Printf("Generated %d service(s) with %d model(s)", len(result.Services), len(result.Models))
+	return result, idlPath
+}
+
+// gormDriverToSQL 将 gorm 驱动名映射到 database/sql 注册的驱动名
+func gormDriverToSQL(driver string) string {
+	switch driver {
+	case "mysql":
+		return "mysql"
+	case "postgres", "postgresql":
+		return "postgres"
+	case "sqlite", "sqlite3":
+		return "sqlite3"
+	case "sqlserver", "mssql":
+		return "sqlserver"
+	default:
+		return driver
+	}
+}
+
+func tableNames(schemas []*dbschema.TableSchema) string {
+	names := make([]string, 0, len(schemas))
+	for _, s := range schemas {
+		names = append(names, s.TableName)
+	}
+	return strings.Join(names, ", ")
+}
+
+func lastPathSegment(importPath string) string {
+	parts := strings.Split(strings.TrimRight(importPath, "/"), "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	seg := parts[len(parts)-1]
+	seg = strings.NewReplacer("-", "_", ".", "_").Replace(seg)
+	return strings.ToLower(seg)
 }
