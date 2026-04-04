@@ -9,6 +9,9 @@ generated/
 
 # Go build cache
 /vendor/
+coverage
+coverage.out
+coverage.html
 
 # Temporary AI-generated helper scripts
 tools/_*.py

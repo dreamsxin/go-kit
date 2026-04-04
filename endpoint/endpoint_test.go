@@ -406,3 +406,31 @@ func TestEndpointCache_EmptyUpdate(t *testing.T) {
 		t.Errorf("expected 0 endpoints after empty update, got %d", len(endpoints))
 	}
 }
+
+// ─────────────────────────── LoggingMiddleware ───────────────────────────
+
+func TestLoggingMiddleware_Success(t *testing.T) {
+	logger := kitlog.NewNopLogger()
+	ep := LoggingMiddleware(logger, "testOp")(func(_ context.Context, _ interface{}) (interface{}, error) {
+		return "ok", nil
+	})
+	resp, err := ep(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp != "ok" {
+		t.Errorf("want 'ok', got %v", resp)
+	}
+}
+
+func TestLoggingMiddleware_Error(t *testing.T) {
+	logger := kitlog.NewNopLogger()
+	sentinel := errors.New("log test error")
+	ep := LoggingMiddleware(logger, "failOp")(func(_ context.Context, _ interface{}) (interface{}, error) {
+		return nil, sentinel
+	})
+	_, err := ep(context.Background(), nil)
+	if !errors.Is(err, sentinel) {
+		t.Errorf("want sentinel error, got %v", err)
+	}
+}

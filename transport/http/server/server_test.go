@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/dreamsxin/go-kit/endpoint"
@@ -120,5 +121,136 @@ func TestServer_ErrorHandler(t *testing.T) {
 	s.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 	if handled == nil {
 		t.Error("error handler should have been called")
+	}
+}
+
+// ── NewJSONServer ─────────────────────────────────────────────────────────────
+
+func TestNewJSONServer_OK(t *testing.T) {
+	type req struct{ Name string `json:"name"` }
+	type resp struct{ Msg string `json:"msg"` }
+
+	h := server.NewJSONServer[req](func(_ context.Context, r req) (any, error) {
+		return resp{Msg: "hello " + r.Name}, nil
+	})
+
+	body := `{"name":"world"}`
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body)))
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("want 200, got %d", rec.Code)
+	}
+	var got resp
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Msg != "hello world" {
+		t.Errorf("want 'hello world', got %q", got.Msg)
+	}
+}
+
+func TestNewJSONServer_ErrorUsesJSONErrorEncoder(t *testing.T) {
+	h := server.NewJSONServer[struct{}](func(_ context.Context, _ struct{}) (any, error) {
+		return nil, errors.New("something failed")
+	})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}")))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("want 500, got %d", rec.Code)
+	}
+	ct := rec.Header().Get("Content-Type")
+	if !strings.Contains(ct, "application/json") {
+		t.Errorf("want JSON content-type, got %q", ct)
+	}
+	var body map[string]string
+	json.NewDecoder(rec.Body).Decode(&body) //nolint:errcheck
+	if body["error"] == "" {
+		t.Error("want non-empty error field in JSON body")
+	}
+}
+
+// ── NewJSONServerWithMiddleware ───────────────────────────────────────────────
+
+func TestNewJSONServerWithMiddleware(t *testing.T) {
+	type req struct{ V int `json:"v"` }
+
+	var mwCalled bool
+	h := server.NewJSONServerWithMiddleware[req](
+		func(_ context.Context, r req) (any, error) {
+			return map[string]int{"doubled": r.V * 2}, nil
+		},
+		func(b *endpoint.Builder) *endpoint.Builder {
+			return b.Use(func(next endpoint.Endpoint) endpoint.Endpoint {
+				return func(ctx context.Context, req any) (any, error) {
+					mwCalled = true
+					return next(ctx, req)
+				}
+			})
+		},
+	)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"v":21}`)))
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("want 200, got %d", rec.Code)
+	}
+	if !mwCalled {
+		t.Error("middleware should have been called")
+	}
+	var body map[string]int
+	json.NewDecoder(rec.Body).Decode(&body) //nolint:errcheck
+	if body["doubled"] != 42 {
+		t.Errorf("want 42, got %d", body["doubled"])
+	}
+}
+
+// ── JSONErrorEncoder ──────────────────────────────────────────────────────────
+
+func TestJSONErrorEncoder_DefaultStatus(t *testing.T) {
+	rec := httptest.NewRecorder()
+	server.JSONErrorEncoder(context.Background(), errors.New("boom"), rec)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("want 500, got %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
+		t.Errorf("want JSON content-type, got %q", ct)
+	}
+	var body map[string]string
+	json.NewDecoder(rec.Body).Decode(&body) //nolint:errcheck
+	if body["error"] != "boom" {
+		t.Errorf("want 'boom', got %q", body["error"])
+	}
+}
+
+type statusErr struct{ code int }
+
+func (e statusErr) Error() string  { return "status error" }
+func (e statusErr) StatusCode() int { return e.code }
+
+func TestJSONErrorEncoder_CustomStatus(t *testing.T) {
+	rec := httptest.NewRecorder()
+	server.JSONErrorEncoder(context.Background(), statusErr{http.StatusTeapot}, rec)
+	if rec.Code != http.StatusTeapot {
+		t.Errorf("want 418, got %d", rec.Code)
+	}
+}
+
+// ── DecodeJSONRequest ─────────────────────────────────────────────────────────
+
+func TestDecodeJSONRequest(t *testing.T) {
+	type payload struct{ X int `json:"x"` }
+	dec := server.DecodeJSONRequest[payload]()
+
+	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"x":99}`))
+	got, err := dec(context.Background(), r)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.(payload).X != 99 {
+		t.Errorf("want 99, got %v", got)
 	}
 }

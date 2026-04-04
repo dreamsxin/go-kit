@@ -238,14 +238,80 @@ def test_existing_tests_still_pass(s: Suite):
     for pkg in pkgs:
         s.assert_go_test(pkg)
 
+
+def test_typed_endpoint(s: Suite):
+    """TypedEndpoint, Unwrap, NewTypedBuilder are present and tests pass."""
+    f = (REPO / "endpoint/typed.go").read_text(encoding="utf-8")
+    s.assert_in("type TypedEndpoint", f)
+    s.assert_in("func Unwrap", f)
+    s.assert_in("func NewTypedBuilder", f)
+    s.assert_in("type TypeAssertError", f)
+    ok("typed.go symbols present")
+    s.assert_go_test("./endpoint/...", ["-run", "TestTyped"])
+
+
+def test_backpressure_tracing(s: Suite):
+    """BackpressureMiddleware and TracingMiddleware are present and tests pass."""
+    bp = (REPO / "endpoint/backpressure.go").read_text(encoding="utf-8")
+    s.assert_in("func BackpressureMiddleware", bp)
+    s.assert_in("func InFlightMiddleware", bp)
+    s.assert_in("ErrBackpressure", bp)
+    ok("backpressure.go symbols present")
+
+    tr = (REPO / "endpoint/tracing.go").read_text(encoding="utf-8")
+    s.assert_in("type TraceID", tr)
+    s.assert_in("func TracingMiddleware", tr)
+    s.assert_in("func WithTraceID", tr)
+    s.assert_in("func TraceIDFromContext", tr)
+    ok("tracing.go symbols present")
+
+    s.assert_go_test("./endpoint/...", ["-run", "TestBackpressure|TestTracing|TestWithTrace|TestWithRequest|TestBuilder_With"])
+
+
+def test_json_error_encoder(s: Suite):
+    """JSONErrorEncoder is present and server tests pass (including new ones)."""
+    f = (REPO / "transport/http/server/error.go").read_text(encoding="utf-8")
+    s.assert_in("JSONErrorEncoder", f)
+    ok("error.go: JSONErrorEncoder present")
+    s.assert_go_test("./transport/http/server/...", ["-run", "TestJSONErrorEncoder|TestNewJSONServer|TestDecodeJSON"])
+
+
+def test_sd_newep(s: Suite):
+    """sd.NewEndpoint and NewEndpointWithDefaults tests pass."""
+    s.assert_go_test("./sd/...", ["-run", "TestNewEndpoint|TestNewEndpointWithDefaults"])
+
+
+def test_kit_package(s: Suite):
+    """kit package compiles and Service API is present."""
+    f = (REPO / "kit/kit.go").read_text(encoding="utf-8")
+    s.assert_in("func New(", f)
+    s.assert_in("func (s *Service) Run()", f)
+    s.assert_in("func (s *Service) Start()", f)
+    s.assert_in("func (s *Service) Shutdown(", f)
+    s.assert_in("func JSON[", f)
+    s.assert_in("func WithRateLimit", f)
+    s.assert_in("func WithCircuitBreaker", f)
+    s.assert_in("func WithTimeout", f)
+    s.assert_in("func WithMetrics", f)
+    ok("kit/kit.go symbols present")
+    r = run(["go", "build", "./kit/..."])
+    s.assert_ok(r.returncode == 0, f"kit build failed: {r.stderr[:300]}")
+    ok("kit package builds")
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 ALL_TESTS = [
     ("build_all",              test_build_all),
     ("endpoint_builder",       test_endpoint_builder),
+    ("typed_endpoint",         test_typed_endpoint),
+    ("backpressure_tracing",   test_backpressure_tracing),
     ("json_server",            test_json_server),
+    ("json_error_encoder",     test_json_error_encoder),
     ("json_client",            test_json_client),
     ("sd_package",             test_sd_package),
+    ("sd_newep",               test_sd_newep),
+    ("kit_package",            test_kit_package),
     ("quickstart_build",       test_quickstart_build),
     ("quickstart_http",        test_quickstart_http),
     ("docs_comments",          test_docs_comments),
