@@ -72,68 +72,124 @@ curl http://localhost:8080/health
 
 ## 5-Minute Guide
 
-### Add middleware
+The four building blocks of a go-kit service, shown as one cohesive example.
+
+### Step 1 — Pure business logic
 
 ```go
-var metrics endpoint.Metrics
+// No framework imports — easy to unit test
+type CreateUserReq  struct { Name  string `json:"name"` }
+type CreateUserResp struct { ID    uint   `json:"id"` }
 
-svc := kit.New(":8080",
-    kit.WithRateLimit(100),           // 100 req/s, reject over limit
-    kit.WithCircuitBreaker(5),        // open after 5 consecutive failures
-    kit.WithTimeout(5*time.Second),   // per-request deadline
-    kit.WithMetrics(&metrics),        // built-in counters
-    kit.WithLogging(logger),          // structured zap logging
-    kit.WithRequestID(),              // inject X-Request-ID
-)
+func createUser(_ context.Context, req CreateUserReq) (CreateUserResp, error) {
+    if req.Name == "" {
+        return CreateUserResp{}, errors.New("name is required")
+    }
+    id := db.Insert(req.Name) // your real logic here
+    return CreateUserResp{ID: id}, nil
+}
 ```
 
-### Type-safe endpoints (no runtime panics)
+### Step 2 — Wrap with middleware (type-safe)
 
 ```go
 // TypedEndpoint[Req, Resp] — compile-time type checking, no interface{} assertions
-var createUser endpoint.TypedEndpoint[CreateUserReq, CreateUserResp] =
-    func(ctx context.Context, req CreateUserReq) (CreateUserResp, error) {
-        return userService.Create(ctx, req)
-    }
+base := endpoint.TypedEndpoint[CreateUserReq, CreateUserResp](createUser)
 
-// Apply middleware, recover type safety with Unwrap
+var metrics endpoint.Metrics
+
+// Builder assembles the middleware chain in declaration order
 ep := endpoint.Unwrap[CreateUserReq, CreateUserResp](
-    endpoint.NewTypedBuilder(createUser).
-        WithMetrics(&metrics).
-        WithErrorHandling("CreateUser").
-        WithTimeout(5 * time.Second).
-        WithBackpressure(200).   // max 200 concurrent requests
-        WithTracing().           // inject trace/request IDs
+    endpoint.NewTypedBuilder(base).
+        WithTracing().                                    // inject trace/request IDs
+        WithLogging(logger, "CreateUser").                // structured zap logs
+        WithMetrics(&metrics).                            // request counters
+        WithErrorHandling("CreateUser").                  // wrap errors with op name
+        WithTimeout(5 * time.Second).                     // per-request deadline
+        WithBackpressure(200).                            // max 200 concurrent calls
+        Use(circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(
+            gobreaker.Settings{Name: "CreateUser"},
+        ))).
+        Use(ratelimit.NewErroringLimiter(
+            rate.NewLimiter(rate.Every(time.Second), 100),
+        )).
         Build(),
 )
+
+// Call site is fully type-safe — no .(CreateUserResp) assertion needed
 resp, err := ep(ctx, CreateUserReq{Name: "alice"})
-// resp is CreateUserResp — no type assertion needed
+fmt.Println(resp.ID)
 ```
 
-### Service discovery
+### Step 3 — Expose over HTTP
 
 ```go
-// One line — Consul → RoundRobin → Retry, all wired automatically
-ep := sd.NewEndpointWithDefaults(instancer, factory, logger)
-
-// Custom settings
-ep = sd.NewEndpoint(instancer, factory, logger,
-    sd.WithMaxRetries(3),
-    sd.WithTimeout(500*time.Millisecond),
-    sd.WithInvalidateOnError(5*time.Second),
+// NewJSONServerWithMiddleware wires handler + middleware + HTTP in one call.
+// JSONErrorEncoder is the default — errors become {"error":"..."} automatically.
+handler := server.NewJSONServerWithMiddleware[CreateUserReq](
+    func(ctx context.Context, req CreateUserReq) (any, error) {
+        return ep(ctx, req)
+    },
+    func(b *endpoint.Builder) *endpoint.Builder {
+        return b.WithTimeout(5*time.Second).WithBackpressure(100)
+    },
 )
+
+mux := http.NewServeMux()
+mux.Handle("/users", handler)
+mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+    fmt.Fprintf(w, `{"status":"ok","requests":%d}`, metrics.RequestCount)
+})
+
+srv := &http.Server{Addr: ":8080", Handler: mux}
+go srv.ListenAndServe()
 ```
 
-### Generate a full service from a database
+### Step 4 — Service registration + discovery
 
-```bash
-./microgen.exe -from-db -driver sqlite -dsn app.db \
-    -out ./gen -import github.com/myorg/myapp -service MyApp -config
+```go
+// ── Server side: register with Consul on startup ──────────────────────────
+registrar := consul.NewRegistrar(consulClient, logger,
+    "user-service", "10.0.0.1", 8080,
+    consul.IDRegistrarOptions("user-service-1"),
+    consul.CheckRegistrarOptions(&stdconsul.AgentServiceCheck{
+        HTTP: "http://10.0.0.1:8080/health", Interval: "10s",
+    }),
+)
+registrar.Register()
+defer registrar.Deregister()
 
-cd gen && go mod tidy && go run ./cmd/main.go
-# Listening on :8080
-# GET  /health
-# GET  /debug/routes   ← lists all registered routes as JSON
+// ── Client side: discover + load-balance + retry in one line ─────────────
+instancer := consul.NewInstancer(consulClient, logger, "user-service", true)
+defer instancer.Stop()
+
+// factory creates an endpoint for each discovered instance address
+factory := endpoint.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
+    conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+    if err != nil {
+        return nil, nil, err
+    }
+    return makeGRPCEndpoint(conn), conn, nil
+})
+
+// NewEndpointWithDefaults: Instancer → Endpointer → RoundRobin → Retry (3×, 500ms)
+clientEp := sd.NewEndpointWithDefaults(instancer, factory, logger)
+
+// Call exactly like a local endpoint — retries and failover are transparent
+resp, err := clientEp(ctx, CreateUserReq{Name: "alice"})
+```
+
+### Putting it all together (no Consul needed for local dev)
+
+```go
+// Use instance.Cache as a drop-in Instancer — no external service required
+cache := instance.NewCache()
+cache.Update(events.Event{Instances: []string{"localhost:8080", "localhost:8081"}})
+
+ep := sd.NewEndpoint(cache, factory, logger,
+    sd.WithMaxRetries(3),
+    sd.WithTimeout(500*time.Millisecond),
+)
 ```
 
 ---
