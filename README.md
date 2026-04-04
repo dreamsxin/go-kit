@@ -539,16 +539,58 @@ gen/
 │                            # MakeServerEndpointsWithConfig — config-driven
 ├── transport/{svc}/         # HTTP handlers
 │                            # /debug/routes — lists all routes as JSON
+├── sdk/{svc}sdk/            # ★ Distributable client SDK
+│   └── client.go            #   Copy sdk/ + idl.go to share with third parties
 ├── pb/{svc}/                # Protobuf definition (-protocols grpc)
 ├── model/model.go           # GORM models (-model)
 ├── repository/repository.go # Data access layer (-model)
-├── client/{svc}/            # Client usage example
+├── client/{svc}/            # Internal demo client (runnable example)
 ├── config/
 │   ├── config.yaml          # All settings: server, db, middleware, debug
 │   └── config.go            # Typed config loader with defaults
 ├── docs/                    # Swagger stub (-swag)
-├── idl.go                   # Service interface
+├── idl.go                   # Service interface + request/response types
 └── go.mod
+```
+
+### Client SDK — share with third parties
+
+Every generated service includes a ready-to-distribute SDK in `sdk/{svc}sdk/client.go`.
+Third parties only need two files:
+
+```
+sdk/userservicesdk/client.go   ← copy this
+idl.go                         ← copy this (types)
+```
+
+Then in their project:
+
+```bash
+go get github.com/dreamsxin/go-kit   # only dependency
+```
+
+```go
+import (
+    "github.com/myorg/myapp/sdk/userservicesdk"
+    idl "github.com/myorg/myapp"
+)
+
+client := userservicesdk.New("http://api.example.com",
+    userservicesdk.WithBearerToken(token),
+    userservicesdk.WithTimeout(10*time.Second),
+)
+
+resp, err := client.CreateUser(ctx, idl.CreateUserRequest{Name: "alice"})
+```
+
+The SDK `Client` interface mirrors the server `Service` interface exactly —
+the same method signatures, same request/response types.  Mock it in tests:
+
+```go
+type mockClient struct{}
+func (m *mockClient) CreateUser(_ context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
+    return idl.CreateUserResponse{ID: 1}, nil
+}
 ```
 
 ### Built-in debug endpoints

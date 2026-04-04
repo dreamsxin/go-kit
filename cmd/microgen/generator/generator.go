@@ -229,6 +229,9 @@ func (g *Generator) GenerateFull(result *parser.ParseResult) error {
 		if err := g.generateClientDemo(service); err != nil {
 			return fmt.Errorf("generate client[%s] failed: %w", service.ServiceName, err)
 		}
+		if err := g.generateSDKFile(service); err != nil {
+			return fmt.Errorf("generate sdk[%s] failed: %w", service.ServiceName, err)
+		}
 	}
 
 	// 生成 main 文件
@@ -276,6 +279,11 @@ func (g *Generator) createDirStructure(result *parser.ParseResult) error {
 
 	// client demo 始终生成
 	dirs = append(dirs, filepath.Join(g.outputDir, "client"))
+
+	// sdk — distributable client SDK
+	for _, svc := range result.Services {
+		dirs = append(dirs, filepath.Join(g.outputDir, "sdk", svc.PackageName+"sdk"))
+	}
 
 	// config.yaml
 	if g.config.WithConfig {
@@ -463,6 +471,22 @@ func (g *Generator) generateClientDemo(service *parser.Service) error {
 		"WithGRPC":   g.config.WithGRPC,
 	}
 	return g.executeTemplate("client.tmpl", filepath.Join(clientDir, "demo.go"), data)
+}
+
+// generateSDKFile generates a self-contained, distributable client SDK for the
+// service.  The SDK lives in sdk/{svcname}/client.go and mirrors the server-side
+// Service interface exactly, so third parties only need to copy sdk/ + idl.go.
+func (g *Generator) generateSDKFile(service *parser.Service) error {
+	sdkDir := filepath.Join(g.outputDir, "sdk", service.PackageName+"sdk")
+	os.MkdirAll(sdkDir, 0755)
+
+	fullPrefix := g.config.RoutePrefix + "/" + service.PackageName
+	data := map[string]interface{}{
+		"Service":     service,
+		"ImportPath":  g.config.ImportPath,
+		"RoutePrefix": fullPrefix,
+	}
+	return g.executeTemplate("sdk.tmpl", filepath.Join(sdkDir, "client.go"), data)
 }
 
 // ─────────────────────────── 测试文件 ───────────────────────────

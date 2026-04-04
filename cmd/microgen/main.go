@@ -265,6 +265,12 @@ func main() {
 		log.Printf("             : go install github.com/swaggo/swag/cmd/swag@latest")
 		log.Printf("             : swag init -g cmd/main.go")
 	}
+	log.Printf("")
+	log.Printf("   📦 Client SDK (share with third parties):")
+	for _, svc := range result.Services {
+		log.Printf("     sdk/%ssdk/client.go  +  idl.go", strings.ToLower(svc.ServiceName))
+	}
+	log.Printf("   Third parties only need: go get github.com/dreamsxin/go-kit")
 }
 
 // ─────────────────────────── IDL 模式 ───────────────────────────
