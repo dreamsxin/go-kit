@@ -11,7 +11,9 @@ import (
 	"github.com/dreamsxin/go-kit/log"
 )
 
-// 缓存端点实例
+// EndpointCache maps service instance addresses to Endpoints.
+// It is updated by Endpointer as service-discovery events arrive and
+// optionally invalidates stale entries after a configurable grace period.
 type EndpointCache struct {
 	options            EndpointerOptions
 	mtx                sync.RWMutex
@@ -79,7 +81,7 @@ func (c *EndpointCache) updateCache(instances []string) {
 		cache[instance] = EndpointCloser{service, closer}
 	}
 
-	// 关闭端点
+	// close stale endpoints
 	for _, sc := range c.cache {
 		if sc.Closer != nil {
 			sc.Closer.Close()

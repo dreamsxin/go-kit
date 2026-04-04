@@ -11,7 +11,9 @@ func TestSnakeToCamel(t *testing.T) {
 		{"user", "User"},
 		{"user_profile", "UserProfile"},
 		{"order_item_detail", "OrderItemDetail"},
-		{"id", "Id"},
+		{"id", "ID"},       // Go initialism
+		{"user_id", "UserID"},
+		{"url", "URL"},
 	}
 	for _, c := range cases {
 		got := snakeToCamel(c.in)
@@ -71,8 +73,8 @@ func TestTableToModel(t *testing.T) {
 	}
 
 	idField := model.Fields[0]
-	if idField.Name != "Id" {
-		t.Errorf("field[0].Name = %q, want Id", idField.Name)
+	if idField.Name != "ID" {
+		t.Errorf("field[0].Name = %q, want ID", idField.Name)
 	}
 	if !idField.IsPrimary {
 		t.Error("field[0].IsPrimary should be true")
@@ -172,6 +174,100 @@ func TestWriteIDL(t *testing.T) {
 	for _, check := range checks {
 		if !strings.Contains(src, check) {
 			t.Errorf("idl.go missing %q", check)
+		}
+	}
+}
+
+func TestModelToSchema(t *testing.T) {
+	// Build a schema, convert to model, then round-trip back to schema
+	original := &TableSchema{
+		TableName: "orders",
+		Columns: []ColumnInfo{
+			{Name: "id", DBType: "int", IsPrimary: true, IsAutoIncr: true},
+			{Name: "user_id", DBType: "int", IsNullable: false},
+			{Name: "amount", DBType: "decimal(10,2)", IsNullable: false},
+			{Name: "note", DBType: "varchar(255)", IsNullable: true},
+		},
+	}
+
+	model := tableToModel(original)
+	roundTripped := ModelToSchema(model)
+
+	if roundTripped.TableName != original.TableName {
+		t.Errorf("TableName = %q, want %q", roundTripped.TableName, original.TableName)
+	}
+	// original has 4 cols; tableToModel filters none (no timestamp cols here)
+	if len(roundTripped.Columns) != len(model.Fields) {
+		t.Errorf("column count = %d, want %d", len(roundTripped.Columns), len(model.Fields))
+	}
+
+	// Primary key must survive the round-trip
+	idCol := roundTripped.Columns[0]
+	if !idCol.IsPrimary {
+		t.Error("id column should be primary after round-trip")
+	}
+	if !idCol.IsAutoIncr {
+		t.Error("id column should be auto-increment after round-trip")
+	}
+}
+
+func TestAddTablesWriteIDL(t *testing.T) {
+	// Simulate the add-tables workflow at the WriteIDL level:
+	// 1. Write initial idl.go with "users"
+	// 2. Reconstruct schemas via ModelToSchema, append "orders", rewrite idl.go
+	// 3. Verify both tables appear in the output
+
+	dir := t.TempDir()
+
+	usersSchema := &TableSchema{
+		TableName: "users",
+		Columns: []ColumnInfo{
+			{Name: "id", DBType: "int", IsPrimary: true, IsAutoIncr: true},
+			{Name: "name", DBType: "varchar(64)", IsNullable: false},
+		},
+	}
+	ordersSchema := &TableSchema{
+		TableName: "orders",
+		Columns: []ColumnInfo{
+			{Name: "id", DBType: "bigint", IsPrimary: true, IsAutoIncr: true},
+			{Name: "user_id", DBType: "int", IsNullable: false},
+			{Name: "amount", DBType: "decimal(10,2)", IsNullable: false},
+		},
+	}
+
+	// Step 1: initial generation
+	if _, err := WriteIDL([]*TableSchema{usersSchema}, "shop", dir); err != nil {
+		t.Fatalf("initial WriteIDL: %v", err)
+	}
+
+	// Step 2: simulate mergeWithExisting — reconstruct existing model and append new table
+	usersModel := tableToModel(usersSchema)
+	merged := []*TableSchema{
+		ModelToSchema(usersModel), // existing table reconstructed from model
+		ordersSchema,              // new table
+	}
+
+	if _, err := WriteIDL(merged, "shop", dir); err != nil {
+		t.Fatalf("merged WriteIDL: %v", err)
+	}
+
+	// Step 3: verify
+	content, err := os.ReadFile(dir + "/idl.go")
+	if err != nil {
+		t.Fatalf("read merged idl.go: %v", err)
+	}
+	src := string(content)
+
+	for _, want := range []string{
+		"type User struct",
+		"type Order struct",
+		"CreateUser(ctx context.Context",
+		"CreateOrder(ctx context.Context",
+		"ListUsers(ctx context.Context",
+		"ListOrders(ctx context.Context",
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("merged idl.go missing %q", want)
 		}
 	}
 }

@@ -4,5 +4,6 @@ import (
 	"context"
 )
 
-// 返回结果前进行额外的工作
+// FinalizerFunc is called at the end of every client call, regardless of
+// success or failure.  Use it to record latency or release resources.
 type FinalizerFunc func(context.Context, error)

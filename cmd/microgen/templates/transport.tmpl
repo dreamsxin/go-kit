@@ -3,12 +3,13 @@ package {{.Service.PackageName}}
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
 
 	"github.com/dreamsxin/go-kit/endpoint"
 	"github.com/dreamsxin/go-kit/transport"
 	httptransport "github.com/dreamsxin/go-kit/transport/http/server"
+	kitlog "github.com/dreamsxin/go-kit/log"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/schema"
 	idl "{{.ImportPath}}"
@@ -17,15 +18,19 @@ import (
 
 // ─────────────────────────── 公共组件 ───────────────────────────
 
-// safeErrorHandler 使用标准库 log，避免 go-kit 默认 nil zap logger panic
+// _transportLogger 包级 zap logger，用于传输层错误记录
+var _transportLogger *kitlog.Logger
+
+// safeErrorHandler 使用 go-kit zap logger 记录传输层错误
 var safeErrorHandler = transport.ErrorHandlerFunc(func(ctx context.Context, err error) {
-	log.Printf("[transport:{{.Service.PackageName}}] error: %v", err)
+	_transportLogger.Sugar().Warnf("[transport:{{.Service.PackageName}}] error: %v", err)
 })
 
 // queryDecoder 复用 gorilla/schema decoder（线程安全）
 var queryDecoder = schema.NewDecoder()
 
 func init() {
+	_transportLogger, _ = kitlog.NewDevelopment()
 	queryDecoder.SetAliasTag("json")
 	queryDecoder.IgnoreUnknownKeys(true)
 }
@@ -59,6 +64,20 @@ func decodeBodyParams(r *http.Request, dst interface{}) error {
 
 // ─────────────────────────── 路由注册 ───────────────────────────
 
+// RouteInfo 描述单条路由，供调试端点使用
+type RouteInfo struct {
+	Method  string `json:"method"`
+	Path    string `json:"path"`
+	Handler string `json:"handler"`
+}
+
+// Routes 返回本服务注册的所有路由信息（供 /debug/routes 使用）
+func Routes(prefix string) []RouteInfo {
+	return []RouteInfo{
+{{range .Service.Methods}}		{Method: "{{.HTTPMethod | upper}}", Path: prefix + "{{.Route}}", Handler: "{{.Name}}"},
+{{end}}	}
+}
+
 // NewHTTPHandler 创建 HTTP 处理器，将所有路由挂载到返回的 http.Handler。
 //
 // 路由规则（由 microgen 根据方法名前缀自动推导）：
@@ -71,6 +90,12 @@ func decodeBodyParams(r *http.Request, dst interface{}) error {
 	r.Handle("{{.Route}}", Make{{.Name}}HTTPHandler(endpoints.{{.Name}}Endpoint)).
 		Methods("{{.HTTPMethod | upper}}"{{if eq (.HTTPMethod) "get"}}, "HEAD"{{end}})
 {{end}}
+	// /debug/routes — 列出本服务所有路由（开发调试用）
+	r.HandleFunc("/debug/routes", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		json.NewEncoder(w).Encode(Routes("{{.RoutePrefix}}"))
+	}).Methods("GET")
+
 	return r
 }
 
@@ -95,14 +120,17 @@ func decodeBodyParams(r *http.Request, dst interface{}) error {
 func decode{{.Name}}Request(_ context.Context, r *http.Request) (interface{}, error) {
 	var req idl.{{trimStar .Input}}
 {{- if eq .HTTPMethod "get"}}
-	// GET：从 QueryString 解析参数
+	// GET：从 QueryString 解析参数（不读 body，避免 EOF 错误）
 	if err := decodeQueryParams(r, &req); err != nil {
 		return nil, err
 	}
 {{- else}}
 	// {{.HTTPMethod | upper}}：从 JSON body 解析参数
+	if r.ContentLength == 0 {
+		return req, nil // 允许空 body（字段使用零值）
+	}
 	if err := decodeBodyParams(r, &req); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode request body: %w", err)
 	}
 {{- end}}
 	return req, nil

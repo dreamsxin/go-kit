@@ -1,3 +1,15 @@
+// Package client provides a gRPC transport client that wraps a gRPC
+// connection as an endpoint.Endpoint.
+//
+// Example:
+//
+//	conn, _ := grpc.NewClient("localhost:8081",
+//	    grpc.WithTransportCredentials(insecure.NewCredentials()))
+//
+//	ep := grpcclient.NewClient(
+//	    conn, "MyService", "CreateUser",
+//	    encodeRequest, decodeResponse, &pb.CreateUserResponse{},
+//	).Endpoint()
 package client
 
 import (
@@ -23,7 +35,13 @@ type Client struct {
 	finalizer   []FinalizerFunc
 }
 
-// 创建 grpc 客户端，生成端点
+// NewClient constructs a gRPC client for a single RPC method.
+//
+// cc is the underlying gRPC connection.
+// serviceName and method identify the RPC (e.g. "UserService", "CreateUser").
+// grpcReply must be a pointer to the expected proto response type
+// (e.g. &pb.CreateUserResponse{}) — it is used as the target for
+// proto.Unmarshal.
 func NewClient(
 	cc *grpc.ClientConn,
 	serviceName string,

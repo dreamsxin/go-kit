@@ -23,6 +23,7 @@ type Config struct {
 	Database   DatabaseConfig   `yaml:"database"`
 {{- end}}
 	Middleware  MiddlewareConfig `yaml:"middleware"`
+	Debug       DebugConfig      `yaml:"debug"`
 }
 
 // ─────────────────────────── Server ───────────────────────────
@@ -94,6 +95,16 @@ type RetryConfig struct {
 	Backoff     time.Duration `yaml:"backoff"`
 }
 
+// ─────────────────────────── Debug ───────────────────────────
+
+// DebugConfig 调试端点配置
+type DebugConfig struct {
+	// RoutesEnabled 控制 /debug/routes 端点是否可访问（生产环境建议关闭）
+	RoutesEnabled bool `yaml:"routes_enabled"`
+	// PrintRoutes 控制启动时是否在日志中打印路由表
+	PrintRoutes   bool `yaml:"print_routes"`
+}
+
 // ─────────────────────────── 默认值 ───────────────────────────
 
 // Default 返回内置默认配置，与 config.yaml 的默认内容保持一致。
@@ -136,6 +147,10 @@ func Default() *Config {
 				MaxAttempts: 3,
 				Backoff:     2 * time.Second,
 			},
+		},
+		Debug: DebugConfig{
+			RoutesEnabled: true,
+			PrintRoutes:   true,
 		},
 	}
 }

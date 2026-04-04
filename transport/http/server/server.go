@@ -1,3 +1,17 @@
+// Package server provides an HTTP transport server that bridges the
+// framework's Endpoint abstraction to the standard net/http package.
+//
+// Lifecycle of a single request:
+//
+//  1. ServerBefore hooks run — populate context from the HTTP request.
+//  2. DecodeRequestFunc decodes the HTTP body into a domain request value.
+//  3. The Endpoint is called with the decoded request.
+//  4. ServerAfter hooks run — inspect or modify the response writer.
+//  5. EncodeResponseFunc writes the domain response to the HTTP response.
+//
+// If any step returns an error, the ErrorEncoder writes an error response
+// and the ErrorHandler logs or records the error.  Finalizer hooks always
+// run at the very end, regardless of success or failure.
 package server
 
 import (
@@ -7,7 +21,8 @@ import (
 	"github.com/dreamsxin/go-kit/transport"
 )
 
-// 包装服务端点，实现 http.Handler 接口
+// Server wraps an Endpoint and implements http.Handler.
+// Use NewServer to construct one.
 type Server struct {
 	e            endpoint.Endpoint
 	dec          DecodeRequestFunc
@@ -19,7 +34,11 @@ type Server struct {
 	errorHandler transport.ErrorHandler
 }
 
-// 创建服务端，封装端点
+// NewServer constructs an HTTP Server for the given Endpoint.
+//
+// e, dec, and enc are required; passing nil panics.
+// Use ServerBefore, ServerAfter, ServerErrorEncoder, ServerErrorHandler, and
+// ServerFinalizer to customise behaviour.
 func NewServer(
 	e endpoint.Endpoint,
 	dec DecodeRequestFunc,

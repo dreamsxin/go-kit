@@ -6,7 +6,9 @@ import (
 	"net/url"
 )
 
-// 发出请求前可以进行额外的工作，将信息放入 context
+// RequestFunc is called before the HTTP request is sent.  It receives the
+// current context and the outgoing *http.Request, and returns a (possibly
+// enriched) context.  Use it to inject headers, auth tokens, etc.
 type RequestFunc func(context.Context, *http.Request) context.Context
 
 func makeCreateRequestFunc(method string, target *url.URL, enc EncodeRequestFunc) EncodeRequestFunc {

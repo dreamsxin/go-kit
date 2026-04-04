@@ -1,11 +1,28 @@
+// Package main demonstrates go-kit best practices:
+//   - Pure business logic separated from transport
+//   - Fluent endpoint.Builder for middleware assembly
+//   - NewJSONServer for zero-boilerplate HTTP handling
+//   - MetricsMiddleware for built-in request counters
+//   - Graceful shutdown
+//
+// Run:
+//
+//	go run ./examples/best_practice
+//
+// Test:
+//
+//	curl -X POST http://localhost:8080/hello \
+//	     -H "Content-Type: application/json" \
+//	     -d '{"name":"Alice"}'
+//
+//	curl http://localhost:8080/metrics
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,137 +30,144 @@ import (
 	"time"
 
 	"github.com/sony/gobreaker"
+	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 
 	"github.com/dreamsxin/go-kit/endpoint"
 	"github.com/dreamsxin/go-kit/endpoint/circuitbreaker"
 	"github.com/dreamsxin/go-kit/endpoint/ratelimit"
+	kitlog "github.com/dreamsxin/go-kit/log"
 	"github.com/dreamsxin/go-kit/transport/http/server"
 )
 
-// 请求和响应结构体
+// ── Domain types ──────────────────────────────────────────────────────────────
+
 type helloRequest struct {
 	Name string `json:"name"`
 }
 
 type helloResponse struct {
 	Message string `json:"message"`
-	Error   string `json:"error,omitempty"`
 }
 
-// 业务端点实现
-func makeHelloEndpoint() endpoint.Endpoint {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(helloRequest)
-		if req.Name == "" {
-			return nil, errors.New("name is required")
-		}
-		return helloResponse{
-			Message: fmt.Sprintf("Hello, %s!", req.Name),
-		}, nil
+// ── Business logic (no framework dependency) ──────────────────────────────────
+
+func helloLogic(_ context.Context, req helloRequest) (helloResponse, error) {
+	if req.Name == "" {
+		return helloResponse{}, errors.New("name is required")
 	}
+	return helloResponse{Message: fmt.Sprintf("Hello, %s!", req.Name)}, nil
 }
 
-// 请求解码器
-func decodeRequest(_ context.Context, r *http.Request) (interface{}, error) {
-	var req helloRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
-	}
-	return req, nil
-}
-
-// 响应编码器
-func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	return json.NewEncoder(w).Encode(response)
-}
-
-// 错误编码器
-func errorEncoder(_ context.Context, err error, w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	var statusCode int
-	switch {
-	case errors.Is(err, ratelimit.ErrLimited):
-		statusCode = http.StatusTooManyRequests
-	default:
-		statusCode = http.StatusInternalServerError
-	}
-
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(helloResponse{Error: err.Error()})
-}
-
-// 日志中间件
-func loggingMiddleware(logger *log.Logger) endpoint.Middleware {
-	return func(next endpoint.Endpoint) endpoint.Endpoint {
-		return func(ctx context.Context, request interface{}) (interface{}, error) {
-			logger.Printf("Processing request: %+v", request)
-			start := time.Now()
-			defer func() {
-				logger.Printf("Request processed in %v", time.Since(start))
-			}()
-			return next(ctx, request)
-		}
-	}
-}
+// ── Wire-up ───────────────────────────────────────────────────────────────────
 
 func main() {
-	logger := log.New(os.Stdout, "go-kit-example: ", log.LstdFlags)
+	httpAddr := flag.String("http.addr", ":8080", "HTTP listen address")
+	flag.Parse()
 
-	// 创建基础端点
-	baseEndpoint := makeHelloEndpoint()
+	logger, err := kitlog.NewDevelopment()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "logger init: %v\n", err)
+		os.Exit(1)
+	}
+	defer logger.Sync() //nolint:errcheck
 
-	// 创建熔断器
-	cbSettings := gobreaker.Settings{
-		Name:        "hello-endpoint",
+	// ── Middleware components ─────────────────────────────────────────────────
+	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
+		Name:        "hello",
 		MaxRequests: 5,
 		Interval:    10 * time.Second,
 		Timeout:     5 * time.Second,
-		ReadyToTrip: func(counts gobreaker.Counts) bool {
-			return counts.ConsecutiveFailures > 3
+		ReadyToTrip: func(c gobreaker.Counts) bool { return c.ConsecutiveFailures > 3 },
+	})
+	limiter := rate.NewLimiter(rate.Every(time.Second), 100)
+
+	// ── Endpoint assembly via Builder ─────────────────────────────────────────
+	var metrics endpoint.Metrics
+	base := endpoint.Endpoint(func(ctx context.Context, req any) (any, error) {
+		return helloLogic(ctx, req.(helloRequest))
+	})
+	ep := endpoint.NewBuilder(base).
+		WithMetrics(&metrics).
+		WithErrorHandling("hello").
+		Use(endpoint.TimeoutMiddleware(5 * time.Second)).
+		Use(circuitbreaker.Gobreaker(cb)).
+		Use(ratelimit.NewErroringLimiter(limiter)).
+		Build()
+
+	// ── HTTP handlers ─────────────────────────────────────────────────────────
+	mux := http.NewServeMux()
+
+	// /hello — automatic JSON decode/encode via NewJSONServer
+	mux.Handle("/hello", server.NewJSONServer[helloRequest](
+		func(ctx context.Context, req helloRequest) (any, error) {
+			return ep(ctx, req)
 		},
+		server.ServerErrorEncoder(jsonErrorEncoder(logger)),
+	))
+
+	// /metrics — expose request counters
+	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w,
+			`{"requests":%d,"success":%d,"errors":%d,"avg_ms":%.2f}`,
+			metrics.RequestCount,
+			metrics.SuccessCount,
+			metrics.ErrorCount,
+			avgMs(&metrics),
+		)
+	})
+
+	// /health
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `{"status":"ok"}`)
+	})
+
+	// ── Graceful shutdown ─────────────────────────────────────────────────────
+	srv := &http.Server{Addr: *httpAddr, Handler: mux}
+
+	go func() {
+		logger.Sugar().Infof("listening on %s", *httpAddr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Sugar().Fatalf("listen: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Sugar().Errorf("shutdown: %v", err)
 	}
-	circuitBreaker := gobreaker.NewCircuitBreaker(cbSettings)
+	logger.Sugar().Infof("stopped — total requests: %d", metrics.RequestCount)
+}
 
-	// 创建限流器 - 每秒最多处理2个请求，突发最多5个请求
-	rateLimiter := rate.NewLimiter(rate.Every(time.Second), 5)
+// ── helpers ───────────────────────────────────────────────────────────────────
 
-	// 构建中间件链
-	helloEndpoint := endpoint.Chain(
-		loggingMiddleware(logger),                 // 日志
-		endpoint.ErrorHandlingMiddleware("hello"), // 错误处理
-		circuitbreaker.Gobreaker(circuitBreaker),  // 熔断器
-		ratelimit.NewErroringLimiter(rateLimiter), // 限流器（错误模式）
-	)(baseEndpoint)
+func avgMs(m *endpoint.Metrics) float64 {
+	if m.RequestCount == 0 {
+		return 0
+	}
+	return float64(m.TotalDuration.Milliseconds()) / float64(m.RequestCount)
+}
 
-	// 创建HTTP处理器
-	handler := server.NewServer(
-		helloEndpoint,
-		decodeRequest,
-		encodeResponse,
-		server.ServerErrorEncoder(errorEncoder),
-	)
-
-	// 设置HTTP路由
-	http.Handle("/hello", handler)
-
-	// 启动服务器
-	port := "8080"
-	logger.Printf("Starting server on :%s", port)
-
-	errs := make(chan error, 2)
-	go func() {
-		logger.Printf("Transport: HTTP Listening on :%s", port)
-		errs <- http.ListenAndServe(":"+port, nil)
-	}()
-
-	go func() {
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-		errs <- fmt.Errorf("%s", <-c)
-	}()
-
-	logger.Printf("Terminated: %s", <-errs)
+// jsonErrorEncoder maps known errors to appropriate HTTP status codes and
+// writes a JSON error body.
+func jsonErrorEncoder(logger *zap.Logger) func(context.Context, error, http.ResponseWriter) {
+	return func(_ context.Context, err error, w http.ResponseWriter) {
+		code := http.StatusInternalServerError
+		switch {
+		case errors.Is(err, ratelimit.ErrLimited):
+			code = http.StatusTooManyRequests
+		case errors.Is(err, errors.New("name is required")):
+			code = http.StatusBadRequest
+		}
+		logger.Sugar().Warnw("request error", "status", code, "err", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(code)
+		fmt.Fprintf(w, `{"error":%q}`, err.Error())
+	}
 }

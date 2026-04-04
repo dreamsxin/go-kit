@@ -9,7 +9,8 @@ import (
 	"github.com/dreamsxin/go-kit/sd/endpointer"
 )
 
-// 按顺序选择端点
+// NewRoundRobin returns a Balancer that distributes calls across the
+// Endpoints returned by s in round-robin order using a lock-free counter.
 func NewRoundRobin(s endpointer.Endpointer) interfaces.Balancer {
 	return &roundRobin{
 		s: s,

@@ -1,53 +1,64 @@
+// Package common provides shared helpers and illustrative patterns used
+// across the examples/ directory.
+//
+// It demonstrates:
+//   - Wrapping an existing service interface as an endpoint.Endpoint
+//   - Implementing transport/http/interfaces.Headerer on a response type
 package common
 
 import (
 	"context"
-	"io"
+	"fmt"
 	"net/http"
 
 	"github.com/dreamsxin/go-kit/endpoint"
 )
 
-type Server interface {
-	Hello(name string) (ret string, err error)
+// ── Service interface ─────────────────────────────────────────────────────────
+
+// Greeter is a minimal service interface used in examples.
+type Greeter interface {
+	Greet(ctx context.Context, name string) (string, error)
 }
 
-type TestServer struct {
-	host string
-}
+// ── In-memory implementation ──────────────────────────────────────────────────
 
-func (s *TestServer) Hello(name string) (ret string, err error) {
-	client := &http.Client{}
-	request, err := http.NewRequest("GET", "http://"+s.host+"/ui/dc1/services", nil)
-	if err != nil {
-		return "", err
+type inmemGreeter struct{}
+
+// NewGreeter returns a simple in-memory Greeter implementation.
+func NewGreeter() Greeter { return &inmemGreeter{} }
+
+func (g *inmemGreeter) Greet(_ context.Context, name string) (string, error) {
+	if name == "" {
+		return "", fmt.Errorf("name must not be empty")
 	}
-	response, err := client.Do(request)
-	if err != nil {
-		return "", err
-	}
-	defer response.Body.Close()
-	body, _ := io.ReadAll(response.Body)
-	return "hello " + string(body), nil
+	return "Hello, " + name + "!", nil
 }
 
-func MakeTestHelloEndpoint(svc Server) (ep endpoint.Endpoint) {
+// ── Endpoint factory ──────────────────────────────────────────────────────────
+
+// MakeGreetEndpoint wraps a Greeter as an endpoint.Endpoint.
+// The request value must be a string (the name to greet).
+func MakeGreetEndpoint(svc Greeter) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		name := request.(string)
-		ret, err := svc.Hello(name)
-		return ret, err
+		name, ok := request.(string)
+		if !ok {
+			return nil, fmt.Errorf("expected string request, got %T", request)
+		}
+		return svc.Greet(ctx, name)
 	}
 }
 
-func NewTestServer(host string) *TestServer {
+// ── Response with custom headers ──────────────────────────────────────────────
 
-	return &TestServer{host: host}
+// GreetResponse is a response type that adds a custom HTTP header.
+// It implements transport/http/interfaces.Headerer so the HTTP server
+// automatically merges the headers into the response.
+type GreetResponse struct {
+	Message string `json:"message"`
 }
 
-type UserData struct {
-	Foo string `json:"foo"`
-}
-
-func (e UserData) Headers() http.Header {
-	return http.Header{"X-Email": []string{"dreamsxin@qq.com"}}
+// Headers implements interfaces.Headerer.
+func (r GreetResponse) Headers() http.Header {
+	return http.Header{"X-Greeted-By": []string{"go-kit-example"}}
 }

@@ -1,6 +1,6 @@
 .PHONY: all build test lint clean help \
         install-microgen \
-        gen gen-http gen-grpc gen-full \
+        gen gen-http gen-grpc gen-full gen-from-db \
         run-demo swag-demo \
         proto \
         swag \
@@ -22,6 +22,15 @@ IMPORT      ?= github.com/example/myapp
 
 # 数据库驱动 (sqlite | mysql | postgres | sqlserver | clickhouse)
 DB_DRIVER   ?= sqlite
+
+# 数据库 DSN（gen-from-db 使用）
+DB_DSN      ?= app.db
+
+# 数据库名（MySQL/SQLServer 的 gen-from-db 使用）
+DB_NAME     ?=
+
+# 服务名（gen-from-db 使用）
+SERVICE     ?= AppService
 
 # HTTP 监听端口（run-demo 使用）
 HTTP_PORT   ?= :8080
@@ -59,7 +68,7 @@ gen: install-microgen
 		-protocols http \
 		-model \
 		-db \
-		-db.driver $(DB_DRIVER) \
+		-driver $(DB_DRIVER) \
 		-swag
 	@echo ">>> Done. Next steps:"
 	@echo "    cd $(OUT) && go mod tidy"
@@ -84,7 +93,7 @@ gen-grpc: install-microgen
 		-protocols http,grpc \
 		-model \
 		-db \
-		-db.driver $(DB_DRIVER) \
+		-driver $(DB_DRIVER) \
 		-swag
 
 ## gen-full: 完整生成（HTTP+gRPC + model + swag + test）
@@ -97,9 +106,29 @@ gen-full: install-microgen
 		-protocols http,grpc \
 		-model \
 		-db \
-		-db.driver $(DB_DRIVER) \
+		-driver $(DB_DRIVER) \
 		-swag \
 		-tests
+
+## gen-from-db: 从数据库生成 RESTful 服务（需设置 DB_DRIVER / DB_DSN / DB_NAME / SERVICE）
+##   示例（MySQL）:
+##     make gen-from-db DB_DRIVER=mysql DB_DSN="root:pass@tcp(127.0.0.1:3306)/mydb?charset=utf8mb4&parseTime=True" DB_NAME=mydb SERVICE=MyApp IMPORT=github.com/myorg/myapp OUT=./gen
+##   示例（SQLite）:
+##     make gen-from-db DB_DRIVER=sqlite DB_DSN=app.db SERVICE=MyApp IMPORT=github.com/myorg/myapp OUT=./gen
+gen-from-db: install-microgen
+	@echo ">>> Generating service from database [driver=$(DB_DRIVER)] → $(OUT)"
+	@$(MICROGEN) \
+		-from-db \
+		-driver  $(DB_DRIVER) \
+		-dsn     "$(DB_DSN)" \
+		$(if $(DB_NAME),-dbname $(DB_NAME),) \
+		-service $(SERVICE) \
+		-out     $(OUT) \
+		-import  $(IMPORT) \
+		-swag
+	@echo ">>> Done. Next steps:"
+	@echo "    cd $(OUT) && go mod tidy"
+	@echo "    go run ./cmd/main.go"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 运行示例（generated-usersvc）

@@ -2,5 +2,6 @@ package client
 
 import "context"
 
-// 请求完成后调用
+// FinalizerFunc is called at the end of every gRPC client call, regardless
+// of success or failure.
 type FinalizerFunc func(ctx context.Context, err error)

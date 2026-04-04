@@ -1,16 +1,23 @@
 # Generated service directories
 generated-*/
+generated/
 
 # Compiled executables
 *.exe
-
-# Go build cache
 *.test
 *.out
+
+# Go build cache
+/vendor/
+
+# Temporary AI-generated helper scripts
+tools/_*.py
+tools/__pycache__/
 
 # IDE
 .vscode/
 .idea/
+.kiro/
 
 # OS
 .DS_Store

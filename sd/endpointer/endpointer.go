@@ -7,11 +7,15 @@ import (
 	"github.com/dreamsxin/go-kit/sd/interfaces"
 )
 
-// 端点生成器：根据服务发现类获取的服务地址以及端点构建工厂创建端点
+// Endpointer resolves a set of live Endpoints from a service-discovery source.
+// It subscribes to an Instancer and keeps an EndpointCache up to date.
 type Endpointer interface {
 	Endpoints() ([]endpoint.Endpoint, error)
 }
 
+// NewEndpointer creates an Endpointer that subscribes to src and builds
+// Endpoints using f.  It starts a background goroutine to process events;
+// call Close() on the returned value to stop it.
 func NewEndpointer(src interfaces.Instancer, f endpoint.Factory, logger *log.Logger, options ...endpoint.EndpointerOption) Endpointer {
 	opts := endpoint.EndpointerOptions{}
 	for _, opt := range options {

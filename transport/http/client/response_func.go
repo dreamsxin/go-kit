@@ -5,5 +5,6 @@ import (
 	"net/http"
 )
 
-// 返回结果前进行额外的工作
+// ResponseFunc is called after a successful HTTP response is received.
+// Use it to read response headers or propagate values into the context.
 type ResponseFunc func(context.Context, *http.Response, error) context.Context

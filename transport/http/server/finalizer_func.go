@@ -5,5 +5,7 @@ import (
 	"net/http"
 )
 
-// 返回结果前进行额外的工作
+// FinalizerFunc is called at the very end of every request, regardless of
+// success or failure.  Use it to record latency, log access, or release
+// resources.
 type FinalizerFunc func(context.Context, *http.Request, *InterceptingWriter)

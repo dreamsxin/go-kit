@@ -5,7 +5,8 @@ import (
 	"net/http"
 )
 
-// 拦截写入操作
+// InterceptingWriter wraps an http.ResponseWriter to capture the status code
+// and number of bytes written, making them available to FinalizerFunc hooks.
 type InterceptingWriter struct {
 	http.ResponseWriter
 	code    int

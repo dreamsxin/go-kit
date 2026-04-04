@@ -1,128 +1,100 @@
-# Service Discovery 服务发现模块
+# sd — Service Discovery
 
-服务发现模块提供了微服务架构中的服务注册与发现功能，支持 Consul 等服务发现工具。
+The `sd` package wires together service discovery, load balancing, and retry
+into a single callable `endpoint.Endpoint`.
 
-## 核心组件
-
-### Consul 集成
-
-- **consul/** - Consul 服务发现集成
-  - `client.go` - Consul 客户端封装
-  - `instancer.go` - 服务实例发现
-  - `registrar.go` - 服务注册管理
-
-### 端点管理
-
-- **endpointer/** - 端点管理器
-  - `endpointer.go` - 端点管理核心
-  - `balancer/` - 负载均衡器
-    - `robin.go` - 轮询负载均衡
-  - `executor/` - 执行器
-    - `retry.go` - 重试机制
-
-### 实例管理
-
-- **instance/** - 服务实例管理
-  - `cache.go` - 实例缓存
-  - `registry.go` - 实例注册表
-
-### 事件系统
-
-- **events/** - 事件系统
-  - `event.go` - 事件定义和处理
-
-### 接口定义
-
-- **interfaces/** - 接口定义
-  - `balancer.go` - 负载均衡器接口
-  - `instancer.go` - 实例发现接口
-  - `registrar.go` - 服务注册接口
-
-## 快速使用
-
-### 服务注册示例
+## Quick start (no Consul needed)
 
 ```go
 import (
-    "github.com/dreamsxin/go-kit/sd/consul"
-    "github.com/hashicorp/consul/api"
+    "github.com/dreamsxin/go-kit/sd"
+    "github.com/dreamsxin/go-kit/sd/instance"
 )
 
-// 创建Consul客户端
-consulClient, _ := api.NewClient(api.DefaultConfig())
+// In-memory instancer — perfect for tests and local dev
+cache := instance.NewCache()
+cache.Update(events.Event{Instances: []string{"host1:8080", "host2:8080"}})
 
-// 创建服务注册器
-registrar := consul.NewRegistrar(
-    consulClient,
-    &api.AgentServiceRegistration{
-        ID:   "my-service-1",
-        Name: "my-service",
-        Port: 8080,
-    },
-    log.NewNopLogger(),
+ep := sd.NewEndpoint(cache, factory, logger,
+    sd.WithMaxRetries(3),
+    sd.WithTimeout(500*time.Millisecond),
 )
-
-// 注册服务
-registrar.Register()
-defer registrar.Deregister()
+resp, err := ep(ctx, request)
 ```
 
-### 服务发现示例
+## With Consul
 
 ```go
 import "github.com/dreamsxin/go-kit/sd/consul"
 
-// 创建服务发现器
-instancer := consul.NewInstancer(
-    consulClient,
-    log.NewNopLogger(),
-    "my-service",
-    []string{}, // tags
-    true,       // passing only
+instancer := consul.NewInstancer(consulClient, logger, "my-service", true)
+defer instancer.Stop()
+
+ep := sd.NewEndpoint(instancer, factory, logger,
+    sd.WithMaxRetries(3),
+    sd.WithTimeout(500*time.Millisecond),
+    sd.WithInvalidateOnError(5*time.Second),
 )
-
-// 创建端点工厂
-factory := func(instance string) (endpoint.Endpoint, error) {
-    return myEndpointFactory(instance), nil
-}
-
-// 创建端点管理器
-endpointer := sd.NewEndpointer(instancer, factory, log.NewNopLogger())
 ```
 
-## API 参考
+## Options
 
-### 服务注册接口
+| Option | Default | Description |
+|--------|---------|-------------|
+| `WithMaxRetries(n)` | 3 | Max retry attempts; 0 = retry until timeout |
+| `WithTimeout(d)` | 500ms | Total budget including all retries |
+| `WithInvalidateOnError(d)` | disabled | Clear cache after SD error grace period |
+
+## Architecture
+
+```
+Instancer  →  Endpointer  →  RoundRobin  →  Retry  →  Endpoint
+```
+
+Each layer is independently usable:
 
 ```go
-type Registrar interface {
-    Register()
-    Deregister()
-}
+// Manual assembly (full control)
+ep   := endpointer.NewEndpointer(instancer, factory, logger)
+lb   := balancer.NewRoundRobin(ep)
+call := executor.Retry(3, 500*time.Millisecond, lb)
 ```
 
-### 服务发现接口
+## Retry strategies
 
 ```go
-type Instancer interface {
-    Register(chan<- sd.Event)
-    Deregister(chan<- sd.Event)
-    Stop()
-}
+// Fixed max attempts
+executor.Retry(3, time.Second, lb)
+
+// Unlimited within timeout
+executor.RetryAlways(2*time.Second, lb)
+
+// Custom callback — stop on non-retryable errors
+executor.RetryWithCallback(time.Second, lb,
+    func(n int, err error) (keepTrying bool, replacement error) {
+        if errors.Is(err, ErrInvalidArgument) {
+            return false, err   // stop immediately
+        }
+        return n < 5, nil       // retry up to 5 times
+    },
+)
 ```
 
-### 负载均衡接口
+## Consul registration
 
 ```go
-type Balancer interface {
-    Endpoint() (endpoint.Endpoint, error)
-}
+registrar := consul.NewRegistrar(client, logger, "my-service", "10.0.0.1", 8080,
+    consul.IDRegistrarOptions("my-service-1"),
+    consul.CheckRegistrarOptions(&stdconsul.AgentServiceCheck{
+        HTTP:     "http://10.0.0.1:8080/health",
+        Interval: "10s",
+    }),
+)
+registrar.Register()
+defer registrar.Deregister()
 ```
 
-## 最佳实践
+## See also
 
-1. **健康检查**：实现完善的服务健康检查机制
-2. **服务标签**：使用标签进行服务分类和路由
-3. **缓存策略**：合理配置服务实例缓存时间
-4. **重试机制**：实现客户端重试和故障转移
-5. **监控告警**：监控服务发现状态和性能指标
+- `examples/sd/` — runnable demo of every sd component
+- `examples/profilesvc/client/` — Consul-backed client example

@@ -2,10 +2,15 @@ package {{.Service.PackageName}}
 
 import (
 	"context"
-	"log"
 	"time"
 
+	"github.com/sony/gobreaker"
+	"golang.org/x/time/rate"
+
 	"github.com/dreamsxin/go-kit/endpoint"
+	"github.com/dreamsxin/go-kit/endpoint/circuitbreaker"
+	"github.com/dreamsxin/go-kit/endpoint/ratelimit"
+	kitlog "github.com/dreamsxin/go-kit/log"
 	idl "{{.ImportPath}}"
 	"{{.ImportPath}}/service/{{.Service.PackageName}}"
 )
@@ -16,20 +21,83 @@ type {{.Service.ServiceName}}Endpoints struct {
 {{end}}
 }
 
-// MakeServerEndpoints 创建服务端端点
-func MakeServerEndpoints(svc {{.Service.PackageName}}.{{.Service.ServiceName}}, logger *log.Logger) {{.Service.ServiceName}}Endpoints {
-	endpoints := {{.Service.ServiceName}}Endpoints{
-{{range .Service.Methods}}		{{.Name}}Endpoint: Make{{.Name}}Endpoint(svc),
-{{end}}
+// MiddlewareConfig 端点中间件配置，与 config/config.go 中的 MiddlewareConfig 对应
+type MiddlewareConfig struct {
+	CBEnabled          bool
+	CBFailureThreshold uint32
+	CBTimeout          time.Duration
+	RLEnabled          bool
+	RLRps              float64
+	Timeout            time.Duration
+}
+
+// DefaultMiddlewareConfig 默认中间件配置
+var DefaultMiddlewareConfig = MiddlewareConfig{
+	CBEnabled:          true,
+	CBFailureThreshold: 5,
+	CBTimeout:          60 * time.Second,
+	RLEnabled:          true,
+	RLRps:              100,
+	Timeout:            30 * time.Second,
+}
+
+// MakeServerEndpoints 使用默认中间件配置创建服务端端点
+func MakeServerEndpoints(svc {{.Service.PackageName}}.{{.Service.ServiceName}}, logger *kitlog.Logger) {{.Service.ServiceName}}Endpoints {
+	return MakeServerEndpointsWithConfig(svc, logger, DefaultMiddlewareConfig)
+}
+
+// MakeServerEndpointsWithConfig 使用自定义中间件配置创建服务端端点
+//
+// 典型用法（从配置文件驱动）：
+//
+//	cfg, _ := config.Load("config/config.yaml")
+//	endpoints := MakeServerEndpointsWithConfig(svc, logger, MiddlewareConfig{
+//	    CBEnabled:          cfg.Middleware.CircuitBreaker.Enabled,
+//	    CBFailureThreshold: uint32(cfg.Middleware.CircuitBreaker.FailureThreshold),
+//	    CBTimeout:          cfg.Middleware.CircuitBreaker.Timeout,
+//	    RLEnabled:          cfg.Middleware.RateLimit.Enabled,
+//	    RLRps:              cfg.Middleware.RateLimit.RequestsPerSecond,
+//	    Timeout:            30 * time.Second,
+//	})
+func MakeServerEndpointsWithConfig(
+	svc {{.Service.PackageName}}.{{.Service.ServiceName}},
+	logger *kitlog.Logger,
+	cfg MiddlewareConfig,
+) {{.Service.ServiceName}}Endpoints {
+	var cbMiddleware endpoint.Middleware
+	if cfg.CBEnabled {
+		cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
+			Name: "{{.Service.ServiceName}}",
+			ReadyToTrip: func(c gobreaker.Counts) bool {
+				return c.ConsecutiveFailures >= cfg.CBFailureThreshold
+			},
+			Timeout: cfg.CBTimeout,
+		})
+		cbMiddleware = circuitbreaker.Gobreaker(cb)
 	}
 
-	// 应用服务端中间件（注意：RetryMiddleware 属于客户端中间件，不在此处应用）
-{{range .Service.Methods}}	endpoints.{{.Name}}Endpoint = EndpointLoggingMiddleware(logger)(endpoints.{{.Name}}Endpoint)
-	endpoints.{{.Name}}Endpoint = CircuitBreakerMiddleware()(endpoints.{{.Name}}Endpoint)
-	endpoints.{{.Name}}Endpoint = TimeoutMiddleware(30*time.Second)(endpoints.{{.Name}}Endpoint)
-{{end}}
+	var rlMiddleware endpoint.Middleware
+	if cfg.RLEnabled && cfg.RLRps > 0 {
+		lim := rate.NewLimiter(rate.Limit(cfg.RLRps), int(cfg.RLRps))
+		rlMiddleware = ratelimit.NewErroringLimiter(lim)
+	}
 
-	return endpoints
+	build := func(ep endpoint.Endpoint, name string) endpoint.Endpoint {
+		b := endpoint.NewBuilder(ep).
+			WithLogging(logger, name).
+			WithTimeout(cfg.Timeout)
+		if cbMiddleware != nil {
+			b = b.Use(cbMiddleware)
+		}
+		if rlMiddleware != nil {
+			b = b.Use(rlMiddleware)
+		}
+		return b.Build()
+	}
+
+	return {{.Service.ServiceName}}Endpoints{
+{{range .Service.Methods}}		{{.Name}}Endpoint: build(Make{{.Name}}Endpoint(svc), "{{.Name}}"),
+{{end}}	}
 }
 
 {{range .Service.Methods}}
@@ -58,43 +126,8 @@ func (e {{$.Service.ServiceName}}Endpoints) {{.Name}}(ctx context.Context, req i
 }
 {{end}}
 
-// 端点中间件
-func EndpointLoggingMiddleware(logger *log.Logger) endpoint.Middleware {
-	return func(next endpoint.Endpoint) endpoint.Endpoint {
-		return func(ctx context.Context, request interface{}) (response interface{}, err error) {
-			logger.Printf("Endpoint called: %T", request)
-			start := time.Now()
-			defer func() {
-				logger.Printf("Endpoint completed in %v", time.Since(start))
-			}()
-			return next(ctx, request)
-		}
-	}
-}
-
-func CircuitBreakerMiddleware() endpoint.Middleware {
-	return func(next endpoint.Endpoint) endpoint.Endpoint {
-		return func(ctx context.Context, request interface{}) (response interface{}, err error) {
-			// TODO: 实现熔断器逻辑
-			return next(ctx, request)
-		}
-	}
-}
-
-func TimeoutMiddleware(timeout time.Duration) endpoint.Middleware {
-	return func(next endpoint.Endpoint) endpoint.Endpoint {
-		return func(ctx context.Context, request interface{}) (response interface{}, err error) {
-			ctx, cancel := context.WithTimeout(ctx, timeout)
-			defer cancel()
-			return next(ctx, request)
-		}
-	}
-}
-
 // RetryMiddleware 重试中间件。
 // ⚠️  仅适用于【客户端】endpoint（如 HTTP/gRPC client）。
-// 不要在服务端 MakeServerEndpoints 中使用，否则任何业务错误都会触发
-// 累加式等待（backoff × i），导致请求耗时 = sum(backoff×1 + backoff×2 + ... + backoff×n）。
 func RetryMiddleware(maxRetries int, backoff time.Duration) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request interface{}) (response interface{}, err error) {
@@ -105,7 +138,6 @@ func RetryMiddleware(maxRetries int, backoff time.Duration) endpoint.Middleware 
 				}
 				select {
 				case <-ctx.Done():
-					// context 已超时/取消，不再继续重试
 					return nil, ctx.Err()
 				case <-time.After(backoff * time.Duration(i+1)):
 				}

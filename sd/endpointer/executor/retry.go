@@ -11,10 +11,12 @@ import (
 	"github.com/dreamsxin/go-kit/utils"
 )
 
-// 用于保存多次重试错误
+// RetryError is returned when all retry attempts are exhausted.
+// RawErrors contains every error from each attempt; Final is the last error
+// (or a replacement set by RetryCallback).
 type RetryError struct {
 	RawErrors []error
-	Final     error // 最终结果，如果成功值为 nil
+	Final     error // nil when the last attempt succeeded
 }
 
 func (e RetryError) Error() string {
@@ -32,15 +34,19 @@ func (e RetryError) Error() string {
 	return fmt.Sprintf("%v%s", e.Final, suffix)
 }
 
-// 重试执行器回调函数接口，返回是否重试
+// RetryCallback is called after each failed attempt.  It returns whether the
+// executor should keep trying and an optional replacement error.  Returning
+// keepTrying=false stops the retry loop immediately.
 type RetryCallback func(n int, received error) (keepTrying bool, replacement error)
 
-// 重试执行器，拥有最大重试次数
+// Retry returns an Endpoint that retries up to max times within timeout,
+// selecting a new backend from b on each attempt.
 func Retry(max int, timeout time.Duration, b interfaces.Balancer) endpoint.Endpoint {
 	return RetryWithCallback(timeout, b, maxRetries(max))
 }
 
-// 重试执行器，会一直重试直到成功
+// RetryAlways returns an Endpoint that retries indefinitely until timeout
+// is reached or the call succeeds.
 func RetryAlways(timeout time.Duration, b interfaces.Balancer) endpoint.Endpoint {
 	return RetryWithCallback(timeout, b, alwaysRetry)
 }

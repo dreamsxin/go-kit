@@ -1,80 +1,54 @@
-// Package client provides a profilesvc client based on a predefined Consul
-// service name and relevant tags. Users must only provide the address of a
-// Consul server.
+// Package client provides a profilesvc client backed by Consul service
+// discovery, round-robin load balancing, and automatic retry.
 package client
 
 import (
 	"io"
 	"time"
 
-	"github.com/dreamsxin/go-kit/sd/endpointer"
-	"github.com/dreamsxin/go-kit/sd/endpointer/balancer"
-	"github.com/dreamsxin/go-kit/sd/endpointer/executor"
 	consulapi "github.com/hashicorp/consul/api"
 
 	"github.com/dreamsxin/go-kit/endpoint"
 	"github.com/dreamsxin/go-kit/examples/profilesvc"
 	"github.com/dreamsxin/go-kit/log"
+	"github.com/dreamsxin/go-kit/sd"
 	"github.com/dreamsxin/go-kit/sd/consul"
 )
 
-// New returns a service that's load-balanced over instances of profilesvc found
-// in the provided Consul server. The mechanism of looking up profilesvc
-// instances in Consul is hard-coded into the client.
+// New returns a profilesvc.Service that is load-balanced over all healthy
+// Consul instances tagged "prod".
 func New(consulAddr string, logger *log.Logger) (profilesvc.Service, error) {
-	apiclient, err := consulapi.NewClient(&consulapi.Config{
-		Address: consulAddr,
-	})
+	apiclient, err := consulapi.NewClient(&consulapi.Config{Address: consulAddr})
 	if err != nil {
 		return nil, err
 	}
 
-	// As the implementer of profilesvc, we declare and enforce these
-	// parameters for all of the profilesvc consumers.
-	var (
+	const (
 		consulService = "profilesvc"
-		consulTags    = []string{"prod"}
 		passingOnly   = true
-		retryMax      = 3
-		retryTimeout  = 500 * time.Millisecond
 	)
+	sdclient  := consul.NewClient(apiclient)
+	instancer := consul.NewInstancer(sdclient, logger, consulService, passingOnly,
+		consul.TagsInstancerOptions([]string{"prod"}))
 
-	var (
-		sdclient  = consul.NewClient(apiclient)
-		instancer = consul.NewInstancer(sdclient, logger, consulService, passingOnly, consul.TagsInstancerOptions(consulTags))
-		endpoints profilesvc.Endpoints
-	)
-	{
-		factory := factoryFor(profilesvc.MakePostProfileEndpoint)
-		endpointer := endpointer.NewEndpointer(instancer, factory, logger)
-		balancer := balancer.NewRoundRobin(endpointer)
-		retry := executor.Retry(retryMax, retryTimeout, balancer)
-		endpoints.PostProfileEndpoint = retry
-	}
-	{
-		factory := factoryFor(profilesvc.MakeGetProfileEndpoint)
-		endpointer := endpointer.NewEndpointer(instancer, factory, logger)
-		balancer := balancer.NewRoundRobin(endpointer)
-		retry := executor.Retry(retryMax, retryTimeout, balancer)
-		endpoints.GetProfileEndpoint = retry
-	}
-	{
-		factory := factoryFor(profilesvc.MakePutProfileEndpoint)
-		endpointer := endpointer.NewEndpointer(instancer, factory, logger)
-		balancer := balancer.NewRoundRobin(endpointer)
-		retry := executor.Retry(retryMax, retryTimeout, balancer)
-		endpoints.PutProfileEndpoint = retry
+	sdOpts := []sd.Option{
+		sd.WithMaxRetries(3),
+		sd.WithTimeout(500 * time.Millisecond),
 	}
 
-	return endpoints, nil
+	return profilesvc.Endpoints{
+		PostProfileEndpoint: sd.NewEndpoint(instancer, factoryFor(profilesvc.MakePostProfileEndpoint), logger, sdOpts...),
+		GetProfileEndpoint:  sd.NewEndpoint(instancer, factoryFor(profilesvc.MakeGetProfileEndpoint),  logger, sdOpts...),
+		PutProfileEndpoint:  sd.NewEndpoint(instancer, factoryFor(profilesvc.MakePutProfileEndpoint),  logger, sdOpts...),
+	}, nil
 }
 
 func factoryFor(makeEndpoint func(profilesvc.Service) endpoint.Endpoint) endpoint.Factory {
 	return func(instance string) (endpoint.Endpoint, io.Closer, error) {
-		service, err := profilesvc.MakeClientEndpoints(instance)
+		svc, err := profilesvc.MakeClientEndpoints(instance)
 		if err != nil {
 			return nil, nil, err
 		}
-		return makeEndpoint(service), nil, nil
+		return makeEndpoint(svc), nil, nil
 	}
 }

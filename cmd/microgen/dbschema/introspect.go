@@ -500,7 +500,10 @@ func buildService(schemas []*TableSchema, serviceName string) *parser.Service {
 	}
 
 	for _, schema := range schemas {
-		modelName := snakeToCamel(schema.TableName)
+		// Use the singularized model name (same as tableToModel) so that
+		// method Input/Output types match the generated DTOs.
+		singularName := singularize(schema.TableName)
+		modelName := snakeToCamel(singularName)
 		methods := crudMethods(modelName)
 		svc.Methods = append(svc.Methods, methods...)
 	}
@@ -649,14 +652,41 @@ func SnakeToCamel(s string) string {
 }
 
 // snakeToCamel 将 snake_case 转换为 CamelCase（首字母大写）
+// 遵循 Go 命名惯例：id → ID, url → URL 等常见缩写全大写。
 func snakeToCamel(s string) string {
+	// Common Go initialisms that should be fully uppercased.
+	initialisms := map[string]string{
+		"id":   "ID",
+		"url":  "URL",
+		"uri":  "URI",
+		"ip":   "IP",
+		"http": "HTTP",
+		"https": "HTTPS",
+		"api":  "API",
+		"sql":  "SQL",
+		"db":   "DB",
+		"uid":  "UID",
+		"uuid": "UUID",
+		"json": "JSON",
+		"xml":  "XML",
+		"html": "HTML",
+		"css":  "CSS",
+		"js":   "JS",
+		"ts":   "TS",
+		"ok":   "OK",
+	}
 	parts := strings.Split(s, "_")
 	var sb strings.Builder
 	for _, p := range parts {
 		if len(p) == 0 {
 			continue
 		}
-		sb.WriteString(strings.ToUpper(p[:1]) + p[1:])
+		lower := strings.ToLower(p)
+		if up, ok := initialisms[lower]; ok {
+			sb.WriteString(up)
+		} else {
+			sb.WriteString(strings.ToUpper(p[:1]) + p[1:])
+		}
 	}
 	return sb.String()
 }
@@ -697,4 +727,97 @@ func singularize(s string) string {
 		return s[:len(s)-1]
 	}
 	return s
+}
+
+// ─────────────────────────── Model → Schema (round-trip) ───────────────────────────
+
+// ModelToSchema converts a parser.Model (read from an existing idl.go) back into a
+// TableSchema so it can be passed through WriteIDL again during incremental generation.
+// Column metadata is reconstructed from the model fields' gorm tags.
+func ModelToSchema(m *parser.Model) *TableSchema {
+	schema := &TableSchema{TableName: m.TableName}
+	for _, f := range m.Fields {
+		col := ColumnInfo{
+			Name:       fieldNameToColumn(f.Name, f.GormTag),
+			DBType:     extractGormTagValue(f.GormTag, "type"),
+			IsPrimary:  f.IsPrimary,
+			IsAutoIncr: f.IsAutoIncr,
+			IsNullable: !f.IsNotNull && !f.IsPrimary,
+			IsUnique:   f.IsUnique,
+			Comment:    f.Comment,
+		}
+		// Restore Go type from the field so dbTypeToGoType round-trips correctly.
+		// We store the original Go type in DBType when it's empty.
+		if col.DBType == "" {
+			col.DBType = goTypeToDBType(f.Type)
+		}
+		schema.Columns = append(schema.Columns, col)
+	}
+	return schema
+}
+
+// fieldNameToColumn derives the DB column name from the gorm tag "column:xxx",
+// falling back to snake_case of the Go field name.
+func fieldNameToColumn(fieldName, gormTag string) string {
+	if v := extractGormTagValue(gormTag, "column"); v != "" {
+		return v
+	}
+	return toSnakeCase(fieldName)
+}
+
+// extractGormTagValue extracts the value of a key from a gorm tag string.
+// e.g. extractGormTagValue("column:user_name;not null", "column") -> "user_name"
+func extractGormTagValue(tag, key string) string {
+	prefix := key + ":"
+	for _, part := range strings.Split(tag, ";") {
+		part = strings.TrimSpace(part)
+		if strings.HasPrefix(part, prefix) {
+			return strings.TrimPrefix(part, prefix)
+		}
+	}
+	return ""
+}
+
+// goTypeToDBType provides a minimal reverse mapping for round-tripping Go types
+// back to a DB type hint used in gorm tags.
+func goTypeToDBType(goType string) string {
+	t := strings.TrimPrefix(goType, "*")
+	switch t {
+	case "int":
+		return "int"
+	case "int64":
+		return "bigint"
+	case "int16":
+		return "smallint"
+	case "uint", "uint64":
+		return "bigint unsigned"
+	case "bool":
+		return "tinyint"
+	case "float32":
+		return "float"
+	case "float64":
+		return "decimal"
+	case "time.Time":
+		return "datetime"
+	case "[]byte":
+		return "blob"
+	default:
+		return "varchar(255)"
+	}
+}
+
+// toSnakeCase converts CamelCase to snake_case (reused from naming helpers).
+func toSnakeCase(s string) string {
+	var result strings.Builder
+	for i, r := range s {
+		if r >= 'A' && r <= 'Z' {
+			if i > 0 {
+				result.WriteByte('_')
+			}
+			result.WriteRune(r + 32)
+		} else {
+			result.WriteRune(r)
+		}
+	}
+	return result.String()
 }

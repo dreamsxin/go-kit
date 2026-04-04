@@ -11,13 +11,17 @@ import (
 	"github.com/dreamsxin/go-kit/transport/http/interfaces"
 )
 
-// 将用户的数据类型转为 http.Request 对象
-type EncodeRequestFunc func(context.Context, *http.Request /*可以为 nil */, interface{} /*用户的数据类型*/) (*http.Request, error)
+// EncodeRequestFunc encodes a domain request value into an *http.Request.
+// The req parameter may be nil; implementations should create a new request
+// in that case.
+type EncodeRequestFunc func(context.Context, *http.Request, interface{}) (*http.Request, error)
 
-// 将 http.Response 对象转为用户的自定义类型
-type DecodeResponseFunc func(context.Context, *http.Response) (response interface{} /*用户的自定义类型*/, err error)
+// DecodeResponseFunc decodes an *http.Response into a domain response value.
+type DecodeResponseFunc func(context.Context, *http.Response) (response interface{}, err error)
 
-// 将用户的请求数据转为 http.Request 请求对象，并将类型设置为 json
+// EncodeJSONRequest JSON-encodes the request body and sets Content-Type to
+// application/json.  If the request implements interfaces.Headerer, those
+// headers are also added.
 func EncodeJSONRequest(c context.Context, req *http.Request, request interface{}) (*http.Request, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is nil")

@@ -5,11 +5,11 @@ import (
 	"sync"
 
 	"github.com/dreamsxin/go-kit/sd/events"
-
-	"github.com/google/go-cmp/cmp"
 )
 
-// 缓存服务实例
+// Cache is an in-memory Instancer backed by explicit Update calls.
+// It is the recommended Instancer for unit tests and local development
+// where no external service registry is available.
 type Cache struct {
 	mtx   sync.RWMutex
 	state events.Event
@@ -22,7 +22,9 @@ func NewCache() *Cache {
 	}
 }
 
-// 服务实例事件，并发布通知
+// Update sets the current instance list (or error) and broadcasts the event
+// to all registered subscribers.  Duplicate events (same instances + error)
+// are silently dropped.
 func (c *Cache) Update(event events.Event) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -30,7 +32,7 @@ func (c *Cache) Update(event events.Event) {
 	if event.Instances != nil {
 		sort.Strings(event.Instances)
 	}
-	if cmp.Equal(c.state, event) {
+	if eventsEqual(c.state, event) {
 		return
 	}
 
@@ -38,7 +40,7 @@ func (c *Cache) Update(event events.Event) {
 	c.reg.broadcast(event)
 }
 
-// 返回当前服务实例状态
+// State returns a copy of the most recently broadcast event.
 func (c *Cache) State() events.Event {
 	c.mtx.RLock()
 	event := c.state
@@ -50,20 +52,37 @@ func (c *Cache) State() events.Event {
 // 预留
 func (c *Cache) Stop() {}
 
-// 注册实例
+// Register subscribes ch to future events.  The current state is sent
+// immediately so the subscriber starts with a consistent view.
 func (c *Cache) Register(ch chan<- events.Event) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	c.reg.register(ch)
 	event := c.state
 	eventCopy := copyEvent(event)
-	// 保证通道在读取或者有容量
+	// send current state immediately so the subscriber starts consistent
 	ch <- eventCopy
 }
 
-// 注销
+// Deregister removes ch from the subscriber list.
 func (c *Cache) Deregister(ch chan<- events.Event) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	c.reg.deregister(ch)
+}
+
+// eventsEqual compares two events without external dependencies.
+func eventsEqual(a, b events.Event) bool {
+	if a.Err != b.Err {
+		return false
+	}
+	if len(a.Instances) != len(b.Instances) {
+		return false
+	}
+	for i := range a.Instances {
+		if a.Instances[i] != b.Instances[i] {
+			return false
+		}
+	}
+	return true
 }

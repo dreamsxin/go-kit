@@ -1,90 +1,109 @@
-# Endpoint 端点模块
+# endpoint
 
-端点(Endpoint)是 go-kit 框架的核心抽象，定义了微服务的基本调用单元。本模块提供了端点的定义、中间件机制、熔断降级和限流等功能。
+The `endpoint` package is the core abstraction of the framework.
 
-## 核心组件
+## Core types
 
-### 基础端点
+| Type | Description |
+|------|-------------|
+| `Endpoint` | `func(ctx, request) (response, error)` — the single callable unit |
+| `Middleware` | `func(Endpoint) Endpoint` — wraps an endpoint to add behaviour |
+| `Factory` | `func(addr) (Endpoint, io.Closer, error)` — creates endpoints from addresses |
+| `Failer` | Optional interface on response types to carry business errors |
 
-- **endpoint.go** - 端点接口定义与基础实现
-- **endpoint_cache.go** - 端点缓存管理
-- **factory.go** - 端点创建工厂
-- **middleware.go** - 端点中间件框架
+## TypedEndpoint (compile-time type safety)
 
-### 熔断降级
-
-- **circuitbreaker/** - 熔断器实现
-  - `gobreaker.go` - Sony gobreaker 实现
-  - `hystrix.go` - Netflix Hystrix 实现
-  - `handy_breaker.go` - Handy 熔断器
-
-### 限流控制
-
-- **ratelimit/** - 限流实现
-  - `token_bucket.go` - 令牌桶算法限流
-
-## 快速使用
-
-### 创建基础端点
+`TypedEndpoint[Req, Resp]` eliminates runtime type assertions.
 
 ```go
-import "github.com/dreamsxin/go-kit/endpoint"
+// Define a typed endpoint — no interface{} anywhere
+var ep endpoint.TypedEndpoint[HelloReq, HelloResp] =
+    func(ctx context.Context, req HelloReq) (HelloResp, error) {
+        return HelloResp{Message: "Hello, " + req.Name}, nil
+    }
 
-// 定义端点函数
-var myEndpoint endpoint.Endpoint = func(ctx context.Context, request interface{}) (interface{}, error) {
-    return "Hello, World!", nil
-}
-```
-
-### 使用中间件
-
-```go
-import (
-    "github.com/dreamsxin/go-kit/endpoint"
-    "github.com/dreamsxin/go-kit/endpoint/circuitbreaker"
-    "github.com/dreamsxin/go-kit/endpoint/ratelimit"
-    "github.com/sony/gobreaker"
-    "golang.org/x/time/rate"
+// Apply middleware via NewTypedBuilder, then recover type safety with Unwrap
+typed := endpoint.Unwrap[HelloReq, HelloResp](
+    endpoint.NewTypedBuilder(ep).
+        WithTimeout(5 * time.Second).
+        Use(circuitbreaker.Gobreaker(cb)).
+        Build(),
 )
 
-// 创建熔断器
-cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{})
-// 创建限流器
-limiter := rate.NewLimiter(rate.Every(time.Second), 10)
+// Call site is fully type-safe — no .(HelloResp) assertion needed
+resp, err := typed(ctx, HelloReq{Name: "world"})
+fmt.Println(resp.Message)
+```
 
-// 构建中间件链
-ep := endpoint.Chain(
+**Migration path:** existing `Endpoint` code continues to work unchanged.
+Adopt `TypedEndpoint` incrementally at the boundaries where type safety matters most.
+
+## Builder (recommended)
+
+```go
+var metrics endpoint.Metrics
+
+ep := endpoint.NewBuilder(base).
+    WithMetrics(&metrics).
+    WithErrorHandling("CreateUser").
+    WithTimeout(5 * time.Second).
+    Use(circuitbreaker.Gobreaker(cb)).
+    Use(ratelimit.NewErroringLimiter(limiter)).
+    Build()
+```
+
+## Chain (lower-level)
+
+```go
+ep = endpoint.Chain(
     loggingMiddleware,
-    endpoint.ErrorHandlingMiddleware("service"),
-    circuitbreaker.Gobreaker(cb),
-    ratelimit.NewErroringLimiter(limiter),
-)(myEndpoint)
+    metricsMiddleware,
+    authMiddleware,
+)(base)
+// call order: logging → metrics → auth → base
 ```
 
-## API 参考
+## Built-in middleware
 
-### Endpoint 接口
+| Middleware | Import | Description |
+|-----------|--------|-------------|
+| `MetricsMiddleware` | `endpoint` | Counts requests, successes, errors, duration |
+| `ErrorHandlingMiddleware` | `endpoint` | Wraps errors with operation name |
+| `TimeoutMiddleware` | `endpoint` | Cancels context after deadline |
+| `LoggingMiddleware` | `endpoint` | Logs each call with duration |
+| `Gobreaker` | `endpoint/circuitbreaker` | sony/gobreaker circuit breaker |
+| `HandyBreaker` | `endpoint/circuitbreaker` | streadway/handy circuit breaker |
+| `Hystrix` | `endpoint/circuitbreaker` | afex/hystrix-go circuit breaker |
+| `NewErroringLimiter` | `endpoint/ratelimit` | Reject immediately when over limit |
+| `NewDelayingLimiter` | `endpoint/ratelimit` | Wait for token (respects ctx deadline) |
+
+## Failer
+
+Implement `Failer` on a response type to carry business errors without using
+the Go error return value.  Useful when the transport protocol requires a
+successful wire-level response even on business failure (e.g. gRPC).
 
 ```go
-type Endpoint func(ctx context.Context, request interface{}) (response interface{}, err error)
+type MyResponse struct {
+    Result string
+    Err    error
+}
+
+func (r MyResponse) Failed() error { return r.Err }
 ```
 
-### Middleware 类型
+## Metrics
 
 ```go
-type Middleware func(Endpoint) Endpoint
+var m endpoint.Metrics
+ep = endpoint.MetricsMiddleware(&m)(ep)
+
+fmt.Printf("requests=%d success=%d errors=%d avg_ms=%.1f\n",
+    m.RequestCount, m.SuccessCount, m.ErrorCount,
+    float64(m.TotalDuration.Milliseconds())/float64(m.RequestCount))
 ```
 
-### 常用中间件
+## See also
 
-- `ErrorHandlingMiddleware` - 错误处理中间件
-- `Gobreaker` - gobreaker 熔断器中间件
-- `NewErroringLimiter` - 错误模式限流中间件
-- `NewDelayingLimiter` - 延迟模式限流中间件
-
-## 最佳实践
-
-1. **中间件顺序**：日志 → 错误处理 → 熔断 → 限流
-2. **错误处理**：使用 ErrorHandlingMiddleware 包装业务端点
-3. **配置调优**：根据业务需求调整熔断和限流参数
-4. **监控指标**：结合 metrics.go 实现监控指标收集
+- `examples/middleware/` — runnable demo of every middleware
+- `examples/quickstart/` — minimal HTTP service using Builder

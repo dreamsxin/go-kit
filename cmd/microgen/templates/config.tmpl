@@ -42,3 +42,9 @@ middleware:
     enabled: true
     max_attempts: 3
     backoff: "2s"
+
+debug:
+  # 是否启用 /debug/routes 端点（生产环境建议关闭或加鉴权）
+  routes_enabled: true
+  # 是否在启动时打印路由表
+  print_routes: true

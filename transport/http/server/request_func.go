@@ -5,5 +5,7 @@ import (
 	"net/http"
 )
 
-// 发出请求前可以进行额外的工作，将信息放入 context
+// RequestFunc is called before the request is decoded.  It receives the
+// current context and the raw *http.Request, and returns a (possibly enriched)
+// context.  Use it to extract headers, inject request IDs, etc.
 type RequestFunc func(context.Context, *http.Request) context.Context

@@ -1,3 +1,16 @@
+// Package server provides a gRPC transport server that bridges the
+// framework's Endpoint abstraction to the gRPC protocol.
+//
+// Lifecycle of a single RPC call:
+//
+//  1. ServerBefore hooks run — extract metadata into the context.
+//  2. DecodeRequestFunc decodes the proto request into a domain value.
+//  3. The Endpoint is called with the decoded request.
+//  4. ServerAfter hooks run — set response metadata headers/trailers.
+//  5. EncodeResponseFunc encodes the domain response into a proto.
+//
+// If any step returns an error, the ErrorHandler is called and the error
+// is returned to the gRPC caller.  Finalizer hooks always run last.
 package server
 
 import (
@@ -10,11 +23,14 @@ import (
 	"github.com/dreamsxin/go-kit/transport"
 )
 
+// Handler is the gRPC server-side interface implemented by Server.
+// Register it with a *grpc.Server using the generated pb.Register* function.
 type Handler interface {
 	ServeGRPC(ctx context.Context, request interface{}) (context.Context, interface{}, error)
 }
 
-// 封装 Endpoint 实现 grpc.Handler 接口
+// Server wraps an Endpoint and implements Handler.
+// Use NewServer to construct one.
 type Server struct {
 	e            endpoint.Endpoint
 	dec          DecodeRequestFunc
@@ -25,6 +41,7 @@ type Server struct {
 	errorHandler transport.ErrorHandler
 }
 
+// NewServer constructs a gRPC Server for the given Endpoint.
 func NewServer(
 	e endpoint.Endpoint,
 	dec DecodeRequestFunc,

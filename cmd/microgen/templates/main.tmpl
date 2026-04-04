@@ -20,9 +20,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -34,6 +34,7 @@ import (
 	{{.PackageName}}Endpoint "{{$.ImportPath}}/endpoint/{{.PackageName}}"
 	{{.PackageName}}Transport "{{$.ImportPath}}/transport/{{.PackageName}}"
 {{end}}	"github.com/gorilla/mux"
+	kitlog "github.com/dreamsxin/go-kit/log"
 {{if .WithGRPC}}	"google.golang.org/grpc"
 	"net"
 {{end}}
@@ -43,33 +44,34 @@ import (
 	"{{$.ImportPath}}/repository"
 {{end}}
 {{if .WithSwag}}	httpSwagger "github.com/swaggo/http-swagger"
-{{if .WithConfig}}	docs "{{$.ImportPath}}/docs" // swag 自动生成的文档包（运行时动态更新 Host）
-{{else}}	_ "{{$.ImportPath}}/docs" // swag 自动生成的文档包
+{{if .WithConfig}}	docs "{{$.ImportPath}}/docs"
+{{else}}	_ "{{$.ImportPath}}/docs"
 {{end}}{{end}}{{if .WithConfig}}	"{{$.ImportPath}}/config"
 {{end}})
 
-func printBanner(logger *log.Logger, httpAddr string{{if .WithGRPC}}, grpcAddr string{{end}}, withSwag bool) {
-	logger.Println("╔══════════════════════════════════════════╗")
-	logger.Printf ("║  %-40s  ║", "{{range .Services}}{{.ServiceName}}{{end}} Service")
-	logger.Println("╠══════════════════════════════════════════╣")
-	logger.Printf ("║  HTTP  → http://localhost%s%-*s║", httpAddr, 23-len(httpAddr), "")
+func printBanner(logger *kitlog.Logger, httpAddr string{{if .WithGRPC}}, grpcAddr string{{end}}, withSwag bool) {
+	logger.Sugar().Info("╔══════════════════════════════════════════╗")
+	logger.Sugar().Infof("║  %-40s  ║", "{{range .Services}}{{.ServiceName}}{{end}} Service")
+	logger.Sugar().Info("╠══════════════════════════════════════════╣")
+	logger.Sugar().Infof("║  HTTP  → http://localhost%s%-*s║", httpAddr, 23-len(httpAddr), "")
 	if withSwag {
 		swaggerURL := fmt.Sprintf("http://localhost%s/swagger/index.html", httpAddr)
-		logger.Printf("║  Swagger → %-30s  ║", swaggerURL)
+		logger.Sugar().Infof("║  Swagger → %-30s  ║", swaggerURL)
 	}
-{{if .WithGRPC}}	logger.Printf("║  gRPC  → %s%-*s║", grpcAddr, 32-len(grpcAddr), "")
-{{end}}	logger.Println("╠══════════════════════════════════════════╣")
-	logger.Println("║  Press Ctrl+C to stop                    ║")
-	logger.Println("╚══════════════════════════════════════════╝")
+{{if .WithGRPC}}	logger.Sugar().Infof("║  gRPC  → %s%-*s║", grpcAddr, 32-len(grpcAddr), "")
+{{end}}	logger.Sugar().Info("╠══════════════════════════════════════════╣")
+	logger.Sugar().Info("║  Press Ctrl+C to stop                    ║")
+	logger.Sugar().Info("╚══════════════════════════════════════════╝")
 }
 
-func printAllRoutes(logger *log.Logger) {
+func printAllRoutes(logger *kitlog.Logger) {
 	type routeEntry struct {
 		Method string
 		Path   string
 	}
 	routes := []routeEntry{
 		{"GET", "/health"},
+		{"GET", "/debug/routes"},
 {{- range $svc := .SvcRoutes}}{{range $svc.Service.Methods}}
 		{"{{.HTTPMethod | upper}}", "{{$svc.FullPrefix}}{{.Route}}"},
 {{- end}}{{end}}
@@ -77,11 +79,11 @@ func printAllRoutes(logger *log.Logger) {
 		{"GET", "/swagger/"},
 {{- end}}
 	}
-	logger.Println("─── Registered Routes ───────────────────────────")
+	logger.Sugar().Info("─── Registered Routes ───────────────────────────")
 	for _, rt := range routes {
-		logger.Printf("  %-7s %s", rt.Method, rt.Path)
+		logger.Sugar().Infof("  %-7s %s", rt.Method, rt.Path)
 	}
-	logger.Println("─────────────────────────────────────────────────")
+	logger.Sugar().Info("─────────────────────────────────────────────────")
 }
 
 func main() {
@@ -93,7 +95,7 @@ func main() {
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		log.Fatalf("FATAL: load config: %v", err)
+		panic("FATAL: load config: " + err.Error())
 	}
 
 	// ─── 命令行参数（可覆盖配置文件中的值）───
@@ -104,8 +106,9 @@ func main() {
 {{end}}	)
 	flag.Parse()
 
-	logger := log.New(os.Stdout, "", log.LstdFlags)
-	logger.Printf("Config loaded from: %s", *configPath)
+	logger, _ := kitlog.NewDevelopment()
+	defer logger.Sync() //nolint:errcheck
+	logger.Sugar().Infof("Config loaded from: %s", *configPath)
 {{else}}	// ─── 命令行参数 ───
 	var (
 		httpAddr = flag.String("http.addr", ":8080", "HTTP listen address")
@@ -114,14 +117,15 @@ func main() {
 {{end}}	)
 	flag.Parse()
 
-	logger := log.New(os.Stdout, "", log.LstdFlags)
+	logger, _ := kitlog.NewDevelopment()
+	defer logger.Sync() //nolint:errcheck
 {{end}}
 
 {{if .WithDB}}
 	// ─── 初始化数据库（{{.DBDriver}}）───
 	db, err := gorm.Open({{.DBOpenCall}}, &gorm.Config{})
 	if err != nil {
-		logger.Fatalf("FATAL: connect database failed: %v", err)
+		logger.Sugar().Fatalf("FATAL: connect database failed: %v", err)
 	}
 {{if ne .DBDriver "sqlite"}}
 	sqlDB, _ := db.DB()
@@ -134,7 +138,7 @@ func main() {
 {{end}}{{else}}
 	_ = time.Hour // sqlite 不需要连接池配置
 {{end}}
-	logger.Printf("DB connected [driver=%s dsn=%s]", "{{.DBDriver}}", *dsn)
+	logger.Sugar().Infof("DB connected [driver=%s dsn=%s]", "{{.DBDriver}}", *dsn)
 
 	// ─── 自动迁移数据库表结构 ───
 	if err := db.AutoMigrate(
@@ -142,9 +146,9 @@ func main() {
 {{end}}{{else}}		// 在此添加需要迁移的 model，如：
 		// &model.YourModel{},
 {{end}}	); err != nil {
-		logger.Fatalf("FATAL: auto migrate failed: %v", err)
+		logger.Sugar().Fatalf("FATAL: auto migrate failed: %v", err)
 	}
-	logger.Println("DB migration done")
+	logger.Sugar().Info("DB migration done")
 
 	// ─── 创建 Repository ───
 	repoDB := repository.NewDB(db)
@@ -163,9 +167,17 @@ func main() {
 {{else}}	{{.PackageName}}Svc := {{.PackageName}}.NewService(nil)
 {{end}}{{end}}
 
-	// ─── 初始化端点 ───
-{{range .Services}}	{{.PackageName}}Endpoints := {{.PackageName}}Endpoint.MakeServerEndpoints({{.PackageName}}Svc, logger)
-{{end}}
+	// ─── 初始化端点（配置驱动中间件）───
+{{range .Services}}{{if $.WithConfig}}	{{.PackageName}}Endpoints := {{.PackageName}}Endpoint.MakeServerEndpointsWithConfig({{.PackageName}}Svc, logger, {{.PackageName}}Endpoint.MiddlewareConfig{
+		CBEnabled:          cfg.Middleware.CircuitBreaker.Enabled,
+		CBFailureThreshold: uint32(cfg.Middleware.CircuitBreaker.FailureThreshold),
+		CBTimeout:          cfg.Middleware.CircuitBreaker.Timeout,
+		RLEnabled:          cfg.Middleware.RateLimit.Enabled,
+		RLRps:              cfg.Middleware.RateLimit.RequestsPerSecond,
+		Timeout:            30 * time.Second,
+	})
+{{else}}	{{.PackageName}}Endpoints := {{.PackageName}}Endpoint.MakeServerEndpoints({{.PackageName}}Svc, logger)
+{{end}}{{end}}
 
 	// ─── 构建路由 ───
 	r := mux.NewRouter()
@@ -175,7 +187,7 @@ func main() {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			start := time.Now()
 			next.ServeHTTP(w, req)
-			logger.Printf("[HTTP] %s %s %v", req.Method, req.URL.Path, time.Since(start))
+			logger.Sugar().Infof("[HTTP] %s %s %v", req.Method, req.URL.Path, time.Since(start))
 		})
 	})
 
@@ -186,7 +198,28 @@ func main() {
 		fmt.Fprintln(w, `{"status":"ok","service":"{{range .Services}}{{.ServiceName}}{{end}}"}`)
 	}).Methods("GET", "HEAD")
 
-	// 业务路由
+	// /debug/routes — 聚合所有服务路由，方便调试
+{{if .WithConfig}}	if cfg.Debug.RoutesEnabled {
+{{end}}	r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
+		type routeInfo struct {
+			Method  string `json:"method"`
+			Path    string `json:"path"`
+			Handler string `json:"handler"`
+		}
+		var all []routeInfo
+		all = append(all, routeInfo{"GET", "/health", "health"})
+		all = append(all, routeInfo{"GET", "/debug/routes", "debug"})
+{{- range $svc := .SvcRoutes}}{{range $svc.Service.Methods}}
+		all = append(all, routeInfo{"{{.HTTPMethod | upper}}", "{{$svc.FullPrefix}}{{.Route}}", "{{.Name}}"})
+{{- end}}{{end}}
+{{- if .WithSwag}}
+		all = append(all, routeInfo{"GET", "/swagger/", "swagger-ui"})
+{{- end}}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		json.NewEncoder(w).Encode(all)
+	}).Methods("GET")
+{{if .WithConfig}}	}
+{{end}}
 {{range .SvcRoutes}}	r.PathPrefix("{{.FullPrefix}}").Handler(
 		http.StripPrefix("{{.FullPrefix}}", {{.Service.PackageName}}Transport.NewHTTPHandler({{.Service.PackageName}}Endpoints)),
 	)
@@ -220,8 +253,11 @@ func main() {
 	))
 {{end}}
 
-	printAllRoutes(logger)
-
+{{if .WithConfig}}	if cfg.Debug.PrintRoutes {
+		printAllRoutes(logger)
+	}
+{{else}}	printAllRoutes(logger)
+{{end}}
 	httpServer := &http.Server{
 		Addr:         *httpAddr,
 		Handler:      r,
@@ -234,7 +270,7 @@ func main() {
 
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatalf("FATAL: HTTP server: %v", err)
+			logger.Sugar().Fatalf("FATAL: HTTP server: %v", err)
 		}
 	}()
 
@@ -242,14 +278,14 @@ func main() {
 	// ─── gRPC 服务 ───
 	lis, err := net.Listen("tcp", *grpcAddr)
 	if err != nil {
-		logger.Fatalf("FATAL: gRPC listen: %v", err)
+		logger.Sugar().Fatalf("FATAL: gRPC listen: %v", err)
 	}
 	grpcServer := grpc.NewServer()
 {{range .Services}}	{{.PackageName}}Transport.RegisterGRPCServer(grpcServer, {{.PackageName}}Endpoints)
 {{end}}
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
-			logger.Fatalf("FATAL: gRPC server: %v", err)
+			logger.Sugar().Fatalf("FATAL: gRPC server: %v", err)
 		}
 	}()
 {{end}}
@@ -260,7 +296,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	logger.Println("Shutting down...")
+	logger.Sugar().Info("Shutting down...")
 
 {{if .WithConfig}}	shutdownTimeout := cfg.Server.GracefulShutdownTimeout
 	if shutdownTimeout <= 0 {
@@ -271,13 +307,13 @@ func main() {
 {{end}}	defer cancel()
 
 	if err := httpServer.Shutdown(ctx); err != nil {
-		logger.Printf("HTTP shutdown error: %v", err)
+		logger.Sugar().Infof("HTTP shutdown error: %v", err)
 	}
 {{if .WithGRPC}}
 	grpcServer.GracefulStop()
-	logger.Println("gRPC stopped")
+	logger.Sugar().Info("gRPC stopped")
 {{end}}
-	logger.Println("Server exited cleanly")
+	logger.Sugar().Info("Server exited cleanly")
 }
 
 {{if .WithConfig}}// filterArgs 从 args 中提取指定 flag 及其值，用于两阶段解析。

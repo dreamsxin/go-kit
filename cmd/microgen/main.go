@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/dreamsxin/go-kit/cmd/microgen/dbschema"
 	"github.com/dreamsxin/go-kit/cmd/microgen/generator"
 	"github.com/dreamsxin/go-kit/cmd/microgen/parser"
 
-	// 注册数据库驱动（仅在 from-db 模式下实际使用）
+	// Register database drivers (only used in from-db mode)
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
@@ -33,6 +34,7 @@ type config struct {
 	dbDSN    string   // 数据库连接 DSN
 	dbName   string   // 数据库名（MySQL/SQLServer 需要）
 	dbTables []string // 指定要生成的表（空 = 全部）
+	addTables []string // 追加新表到已有项目（与 dbTables 互斥）
 
 	// ── 公共 ──
 	outputDir   string
@@ -59,6 +61,7 @@ func parseFlags() config {
 	dsn := flag.String("dsn", "", "Database DSN (required for -from-db)")
 	dbName := flag.String("dbname", "", "Database name (required for MySQL/SQLServer in -from-db mode)")
 	tables := flag.String("tables", "", "Comma-separated table names to generate (empty = all tables)")
+	addTables := flag.String("add-tables", "", "Comma-separated table names to append to an existing generated project")
 
 	// ── 公共 ──
 	outputDir := flag.String("out", ".", "Output directory")
@@ -77,22 +80,22 @@ func parseFlags() config {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "microgen - Go microservice code generator\n\n")
 		fmt.Fprintf(os.Stderr, "Usage:\n")
-		fmt.Fprintf(os.Stderr, "  # 从 IDL 文件生成\n")
+		fmt.Fprintf(os.Stderr, "  # From IDL file\n")
 		fmt.Fprintf(os.Stderr, "  microgen -idl <idl_file> -out <dir> -import <path> [options]\n\n")
-		fmt.Fprintf(os.Stderr, "  # 从数据库生成\n")
+		fmt.Fprintf(os.Stderr, "  # From database (full generation)\n")
 		fmt.Fprintf(os.Stderr, "  microgen -from-db -driver <driver> -dsn <dsn> [-dbname <db>] -out <dir> -import <path> [options]\n\n")
+		fmt.Fprintf(os.Stderr, "  # Append new tables to an existing generated project\n")
+		fmt.Fprintf(os.Stderr, "  microgen -from-db -driver <driver> -dsn <dsn> [-dbname <db>] -add-tables <t1,t2> -out <dir> -import <path>\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  # 从 IDL 生成\n")
+		fmt.Fprintf(os.Stderr, "  # Generate from IDL\n")
 		fmt.Fprintf(os.Stderr, "  microgen -idl ./idl.go -out ./gen -import github.com/example/app\n\n")
-		fmt.Fprintf(os.Stderr, "  # 从 MySQL 生成（所有表）\n")
+		fmt.Fprintf(os.Stderr, "  # Generate from MySQL (all tables)\n")
 		fmt.Fprintf(os.Stderr, "  microgen -from-db -driver mysql -dsn \"root:pass@tcp(127.0.0.1:3306)/mydb?charset=utf8mb4&parseTime=True\" -dbname mydb -out ./gen -import github.com/example/app -service MyApp\n\n")
-		fmt.Fprintf(os.Stderr, "  # 从 MySQL 生成（指定表）\n")
-		fmt.Fprintf(os.Stderr, "  microgen -from-db -driver mysql -dsn \"root:pass@tcp(127.0.0.1:3306)/mydb?charset=utf8mb4&parseTime=True\" -dbname mydb -tables \"users,orders\" -out ./gen -import github.com/example/app\n\n")
-		fmt.Fprintf(os.Stderr, "  # 从 PostgreSQL 生成\n")
-		fmt.Fprintf(os.Stderr, "  microgen -from-db -driver postgres -dsn \"host=127.0.0.1 user=postgres password=pass dbname=mydb sslmode=disable\" -out ./gen -import github.com/example/app\n\n")
-		fmt.Fprintf(os.Stderr, "  # 从 SQLite 生成\n")
+		fmt.Fprintf(os.Stderr, "  # Append new tables to existing project\n")
+		fmt.Fprintf(os.Stderr, "  microgen -from-db -driver mysql -dsn \"root:pass@tcp(127.0.0.1:3306)/mydb?charset=utf8mb4&parseTime=True\" -dbname mydb -add-tables \"orders,products\" -out ./gen -import github.com/example/app\n\n")
+		fmt.Fprintf(os.Stderr, "  # Generate from SQLite\n")
 		fmt.Fprintf(os.Stderr, "  microgen -from-db -driver sqlite -dsn \"app.db\" -out ./gen -import github.com/example/app -service MyApp\n\n")
 	}
 
@@ -115,12 +118,22 @@ func parseFlags() config {
 		}
 	}
 
+	var addTableList []string
+	if *addTables != "" {
+		for _, t := range strings.Split(*addTables, ",") {
+			if t = strings.TrimSpace(t); t != "" {
+				addTableList = append(addTableList, t)
+			}
+		}
+	}
+
 	return config{
 		idlPath:     *idlPath,
 		fromDB:      *fromDB,
 		dbDSN:       *dsn,
 		dbName:      *dbName,
 		dbTables:    tableList,
+		addTables:   addTableList,
 		outputDir:   *outputDir,
 		ImportPath:  *importPath,
 		protocols:   protos,
@@ -149,6 +162,16 @@ func (c config) validate() error {
 		if d == "mysql" || d == "sqlserver" || d == "mssql" {
 			if c.dbName == "" {
 				return fmt.Errorf("-dbname is required for driver %q", c.dbDriver)
+			}
+		}
+		if len(c.addTables) > 0 && len(c.dbTables) > 0 {
+			return fmt.Errorf("-tables and -add-tables are mutually exclusive")
+		}
+		if len(c.addTables) > 0 {
+			// add-tables mode: output dir must already contain idl.go
+			idlPath := filepath.Join(c.outputDir, "idl.go")
+			if _, err := os.Stat(idlPath); os.IsNotExist(err) {
+				return fmt.Errorf("-add-tables requires an existing generated project at %q (idl.go not found)", c.outputDir)
 			}
 		}
 	} else {
@@ -257,7 +280,7 @@ func runFromIDL(cfg config) *parser.ParseResult {
 	return result
 }
 
-// ─────────────────────────── DB 模式 ───────────────────────────
+// ─────────────────────────── DB mode ───────────────────────────
 
 func runFromDB(cfg config) (*parser.ParseResult, string) {
 	driver := strings.ToLower(cfg.dbDriver)
@@ -275,49 +298,121 @@ func runFromDB(cfg config) (*parser.ParseResult, string) {
 	}
 	log.Printf("Database connected.")
 
-	// 内省表结构
 	intro, err := dbschema.NewIntrospector(driver)
 	if err != nil {
 		log.Fatalf("Introspector error: %v", err)
 	}
 
-	schemas, err := intro.Tables(db, cfg.dbName, cfg.dbTables)
+	// ── Determine which tables to introspect ──
+	tableFilter := cfg.dbTables
+	if len(cfg.addTables) > 0 {
+		tableFilter = cfg.addTables
+	}
+
+	schemas, err := intro.Tables(db, cfg.dbName, tableFilter)
 	if err != nil {
 		log.Fatalf("Failed to introspect tables: %v", err)
 	}
 	if len(schemas) == 0 {
-		log.Fatalf("No tables found in database %q (tables filter: %v)", cfg.dbName, cfg.dbTables)
+		log.Fatalf("No tables found (filter: %v)", tableFilter)
 	}
-	log.Printf("Found %d table(s): %s", len(schemas), tableNames(schemas))
+	log.Printf("Introspected %d table(s): %s", len(schemas), tableNames(schemas))
 
-	// 推导服务名
+	// ── add-tables: merge with existing idl.go ──
+	if len(cfg.addTables) > 0 {
+		schemas = mergeWithExisting(cfg.outputDir, schemas)
+	}
+
+	// ── Derive service name and package name ──
 	svcName := cfg.serviceName
 	if svcName == "" {
-		if cfg.dbName != "" {
+		// Try to read service name from existing idl.go first
+		if existingSvc := readExistingServiceName(cfg.outputDir); existingSvc != "" {
+			svcName = existingSvc
+		} else if cfg.dbName != "" {
 			svcName = dbschema.SnakeToCamel(cfg.dbName) + "Service"
 		} else {
 			svcName = "AppService"
 		}
 	}
 
-	// 推导包名（取 import path 最后一段）
 	pkgName := lastPathSegment(cfg.ImportPath)
 	if pkgName == "" {
 		pkgName = strings.ToLower(svcName)
 	}
 
-	// 生成 idl.go 到输出目录
+	// When the user explicitly provided -service, use its lowercase as the IDL
+	// package name so that WriteIDL derives the correct service interface name.
+	idlPkgName := pkgName
+	if cfg.serviceName != "" {
+		idlPkgName = strings.ToLower(strings.TrimSuffix(svcName, "Service"))
+		if idlPkgName == "" {
+			idlPkgName = pkgName
+		}
+	}
+
+	// ── Write merged idl.go ──
 	log.Printf("Writing idl.go to %s ...", cfg.outputDir)
-	idlPath, err := dbschema.WriteIDL(schemas, pkgName, cfg.outputDir)
+	idlPath, err := dbschema.WriteIDL(schemas, idlPkgName, cfg.outputDir)
 	if err != nil {
 		log.Fatalf("Failed to write idl.go: %v", err)
 	}
 	log.Printf("idl.go written: %s", idlPath)
 
-	// 直接从 schema 构建 ParseResult（不重新解析 idl.go）
 	result := dbschema.ToParseResult(schemas, svcName, pkgName)
-	log.Printf("Generated %d service(s) with %d model(s)", len(result.Services), len(result.Models))
+	log.Printf("Total: %d service(s), %d model(s)", len(result.Services), len(result.Models))
 	return result, idlPath
+}
+
+// mergeWithExisting reads the existing idl.go in outDir, extracts already-generated
+// table names, and prepends them to newSchemas so the full set is regenerated.
+func mergeWithExisting(outDir string, newSchemas []*dbschema.TableSchema) []*dbschema.TableSchema {
+	idlPath := filepath.Join(outDir, "idl.go")
+	existing, err := parser.ParseFull(idlPath)
+	if err != nil {
+		log.Printf("[warn] could not parse existing idl.go (%v); treating as empty", err)
+		return newSchemas
+	}
+
+	// Build set of already-present table names (from existing models)
+	existingTables := make(map[string]bool, len(existing.Models))
+	for _, m := range existing.Models {
+		if m.HasGormTags {
+			existingTables[m.TableName] = true
+		}
+	}
+
+	// Convert existing GORM models back to TableSchema stubs so WriteIDL can re-emit them.
+	// Only include models with gorm tags (actual DB tables), not DTOs.
+	var merged []*dbschema.TableSchema
+	for _, m := range existing.Models {
+		if m.HasGormTags {
+			merged = append(merged, dbschema.ModelToSchema(m))
+		}
+	}
+
+	// Append only genuinely new tables
+	added := 0
+	for _, s := range newSchemas {
+		if existingTables[s.TableName] {
+			log.Printf("[skip] table %q already exists in idl.go", s.TableName)
+			continue
+		}
+		merged = append(merged, s)
+		added++
+	}
+	log.Printf("Merged: %d existing + %d new table(s)", len(existing.Models), added)
+	return merged
+}
+
+// readExistingServiceName reads the service name from an existing idl.go.
+func readExistingServiceName(outDir string) string {
+	idlPath := filepath.Join(outDir, "idl.go")
+	existing, err := parser.ParseFull(idlPath)
+	if err != nil || len(existing.Services) == 0 {
+		return ""
+	}
+	return existing.Services[0].ServiceName
 }
 
 // gormDriverToSQL 将 gorm 驱动名映射到 database/sql 注册的驱动名
