@@ -6,9 +6,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// ModelVersion 用于确保 model 包被正确引用（在 main.go 的 _ = model.ModelVersion 中使用）
-const ModelVersion = "v1"
-
 {{range .Models}}
 // {{.Name}}{{if .Comment}} — {{.Comment}}{{end}}
 type {{.Name}} struct {

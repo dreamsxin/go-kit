@@ -1,4 +1,4 @@
-package {{.Service.PackageName}}
+package {{.Service.ServiceName | lower}}
 
 import (
 	"context"
@@ -7,8 +7,8 @@ import (
 	"log"
 	"time"
 
-	idl "{{.ImportPath}}"
-{{- if .WithModel}}
+	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
+{{- if and .WithModel .Models}}
 	"{{.ImportPath}}/repository"
 {{- end}}
 )
@@ -45,8 +45,10 @@ var defaultConfig = &ServiceConfig{
 
 // Repos 聚合所有 repository 依赖，便于统一注入
 type Repos struct {
-{{- range .GormModels}}
+{{- range .Models}}
+{{- if .HasGormTags}}
 	{{.Name}}Repo *repository.{{.Name}}Repository
+{{- end}}
 {{- end}}
 }
 {{end}}
@@ -144,7 +146,7 @@ func (s *serviceImpl) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{
 // ─────────────────────────── 工具函数 ───────────────────────────
 
 // errorf 格式化业务错误
-func errorf(format string, args ...interface{}) error {
+func errorf(format string, args ...any) error {
 	return fmt.Errorf(format, args...)
 }
 

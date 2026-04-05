@@ -486,11 +486,11 @@ func columnToField(col ColumnInfo) parser.ModelField {
 		IsAutoIncr: col.IsAutoIncr,
 		IsNotNull:  !col.IsNullable,
 		IsUnique:   col.IsUnique,
-		SwagType:   goTypeToSwagType(goType),
+		SwagType:   parser.GoTypeToSwagType(goType),
 	}
 }
 
-// buildService 为所有表构建一个聚合 Service，每张表生成标准 CRUD 方法
+// buildService 为所有表构建一个聚合 Service，每张表生成 standard CRUD 方法
 func buildService(schemas []*TableSchema, serviceName string) *parser.Service {
 	svc := &parser.Service{
 		ServiceName: serviceName,
@@ -623,27 +623,6 @@ func normalizeDBType(dbType string) string {
 	return strings.TrimSpace(dbType)
 }
 
-// goTypeToSwagType 复用 parser 包的逻辑（避免循环依赖，直接内联）
-func goTypeToSwagType(goType string) string {
-	t := strings.TrimPrefix(goType, "*")
-	switch t {
-	case "int", "int8", "int16", "int32", "int64",
-		"uint", "uint8", "uint16", "uint32", "uint64":
-		return "integer"
-	case "float32", "float64":
-		return "number"
-	case "bool":
-		return "boolean"
-	case "string":
-		return "string"
-	default:
-		if strings.HasPrefix(t, "[]") {
-			return "array"
-		}
-		return "object"
-	}
-}
-
 // ─────────────────────────── 命名转换 ───────────────────────────
 
 // SnakeToCamel 将 snake_case 转换为 CamelCase（首字母大写，导出供外部使用）
@@ -656,24 +635,24 @@ func SnakeToCamel(s string) string {
 func snakeToCamel(s string) string {
 	// Common Go initialisms that should be fully uppercased.
 	initialisms := map[string]string{
-		"id":   "ID",
-		"url":  "URL",
-		"uri":  "URI",
-		"ip":   "IP",
-		"http": "HTTP",
+		"id":    "ID",
+		"url":   "URL",
+		"uri":   "URI",
+		"ip":    "IP",
+		"http":  "HTTP",
 		"https": "HTTPS",
-		"api":  "API",
-		"sql":  "SQL",
-		"db":   "DB",
-		"uid":  "UID",
-		"uuid": "UUID",
-		"json": "JSON",
-		"xml":  "XML",
-		"html": "HTML",
-		"css":  "CSS",
-		"js":   "JS",
-		"ts":   "TS",
-		"ok":   "OK",
+		"api":   "API",
+		"sql":   "SQL",
+		"db":    "DB",
+		"uid":   "UID",
+		"uuid":  "UUID",
+		"json":  "JSON",
+		"xml":   "XML",
+		"html":  "HTML",
+		"css":   "CSS",
+		"js":    "JS",
+		"ts":    "TS",
+		"ok":    "OK",
 	}
 	parts := strings.Split(s, "_")
 	var sb strings.Builder
@@ -708,6 +687,8 @@ func singularize(s string) string {
 		"teeth":    "tooth",
 		"feet":     "foot",
 		"oxen":     "ox",
+		"status":   "status",
+		"quizzes":  "quiz",
 	}
 	if singular, ok := irregulars[lower]; ok {
 		return singular
@@ -762,7 +743,7 @@ func fieldNameToColumn(fieldName, gormTag string) string {
 	if v := extractGormTagValue(gormTag, "column"); v != "" {
 		return v
 	}
-	return toSnakeCase(fieldName)
+	return parser.ToSnakeCase(fieldName)
 }
 
 // extractGormTagValue extracts the value of a key from a gorm tag string.
@@ -804,20 +785,4 @@ func goTypeToDBType(goType string) string {
 	default:
 		return "varchar(255)"
 	}
-}
-
-// toSnakeCase converts CamelCase to snake_case (reused from naming helpers).
-func toSnakeCase(s string) string {
-	var result strings.Builder
-	for i, r := range s {
-		if r >= 'A' && r <= 'Z' {
-			if i > 0 {
-				result.WriteByte('_')
-			}
-			result.WriteRune(r + 32)
-		} else {
-			result.WriteRune(r)
-		}
-	}
-	return result.String()
 }

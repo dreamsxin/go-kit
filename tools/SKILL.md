@@ -1,33 +1,22 @@
 ---
-description: "go-kit microservice framework — how to build Go microservices with this framework"
+description: "go-kit microservice framework — how to build Go microservices with AI-first design"
 ---
 
 # go-kit Framework Skill
 
-This skill teaches you how to build Go microservices using the go-kit framework in this repository.
+This skill teaches you how to build modern Go microservices using the **go-kit** framework and its companion code generator **microgen**.
 
-## Repository Layout
+## Core Concepts
 
-```
-github.com/dreamsxin/go-kit
-├── kit/              ← High-level API (start here for new projects)
-├── endpoint/         ← Core: Endpoint, TypedEndpoint, Builder, Middleware
-│   ├── circuitbreaker/
-│   └── ratelimit/
-├── transport/
-│   ├── http/server/  ← NewJSONServer, NewJSONServerWithMiddleware
-│   ├── http/client/  ← NewJSONClient, NewJSONClientWithRetry
-│   └── grpc/
-├── sd/               ← Service discovery: NewEndpoint, NewEndpointWithDefaults
-│   ├── consul/
-│   ├── endpointer/
-│   └── instance/     ← In-memory SD for tests
-├── log/              ← *zap.Logger wrapper
-├── examples/         ← Runnable examples (start reading here)
-└── cmd/microgen/     ← Code generator
-```
+The go-kit framework follows a clean, three-layer architecture:
 
-## 30-Second Service
+1.  **Transport**: Protocol-specific handlers (HTTP, gRPC). Decodes requests and encodes responses.
+2.  **Endpoint**: The "wrapper" around your business logic. This is where middleware (logging, metrics, rate limiting, circuit breaking) resides. It uses the `func(ctx, request) (response, error)` signature.
+3.  **Service**: Pure business logic, independent of any protocol.
+
+## 30-Second Service (kit)
+
+Use the `kit/` package for rapid prototyping. It supports Go generics to automate JSON decoding/encoding.
 
 ```go
 package main
@@ -42,328 +31,85 @@ type HelloResp struct { Message string `json:"message"` }
 
 func main() {
     svc := kit.New(":8080")
-    svc.JSON("/hello", func(ctx context.Context, req any) (any, error) {
-        r := req.(HelloReq)
-        return HelloResp{Message: "Hello, " + r.Name + "!"}, nil
-    })
+    
+    // Automatic JSON decoding/encoding with Generics
+    svc.Handle("/hello", kit.JSON[HelloReq](func(ctx context.Context, req HelloReq) (any, error) {
+        return HelloResp{Message: "Hello, " + req.Name + "!"}, nil
+    }))
+    
     svc.Run()
 }
 ```
 
-For typed (no type assertions):
+---
 
-```go
-svc.Handle("/hello", kit.JSON[HelloReq](func(ctx context.Context, req HelloReq) (any, error) {
-    return HelloResp{Message: "Hello, " + req.Name + "!"}, nil
-}))
-```
+## Code Generation (microgen)
 
-## Production Service Pattern
+`microgen` is the recommended way to build production services. It can generate code from three sources:
 
-```go
-package main
-
-import (
-    "context"
-    "time"
-    "github.com/sony/gobreaker"
-    "golang.org/x/time/rate"
-    "github.com/dreamsxin/go-kit/endpoint"
-    "github.com/dreamsxin/go-kit/endpoint/circuitbreaker"
-    "github.com/dreamsxin/go-kit/endpoint/ratelimit"
-    kitlog "github.com/dreamsxin/go-kit/log"
-    httpserver "github.com/dreamsxin/go-kit/transport/http/server"
-)
-
-// Step 1: pure business logic (no framework imports)
-type CreateUserReq  struct { Name string `json:"name"` }
-type CreateUserResp struct { ID uint `json:"id"` }
-
-func createUser(_ context.Context, req CreateUserReq) (CreateUserResp, error) {
-    // ... business logic
-    return CreateUserResp{ID: 1}, nil
-}
-
-// Step 2: wire with middleware
-func main() {
-    logger, _ := kitlog.NewDevelopment()
-    defer logger.Sync()
-
-    var metrics endpoint.Metrics
-
-    // TypedEndpoint — compile-time type safety
-    base := endpoint.TypedEndpoint[CreateUserReq, CreateUserResp](createUser)
-
-    // Build middleware chain
-    ep := endpoint.Unwrap[CreateUserReq, CreateUserResp](
-        endpoint.NewTypedBuilder(base).
-            WithMetrics(&metrics).
-            WithErrorHandling("CreateUser").
-            WithTimeout(5 * time.Second).
-            WithTracing().
-            WithBackpressure(200).
-            Use(circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(
-                gobreaker.Settings{Name: "CreateUser"},
-            ))).
-            Use(ratelimit.NewErroringLimiter(
-                rate.NewLimiter(rate.Every(time.Second), 100),
-            )).
-            Build(),
-    )
-
-    // Step 3: HTTP handler — automatic JSON, default error encoder
-    handler := httpserver.NewJSONServer[CreateUserReq](
-        func(ctx context.Context, req CreateUserReq) (any, error) {
-            return ep(ctx, req)
-        },
-    )
-
-    http.Handle("/users", handler)
-    http.ListenAndServe(":8080", nil)
-}
-```
-
-## Key APIs
-
-### endpoint package
-
-```go
-// Untyped (legacy compatible)
-var ep endpoint.Endpoint = func(ctx context.Context, req any) (any, error) { ... }
-
-// Typed (recommended for new code)
-var ep endpoint.TypedEndpoint[Req, Resp] = func(ctx context.Context, req Req) (Resp, error) { ... }
-
-// Builder — fluent middleware assembly
-ep := endpoint.NewBuilder(base).
-    WithMetrics(&metrics).          // built-in counters
-    WithErrorHandling("op").        // wrap errors with operation name
-    WithTimeout(5*time.Second).     // per-request deadline
-    WithTracing().                  // inject trace/request IDs
-    WithBackpressure(200).          // max concurrent requests
-    WithLogging(logger, "op").      // structured logging
-    Use(myMiddleware).              // any custom middleware
-    Build()
-
-// Recover type safety after middleware
-typed := endpoint.Unwrap[Req, Resp](ep)
-resp, err := typed(ctx, req)  // no type assertions needed
-```
-
-### transport/http/server
-
-```go
-// Simplest — automatic JSON, default error encoder
-handler := server.NewJSONServer[Req](func(ctx context.Context, req Req) (any, error) {
-    return resp, nil
-})
-
-// With middleware
-handler := server.NewJSONServerWithMiddleware[Req](
-    myHandler,
-    func(b *endpoint.Builder) *endpoint.Builder {
-        return b.WithTimeout(5*time.Second).Use(cb)
-    },
-)
-
-// Custom error encoder
-server.ServerErrorEncoder(server.JSONErrorEncoder)  // {"error": "..."}
-
-// Hooks
-server.ServerBefore(func(ctx context.Context, r *http.Request) context.Context { ... })
-server.ServerAfter(func(ctx context.Context, r *http.Request, w *server.InterceptingWriter) context.Context { ... })
-server.ServerFinalizer(func(ctx context.Context, r *http.Request, w *server.InterceptingWriter) { ... })
-```
-
-### transport/http/client
-
-```go
-// Typed client — automatic JSON
-ep, err := client.NewJSONClient[RespType](http.MethodPost, "http://host/path")
-resp, err := ep(ctx, reqValue)
-result := resp.(RespType)
-
-// With timeout
-ep, err := client.NewJSONClientWithRetry[RespType](http.MethodGet, url, 5*time.Second)
-
-// Hooks
-client.ClientBefore(func(ctx context.Context, r *http.Request) context.Context {
-    r.Header.Set("Authorization", "Bearer "+token)
-    return ctx
-})
-```
-
-### sd package (service discovery)
-
-```go
-// One-liner with defaults (3 retries, 500ms timeout, 5s invalidate)
-ep := sd.NewEndpointWithDefaults(instancer, factory, logger)
-
-// Custom settings
-ep := sd.NewEndpoint(instancer, factory, logger,
-    sd.WithMaxRetries(3),
-    sd.WithTimeout(500*time.Millisecond),
-    sd.WithInvalidateOnError(5*time.Second),
-)
-
-// In-memory for tests (no Consul needed)
-cache := instance.NewCache()
-cache.Update(events.Event{Instances: []string{"host1:8080", "host2:8080"}})
-ep := sd.NewEndpoint(cache, factory, logger)
-
-// Consul
-instancer := consul.NewInstancer(consulClient, logger, "service-name", true)
-defer instancer.Stop()
-```
-
-### log package
-
-```go
-// Development (coloured, human-readable)
-logger, _ := log.NewDevelopment()
-defer logger.Sync()
-
-// Production (JSON)
-logger, _ = zap.NewProduction()
-
-// Silent (tests)
-logger = log.NewNopLogger()
-
-// Usage
-logger.Sugar().Infof("user created: %s", name)
-logger.Info("request", zap.String("method", "POST"), zap.Duration("took", d))
-```
-
-## Code Generation
-
-### From IDL file
-
-```go
-// 1. Define your service in idl.go
-package myapp
-
-import "context"
-
-type UserModel struct {
-    ID   uint   `json:"id"   gorm:"primaryKey;autoIncrement"`
-    Name string `json:"name" gorm:"not null"`
-}
-
-type CreateUserRequest  struct { Name string `json:"name"` }
-type CreateUserResponse struct { User *UserModel `json:"user"` }
-
-type UserService interface {
-    CreateUser(ctx context.Context, req CreateUserRequest) (CreateUserResponse, error)
-}
-```
-
+### 1. Protobuf (.proto)
+Define your contract first (Design-First).
 ```bash
-# 2. Generate
-./microgen.exe -idl ./idl.go -out ./gen -import github.com/myorg/myapp \
-    -protocols http -model -driver sqlite -config -swag
-
-# 3. Run
-cd gen && go mod tidy && go run ./cmd/main.go
+microgen -idl service.proto -out . -import example.com/mysvc -protocols http,grpc
 ```
 
-### From database
-
+### 2. Go Interface (IDL)
+Define a plain Go interface as your contract.
 ```bash
-# SQLite
-./microgen.exe -from-db -driver sqlite -dsn app.db \
-    -out ./gen -import github.com/myorg/app -service MyApp -config
-
-# MySQL
-./microgen.exe -from-db -driver mysql \
-    -dsn "root:pass@tcp(127.0.0.1:3306)/mydb?charset=utf8mb4&parseTime=True" \
-    -dbname mydb -out ./gen -import github.com/myorg/app -service MyApp -config
-
-# Add tables later (non-destructive)
-./microgen.exe -from-db -driver sqlite -dsn app.db \
-    -add-tables "orders,products" -out ./gen -import github.com/myorg/app
+microgen -idl idl.go -out . -import example.com/mysvc
 ```
 
-### Generated project structure
-
-```
-gen/
-├── cmd/main.go              # Entry point (zap logger, graceful shutdown)
-├── service/{svc}/           # Business logic stub — fill in your logic here
-├── endpoint/{svc}/          # Middleware: circuit breaker, rate limit, logging
-├── transport/{svc}/         # HTTP handlers + /debug/routes endpoint
-├── model/model.go           # GORM models (with -model)
-├── repository/repository.go # Data access layer
-├── config/config.yaml       # All settings: server, db, middleware, debug
-├── config/config.go         # Typed config loader
-└── idl.go                   # Service interface
-```
-
-### Config-driven middleware (generated projects)
-
-```go
-// endpoints.go — MakeServerEndpointsWithConfig wires real middleware from config
-cfg, _ := config.Load("config/config.yaml")
-endpoints := userserviceEndpoint.MakeServerEndpointsWithConfig(svc, logger,
-    userserviceEndpoint.MiddlewareConfig{
-        CBEnabled:          cfg.Middleware.CircuitBreaker.Enabled,
-        CBFailureThreshold: uint32(cfg.Middleware.CircuitBreaker.FailureThreshold),
-        CBTimeout:          cfg.Middleware.CircuitBreaker.Timeout,
-        RLEnabled:          cfg.Middleware.RateLimit.Enabled,
-        RLRps:              cfg.Middleware.RateLimit.RequestsPerSecond,
-        Timeout:            30 * time.Second,
-    })
-```
-
-## Debug Endpoints (generated projects)
-
-Every generated service exposes:
-
+### 3. Database (Reverse Engineering)
+Generate a full CRUD service from a database table.
 ```bash
-GET /health          # {"status":"ok","service":"UserService"}
-GET /debug/routes    # [{"method":"POST","path":"/userservice/createuser","handler":"CreateUser"}, ...]
-GET /swagger/        # Swagger UI (with -swag flag)
+microgen -from-db -db-driver mysql -db-dsn "user:pass@tcp(localhost:3306)/dbname"
 ```
 
-Control via `config/config.yaml`:
-```yaml
-debug:
-  routes_enabled: true   # disable in production
-  print_routes: true     # print route table on startup
+---
+
+## AI & Skill Integration (Critical for Agents)
+
+go-kit is **AI-First**. By using the `-skill` flag during generation, `microgen` adds an AI Tool definition to your service.
+
+### Accessing Skill Definitions
+An AI agent can "discover" your service methods by calling:
+- **OpenAI Tool format**: `GET /skill`
+- **MCP (Model Context Protocol)**: `GET /skill?format=mcp`
+
+### Why this matters
+When an AI agent (like Accio or Claude) sees these definitions, it can **automatically call your service methods** as tools to perform actions or retrieve data for the user.
+
+---
+
+## Project Layout (Generated)
+
+A standard microgen-generated project has this structure:
+
+```
+.
+├── cmd/main.go          # Wires together Transport, Endpoints, and Service
+├── service/             # Your core business logic goes here
+├── endpoint/            # Go-kit Endpoints and middleware
+├── transport/           # HTTP/gRPC protocol handlers
+├── sdk/                 # Automatically generated client SDK for other Go services
+├── model/               # (Optional) GORM database models
+└── repository/          # (Optional) GORM-based data access layer
 ```
 
-## Testing Patterns
+---
 
-```go
-// Unit test an endpoint directly
-func TestCreateUser(t *testing.T) {
-    ep := MakeCreateUserEndpoint(NewService(nil))
-    resp, err := ep(context.Background(), CreateUserRequest{Name: "alice"})
-    // ...
-}
+## Best Practices
 
-// Integration test with in-memory SD
-func TestWithSD(t *testing.T) {
-    cache := instance.NewCache()
-    cache.Update(events.Event{Instances: []string{"127.0.0.1:8080"}})
-    ep := sd.NewEndpoint(cache, myFactory, log.NewNopLogger())
-    // ...
-}
+1.  **Prefer microgen**: Don't write boilerplate transport or endpoint code by hand.
+2.  **Business logic in Service**: Keep the `service/` package clean of any HTTP or gRPC imports.
+3.  **Use Client SDK**: For inter-service communication, use the generated `sdk/` package — it includes built-in retries and circuit breaking.
+4.  **Graceful Shutdown**: All generated services handle SIGINT/SIGTERM to close connections properly.
+5.  **Environment Config**: Use `config/config.yaml` and override it with flags (e.g., `-http.addr=:9000`).
 
-// HTTP handler test
-func TestHandler(t *testing.T) {
-    handler := server.NewJSONServer[HelloReq](myHandler)
-    rec := httptest.NewRecorder()
-    handler.ServeHTTP(rec, httptest.NewRequest("POST", "/", strings.NewReader(`{"name":"test"}`)))
-    // ...
-}
+## Testing
+
+Run integration tests using the native Go test tool:
+```bash
+go test -v ./tools/integration_test.go
 ```
-
-## Common Mistakes
-
-| Mistake | Fix |
-|---------|-----|
-| Using `RetryMiddleware` on server endpoints | Only use retry on client endpoints |
-| Ignoring `logger.Sync()` | Always `defer logger.Sync()` |
-| Type-asserting response without checking | Use `TypedEndpoint` + `Unwrap` |
-| Hardcoding DSN in code | Use `config/config.yaml` + `-config` flag |
-| Not handling `ErrBackpressure` | Check `errors.Is(err, endpoint.ErrBackpressure)` |
+This suite automatically generates services from IDL and Proto and performs smoke tests against them.

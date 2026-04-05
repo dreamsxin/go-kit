@@ -2,7 +2,8 @@ syntax = "proto3";
 
 package {{.Service.PackageName}};
 
-option go_package = "{{.ImportPath}}/pb/{{.Service.PackageName}}";
+option go_package = "./pb";
+
 
 // {{.Service.ServiceName}} gRPC 服务定义
 service {{.Service.ServiceName}} {

@@ -57,11 +57,20 @@ type Model struct {
 	HasGormTags bool         // 是否含 gorm tag（用于判断是否需要生成 model 文件）
 }
 
+type SourceType string
+
+const (
+	SourceGo    SourceType = "go"
+	SourceProto SourceType = "proto"
+	SourceDB    SourceType = "db"
+)
+
 // ParseResult 完整解析结果
 type ParseResult struct {
 	PackageName string
 	Services    []*Service
 	Models      []*Model
+	Source      SourceType
 }
 
 // ─────────────────────────── 公共入口 ───────────────────────────
@@ -90,6 +99,7 @@ func ParseFull(idlPath string) (*ParseResult, error) {
 
 	result := &ParseResult{
 		PackageName: file.Name.Name,
+		Source:      SourceGo,
 	}
 
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -241,7 +251,7 @@ func validateMethodSignature(funcType *ast.FuncType) error {
 func parseModel(ts *ast.TypeSpec, st *ast.StructType) *Model {
 	model := &Model{
 		Name:      ts.Name.Name,
-		TableName: toSnakeCase(ts.Name.Name),
+		TableName: ToSnakeCase(ts.Name.Name),
 	}
 
 	if ts.Comment != nil {
@@ -261,7 +271,7 @@ func parseModel(ts *ast.TypeSpec, st *ast.StructType) *Model {
 		// 字段类型
 		typeName, _ := getTypeName(field.Type)
 		mf.Type = typeName
-		mf.SwagType = goTypeToSwagType(typeName)
+		mf.SwagType = GoTypeToSwagType(typeName)
 		mf.Example = swagExample(typeName, mf.JSONTag)
 
 		// 行注释
@@ -347,24 +357,30 @@ func getTypeName(expr ast.Expr) (string, error) {
 	}
 }
 
-// toSnakeCase 将 CamelCase 转换为 snake_case
-func toSnakeCase(s string) string {
-	var result strings.Builder
+// ToSnakeCase 将 CamelCase 转换为 snake_case
+func ToSnakeCase(s string) string {
+	var res strings.Builder
 	for i, r := range s {
-		if r >= 'A' && r <= 'Z' {
-			if i > 0 {
-				result.WriteByte('_')
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			prev := s[i-1]
+			// 在大写字母前加下划线的条件：
+			// 1. 前面是小写字母（如 UserID -> user_id）
+			// 2. 后面是小写字母（如 HTTPClient -> http_client）
+			if (prev >= 'a' && prev <= 'z') || (i+1 < len(s) && (s[i+1] >= 'a' && s[i+1] <= 'z')) {
+				res.WriteByte('_')
 			}
-			result.WriteRune(r + 32)
+		}
+		if r >= 'A' && r <= 'Z' {
+			res.WriteByte(byte(r + 32))
 		} else {
-			result.WriteRune(r)
+			res.WriteRune(r)
 		}
 	}
-	return result.String()
+	return res.String()
 }
 
-// goTypeToSwagType 将 Go 类型映射为 swaggo 类型字符串
-func goTypeToSwagType(goType string) string {
+// GoTypeToSwagType 将 Go 类型映射为 swaggo 类型字符串
+func GoTypeToSwagType(goType string) string {
 	// 去掉指针前缀
 	t := strings.TrimPrefix(goType, "*")
 	switch t {

@@ -1,0 +1,20 @@
+# {{range .Services}}{{.ServiceName}}{{end}} Service
+
+Generated with `go-kit microgen`.
+
+## Quick Start
+
+```bash
+# Start the service
+go run ./cmd/main.go
+```
+
+## API Endpoints
+
+{{range .Services}}
+### {{.ServiceName}}
+
+{{range .Methods}}
+* **{{.Name}}**: `{{.HTTPMethod | upper}} {{.Route}}`
+{{end}}
+{{end}}

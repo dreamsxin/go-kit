@@ -30,7 +30,7 @@ import (
 {{end}}	"syscall"
 	"time"
 
-{{range .Services}}	"{{$.ImportPath}}/service/{{.PackageName}}"
+{{range .Services}}	{{.PackageName}}Svc "{{$.ImportPath}}/service/{{.PackageName}}"
 	{{.PackageName}}Endpoint "{{$.ImportPath}}/endpoint/{{.PackageName}}"
 	{{.PackageName}}Transport "{{$.ImportPath}}/transport/{{.PackageName}}"
 {{end}}	"github.com/gorilla/mux"
@@ -46,10 +46,11 @@ import (
 {{if .WithSwag}}	httpSwagger "github.com/swaggo/http-swagger"
 {{if .WithConfig}}	docs "{{$.ImportPath}}/docs"
 {{else}}	_ "{{$.ImportPath}}/docs"
-{{end}}{{end}}{{if .WithConfig}}	"{{$.ImportPath}}/config"
+{{end}}{{end}}{{if .WithSkill}}	"{{$.ImportPath}}/skill"
+{{end}}{{if .WithConfig}}	"{{$.ImportPath}}/config"
 {{end}})
 
-func printBanner(logger *kitlog.Logger, httpAddr string{{if .WithGRPC}}, grpcAddr string{{end}}, withSwag bool) {
+func printBanner(logger *kitlog.Logger, httpAddr string{{if .WithGRPC}}, grpcAddr string{{end}}, withSwag bool, withSkill bool) {
 	logger.Sugar().Info("╔══════════════════════════════════════════╗")
 	logger.Sugar().Infof("║  %-40s  ║", "{{range .Services}}{{.ServiceName}}{{end}} Service")
 	logger.Sugar().Info("╠══════════════════════════════════════════╣")
@@ -57,6 +58,10 @@ func printBanner(logger *kitlog.Logger, httpAddr string{{if .WithGRPC}}, grpcAdd
 	if withSwag {
 		swaggerURL := fmt.Sprintf("http://localhost%s/swagger/index.html", httpAddr)
 		logger.Sugar().Infof("║  Swagger → %-30s  ║", swaggerURL)
+	}
+	if withSkill {
+		skillURL := fmt.Sprintf("http://localhost%s/skill", httpAddr)
+		logger.Sugar().Infof("║  Skill → %-30s    ║", skillURL)
 	}
 {{if .WithGRPC}}	logger.Sugar().Infof("║  gRPC  → %s%-*s║", grpcAddr, 32-len(grpcAddr), "")
 {{end}}	logger.Sugar().Info("╠══════════════════════════════════════════╣")
@@ -77,6 +82,9 @@ func printAllRoutes(logger *kitlog.Logger) {
 {{- end}}{{end}}
 {{- if .WithSwag}}
 		{"GET", "/swagger/"},
+{{- end}}
+{{- if .WithSkill}}
+		{"GET", "/skill"},
 {{- end}}
 	}
 	logger.Sugar().Info("─── Registered Routes ───────────────────────────")
@@ -155,20 +163,20 @@ func main() {
 {{if .GormModels}}{{range .GormModels}}	{{.Name | lower}}Repo := repository.New{{.Name}}Repository(repoDB)
 	_ = {{.Name | lower}}Repo
 {{end}}{{else}}	_ = repoDB
-{{end}}	_ = model.ModelVersion // 确保 model 包被引用
+{{end}}
 {{end}}
 
 	// ─── 初始化服务 ───
-{{range .Services}}{{if $.WithDB}}	{{.PackageName}}Svc := {{.PackageName}}.NewServiceWithRepo(nil, {{.PackageName}}.Repos{
+{{range .Services}}{{if $.WithDB}}	{{.PackageName}}SvcInst := {{.PackageName}}Svc.NewServiceWithRepo(nil, {{.PackageName}}Svc.Repos{
 {{- range $.GormModels}}
 		{{.Name}}Repo: {{.Name | lower}}Repo,
 {{- end}}
 	})
-{{else}}	{{.PackageName}}Svc := {{.PackageName}}.NewService(nil)
+{{else}}	{{.PackageName}}SvcInst := {{.PackageName}}Svc.NewService(nil)
 {{end}}{{end}}
 
 	// ─── 初始化端点（配置驱动中间件）───
-{{range .Services}}{{if $.WithConfig}}	{{.PackageName}}Endpoints := {{.PackageName}}Endpoint.MakeServerEndpointsWithConfig({{.PackageName}}Svc, logger, {{.PackageName}}Endpoint.MiddlewareConfig{
+{{range .Services}}{{if $.WithConfig}}	{{.PackageName}}Endpoints := {{.PackageName}}Endpoint.MakeServerEndpointsWithConfig({{.PackageName}}SvcInst, logger, {{.PackageName}}Endpoint.MiddlewareConfig{
 		CBEnabled:          cfg.Middleware.CircuitBreaker.Enabled,
 		CBFailureThreshold: uint32(cfg.Middleware.CircuitBreaker.FailureThreshold),
 		CBTimeout:          cfg.Middleware.CircuitBreaker.Timeout,
@@ -176,7 +184,7 @@ func main() {
 		RLRps:              cfg.Middleware.RateLimit.RequestsPerSecond,
 		Timeout:            30 * time.Second,
 	})
-{{else}}	{{.PackageName}}Endpoints := {{.PackageName}}Endpoint.MakeServerEndpoints({{.PackageName}}Svc, logger)
+{{else}}	{{.PackageName}}Endpoints := {{.PackageName}}Endpoint.MakeServerEndpoints({{.PackageName}}SvcInst, logger)
 {{end}}{{end}}
 
 	// ─── 构建路由 ───
@@ -198,31 +206,9 @@ func main() {
 		fmt.Fprintln(w, `{"status":"ok","service":"{{range .Services}}{{.ServiceName}}{{end}}"}`)
 	}).Methods("GET", "HEAD")
 
-	// /debug/routes — 聚合所有服务路由，方便调试
-{{if .WithConfig}}	if cfg.Debug.RoutesEnabled {
-{{end}}	r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
-		type routeInfo struct {
-			Method  string `json:"method"`
-			Path    string `json:"path"`
-			Handler string `json:"handler"`
-		}
-		var all []routeInfo
-		all = append(all, routeInfo{"GET", "/health", "health"})
-		all = append(all, routeInfo{"GET", "/debug/routes", "debug"})
-{{- range $svc := .SvcRoutes}}{{range $svc.Service.Methods}}
-		all = append(all, routeInfo{"{{.HTTPMethod | upper}}", "{{$svc.FullPrefix}}{{.Route}}", "{{.Name}}"})
-{{- end}}{{end}}
-{{- if .WithSwag}}
-		all = append(all, routeInfo{"GET", "/swagger/", "swagger-ui"})
-{{- end}}
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(all)
-	}).Methods("GET")
-{{if .WithConfig}}	}
-{{end}}
-{{range .SvcRoutes}}	r.PathPrefix("{{.FullPrefix}}").Handler(
-		http.StripPrefix("{{.FullPrefix}}", {{.Service.PackageName}}Transport.NewHTTPHandler({{.Service.PackageName}}Endpoints)),
-	)
+{{if .WithSkill}}
+	// AI Skill definition (for AI agents)
+	r.HandleFunc("/skill", skill.Handler).Methods("GET")
 {{end}}
 
 {{if .WithSwag}}
@@ -251,6 +237,36 @@ func main() {
 		httpSwagger.DeepLinking(true),
 		httpSwagger.DocExpansion("list"),
 	))
+{{end}}
+
+	// /debug/routes — 聚合所有服务路由，方便调试
+{{if .WithConfig}}	if cfg.Debug.RoutesEnabled {
+{{end}}	r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
+		type routeInfo struct {
+			Method  string `json:"method"`
+			Path    string `json:"path"`
+			Handler string `json:"handler"`
+		}
+		var all []routeInfo
+		all = append(all, routeInfo{"GET", "/health", "health"})
+		all = append(all, routeInfo{"GET", "/debug/routes", "debug"})
+{{- range $svc := .SvcRoutes}}{{range $svc.Service.Methods}}
+		all = append(all, routeInfo{"{{.HTTPMethod | upper}}", "{{$svc.FullPrefix}}{{.Route}}", "{{.Name}}"})
+{{- end}}{{end}}
+{{- if .WithSwag}}
+		all = append(all, routeInfo{"GET", "/swagger/", "swagger-ui"})
+{{- end}}
+{{- if .WithSkill}}
+		all = append(all, routeInfo{"GET", "/skill", "skill"})
+{{- end}}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		json.NewEncoder(w).Encode(all)
+	}).Methods("GET")
+{{if .WithConfig}}	}
+{{end}}
+{{range .SvcRoutes}}	r.PathPrefix("{{.FullPrefix}}").Handler(
+		http.StripPrefix("{{.FullPrefix}}", {{.Service.PackageName}}Transport.NewHTTPHandler({{.Service.PackageName}}Endpoints)),
+	)
 {{end}}
 
 {{if .WithConfig}}	if cfg.Debug.PrintRoutes {
@@ -290,7 +306,7 @@ func main() {
 	}()
 {{end}}
 
-	printBanner(logger, *httpAddr{{if .WithGRPC}}, *grpcAddr{{end}}, {{if .WithSwag}}true{{else}}false{{end}})
+	printBanner(logger, *httpAddr{{if .WithGRPC}}, *grpcAddr{{end}}, {{if .WithSwag}}true{{else}}false{{end}}, {{if .WithSkill}}true{{else}}false{{end}})
 
 	// ─── 优雅关闭 ───
 	quit := make(chan os.Signal, 1)

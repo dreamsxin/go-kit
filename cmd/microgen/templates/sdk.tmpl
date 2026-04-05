@@ -4,13 +4,16 @@
 //
 // Usage:
 //
+//	// HTTP
 //	client := {{.Service.PackageName}}sdk.New("http://localhost:8080")
 //	resp, err := client.{{(index .Service.Methods 0).Name}}(ctx, idl.{{(index .Service.Methods 0).Input}}{...})
 //
-// The SDK is self-contained: copy this file and idl.go to your project,
-// then run:
-//
-//	go get github.com/dreamsxin/go-kit
+// {{if .WithGRPC}}
+//	// gRPC
+//	conn, _ := grpc.Dial("localhost:8081", grpc.WithInsecure())
+//	client := {{.Service.PackageName}}sdk.NewGRPC(conn)
+//	resp, err := client.{{(index .Service.Methods 0).Name}}(ctx, idl.{{(index .Service.Methods 0).Input}}{...})
+// {{end}}
 package {{.Service.PackageName}}sdk
 
 import (
@@ -22,7 +25,12 @@ import (
 	"net/http"
 	"time"
 
-	idl "{{.ImportPath}}"
+{{if .WithGRPC}}
+	"google.golang.org/grpc"
+	"github.com/dreamsxin/go-kit/endpoint"
+	svcTransport "{{.ImportPath}}/transport/{{.Service.ServiceName | lower}}"
+{{end}}
+	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
 )
 
 // ─────────────────────────── Client interface ────────────────────────────────
@@ -36,7 +44,7 @@ type Client interface {
 {{end}}
 }
 
-// ─────────────────────────── Options ─────────────────────────────────────────
+// ─────────────────────────── HTTP Constructor ────────────────────────────────
 
 // Option configures the HTTP client.
 type Option func(*httpClient)
@@ -67,19 +75,9 @@ func WithRequestHook(fn func(r *http.Request)) Option {
 	return func(c *httpClient) { c.hooks = append(c.hooks, fn) }
 }
 
-// ─────────────────────────── Constructor ─────────────────────────────────────
-
 // New creates a {{.Service.ServiceName}} HTTP client.
 //
 // baseURL is the server base URL, e.g. "http://localhost:8080".
-// All method paths are appended automatically.
-//
-// Example:
-//
-//	client := {{.Service.PackageName}}sdk.New("http://api.example.com",
-//	    {{.Service.PackageName}}sdk.WithBearerToken(token),
-//	    {{.Service.PackageName}}sdk.WithTimeout(10*time.Second),
-//	)
 func New(baseURL string, opts ...Option) Client {
 	c := &httpClient{
 		baseURL: baseURL,
@@ -94,6 +92,17 @@ func New(baseURL string, opts ...Option) Client {
 	}
 	return c
 }
+
+// ─────────────────────────── gRPC Constructor ────────────────────────────────
+
+{{if .WithGRPC}}
+// NewGRPC creates a {{.Service.ServiceName}} gRPC client.
+func NewGRPC(conn *grpc.ClientConn) Client {
+	return &grpcClient{
+{{range .Service.Methods}}		{{.Name | lower}}: svcTransport.NewGRPC{{.Name}}Client(conn),
+{{end}}	}
+}
+{{end}}
 
 // ─────────────────────────── HTTP implementation ──────────────────────────────
 
@@ -159,13 +168,10 @@ func (c *httpClient) do(ctx context.Context, method, path string, reqBody, respB
 	return nil
 }
 
-// ─────────────────────────── Method implementations ──────────────────────────
 {{range .Service.Methods}}
-// {{.Name}}{{if .Doc}} — {{.Doc}}{{end}}
 func (c *httpClient) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
 	var resp idl.{{.Output}}
 {{- if eq .HTTPMethod "get"}}
-	// GET: encode request fields as query parameters
 	path := "{{$.RoutePrefix}}{{.Route}}"
 	b, _ := json.Marshal(req)
 	var params map[string]interface{}
@@ -183,4 +189,22 @@ func (c *httpClient) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.
 {{- end}}
 	return resp, err
 }
+{{end}}
+
+// ─────────────────────────── gRPC implementation ──────────────────────────────
+
+{{if .WithGRPC}}
+type grpcClient struct {
+{{range .Service.Methods}}	{{.Name | lower}} endpoint.Endpoint
+{{end}}}
+
+{{range .Service.Methods}}
+func (c *grpcClient) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
+	resp, err := c.{{.Name | lower}}(ctx, req)
+	if err != nil {
+		return idl.{{.Output}}{}, err
+	}
+	return resp.(idl.{{.Output}}), nil
+}
+{{end}}
 {{end}}

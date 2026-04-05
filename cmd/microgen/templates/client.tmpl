@@ -10,9 +10,9 @@ import (
 	"net/http"
 	"time"
 
-	idl "{{.ImportPath}}"
+	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
 {{- if .WithGRPC}}
-	{{.Service.PackageName}}Transport "{{.ImportPath}}/transport/{{.Service.PackageName}}"
+	genTransport "{{.ImportPath}}/transport/{{.Service.ServiceName | lower}}"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 {{- end}}
@@ -59,7 +59,7 @@ func (c *{{.Service.ServiceName}}HTTPClient) do(ctx context.Context, path string
 // {{.Name}} 通过 HTTP 调用 {{.Name}}
 func (c *{{$.Service.ServiceName}}HTTPClient) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
 	var resp idl.{{.Output}}
-	return resp, c.do(ctx, "/{{$.Service.PackageName}}/{{.Name | lower}}", req, &resp)
+	return resp, c.do(ctx, "{{$.RoutePrefix}}{{.Route}}", req, &resp)
 }
 {{end}}
 
@@ -87,7 +87,7 @@ func New{{.Service.ServiceName}}GRPCClient(addr string, opts ...grpc.DialOption)
 	}
 	return &{{.Service.ServiceName}}GRPCClient{
 		conn: conn,
-{{range .Service.Methods}}		{{.Name | lower}}: {{$.Service.PackageName}}Transport.NewGRPC{{.Name}}Client(conn),
+{{range .Service.Methods}}		{{.Name | lower}}: genTransport.NewGRPC{{.Name}}Client(conn),
 {{end}}
 	}, nil
 }
@@ -117,7 +117,7 @@ type {{.Service.ServiceName}}Client interface {
 {{end}}
 }
 
-// ─────────────────────────── Demo 逻辑 ───────────────────────────
+// ─────────────────────────── Demo logic ───────────────────────────
 
 func runDemo(client {{.Service.ServiceName}}Client, logger *log.Logger) {
 	ctx := context.Background()

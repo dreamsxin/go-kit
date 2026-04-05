@@ -1,4 +1,4 @@
-package {{.Service.PackageName}}
+package {{.Service.ServiceName | lower}}
 
 import (
 	"context"
@@ -11,11 +11,11 @@ import (
 	"github.com/dreamsxin/go-kit/endpoint/circuitbreaker"
 	"github.com/dreamsxin/go-kit/endpoint/ratelimit"
 	kitlog "github.com/dreamsxin/go-kit/log"
-	idl "{{.ImportPath}}"
-	"{{.ImportPath}}/service/{{.Service.PackageName}}"
+	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
+	svc "{{.ImportPath}}/service/{{.Service.ServiceName | lower}}"
 )
 
-// Endpoints 封装所有服务端点
+// {{.Service.ServiceName}}Endpoints 封装所有服务端点
 type {{.Service.ServiceName}}Endpoints struct {
 {{range .Service.Methods}}	{{.Name}}Endpoint endpoint.Endpoint
 {{end}}
@@ -42,25 +42,13 @@ var DefaultMiddlewareConfig = MiddlewareConfig{
 }
 
 // MakeServerEndpoints 使用默认中间件配置创建服务端端点
-func MakeServerEndpoints(svc {{.Service.PackageName}}.{{.Service.ServiceName}}, logger *kitlog.Logger) {{.Service.ServiceName}}Endpoints {
-	return MakeServerEndpointsWithConfig(svc, logger, DefaultMiddlewareConfig)
+func MakeServerEndpoints(s svc.{{.Service.ServiceName}}, logger *kitlog.Logger) {{.Service.ServiceName}}Endpoints {
+	return MakeServerEndpointsWithConfig(s, logger, DefaultMiddlewareConfig)
 }
 
 // MakeServerEndpointsWithConfig 使用自定义中间件配置创建服务端端点
-//
-// 典型用法（从配置文件驱动）：
-//
-//	cfg, _ := config.Load("config/config.yaml")
-//	endpoints := MakeServerEndpointsWithConfig(svc, logger, MiddlewareConfig{
-//	    CBEnabled:          cfg.Middleware.CircuitBreaker.Enabled,
-//	    CBFailureThreshold: uint32(cfg.Middleware.CircuitBreaker.FailureThreshold),
-//	    CBTimeout:          cfg.Middleware.CircuitBreaker.Timeout,
-//	    RLEnabled:          cfg.Middleware.RateLimit.Enabled,
-//	    RLRps:              cfg.Middleware.RateLimit.RequestsPerSecond,
-//	    Timeout:            30 * time.Second,
-//	})
 func MakeServerEndpointsWithConfig(
-	svc {{.Service.PackageName}}.{{.Service.ServiceName}},
+	s svc.{{.Service.ServiceName}},
 	logger *kitlog.Logger,
 	cfg MiddlewareConfig,
 ) {{.Service.ServiceName}}Endpoints {
@@ -96,16 +84,16 @@ func MakeServerEndpointsWithConfig(
 	}
 
 	return {{.Service.ServiceName}}Endpoints{
-{{range .Service.Methods}}		{{.Name}}Endpoint: build(Make{{.Name}}Endpoint(svc), "{{.Name}}"),
+{{range .Service.Methods}}		{{.Name}}Endpoint: build(Make{{.Name}}Endpoint(s), "{{.Name}}"),
 {{end}}	}
 }
 
 {{range .Service.Methods}}
 // Make{{.Name}}Endpoint 创建单个端点
-func Make{{.Name}}Endpoint(svc {{$.Service.PackageName}}.{{$.Service.ServiceName}}) endpoint.Endpoint {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
+func Make{{.Name}}Endpoint(s svc.{{$.Service.ServiceName}}) endpoint.Endpoint {
+	return func(ctx context.Context, request any) (any, error) {
 		req := request.(idl.{{.Input}})
-		resp, err := svc.{{.Name}}(ctx, req)
+		resp, err := s.{{.Name}}(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -130,7 +118,7 @@ func (e {{$.Service.ServiceName}}Endpoints) {{.Name}}(ctx context.Context, req i
 // ⚠️  仅适用于【客户端】endpoint（如 HTTP/gRPC client）。
 func RetryMiddleware(maxRetries int, backoff time.Duration) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
-		return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		return func(ctx context.Context, request any) (response any, err error) {
 			for i := 0; i < maxRetries; i++ {
 				response, err = next(ctx, request)
 				if err == nil {

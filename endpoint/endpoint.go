@@ -14,11 +14,11 @@ import (
 // Endpoint is a function that handles a single RPC-style request.
 // It is the primary abstraction in the framework — every service method,
 // middleware, and transport adapter is expressed in terms of Endpoint.
-type Endpoint func(ctx context.Context, request interface{}) (response interface{}, err error)
+type Endpoint func(ctx context.Context, request any) (response any, err error)
 
 // Nop is a no-op Endpoint that always succeeds and returns an empty struct.
 // Useful as a placeholder in tests or when an endpoint is not yet implemented.
-func Nop(context.Context, interface{}) (interface{}, error) { return struct{}{}, nil }
+func Nop(context.Context, any) (any, error) { return struct{}{}, nil }
 
 // EndpointerOptions configures the behaviour of an EndpointCache when a
 // service-discovery error is received.

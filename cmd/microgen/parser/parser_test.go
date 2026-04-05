@@ -506,6 +506,24 @@ func TestModel_JSONTag(t *testing.T) {
 
 // ─────────────────────────── 辅助函数 ───────────────────────────
 
+func TestToSnakeCase(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{"User", "user"},
+		{"UserProfile", "user_profile"},
+		{"UserID", "user_id"},
+		{"ID", "id"},
+		{"HTTPClient", "http_client"},
+	}
+	for _, c := range cases {
+		got := parser.ToSnakeCase(c.in)
+		if got != c.want {
+			t.Errorf("ToSnakeCase(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
 func methodNames(methods []parser.Method) []string {
 	names := make([]string, len(methods))
 	for i, m := range methods {

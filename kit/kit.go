@@ -26,6 +26,7 @@ package kit
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -34,6 +35,7 @@ import (
 
 	"github.com/sony/gobreaker"
 	"golang.org/x/time/rate"
+	"google.golang.org/grpc"
 
 	"github.com/dreamsxin/go-kit/endpoint"
 	"github.com/dreamsxin/go-kit/endpoint/circuitbreaker"
@@ -42,8 +44,8 @@ import (
 	httpserver "github.com/dreamsxin/go-kit/transport/http/server"
 )
 
-// Service is a ready-to-run HTTP microservice.
-// Create one with New, register handlers with Handle, then call Run.
+// Service is a ready-to-run HTTP + gRPC microservice.
+// Create one with New, register handlers with Handle/GRPC, then call Run.
 type Service struct {
 	addr       string
 	mux        *http.ServeMux
@@ -51,6 +53,11 @@ type Service struct {
 	logger     *kitlog.Logger
 	metrics    *endpoint.Metrics
 	srv        *http.Server
+
+	// gRPC
+	grpcAddr   string
+	grpcServer *grpc.Server
+	grpcOpts   []grpc.ServerOption
 }
 
 // Option configures a Service.
@@ -133,41 +140,82 @@ func WithRequestID() Option {
 	}
 }
 
-// Handle registers a handler for the given pattern.
-// The handler is wrapped with all service-level middleware.
-func (s *Service) Handle(pattern string, handler http.Handler) {
-	s.mux.Handle(pattern, handler)
+// WithGRPC enables a gRPC server on the given address (e.g. ":8081").
+// Call GRPCServer() to register your proto services before calling Run/Start.
+//
+// Example:
+//
+//	svc := kit.New(":8080", kit.WithGRPC(":8081"))
+//	pb.RegisterGreeterServer(svc.GRPCServer(), &myGreeter{})
+//	svc.Run()
+func WithGRPC(addr string, opts ...grpc.ServerOption) Option {
+	return func(s *Service) {
+		s.grpcAddr = addr
+		s.grpcOpts = opts
+	}
 }
+
+// GRPCServer returns the underlying *grpc.Server so callers can register
+// proto services.  It is created lazily on first call.
+// Panics if WithGRPC was not set.
+//
+// Example:
+//
+//	pb.RegisterGreeterServer(svc.GRPCServer(), &myGreeter{})
+func (s *Service) GRPCServer() *grpc.Server {
+	if s.grpcAddr == "" {
+		panic("kit: GRPCServer() called but WithGRPC option was not set")
+	}
+	if s.grpcServer == nil {
+		s.grpcServer = grpc.NewServer(s.grpcOpts...)
+	}
+	return s.grpcServer
+}
+
+// ServeHTTP implements http.Handler, allowing Service to be used directly
+// with httptest.NewServer or http.ListenAndServe.
+func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.mux.ServeHTTP(w, r)
+}
+
+// Handle registers an http.Handler for the given pattern.
+// Service-level middleware (metrics, timeout, circuit breaker, etc.) is applied
+// by wrapping the handler as an endpoint so the full middleware chain executes.
+func (s *Service) Handle(pattern string, handler http.Handler) {
+	if len(s.middleware) == 0 {
+		s.mux.Handle(pattern, handler)
+		return
+	}
+	// Wrap the http.Handler as an endpoint so middleware applies correctly.
+	// The endpoint calls the handler and captures any panic as an error.
+	base := endpoint.Endpoint(func(ctx context.Context, req any) (any, error) {
+		rw := req.(http.ResponseWriter)
+		r := ctx.Value(httpRequestKey{}).(*http.Request).WithContext(ctx)
+		handler.ServeHTTP(rw, r)
+		return nil, nil
+	})
+	b := endpoint.NewBuilder(base)
+	for _, mw := range s.middleware {
+		b = b.Use(mw)
+	}
+	ep := b.Build()
+	s.mux.Handle(pattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), httpRequestKey{}, r)
+		if _, err := ep(ctx, w); err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		}
+	}))
+}
+
+type httpRequestKey struct{}
 
 // HandleFunc registers a plain http.HandlerFunc.
 func (s *Service) HandleFunc(pattern string, fn http.HandlerFunc) {
 	s.mux.HandleFunc(pattern, fn)
 }
 
-// JSON registers a typed JSON handler for the given pattern.
-// All service-level middleware is applied automatically.
-//
-// Example:
-//
-//	svc.JSON("/users", func(ctx context.Context, req CreateUserReq) (any, error) {
-//	    return userService.Create(ctx, req)
-//	})
-func (s *Service) JSON(pattern string, handler func(ctx context.Context, req any) (any, error)) {
-	b := endpoint.NewBuilder(endpoint.Endpoint(handler))
-	for _, mw := range s.middleware {
-		b = b.Use(mw)
-	}
-	ep := b.Build()
-	h := httpserver.NewServer(ep,
-		func(_ context.Context, r *http.Request) (any, error) { return nil, nil },
-		httpserver.EncodeJSONResponse,
-		httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder),
-	)
-	s.mux.Handle(pattern, h)
-}
-
-// Run starts the HTTP server and blocks until SIGINT/SIGTERM.
-// It performs a graceful shutdown with a 10-second deadline.
+// Run starts the HTTP server (and gRPC server if WithGRPC was set) and blocks
+// until SIGINT/SIGTERM.  It performs a graceful shutdown with a 10-second deadline.
 func (s *Service) Run() {
 	s.Start()
 
@@ -178,26 +226,49 @@ func (s *Service) Run() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := s.srv.Shutdown(ctx); err != nil {
-		s.logger.Sugar().Errorf("shutdown: %v", err)
+		s.logger.Sugar().Errorf("HTTP shutdown: %v", err)
+	}
+	if s.grpcServer != nil {
+		s.grpcServer.GracefulStop()
+		s.logger.Sugar().Info("gRPC stopped")
 	}
 	s.logger.Sugar().Info("stopped")
 }
 
-// Start starts the HTTP server in the background and returns immediately.
+// Start starts the HTTP server (and gRPC server if WithGRPC was set) in the
+// background and returns immediately.
 // Use this in tests or when you need to manage the lifecycle yourself.
-// Call Shutdown to stop the server.
+// Call Shutdown to stop both servers.
 func (s *Service) Start() {
 	s.srv = &http.Server{Addr: s.addr, Handler: s.mux}
 	go func() {
-		s.logger.Sugar().Infof("listening on %s", s.addr)
+		s.logger.Sugar().Infof("HTTP listening on %s", s.addr)
 		if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.logger.Sugar().Fatalf("listen: %v", err)
 		}
 	}()
+
+	if s.grpcAddr != "" {
+		gs := s.GRPCServer() // ensure server is created
+		lis, err := net.Listen("tcp", s.grpcAddr)
+		if err != nil {
+			s.logger.Sugar().Fatalf("gRPC listen: %v", err)
+		}
+		go func() {
+			s.logger.Sugar().Infof("gRPC listening on %s", s.grpcAddr)
+			if err := gs.Serve(lis); err != nil {
+				s.logger.Sugar().Errorf("gRPC serve: %v", err)
+			}
+		}()
+	}
 }
 
-// Shutdown gracefully stops the server.  Useful in tests.
+// Shutdown gracefully stops the HTTP server (and gRPC server if running).
+// Useful in tests.
 func (s *Service) Shutdown(ctx context.Context) error {
+	if s.grpcServer != nil {
+		s.grpcServer.GracefulStop()
+	}
 	if s.srv == nil {
 		return nil
 	}
@@ -205,13 +276,16 @@ func (s *Service) Shutdown(ctx context.Context) error {
 }
 
 // JSON is a package-level convenience function that creates a typed JSON
-// http.Handler without needing a Service.
+// http.Handler without needing a Service.  It is the recommended way to
+// register typed handlers on a Service, because Go methods cannot have
+// their own type parameters:
 //
-// Example:
-//
-//	http.Handle("/hello", kit.JSON[HelloReq](func(ctx context.Context, req HelloReq) (any, error) {
-//	    return HelloResp{Message: "Hello, " + req.Name}, nil
+//	svc.Handle("/hello", kit.JSON[HelloReq](func(ctx context.Context, req HelloReq) (any, error) {
+//	    return HelloResp{Message: "Hello, " + req.Name + "!"}, nil
 //	}))
+//
+// The handler receives a fully decoded value of type Req.
+// Errors are encoded as JSON {"error": "..."} with status 500.
 func JSON[Req any](handler func(ctx context.Context, req Req) (any, error)) http.Handler {
 	return httpserver.NewJSONServer[Req](handler,
 		httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder),

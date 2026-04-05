@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package greeter;
+
+option go_package = "./pb";
+
+
+// Greeter gRPC 服务定义
+service Greeter {
+  // SayHello greets a user.
+  rpc SayHello (SayHelloRequest) returns (SayHelloResponse);
+  // GetStatus returns the current service status.
+  rpc GetStatus (GetStatusRequest) returns (GetStatusResponse);
+}
+
+
+// SayHelloRequest SayHello 请求
+message SayHelloRequest {
+  // TODO: 根据 idl.HelloRequest 填充字段
+  // 示例: string id = 1;
+}
+
+// SayHelloResponse SayHello 响应
+message SayHelloResponse {
+  // TODO: 根据 idl.HelloResponse 填充字段
+  // 示例: bool success = 1; string error = 2;
+}
+
+
+// GetStatusRequest GetStatus 请求
+message GetStatusRequest {
+  // TODO: 根据 idl.Empty 填充字段
+  // 示例: string id = 1;
+}
+
+// GetStatusResponse GetStatus 响应
+message GetStatusResponse {
+  // TODO: 根据 idl.StatusResponse 填充字段
+  // 示例: bool success = 1; string error = 2;
+}
+
+

@@ -2,10 +2,10 @@ package usersvc
 
 import "context"
 
-// ─────────────────────────── GORM Models ───────────────────────────
+// ─────────────────────────── GORM Model ───────────────────────────
 
-// UserModel 用户数据库模型（带 gorm tag，microgen -model 时生成 model/repository 代码）
-type UserModel struct {
+// User 用户数据库模型（带 gorm tag，microgen -model 时生成 model/repository 代码）
+type User struct {
 	ID       uint   `json:"id"       gorm:"primaryKey;autoIncrement"`
 	Username string `json:"username" gorm:"column:username;type:varchar(64);not null;uniqueIndex"` // 用户名（唯一）
 	Email    string `json:"email"    gorm:"column:email;type:varchar(128);not null;uniqueIndex"`   // 邮箱（唯一）
@@ -13,15 +13,7 @@ type UserModel struct {
 	Status   int    `json:"status"   gorm:"column:status;type:tinyint;default:1"`                  // 状态 1=正常 0=禁用
 }
 
-// ─────────────────────────── DTO（请求/响应结构体）───────────────────────────
-
-// User 表示对外暴露的用户实体
-type User struct {
-	ID       uint `json:"id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Age      int    `json:"age"`
-}
+// ─────────────────────────── DTO ───────────────────────────
 
 // CreateUserRequest 创建用户请求
 type CreateUserRequest struct {
@@ -49,7 +41,7 @@ type GetUserResponse struct {
 
 // UpdateUserRequest 更新用户请求
 type UpdateUserRequest struct {
-	ID       uint `json:"id"`
+	ID       uint   `json:"id"`
 	Username string `json:"username,omitempty"`
 	Email    string `json:"email,omitempty"`
 	Age      int    `json:"age,omitempty"`
@@ -63,7 +55,7 @@ type UpdateUserResponse struct {
 
 // DeleteUserRequest 删除用户请求
 type DeleteUserRequest struct {
-	ID string `json:"id"`
+	ID uint `json:"id"`
 }
 
 // DeleteUserResponse 删除用户响应
@@ -86,7 +78,7 @@ type ListUsersResponse struct {
 	Error string  `json:"error,omitempty"`
 }
 
-// ─────────────────────────── Service 接口定义 ───────────────────────────
+// ─────────────────────────── Service 接口 ───────────────────────────
 
 // UserService 用户服务接口
 type UserService interface {

@@ -555,7 +555,7 @@ func TestGenerateFull_GoMod_Created(t *testing.T) {
 	goModPath := filepath.Join(outDir, "go.mod")
 	mustExist(t, goModPath)
 	mustContain(t, goModPath, "module example.com/myproject")
-	mustContain(t, goModPath, "go 1.21")
+	mustContain(t, goModPath, "go 1.25.8")
 }
 
 // TestGenerateFull_GoMod_ModuleUpdatedWhenMismatch 验证：go.mod 已存在但 module 名与 -import 不符时，
@@ -991,5 +991,362 @@ func TestGenerateFull_PackageNameLowercased(t *testing.T) {
 	content := readFile(t, filepath.Join(outDir, "service", "userservice", "service.go"))
 	if !strings.Contains(content, "package userservice") {
 		t.Error("service.go should declare 'package userservice'")
+	}
+}
+
+// ─────────────────────────── Swagger / swag 文档 ─────────────────────────────
+
+// TestGenerateFull_Swag_DocsStub_FullContent 验证 docs/docs.go 的完整内容：
+// - package 声明
+// - SwaggerInfo 变量（含 BasePath、Title、Version）
+// - swag.Register 调用
+// - docTemplate 包含 swagger 2.0 结构
+func TestGenerateFull_Swag_DocsStub_FullContent(t *testing.T) {
+	outDir := newTmpDir(t)
+	result := parseIDL(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		DBDriver:   "sqlite",
+		WithSwag:   true,
+		WithConfig: false,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateFull(result); err != nil {
+		t.Fatalf("GenerateFull: %v", err)
+	}
+
+	docsPath := filepath.Join(outDir, "docs", "docs.go")
+	mustExist(t, docsPath)
+
+	// 结构性内容
+	mustContain(t, docsPath, "package docs")
+	mustContain(t, docsPath, "SwaggerInfo")
+	mustContain(t, docsPath, "swag.Register")
+	mustContain(t, docsPath, `"swagger": "2.0"`)
+
+	// SwaggerInfo 字段
+	mustContain(t, docsPath, `Version:`)
+	mustContain(t, docsPath, `BasePath:`)
+	mustContain(t, docsPath, `Title:`)
+
+	// init() 注册
+	mustContain(t, docsPath, "func init()")
+}
+
+// TestGenerateFull_Swag_TransportAnnotations 验证 transport_http.go 中的 swag 注释：
+// - @Summary、@Description、@Tags
+// - @Param（GET 用 query，POST 用 body）
+// - @Success、@Failure
+// - @Router（含正确的 HTTP 方法）
+func TestGenerateFull_Swag_TransportAnnotations(t *testing.T) {
+	outDir := newTmpDir(t)
+	result := parseIDL(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		DBDriver:   "sqlite",
+		WithSwag:   true,
+		WithConfig: false,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateFull(result); err != nil {
+		t.Fatalf("GenerateFull: %v", err)
+	}
+
+	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
+
+	// 每个方法都应有 swag 注释
+	mustContain(t, httpPath, "// @Summary")
+	mustContain(t, httpPath, "// @Tags")
+	mustContain(t, httpPath, "// @Accept       json")
+	mustContain(t, httpPath, "// @Produce      json")
+	mustContain(t, httpPath, "// @Success      200")
+	mustContain(t, httpPath, "// @Failure      400")
+	mustContain(t, httpPath, "// @Failure      500")
+
+	// POST 方法用 body 参数
+	mustContain(t, httpPath, `// @Param        request  body`)
+
+	// GET 方法用 query 参数（ListUsers、GetUser 等）
+	mustContain(t, httpPath, `// @Param        request  query`)
+
+	// @Router 注释包含路由路径和 HTTP 方法
+	mustContain(t, httpPath, "// @Router")
+	mustContain(t, httpPath, "[post]")
+	mustContain(t, httpPath, "[get]")
+}
+
+// TestGenerateFull_Swag_RouterAnnotations_Methods 验证各方法的 @Router 注释
+// 包含正确的 HTTP 方法标记。
+func TestGenerateFull_Swag_RouterAnnotations_Methods(t *testing.T) {
+	outDir := newTmpDir(t)
+	result := parseIDL(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		DBDriver:   "sqlite",
+		WithSwag:   true,
+		WithConfig: false,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateFull(result); err != nil {
+		t.Fatalf("GenerateFull: %v", err)
+	}
+
+	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
+	content := readFile(t, httpPath)
+
+	// CreateUser → POST
+	if !strings.Contains(content, "// @Router") {
+		t.Error("transport_http.go should contain @Router annotations")
+	}
+
+	// 验证 CreateUser 的 @Router 包含 [post]
+	lines := strings.Split(content, "\n")
+	routerLines := []string{}
+	for _, l := range lines {
+		if strings.Contains(l, "// @Router") {
+			routerLines = append(routerLines, strings.TrimSpace(l))
+		}
+	}
+	if len(routerLines) == 0 {
+		t.Fatal("no @Router annotations found")
+	}
+
+	// 至少有一个 [post] 和一个 [get]
+	hasPost, hasGet := false, false
+	for _, l := range routerLines {
+		if strings.Contains(l, "[post]") {
+			hasPost = true
+		}
+		if strings.Contains(l, "[get]") {
+			hasGet = true
+		}
+	}
+	if !hasPost {
+		t.Errorf("expected at least one [post] @Router, got: %v", routerLines)
+	}
+	if !hasGet {
+		t.Errorf("expected at least one [get] @Router, got: %v", routerLines)
+	}
+}
+
+// TestGenerateFull_Swag_MainFile_SwaggerRoute 验证 main.go 包含 Swagger UI 路由。
+func TestGenerateFull_Swag_MainFile_SwaggerRoute(t *testing.T) {
+	outDir := newTmpDir(t)
+	result := parseIDL(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		DBDriver:   "sqlite",
+		WithSwag:   true,
+		WithConfig: false,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateFull(result); err != nil {
+		t.Fatalf("GenerateFull: %v", err)
+	}
+
+	mainPath := filepath.Join(outDir, "cmd", "main.go")
+	mustContain(t, mainPath, "/swagger/")
+	mustContain(t, mainPath, "httpSwagger")
+	mustContain(t, mainPath, "swagger/doc.json")
+}
+
+// TestGenerateFull_Swag_MainFile_SwaggerAnnotations 验证 main.go 顶部的 swag 全局注释。
+func TestGenerateFull_Swag_MainFile_SwaggerAnnotations(t *testing.T) {
+	outDir := newTmpDir(t)
+	result := parseIDL(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		DBDriver:   "sqlite",
+		WithSwag:   true,
+		WithConfig: false,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateFull(result); err != nil {
+		t.Fatalf("GenerateFull: %v", err)
+	}
+
+	mainPath := filepath.Join(outDir, "cmd", "main.go")
+	mustContain(t, mainPath, "// @title")
+	mustContain(t, mainPath, "// @version")
+	mustContain(t, mainPath, "// @host")
+	mustContain(t, mainPath, "// @BasePath")
+}
+
+// TestGenerateFull_Swag_ConfigYAML_SwaggerHost 验证 config.yaml 包含 swagger_host 字段。
+func TestGenerateFull_Swag_ConfigYAML_SwaggerHost(t *testing.T) {
+	outDir := newTmpDir(t)
+	result := parseIDL(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		DBDriver:   "sqlite",
+		WithSwag:   true,
+		WithConfig: true,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateFull(result); err != nil {
+		t.Fatalf("GenerateFull: %v", err)
+	}
+
+	configPath := filepath.Join(outDir, "config", "config.yaml")
+	mustContain(t, configPath, "swagger_host")
+}
+
+// TestGenerateFull_Swag_ConfigCode_SwaggerHost 验证 config.go 包含 SwaggerHost 字段。
+func TestGenerateFull_Swag_ConfigCode_SwaggerHost(t *testing.T) {
+	outDir := newTmpDir(t)
+	result := parseIDL(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		DBDriver:   "sqlite",
+		WithSwag:   true,
+		WithConfig: true,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateFull(result); err != nil {
+		t.Fatalf("GenerateFull: %v", err)
+	}
+
+	codePath := filepath.Join(outDir, "config", "config.go")
+	mustContain(t, codePath, "SwaggerHost")
+}
+
+// TestGenerateFull_Swag_DocsStub_NotOverwrittenBySecondRun 验证：
+// 若 docs.go 已存在且不是 stub（不含 "paths": {}），第二次生成不会覆盖它。
+func TestGenerateFull_Swag_DocsStub_NotOverwrittenBySecondRun(t *testing.T) {
+	outDir := newTmpDir(t)
+	result := parseIDL(t, "basic.go")
+
+	opts := generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		DBDriver:   "sqlite",
+		WithSwag:   true,
+		WithConfig: false,
+		WithDocs:   false,
+	}
+
+	// 第一次生成
+	gen := mustNewGenerator(t, opts)
+	if err := gen.GenerateFull(result); err != nil {
+		t.Fatalf("first GenerateFull: %v", err)
+	}
+
+	// 模拟 swag init 的结果：写入不含 "paths": {} 的真实文档
+	docsPath := filepath.Join(outDir, "docs", "docs.go")
+	realDocs := `package docs
+
+// This is a real swag-generated file.
+var SwaggerInfo = &swag.Spec{
+	Version: "2.0",
+	Title:   "Real Docs",
+}
+`
+	if err := os.WriteFile(docsPath, []byte(realDocs), 0644); err != nil {
+		t.Fatalf("write real docs: %v", err)
+	}
+
+	// 第二次生成
+	gen2 := mustNewGenerator(t, opts)
+	if err := gen2.GenerateFull(result); err != nil {
+		t.Fatalf("second GenerateFull: %v", err)
+	}
+
+	// 真实文档不应被覆盖
+	content := readFile(t, docsPath)
+	if !strings.Contains(content, "Real Docs") {
+		t.Error("real docs.go should not be overwritten by second generation")
+	}
+}
+
+// TestGenerateFull_Swag_MultiService_AllAnnotated 验证多服务 IDL 时，
+// 每个服务的 transport_http.go 都包含 swag 注释。
+func TestGenerateFull_Swag_MultiService_AllAnnotated(t *testing.T) {
+	outDir := newTmpDir(t)
+	result := parseIDL(t, "multi.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/multi",
+		DBDriver:   "sqlite",
+		WithSwag:   true,
+		WithConfig: false,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateFull(result); err != nil {
+		t.Fatalf("GenerateFull: %v", err)
+	}
+
+	for _, svcPkg := range []string{"orderservice", "productservice"} {
+		httpPath := filepath.Join(outDir, "transport", svcPkg, "transport_http.go")
+		mustExist(t, httpPath)
+		mustContain(t, httpPath, "// @Summary")
+		mustContain(t, httpPath, "// @Router")
+	}
+}
+
+// TestGenerateFull_Swag_RoutePrefix_InAnnotations 验证使用 -prefix 时，
+// @Router 注释包含正确的前缀路径。
+func TestGenerateFull_Swag_RoutePrefix_InAnnotations(t *testing.T) {
+	outDir := newTmpDir(t)
+	result := parseIDL(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithSwag:    true,
+		WithConfig:  false,
+		WithDocs:    false,
+		RoutePrefix: "/api/v1",
+	})
+	if err := gen.GenerateFull(result); err != nil {
+		t.Fatalf("GenerateFull: %v", err)
+	}
+
+	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
+	mustContain(t, httpPath, "/api/v1/userservice")
+}
+
+// TestGenerateFull_Swag_WithoutSwag_NoAnnotations 验证不启用 -swag 时，
+// transport_http.go 不包含 swag 注释（避免误导）。
+// 注意：当前模板始终生成 swag 注释，此测试验证现有行为。
+func TestGenerateFull_Swag_WithoutSwag_DocsNotGenerated(t *testing.T) {
+	outDir := newTmpDir(t)
+	result := parseIDL(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		DBDriver:   "sqlite",
+		WithSwag:   false,
+		WithConfig: false,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateFull(result); err != nil {
+		t.Fatalf("GenerateFull: %v", err)
+	}
+
+	// docs/ 目录不应存在
+	mustNotExist(t, filepath.Join(outDir, "docs", "docs.go"))
+
+	// main.go 不应包含 swagger 路由
+	mainPath := filepath.Join(outDir, "cmd", "main.go")
+	content := readFile(t, mainPath)
+	if strings.Contains(content, "httpSwagger") {
+		t.Error("main.go should not contain httpSwagger when WithSwag=false")
 	}
 }

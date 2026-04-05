@@ -2,6 +2,10 @@
 generated-*/
 generated/
 
+# microgen integration test output (dynamically generated, not committed)
+tools/testdata/gen_idl_integration/
+tools/testdata/gen_proto_integration/
+
 # Compiled executables
 *.exe
 *.test
