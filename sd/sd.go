@@ -16,6 +16,7 @@
 package sd
 
 import (
+	"io"
 	"time"
 
 	"github.com/dreamsxin/go-kit/endpoint"
@@ -110,4 +111,40 @@ func NewEndpointWithDefaults(
 		WithTimeout(500*time.Millisecond),
 		WithInvalidateOnError(5*time.Second),
 	)
+}
+
+// NewEndpointCloser is like NewEndpoint but also returns an io.Closer that
+// must be called to stop the background goroutine started by the Endpointer.
+//
+//	ep, closer := sd.NewEndpointCloser(instancer, factory, logger)
+//	defer closer.Close()
+func NewEndpointCloser(
+	src interfaces.Instancer,
+	factory endpoint.Factory,
+	logger *kitlog.Logger,
+	opts ...Option,
+) (endpoint.Endpoint, io.Closer) {
+	o := Options{
+		MaxRetries: 3,
+		Timeout:    500 * time.Millisecond,
+	}
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	var epOpts []endpoint.EndpointerOption
+	if o.InvalidateOnError > 0 {
+		epOpts = append(epOpts, endpoint.InvalidateOnError(o.InvalidateOnError))
+	}
+
+	ep := endpointer.NewEndpointer(src, factory, logger, epOpts...)
+	lb := balancer.NewRoundRobin(ep)
+
+	var e endpoint.Endpoint
+	if o.MaxRetries <= 0 {
+		e = executor.RetryAlways(o.Timeout, lb)
+	} else {
+		e = executor.Retry(o.MaxRetries, o.Timeout, lb)
+	}
+	return e, ep
 }

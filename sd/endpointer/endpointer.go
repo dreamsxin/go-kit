@@ -1,6 +1,8 @@
 package endpointer
 
 import (
+	"io"
+
 	"github.com/dreamsxin/go-kit/endpoint"
 	"github.com/dreamsxin/go-kit/log"
 	"github.com/dreamsxin/go-kit/sd/events"
@@ -9,7 +11,9 @@ import (
 
 // Endpointer resolves a set of live Endpoints from a service-discovery source.
 // It subscribes to an Instancer and keeps an EndpointCache up to date.
+// Close must be called to stop the background goroutine and release resources.
 type Endpointer interface {
+	io.Closer
 	Endpoints() ([]endpoint.Endpoint, error)
 }
 
@@ -43,9 +47,10 @@ func (de *DefaultEndpointer) receive() {
 	}
 }
 
-func (de *DefaultEndpointer) Close() {
+func (de *DefaultEndpointer) Close() error {
 	de.instancer.Deregister(de.ch)
 	close(de.ch)
+	return nil
 }
 
 func (de *DefaultEndpointer) Endpoints() ([]endpoint.Endpoint, error) {

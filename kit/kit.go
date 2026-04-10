@@ -89,7 +89,13 @@ func New(addr string, opts ...Option) *Service {
 // WithRateLimit adds a token-bucket rate limiter (rps = requests per second).
 func WithRateLimit(rps float64) Option {
 	return func(s *Service) {
-		lim := rate.NewLimiter(rate.Limit(rps), int(rps))
+		// burst must be at least 1; int(rps) truncates to 0 for rps < 1,
+		// which would reject every request including the very first one.
+		burst := int(rps)
+		if burst < 1 {
+			burst = 1
+		}
+		lim := rate.NewLimiter(rate.Limit(rps), burst)
 		s.middleware = append(s.middleware, ratelimit.NewErroringLimiter(lim))
 	}
 }
@@ -210,8 +216,10 @@ func (s *Service) Handle(pattern string, handler http.Handler) {
 type httpRequestKey struct{}
 
 // HandleFunc registers a plain http.HandlerFunc.
+// Service-level middleware (metrics, timeout, circuit breaker, etc.) is applied
+// via Handle so the full middleware chain executes for every registered handler.
 func (s *Service) HandleFunc(pattern string, fn http.HandlerFunc) {
-	s.mux.HandleFunc(pattern, fn)
+	s.Handle(pattern, fn)
 }
 
 // Run starts the HTTP server (and gRPC server if WithGRPC was set) and blocks

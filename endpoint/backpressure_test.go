@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -77,12 +78,12 @@ func TestInFlightMiddleware_TracksCount(t *testing.T) {
 	}()
 
 	time.Sleep(10 * time.Millisecond)
-	if inflight != 1 {
-		t.Errorf("inflight: want 1, got %d", inflight)
+	if atomic.LoadInt64(&inflight) != 1 {
+		t.Errorf("inflight: want 1, got %d", atomic.LoadInt64(&inflight))
 	}
 	close(ready)
 	<-done
-	if inflight != 0 {
-		t.Errorf("inflight after done: want 0, got %d", inflight)
+	if atomic.LoadInt64(&inflight) != 0 {
+		t.Errorf("inflight after done: want 0, got %d", atomic.LoadInt64(&inflight))
 	}
 }

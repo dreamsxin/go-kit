@@ -95,7 +95,7 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, f := range s.after {
-		ctx = f(ctx, nil, iw)
+		ctx = f(ctx, r, iw)
 	}
 
 	if err := s.enc(ctx, iw, response); err != nil {

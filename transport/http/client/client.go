@@ -51,8 +51,12 @@ func (c Client) Endpoint() endpoint.Endpoint {
 		)
 		if c.finalizer != nil {
 			defer func() {
-				ctx = context.WithValue(ctx, transporthttp.ContextKeyResponseHeaders, resp.Header)
-				ctx = context.WithValue(ctx, transporthttp.ContextKeyResponseSize, resp.ContentLength)
+				// Guard against resp being nil when request construction or
+				// the underlying HTTP call fails before a response is received.
+				if resp != nil {
+					ctx = context.WithValue(ctx, transporthttp.ContextKeyResponseHeaders, resp.Header)
+					ctx = context.WithValue(ctx, transporthttp.ContextKeyResponseSize, resp.ContentLength)
+				}
 				for _, f := range c.finalizer {
 					f(ctx, err)
 				}
