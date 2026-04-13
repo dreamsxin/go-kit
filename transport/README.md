@@ -1,101 +1,200 @@
-# Transport 传输层模块
+# transport
 
-传输层模块负责处理不同通信协议下的数据传输，支持 HTTP 和 gRPC 两种主流协议。
+The `transport` layer adapts external protocols to the framework's endpoint model.
 
-## 核心组件
+Its responsibility is narrow and intentional:
 
-### HTTP 传输层
+- decode incoming requests
+- call endpoints
+- encode outgoing responses
+- expose protocol-specific hooks
 
-- **http/client/** - HTTP 客户端实现
+It should not own business logic.
 
-  - `client.go` - HTTP 客户端核心逻辑
-  - `encode_decode.go` - 请求/响应编解码
-  - `options.go` - 客户端配置选项
-  - `request_func.go` - 请求处理函数
-  - `response_func.go` - 响应处理函数
-  - `finalizer_func.go` - 最终化处理函数
+## Role In The Architecture
 
-- **http/server/** - HTTP 服务端实现
-  - `server.go` - HTTP 服务器核心逻辑
-  - `encode_decode.go` - 请求/响应编解码
-  - `options.go` - 服务器配置选项
-  - `intercepting_writer.go` - 拦截写入器
-  - `request_func.go` - 请求处理函数
-  - `response_func.go` - 响应处理函数
-  - `finalizer_func.go` - 最终化处理函数
+Within the framework's three-layer model:
 
-### gRPC 传输层
+- `service` owns business logic
+- `endpoint` owns runtime policy and middleware composition
+- `transport` owns protocol adaptation
 
-- **grpc/client/** - gRPC 客户端实现
-- **grpc/server/** - gRPC 服务端实现
+If a behavior can be expressed as endpoint middleware, it should usually live there instead of in transport code.
 
-### 通用组件
+## Package Overview
 
-- **error_handler.go** - 统一错误处理机制
-- **context.go** - 上下文管理
+The transport layer is split into four main public areas:
 
-## 快速使用
+- `transport/http/server`
+- `transport/http/client`
+- `transport/grpc/server`
+- `transport/grpc/client`
 
-### HTTP 服务端示例
+Common helpers also live under:
+
+- `transport/error_handler.go`
+- `transport/http`
+- `transport/grpc`
+
+## HTTP Server
+
+Use `transport/http/server` when exposing HTTP APIs.
+
+Recommended entry points:
+
+- `server.NewServer`
+- `server.NewJSONServer`
+- `server.NewJSONEndpoint`
+- `server.NewJSONServerWithMiddleware`
+- `server.DecodeJSONRequest`
+- `server.EncodeJSONResponse`
+- `server.JSONErrorEncoder`
+
+Primary extension points:
+
+- `ServerBefore`
+- `ServerAfter`
+- `ServerFinalizer`
+- `ServerErrorEncoder`
+- `ServerErrorHandler`
+
+Typical flow:
+
+1. `ServerBefore` hooks populate context from the request.
+2. A decode function maps HTTP input into a domain request.
+3. The endpoint is invoked.
+4. `ServerAfter` hooks inspect or enrich the response path.
+5. An encode function writes the response.
+6. Finalizers run regardless of success or failure.
+
+Minimal example:
 
 ```go
-import (
-    "github.com/dreamsxin/go-kit/endpoint"
-    "github.com/dreamsxin/go-kit/transport/http/server"
+handler := server.NewJSONServer[HelloReq](
+    func(ctx context.Context, req HelloReq) (any, error) {
+        return ep(ctx, req)
+    },
+    server.ServerErrorEncoder(server.JSONErrorEncoder),
 )
 
-// 创建端点
-var ep endpoint.Endpoint = func(ctx context.Context, request interface{}) (interface{}, error) {
-    return map[string]string{"message": "Hello, World!"}, nil
+http.Handle("/hello", handler)
+```
+
+## HTTP Client
+
+Use `transport/http/client` when calling HTTP APIs through endpoint-style abstractions.
+
+Recommended entry points:
+
+- `client.NewClient`
+- `client.NewJSONClient`
+- `client.NewJSONClientWithRetry`
+- `client.EncodeJSONRequest`
+
+Primary extension points:
+
+- `ClientBefore`
+- `ClientAfter`
+- `ClientFinalizer`
+- custom request encoders
+- custom response decoders
+- custom HTTP client injection
+
+Minimal example:
+
+```go
+ep, err := client.NewJSONClient[HelloResp](
+    http.MethodPost,
+    "http://localhost:8080/hello",
+)
+if err != nil {
+    return err
 }
 
-// 创建HTTP处理器
-handler := server.NewServer(
-    ep,
-    decodeRequest,
-    encodeResponse,
-    server.ServerErrorEncoder(errorEncoder),
-)
-
-// 启动HTTP服务
-http.Handle("/api", handler)
-http.ListenAndServe(":8080", nil)
+resp, err := ep(ctx, HelloReq{Name: "world"})
 ```
 
-### HTTP 客户端示例
+## gRPC Server
 
-```go
-import "github.com/dreamsxin/go-kit/transport/http/client"
+Use `transport/grpc/server` when exposing gRPC APIs.
 
-// 创建HTTP客户端
-httpClient := client.New(
-    ep,
-    encodeRequest,
-    decodeResponse,
-    client.ClientErrorDecoder(errorDecoder),
-)
-```
+Recommended entry points:
 
-## API 参考
+- `server.NewServer`
+- public request/response encode/decode hooks
 
-### HTTP 服务器选项
+Primary extension points:
 
-- `ServerBefore` - 请求前处理钩子
-- `ServerAfter` - 响应后处理钩子
-- `ServerErrorEncoder` - 错误编码器
-- `ServerErrorHandler` - 错误处理器
-- `ServerFinalizer` - 最终化函数
+- `ServerBefore`
+- `ServerAfter`
+- `ServerFinalizer`
 
-### HTTP 客户端选项
+Typical flow mirrors the HTTP server path:
 
-- `ClientBefore` - 请求前处理钩子
-- `ClientAfter` - 响应后处理钩子
-- `ClientErrorDecoder` - 错误解码器
+1. request metadata is read into context
+2. the request is decoded into a domain request
+3. the endpoint is invoked
+4. response metadata can be written
+5. the response is encoded back to the gRPC caller
 
-## 最佳实践
+## gRPC Client
 
-1. **错误处理**：实现统一的错误编码/解码逻辑
-2. **请求验证**：在解码器中验证请求参数
-3. **响应包装**：统一响应格式和状态码处理
-4. **超时控制**：合理设置请求超时时间
-5. **重试机制**：实现客户端重试逻辑
+Use `transport/grpc/client` when making gRPC calls through framework abstractions.
+
+Recommended entry points:
+
+- `client.NewClient`
+- public encode/decode functions
+
+Primary extension points:
+
+- `ClientBefore`
+- `ClientAfter`
+- `ClientFinalizer`
+
+## What Belongs In Transport
+
+Good transport responsibilities:
+
+- HTTP request parsing
+- gRPC metadata extraction
+- JSON encoding and decoding
+- response status mapping
+- wire-level error encoding
+- protocol-specific hooks
+
+## What Does Not Belong In Transport
+
+Avoid putting these concerns here:
+
+- domain decision logic
+- business validation that belongs in service logic
+- timeout, retry, logging, rate limiting, or circuit breaking when they can be modeled as endpoint middleware
+- one-off product workflow behavior
+
+These are framework anti-patterns because they weaken separation between protocol and business logic.
+
+## Best Practices
+
+1. Keep request/response mapping explicit.
+2. Prefer endpoint middleware for reusable runtime policies.
+3. Use JSON helpers for common HTTP cases instead of hand-writing boilerplate.
+4. Keep transport code small and easy to replace.
+5. Use transport hooks for metadata and observability, not for business workflows.
+
+## Stability Notes
+
+The transport layer has two different maturity levels:
+
+- `transport/http/server` and `transport/http/client` are part of the stable public surface.
+- `transport/grpc/server` and `transport/grpc/client` are public but still more evolvable.
+
+Do not depend on undocumented internal execution details such as exact writer interception or internal request lifecycle structure.
+
+## Related Docs
+
+- [README.md](../README.md)
+- [FRAMEWORK_BOUNDARIES.md](../FRAMEWORK_BOUNDARIES.md)
+- [STABILITY.md](../STABILITY.md)
+- [PACKAGE_SURFACES.md](../PACKAGE_SURFACES.md)
+- [ANTI_PATTERNS.md](../ANTI_PATTERNS.md)

@@ -1,44 +1,79 @@
 # endpoint
 
-The `endpoint` package is the core abstraction of the framework.
+The `endpoint` package is the core runtime abstraction of `go-kit`.
 
-## Core types
+It is where business operations are wrapped with reusable runtime policy such as:
 
-| Type | Description |
-|------|-------------|
-| `Endpoint` | `func(ctx, request) (response, error)` — the single callable unit |
-| `Middleware` | `func(Endpoint) Endpoint` — wraps an endpoint to add behaviour |
-| `Factory` | `func(addr) (Endpoint, io.Closer, error)` — creates endpoints from addresses |
-| `Failer` | Optional interface on response types to carry business errors |
+- timeout
+- logging
+- metrics
+- tracing
+- backpressure
+- circuit breaking
+- rate limiting
 
-## TypedEndpoint (compile-time type safety)
+If `service` is the business layer and `transport` is the protocol layer, `endpoint` is the runtime governance layer between them.
 
-`TypedEndpoint[Req, Resp]` eliminates runtime type assertions.
+## Core Abstractions
+
+### `Endpoint`
+
+The central type is:
 
 ```go
-// Define a typed endpoint — no interface{} anywhere
-var ep endpoint.TypedEndpoint[HelloReq, HelloResp] =
-    func(ctx context.Context, req HelloReq) (HelloResp, error) {
-        return HelloResp{Message: "Hello, " + req.Name}, nil
-    }
-
-// Apply middleware via NewTypedBuilder, then recover type safety with Unwrap
-typed := endpoint.Unwrap[HelloReq, HelloResp](
-    endpoint.NewTypedBuilder(ep).
-        WithTimeout(5 * time.Second).
-        Use(circuitbreaker.Gobreaker(cb)).
-        Build(),
-)
-
-// Call site is fully type-safe — no .(HelloResp) assertion needed
-resp, err := typed(ctx, HelloReq{Name: "world"})
-fmt.Println(resp.Message)
+type Endpoint func(ctx context.Context, request any) (response any, err error)
 ```
 
-**Migration path:** existing `Endpoint` code continues to work unchanged.
-Adopt `TypedEndpoint` incrementally at the boundaries where type safety matters most.
+This is the callable unit shared by:
 
-## Builder (recommended)
+- transports
+- middleware
+- service wrappers
+- service discovery and client-side execution flows
+
+### `Middleware`
+
+The standard middleware shape is:
+
+```go
+type Middleware func(Endpoint) Endpoint
+```
+
+This keeps runtime policies composable and transport-agnostic.
+
+### `Failer`
+
+`Failer` allows a response type to carry a business error without using the Go error return value.
+
+Use it only when the transport requires a successful wire-level response even on business failure.
+
+Most business logic should still prefer normal Go errors.
+
+## Recommended Entry Points
+
+For most services, these are the main entry points:
+
+- `Endpoint`
+- `Middleware`
+- `NewBuilder`
+- `NewTypedBuilder`
+- `Chain`
+- `TimeoutMiddleware`
+- `MetricsMiddleware`
+- `ErrorHandlingMiddleware`
+- `LoggingMiddleware`
+- `Unwrap`
+
+Related extension packages:
+
+- `endpoint/circuitbreaker`
+- `endpoint/ratelimit`
+
+## Builder API
+
+The builder API is the recommended default for composing endpoint behavior.
+
+Example:
 
 ```go
 var metrics endpoint.Metrics
@@ -52,7 +87,17 @@ ep := endpoint.NewBuilder(base).
     Build()
 ```
 
-## Chain (lower-level)
+Why prefer the builder:
+
+- clearer than hand-wrapping multiple middleware layers
+- expresses runtime policy in one place
+- stays aligned with the framework's preferred composition style
+
+## `Chain`
+
+`Chain` is the lower-level middleware composition helper.
+
+Example:
 
 ```go
 ep = endpoint.Chain(
@@ -60,50 +105,123 @@ ep = endpoint.Chain(
     metricsMiddleware,
     authMiddleware,
 )(base)
-// call order: logging → metrics → auth → base
 ```
 
-## Built-in middleware
+Middleware order remains important:
 
-| Middleware | Import | Description |
-|-----------|--------|-------------|
-| `MetricsMiddleware` | `endpoint` | Counts requests, successes, errors, duration |
-| `ErrorHandlingMiddleware` | `endpoint` | Wraps errors with operation name |
-| `TimeoutMiddleware` | `endpoint` | Cancels context after deadline |
-| `LoggingMiddleware` | `endpoint` | Logs each call with duration |
-| `Gobreaker` | `endpoint/circuitbreaker` | sony/gobreaker circuit breaker |
-| `HandyBreaker` | `endpoint/circuitbreaker` | streadway/handy circuit breaker |
-| `Hystrix` | `endpoint/circuitbreaker` | afex/hystrix-go circuit breaker |
-| `NewErroringLimiter` | `endpoint/ratelimit` | Reject immediately when over limit |
-| `NewDelayingLimiter` | `endpoint/ratelimit` | Wait for token (respects ctx deadline) |
+- the first middleware passed to `Chain` is the outermost one
 
-## Failer
+## Typed Endpoints
 
-Implement `Failer` on a response type to carry business errors without using
-the Go error return value.  Useful when the transport protocol requires a
-successful wire-level response even on business failure (e.g. gRPC).
+`TypedEndpoint[Req, Resp]` provides compile-time request and response typing while preserving the same runtime model.
+
+Example:
 
 ```go
-type MyResponse struct {
-    Result string
-    Err    error
-}
+var ep endpoint.TypedEndpoint[HelloReq, HelloResp] =
+    func(ctx context.Context, req HelloReq) (HelloResp, error) {
+        return HelloResp{Message: "Hello, " + req.Name}, nil
+    }
 
-func (r MyResponse) Failed() error { return r.Err }
+typed := endpoint.Unwrap[HelloReq, HelloResp](
+    endpoint.NewTypedBuilder(ep).
+        WithTimeout(5 * time.Second).
+        Use(circuitbreaker.Gobreaker(cb)).
+        Build(),
+)
 ```
 
-## Metrics
+Use typed endpoints when:
 
-```go
-var m endpoint.Metrics
-ep = endpoint.MetricsMiddleware(&m)(ep)
+- type safety matters at call sites
+- you want to reduce runtime type assertions
 
-fmt.Printf("requests=%d success=%d errors=%d avg_ms=%.1f\n",
-    m.RequestCount, m.SuccessCount, m.ErrorCount,
-    float64(m.TotalDuration.Milliseconds())/float64(m.RequestCount))
-```
+You can adopt typed endpoints incrementally.
 
-## See also
+## Built-In Middleware
 
-- `examples/middleware/` — runnable demo of every middleware
-- `examples/quickstart/` — minimal HTTP service using Builder
+Core middleware in `endpoint`:
+
+- `MetricsMiddleware`
+- `ErrorHandlingMiddleware`
+- `TimeoutMiddleware`
+- `LoggingMiddleware`
+
+Specialized middleware packages:
+
+- `endpoint/circuitbreaker`
+  - Gobreaker
+  - HandyBreaker
+  - Hystrix integration
+- `endpoint/ratelimit`
+  - `NewErroringLimiter`
+  - `NewDelayingLimiter`
+
+## What Belongs In `endpoint`
+
+Good responsibilities for this layer:
+
+- runtime timeout policy
+- request accounting and metrics
+- structured error wrapping
+- tracing and observability
+- resilience wrappers
+- reusable invocation policy
+
+## What Does Not Belong In `endpoint`
+
+Avoid putting these concerns here:
+
+- protocol-specific encode/decode logic
+- HTTP or gRPC request mapping
+- database access logic
+- product-specific workflow orchestration
+- one-off application behavior that cannot be generalized
+
+If a concern is protocol-specific, it likely belongs in `transport`.
+If it is pure domain behavior, it likely belongs in `service`.
+
+## Extension Points
+
+The primary supported extension surface is custom middleware.
+
+Recommended extension patterns:
+
+- compose custom `Middleware`
+- use `Builder.Use(...)`
+- wrap typed endpoints through `NewTypedBuilder`
+- plug circuit breaker or rate limiter adapters into the middleware chain
+
+Avoid:
+
+- creating parallel middleware models that bypass `Endpoint`
+- encoding transport-specific concerns into middleware unless unavoidable
+
+## Stability Notes
+
+`endpoint` core is part of the stable framework surface.
+
+That includes:
+
+- `Endpoint`
+- `Middleware`
+- builder-style composition
+- the framework's central middleware model
+
+More specialized subpackages such as `endpoint/circuitbreaker` and `endpoint/ratelimit` are public and supported, but still somewhat more evolvable.
+
+## Best Practices
+
+1. Keep endpoint middleware reusable across services.
+2. Prefer endpoint middleware over transport-specific policy code.
+3. Keep business logic out of endpoint wrappers unless it is truly policy-adjacent.
+4. Use typed endpoints where they improve safety and readability.
+5. Treat endpoint composition as the default place for runtime governance.
+
+## Related Docs
+
+- [README.md](../README.md)
+- [FRAMEWORK_BOUNDARIES.md](../FRAMEWORK_BOUNDARIES.md)
+- [STABILITY.md](../STABILITY.md)
+- [PACKAGE_SURFACES.md](../PACKAGE_SURFACES.md)
+- [ANTI_PATTERNS.md](../ANTI_PATTERNS.md)

@@ -5,62 +5,57 @@
         proto \
         swag \
         coverage \
-        deps tools
+        deps tools \
+        test-runtime test-microgen test-docs test-examples verify
 
-# ──────────────────────────────────────────────────────────────────────────────
-# 变量（可通过命令行覆盖）
-# ──────────────────────────────────────────────────────────────────────────────
-
-# 示例 IDL 文件
+# Default variables, overridable from the command line.
 IDL         ?= ./examples/usersvc/idl.go
-
-# 生成输出目录
 OUT         ?= ./generated
-
-# 生成项目的 Go import path
 IMPORT      ?= github.com/example/myapp
-
-# 数据库驱动 (sqlite | mysql | postgres | sqlserver | clickhouse)
 DB_DRIVER   ?= sqlite
-
-# 数据库 DSN（gen-from-db 使用）
 DB_DSN      ?= app.db
-
-# 数据库名（MySQL/SQLServer 的 gen-from-db 使用）
 DB_NAME     ?=
-
-# 服务名（gen-from-db 使用）
 SERVICE     ?= AppService
-
-# HTTP 监听端口（run-demo 使用）
 HTTP_PORT   ?= :8080
+PROTO_DIR   ?= $(OUT)/pb
 
-# microgen 可执行文件路径
 MICROGEN    := $(shell go env GOPATH)/bin/microgen
-
-# ──────────────────────────────────────────────────────────────────────────────
-# 默认目标
-# ──────────────────────────────────────────────────────────────────────────────
 
 all: build
 
-# ──────────────────────────────────────────────────────────────────────────────
-# 安装 microgen 代码生成工具
-# ──────────────────────────────────────────────────────────────────────────────
+## workflow shortcuts
+test-runtime:
+	@echo ">>> Running runtime package tests..."
+	@go test -v ./kit ./endpoint ./transport/... ./sd/... ./log ./utils
 
-## install-microgen: 编译并安装 microgen 到 $GOPATH/bin
+test-microgen:
+	@echo ">>> Running microgen tests..."
+	@go test -v ./cmd/microgen/...
+	@echo ">>> Running microgen integration tests..."
+	@go test -v ./tools/... -run TestMicrogenIntegration
+
+test-docs:
+	@echo ">>> Running docs and skill verification..."
+	@go test -v ./tools/... -run TestSKILL
+
+test-examples:
+	@echo ">>> Running example package tests..."
+	@go test -v ./examples/...
+	@echo ">>> Running example smoke tests..."
+	@go test -v ./tools/... -run TestAllExamples
+
+verify: build test-runtime test-microgen test-docs test-examples
+	@echo ">>> Verification pass completed."
+
+## install-microgen: build and install microgen into GOPATH/bin
 install-microgen:
 	@echo ">>> Installing microgen..."
 	@go install ./cmd/microgen
 	@echo "    Done: $(MICROGEN)"
 
-# ──────────────────────────────────────────────────────────────────────────────
-# 代码生成
-# ──────────────────────────────────────────────────────────────────────────────
-
-## gen: 生成 HTTP 服务（SQLite，带 model/repository/swag）
+## gen: generate HTTP service with model/repository/swag
 gen: install-microgen
-	@echo ">>> Generating HTTP service from $(IDL) → $(OUT)"
+	@echo ">>> Generating HTTP service from $(IDL) -> $(OUT)"
 	@$(MICROGEN) \
 		-idl    $(IDL) \
 		-out    $(OUT) \
@@ -74,18 +69,18 @@ gen: install-microgen
 	@echo "    cd $(OUT) && go mod tidy"
 	@echo "    go run ./cmd/main.go -http.addr :8080"
 
-## gen-http: 仅生成 HTTP 服务（不含 model/swag）
+## gen-http: generate HTTP-only service
 gen-http: install-microgen
-	@echo ">>> Generating HTTP-only service from $(IDL) → $(OUT)"
+	@echo ">>> Generating HTTP-only service from $(IDL) -> $(OUT)"
 	@$(MICROGEN) \
 		-idl    $(IDL) \
 		-out    $(OUT) \
 		-import $(IMPORT) \
 		-protocols http
 
-## gen-grpc: 生成 HTTP + gRPC 双协议服务（含 model/swag）
+## gen-grpc: generate HTTP + gRPC service with model/repository/swag
 gen-grpc: install-microgen
-	@echo ">>> Generating HTTP+gRPC service from $(IDL) → $(OUT)"
+	@echo ">>> Generating HTTP+gRPC service from $(IDL) -> $(OUT)"
 	@$(MICROGEN) \
 		-idl    $(IDL) \
 		-out    $(OUT) \
@@ -96,9 +91,9 @@ gen-grpc: install-microgen
 		-driver $(DB_DRIVER) \
 		-swag
 
-## gen-full: 完整生成（HTTP+gRPC + model + swag + test）
+## gen-full: generate HTTP + gRPC + model + swag + tests
 gen-full: install-microgen
-	@echo ">>> Generating FULL service (HTTP+gRPC+model+swag+tests) → $(OUT)"
+	@echo ">>> Generating full service from $(IDL) -> $(OUT)"
 	@$(MICROGEN) \
 		-idl      $(IDL) \
 		-out      $(OUT) \
@@ -110,13 +105,9 @@ gen-full: install-microgen
 		-swag \
 		-tests
 
-## gen-from-db: 从数据库生成 RESTful 服务（需设置 DB_DRIVER / DB_DSN / DB_NAME / SERVICE）
-##   示例（MySQL）:
-##     make gen-from-db DB_DRIVER=mysql DB_DSN="root:pass@tcp(127.0.0.1:3306)/mydb?charset=utf8mb4&parseTime=True" DB_NAME=mydb SERVICE=MyApp IMPORT=github.com/myorg/myapp OUT=./gen
-##   示例（SQLite）:
-##     make gen-from-db DB_DRIVER=sqlite DB_DSN=app.db SERVICE=MyApp IMPORT=github.com/myorg/myapp OUT=./gen
+## gen-from-db: generate RESTful service from an existing database
 gen-from-db: install-microgen
-	@echo ">>> Generating service from database [driver=$(DB_DRIVER)] → $(OUT)"
+	@echo ">>> Generating service from database [driver=$(DB_DRIVER)] -> $(OUT)"
 	@$(MICROGEN) \
 		-from-db \
 		-driver  $(DB_DRIVER) \
@@ -130,11 +121,7 @@ gen-from-db: install-microgen
 	@echo "    cd $(OUT) && go mod tidy"
 	@echo "    go run ./cmd/main.go"
 
-# ──────────────────────────────────────────────────────────────────────────────
-# 运行示例（generated-usersvc）
-# ──────────────────────────────────────────────────────────────────────────────
-
-## run-demo: 运行生成的示例服务（默认使用 OUT 目录）
+## run-demo: run the generated service from OUT
 run-demo:
 	@if [ ! -d "$(OUT)" ]; then \
 		echo "Error: output directory '$(OUT)' not found. Run 'make gen' first."; \
@@ -143,7 +130,7 @@ run-demo:
 	@echo ">>> Starting demo service on $(HTTP_PORT)..."
 	@cd $(OUT) && go run ./cmd/main.go -http.addr $(HTTP_PORT)
 
-## swag-demo: 为生成的服务重新生成 Swagger 文档
+## swag-demo: regenerate Swagger docs for the generated service in OUT
 swag-demo:
 	@if [ ! -d "$(OUT)" ]; then \
 		echo "Error: output directory '$(OUT)' not found. Run 'make gen' first."; \
@@ -153,17 +140,7 @@ swag-demo:
 	@cd $(OUT) && swag init -g cmd/main.go -o docs
 	@echo ">>> Done. Start with: make run-demo"
 
-# ──────────────────────────────────────────────────────────────────────────────
-# gRPC protobuf 代码生成
-# ──────────────────────────────────────────────────────────────────────────────
-
-## proto: 从指定 .proto 文件生成 pb.go（需安装 protoc）
-## 用法:
-##   make proto PROTO_DIR=./generated/pb/userservice
-##   或手动执行生成时打印的 protoc 提示命令
-## 注意: Windows 下建议直接复制 microgen 输出的 protoc 命令手动执行
-PROTO_DIR ?= $(OUT)/pb
-
+## proto: generate protobuf Go files from PROTO_DIR
 proto:
 	@echo ">>> Generating protobuf Go files..."
 	@for dir in $(shell find $(PROTO_DIR) -name "*.proto" -exec dirname {} \; | sort -u); do \
@@ -176,43 +153,35 @@ proto:
 	done
 	@echo ">>> Done. pb.go files generated."
 
-# ──────────────────────────────────────────────────────────────────────────────
-# 构建 & 测试
-# ──────────────────────────────────────────────────────────────────────────────
-
-## build: 构建整个项目
+## build: build the whole repository
 build:
 	@echo ">>> Building go-kit..."
 	@go build ./...
 
-## test: 运行所有测试
+## test: run all tests with the race detector
 test:
 	@echo ">>> Running tests..."
 	@go test -v -race ./...
 
-## coverage: 生成测试覆盖率报告（coverage.html）
+## coverage: generate an HTML coverage report
 coverage:
 	@echo ">>> Generating coverage report..."
 	@go test -coverprofile=coverage.out ./...
 	@go tool cover -html=coverage.out -o coverage.html
-	@echo ">>> Opened: coverage.html"
+	@echo ">>> Generated: coverage.html"
 
-## lint: 静态检查
+## lint: run golangci-lint
 lint:
 	@echo ">>> Running linter..."
 	@golangci-lint run
 
-# ──────────────────────────────────────────────────────────────────────────────
-# 依赖管理
-# ──────────────────────────────────────────────────────────────────────────────
-
-## deps: go mod tidy + download
+## deps: tidy and download Go module dependencies
 deps:
 	@echo ">>> Tidying dependencies..."
 	@go mod tidy
 	@go mod download
 
-## tools: 安装所有开发工具
+## tools: install local development tools
 tools:
 	@echo ">>> Installing tools..."
 	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
@@ -221,50 +190,43 @@ tools:
 	@go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 	@echo ">>> All tools installed"
 
-# ──────────────────────────────────────────────────────────────────────────────
-# 清理
-# ──────────────────────────────────────────────────────────────────────────────
-
-## clean: 清理构建产物
+## clean: clean build artifacts
 clean:
 	@echo ">>> Cleaning..."
 	@go clean
 	@rm -f coverage.out coverage.html
 
-# ──────────────────────────────────────────────────────────────────────────────
-# 帮助
-# ──────────────────────────────────────────────────────────────────────────────
-
-## help: 显示所有可用目标
+## help: show available targets
 help:
 	@echo ""
-	@echo "  microgen — Go 微服务代码生成器"
+	@echo "go-kit / microgen"
 	@echo ""
-	@echo "  ┌─ 代码生成 ──────────────────────────────────────────────┐"
-	@echo "  │  make gen           HTTP服务 + SQLite + model + swag     │"
-	@echo "  │  make gen-http      仅 HTTP 服务（最小化）                │"
-	@echo "  │  make gen-grpc      HTTP + gRPC + model + swag           │"
-	@echo "  │  make gen-full      HTTP + gRPC + model + swag + tests   │"
-	@echo "  │                                                           │"
-	@echo "  │  自定义参数示例：                                          │"
-	@echo "  │    make gen IDL=./myapp/idl.go OUT=./myapp IMPORT=github.com/me/myapp │"
-	@echo "  │    make gen DB_DRIVER=mysql                               │"
-	@echo "  └───────────────────────────────────────────────────────────┘"
+	@echo "Generation"
+	@echo "  make gen           Generate HTTP service + model + db + swag"
+	@echo "  make gen-http      Generate HTTP-only service"
+	@echo "  make gen-grpc      Generate HTTP + gRPC service"
+	@echo "  make gen-full      Generate HTTP + gRPC + model + db + swag + tests"
+	@echo "  make gen-from-db   Generate service from an existing database"
 	@echo ""
-	@echo "  ┌─ 运行示例 ──────────────────────────────────────────────┐"
-	@echo "  │  make run-demo      启动生成的服务（$(OUT)，端口 $(HTTP_PORT)） │"
-	@echo "  │  make swag-demo     重新生成 Swagger 文档（$(OUT)）       │"
-	@echo "  └───────────────────────────────────────────────────────────┘"
+	@echo "Validation"
+	@echo "  make build         Build the repository"
+	@echo "  make test          Run full test suite with race detector"
+	@echo "  make test-runtime  Run focused runtime/framework tests"
+	@echo "  make test-microgen Run generator tests and integration coverage"
+	@echo "  make test-docs     Verify docs-backed snippets and SKILL.md"
+	@echo "  make test-examples Run example tests and smoke tests"
+	@echo "  make verify        Run recommended pre-merge validation pass"
+	@echo "  make coverage      Generate coverage report"
+	@echo "  make lint          Run golangci-lint"
 	@echo ""
-	@echo "  ┌─ 工具 ──────────────────────────────────────────────────┐"
-	@echo "  │  make install-microgen  编译安装 microgen 工具             │"
-	@echo "  │  make proto         生成 protobuf Go 代码                 │"
-	@echo "  │  make tools         安装 swag / golangci-lint / protoc 插件│"
-	@echo "  │  make deps          go mod tidy + download               │"
-	@echo "  │  make build         构建项目                               │"
-	@echo "  │  make test          运行测试                               │"
-	@echo "  │  make coverage      生成覆盖率报告                         │"
-	@echo "  │  make lint          静态检查                               │"
-	@echo "  │  make clean         清理构建产物                           │"
-	@echo "  └───────────────────────────────────────────────────────────┘"
+	@echo "Tooling"
+	@echo "  make install-microgen  Install microgen into GOPATH/bin"
+	@echo "  make proto             Generate protobuf Go files"
+	@echo "  make tools             Install local development tools"
+	@echo "  make deps              Run go mod tidy and download deps"
+	@echo "  make clean             Clean build artifacts"
+	@echo ""
+	@echo "Examples"
+	@echo "  make run-demo      Run generated demo service from OUT"
+	@echo "  make swag-demo     Regenerate Swagger docs for OUT"
 	@echo ""
