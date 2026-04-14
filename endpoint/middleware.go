@@ -21,6 +21,14 @@ type Middleware func(Endpoint) Endpoint
 //
 //	outer → others[0] → others[1] → … → Endpoint
 func Chain(outer Middleware, others ...Middleware) Middleware {
+	if outer == nil {
+		panic("outer middleware cannot be nil")
+	}
+	for _, mw := range others {
+		if mw == nil {
+			panic("middleware cannot be nil")
+		}
+	}
 	return func(next Endpoint) Endpoint {
 		for i := len(others) - 1; i >= 0; i-- { // reverse
 			next = others[i](next)

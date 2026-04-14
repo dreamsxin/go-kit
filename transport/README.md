@@ -36,6 +36,27 @@ Common helpers also live under:
 - `transport/http`
 - `transport/grpc`
 
+## Hook Semantics
+
+Across HTTP and gRPC, client and server transports share the same high-level hook model even though their concrete function signatures are protocol-specific.
+
+The intended semantic contract is:
+
+- `Before`
+  Runs before decode or before the outbound call is sent.
+  Use it for request metadata, headers, auth context, tracing context, and request correlation.
+- `After`
+  Runs after a successful endpoint call or successful remote response, but before the transport finishes writing or returning the response.
+  Use it for response metadata, response headers, and observability enrichment.
+- `Finalizer`
+  Runs at the end regardless of success or failure.
+  Use it for latency recording, access logging, metrics, and cleanup.
+
+Design rule:
+
+- preserve this semantic ordering across transport implementations
+- do not use transport hooks as a substitute for endpoint middleware when the concern is transport-agnostic
+
 ## HTTP Server
 
 Use `transport/http/server` when exposing HTTP APIs.
@@ -114,6 +135,14 @@ if err != nil {
 resp, err := ep(ctx, HelloReq{Name: "world"})
 ```
 
+Typical flow:
+
+1. `ClientBefore` hooks enrich the outbound request context or headers.
+2. The request is encoded and sent.
+3. The response is decoded.
+4. `ClientAfter` hooks inspect the successful response path.
+5. Finalizers run regardless of success or failure.
+
 ## gRPC Server
 
 Use `transport/grpc/server` when exposing gRPC APIs.
@@ -151,6 +180,18 @@ Primary extension points:
 - `ClientBefore`
 - `ClientAfter`
 - `ClientFinalizer`
+
+Typical flow mirrors the HTTP client path:
+
+1. `ClientBefore` hooks enrich outgoing metadata.
+2. The request is encoded and sent.
+3. The response is decoded.
+4. `ClientAfter` hooks inspect successful response metadata.
+5. Finalizers run regardless of success or failure.
+
+Current metadata note:
+
+- gRPC client response headers and trailers are exposed in context for decode/finalizer-time inspection via `transport/grpc` context keys.
 
 ## What Belongs In Transport
 

@@ -319,6 +319,20 @@ func TestService_WithLogging(t *testing.T) {
 	}
 }
 
+func TestService_WithLogging_NilLogger_DoesNotPanic(t *testing.T) {
+	_, ts := newSvc(t, kit.WithLogging(nil))
+
+	body, _ := json.Marshal(helloReq{Name: "log"})
+	resp, err := http.Post(ts.URL+"/hello", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+}
+
 // ── WithCircuitBreaker ────────────────────────────────────────────────────────
 
 // TestService_WithCircuitBreaker verifies that WithCircuitBreaker option is
@@ -380,6 +394,81 @@ func TestService_WithRequestID(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("X-Request-ID"); got == "" {
+		t.Error("expected generated X-Request-ID response header")
+	}
+}
+
+func TestService_WithRequestID_PreservesIncomingHeader(t *testing.T) {
+	svc := kit.New(":0", kit.WithRequestID())
+	svc.Handle("/id", kit.JSON[helloReq](func(ctx context.Context, req helloReq) (any, error) {
+		return map[string]string{
+			"id":      endpoint.RequestIDFromContext(ctx),
+			"message": req.Name,
+		}, nil
+	}))
+	ts := httptest.NewServer(svc)
+	defer ts.Close()
+
+	body, _ := json.Marshal(helloReq{Name: "rid"})
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/id", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-ID", "incoming-id")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	defer resp.Body.Close()
+	if got := resp.Header.Get("X-Request-ID"); got != "incoming-id" {
+		t.Fatalf("response header: got %q, want %q", got, "incoming-id")
+	}
+
+	var payload map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if got := payload["id"]; got != "incoming-id" {
+		t.Fatalf("request id in context: got %q, want %q", got, "incoming-id")
+	}
+}
+
+func TestKitOptions_PanicOnInvalidConfiguration(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func()
+	}{
+		{
+			name: "rate limit <= 0",
+			run: func() { kit.WithRateLimit(0) },
+		},
+		{
+			name: "timeout <= 0",
+			run: func() { kit.WithTimeout(0) },
+		},
+		{
+			name: "circuit breaker threshold zero",
+			run: func() { kit.WithCircuitBreaker(0) },
+		},
+		{
+			name: "grpc empty address",
+			run: func() { kit.WithGRPC("") },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Fatal("expected panic for invalid option configuration")
+				}
+			}()
+			tt.run()
+		})
 	}
 }
 

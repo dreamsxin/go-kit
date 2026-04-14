@@ -18,18 +18,25 @@ type Client struct {
 	client         HTTPClient
 	req            EncodeRequestFunc
 	dec            DecodeResponseFunc
-	before         []RequestFunc   /* 发出请求前，改变 context */
-	after          []ResponseFunc  /* 成功返回后执行，改变 context */
-	finalizer      []FinalizerFunc /* 不管是否成功，都将执行 */
+	before         []RequestFunc
+	after          []ResponseFunc
+	finalizer      []FinalizerFunc // Always runs, regardless of success or failure.
 	bufferedStream bool
 }
 
-// 创建 http 请求客户端
+// NewClient constructs an HTTP client using method/target-based request creation.
 func NewClient(method string, tgt *url.URL, enc EncodeRequestFunc, dec DecodeResponseFunc, options ...ClientOption) *Client {
+	if tgt == nil || enc == nil {
+		panic("essential parameters cannot be nil")
+	}
 	return NewExplicitClient(makeCreateRequestFunc(method, tgt, enc), dec, options...)
 }
 
+// NewExplicitClient constructs an HTTP client from explicit request/response functions.
 func NewExplicitClient(req EncodeRequestFunc, dec DecodeResponseFunc, options ...ClientOption) *Client {
+	if req == nil || dec == nil {
+		panic("essential parameters cannot be nil")
+	}
 	c := &Client{
 		client: http.DefaultClient,
 		req:    req,

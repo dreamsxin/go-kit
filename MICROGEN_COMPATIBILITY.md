@@ -73,9 +73,11 @@ Expected generated structure may include:
 - `service/`
 - `endpoint/`
 - `transport/`
+- `client/`
 - `config/`
 - `docs/`
 - `model/`
+- `pb/`
 - `repository/`
 - `sdk/`
 - `skill/`
@@ -87,8 +89,22 @@ Not every directory appears in every mode, but the meaning of these directories 
 - `endpoint/` contains middleware-oriented service wrapping
 - `transport/` contains protocol adaptation
 - `cmd/` contains service startup and wiring
+- `client/` contains runnable client/demo scaffolding for generated services
+- `docs/` contains generator-created Swagger scaffolding when enabled
+- `pb/` contains generated proto-related service contract assets when gRPC is enabled
 - `sdk/` contains generated client usage surface
 - `skill/` contains AI-facing capability definitions
+
+Additional current conventions that should be treated as compatibility-sensitive:
+
+- `cmd/main.go` remains the generated startup entry point
+- `client/<service>/demo.go` remains the generated runnable client/demo entry for a service
+- `README.md` may be generated when docs output is enabled
+- `docs/docs.go` may be generated as a Swagger stub when swag output is enabled
+- `idl.go` is reserved for copied Go IDL input, not Proto input
+- `pb/<service>/<service>.proto` remains the generated proto asset location when gRPC output is enabled
+- `go.mod` is generated or updated as part of project initialization
+- route prefix configuration should affect generated HTTP-facing artifacts consistently
 
 ## Compatibility Expectations By Output Area
 
@@ -102,6 +118,10 @@ These expectations should be preserved unless a deliberate breaking change is an
 - enabling gRPC produces corresponding transport and startup wiring
 - enabling `-skill` produces machine-readable skill exposure support
 - model/repository output remains aligned with documented generation flags
+- Go IDL input may be copied into generated output as `idl.go`
+- Proto input should not incorrectly create `idl.go`
+- route prefix behavior should remain consistent across generated transport wiring and generated startup wiring
+- generated `go.mod` should preserve documented module update behavior instead of being rewritten arbitrarily
 
 ### Semi-stable expectations
 
@@ -111,6 +131,7 @@ These areas are user-visible, but maintainers may refine them as long as behavio
 - comments and docstrings in generated files
 - helper function naming inside generated output when not documented as a stable API
 - optional config and docs stubs
+- the exact contents of docs stubs, as long as their purpose and overwrite behavior remain consistent
 
 ### Internal expectations
 
@@ -137,6 +158,43 @@ These changes require:
 1. documentation updates
 2. test updates
 3. migration guidance if users are likely to feel the break
+
+## Compatibility Notes For Current Generation Flow
+
+The current generator behavior includes several conventions that should be treated as externally meaningful.
+
+### `go.mod` behavior
+
+Current expectations:
+
+- if `go.mod` does not exist, `microgen` creates one
+- if `go.mod` exists and already matches the requested module path, it should not be rewritten unnecessarily
+- if `go.mod` exists but the module line does not match the requested import path, the module line may be updated while preserving the rest of the file
+- local replace-path behavior used by generated testdata and examples should remain intentional and documented
+
+### IDL copy behavior
+
+Current expectations:
+
+- Go IDL input may be copied into generated output as `idl.go`
+- Proto input should not be copied into `idl.go`
+- users may rely on `idl.go` being present only for Go-IDL-driven project generation
+
+### Docs stub behavior
+
+Current expectations:
+
+- enabling docs or swag-related output may create a docs stub
+- docs stubs are scaffolding, not the final source of truth for generated Swagger output
+- once a real docs file exists, generator behavior should avoid unnecessarily overwriting it
+
+### Route prefix behavior
+
+Current expectations:
+
+- route prefix configuration should affect generated HTTP transport code
+- route prefix configuration should stay aligned with generated startup wiring
+- maintainers should treat prefix drift between transport and startup output as a compatibility regression
 
 ## What Does Not Automatically Count As Breaking
 
@@ -199,6 +257,7 @@ The repository already includes strong validation for `microgen`:
 - dbschema tests
 - `TestMicrogenIntegration`
 - example smoke tests for generated-service behavior
+- orchestration-focused generator tests for `idl.go`, `go.mod`, docs stub, and route prefix behavior
 
 These tests should be treated as protection for public behavior, not just implementation correctness.
 

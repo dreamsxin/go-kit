@@ -51,6 +51,9 @@ func NewClient(
 	grpcReply any,
 	options ...ClientOption,
 ) *Client {
+	if cc == nil || enc == nil || dec == nil || grpcReply == nil {
+		panic("essential parameters cannot be nil")
+	}
 	c := &Client{
 		client:    cc,
 		method:    fmt.Sprintf("/%s/%s", serviceName, method),
@@ -99,6 +102,9 @@ func (c Client) Endpoint() endpoint.Endpoint {
 		); err != nil {
 			return nil, err
 		}
+
+		ctx = context.WithValue(ctx, transportgrpc.ContextKeyResponseHeaders, header)
+		ctx = context.WithValue(ctx, transportgrpc.ContextKeyResponseTrailers, trailer)
 
 		for _, f := range c.after {
 			ctx = f(ctx, header, trailer)

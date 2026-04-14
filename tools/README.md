@@ -47,8 +47,15 @@ Runs `microgen` against real IDL and Proto files and verifies the generated file
 
 | Sub-test | Input | Verifies |
 |----------|-------|---------|
-| `IDL` | `cmd/microgen/parser/testdata/basic.go` | service, endpoint, transport, skill, cmd/main.go |
-| `Proto` | `testdata/service.proto` | generation succeeds without error |
+| `CLI_FailsWithoutIDLOrFromDB` | no input flags | CLI rejects missing required source selection with a clear error |
+| `CLI_FailsForMissingIDLPath` | nonexistent IDL path | CLI surfaces missing-file errors clearly instead of succeeding partially |
+| `CLI_FailsForUnsupportedDriver` | unsupported `-driver` value | CLI rejects invalid generator driver configuration clearly |
+| `IDL_DefaultFlags` | `cmd/microgen/parser/testdata/basic.go` | default CLI generation remains usable out of the box: `go.mod`, `idl.go`, service, endpoint, HTTP transport, client, sdk, config, README, model, repository, skill, without gRPC or swag artifacts |
+| `IDL_GeneratedProject_BuildsAndRuns` | `cmd/microgen/parser/testdata/basic.go` with a minimal runnable flag set | generated project can resolve deps, compile `./cmd`, start successfully, and serve `/health` plus `/skill` |
+| `IDL_MinimalProject_BuildsAndRunsWithoutOptionalFeatures` | `cmd/microgen/parser/testdata/basic.go` with `-config=false -docs=false -model=false -db=false -skill=false` | the leanest generated HTTP service still builds, starts, serves `/health`, and keeps `/skill` disabled when optional layers are turned off |
+| `IDL` | `cmd/microgen/parser/testdata/basic.go` | `go.mod`, `idl.go`, service, endpoint, transport, client, sdk, docs, skill, `cmd/main.go`, and route-prefix propagation |
+| `Proto` | `testdata/service.proto` | `go.mod`, service, endpoint, HTTP/gRPC transport, `pb/`, client, sdk, docs, skill, `cmd/main.go`, absence of `idl.go`, and route-prefix propagation |
+| `IDL_Rerun_PreservesCustomizedGoModAndDocs` | `cmd/microgen/parser/testdata/basic.go` | rerunning generation preserves customized `go.mod` content and real `docs/docs.go` content instead of overwriting them |
 
 ---
 

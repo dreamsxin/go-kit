@@ -266,3 +266,63 @@ func TestNewExplicitClient(t *testing.T) {
 		t.Errorf("echo: got %q, want %q", resp.(echoResp).Echo, "echo: explicit")
 	}
 }
+
+func TestNewExplicitClient_PanicsOnNilEssentialParameters(t *testing.T) {
+	tests := []struct {
+		name string
+		req  httpclient.EncodeRequestFunc
+		dec  httpclient.DecodeResponseFunc
+	}{
+		{
+			name: "nil request encoder",
+			dec: func(context.Context, *http.Response) (any, error) {
+				return nil, nil
+			},
+		},
+		{
+			name: "nil response decoder",
+			req: func(context.Context, *http.Request, any) (*http.Request, error) {
+				return http.NewRequest(http.MethodGet, "http://example.com", nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Fatal("expected panic for nil essential parameter")
+				}
+			}()
+			httpclient.NewExplicitClient(tt.req, tt.dec)
+		})
+	}
+}
+
+func TestNewClient_PanicsOnNilEssentialParameters(t *testing.T) {
+	tgt, _ := url.Parse("http://example.com")
+	dec := func(context.Context, *http.Response) (any, error) { return nil, nil }
+	enc := func(context.Context, *http.Request, any) (*http.Request, error) {
+		return http.NewRequest(http.MethodGet, tgt.String(), nil)
+	}
+
+	tests := []struct {
+		name string
+		tgt  *url.URL
+		enc  httpclient.EncodeRequestFunc
+	}{
+		{name: "nil target", enc: enc},
+		{name: "nil encoder", tgt: tgt},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Fatal("expected panic for nil essential parameter")
+				}
+			}()
+			httpclient.NewClient(http.MethodGet, tt.tgt, tt.enc, dec)
+		})
+	}
+}

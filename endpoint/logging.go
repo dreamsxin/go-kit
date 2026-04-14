@@ -20,6 +20,9 @@ import (
 //	logger, _ := log.NewDevelopment()
 //	ep = endpoint.LoggingMiddleware(logger, "CreateUser")(ep)
 func LoggingMiddleware(logger *log.Logger, operation string) Middleware {
+	if logger == nil {
+		logger = log.NewNopLogger()
+	}
 	return func(next Endpoint) Endpoint {
 		return func(ctx context.Context, request any) (resp any, err error) {
 			start := time.Now()

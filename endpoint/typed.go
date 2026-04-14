@@ -35,10 +35,15 @@ type TypedEndpoint[Req, Resp any] func(ctx context.Context, req Req) (Resp, erro
 
 // Wrap converts a TypedEndpoint into a plain Endpoint.
 // The returned Endpoint performs a type assertion on the request value;
-// it panics if the request is not of type Req.
+// it returns a TypeAssertError if the request is not of type Req.
 func (te TypedEndpoint[Req, Resp]) Wrap() Endpoint {
 	return func(ctx context.Context, request any) (any, error) {
-		return te(ctx, request.(Req))
+		typed, ok := request.(Req)
+		if !ok {
+			var zero Req
+			return nil, &TypeAssertError{Got: request, Want: zero}
+		}
+		return te(ctx, typed)
 	}
 }
 
@@ -81,8 +86,8 @@ func NewTypedBuilder[Req, Resp any](te TypedEndpoint[Req, Resp]) *Builder {
 	return NewBuilder(te.Wrap())
 }
 
-// TypeAssertError is returned by Unwrap when the response value cannot be
-// asserted to the expected type.
+// TypeAssertError is returned when a wrapped endpoint request or unwrapped
+// endpoint response cannot be asserted to the expected type.
 type TypeAssertError struct {
 	Got  any
 	Want any

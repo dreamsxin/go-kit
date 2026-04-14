@@ -58,6 +58,12 @@ svc := kit.New(":8080",
 )
 ```
 
+If you don't have a logger yet, `kit.WithLogging(nil)` safely degrades to a no-op logger instead of crashing.
+
+Configuration note:
+
+- invalid `kit` option inputs now fail fast at construction time, such as non-positive timeouts, non-positive rate limits, zero circuit-breaker thresholds, or empty gRPC listen addresses.
+
 ### With gRPC
 
 ```go
@@ -162,10 +168,13 @@ A generated `go-kit` project follows this layout:
 |-- service/<svcname>/   # Pure business logic
 |-- endpoint/<svcname>/  # Go-kit endpoints and middleware wiring
 |-- transport/<svcname>/ # HTTP/gRPC handlers
-|-- pb/                  # Optional: Protobuf generated code
+|-- client/<svcname>/    # Optional: runnable generated demo client
+|-- pb/                  # Optional: proto-related assets for generated gRPC services
 |-- model/               # Optional: GORM database models
 |-- repository/          # Optional: Data access layer
 |-- sdk/<svcname>sdk/    # Generated client SDK
+|-- docs/docs.go         # Optional: Swagger stub scaffold
+|-- idl.go               # Optional: copied Go IDL input (not used for .proto input)
 `-- skill/               # AI tool definitions
 ```
 
@@ -174,6 +183,8 @@ A generated `go-kit` project follows this layout:
 ## Repository Workflow
 
 If you are working on this repository itself rather than using it as a dependency, see [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md) for the recommended development workflow across framework packages, `microgen`, examples, and tooling.
+
+If you are resuming a refactor or starting a new AI coding session, read [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md) first for the current repository status and next recommended steps.
 
 ---
 

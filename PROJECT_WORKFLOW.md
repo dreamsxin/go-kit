@@ -7,6 +7,8 @@ Important distinction:
 - `README.md` mainly explains how to use `go-kit` and what a generated service looks like.
 - This file explains how to work on the framework, the `microgen` generator, examples, and validation tooling inside this repo.
 
+For fast session re-entry, read [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md) before diving into package code.
+
 ## Repository Structure
 
 The repository is organized around four development areas:
@@ -53,6 +55,12 @@ Recommended sequence:
 3. Run focused package tests.
 4. Run the most relevant examples.
 5. Finish with a wider repository test pass.
+
+Special checks for runtime work:
+
+- prefer construction-time or composition-time contract failures over delayed request-time panics when misuse can be detected earlier
+- keep typed endpoint behavior symmetric where possible, especially around request/response type assertion errors
+- when tightening HTTP/gRPC parity, document the intended shared semantic contract as part of the same change
 
 Suggested commands:
 
@@ -166,17 +174,28 @@ Use this matrix to avoid over-testing too early while still catching regressions
 - Update docs and examples in the same change when public APIs move.
 - Prefer focused tests first, then broaden outward.
 - If `README.md`, `examples/README.md`, and `tools/SKILL.md` disagree, align all three before finishing.
+- After meaningful refactor progress, update `PROJECT_SNAPSHOT.md` so the next coding session can resume quickly.
 
 ## Recommended Daily Loop
 
 For most tasks, this is the best default loop:
 
 1. Identify the primary lane.
-2. Read the nearest tests and example.
+2. Read `PROJECT_SNAPSHOT.md`, then the nearest tests and example.
 3. Implement the smallest viable change.
 4. Run focused validation.
 5. Run one broader regression pass.
 6. Update docs only where the user-facing behavior changed.
+
+## AI Session Workflow
+
+When resuming with an AI coding agent, use this sequence:
+
+1. Read `PROJECT_SNAPSHOT.md` for current status and next steps.
+2. Read `README.md` for the product story.
+3. Read `PROJECT_WORKFLOW.md` for the correct validation lane.
+4. Read the nearest package tests before editing code.
+5. Update `PROJECT_SNAPSHOT.md` before ending the session if the project state materially changed.
 
 ## Useful Existing Entry Points
 

@@ -23,12 +23,18 @@ type Builder struct {
 
 // NewBuilder creates a Builder wrapping the given base Endpoint.
 func NewBuilder(base Endpoint) *Builder {
+	if base == nil {
+		panic("base endpoint cannot be nil")
+	}
 	return &Builder{base: base}
 }
 
 // Use appends a Middleware to the chain.  Returns the same Builder for
 // method chaining.
 func (b *Builder) Use(m Middleware) *Builder {
+	if m == nil {
+		panic("middleware cannot be nil")
+	}
 	b.middlewares = append(b.middlewares, m)
 	return b
 }

@@ -93,6 +93,12 @@ Why prefer the builder:
 - expresses runtime policy in one place
 - stays aligned with the framework's preferred composition style
 
+Builder contract note:
+
+- `NewBuilder` requires a non-nil base endpoint
+- `Use(...)` requires non-nil middleware values
+- invalid composition input fails fast instead of deferring the problem to request time
+
 ## `Chain`
 
 `Chain` is the lower-level middleware composition helper.
@@ -138,6 +144,10 @@ Use typed endpoints when:
 
 You can adopt typed endpoints incrementally.
 
+Type assertion note:
+
+- `Wrap()` and `Unwrap()` return typed assertion errors when request or response values do not match the expected types, instead of panicking on mismatch.
+
 ## Built-In Middleware
 
 Core middleware in `endpoint`:
@@ -146,6 +156,10 @@ Core middleware in `endpoint`:
 - `ErrorHandlingMiddleware`
 - `TimeoutMiddleware`
 - `LoggingMiddleware`
+
+Logging note:
+
+- `LoggingMiddleware(nil, ...)` degrades to a nop logger so composition remains safe even when callers do not supply a logger instance.
 
 Specialized middleware packages:
 

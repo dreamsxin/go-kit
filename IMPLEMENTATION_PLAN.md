@@ -1,192 +1,223 @@
 # Implementation Plan
 
-This document turns the framework-boundary discussion into a concrete improvement roadmap for the repository.
+This document turns the current repository state into a concrete refactor roadmap.
 
-## Goals
+It is intentionally narrower and more execution-oriented than `FRAMEWORK_BOUNDARIES.md`.
+Use that document for product scope decisions, and use this one for sequencing code cleanup.
 
-The implementation plan focuses on four outcomes:
+## Refactor Goals
 
-1. Make framework responsibilities explicit.
-2. Stabilize public-facing contracts.
-3. Keep extensibility where it helps users.
-4. Prevent framework sprawl into application-platform concerns.
+This refactor focuses on six outcomes:
 
-## Phase 1: Clarify Product Boundaries
+1. Reduce hidden coupling across runtime packages.
+2. Split oversized modules into clearer responsibilities.
+3. Stabilize public-facing APIs before adding more features.
+4. Treat generated output as a compatibility contract.
+5. Keep examples and docs aligned with the runtime architecture.
+6. Strengthen validation so future refactors stay safe.
 
-Objective:
+## Current Signals From The Codebase
 
-- turn current architecture intent into an explicit repository contract
+The repository is already structurally close to the intended product shape, but several refactor signals are visible:
 
-Actions:
+- `kit/kit.go` currently mixes service bootstrap, middleware assembly, health wiring, HTTP lifecycle, and gRPC lifecycle.
+- `endpoint/` is the densest runtime package and acts as the architectural spine, so drift here will affect every layer.
+- `transport/http/*` and `transport/grpc/*` contain repeated client/server patterns that should be reviewed for shared option and hook contracts.
+- `cmd/microgen/generator/generator.go` owns too many responsibilities: directory creation, template execution, routing conventions, config generation, SDK generation, and compatibility-sensitive output decisions.
+- Source comments contain encoding corruption in a few places, which lowers maintainability and signals inconsistent file handling.
+- There are placeholder or sharp-edge runtime behaviors that should be normalized before expanding APIs, such as panic-based guardrails and no-op middleware stubs.
 
-- maintain `README.md` as the user-facing product overview
-- maintain `FRAMEWORK_BOUNDARIES.md` as the boundary and responsibility source of truth
-- maintain `PROJECT_WORKFLOW.md` as the repository development workflow source of truth
-- link these documents together from the main README
+These signals suggest that the next phase should be structural cleanup, not feature expansion.
 
-Success criteria:
+## Guardrails
 
-- new contributors can answer what the framework solves and does not solve without reading code
-- user-facing and maintainer-facing docs no longer mix concerns
+The refactor should preserve these non-negotiables:
 
-## Phase 2: Classify Public vs Internal APIs
+- Keep the service -> endpoint -> transport layering model intact.
+- Avoid breaking the primary `kit` quickstart flow without an explicit migration note.
+- Treat `microgen` output layout and CLI flags as user-facing behavior.
+- Prefer additive extension seams over hidden special cases.
+- Do not mix repository-internal cleanup with platform-scope expansion.
 
-Objective:
+## Workstreams
 
-- reduce ambiguity about what users may safely depend on
-
-Actions:
-
-- label packages and surfaces as public, semi-stable, or internal in docs
-- document stable extension points in `kit`, `endpoint`, `transport`, `sd`, and `microgen`
-- identify internals that should not be treated as compatibility commitments
-- avoid exposing generator internals as part of the public story
-
-Suggested output:
-
-- a short compatibility section per major package
-- a small public-surface matrix in documentation
-
-Success criteria:
-
-- maintainers can evaluate compatibility impact before merging changes
-- business teams rely on supported APIs instead of accidental implementation details
-
-## Phase 3: Strengthen Extension Architecture
+## Workstream 1: Runtime Surface Audit
 
 Objective:
 
-- make approved customization paths obvious and safe
+- document which runtime APIs are intentionally public and which are implementation details
 
 Actions:
 
-- standardize documentation around middleware hooks, error encoders, balancers, retry strategies, and generator options
-- audit extension points for consistency in naming and option patterns
-- prefer additive extension APIs over special-case branching in core runtime code
-- identify missing extension seams before teams work around them in application code
+- audit `kit`, `endpoint`, `transport`, `sd`, `log`, and `utils`
+- mark stable entry points versus convenience helpers versus internals
+- identify panic-based or placeholder behavior that should be replaced with explicit contracts
+- capture any API decisions that require migration notes before code moves
+
+Deliverables:
+
+- a package surface inventory
+- a short list of high-risk compatibility points
 
 Success criteria:
 
-- most customization requests can be answered with an existing extension path
-- fewer changes require modifying framework core behavior
+- maintainers can tell whether a refactor is internal-only or user-visible before changing code
 
-## Phase 4: Tighten Runtime Contracts
+## Workstream 2: `kit` Runtime Decomposition
 
 Objective:
 
-- preserve the service -> endpoint -> transport model as the non-negotiable architectural spine
+- reduce responsibility concentration in `kit/kit.go`
 
 Actions:
 
-- document anti-patterns, especially transport-coupled business logic
-- add tests that protect separation boundaries where useful
-- ensure examples consistently model the desired layering
-- prevent drift where new features skip the endpoint layer or duplicate transport logic
+- separate service construction, HTTP registration, middleware assembly, and lifecycle management into smaller files
+- make the request-ID path real and testable instead of leaving it as a pass-through stub
+- normalize health endpoint behavior as an explicit runtime concern
+- review gRPC startup and shutdown flow for consistency with HTTP lifecycle behavior
 
 Success criteria:
 
-- new runtime features fit naturally into the existing layering model
-- examples reinforce, rather than weaken, framework architecture
+- `kit` remains the fastest on-ramp for users
+- lifecycle code is easier to test in isolation
+- middleware-related behavior is explicit and no longer hidden inside one large file
 
-## Phase 5: Formalize `microgen` Compatibility
+## Workstream 3: Endpoint And Transport Contract Tightening
 
 Objective:
 
-- treat generated output shape as an external product contract
+- make the runtime boundaries easier to reason about and harder to bypass
 
 Actions:
 
-- document which generated directories and files are intentional conventions
-- define which CLI flags are considered stable
-- add compatibility notes for template-driven output changes
-- use integration tests to protect expected generated structure
+- split `endpoint/` by concern where it improves discoverability
+- standardize option naming and middleware composition patterns
+- compare HTTP and gRPC client/server packages for duplicated hook, encode/decode, and finalizer concepts
+- extract shared transport conventions only where the abstraction is genuinely stable
+- add or tighten tests around error handling, middleware order, and failer semantics
 
 Success criteria:
 
-- template changes are evaluated as user-facing behavior changes
-- users can upgrade with fewer surprises
+- common runtime policies remain centered in `endpoint`
+- transport packages stay protocol-focused instead of accumulating policy behavior
+- tests protect the intended separation more directly
 
-## Phase 6: Establish A Long-Term Validation Matrix
+## Workstream 4: `microgen` Generator Modularization
 
 Objective:
 
-- keep validation aligned with the repository's actual component boundaries
+- break generator responsibilities into compatibility-aware modules
 
 Actions:
 
-- keep the current layered workflow targets in `Makefile`
-- preserve focused validation paths:
-  - `make test-runtime`
-  - `make test-microgen`
-  - `make test-docs`
-  - `make test-examples`
-  - `make verify`
-- continue using full `go test -race ./...` as release-level validation
+- split `cmd/microgen/generator/generator.go` into smaller units such as layout, template execution, per-artifact generation, and compatibility helpers
+- centralize generated path conventions instead of reconstructing them ad hoc in many methods
+- isolate database-driver metadata and route-prefix shaping behind named helpers
+- document which generated files and directories are intentional product conventions
+- review template ownership so output-shape changes are easier to assess during code review
 
 Success criteria:
 
-- contributors run the smallest sufficient test loop during development
-- release confidence does not depend on ad hoc test selection
+- generator changes can be scoped to one artifact family at a time
+- output layout decisions are explicit and reviewable
+- template updates are easier to test and less likely to cause accidental contract drift
 
-## Recommended Near-Term Work Items
+## Workstream 5: Documentation And Example Alignment
 
-These are the highest-value next steps for the repository.
+Objective:
 
-### Work item 1: document package stability
+- keep the public story aligned with the actual code after refactors land
 
-- add a short stability note for `kit`, `endpoint`, `transport`, `sd`, and `cmd/microgen`
-- identify which APIs are intended as public extension points
+Actions:
 
-### Work item 2: define generated-project contract
+- update `README.md` only when runtime or generator behavior actually changes
+- keep `PROJECT_WORKFLOW.md` mapped to the real package layout and test loops
+- use examples to demonstrate the intended layering, not shortcuts that weaken it
+- clean up comment encoding issues in touched files as part of normal refactor work
 
-- document expected generated layout and compatibility assumptions
-- clarify which parts of generated output are safe for users to treat as conventions
+Success criteria:
 
-### Work item 3: add anti-pattern guidance
+- docs remain trustworthy during the refactor
+- examples continue acting as executable architecture guidance
 
-- document what not to do:
-  - business logic in transport
-  - direct dependence on generator internals
-  - private layout assumptions as public API
+## Workstream 6: Validation Matrix Hardening
 
-### Work item 4: improve contributor onboarding
+Objective:
 
-- add a short "Where do I change this?" section for common tasks
-- map runtime issues vs generator issues vs docs issues to the correct workflow lane
+- make structural refactors safe to ship incrementally
 
-## Non-Goals For This Plan
+Actions:
 
-This plan does not propose:
+- keep using the top-level targets in `Makefile`
+- add focused tests when introducing new seams in `kit`, `endpoint`, `transport`, or `microgen`
+- preserve integration coverage for generated output via `tools/...`
+- reserve `go test -race ./...` for broad confidence passes and release-level validation
 
-- building a full plugin platform first
-- introducing a large internal package split immediately
-- replacing current package layout wholesale
-- expanding the framework into platform concerns outside microservice construction and governance
+Recommended validation by workstream:
 
-## Planning Heuristics
+- runtime refactors: `make test-runtime`
+- generator refactors: `make test-microgen`
+- docs/example adjustments: `make test-docs` and `make test-examples`
+- milestone verification: `make verify`
 
-Use these heuristics when prioritizing future work:
+Success criteria:
 
-- prioritize clarity before abstraction
-- prefer stable extension points over bespoke feature flags
-- treat generated output shape as a product decision
-- avoid adding framework core for one-off business needs
-- keep business logic transport-agnostic by default
+- each refactor step has a clear minimum test loop
+- broader regressions are caught before merge, not after release
 
-## Suggested Execution Order
+## Execution Order
 
-1. Publish boundary and responsibility docs.
-2. Mark public vs internal surfaces.
-3. Document extension points and anti-patterns.
-4. Lock down `microgen` compatibility expectations.
-5. Expand targeted tests only where a contract needs protection.
+Recommended order:
+
+1. Audit runtime public surfaces and identify compatibility-sensitive behavior.
+2. Decompose `kit` into smaller runtime responsibilities.
+3. Tighten endpoint and transport contracts around middleware, error flow, and hooks.
+4. Modularize `microgen` around artifact families and output conventions.
+5. Align examples and docs with the refactored runtime shape.
+6. Finish with a full repository verification pass.
+
+This order keeps the runtime spine stable before reshaping generator output around it.
+
+## Immediate Next Tasks
+
+These are the best first implementation tickets to open:
+
+### Task 1: split `kit/kit.go`
+
+- extract service lifecycle code
+- extract option wiring and middleware registration
+- add direct tests for request-ID behavior and graceful shutdown
+
+### Task 2: create a generator layout helper
+
+- move output path and directory rules out of `generator.go`
+- make generated directory conventions explicit and reusable
+
+### Task 3: audit duplicated transport option patterns
+
+- compare HTTP and gRPC client/server option types
+- identify which concepts are shared by contract and which are only coincidentally similar
+
+### Task 4: clean encoding-corrupted comments in touched files
+
+- normalize source comments as files are refactored
+- avoid mixing broad formatting churn into unrelated commits
+
+## Non-Goals
+
+This refactor does not aim to:
+
+- redesign the framework into a platform product
+- replace the package layout wholesale in one pass
+- introduce a plugin system before current seams are stabilized
+- add major new runtime features before core contracts are clearer
 
 ## Definition Of Done
 
-This framework-boundary effort is in good shape when:
+This refactor is in good shape when:
 
-- maintainers share the same definition of framework scope
-- business teams know what to use and what to avoid depending on
-- extension points are explicit
-- internal details are not mistaken for public API
-- future roadmap discussions can use these documents as the default reference
+- runtime responsibilities are easier to locate and test
+- `kit` and `microgen` no longer concentrate unrelated concerns in single files
+- transport and endpoint contracts are clearer and better protected by tests
+- generated output conventions are documented as product behavior
+- docs and examples still describe the real framework accurately

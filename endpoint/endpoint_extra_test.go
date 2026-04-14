@@ -109,6 +109,26 @@ func TestBuilder_WithMetrics_CountsSuccessAndError(t *testing.T) {
 	}
 }
 
+func TestBuilder_PanicsOnNilBase(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for nil base endpoint")
+		}
+	}()
+
+	endpoint.NewBuilder(nil)
+}
+
+func TestBuilder_Use_PanicsOnNilMiddleware(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for nil middleware")
+		}
+	}()
+
+	endpoint.NewBuilder(endpoint.Nop).Use(nil)
+}
+
 // ── Chain ─────────────────────────────────────────────────────────────────────
 
 func TestChain_SingleMiddleware(t *testing.T) {
@@ -144,6 +164,38 @@ func TestChain_MultipleMiddlewares_OuterFirst(t *testing.T) {
 		if order[i] != v {
 			t.Errorf("order[%d]: got %q, want %q", i, order[i], v)
 		}
+	}
+}
+
+func TestChain_PanicsOnNilMiddleware(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func()
+	}{
+		{
+			name: "nil outer",
+			run: func() {
+				endpoint.Chain(nil)
+			},
+		},
+		{
+			name: "nil inner",
+			run: func() {
+				mw := endpoint.Middleware(func(next endpoint.Endpoint) endpoint.Endpoint { return next })
+				endpoint.Chain(mw, nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Fatal("expected panic for nil middleware")
+				}
+			}()
+			tt.run()
+		})
 	}
 }
 
@@ -277,6 +329,13 @@ func TestLoggingMiddleware_Error(t *testing.T) {
 	_, err := ep(context.Background(), nil)
 	if err == nil {
 		t.Error("expected error to propagate")
+	}
+}
+
+func TestLoggingMiddleware_NilLogger_DoesNotPanic(t *testing.T) {
+	ep := endpoint.LoggingMiddleware(nil, "testOp")(endpoint.Nop)
+	if _, err := ep(context.Background(), nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

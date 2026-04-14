@@ -121,3 +121,17 @@ func TestTypedEndpoint_WithTimeout(t *testing.T) {
 		t.Fatal("expected timeout error, got nil")
 	}
 }
+
+func TestTypedEndpoint_Wrap_ReturnsTypeAssertErrorOnWrongRequestType(t *testing.T) {
+	plain := addTyped.Wrap()
+
+	_, err := plain(context.Background(), "not an addReq")
+	if err == nil {
+		t.Fatal("expected TypeAssertError, got nil")
+	}
+
+	var tae *endpoint.TypeAssertError
+	if !errors.As(err, &tae) {
+		t.Fatalf("expected *TypeAssertError, got %T: %v", err, err)
+	}
+}
