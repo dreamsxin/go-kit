@@ -69,3 +69,36 @@ func TestServeGRPC_EndpointError_DoesNotPanicWithoutExplicitErrorHandler(t *test
 		t.Fatalf("ServeGRPC() error = %v, want endpoint failed", err)
 	}
 }
+
+func TestServeGRPC_EndpointError_DoesNotPanicWithNilErrorHandlerOption(t *testing.T) {
+	s := NewServer(
+		func(context.Context, any) (any, error) { return nil, errors.New("endpoint failed") },
+		func(context.Context, interface{}) (interface{}, error) { return "req", nil },
+		func(context.Context, interface{}) (interface{}, error) { return nil, nil },
+		ServerErrorHandler(nil),
+	)
+
+	_, _, err := s.ServeGRPC(context.Background(), struct{}{})
+	if err == nil || err.Error() != "endpoint failed" {
+		t.Fatalf("ServeGRPC() error = %v, want endpoint failed", err)
+	}
+}
+
+func TestServeGRPC_NilHooks_DoNotPanicAtRequestTime(t *testing.T) {
+	s := NewServer(
+		func(context.Context, any) (any, error) { return "ok", nil },
+		func(context.Context, interface{}) (interface{}, error) { return "req", nil },
+		func(context.Context, interface{}) (interface{}, error) { return "resp", nil },
+		ServerBefore(nil),
+		ServerAfter(nil),
+		ServerFinalizer(nil),
+	)
+
+	_, resp, err := s.ServeGRPC(context.Background(), struct{}{})
+	if err != nil {
+		t.Fatalf("ServeGRPC() error = %v", err)
+	}
+	if resp != "resp" {
+		t.Fatalf("ServeGRPC() response = %v, want resp", resp)
+	}
+}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/cmd/microgen/dbschema"
 	"github.com/dreamsxin/go-kit/cmd/microgen/generator"
+	"github.com/dreamsxin/go-kit/cmd/microgen/ir"
 	"github.com/dreamsxin/go-kit/cmd/microgen/parser"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -21,11 +22,11 @@ import (
 var templateFS embed.FS
 
 type config struct {
-	idlPath string
-	fromDB   bool
-	dbDSN    string
-	dbName   string
-	dbTables []string
+	idlPath   string
+	fromDB    bool
+	dbDSN     string
+	dbName    string
+	dbTables  []string
 	addTables []string
 
 	outputDir   string
@@ -128,20 +129,23 @@ func main() {
 	}
 
 	var (
-		result  *parser.ParseResult
+		project *ir.Project
 		idlPath string
+		err     error
 	)
 
 	if cfg.fromDB {
-		result, idlPath = runFromDB(cfg)
-		result.Source = parser.SourceDB
+		project, idlPath, err = runFromDB(cfg)
 	} else {
-		result = runFromIDL(cfg)
+		project, err = runFromIDL(cfg)
 		idlPath = cfg.idlPath
 	}
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	if cfg.serviceName == "" && len(result.Services) > 0 {
-		cfg.serviceName = result.Services[0].ServiceName
+	if cfg.serviceName == "" && len(project.Services) > 0 {
+		cfg.serviceName = project.Services[0].Name
 	}
 
 	gen, err := generator.New(generator.Options{
@@ -167,13 +171,13 @@ func main() {
 	}
 
 	log.Println("Generating code...")
-	if err := gen.GenerateFull(result); err != nil {
+	if err := gen.GenerateIR(project); err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("✅ Done! Output: %s", cfg.outputDir)
 }
 
-func runFromIDL(cfg config) *parser.ParseResult {
+func runFromIDL(cfg config) (*ir.Project, error) {
 	var (
 		result *parser.ParseResult
 		err    error
@@ -184,25 +188,42 @@ func runFromIDL(cfg config) *parser.ParseResult {
 		result, err = parser.ParseFull(cfg.idlPath)
 	}
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	return result
+	return ir.FromParseResult(result), nil
 }
 
-func runFromDB(cfg config) (*parser.ParseResult, string) {
+func runFromDB(cfg config) (*ir.Project, string, error) {
 	// Minimal implementation for now to keep the example clean
 	// In a real scenario, this would call dbschema logic
 	sqlDriver := cfg.dbDriver
+	switch strings.ToLower(sqlDriver) {
+	case "sqlite":
+		sqlDriver = "sqlite3"
+	}
 	db, err := sql.Open(sqlDriver, cfg.dbDSN)
 	if err != nil {
-		log.Fatal(err)
+		return nil, "", err
 	}
 	defer db.Close()
 
-	intro, _ := dbschema.NewIntrospector(cfg.dbDriver)
-	schemas, _ := intro.Tables(db, cfg.dbName, cfg.dbTables)
+	intro, err := dbschema.NewIntrospector(cfg.dbDriver)
+	if err != nil {
+		return nil, "", err
+	}
+	schemas, err := intro.Tables(db, cfg.dbName, cfg.dbTables)
+	if err != nil {
+		return nil, "", err
+	}
 	pkgName := "gen"
-	idlPath, _ := dbschema.WriteIDL(schemas, pkgName, cfg.outputDir)
-	result := dbschema.ToParseResult(schemas, cfg.serviceName, pkgName)
-	return result, idlPath
+	serviceName := cfg.serviceName
+	if serviceName == "" {
+		serviceName = "GenService"
+	}
+	idlPath, err := dbschema.WriteIDL(schemas, pkgName, cfg.outputDir)
+	if err != nil {
+		return nil, "", err
+	}
+	project := ir.FromTableSchemas(schemas, serviceName, pkgName)
+	return project, idlPath, nil
 }

@@ -124,6 +124,41 @@ func TestServer_ErrorHandler(t *testing.T) {
 	}
 }
 
+func TestServer_NilErrorEncoderOption_FallsBackToDefault(t *testing.T) {
+	ep := endpoint.Endpoint(func(_ context.Context, _ interface{}) (interface{}, error) {
+		return nil, errors.New("endpoint fail")
+	})
+	s := server.NewServer(ep, nopDecode, server.EncodeJSONResponse,
+		server.ServerErrorEncoder(nil),
+	)
+
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("want 500, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "endpoint fail") {
+		t.Errorf("want body to contain endpoint error, got %q", rec.Body.String())
+	}
+}
+
+func TestServer_NilHooks_DoNotPanicAtRequestTime(t *testing.T) {
+	s := server.NewServer(
+		func(context.Context, any) (any, error) { return map[string]string{"ok": "true"}, nil },
+		nopDecode,
+		server.EncodeJSONResponse,
+		server.ServerBefore(nil),
+		server.ServerAfter(nil),
+		server.ServerFinalizer(nil),
+	)
+
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK {
+		t.Errorf("want 200, got %d", rec.Code)
+	}
+}
+
 // ── NewJSONServer ─────────────────────────────────────────────────────────────
 
 func TestNewJSONServer_OK(t *testing.T) {

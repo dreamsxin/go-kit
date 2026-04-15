@@ -13,19 +13,15 @@ import (
 {{- end}}
 )
 
-// ─────────────────────────── 接口定义 ───────────────────────────
-
-// {{.Service.ServiceName}} 定义业务逻辑接口
+// {{.Service.ServiceName}} defines the business contract.
 type {{.Service.ServiceName}} interface {
-{{range .Service.Methods}}
-	// {{.Name}}{{if .Doc}} — {{.Doc}}{{end}}
-	{{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error)
+{{range .IRService.Methods}}
+	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	{{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error)
 {{end}}
 }
 
-// ─────────────────────────── 配置 ───────────────────────────
-
-// ServiceConfig 服务配置
+// ServiceConfig controls generated service behavior.
 type ServiceConfig struct {
 	LogLevel      string        `json:"log_level"`
 	Timeout       time.Duration `json:"timeout"`
@@ -33,7 +29,6 @@ type ServiceConfig struct {
 	EnableMetrics bool          `json:"enable_metrics"`
 }
 
-// defaultConfig 默认配置
 var defaultConfig = &ServiceConfig{
 	LogLevel:      "info",
 	Timeout:       30 * time.Second,
@@ -41,9 +36,7 @@ var defaultConfig = &ServiceConfig{
 }
 
 {{if .WithModel}}
-// ─────────────────────────── Repository 依赖 ───────────────────────────
-
-// Repos 聚合所有 repository 依赖，便于统一注入
+// Repos groups repository dependencies for injection.
 type Repos struct {
 {{- range .Models}}
 {{- if .HasGormTags}}
@@ -53,19 +46,13 @@ type Repos struct {
 }
 {{end}}
 
-// ─────────────────────────── 构造 ───────────────────────────
-
 {{if .WithModel}}
-// NewService 创建服务实例（不带 repo，repo 字段为 nil，方法中需要自行判断）
-//
-// 推荐使用 NewServiceWithRepo 注入数据库依赖。
+// NewService creates a service without repository dependencies.
 func NewService(cfg *ServiceConfig) {{.Service.ServiceName}} {
 	return NewServiceWithRepo(cfg, Repos{})
 }
 
-// NewServiceWithRepo 创建服务实例并注入 repository 依赖
-//
-// cfg 为空时使用默认配置。
+// NewServiceWithRepo creates a service with repository dependencies.
 func NewServiceWithRepo(cfg *ServiceConfig, repos Repos) {{.Service.ServiceName}} {
 	if cfg == nil {
 		cfg = defaultConfig
@@ -73,7 +60,6 @@ func NewServiceWithRepo(cfg *ServiceConfig, repos Repos) {{.Service.ServiceName}
 	return newServiceImpl(cfg, repos)
 }
 
-// newServiceImpl 创建底层实现并包装中间件
 func newServiceImpl(cfg *ServiceConfig, repos Repos) {{.Service.ServiceName}} {
 	var svc {{.Service.ServiceName}} = &serviceImpl{
 		config: cfg,
@@ -91,9 +77,7 @@ func newServiceImpl(cfg *ServiceConfig, repos Repos) {{.Service.ServiceName}} {
 	return svc
 }
 {{else}}
-// NewService 创建服务实例
-//
-// cfg 为空时使用默认配置。
+// NewService creates a service instance.
 func NewService(cfg *ServiceConfig) {{.Service.ServiceName}} {
 	if cfg == nil {
 		cfg = defaultConfig
@@ -101,7 +85,6 @@ func NewService(cfg *ServiceConfig) {{.Service.ServiceName}} {
 	return newServiceImpl(cfg)
 }
 
-// newServiceImpl 创建底层实现并包装中间件
 func newServiceImpl(cfg *ServiceConfig) {{.Service.ServiceName}} {
 	var svc {{.Service.ServiceName}} = &serviceImpl{
 		config: cfg,
@@ -119,9 +102,6 @@ func newServiceImpl(cfg *ServiceConfig) {{.Service.ServiceName}} {
 }
 {{end}}
 
-// ─────────────────────────── 实现 ───────────────────────────
-
-// serviceImpl 服务具体实现
 type serviceImpl struct {
 	config *ServiceConfig
 	logger *log.Logger
@@ -130,34 +110,19 @@ type serviceImpl struct {
 {{- end}}
 }
 
-{{range .Service.Methods}}
-// {{.Name}} 实现 {{$.Service.ServiceName}}.{{.Name}}
-func (s *serviceImpl) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
-	// TODO: 实现业务逻辑
-	// 示例参数校验：
-	// if err := validateXxx(req); err != nil {
-	// 	return idl.{{.Output}}{}, err
-	// }
+{{range .IRService.Methods}}
+func (s *serviceImpl) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
 	_ = req
-	return idl.{{.Output}}{}, errors.New("{{.Name}}: not implemented")
+	return idl.{{.OutputName}}{}, errors.New("{{.Name}}: not implemented")
 }
 {{end}}
 
-// ─────────────────────────── 工具函数 ───────────────────────────
-
-// errorf 格式化业务错误
 func errorf(format string, args ...any) error {
 	return fmt.Errorf(format, args...)
 }
 
-// ─────────────────────────── 中间件 ───────────────────────────
-
-// ServiceMiddleware 服务中间件类型
 type ServiceMiddleware func({{.Service.ServiceName}}) {{.Service.ServiceName}}
 
-// ── Logging ──
-
-// LoggingMiddleware 日志中间件：记录每次方法调用的耗时与错误
 func LoggingMiddleware(logger *log.Logger) ServiceMiddleware {
 	return func(next {{.Service.ServiceName}}) {{.Service.ServiceName}} {
 		return &loggingMiddleware{next: next, logger: logger}
@@ -169,8 +134,8 @@ type loggingMiddleware struct {
 	logger *log.Logger
 }
 
-{{range .Service.Methods}}
-func (m *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (resp idl.{{.Output}}, err error) {
+{{range .IRService.Methods}}
+func (m *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (resp idl.{{.OutputName}}, err error) {
 	start := time.Now()
 	defer func() {
 		if err != nil {
@@ -183,9 +148,6 @@ func (m *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (
 }
 {{end}}
 
-// ── Metrics ──
-
-// MetricsMiddleware 指标中间件（占位，可替换为 Prometheus 等实现）
 func MetricsMiddleware() ServiceMiddleware {
 	return func(next {{.Service.ServiceName}}) {{.Service.ServiceName}} {
 		return &metricsMiddleware{next: next}
@@ -196,9 +158,8 @@ type metricsMiddleware struct {
 	next {{.Service.ServiceName}}
 }
 
-{{range .Service.Methods}}
-func (m *metricsMiddleware) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
-	// TODO: 在此添加指标埋点（如 Prometheus counter/histogram）
+{{range .IRService.Methods}}
+func (m *metricsMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
 	return m.next.{{.Name}}(ctx, req)
 }
 {{end}}

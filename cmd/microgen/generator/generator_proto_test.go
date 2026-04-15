@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/dreamsxin/go-kit/cmd/microgen/generator"
+	"github.com/dreamsxin/go-kit/cmd/microgen/ir"
 	"github.com/dreamsxin/go-kit/cmd/microgen/parser"
 )
 
@@ -22,6 +23,11 @@ func parseProto(t *testing.T, content string) *parser.ParseResult {
 		t.Fatalf("ParseProto: %v", err)
 	}
 	return result
+}
+
+func parseProtoProject(t *testing.T, content string) *ir.Project {
+	t.Helper()
+	return ir.FromParseResult(parseProto(t, content))
 }
 
 var greeterProto = `
@@ -52,7 +58,7 @@ message UpdateResponse { string message = 1; }
 
 func TestGenerateFull_FromProto_HTTPService(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseProto(t, greeterProto)
+	project := parseProtoProject(t, greeterProto)
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -61,8 +67,8 @@ func TestGenerateFull_FromProto_HTTPService(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	svcPkg := "greeter"
@@ -75,7 +81,7 @@ func TestGenerateFull_FromProto_HTTPService(t *testing.T) {
 
 func TestGenerateFull_FromProto_ServiceContents(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseProto(t, greeterProto)
+	project := parseProtoProject(t, greeterProto)
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -84,8 +90,8 @@ func TestGenerateFull_FromProto_ServiceContents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	svcPath := filepath.Join(outDir, "service", "greeter", "service.go")
@@ -96,7 +102,7 @@ func TestGenerateFull_FromProto_ServiceContents(t *testing.T) {
 
 func TestGenerateFull_FromProto_HTTPMethodInference(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseProto(t, greeterProto)
+	project := parseProtoProject(t, greeterProto)
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -105,8 +111,8 @@ func TestGenerateFull_FromProto_HTTPMethodInference(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	httpPath := filepath.Join(outDir, "transport", "greeter", "transport_http.go")
@@ -121,7 +127,7 @@ func TestGenerateFull_FromProto_HTTPMethodInference(t *testing.T) {
 
 func TestGenerateFull_FromProto_GRPCTransport(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseProto(t, greeterProto)
+	project := parseProtoProject(t, greeterProto)
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -131,8 +137,8 @@ func TestGenerateFull_FromProto_GRPCTransport(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	svcPkg := "greeter"
@@ -146,7 +152,7 @@ func TestGenerateFull_FromProto_GRPCTransport(t *testing.T) {
 
 func TestGenerateFull_FromProto_ProtoFileContents(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseProto(t, greeterProto)
+	project := parseProtoProject(t, greeterProto)
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -156,21 +162,26 @@ func TestGenerateFull_FromProto_ProtoFileContents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	protoPath := filepath.Join(outDir, "pb", "greeter", "greeter.proto")
 	mustContain(t, protoPath, `syntax = "proto3"`)
 	mustContain(t, protoPath, "service Greeter")
 	mustContain(t, protoPath, "rpc SayHello")
+	mustContain(t, protoPath, "rpc SayHello (HelloRequest) returns (HelloResponse);")
+	mustContain(t, protoPath, "string name = 1;")
+	mustContain(t, protoPath, "string message = 1;")
+	mustContain(t, protoPath, "int32 page = 1;")
+	mustNotContain(t, protoPath, "TODO: fill in the message fields")
 }
 
 // ── Proto → Skill 生成 ────────────────────────────────────────────────────────
 
 func TestGenerateFull_FromProto_SkillFile(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseProto(t, greeterProto)
+	project := parseProtoProject(t, greeterProto)
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -180,8 +191,8 @@ func TestGenerateFull_FromProto_SkillFile(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	skillPath := filepath.Join(outDir, "skill", "skill.go")
@@ -193,7 +204,7 @@ func TestGenerateFull_FromProto_SkillFile(t *testing.T) {
 
 func TestGenerateFull_WithTests_Contents(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -203,8 +214,8 @@ func TestGenerateFull_WithTests_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	testPath := filepath.Join(outDir, "test", "userservice_test.go")
@@ -217,7 +228,7 @@ func TestGenerateFull_WithTests_Contents(t *testing.T) {
 
 func TestGenerateFull_RoutePrefix_InTransport(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:   outDir,
@@ -227,8 +238,8 @@ func TestGenerateFull_RoutePrefix_InTransport(t *testing.T) {
 		WithConfig:  false,
 		WithDocs:    false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
@@ -237,7 +248,7 @@ func TestGenerateFull_RoutePrefix_InTransport(t *testing.T) {
 
 func TestGenerateFull_RoutePrefix_WithLeadingSlash(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:   outDir,
@@ -247,8 +258,8 @@ func TestGenerateFull_RoutePrefix_WithLeadingSlash(t *testing.T) {
 		WithConfig:  false,
 		WithDocs:    false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
@@ -259,7 +270,7 @@ func TestGenerateFull_RoutePrefix_WithLeadingSlash(t *testing.T) {
 
 func TestGenerateFull_SDK_Contents(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -268,8 +279,8 @@ func TestGenerateFull_SDK_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	sdkPath := filepath.Join(outDir, "sdk", "userservicesdk", "client.go")
@@ -281,7 +292,7 @@ func TestGenerateFull_SDK_Contents(t *testing.T) {
 
 func TestGenerateFull_SDK_WithGRPC_Contents(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -291,8 +302,8 @@ func TestGenerateFull_SDK_WithGRPC_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	sdkPath := filepath.Join(outDir, "sdk", "userservicesdk", "client.go")
@@ -306,7 +317,7 @@ func TestToSnakeCase_Generator(t *testing.T) {
 	// The generator uses it for package names (already tested via PackageNameLowercased)
 	// Test indirectly via multi-service generation
 	outDir := t.TempDir()
-	result := parseIDL(t, "multi.go")
+	project := parseIDLProject(t, "multi.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -315,8 +326,8 @@ func TestToSnakeCase_Generator(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	// OrderService → orderservice, ProductService → productservice
@@ -328,7 +339,7 @@ func TestToSnakeCase_Generator(t *testing.T) {
 
 func TestGenerateFull_Skill_Contents(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -338,8 +349,8 @@ func TestGenerateFull_Skill_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	skillPath := filepath.Join(outDir, "skill", "skill.go")
@@ -352,7 +363,7 @@ func TestGenerateFull_Skill_Contents(t *testing.T) {
 
 func TestGenerateFull_Skill_NotGeneratedWhenDisabled(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -362,8 +373,8 @@ func TestGenerateFull_Skill_NotGeneratedWhenDisabled(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mustNotExist(t, filepath.Join(outDir, "skill", "skill.go"))
@@ -373,7 +384,7 @@ func TestGenerateFull_Skill_NotGeneratedWhenDisabled(t *testing.T) {
 
 func TestGenerateFull_MultiService_Skill(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseIDL(t, "multi.go")
+	project := parseIDLProject(t, "multi.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -383,8 +394,8 @@ func TestGenerateFull_MultiService_Skill(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	skillPath := filepath.Join(outDir, "skill", "skill.go")

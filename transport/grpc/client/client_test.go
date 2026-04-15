@@ -151,3 +151,62 @@ func TestEndpoint_PropagatesResponseMetadataIntoContext(t *testing.T) {
 		t.Fatalf("finalizer trailer = %v, want trailer-value", got)
 	}
 }
+
+func TestEndpoint_NilHooks_DoNotPanicAtRequestTime(t *testing.T) {
+	const bufSize = 1 << 20
+
+	lis := bufconn.Listen(bufSize)
+	srv := grpc.NewServer()
+	srv.RegisterService(&grpc.ServiceDesc{
+		ServiceName: "test.TestService",
+		HandlerType: (*interface{})(nil),
+		Methods: []grpc.MethodDesc{
+			{
+				MethodName: "Ping",
+				Handler: func(_ interface{}, ctx context.Context, dec func(interface{}) error, _ grpc.UnaryServerInterceptor) (interface{}, error) {
+					var req emptypb.Empty
+					if err := dec(&req); err != nil {
+						return nil, err
+					}
+					return &emptypb.Empty{}, nil
+				},
+			},
+		},
+	}, struct{}{})
+	go srv.Serve(lis) //nolint:errcheck
+	defer srv.Stop()
+	defer lis.Close()
+
+	conn, err := grpc.DialContext( //nolint:staticcheck
+		context.Background(),
+		"bufnet",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return lis.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatalf("DialContext: %v", err)
+	}
+	defer conn.Close()
+
+	ep := NewClient(
+		conn,
+		"test.TestService",
+		"Ping",
+		func(context.Context, interface{}) (interface{}, error) { return &emptypb.Empty{}, nil },
+		func(context.Context, interface{}) (interface{}, error) { return "ok", nil },
+		&emptypb.Empty{},
+		ClientBefore(nil),
+		ClientAfter(nil),
+		ClientFinalizer(nil),
+	).Endpoint()
+
+	resp, err := ep(context.Background(), struct{}{})
+	if err != nil {
+		t.Fatalf("Endpoint: %v", err)
+	}
+	if resp != "ok" {
+		t.Fatalf("response = %v, want ok", resp)
+	}
+}

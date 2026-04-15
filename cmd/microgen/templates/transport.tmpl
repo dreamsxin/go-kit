@@ -10,13 +10,13 @@ import (
 	genendpoint "{{.ImportPath}}/endpoint/{{.Service.ServiceName | lower}}"
 )
 
-// NewHTTPHandler 返回服务的 HTTP Handler
+// NewHTTPHandler returns the generated HTTP handler set.
 func NewHTTPHandler(endpoints genendpoint.{{.Service.ServiceName}}Endpoints) http.Handler {
 	m := http.NewServeMux()
 
-{{range .Service.Methods}}
-	// {{.HTTPMethod | upper}} {{.Route}}
-	m.Handle("{{.HTTPMethod | upper}} {{.Route}}", server.NewJSONEndpoint[idl.{{.Input}}](
+{{range .IRService.Methods}}
+	// {{.HTTPMethod}} {{.Route}}
+	m.Handle("{{.HTTPMethod}} {{.Route}}", server.NewJSONEndpoint[idl.{{.InputName}}](
 		endpoints.{{.Name}}Endpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
@@ -25,35 +25,33 @@ func NewHTTPHandler(endpoints genendpoint.{{.Service.ServiceName}}Endpoints) htt
 	return m
 }
 
-{{range .Service.Methods}}
-// decode{{.Name}}Request 默认使用 NewJSONServer 的自动解码。
-// 如果需要自定义解码逻辑（如从 URL 参数提取），请在此实现。
+{{range .IRService.Methods}}
+// decode{{.Name}}Request uses the default JSON decode path.
 //
 // @Summary      {{.Summary}}
-// @Description  {{if .Doc}}{{.Doc}}{{else}}{{.Name}} microservice endpoint{{end}}
+// @Description  {{if .Description}}{{.Description}}{{else}}{{.Name}} microservice endpoint{{end}}
 // @Tags         {{$.Service.ServiceName}}
-{{- if eq .HTTPMethod "get"}}
+{{- if eq .HTTPMethod "GET"}}
 // @Accept       json
 // @Produce      json
-// @Param        request  query     idl.{{.Input}}  true  "{{.Name}} request"
+// @Param        request  query     idl.{{.InputName}}  true  "{{.Name}} request"
 {{- else}}
 // @Accept       json
 // @Produce      json
-// @Param        request  body      idl.{{.Input}}  true  "{{.Name}} request"
+// @Param        request  body      idl.{{.InputName}}  true  "{{.Name}} request"
 {{- end}}
-// @Success      200      {object}  idl.{{.Output}}
+// @Success      200      {object}  idl.{{.OutputName}}
 // @Failure      400      {object}  string
 // @Failure      500      {object}  string
 // @Router       {{$.RoutePrefix}}{{.Route}} [{{.HTTPMethod | lower}}]
 func decode{{.Name}}Request(_ context.Context, r *http.Request) (any, error) {
-	var req idl.{{.Input}}
+	var req idl.{{.InputName}}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, err
 	}
 	return req, nil
 }
 
-// encode{{.Name}}Response 默认使用 NewJSONServer 的自动编码。
 func encode{{.Name}}Response(ctx context.Context, w http.ResponseWriter, response any) error {
 	return json.NewEncoder(w).Encode(response)
 }

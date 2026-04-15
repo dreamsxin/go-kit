@@ -3,6 +3,8 @@ package dbschema
 import (
 	"os"
 	"testing"
+
+	"github.com/dreamsxin/go-kit/cmd/microgen/parser"
 )
 
 func TestSnakeToCamel(t *testing.T) {
@@ -10,7 +12,7 @@ func TestSnakeToCamel(t *testing.T) {
 		{"user", "User"},
 		{"user_profile", "UserProfile"},
 		{"order_item_detail", "OrderItemDetail"},
-		{"id", "ID"},       // Go initialism
+		{"id", "ID"}, // Go initialism
 		{"user_id", "UserID"},
 		{"url", "URL"},
 		{"uri", "URI"},
@@ -128,6 +130,33 @@ func TestToParseResult(t *testing.T) {
 	}
 	if len(result.Services) != 1 {
 		t.Errorf("len(Services) = %d, want 1", len(result.Services))
+	}
+}
+
+func TestToModelParseResult(t *testing.T) {
+	schemas := []*TableSchema{
+		{
+			TableName: "users",
+			Columns: []ColumnInfo{
+				{Name: "id", DBType: "int", IsPrimary: true, IsAutoIncr: true},
+				{Name: "name", DBType: "varchar(64)"},
+			},
+		},
+	}
+
+	result := ToModelParseResult(schemas, "shop")
+
+	if result.PackageName != "shop" {
+		t.Errorf("PackageName = %q, want shop", result.PackageName)
+	}
+	if result.Source != parser.SourceDB {
+		t.Errorf("Source = %q, want %q", result.Source, parser.SourceDB)
+	}
+	if len(result.Services) != 0 {
+		t.Errorf("len(Services) = %d, want 0", len(result.Services))
+	}
+	if len(result.Models) != 1 {
+		t.Errorf("len(Models) = %d, want 1", len(result.Models))
 	}
 }
 

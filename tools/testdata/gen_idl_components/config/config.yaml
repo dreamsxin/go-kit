@@ -1,0 +1,35 @@
+# <no value> 服务配置
+# 字段与 config/config.go 中的 Config struct 一一对应。
+# 未填写的字段将使用代码中 Default() 的内置默认值。
+
+server:
+  http_addr: ":8080"
+  read_timeout: "15s"
+  write_timeout: "15s"
+  graceful_shutdown_timeout: "30s"
+  # swagger_host 是 Swagger UI 中展示的 host（如 "localhost:8080" 或 "api.example.com"）。
+  # 留空时服务启动后自动用 http_addr 推导（":8080" → "localhost:8080"）。
+  swagger_host: ""
+
+logging:
+  level: "info"
+  format: "json"
+
+middleware:
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 5
+    timeout: "60s"
+  rate_limit:
+    enabled: true
+    requests_per_second: 100
+  retry:
+    enabled: true
+    max_attempts: 3
+    backoff: "2s"
+
+debug:
+  # 是否启用 /debug/routes 端点（生产环境建议关闭或加鉴权）
+  routes_enabled: true
+  # 是否在启动时打印路由表
+  print_routes: true

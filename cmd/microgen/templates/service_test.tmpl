@@ -12,9 +12,9 @@ func Test{{.Service.ServiceName}}(t *testing.T) {
 	svc := {{.Service.PackageName}}.NewService(nil)
 	ctx := context.Background()
 
-{{range .Service.Methods}}
+{{range .IRService.Methods}}
 	t.Run("{{.Name}}", func(t *testing.T) {
-		req := idl.{{.Input}}{}
+		req := idl.{{.InputName}}{}
 		_, err := svc.{{.Name}}(ctx, req)
 		if err != nil {
 			t.Errorf("{{.Name}} failed: %v", err)
@@ -26,12 +26,12 @@ func Test{{.Service.ServiceName}}(t *testing.T) {
 func Test{{.Service.ServiceName}}Middleware(t *testing.T) {
 	ctx := context.Background()
 	
-{{range .Service.Methods}}
+{{range .IRService.Methods}}
 	t.Run("{{.Name}}WithLogging", func(t *testing.T) {
 		svc := {{$.Service.PackageName}}.NewService(nil)
 		loggingSvc := {{$.Service.PackageName}}.LoggingMiddleware(nil)(svc)
 		
-		req := idl.{{.Input}}{}
+		req := idl.{{.InputName}}{}
 		_, err := loggingSvc.{{.Name}}(ctx, req)
 		if err != nil {
 			t.Errorf("{{.Name}} with logging failed: %v", err)

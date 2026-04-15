@@ -11,7 +11,7 @@ import (
 func TestGenerateFull_CopiesGoIDLSource(t *testing.T) {
 	outDir := newTmpDir(t)
 	idlPath := filepath.Join("..", "parser", "testdata", "basic.go")
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -21,8 +21,8 @@ func TestGenerateFull_CopiesGoIDLSource(t *testing.T) {
 		WithDocs:   false,
 		WithConfig: false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	copiedPath := filepath.Join(outDir, "idl.go")
@@ -47,7 +47,7 @@ func TestGenerateFull_DoesNotCopyProtoSourceAsIDLGo(t *testing.T) {
 	if err := os.WriteFile(protoPath, []byte(greeterProto), 0o644); err != nil {
 		t.Fatalf("WriteFile proto: %v", err)
 	}
-	result := parseProto(t, greeterProto)
+	project := parseProtoProject(t, greeterProto)
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -57,8 +57,8 @@ func TestGenerateFull_DoesNotCopyProtoSourceAsIDLGo(t *testing.T) {
 		WithDocs:   false,
 		WithConfig: false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mustNotExist(t, filepath.Join(outDir, "idl.go"))
@@ -69,7 +69,7 @@ func TestGenerateFull_GoMod_UsesTestdataRelativeReplacePath(t *testing.T) {
 	if err := os.MkdirAll(base, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  base,
@@ -78,8 +78,8 @@ func TestGenerateFull_GoMod_UsesTestdataRelativeReplacePath(t *testing.T) {
 		WithDocs:   false,
 		WithConfig: false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mustContain(t, filepath.Join(base, "go.mod"), "replace github.com/dreamsxin/go-kit => ../../../")
@@ -87,7 +87,7 @@ func TestGenerateFull_GoMod_UsesTestdataRelativeReplacePath(t *testing.T) {
 
 func TestGenerateFull_RoutePrefix_AlignedAcrossArtifacts(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:   outDir,
@@ -97,8 +97,8 @@ func TestGenerateFull_RoutePrefix_AlignedAcrossArtifacts(t *testing.T) {
 		WithDocs:    false,
 		WithConfig:  false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	expectedPrefix := "/api/v2/userservice"
@@ -108,7 +108,7 @@ func TestGenerateFull_RoutePrefix_AlignedAcrossArtifacts(t *testing.T) {
 
 func TestGenerateFull_WithSwag_GeneratesDocsStubAtConventionalPath(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -118,8 +118,8 @@ func TestGenerateFull_WithSwag_GeneratesDocsStubAtConventionalPath(t *testing.T)
 		WithDocs:   false,
 		WithConfig: false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	docsPath := filepath.Join(outDir, "docs", "docs.go")
@@ -133,7 +133,7 @@ func TestGenerateFull_FromProtoGRPC_GeneratesConventionalProtoAndClientArtifacts
 	if err := os.WriteFile(protoPath, []byte(greeterProto), 0o644); err != nil {
 		t.Fatalf("WriteFile proto: %v", err)
 	}
-	result := parseProto(t, greeterProto)
+	project := parseProtoProject(t, greeterProto)
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -144,8 +144,8 @@ func TestGenerateFull_FromProtoGRPC_GeneratesConventionalProtoAndClientArtifacts
 		WithDocs:   false,
 		WithConfig: false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mustExist(t, filepath.Join(outDir, "pb", "greeter", "greeter.proto"))
@@ -156,7 +156,7 @@ func TestGenerateFull_FromProtoGRPC_GeneratesConventionalProtoAndClientArtifacts
 func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testing.T) {
 	outDir := newTmpDir(t)
 	idlPath := filepath.Join("..", "parser", "testdata", "basic.go")
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:   outDir,
@@ -172,8 +172,8 @@ func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testin
 		WithSwag:    true,
 		WithSkill:   true,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mustExist(t, filepath.Join(outDir, "go.mod"))

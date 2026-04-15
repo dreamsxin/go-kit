@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -44,7 +45,10 @@ func TestConfigValidate_BothFromDBAndIDL(t *testing.T) {
 func TestRunFromIDL_GoFile(t *testing.T) {
 	idlPath := filepath.Join("parser", "testdata", "basic.go")
 	cfg := config{idlPath: idlPath}
-	result := runFromIDL(cfg)
+	result, err := runFromIDL(cfg)
+	if err != nil {
+		t.Fatalf("runFromIDL error: %v", err)
+	}
 
 	if result == nil {
 		t.Fatal("runFromIDL returned nil")
@@ -52,15 +56,18 @@ func TestRunFromIDL_GoFile(t *testing.T) {
 	if len(result.Services) == 0 {
 		t.Error("expected at least one service")
 	}
-	if result.Services[0].ServiceName != "UserService" {
-		t.Errorf("ServiceName: got %q, want %q", result.Services[0].ServiceName, "UserService")
+	if result.Services[0].Name != "UserService" {
+		t.Errorf("ServiceName: got %q, want %q", result.Services[0].Name, "UserService")
 	}
 }
 
 func TestRunFromIDL_MultiService(t *testing.T) {
 	idlPath := filepath.Join("parser", "testdata", "multi.go")
 	cfg := config{idlPath: idlPath}
-	result := runFromIDL(cfg)
+	result, err := runFromIDL(cfg)
+	if err != nil {
+		t.Fatalf("runFromIDL error: %v", err)
+	}
 
 	if len(result.Services) != 2 {
 		t.Errorf("Services: want 2, got %d", len(result.Services))
@@ -71,13 +78,52 @@ func TestRunFromIDL_ProtoFile(t *testing.T) {
 	// Use the existing proto file in examples
 	idlPath := filepath.Join("..", "..", "examples", "microgen_skill", "greeter.proto")
 	cfg := config{idlPath: idlPath}
-	result := runFromIDL(cfg)
+	result, err := runFromIDL(cfg)
+	if err != nil {
+		t.Fatalf("runFromIDL error: %v", err)
+	}
 
 	if result == nil {
 		t.Fatal("runFromIDL returned nil for proto file")
 	}
 	if len(result.Services) == 0 {
 		t.Error("expected at least one service from proto file")
+	}
+}
+
+func TestRunFromIDL_ReturnsParseError(t *testing.T) {
+	cfg := config{idlPath: filepath.Join("parser", "testdata", "missing.go")}
+	if _, err := runFromIDL(cfg); err == nil {
+		t.Fatal("runFromIDL error = nil, want parse error")
+	}
+}
+
+func TestRunFromDB_ReturnsDriverError(t *testing.T) {
+	cfg := config{
+		fromDB:    true,
+		dbDriver:  "unsupported",
+		dbDSN:     "ignored",
+		outputDir: t.TempDir(),
+	}
+	if _, _, err := runFromDB(cfg); err == nil {
+		t.Fatal("runFromDB error = nil, want driver error")
+	}
+}
+
+func TestRunFromDB_ReturnsWriteIDLError(t *testing.T) {
+	filePath := filepath.Join(t.TempDir(), "not-a-dir")
+	if err := os.WriteFile(filePath, []byte("x"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg := config{
+		fromDB:    true,
+		dbDriver:  "sqlite",
+		dbDSN:     ":memory:",
+		outputDir: filePath,
+	}
+	if _, _, err := runFromDB(cfg); err == nil {
+		t.Fatal("runFromDB error = nil, want WriteIDL error")
 	}
 }
 

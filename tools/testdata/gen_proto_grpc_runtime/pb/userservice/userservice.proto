@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package userservice;
+
+option go_package = "./pb";
+
+
+
+
+
+// UserService gRPC 服务定义
+service UserService {
+  // GetUser retrieves a user by ID.
+  rpc GetUser (GetUserRequest) returns (GetUserResponse);
+  // CreateUser creates a new user.
+  rpc CreateUser (CreateUserRequest) returns (CreateUserResponse);
+}
+
+
+// GetUserRequest
+message GetUserRequest {
+  string id = 1;
+}
+
+
+// GetUserResponse
+message GetUserResponse {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+}
+
+
+// CreateUserRequest
+message CreateUserRequest {
+  string name = 1;
+  string email = 2;
+}
+
+
+// CreateUserResponse
+message CreateUserResponse {
+  string id = 1;
+}
+
+

@@ -4,20 +4,16 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
-
-	"github.com/dreamsxin/go-kit/cmd/microgen/parser"
 )
 
 func TestProjectLayoutRequiredDirs(t *testing.T) {
 	layout := newProjectLayout("out")
-	result := &parser.ParseResult{
-		Services: []*parser.Service{
-			{ServiceName: "UserService"},
-			{ServiceName: "OrderService"},
-		},
+	services := []*serviceView{
+		{ServiceName: "UserService"},
+		{ServiceName: "OrderService"},
 	}
 
-	got := layout.requiredDirs(result, Options{
+	got := layout.requiredDirs(services, Options{
 		WithConfig: true,
 		WithModel:  true,
 		WithSkill:  true,

@@ -1,6 +1,6 @@
-// @title          {{if gt (len .Services) 1}}API{{else if gt (len .Services) 0}}{{(index .Services 0).Title}}{{else}}API{{end}}
+// @title          {{if gt (len .Project.Services) 1}}API{{else if gt (len .Project.Services) 0}}{{(index .Project.Services 0).Title}}{{else}}API{{end}}
 // @version        1.0
-// @description    {{if gt (len .Services) 1}}Microservice API{{else if gt (len .Services) 0}}{{if (index .Services 0).Description}}{{(index .Services 0).Description}}{{else}}{{(index .Services 0).ServiceName}} microservice API{{end}}{{else}}Microservice API{{end}}
+// @description    {{if gt (len .Project.Services) 1}}Microservice API{{else if gt (len .Project.Services) 0}}{{if (index .Project.Services 0).Description}}{{(index .Project.Services 0).Description}}{{else}}{{(index .Project.Services 0).Name}} microservice API{{end}}{{else}}Microservice API{{end}}
 // @termsOfService http://swagger.io/terms/
 //
 // @contact.name   API Support
@@ -30,7 +30,7 @@ import (
 {{end}}	"syscall"
 	"time"
 
-{{range .Services}}	{{.PackageName}}Svc "{{$.ImportPath}}/service/{{.PackageName}}"
+{{range .Project.Services}}	{{.PackageName}}Svc "{{$.ImportPath}}/service/{{.PackageName}}"
 	{{.PackageName}}Endpoint "{{$.ImportPath}}/endpoint/{{.PackageName}}"
 	{{.PackageName}}Transport "{{$.ImportPath}}/transport/{{.PackageName}}"
 {{end}}	"github.com/gorilla/mux"
@@ -52,7 +52,7 @@ import (
 
 func printBanner(logger *kitlog.Logger, httpAddr string{{if .WithGRPC}}, grpcAddr string{{end}}, withSwag bool, withSkill bool) {
 	logger.Sugar().Info("╔══════════════════════════════════════════╗")
-	logger.Sugar().Infof("║  %-40s  ║", "{{range .Services}}{{.ServiceName}}{{end}} Service")
+	logger.Sugar().Infof("║  %-40s  ║", "{{range .Project.Services}}{{.Name}}{{end}} Service")
 	logger.Sugar().Info("╠══════════════════════════════════════════╣")
 	logger.Sugar().Infof("║  HTTP  → http://localhost%s%-*s║", httpAddr, 23-len(httpAddr), "")
 	if withSwag {
@@ -167,7 +167,7 @@ func main() {
 {{end}}
 
 	// ─── 初始化服务 ───
-{{range .Services}}{{if $.WithDB}}	{{.PackageName}}SvcInst := {{.PackageName}}Svc.NewServiceWithRepo(nil, {{.PackageName}}Svc.Repos{
+{{range .Project.Services}}{{if $.WithDB}}	{{.PackageName}}SvcInst := {{.PackageName}}Svc.NewServiceWithRepo(nil, {{.PackageName}}Svc.Repos{
 {{- range $.GormModels}}
 		{{.Name}}Repo: {{.Name | lower}}Repo,
 {{- end}}
@@ -176,7 +176,7 @@ func main() {
 {{end}}{{end}}
 
 	// ─── 初始化端点（配置驱动中间件）───
-{{range .Services}}{{if $.WithConfig}}	{{.PackageName}}Endpoints := {{.PackageName}}Endpoint.MakeServerEndpointsWithConfig({{.PackageName}}SvcInst, logger, {{.PackageName}}Endpoint.MiddlewareConfig{
+{{range .Project.Services}}{{if $.WithConfig}}	{{.PackageName}}Endpoints := {{.PackageName}}Endpoint.MakeServerEndpointsWithConfig({{.PackageName}}SvcInst, logger, {{.PackageName}}Endpoint.MiddlewareConfig{
 		CBEnabled:          cfg.Middleware.CircuitBreaker.Enabled,
 		CBFailureThreshold: uint32(cfg.Middleware.CircuitBreaker.FailureThreshold),
 		CBTimeout:          cfg.Middleware.CircuitBreaker.Timeout,
@@ -203,7 +203,7 @@ func main() {
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, `{"status":"ok","service":"{{range .Services}}{{.ServiceName}}{{end}}"}`)
+		fmt.Fprintln(w, `{"status":"ok","service":"{{range .Project.Services}}{{.Name}}{{end}}"}`)
 	}).Methods("GET", "HEAD")
 
 {{if .WithSkill}}
@@ -297,7 +297,7 @@ func main() {
 		logger.Sugar().Fatalf("FATAL: gRPC listen: %v", err)
 	}
 	grpcServer := grpc.NewServer()
-{{range .Services}}	{{.PackageName}}Transport.RegisterGRPCServer(grpcServer, {{.PackageName}}Endpoints)
+{{range .Project.Services}}	{{.PackageName}}Transport.RegisterGRPCServer(grpcServer, {{.PackageName}}Endpoints)
 {{end}}
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {

@@ -1,10 +1,8 @@
 package generator
 
-import "github.com/dreamsxin/go-kit/cmd/microgen/parser"
-
-func (g *Generator) generateModelFile(model *parser.Model) error {
+func (g *Generator) generateModelFile(model *modelView) error {
 	data := map[string]any{
-		"Models":     []*parser.Model{model},
+		"Models":     []*modelView{model},
 		"ImportPath": g.config.ImportPath,
 	}
 	if err := g.executeTemplate("model.tmpl", g.layout.modelFile(), data); err != nil {
@@ -23,7 +21,7 @@ func (g *Generator) generateRepositoryBaseFile() error {
 	return g.executeTemplate("repository_base.tmpl", g.layout.repositoryBaseFile(), data)
 }
 
-func (g *Generator) generateRepositoryFile(model *parser.Model) error {
+func (g *Generator) generateRepositoryFile(model *modelView) error {
 	data := map[string]any{
 		"Model":      model,
 		"ImportPath": g.config.ImportPath,

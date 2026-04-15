@@ -135,7 +135,7 @@ microgen -idl idl.go -out . -import example.com/mysvc
 Generate a full CRUD service including GORM models and repositories from an existing DB.
 
 ```bash
-microgen -from-db -db-driver mysql -db-dsn "user:pass@tcp(localhost:3306)/dbname"
+microgen -from-db -driver mysql -dsn "user:pass@tcp(localhost:3306)/dbname"
 ```
 
 ### Key Features
@@ -143,7 +143,7 @@ microgen -from-db -db-driver mysql -db-dsn "user:pass@tcp(localhost:3306)/dbname
 - **AI Skill Generation**: Use the `-skill` flag to generate a `/skill` endpoint for AI agents.
 - **Client SDK**: Automatically generates a ready-to-use Go client for your service.
 - **Middleware**: Built-in support for circuit breakers, rate limiting, and logging.
-- **Multi-service**: Supports generating multiple services into a single module with unique filenames.
+- **Multi-service**: Supports generating multiple services into a single module using the same layout as single-service projects, with one `service/`, `endpoint/`, `transport/`, `client/`, and `sdk/` subtree per service.
 
 ---
 
@@ -153,6 +153,19 @@ go-kit is designed for the agentic era. By enabling the skill feature, your serv
 
 - **OpenAI Tool Format**: `GET /skill`
 - **MCP (Model Context Protocol)**: `GET /skill?format=mcp`
+
+Behavior notes:
+
+- `/skill` returns OpenAI-style tool definitions by default.
+- `/skill?format=openai` is equivalent to `/skill`.
+- `/skill?format=mcp` returns MCP-style tools with `inputSchema`.
+- unknown `format` values currently fall back to the default OpenAI-style response.
+- generated services only expose `/skill` when `microgen` runs with `-skill=true` (enabled by default).
+
+Response shape overview:
+
+- OpenAI-style responses return `{"tools":[{"type":"function","function":{...}}]}`
+- MCP-style responses return `{"tools":[{"name":"...","inputSchema":{...}}]}`
 
 This allows an AI agent to discover your service methods as callable tools.
 
@@ -191,6 +204,8 @@ If you are resuming a refactor or starting a new AI coding session, read [PROJEC
 ## Framework Boundaries
 
 If you are deciding what should belong in the framework, what should remain internal, where customization is allowed, what patterns to avoid, and how to review changes consistently, see [FRAMEWORK_BOUNDARIES.md](FRAMEWORK_BOUNDARIES.md), [STABILITY.md](STABILITY.md), [PACKAGE_SURFACES.md](PACKAGE_SURFACES.md), [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md), [ANTI_PATTERNS.md](ANTI_PATTERNS.md), [PR_CHECKLIST.md](PR_CHECKLIST.md), and [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+
+If you need the recommended target architecture for package roles, generated project layout, `microgen` evolution, AI skill generation, and the shared direction for errors/metadata/context/testing, read [FRAMEWORK_ARCHITECTURE.md](FRAMEWORK_ARCHITECTURE.md).
 
 ---
 

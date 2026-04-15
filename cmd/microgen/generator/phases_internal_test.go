@@ -3,7 +3,7 @@ package generator
 import (
 	"testing"
 
-	"github.com/dreamsxin/go-kit/cmd/microgen/parser"
+	"github.com/dreamsxin/go-kit/cmd/microgen/ir"
 )
 
 func TestShouldCopyIDLSource(t *testing.T) {
@@ -51,20 +51,22 @@ func TestRootRelativePath(t *testing.T) {
 
 func TestServiceRoutes(t *testing.T) {
 	g := &Generator{config: Options{RoutePrefix: "/api/v1"}}
-	services := []*parser.Service{
-		{ServiceName: "UserService"},
-		{ServiceName: "OrderService"},
+	project := &ir.Project{
+		Services: []*ir.Service{
+			{Name: "UserService", PackageName: "userservice"},
+			{Name: "OrderService", PackageName: "orderservice"},
+		},
 	}
 
-	routes := g.serviceRoutes(services)
+	routes := g.serviceRoutes(project)
 	if len(routes) != 2 {
 		t.Fatalf("len(routes) = %d, want 2", len(routes))
 	}
 
-	if routes[0].Service != services[0] || routes[0].FullPrefix != "/api/v1/userservice" {
+	if routes[0].Service != project.Services[0] || routes[0].FullPrefix != "/api/v1/userservice" {
 		t.Fatalf("first route = %+v, want service UserService with /api/v1/userservice", routes[0])
 	}
-	if routes[1].Service != services[1] || routes[1].FullPrefix != "/api/v1/orderservice" {
+	if routes[1].Service != project.Services[1] || routes[1].FullPrefix != "/api/v1/orderservice" {
 		t.Fatalf("second route = %+v, want service OrderService with /api/v1/orderservice", routes[1])
 	}
 }

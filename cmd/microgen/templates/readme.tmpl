@@ -1,20 +1,37 @@
-# {{range .Services}}{{.ServiceName}}{{end}} Service
+# {{range .Project.Services}}{{.Name}}{{end}} Service
 
 Generated with `go-kit microgen`.
 
 ## Quick Start
 
 ```bash
+{{if .IsProtoInput}}
+# Review the generated proto contract before generating stubs
+
+# Generate Go stubs from the proto contract first
+protoc --go_out=. --go-grpc_out=. pb/{{lower (index .Project.Services 0).Name}}/{{lower (index .Project.Services 0).Name}}.proto
+
 # Start the service
 go run ./cmd/main.go
+{{else}}
+# Start the service
+go run ./cmd/main.go
+{{end}}
 ```
 
 ## API Endpoints
 
-{{range .Services}}
-### {{.ServiceName}}
+{{if .IsProtoInput}}
+## Proto Notes
+
+- `pb/{{lower (index .Project.Services 0).Name}}/{{lower (index .Project.Services 0).Name}}.proto` is generated from the current service contract and should be reviewed before running `protoc`.
+- If any unsupported shape still falls back to `TODO`, complete those message fields before generating stubs.
+{{end}}
+
+{{range .Project.Services}}
+### {{.Name}}
 
 {{range .Methods}}
-* **{{.Name}}**: `{{.HTTPMethod | upper}} {{.Route}}`
+* **{{.Name}}**: `{{.HTTPMethod}} {{.Route}}`
 {{end}}
 {{end}}

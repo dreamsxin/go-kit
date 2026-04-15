@@ -184,6 +184,29 @@ func TestClientFinalizer_RunsOnSuccess(t *testing.T) {
 	}
 }
 
+func TestClient_NilHooks_DoNotPanicAtRequestTime(t *testing.T) {
+	srv := newEchoServer(t)
+	defer srv.Close()
+
+	ep, err := httpclient.NewJSONClient[echoResp](
+		http.MethodPost, srv.URL,
+		httpclient.ClientBefore(nil),
+		httpclient.ClientAfter(nil),
+		httpclient.ClientFinalizer(nil),
+	)
+	if err != nil {
+		t.Fatalf("NewJSONClient: %v", err)
+	}
+
+	resp, err := ep(context.Background(), echoReq{Message: "nil-hooks"})
+	if err != nil {
+		t.Fatalf("call: %v", err)
+	}
+	if resp.(echoResp).Echo != "echo: nil-hooks" {
+		t.Errorf("echo: got %q, want %q", resp.(echoResp).Echo, "echo: nil-hooks")
+	}
+}
+
 // ── SetClient ─────────────────────────────────────────────────────────────────
 
 func TestSetClient_UsesCustomClient(t *testing.T) {
@@ -201,6 +224,26 @@ func TestSetClient_UsesCustomClient(t *testing.T) {
 	}
 	if resp.(echoResp).Echo != "echo: custom" {
 		t.Errorf("echo: got %q, want %q", resp.(echoResp).Echo, "echo: custom")
+	}
+}
+
+func TestSetClient_NilFallsBackToDefaultClient(t *testing.T) {
+	srv := newEchoServer(t)
+	defer srv.Close()
+
+	ep, err := httpclient.NewJSONClient[echoResp](
+		http.MethodPost, srv.URL,
+		httpclient.SetClient(nil),
+	)
+	if err != nil {
+		t.Fatalf("NewJSONClient: %v", err)
+	}
+	resp, err := ep(context.Background(), echoReq{Message: "fallback"})
+	if err != nil {
+		t.Fatalf("call: %v", err)
+	}
+	if resp.(echoResp).Echo != "echo: fallback" {
+		t.Errorf("echo: got %q, want %q", resp.(echoResp).Echo, "echo: fallback")
 	}
 }
 

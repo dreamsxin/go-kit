@@ -61,6 +61,9 @@ func NewServer(
 	for _, option := range options {
 		option(s)
 	}
+	if s.errorHandler == nil {
+		s.errorHandler = transport.NewLogErrorHandler(nil)
+	}
 	return s
 }
 

@@ -7,14 +7,14 @@ import (
 	"testing"
 
 	"github.com/dreamsxin/go-kit/cmd/microgen/generator"
+	"github.com/dreamsxin/go-kit/cmd/microgen/ir"
 	"github.com/dreamsxin/go-kit/cmd/microgen/parser"
 )
 
-// ─────────────────────────── 测试辅助 ─────────────────────────────────────
+// Test helpers
 
-// parseIDL 解析 testdata 里的 IDL 文件。
+// parseIDL parses an IDL file from parser testdata.
 func parseIDL(t *testing.T, name string) *parser.ParseResult {
-	t.Helper()
 	idlPath := filepath.Join("..", "parser", "testdata", name)
 	result, err := parser.ParseFull(idlPath)
 	if err != nil {
@@ -23,13 +23,37 @@ func parseIDL(t *testing.T, name string) *parser.ParseResult {
 	return result
 }
 
-// newTmpDir 返回临时目录，测试结束自动清理。
+func parseIDLProject(t *testing.T, name string) *ir.Project {
+	t.Helper()
+	return ir.FromParseResult(parseIDL(t, name))
+}
+
+func parseIDLContent(t *testing.T, content string) *parser.ParseResult {
+	t.Helper()
+	dir := t.TempDir()
+	idlPath := filepath.Join(dir, "inline.go")
+	if err := os.WriteFile(idlPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile(%q): %v", idlPath, err)
+	}
+	result, err := parser.ParseFull(idlPath)
+	if err != nil {
+		t.Fatalf("ParseFull(%q): %v", idlPath, err)
+	}
+	return result
+}
+
+func parseIDLContentProject(t *testing.T, content string) *ir.Project {
+	t.Helper()
+	return ir.FromParseResult(parseIDLContent(t, content))
+}
+
+// newTmpDir 返回临时目录，测试结束自动清理�?
 func newTmpDir(t *testing.T) string {
 	t.Helper()
 	return t.TempDir()
 }
 
-// mustExist 断言路径存在。
+// mustExist 断言路径存在�?
 func mustExist(t *testing.T, path string) {
 	t.Helper()
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -37,7 +61,7 @@ func mustExist(t *testing.T, path string) {
 	}
 }
 
-// mustNotExist 断言路径不存在。
+// mustNotExist 断言路径不存在�?
 func mustNotExist(t *testing.T, path string) {
 	t.Helper()
 	if _, err := os.Stat(path); err == nil {
@@ -45,7 +69,7 @@ func mustNotExist(t *testing.T, path string) {
 	}
 }
 
-// readFile 读取文件内容，失败时 Fatal。
+// readFile 读取文件内容，失败时 Fatal�?
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)
@@ -55,12 +79,20 @@ func readFile(t *testing.T, path string) string {
 	return string(b)
 }
 
-// mustContain 断言文件内容包含指定子串。
+// mustContain 断言文件内容包含指定子串�?
 func mustContain(t *testing.T, path, substr string) {
 	t.Helper()
 	content := readFile(t, path)
 	if !strings.Contains(content, substr) {
 		t.Errorf("file %q should contain %q\ncontent snippet:\n%s", path, substr, content[:minLen(200, len(content))])
+	}
+}
+
+func mustNotContain(t *testing.T, path, substr string) {
+	t.Helper()
+	content := readFile(t, path)
+	if strings.Contains(content, substr) {
+		t.Errorf("file %q should not contain %q", path, substr)
 	}
 }
 
@@ -71,10 +103,10 @@ func minLen(a, b int) int {
 	return b
 }
 
-// mustNewGenerator 创建 Generator，失败时 Fatal。
+// mustNewGenerator 创建 Generator，失败时 Fatal�?
 func mustNewGenerator(t *testing.T, opts generator.Options) *generator.Generator {
 	t.Helper()
-	// 未指定 TemplateFS 时使用测试全局 FS
+	// 未指�?TemplateFS 时使用测试全局 FS
 	if opts.TemplateFS == nil {
 		opts.TemplateFS = testTemplateFS
 	}
@@ -131,7 +163,7 @@ func TestNew_AllSupportedDrivers(t *testing.T) {
 
 func TestNew_GRPCProtocol(t *testing.T) {
 	outDir := t.TempDir()
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -141,11 +173,11 @@ func TestNew_GRPCProtocol(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	svcPkg := strings.ToLower(result.Services[0].ServiceName)
+	svcPkg := strings.ToLower(project.Services[0].Name)
 	mustExist(t, filepath.Join(outDir, "pb", svcPkg, svcPkg+".proto"))
 	mustExist(t, filepath.Join(outDir, "transport", svcPkg, "transport_grpc.go"))
 }
@@ -154,7 +186,7 @@ func TestNew_GRPCProtocol(t *testing.T) {
 
 func TestGenerateFull_DirectoryStructure_HTTP(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -163,8 +195,8 @@ func TestGenerateFull_DirectoryStructure_HTTP(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	svcPkg := "userservice"
@@ -174,14 +206,14 @@ func TestGenerateFull_DirectoryStructure_HTTP(t *testing.T) {
 	mustExist(t, filepath.Join(outDir, "transport", svcPkg, "transport_http.go"))
 	mustExist(t, filepath.Join(outDir, "client", svcPkg, "demo.go"))
 
-	// HTTP only → 不应生成 gRPC 相关
+	// HTTP only �?不应生成 gRPC 相关
 	mustNotExist(t, filepath.Join(outDir, "pb"))
 	mustNotExist(t, filepath.Join(outDir, "transport", svcPkg, "transport_grpc.go"))
 }
 
 func TestGenerateFull_DirectoryStructure_WithModel(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -191,8 +223,8 @@ func TestGenerateFull_DirectoryStructure_WithModel(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mustExist(t, filepath.Join(outDir, "model", "model.go"))
@@ -201,7 +233,7 @@ func TestGenerateFull_DirectoryStructure_WithModel(t *testing.T) {
 
 func TestGenerateFull_DirectoryStructure_WithTests(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -211,8 +243,8 @@ func TestGenerateFull_DirectoryStructure_WithTests(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	svcPkg := "userservice"
@@ -221,7 +253,7 @@ func TestGenerateFull_DirectoryStructure_WithTests(t *testing.T) {
 
 func TestGenerateFull_DirectoryStructure_WithConfig(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -230,8 +262,8 @@ func TestGenerateFull_DirectoryStructure_WithConfig(t *testing.T) {
 		WithConfig: true,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mustExist(t, filepath.Join(outDir, "config", "config.yaml"))
@@ -239,7 +271,7 @@ func TestGenerateFull_DirectoryStructure_WithConfig(t *testing.T) {
 
 func TestGenerateFull_DirectoryStructure_WithDocs(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -248,8 +280,8 @@ func TestGenerateFull_DirectoryStructure_WithDocs(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   true,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mustExist(t, filepath.Join(outDir, "README.md"))
@@ -257,7 +289,7 @@ func TestGenerateFull_DirectoryStructure_WithDocs(t *testing.T) {
 
 func TestGenerateFull_DirectoryStructure_WithSwag(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -267,8 +299,8 @@ func TestGenerateFull_DirectoryStructure_WithSwag(t *testing.T) {
 		WithDocs:   false,
 		WithSwag:   true,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mustExist(t, filepath.Join(outDir, "docs", "docs.go"))
@@ -278,7 +310,7 @@ func TestGenerateFull_DirectoryStructure_WithSwag(t *testing.T) {
 
 func TestGenerateFull_ServiceFile_Contents(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -287,8 +319,8 @@ func TestGenerateFull_ServiceFile_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	servicePath := filepath.Join(outDir, "service", "userservice", "service.go")
@@ -303,7 +335,7 @@ func TestGenerateFull_ServiceFile_Contents(t *testing.T) {
 
 func TestGenerateFull_EndpointsFile_Contents(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -312,8 +344,8 @@ func TestGenerateFull_EndpointsFile_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	epPath := filepath.Join(outDir, "endpoint", "userservice", "endpoints.go")
@@ -324,7 +356,7 @@ func TestGenerateFull_EndpointsFile_Contents(t *testing.T) {
 
 func TestGenerateFull_TransportHTTP_Contents(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -333,8 +365,8 @@ func TestGenerateFull_TransportHTTP_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
@@ -345,7 +377,7 @@ func TestGenerateFull_TransportHTTP_Contents(t *testing.T) {
 
 func TestGenerateFull_TransportGRPC_Contents(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -355,8 +387,8 @@ func TestGenerateFull_TransportGRPC_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	grpcPath := filepath.Join(outDir, "transport", "userservice", "transport_grpc.go")
@@ -367,7 +399,7 @@ func TestGenerateFull_TransportGRPC_Contents(t *testing.T) {
 
 func TestGenerateFull_ProtoFile_Contents(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -377,8 +409,8 @@ func TestGenerateFull_ProtoFile_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	protoPath := filepath.Join(outDir, "pb", "userservice", "userservice.proto")
@@ -386,11 +418,85 @@ func TestGenerateFull_ProtoFile_Contents(t *testing.T) {
 	mustContain(t, protoPath, "service UserService")
 	mustContain(t, protoPath, "rpc CreateUser")
 	mustContain(t, protoPath, "rpc GetUser")
+	mustContain(t, protoPath, "string username = 1;")
+	mustContain(t, protoPath, "string email = 2;")
+	mustContain(t, protoPath, "User user = 1;")
+	mustContain(t, protoPath, "string error = 2;")
+	mustContain(t, protoPath, "int64 id = 1;")
+	mustContain(t, protoPath, "double score = 5;")
+	mustNotContain(t, protoPath, "TODO: fill in the message fields")
+}
+
+func TestGenerateFull_ProtoFile_ComplexTypeMappings(t *testing.T) {
+	outDir := newTmpDir(t)
+	project := parseIDLContentProject(t, `package complex
+
+import "context"
+import "time"
+
+type Attachment struct {
+	Name string `+"`json:\"name\"`"+`
+	Blob []byte `+"`json:\"blob\"`"+`
+}
+
+type CreateEventRequest struct {
+	Title     string            `+"`json:\"title\"`"+`
+	Nickname  *string           `+"`json:\"nickname\"`"+`
+	Priority  *int32            `+"`json:\"priority\"`"+`
+	Tags      []string          `+"`json:\"tags\"`"+`
+	Metadata  map[string]string `+"`json:\"metadata\"`"+`
+	TTL       time.Duration     `+"`json:\"ttl\"`"+`
+	OccurredAt time.Time        `+"`json:\"occurred_at\"`"+`
+	Attachment *Attachment      `+"`json:\"attachment\"`"+`
+}
+
+type CreateEventResponse struct {
+	ID        uint64       `+"`json:\"id\"`"+`
+	CreatedAt time.Time    `+"`json:\"created_at\"`"+`
+	Payload   []byte       `+"`json:\"payload\"`"+`
+	Items     []Attachment `+"`json:\"items\"`"+`
+}
+
+type EventService interface {
+	CreateEvent(ctx context.Context, req CreateEventRequest) (CreateEventResponse, error)
+}
+`)
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/complex",
+		Protocols:  []string{"http", "grpc"},
+		DBDriver:   "sqlite",
+		WithConfig: false,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	protoPath := filepath.Join(outDir, "pb", "eventservice", "eventservice.proto")
+	mustContain(t, protoPath, `import "google/protobuf/timestamp.proto";`)
+	mustContain(t, protoPath, `import "google/protobuf/duration.proto";`)
+	mustContain(t, protoPath, "string title = 1;")
+	mustContain(t, protoPath, "optional string nickname = 2;")
+	mustContain(t, protoPath, "optional int32 priority = 3;")
+	mustContain(t, protoPath, "repeated string tags = 4;")
+	mustContain(t, protoPath, "map<string, string> metadata = 5;")
+	mustContain(t, protoPath, "google.protobuf.Duration ttl = 6;")
+	mustContain(t, protoPath, "google.protobuf.Timestamp occurred_at = 7;")
+	mustContain(t, protoPath, "Attachment attachment = 8;")
+	mustContain(t, protoPath, "uint64 id = 1;")
+	mustContain(t, protoPath, "google.protobuf.Timestamp created_at = 2;")
+	mustContain(t, protoPath, "bytes payload = 3;")
+	mustContain(t, protoPath, "repeated Attachment items = 4;")
+	mustContain(t, protoPath, "message Attachment")
+	mustContain(t, protoPath, "bytes blob = 2;")
+	mustNotContain(t, protoPath, "TODO: fill in the message fields")
 }
 
 func TestGenerateFull_ModelFile_Contents(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -400,8 +506,8 @@ func TestGenerateFull_ModelFile_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	modelPath := filepath.Join(outDir, "model", "model.go")
@@ -411,7 +517,7 @@ func TestGenerateFull_ModelFile_Contents(t *testing.T) {
 
 func TestGenerateFull_RepositoryFile_Contents(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -421,8 +527,8 @@ func TestGenerateFull_RepositoryFile_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	repoPath := filepath.Join(outDir, "repository", "repository.go")
@@ -434,7 +540,7 @@ func TestGenerateFull_RepositoryFile_Contents(t *testing.T) {
 
 func TestGenerateFull_ClientDemo_Contents(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -443,8 +549,8 @@ func TestGenerateFull_ClientDemo_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	demoPath := filepath.Join(outDir, "client", "userservice", "demo.go")
@@ -454,7 +560,7 @@ func TestGenerateFull_ClientDemo_Contents(t *testing.T) {
 
 func TestGenerateFull_ClientDemo_WithGRPC(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -464,8 +570,8 @@ func TestGenerateFull_ClientDemo_WithGRPC(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	demoPath := filepath.Join(outDir, "client", "userservice", "demo.go")
@@ -476,7 +582,7 @@ func TestGenerateFull_ClientDemo_WithGRPC(t *testing.T) {
 
 func TestGenerateFull_MainFile_HTTPOnly(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -485,8 +591,8 @@ func TestGenerateFull_MainFile_HTTPOnly(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
@@ -496,7 +602,7 @@ func TestGenerateFull_MainFile_HTTPOnly(t *testing.T) {
 
 func TestGenerateFull_MainFile_WithGRPC(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -506,8 +612,8 @@ func TestGenerateFull_MainFile_WithGRPC(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
@@ -516,7 +622,7 @@ func TestGenerateFull_MainFile_WithGRPC(t *testing.T) {
 
 func TestGenerateFull_MainFile_WithDB(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -526,8 +632,8 @@ func TestGenerateFull_MainFile_WithDB(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
@@ -539,7 +645,7 @@ func TestGenerateFull_MainFile_WithDB(t *testing.T) {
 
 func TestGenerateFull_GoMod_Created(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -548,8 +654,8 @@ func TestGenerateFull_GoMod_Created(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	goModPath := filepath.Join(outDir, "go.mod")
@@ -559,37 +665,31 @@ func TestGenerateFull_GoMod_Created(t *testing.T) {
 }
 
 // TestGenerateFull_GoMod_ModuleUpdatedWhenMismatch 验证：go.mod 已存在但 module 名与 -import 不符时，
-// generator 只更新 module 行，其余内容（go 版本、require 块等）保持不变。
+// generator 只更�?module 行，其余内容（go 版本、require 块等）保持不变�?
 func TestGenerateFull_GoMod_ModuleUpdatedWhenMismatch(t *testing.T) {
 	outDir := newTmpDir(t)
 
-	// 预先写入 go.mod（module 名与后续 ImportPath 不同）
+	// Pre-write go.mod with a different module path.
 	existingContent := "module existing.com/pkg\n\ngo 1.22\n"
-	if err := os.WriteFile(filepath.Join(outDir, "go.mod"), []byte(existingContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(outDir, "go.mod"), []byte(existingContent), 0o644); err != nil {
 		t.Fatalf("pre-write go.mod: %v", err)
 	}
 
 	result := parseIDL(t, "basic.go")
-	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/new",
-		DBDriver:   "sqlite",
-		WithConfig: false,
-		WithDocs:   false,
-	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	project := ir.FromParseResult(result)
+	gen := mustNewGenerator(t, generator.Options{OutputDir: outDir, ImportPath: "example.com/new", DBDriver: "sqlite", WithConfig: false, WithDocs: false})
+
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	goModPath := filepath.Join(outDir, "go.mod")
 	// module 行应已被更新
 	mustContain(t, goModPath, "module example.com/new")
-	// go 版本行应保留（其余内容未丢失）
-	mustContain(t, goModPath, "go 1.22")
+	// go 版本行应保留（其余内容未丢失�?	mustContain(t, goModPath, "go 1.22")
 }
 
-// TestGenerateFull_GoMod_SkippedWhenModuleMatches 验证：go.mod 已存在且 module 名与 -import 一致时，
-// 整个文件内容不被改动（用户的自定义 require 等不丢失）。
+// TestGenerateFull_GoMod_SkippedWhenModuleMatches 验证：go.mod 已存在且 module 名与 -import 一致时�?// 整个文件内容不被改动（用户的自定�?require 等不丢失）�?
 func TestGenerateFull_GoMod_SkippedWhenModuleMatches(t *testing.T) {
 	outDir := newTmpDir(t)
 
@@ -600,6 +700,7 @@ func TestGenerateFull_GoMod_SkippedWhenModuleMatches(t *testing.T) {
 	}
 
 	result := parseIDL(t, "basic.go")
+	project := ir.FromParseResult(result)
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
 		ImportPath: "example.com/same",
@@ -607,8 +708,8 @@ func TestGenerateFull_GoMod_SkippedWhenModuleMatches(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	content := readFile(t, filepath.Join(outDir, "go.mod"))
@@ -619,17 +720,17 @@ func TestGenerateFull_GoMod_SkippedWhenModuleMatches(t *testing.T) {
 
 func TestGenerateFull_NoImportPath_SkipsGoMod(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
-		ImportPath: "", // 空 → 不生成 go.mod
+		ImportPath: "",
 		DBDriver:   "sqlite",
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mustNotExist(t, filepath.Join(outDir, "go.mod"))
@@ -644,6 +745,7 @@ func TestGenerateFull_IDLFileCopied(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseFull: %v", err)
 	}
+	project := ir.FromParseResult(result)
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -653,8 +755,8 @@ func TestGenerateFull_IDLFileCopied(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mustExist(t, filepath.Join(outDir, "idl.go"))
@@ -668,7 +770,7 @@ func TestGenerateFull_IDLFileCopied(t *testing.T) {
 
 func TestGenerateFull_ConfigYAML_HTTPOnly(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -677,8 +779,8 @@ func TestGenerateFull_ConfigYAML_HTTPOnly(t *testing.T) {
 		WithConfig: true,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	configPath := filepath.Join(outDir, "config", "config.yaml")
@@ -688,7 +790,7 @@ func TestGenerateFull_ConfigYAML_HTTPOnly(t *testing.T) {
 
 func TestGenerateFull_ConfigYAML_WithGRPC(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -698,8 +800,8 @@ func TestGenerateFull_ConfigYAML_WithGRPC(t *testing.T) {
 		WithConfig: true,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mustContain(t, filepath.Join(outDir, "config", "config.yaml"), "grpc_addr")
@@ -707,7 +809,7 @@ func TestGenerateFull_ConfigYAML_WithGRPC(t *testing.T) {
 
 func TestGenerateFull_ConfigYAML_WithDB(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -717,8 +819,8 @@ func TestGenerateFull_ConfigYAML_WithDB(t *testing.T) {
 		WithConfig: true,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	configPath := filepath.Join(outDir, "config", "config.yaml")
@@ -730,7 +832,7 @@ func TestGenerateFull_ConfigYAML_WithDB(t *testing.T) {
 
 func TestGenerateFull_ConfigCode_Generated(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -739,8 +841,8 @@ func TestGenerateFull_ConfigCode_Generated(t *testing.T) {
 		WithConfig: true,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	codePath := filepath.Join(outDir, "config", "config.go")
@@ -753,7 +855,7 @@ func TestGenerateFull_ConfigCode_Generated(t *testing.T) {
 
 func TestGenerateFull_ConfigCode_WithGRPC(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -763,8 +865,8 @@ func TestGenerateFull_ConfigCode_WithGRPC(t *testing.T) {
 		WithConfig: true,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	codePath := filepath.Join(outDir, "config", "config.go")
@@ -773,7 +875,7 @@ func TestGenerateFull_ConfigCode_WithGRPC(t *testing.T) {
 
 func TestGenerateFull_ConfigCode_WithDB(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -783,18 +885,18 @@ func TestGenerateFull_ConfigCode_WithDB(t *testing.T) {
 		WithConfig: true,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	codePath := filepath.Join(outDir, "config", "config.go")
 	mustContain(t, codePath, "type DatabaseConfig struct")
-	mustContain(t, codePath, `"mysql"`) // Default() 中包含 Driver: "mysql"
+	mustContain(t, codePath, `"mysql"`) // Default() 中包�?Driver: "mysql"
 }
 
 func TestGenerateFull_ConfigCode_NotGeneratedWhenWithConfigFalse(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -803,8 +905,8 @@ func TestGenerateFull_ConfigCode_NotGeneratedWhenWithConfigFalse(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	codePath := filepath.Join(outDir, "config", "config.go")
@@ -817,7 +919,7 @@ func TestGenerateFull_ConfigCode_NotGeneratedWhenWithConfigFalse(t *testing.T) {
 
 func TestGenerateFull_DocsStub_Contents(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -827,8 +929,8 @@ func TestGenerateFull_DocsStub_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	docsPath := filepath.Join(outDir, "docs", "docs.go")
@@ -841,7 +943,7 @@ func TestGenerateFull_DocsStub_Contents(t *testing.T) {
 
 func TestGenerateFull_Readme_Contents(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -850,20 +952,88 @@ func TestGenerateFull_Readme_Contents(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   true,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	readmePath := filepath.Join(outDir, "README.md")
 	mustContain(t, readmePath, "UserService")
 	mustContain(t, readmePath, "go run ./cmd/main.go")
+	mustNotContain(t, readmePath, "protoc --go_out=.")
 }
 
-// ─────────────────────────── 多服务 IDL ─────────────────────────────────
+func TestGenerateFull_Readme_ProtoQuickStart(t *testing.T) {
+	outDir := newTmpDir(t)
+	protoPath := filepath.Join(outDir, "service.proto")
+	if err := os.WriteFile(protoPath, []byte(`syntax = "proto3";
+package userservice;
+
+service UserService {
+  rpc GetUser (GetUserRequest) returns (GetUserResponse);
+  rpc CreateUser (CreateUserRequest) returns (CreateUserResponse);
+}
+
+message GetUserRequest {}
+message GetUserResponse {}
+message CreateUserRequest {}
+message CreateUserResponse {}
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile proto: %v", err)
+	}
+	result, err := parser.ParseProto(protoPath)
+	if err != nil {
+		t.Fatalf("ParseProto: %v", err)
+	}
+	project := ir.FromParseResult(result)
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/protoquickstart",
+		DBDriver:   "sqlite",
+		WithConfig: false,
+		WithDocs:   true,
+		WithGRPC:   true,
+		IDLSrcPath: protoPath,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	readmePath := filepath.Join(outDir, "README.md")
+	mustContain(t, readmePath, "protoc --go_out=. --go-grpc_out=.")
+	mustContain(t, readmePath, "pb/userservice/userservice.proto")
+	mustContain(t, readmePath, "Review the generated proto contract before generating stubs")
+	mustContain(t, readmePath, "generated from the current service contract and should be reviewed before running `protoc`")
+	mustContain(t, readmePath, "go run ./cmd/main.go")
+}
+
+// ─────────────────────────── 多服�?IDL ─────────────────────────────────
+
+func TestGenerateFull_Readme_MultiServiceEndpoints(t *testing.T) {
+	outDir := newTmpDir(t)
+	project := parseIDLProject(t, "multi.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/multi",
+		DBDriver:   "sqlite",
+		WithConfig: false,
+		WithDocs:   true,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	readmePath := filepath.Join(outDir, "README.md")
+	mustContain(t, readmePath, "OrderService")
+	mustContain(t, readmePath, "ProductService")
+	mustContain(t, readmePath, "**PlaceOrder**: `POST /placeorder`")
+	mustContain(t, readmePath, "**IncrStock**: `POST /incrstock`")
+}
 
 func TestGenerateFull_MultipleServices(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "multi.go")
+	project := parseIDLProject(t, "multi.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -873,21 +1043,34 @@ func TestGenerateFull_MultipleServices(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mustExist(t, filepath.Join(outDir, "service", "orderservice", "service.go"))
 	mustExist(t, filepath.Join(outDir, "service", "productservice", "service.go"))
 	mustExist(t, filepath.Join(outDir, "endpoint", "orderservice", "endpoints.go"))
 	mustExist(t, filepath.Join(outDir, "endpoint", "productservice", "endpoints.go"))
+	mustExist(t, filepath.Join(outDir, "transport", "orderservice", "transport_http.go"))
+	mustExist(t, filepath.Join(outDir, "transport", "productservice", "transport_http.go"))
+	mustExist(t, filepath.Join(outDir, "client", "orderservice", "demo.go"))
+	mustExist(t, filepath.Join(outDir, "client", "productservice", "demo.go"))
+	mustExist(t, filepath.Join(outDir, "sdk", "orderservicesdk", "client.go"))
+	mustExist(t, filepath.Join(outDir, "sdk", "productservicesdk", "client.go"))
+	mustExist(t, filepath.Join(outDir, "cmd", "main.go"))
+
+	// Multi-service generation should keep the same layout contract as a
+	// single-service project: one subtree per service, no special wrapper
+	// directory or alternate "multi" structure.
+	mustNotExist(t, filepath.Join(outDir, "services"))
+	mustNotExist(t, filepath.Join(outDir, "multi"))
 }
 
 // ─────────────────────────── 仅有 Model（无 Service）─────────────────────
 
 func TestGenerateFull_NoServiceIDL_ModelStillGenerated(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "noservice.go")
+	project := parseIDLProject(t, "noservice.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -897,14 +1080,14 @@ func TestGenerateFull_NoServiceIDL_ModelStillGenerated(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	// 无 service → service/endpoint 目录可能存在（createDirStructure 总是创建），
-	// 但不会有具体的 service/xxx/service.go 文件
+	// �?service �?service/endpoint 目录可能存在（createDirStructure 总是创建），
+	// 但不会有具体�?service/xxx/service.go 文件
 	mustNotExist(t, filepath.Join(outDir, "service", "product", "service.go"))
-	// model 有 gorm tag → 生成 model
+	// model �?gorm tag �?生成 model
 	mustExist(t, filepath.Join(outDir, "model", "model.go"))
 }
 
@@ -926,7 +1109,7 @@ func TestGenerateFull_DBDriverDSN(t *testing.T) {
 		c := c
 		t.Run(c.driver, func(t *testing.T) {
 			outDir := newTmpDir(t)
-			result := parseIDL(t, "basic.go")
+			project := parseIDLProject(t, "basic.go")
 
 			gen := mustNewGenerator(t, generator.Options{
 				OutputDir:  outDir,
@@ -936,8 +1119,8 @@ func TestGenerateFull_DBDriverDSN(t *testing.T) {
 				WithConfig: false,
 				WithDocs:   false,
 			})
-			if err := gen.GenerateFull(result); err != nil {
-				t.Fatalf("GenerateFull: %v", err)
+			if err := gen.GenerateIR(project); err != nil {
+				t.Fatalf("GenerateIR: %v", err)
 			}
 
 			mainPath := filepath.Join(outDir, "cmd", "main.go")
@@ -948,31 +1131,11 @@ func TestGenerateFull_DBDriverDSN(t *testing.T) {
 
 // ─────────────────────────── generate 接口（旧 API 兼容）──────────────────
 
-func TestGenerate_BackwardCompatible(t *testing.T) {
-	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
-
-	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithConfig: false,
-		WithDocs:   false,
-	})
-	// Generate 是 GenerateFull 的别名（只传 Services）
-	if err := gen.Generate(result.Services); err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-
-	svcPkg := "userservice"
-	mustExist(t, filepath.Join(outDir, "service", svcPkg, "service.go"))
-}
-
 // ─────────────────────────── PackageName 命名转换 ─────────────────────────
 
 func TestGenerateFull_PackageNameLowercased(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -981,12 +1144,11 @@ func TestGenerateFull_PackageNameLowercased(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	// 服务名 UserService → package 名 userservice（全小写）
-	mustExist(t, filepath.Join(outDir, "service", "userservice", "service.go"))
+	// 服务�?UserService �?package �?userservice（全小写�?	mustExist(t, filepath.Join(outDir, "service", "userservice", "service.go"))
 
 	content := readFile(t, filepath.Join(outDir, "service", "userservice", "service.go"))
 	if !strings.Contains(content, "package userservice") {
@@ -998,12 +1160,11 @@ func TestGenerateFull_PackageNameLowercased(t *testing.T) {
 
 // TestGenerateFull_Swag_DocsStub_FullContent 验证 docs/docs.go 的完整内容：
 // - package 声明
-// - SwaggerInfo 变量（含 BasePath、Title、Version）
-// - swag.Register 调用
+// - SwaggerInfo 变量（含 BasePath、Title、Version�?// - swag.Register 调用
 // - docTemplate 包含 swagger 2.0 结构
 func TestGenerateFull_Swag_DocsStub_FullContent(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -1013,15 +1174,14 @@ func TestGenerateFull_Swag_DocsStub_FullContent(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	docsPath := filepath.Join(outDir, "docs", "docs.go")
 	mustExist(t, docsPath)
 
-	// 结构性内容
-	mustContain(t, docsPath, "package docs")
+	// 结构性内�?	mustContain(t, docsPath, "package docs")
 	mustContain(t, docsPath, "SwaggerInfo")
 	mustContain(t, docsPath, "swag.Register")
 	mustContain(t, docsPath, `"swagger": "2.0"`)
@@ -1035,14 +1195,12 @@ func TestGenerateFull_Swag_DocsStub_FullContent(t *testing.T) {
 	mustContain(t, docsPath, "func init()")
 }
 
-// TestGenerateFull_Swag_TransportAnnotations 验证 transport_http.go 中的 swag 注释：
-// - @Summary、@Description、@Tags
-// - @Param（GET 用 query，POST 用 body）
-// - @Success、@Failure
-// - @Router（含正确的 HTTP 方法）
+// TestGenerateFull_Swag_TransportAnnotations 验证 transport_http.go 中的 swag 注释�?// - @Summary、@Description、@Tags
+// - @Param（GET �?query，POST �?body�?// - @Success、@Failure
+// - @Router（含正确�?HTTP 方法�?
 func TestGenerateFull_Swag_TransportAnnotations(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -1052,13 +1210,13 @@ func TestGenerateFull_Swag_TransportAnnotations(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
 
-	// 每个方法都应有 swag 注释
+	// 每个方法都应�?swag 注释
 	mustContain(t, httpPath, "// @Summary")
 	mustContain(t, httpPath, "// @Tags")
 	mustContain(t, httpPath, "// @Accept       json")
@@ -1067,23 +1225,23 @@ func TestGenerateFull_Swag_TransportAnnotations(t *testing.T) {
 	mustContain(t, httpPath, "// @Failure      400")
 	mustContain(t, httpPath, "// @Failure      500")
 
-	// POST 方法用 body 参数
+	// POST 方法�?body 参数
 	mustContain(t, httpPath, `// @Param        request  body`)
 
-	// GET 方法用 query 参数（ListUsers、GetUser 等）
+	// GET 方法�?query 参数（ListUsers、GetUser 等）
 	mustContain(t, httpPath, `// @Param        request  query`)
 
-	// @Router 注释包含路由路径和 HTTP 方法
+	// @Router 注释包含路由路径�?HTTP 方法
 	mustContain(t, httpPath, "// @Router")
 	mustContain(t, httpPath, "[post]")
 	mustContain(t, httpPath, "[get]")
 }
 
 // TestGenerateFull_Swag_RouterAnnotations_Methods 验证各方法的 @Router 注释
-// 包含正确的 HTTP 方法标记。
+// 包含正确�?HTTP 方法标记�?
 func TestGenerateFull_Swag_RouterAnnotations_Methods(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -1093,19 +1251,19 @@ func TestGenerateFull_Swag_RouterAnnotations_Methods(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
 	content := readFile(t, httpPath)
 
-	// CreateUser → POST
+	// CreateUser �?POST
 	if !strings.Contains(content, "// @Router") {
 		t.Error("transport_http.go should contain @Router annotations")
 	}
 
-	// 验证 CreateUser 的 @Router 包含 [post]
+	// 验证 CreateUser �?@Router 包含 [post]
 	lines := strings.Split(content, "\n")
 	routerLines := []string{}
 	for _, l := range lines {
@@ -1117,7 +1275,7 @@ func TestGenerateFull_Swag_RouterAnnotations_Methods(t *testing.T) {
 		t.Fatal("no @Router annotations found")
 	}
 
-	// 至少有一个 [post] 和一个 [get]
+	// 至少有一�?[post] 和一�?[get]
 	hasPost, hasGet := false, false
 	for _, l := range routerLines {
 		if strings.Contains(l, "[post]") {
@@ -1135,10 +1293,10 @@ func TestGenerateFull_Swag_RouterAnnotations_Methods(t *testing.T) {
 	}
 }
 
-// TestGenerateFull_Swag_MainFile_SwaggerRoute 验证 main.go 包含 Swagger UI 路由。
+// TestGenerateFull_Swag_MainFile_SwaggerRoute 验证 main.go 包含 Swagger UI 路由�?
 func TestGenerateFull_Swag_MainFile_SwaggerRoute(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -1148,8 +1306,8 @@ func TestGenerateFull_Swag_MainFile_SwaggerRoute(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
@@ -1158,10 +1316,10 @@ func TestGenerateFull_Swag_MainFile_SwaggerRoute(t *testing.T) {
 	mustContain(t, mainPath, "swagger/doc.json")
 }
 
-// TestGenerateFull_Swag_MainFile_SwaggerAnnotations 验证 main.go 顶部的 swag 全局注释。
+// TestGenerateFull_Swag_MainFile_SwaggerAnnotations 验证 main.go 顶部�?swag 全局注释�?
 func TestGenerateFull_Swag_MainFile_SwaggerAnnotations(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -1171,8 +1329,8 @@ func TestGenerateFull_Swag_MainFile_SwaggerAnnotations(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
@@ -1182,10 +1340,10 @@ func TestGenerateFull_Swag_MainFile_SwaggerAnnotations(t *testing.T) {
 	mustContain(t, mainPath, "// @BasePath")
 }
 
-// TestGenerateFull_Swag_ConfigYAML_SwaggerHost 验证 config.yaml 包含 swagger_host 字段。
+// TestGenerateFull_Swag_ConfigYAML_SwaggerHost 验证 config.yaml 包含 swagger_host 字段�?
 func TestGenerateFull_Swag_ConfigYAML_SwaggerHost(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -1195,18 +1353,18 @@ func TestGenerateFull_Swag_ConfigYAML_SwaggerHost(t *testing.T) {
 		WithConfig: true,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	configPath := filepath.Join(outDir, "config", "config.yaml")
 	mustContain(t, configPath, "swagger_host")
 }
 
-// TestGenerateFull_Swag_ConfigCode_SwaggerHost 验证 config.go 包含 SwaggerHost 字段。
+// TestGenerateFull_Swag_ConfigCode_SwaggerHost 验证 config.go 包含 SwaggerHost 字段�?
 func TestGenerateFull_Swag_ConfigCode_SwaggerHost(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -1216,19 +1374,18 @@ func TestGenerateFull_Swag_ConfigCode_SwaggerHost(t *testing.T) {
 		WithConfig: true,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	codePath := filepath.Join(outDir, "config", "config.go")
 	mustContain(t, codePath, "SwaggerHost")
 }
 
-// TestGenerateFull_Swag_DocsStub_NotOverwrittenBySecondRun 验证：
-// 若 docs.go 已存在且不是 stub（不含 "paths": {}），第二次生成不会覆盖它。
+// TestGenerateFull_Swag_DocsStub_NotOverwrittenBySecondRun 验证�?// �?docs.go 已存在且不是 stub（不�?"paths": {}），第二次生成不会覆盖它�?
 func TestGenerateFull_Swag_DocsStub_NotOverwrittenBySecondRun(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	opts := generator.Options{
 		OutputDir:  outDir,
@@ -1239,44 +1396,41 @@ func TestGenerateFull_Swag_DocsStub_NotOverwrittenBySecondRun(t *testing.T) {
 		WithDocs:   false,
 	}
 
-	// 第一次生成
+	// First generation run.
 	gen := mustNewGenerator(t, opts)
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("first GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("first GenerateIR: %v", err)
 	}
 
-	// 模拟 swag init 的结果：写入不含 "paths": {} 的真实文档
 	docsPath := filepath.Join(outDir, "docs", "docs.go")
 	realDocs := `package docs
 
 // This is a real swag-generated file.
 var SwaggerInfo = &swag.Spec{
-	Version: "2.0",
-	Title:   "Real Docs",
+    Version: "2.0",
+    Title:   "Real Docs",
 }
 `
-	if err := os.WriteFile(docsPath, []byte(realDocs), 0644); err != nil {
+	if err := os.WriteFile(docsPath, []byte(realDocs), 0o644); err != nil {
 		t.Fatalf("write real docs: %v", err)
 	}
 
-	// 第二次生成
 	gen2 := mustNewGenerator(t, opts)
-	if err := gen2.GenerateFull(result); err != nil {
-		t.Fatalf("second GenerateFull: %v", err)
+	if err := gen2.GenerateIR(project); err != nil {
+		t.Fatalf("second GenerateIR: %v", err)
 	}
 
-	// 真实文档不应被覆盖
 	content := readFile(t, docsPath)
 	if !strings.Contains(content, "Real Docs") {
 		t.Error("real docs.go should not be overwritten by second generation")
 	}
 }
 
-// TestGenerateFull_Swag_MultiService_AllAnnotated 验证多服务 IDL 时，
-// 每个服务的 transport_http.go 都包含 swag 注释。
+// TestGenerateFull_Swag_MultiService_AllAnnotated 验证多服�?IDL 时，
+// 每个服务�?transport_http.go 都包�?swag 注释�?
 func TestGenerateFull_Swag_MultiService_AllAnnotated(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "multi.go")
+	project := parseIDLProject(t, "multi.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -1286,8 +1440,8 @@ func TestGenerateFull_Swag_MultiService_AllAnnotated(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	for _, svcPkg := range []string{"orderservice", "productservice"} {
@@ -1299,10 +1453,10 @@ func TestGenerateFull_Swag_MultiService_AllAnnotated(t *testing.T) {
 }
 
 // TestGenerateFull_Swag_RoutePrefix_InAnnotations 验证使用 -prefix 时，
-// @Router 注释包含正确的前缀路径。
+// @Router 注释包含正确的前缀路径�?
 func TestGenerateFull_Swag_RoutePrefix_InAnnotations(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:   outDir,
@@ -1313,20 +1467,19 @@ func TestGenerateFull_Swag_RoutePrefix_InAnnotations(t *testing.T) {
 		WithDocs:    false,
 		RoutePrefix: "/api/v1",
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
 	mustContain(t, httpPath, "/api/v1/userservice")
 }
 
-// TestGenerateFull_Swag_WithoutSwag_NoAnnotations 验证不启用 -swag 时，
-// transport_http.go 不包含 swag 注释（避免误导）。
-// 注意：当前模板始终生成 swag 注释，此测试验证现有行为。
+// TestGenerateFull_Swag_WithoutSwag_NoAnnotations 验证不启�?-swag 时，
+// transport_http.go 不包�?swag 注释（避免误导）�?// 注意：当前模板始终生�?swag 注释，此测试验证现有行为�?
 func TestGenerateFull_Swag_WithoutSwag_DocsNotGenerated(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -1336,8 +1489,8 @@ func TestGenerateFull_Swag_WithoutSwag_DocsNotGenerated(t *testing.T) {
 		WithConfig: false,
 		WithDocs:   false,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	// docs/ 目录不应存在

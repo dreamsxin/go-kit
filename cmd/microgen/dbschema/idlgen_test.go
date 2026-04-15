@@ -194,7 +194,7 @@ func TestBuildTag_Empty(t *testing.T) {
 func TestToServiceName_Basic(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"shop", "ShopService"},
-		{"user_service", "UserService"},   // already has Service suffix via snakeToCamel
+		{"user_service", "UserService"}, // already has Service suffix via snakeToCamel
 		{"order", "OrderService"},
 		{"", "Service"},
 	}
@@ -354,11 +354,11 @@ func TestCrudMethods_HTTPMethods(t *testing.T) {
 	}
 
 	cases := map[string]string{
-		"CreateProduct":  "post",
-		"GetProduct":     "get",
-		"UpdateProduct":  "put",
-		"DeleteProduct":  "delete",
-		"ListProducts":   "get",
+		"CreateProduct": "post",
+		"GetProduct":    "get",
+		"UpdateProduct": "put",
+		"DeleteProduct": "delete",
+		"ListProducts":  "get",
 	}
 	for name, want := range cases {
 		if got := httpMethods[name]; got != want {
@@ -436,6 +436,29 @@ func TestToParseResult_ModelsGenerated(t *testing.T) {
 	result := ToParseResult(schemas, "CatalogService", "catalog")
 	if len(result.Models) != 1 {
 		t.Fatalf("Models: want 1, got %d", len(result.Models))
+	}
+	if result.Models[0].Name != "Category" {
+		t.Errorf("Model name: got %q, want %q", result.Models[0].Name, "Category")
+	}
+}
+
+func TestToModelParseResult_ModelsGenerated(t *testing.T) {
+	schemas := []*TableSchema{
+		{
+			TableName: "categories",
+			Columns: []ColumnInfo{
+				{Name: "id", DBType: "int", IsPrimary: true},
+				{Name: "name", DBType: "varchar(64)"},
+			},
+		},
+	}
+
+	result := ToModelParseResult(schemas, "catalog")
+	if len(result.Models) != 1 {
+		t.Fatalf("Models: want 1, got %d", len(result.Models))
+	}
+	if len(result.Services) != 0 {
+		t.Fatalf("Services: want 0, got %d", len(result.Services))
 	}
 	if result.Models[0].Name != "Category" {
 		t.Errorf("Model name: got %q, want %q", result.Models[0].Name, "Category")

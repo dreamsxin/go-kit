@@ -26,7 +26,7 @@ type MCPTool struct {
 
 func getOpenAITools() []OpenAITool {
 	return []OpenAITool{
-		{{- range .Services }}
+		{{- range .Project.Services }}
 		{{- range .Methods }}
 		{
 			Type: "function",
@@ -36,23 +36,21 @@ func getOpenAITools() []OpenAITool {
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						{{- $input := .Input -}}
-						{{- range $.Models }}{{ if eq .Name $input -}}
+						{{- with .Input }}
 						{{- range .Fields }}
-						"{{ .JSONTag }}": map[string]interface{}{
-							"type": "{{ if or (eq .Type "int32") (eq .Type "int64") (eq .Type "uint32") (eq .Type "uint64") }}integer{{ else if or (eq .Type "float32") (eq .Type "float64") }}number{{ else if eq .Type "bool" }}boolean{{ else if hasPrefix .Type "[]" }}array{{ else }}string{{ end }}",
-							"description": "{{ .Comment }}",
+						"{{ .JSONName }}": map[string]interface{}{
+							"type": "{{ .SchemaType }}",
+							"description": "{{ .Description }}",
 						},
 						{{- end }}
-						{{- end }}{{ end }}
+						{{- end }}
 					},
 					"required": []string{
-						{{- $input := .Input -}}
-						{{- range $.Models }}{{ if eq .Name $input -}}
-						{{- range .Fields }}{{ if or .IsNotNull (not (hasPrefix .Type "*")) }}
-						"{{ .JSONTag }}",
+						{{- with .Input }}
+						{{- range .Fields }}{{ if .Required }}
+						"{{ .JSONName }}",
 						{{- end }}{{ end }}
-						{{- end }}{{ end }}
+						{{- end }}
 					},
 				},
 			},
@@ -64,7 +62,7 @@ func getOpenAITools() []OpenAITool {
 
 func getMCPTools() []MCPTool {
 	return []MCPTool{
-		{{- range .Services }}
+		{{- range .Project.Services }}
 		{{- range .Methods }}
 		{
 			Name:        "{{ .Name }}",
@@ -72,23 +70,21 @@ func getMCPTools() []MCPTool {
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					{{- $input := .Input -}}
-					{{- range $.Models }}{{ if eq .Name $input -}}
+					{{- with .Input }}
 					{{- range .Fields }}
-					"{{ .JSONTag }}": map[string]interface{}{
-						"type": "{{ if or (eq .Type "int32") (eq .Type "int64") (eq .Type "uint32") (eq .Type "uint64") }}integer{{ else if or (eq .Type "float32") (eq .Type "float64") }}number{{ else if eq .Type "bool" }}boolean{{ else if hasPrefix .Type "[]" }}array{{ else }}string{{ end }}",
-						"description": "{{ .Comment }}",
+					"{{ .JSONName }}": map[string]interface{}{
+						"type": "{{ .SchemaType }}",
+						"description": "{{ .Description }}",
 					},
 					{{- end }}
-					{{- end }}{{ end }}
+					{{- end }}
 				},
 				"required": []string{
-					{{- $input := .Input -}}
-					{{- range $.Models }}{{ if eq .Name $input -}}
-					{{- range .Fields }}{{ if or .IsNotNull (not (hasPrefix .Type "*")) }}
-					"{{ .JSONTag }}",
+					{{- with .Input }}
+					{{- range .Fields }}{{ if .Required }}
+					"{{ .JSONName }}",
 					{{- end }}{{ end }}
-					{{- end }}{{ end }}
+					{{- end }}
 				},
 			},
 		},

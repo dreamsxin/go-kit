@@ -9,15 +9,15 @@ import (
 
 func TestGenerateFull_Skill(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
 		ImportPath: "example.com/skilltest",
 		WithSkill:  true,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	skillPath := filepath.Join(outDir, "skill", "skill.go")
@@ -29,15 +29,15 @@ func TestGenerateFull_Skill(t *testing.T) {
 
 func TestGenerateFull_SDK(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
 		ImportPath: "example.com/sdktest",
 		WithGRPC:   true,
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	sdkPath := filepath.Join(outDir, "sdk", "userservicesdk", "client.go")
@@ -49,7 +49,7 @@ func TestGenerateFull_SDK(t *testing.T) {
 
 func TestGenerateFull_ModelsAndHooks(t *testing.T) {
 	outDir := newTmpDir(t)
-	result := parseIDL(t, "basic.go")
+	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
 		OutputDir:  outDir,
@@ -57,8 +57,8 @@ func TestGenerateFull_ModelsAndHooks(t *testing.T) {
 		WithModel:  true,
 		DBDriver:   "sqlite",
 	})
-	if err := gen.GenerateFull(result); err != nil {
-		t.Fatalf("GenerateFull: %v", err)
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	modelPath := filepath.Join(outDir, "model", "user.go")

@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/dreamsxin/go-kit/cmd/microgen/parser"
 )
 
 type projectLayout struct {
@@ -79,12 +77,12 @@ func (l projectLayout) sdkFile(serviceName string) string {
 	return filepath.Join(l.sdkDir(serviceName), "client.go")
 }
 
-func (l projectLayout) requiredDirs(result *parser.ParseResult, opts Options) []string {
+func (l projectLayout) requiredDirs(services []*serviceView, opts Options) []string {
 	dirs := []string{
 		filepath.Join(l.root, "cmd"),
 	}
 
-	for _, svc := range result.Services {
+	for _, svc := range services {
 		dirs = append(dirs,
 			filepath.Join(l.root, "service", l.servicePackage(svc.ServiceName)),
 			filepath.Join(l.root, "endpoint", l.servicePackage(svc.ServiceName)),
@@ -110,8 +108,8 @@ func (l projectLayout) requiredDirs(result *parser.ParseResult, opts Options) []
 	return dirs
 }
 
-func (l projectLayout) ensureDirs(result *parser.ParseResult, opts Options) error {
-	for _, dir := range l.requiredDirs(result, opts) {
+func (l projectLayout) ensureDirs(services []*serviceView, opts Options) error {
+	for _, dir := range l.requiredDirs(services, opts) {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}

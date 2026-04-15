@@ -5,14 +5,19 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/dreamsxin/go-kit/endpoint"
+	testgrpc "github.com/dreamsxin/go-kit/examples/transport/_grpc_test"
+	testpb "github.com/dreamsxin/go-kit/examples/transport/_grpc_test/pb"
 	"github.com/dreamsxin/go-kit/kit"
 	kitlog "github.com/dreamsxin/go-kit/log"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type helloReq struct {
@@ -38,6 +43,16 @@ func newSvc(t *testing.T, opts ...kit.Option) (*kit.Service, *httptest.Server) {
 	ts := httptest.NewServer(svc) // Service implements http.Handler
 	t.Cleanup(ts.Close)
 	return svc, ts
+}
+
+func freeTCPAddr(t *testing.T) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+	defer l.Close()
+	return l.Addr().String()
 }
 
 // ── README Quick Start pattern ────────────────────────────────────────────────
@@ -99,6 +114,42 @@ func TestReadme_WithMiddleware(t *testing.T) {
 	}
 	if metrics.RequestCount != 1 {
 		t.Errorf("RequestCount: got %d, want 1", metrics.RequestCount)
+	}
+}
+
+func TestReadme_WithGRPC_LiveRPC(t *testing.T) {
+	grpcAddr := freeTCPAddr(t)
+
+	svc := kit.New(":0", kit.WithGRPC(grpcAddr))
+	testpb.RegisterTestServer(svc.GRPCServer(), testgrpc.NewBinding(testgrpc.NewService()))
+
+	svc.Start()
+	defer svc.Shutdown(context.Background()) //nolint:errcheck
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, err := grpc.DialContext( //nolint:staticcheck
+		ctx,
+		grpcAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+	)
+	if err != nil {
+		t.Fatalf("dial grpc: %v", err)
+	}
+	defer conn.Close()
+
+	client := testpb.NewTestClient(conn)
+	resp, err := client.Test(context.Background(), &testpb.TestRequest{
+		A: "answer",
+		B: 42,
+	})
+	if err != nil {
+		t.Fatalf("grpc Test RPC: %v", err)
+	}
+	if resp.GetV() != "answer = 42" {
+		t.Fatalf("grpc response: got %q, want %q", resp.GetV(), "answer = 42")
 	}
 }
 
@@ -444,19 +495,19 @@ func TestKitOptions_PanicOnInvalidConfiguration(t *testing.T) {
 	}{
 		{
 			name: "rate limit <= 0",
-			run: func() { kit.WithRateLimit(0) },
+			run:  func() { kit.WithRateLimit(0) },
 		},
 		{
 			name: "timeout <= 0",
-			run: func() { kit.WithTimeout(0) },
+			run:  func() { kit.WithTimeout(0) },
 		},
 		{
 			name: "circuit breaker threshold zero",
-			run: func() { kit.WithCircuitBreaker(0) },
+			run:  func() { kit.WithCircuitBreaker(0) },
 		},
 		{
 			name: "grpc empty address",
-			run: func() { kit.WithGRPC("") },
+			run:  func() { kit.WithGRPC("") },
 		},
 	}
 

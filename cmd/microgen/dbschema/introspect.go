@@ -403,21 +403,35 @@ func toSet(items []string) map[string]bool {
 
 // ─────────────────────────── Schema → ParseResult ───────────────────────────
 
-// ToParseResult 将数据库表 schema 转换为 parser.ParseResult，
-// 每张表生成一个 Model 和对应的 CRUD Service。
-func ToParseResult(schemas []*TableSchema, serviceName, pkgName string) *parser.ParseResult {
+// ToModelParseResult converts table schemas into parser model metadata only.
+// It exists as a compatibility bridge while generator/model templates still
+// consume parser.Model during the IR migration.
+func ToModelParseResult(schemas []*TableSchema, pkgName string) *parser.ParseResult {
 	if pkgName == "" {
-		pkgName = strings.ToLower(serviceName)
+		pkgName = "idl"
 	}
 
 	result := &parser.ParseResult{
 		PackageName: pkgName,
+		Source:      parser.SourceDB,
 	}
 
 	for _, schema := range schemas {
 		model := tableToModel(schema)
 		result.Models = append(result.Models, model)
 	}
+
+	return result
+}
+
+// ToParseResult converts table schemas into a legacy parser.ParseResult with
+// CRUD service metadata included. Prefer IR + ToModelParseResult for the main
+// DB generation path; this helper remains for compatibility and tests.
+func ToParseResult(schemas []*TableSchema, serviceName, pkgName string) *parser.ParseResult {
+	if pkgName == "" {
+		pkgName = strings.ToLower(serviceName)
+	}
+	result := ToModelParseResult(schemas, pkgName)
 
 	// 为所有表生成一个聚合 Service（包含每张表的 CRUD 方法）
 	svc := buildService(schemas, serviceName)

@@ -4,17 +4,17 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dreamsxin/go-kit/cmd/microgen/parser"
+	"github.com/dreamsxin/go-kit/cmd/microgen/ir"
 )
 
-func (g *Generator) generateMainFileFull(services []*parser.Service, models []*parser.Model) error {
+func (g *Generator) generateMainFileFull(ctx generationContext) error {
 	dbMeta, _ := supportedDrivers[g.config.DBDriver]
-
 	data := map[string]any{
-		"Services":     services,
-		"Models":       models,
-		"GormModels":   models,
-		"SvcRoutes":    g.serviceRoutes(services),
+		"Project":      ctx.project,
+		"Services":     ctx.services,
+		"Models":       ctx.models,
+		"GormModels":   ctx.models,
+		"SvcRoutes":    g.serviceRoutes(ctx.project),
 		"ImportPath":   g.config.ImportPath,
 		"WithDB":       g.config.WithDB,
 		"DBDriver":     g.config.DBDriver,
@@ -29,7 +29,7 @@ func (g *Generator) generateMainFileFull(services []*parser.Service, models []*p
 	return g.executeTemplate("main.tmpl", g.layout.cmdMain(), data)
 }
 
-func (g *Generator) generateConfigFile(services []*parser.Service) error {
+func (g *Generator) generateConfigFile(services []*serviceView) error {
 	dbMeta, _ := supportedDrivers[g.config.DBDriver]
 	data := map[string]any{
 		"Services":     services,
@@ -42,7 +42,7 @@ func (g *Generator) generateConfigFile(services []*parser.Service) error {
 	return g.executeTemplate("config.tmpl", g.layout.configYAML(), data)
 }
 
-func (g *Generator) generateConfigCodeFile(services []*parser.Service) error {
+func (g *Generator) generateConfigCodeFile(services []*serviceView) error {
 	dbMeta, _ := supportedDrivers[g.config.DBDriver]
 	data := map[string]any{
 		"Services":     services,
@@ -55,14 +55,15 @@ func (g *Generator) generateConfigCodeFile(services []*parser.Service) error {
 	return g.executeTemplate("config_code.tmpl", g.layout.configCode(), data)
 }
 
-func (g *Generator) generateReadme(services []*parser.Service) error {
+func (g *Generator) generateReadme(ctx generationContext) error {
 	data := map[string]any{
-		"Services": services,
+		"Project":      ctx.project,
+		"IsProtoInput": strings.EqualFold(ctx.source, "proto") || strings.HasSuffix(g.config.IDLSrcPath, ".proto"),
 	}
 	return g.executeTemplate("readme.tmpl", g.layout.readme(), data)
 }
 
-func (g *Generator) generateDocsStub(services []*parser.Service) error {
+func (g *Generator) generateDocsStub(services []*serviceView) error {
 	if err := os.MkdirAll(g.layout.docsDir(), 0o755); err != nil {
 		return err
 	}
@@ -76,12 +77,10 @@ func (g *Generator) generateDocsStub(services []*parser.Service) error {
 	return g.executeTemplate("docs.tmpl", path, data)
 }
 
-func (g *Generator) generateSkillFile(result *parser.ParseResult) error {
+func (g *Generator) generateSkillFile(ctx generationContext) error {
 	data := map[string]any{
-		"Services":   result.Services,
-		"Models":     result.Models,
+		"Project":    ctx.project,
 		"ImportPath": g.config.ImportPath,
-		"Source":     result.Source,
 	}
 	return g.executeTemplate("skill.tmpl", g.layout.skillFile(), data)
 }
@@ -118,12 +117,15 @@ func (g *Generator) copyIDLFile(idlSrcPath string) error {
 	return os.WriteFile(g.layout.idlCopy(), src, 0o644)
 }
 
-func (g *Generator) serviceRoutes(services []*parser.Service) []SvcRoute {
-	routes := make([]SvcRoute, 0, len(services))
-	for _, svc := range services {
+func (g *Generator) serviceRoutes(project *ir.Project) []SvcRoute {
+	if project == nil {
+		return nil
+	}
+	routes := make([]SvcRoute, 0, len(project.Services))
+	for _, svc := range project.Services {
 		routes = append(routes, SvcRoute{
 			Service:    svc,
-			FullPrefix: routePrefix(g.config.RoutePrefix, svc.ServiceName),
+			FullPrefix: routePrefix(g.config.RoutePrefix, svc.Name),
 		})
 	}
 	return routes

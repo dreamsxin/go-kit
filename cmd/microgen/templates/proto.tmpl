@@ -4,24 +4,34 @@ package {{.Service.PackageName}};
 
 option go_package = "./pb";
 
+{{if .NeedsTimestamp}}import "google/protobuf/timestamp.proto";
+{{end}}
+{{if .NeedsDuration}}import "google/protobuf/duration.proto";
+{{end}}
+
 
 // {{.Service.ServiceName}} gRPC 服务定义
 service {{.Service.ServiceName}} {
-{{range .Service.Methods}}  // {{.Doc}}
-  rpc {{.Name}} ({{.Name}}Request) returns ({{.Name}}Response);
+{{range .IRService.Methods}}  // {{.Description}}
+  rpc {{.Name}} ({{.InputName}}) returns ({{.OutputName}});
 {{end}}}
 
-{{range .Service.Methods}}
-// {{.Name}}Request {{.Name}} 请求
-message {{.Name}}Request {
-  // TODO: 根据 idl.{{.Input}} 填充字段
-  // 示例: string id = 1;
-}
-
-// {{.Name}}Response {{.Name}} 响应
-message {{.Name}}Response {
-  // TODO: 根据 idl.{{.Output}} 填充字段
-  // 示例: bool success = 1; string error = 2;
+{{range .Messages}}
+// {{.Name}}{{if .Comment}} {{.Comment}}{{end}}
+message {{.Name}} {
+{{- if .Placeholder}}
+  // TODO: fill in the message fields for {{.Name}}.
+{{- else}}
+{{- range .Fields}}
+{{- if .Comment}}  // {{.Comment}}
+{{- end}}
+{{- if .IsMap}}
+  map<{{.KeyType}}, {{.ValueType}}> {{.Name}} = {{.Number}};
+{{- else}}
+  {{if .Repeated}}repeated {{else if .Optional}}optional {{end}}{{.Type}} {{.Name}} = {{.Number}};
+{{- end}}
+{{- end}}
+{{- end}}
 }
 
 {{end}}

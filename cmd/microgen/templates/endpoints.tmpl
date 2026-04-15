@@ -15,13 +15,12 @@ import (
 	svc "{{.ImportPath}}/service/{{.Service.ServiceName | lower}}"
 )
 
-// {{.Service.ServiceName}}Endpoints 封装所有服务端点
+// {{.Service.ServiceName}}Endpoints groups the generated endpoints.
 type {{.Service.ServiceName}}Endpoints struct {
-{{range .Service.Methods}}	{{.Name}}Endpoint endpoint.Endpoint
+{{range .IRService.Methods}}	{{.Name}}Endpoint endpoint.Endpoint
 {{end}}
 }
 
-// MiddlewareConfig 端点中间件配置，与 config/config.go 中的 MiddlewareConfig 对应
 type MiddlewareConfig struct {
 	CBEnabled          bool
 	CBFailureThreshold uint32
@@ -31,7 +30,6 @@ type MiddlewareConfig struct {
 	Timeout            time.Duration
 }
 
-// DefaultMiddlewareConfig 默认中间件配置
 var DefaultMiddlewareConfig = MiddlewareConfig{
 	CBEnabled:          true,
 	CBFailureThreshold: 5,
@@ -41,12 +39,10 @@ var DefaultMiddlewareConfig = MiddlewareConfig{
 	Timeout:            30 * time.Second,
 }
 
-// MakeServerEndpoints 使用默认中间件配置创建服务端端点
 func MakeServerEndpoints(s svc.{{.Service.ServiceName}}, logger *kitlog.Logger) {{.Service.ServiceName}}Endpoints {
 	return MakeServerEndpointsWithConfig(s, logger, DefaultMiddlewareConfig)
 }
 
-// MakeServerEndpointsWithConfig 使用自定义中间件配置创建服务端端点
 func MakeServerEndpointsWithConfig(
 	s svc.{{.Service.ServiceName}},
 	logger *kitlog.Logger,
@@ -84,15 +80,14 @@ func MakeServerEndpointsWithConfig(
 	}
 
 	return {{.Service.ServiceName}}Endpoints{
-{{range .Service.Methods}}		{{.Name}}Endpoint: build(Make{{.Name}}Endpoint(s), "{{.Name}}"),
+{{range .IRService.Methods}}		{{.Name}}Endpoint: build(Make{{.Name}}Endpoint(s), "{{.Name}}"),
 {{end}}	}
 }
 
-{{range .Service.Methods}}
-// Make{{.Name}}Endpoint 创建单个端点
+{{range .IRService.Methods}}
 func Make{{.Name}}Endpoint(s svc.{{$.Service.ServiceName}}) endpoint.Endpoint {
 	return func(ctx context.Context, request any) (any, error) {
-		req := request.(idl.{{.Input}})
+		req := request.(idl.{{.InputName}})
 		resp, err := s.{{.Name}}(ctx, req)
 		if err != nil {
 			return nil, err
@@ -102,20 +97,17 @@ func Make{{.Name}}Endpoint(s svc.{{$.Service.ServiceName}}) endpoint.Endpoint {
 }
 {{end}}
 
-// 客户端方法
-{{range .Service.Methods}}
-// {{.Name}} 调用服务端端点
-func (e {{$.Service.ServiceName}}Endpoints) {{.Name}}(ctx context.Context, req idl.{{.Input}}) (idl.{{.Output}}, error) {
+{{range .IRService.Methods}}
+func (e {{$.Service.ServiceName}}Endpoints) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
 	resp, err := e.{{.Name}}Endpoint(ctx, req)
 	if err != nil {
-		return idl.{{.Output}}{}, err
+		return idl.{{.OutputName}}{}, err
 	}
-	return resp.(idl.{{.Output}}), nil
+	return resp.(idl.{{.OutputName}}), nil
 }
 {{end}}
 
-// RetryMiddleware 重试中间件。
-// ⚠️  仅适用于【客户端】endpoint（如 HTTP/gRPC client）。
+// RetryMiddleware is intended for client-side endpoint usage.
 func RetryMiddleware(maxRetries int, backoff time.Duration) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (response any, err error) {

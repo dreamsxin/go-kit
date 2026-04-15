@@ -3,33 +3,35 @@ package {{.Service.ServiceName | lower}}
 import (
 	"context"
 
-	"google.golang.org/grpc"
-	grpcserver "github.com/dreamsxin/go-kit/transport/grpc/server"
-	grpcclient "github.com/dreamsxin/go-kit/transport/grpc/client"
 	"github.com/dreamsxin/go-kit/endpoint"
+	grpcclient "github.com/dreamsxin/go-kit/transport/grpc/client"
+	grpcserver "github.com/dreamsxin/go-kit/transport/grpc/server"
+	"google.golang.org/grpc"
 	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
 	genendpoint "{{.ImportPath}}/endpoint/{{.Service.ServiceName | lower}}"
 )
 
-// grpcServer 实现了 idl.{{.Service.ServiceName}}Server 接口
+// grpcServer implements the generated gRPC server contract.
 type grpcServer struct {
-{{range .Service.Methods}}	{{.Name | lower}} grpcserver.Handler
+{{- if eq .Source "proto"}}
+	idl.Unimplemented{{.Service.ServiceName}}Server
+{{- end}}
+{{range .IRService.Methods}}	{{.Name | lower}} grpcserver.Handler
 {{end}}}
 
-{{range .Service.Methods}}
-func (s *grpcServer) {{.Name}}(ctx context.Context, req *idl.{{.Input}}) (*idl.{{.Output}}, error) {
+{{range .IRService.Methods}}
+func (s *grpcServer) {{.Name}}(ctx context.Context, req *idl.{{.InputName}}) (*idl.{{.OutputName}}, error) {
 	_, resp, err := s.{{.Name | lower}}.ServeGRPC(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return resp.(*idl.{{.Output}}), nil
+	return resp.(*idl.{{.OutputName}}), nil
 }
 {{end}}
 
-// NewGRPCServer 将服务端点注册到 gRPC Server
 func NewGRPCServer(endpoints genendpoint.{{.Service.ServiceName}}Endpoints) *grpcServer {
 	return &grpcServer{
-{{range .Service.Methods}}		{{.Name | lower}}: grpcserver.NewServer(
+{{range .IRService.Methods}}		{{.Name | lower}}: grpcserver.NewServer(
 			endpoints.{{.Name}}Endpoint,
 			decodeGRPC{{.Name}}Request,
 			encodeGRPC{{.Name}}Response,
@@ -37,13 +39,11 @@ func NewGRPCServer(endpoints genendpoint.{{.Service.ServiceName}}Endpoints) *grp
 {{end}}	}
 }
 
-// RegisterGRPCServer 将服务端点注册到 gRPC Server
 func RegisterGRPCServer(s *grpc.Server, endpoints genendpoint.{{.Service.ServiceName}}Endpoints) {
 	idl.Register{{.Service.ServiceName}}Server(s, NewGRPCServer(endpoints))
 }
 
-{{range .Service.Methods}}
-// NewGRPC{{.Name}}Client 返回一个用于 {{.Name}} 的 gRPC 客户端。
+{{range .IRService.Methods}}
 func NewGRPC{{.Name}}Client(conn *grpc.ClientConn, options ...grpcclient.ClientOption) endpoint.Endpoint {
 	return grpcclient.NewClient(
 		conn,
@@ -51,34 +51,30 @@ func NewGRPC{{.Name}}Client(conn *grpc.ClientConn, options ...grpcclient.ClientO
 		"{{.Name}}",
 		EncodeGRPC{{.Name}}Request,
 		DecodeGRPC{{.Name}}Response,
-		&idl.{{.Output}}{},
+		&idl.{{.OutputName}}{},
 		options...,
 	).Endpoint()
 }
 {{end}}
 
-{{range .Service.Methods}}
-// decodeGRPC{{.Name}}Request 从 gRPC 请求中解码。
+{{range .IRService.Methods}}
 func decodeGRPC{{.Name}}Request(_ context.Context, grpcReq any) (any, error) {
-	req := grpcReq.(*idl.{{.Input}})
+	req := grpcReq.(*idl.{{.InputName}})
 	return *req, nil
 }
 
-// encodeGRPC{{.Name}}Response 编码为 gRPC 响应。
 func encodeGRPC{{.Name}}Response(_ context.Context, response any) (any, error) {
-	resp := response.(idl.{{.Output}})
+	resp := response.(idl.{{.OutputName}})
 	return &resp, nil
 }
 
-// EncodeGRPC{{.Name}}Request 编码为 gRPC 请求 (客户端使用)。
 func EncodeGRPC{{.Name}}Request(_ context.Context, request any) (any, error) {
-	req := request.(idl.{{.Input}})
+	req := request.(idl.{{.InputName}})
 	return &req, nil
 }
 
-// DecodeGRPC{{.Name}}Response 从 gRPC 响应中解码 (客户端使用)。
 func DecodeGRPC{{.Name}}Response(_ context.Context, grpcReply any) (any, error) {
-	resp := grpcReply.(*idl.{{.Output}})
+	resp := grpcReply.(*idl.{{.OutputName}})
 	return *resp, nil
 }
 {{end}}
