@@ -244,6 +244,8 @@ Generated endpoint middleware chains now live in generator-owned files such as `
 
 ## Repository Workflow
 
+If you are not sure which repository doc to read first, start with [DOCS_INDEX.md](DOCS_INDEX.md) for a task-oriented documentation map.
+
 If you are working on this repository itself rather than using it as a dependency, see [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md) for the recommended development workflow across framework packages, `microgen`, examples, and tooling.
 
 If you are resuming a refactor or starting a new AI coding session, read [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md) first for the current repository status and next recommended steps.
@@ -251,6 +253,8 @@ If you are resuming a refactor or starting a new AI coding session, read [PROJEC
 ---
 
 ## Framework Boundaries
+
+For the full repository documentation map, including architecture, workflow, stability, `microgen`, and review docs, see [DOCS_INDEX.md](DOCS_INDEX.md).
 
 If you are deciding what should belong in the framework, what should remain internal, where customization is allowed, what patterns to avoid, and how to review changes consistently, see [FRAMEWORK_BOUNDARIES.md](FRAMEWORK_BOUNDARIES.md), [STABILITY.md](STABILITY.md), [PACKAGE_SURFACES.md](PACKAGE_SURFACES.md), [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md), [ANTI_PATTERNS.md](ANTI_PATTERNS.md), [PR_CHECKLIST.md](PR_CHECKLIST.md), and [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
