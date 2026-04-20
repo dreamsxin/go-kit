@@ -1,8 +1,8 @@
 package tools_test
 
 import (
-	"encoding/base64"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -649,6 +649,10 @@ func TestMicrogenIntegration(t *testing.T) {
 		mustExistFile(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"))
 		mustExistFile(t, filepath.Join(outDir, "config", "config.yaml"))
 		mustExistFile(t, filepath.Join(outDir, "config", "config.go"))
+		mustExistFile(t, filepath.Join(outDir, "config", "local.go"))
+		mustExistFile(t, filepath.Join(outDir, "config", "env.go"))
+		mustExistFile(t, filepath.Join(outDir, "config", "remote.go"))
+		mustExistFile(t, filepath.Join(outDir, "config", "loader.go"))
 		mustExistFile(t, filepath.Join(outDir, "README.md"))
 		mustExistFile(t, filepath.Join(outDir, "model", "generated_user.go"))
 		mustExistFile(t, filepath.Join(outDir, "repository", "generated_user_repository.go"))
@@ -747,6 +751,40 @@ remote:
 		}
 		if !strings.Contains(fallbackOut, "warn") {
 			t.Fatalf("expected fallback config to keep local log level, got:\n%s", fallbackOut)
+		}
+	})
+
+	t.Run("IDL_Config_RemoteConsul_StrictModeFailsWithoutFallback", func(t *testing.T) {
+		outDir := filepath.Join(cwd, "testdata", "gen_idl_remote_config_strict")
+		os.RemoveAll(outDir)
+
+		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
+		cmd := exec.Command("go", "run", microgenPath,
+			"-idl", idlFile,
+			"-out", outDir,
+			"-import", "example.com/gen_idl_remote_config_strict",
+			"-config-mode", "remote",
+			"-remote-provider", "consul",
+		)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("microgen strict remote-config fixture failed: %v\n%s", err, out)
+		}
+
+		configYAML := filepath.Join(outDir, "config", "config.yaml")
+		mustContainFile(t, configYAML, "enabled: true")
+		mustContainFile(t, configYAML, `provider: "consul"`)
+		mustContainFile(t, configYAML, "fallback_to_local: false")
+
+		probePkg := writeConfigRemoteProbe(t, outDir, "remoteconfigstrictprobe", "example.com/gen_idl_remote_config_strict")
+		probe := exec.Command("go", "run", "-mod=mod", probePkg, "./config/config.yaml")
+		probe.Dir = outDir
+		probe.Env = append(os.Environ(), "GOPROXY=https://proxy.golang.org,direct")
+		out, err := probe.CombinedOutput()
+		if err == nil {
+			t.Fatalf("expected strict remote config probe to fail, got success:\n%s", out)
+		}
+		if !strings.Contains(string(out), "remote consul endpoint is empty") {
+			t.Fatalf("expected strict remote failure to mention empty endpoint, got:\n%s", out)
 		}
 	})
 

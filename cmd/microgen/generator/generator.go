@@ -13,22 +13,24 @@ import (
 
 // Options configures generation behavior.
 type Options struct {
-	TemplateFS  fs.FS
-	OutputDir   string
-	ImportPath  string
-	ServiceName string
-	Protocols   []string
-	WithConfig  bool
-	WithDocs    bool
-	WithTests   bool
-	WithModel   bool
-	WithGRPC    bool
-	WithDB      bool
-	DBDriver    string
-	WithSwag    bool
-	WithSkill   bool
-	IDLSrcPath  string
-	RoutePrefix string
+	TemplateFS           fs.FS
+	OutputDir            string
+	ImportPath           string
+	ServiceName          string
+	Protocols            []string
+	WithConfig           bool
+	ConfigMode           string
+	RemoteProvider       string
+	WithDocs             bool
+	WithTests            bool
+	WithModel            bool
+	WithGRPC             bool
+	WithDB               bool
+	DBDriver             string
+	WithSwag             bool
+	WithSkill            bool
+	IDLSrcPath           string
+	RoutePrefix          string
 	GeneratedMiddlewares []string
 }
 
@@ -53,6 +55,35 @@ func New(opt Options) (*Generator, error) {
 	if opt.DBDriver != "" {
 		if _, ok := supportedDrivers[opt.DBDriver]; !ok && opt.DBDriver != "sqlite" {
 			return nil, fmt.Errorf("unsupported db driver: %s", opt.DBDriver)
+		}
+	}
+
+	if opt.WithConfig {
+		if opt.ConfigMode == "" {
+			opt.ConfigMode = "file"
+		}
+		switch opt.ConfigMode {
+		case "file", "hybrid", "remote":
+		default:
+			return nil, fmt.Errorf("unsupported config mode: %s", opt.ConfigMode)
+		}
+		switch opt.RemoteProvider {
+		case "", "consul":
+		default:
+			return nil, fmt.Errorf("unsupported remote provider: %s", opt.RemoteProvider)
+		}
+		if opt.ConfigMode == "file" && opt.RemoteProvider != "" {
+			return nil, fmt.Errorf("remote provider requires config mode hybrid or remote")
+		}
+		if (opt.ConfigMode == "hybrid" || opt.ConfigMode == "remote") && opt.RemoteProvider == "" {
+			return nil, fmt.Errorf("config mode %s requires -remote-provider", opt.ConfigMode)
+		}
+	} else {
+		if opt.ConfigMode != "" {
+			return nil, fmt.Errorf("config mode requires -config=true")
+		}
+		if opt.RemoteProvider != "" {
+			return nil, fmt.Errorf("remote provider requires -config=true")
 		}
 	}
 

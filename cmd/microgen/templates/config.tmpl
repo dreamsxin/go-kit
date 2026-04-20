@@ -44,11 +44,11 @@ debug:
   print_routes: true
 
 remote:
-  enabled: false
-  provider: ""
+  enabled: {{if .RemoteEnabledDefault}}true{{else}}false{{end}}
+  provider: "{{.RemoteProvider}}"
   endpoint: ""
   namespace: ""
   group: ""
   data_id: ""
   timeout: "5s"
-  fallback_to_local: true
+  fallback_to_local: {{if .RemoteFallbackDefault}}true{{else}}false{{end}}

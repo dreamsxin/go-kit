@@ -267,6 +267,11 @@ func TestGenerateFull_DirectoryStructure_WithConfig(t *testing.T) {
 	}
 
 	mustExist(t, filepath.Join(outDir, "config", "config.yaml"))
+	mustExist(t, filepath.Join(outDir, "config", "config.go"))
+	mustExist(t, filepath.Join(outDir, "config", "local.go"))
+	mustExist(t, filepath.Join(outDir, "config", "env.go"))
+	mustExist(t, filepath.Join(outDir, "config", "remote.go"))
+	mustExist(t, filepath.Join(outDir, "config", "loader.go"))
 }
 
 func TestGenerateFull_DirectoryStructure_WithDocs(t *testing.T) {
@@ -681,6 +686,44 @@ func TestGenerateFull_GoMod_WithConfigIncludesViper(t *testing.T) {
 
 	goModPath := filepath.Join(outDir, "go.mod")
 	mustContain(t, goModPath, "github.com/spf13/viper")
+	mustContain(t, goModPath, "github.com/spf13/viper/remote")
+}
+
+func TestNew_ConfigModeValidation(t *testing.T) {
+	_, err := generator.New(generator.Options{
+		TemplateFS: testTemplateFS,
+		OutputDir:  t.TempDir(),
+		WithConfig: true,
+		ConfigMode: "invalid",
+	})
+	if err == nil || !strings.Contains(err.Error(), "unsupported config mode") {
+		t.Fatalf("New invalid config mode error = %v, want unsupported config mode", err)
+	}
+}
+
+func TestNew_RemoteProviderValidation(t *testing.T) {
+	_, err := generator.New(generator.Options{
+		TemplateFS:     testTemplateFS,
+		OutputDir:      t.TempDir(),
+		WithConfig:     true,
+		ConfigMode:     "hybrid",
+		RemoteProvider: "apollo",
+	})
+	if err == nil || !strings.Contains(err.Error(), "unsupported remote provider") {
+		t.Fatalf("New invalid remote provider error = %v, want unsupported remote provider", err)
+	}
+}
+
+func TestNew_RemoteModeRequiresProvider(t *testing.T) {
+	_, err := generator.New(generator.Options{
+		TemplateFS: testTemplateFS,
+		OutputDir:  t.TempDir(),
+		WithConfig: true,
+		ConfigMode: "remote",
+	})
+	if err == nil || !strings.Contains(err.Error(), "requires -remote-provider") {
+		t.Fatalf("New remote mode without provider error = %v, want provider requirement", err)
+	}
 }
 
 // TestGenerateFull_GoMod_ModuleUpdatedWhenMismatch 验证：go.mod 已存在但 module 名与 -import 不符时，
@@ -807,6 +850,53 @@ func TestGenerateFull_ConfigYAML_HTTPOnly(t *testing.T) {
 	mustContain(t, configPath, "circuit_breaker")
 	mustContain(t, configPath, "remote:")
 	mustContain(t, configPath, "fallback_to_local: true")
+	mustContain(t, configPath, `provider: ""`)
+}
+
+func TestGenerateFull_ConfigYAML_HybridModeDefaults(t *testing.T) {
+	outDir := newTmpDir(t)
+	project := parseIDLProject(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:      outDir,
+		ImportPath:     "example.com/basic",
+		DBDriver:       "sqlite",
+		WithConfig:     true,
+		ConfigMode:     "hybrid",
+		RemoteProvider: "consul",
+		WithDocs:       false,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	configPath := filepath.Join(outDir, "config", "config.yaml")
+	mustContain(t, configPath, "enabled: true")
+	mustContain(t, configPath, `provider: "consul"`)
+	mustContain(t, configPath, "fallback_to_local: true")
+}
+
+func TestGenerateFull_ConfigYAML_RemoteModeDefaults(t *testing.T) {
+	outDir := newTmpDir(t)
+	project := parseIDLProject(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:      outDir,
+		ImportPath:     "example.com/basic",
+		DBDriver:       "sqlite",
+		WithConfig:     true,
+		ConfigMode:     "remote",
+		RemoteProvider: "consul",
+		WithDocs:       false,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	configPath := filepath.Join(outDir, "config", "config.yaml")
+	mustContain(t, configPath, "enabled: true")
+	mustContain(t, configPath, `provider: "consul"`)
+	mustContain(t, configPath, "fallback_to_local: false")
 }
 
 func TestGenerateFull_ConfigYAML_WithGRPC(t *testing.T) {
@@ -867,16 +957,24 @@ func TestGenerateFull_ConfigCode_Generated(t *testing.T) {
 	}
 
 	codePath := filepath.Join(outDir, "config", "config.go")
+	localPath := filepath.Join(outDir, "config", "local.go")
+	envPath := filepath.Join(outDir, "config", "env.go")
+	remotePath := filepath.Join(outDir, "config", "remote.go")
+	loaderPath := filepath.Join(outDir, "config", "loader.go")
 	mustExist(t, codePath)
+	mustExist(t, localPath)
+	mustExist(t, envPath)
+	mustExist(t, remotePath)
+	mustExist(t, loaderPath)
 	mustContain(t, codePath, "type Config struct")
-	mustContain(t, codePath, "func Load(path string)")
-	mustContain(t, codePath, "func LoadLocal(path string)")
-	mustContain(t, codePath, "func ApplyEnv(cfg *Config) error")
-	mustContain(t, codePath, "func LoadRemote(cfg *Config) (*Config, error)")
 	mustContain(t, codePath, "func Default()")
 	mustContain(t, codePath, `yaml:"server"`)
 	mustContain(t, codePath, "type RemoteConfig struct")
 	mustContain(t, codePath, `yaml:"remote"`)
+	mustContain(t, localPath, "func LoadLocal(path string)")
+	mustContain(t, envPath, "func ApplyEnv(cfg *Config) error")
+	mustContain(t, remotePath, "func LoadRemote(cfg *Config) (*Config, error)")
+	mustContain(t, loaderPath, "func Load(path string)")
 }
 
 func TestGenerateFull_ConfigCode_EnvOverrides(t *testing.T) {
@@ -898,21 +996,22 @@ func TestGenerateFull_ConfigCode_EnvOverrides(t *testing.T) {
 	}
 
 	codePath := filepath.Join(outDir, "config", "config.go")
+	envPath := filepath.Join(outDir, "config", "env.go")
 	mustContain(t, codePath, `const envPrefix = "APP_"`)
-	mustContain(t, codePath, `readString("HTTP_ADDR"`)
-	mustContain(t, codePath, `readString("GRPC_ADDR"`)
-	mustContain(t, codePath, `readString("LOG_LEVEL"`)
-	mustContain(t, codePath, `readString("DB_DSN"`)
-	mustContain(t, codePath, `readString("SWAGGER_HOST"`)
-	mustContain(t, codePath, `readBool("DEBUG_ROUTES_ENABLED"`)
-	mustContain(t, codePath, `readBool("REMOTE_ENABLED"`)
-	mustContain(t, codePath, `readString("REMOTE_PROVIDER"`)
-	mustContain(t, codePath, `readDuration("REMOTE_TIMEOUT"`)
-	mustContain(t, codePath, `readBool("REMOTE_FALLBACK_TO_LOCAL"`)
-	mustContain(t, codePath, "strconv.ParseBool")
-	mustContain(t, codePath, "strconv.Atoi")
-	mustContain(t, codePath, "strconv.ParseFloat")
-	mustContain(t, codePath, "time.ParseDuration")
+	mustContain(t, envPath, `readString("HTTP_ADDR"`)
+	mustContain(t, envPath, `readString("GRPC_ADDR"`)
+	mustContain(t, envPath, `readString("LOG_LEVEL"`)
+	mustContain(t, envPath, `readString("DB_DSN"`)
+	mustContain(t, envPath, `readString("SWAGGER_HOST"`)
+	mustContain(t, envPath, `readBool("DEBUG_ROUTES_ENABLED"`)
+	mustContain(t, envPath, `readBool("REMOTE_ENABLED"`)
+	mustContain(t, envPath, `readString("REMOTE_PROVIDER"`)
+	mustContain(t, envPath, `readDuration("REMOTE_TIMEOUT"`)
+	mustContain(t, envPath, `readBool("REMOTE_FALLBACK_TO_LOCAL"`)
+	mustContain(t, envPath, "strconv.ParseBool")
+	mustContain(t, envPath, "strconv.Atoi")
+	mustContain(t, envPath, "strconv.ParseFloat")
+	mustContain(t, envPath, "time.ParseDuration")
 }
 
 func TestGenerateFull_ConfigCode_RemoteConfigDefaults(t *testing.T) {
@@ -931,18 +1030,19 @@ func TestGenerateFull_ConfigCode_RemoteConfigDefaults(t *testing.T) {
 	}
 
 	codePath := filepath.Join(outDir, "config", "config.go")
+	remotePath := filepath.Join(outDir, "config", "remote.go")
 	mustContain(t, codePath, "Enabled         bool")
 	mustContain(t, codePath, "Provider        string")
 	mustContain(t, codePath, "DataID          string")
 	mustContain(t, codePath, "FallbackToLocal bool")
 	mustContain(t, codePath, "Timeout:         5 * time.Second")
-	mustContain(t, codePath, `"github.com/spf13/viper/remote"`)
-	mustContain(t, codePath, `"github.com/spf13/viper"`)
-	mustContain(t, codePath, `case "consul":`)
-	mustContain(t, codePath, "func loadRemoteFromConsul(cfg *Config) (*Config, error)")
-	mustContain(t, codePath, `v.AddRemoteProvider("consul", endpoint, dataID)`)
-	mustContain(t, codePath, "v.ReadRemoteConfig()")
-	mustContain(t, codePath, "v.Unmarshal(&merged)")
+	mustContain(t, remotePath, `"github.com/spf13/viper/remote"`)
+	mustContain(t, remotePath, `"github.com/spf13/viper"`)
+	mustContain(t, remotePath, `case "consul":`)
+	mustContain(t, remotePath, "func loadRemoteFromConsul(cfg *Config) (*Config, error)")
+	mustContain(t, remotePath, `v.AddRemoteProvider("consul", endpoint, dataID)`)
+	mustContain(t, remotePath, "v.ReadRemoteConfig()")
+	mustContain(t, remotePath, "v.Unmarshal(&merged)")
 }
 
 func TestGenerateFull_ConfigCode_WithGRPC(t *testing.T) {
@@ -1004,6 +1104,16 @@ func TestGenerateFull_ConfigCode_NotGeneratedWhenWithConfigFalse(t *testing.T) {
 	codePath := filepath.Join(outDir, "config", "config.go")
 	if _, err := os.Stat(codePath); err == nil {
 		t.Errorf("config.go should NOT be generated when WithConfig=false")
+	}
+	for _, path := range []string{
+		filepath.Join(outDir, "config", "local.go"),
+		filepath.Join(outDir, "config", "env.go"),
+		filepath.Join(outDir, "config", "remote.go"),
+		filepath.Join(outDir, "config", "loader.go"),
+	} {
+		if _, err := os.Stat(path); err == nil {
+			t.Errorf("%s should NOT be generated when WithConfig=false", path)
+		}
 	}
 }
 

@@ -32,24 +32,26 @@ type config struct {
 	dbTables  []string
 	addTables []string
 
-	outputDir   string
-	ImportPath  string
-	protocols   []string
-	withConfig  bool
-	withDocs    bool
-	withTests   bool
-	withModel   bool
-	withGRPC    bool
-	withDB      bool
-	dbDriver    string
-	withSwag    bool
-	withSkill   bool
-	serviceName string
-	routePrefix string
-	checkOnly   bool
-	appendSvc   string
-	appendModel string
-	appendMW    []string
+	outputDir      string
+	ImportPath     string
+	protocols      []string
+	withConfig     bool
+	configMode     string
+	remoteProvider string
+	withDocs       bool
+	withTests      bool
+	withModel      bool
+	withGRPC       bool
+	withDB         bool
+	dbDriver       string
+	withSwag       bool
+	withSkill      bool
+	serviceName    string
+	routePrefix    string
+	checkOnly      bool
+	appendSvc      string
+	appendModel    string
+	appendMW       []string
 }
 
 func parseFlags() config {
@@ -85,6 +87,8 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 	importPath := fs.String("import", "", "Go module import path")
 	protocols := fs.String("protocols", "http", "Supported protocols: http,grpc")
 	withConfig := fs.Bool("config", true, "Generate config")
+	configMode := fs.String("config-mode", "", "Generated config mode: file, hybrid, remote")
+	remoteProvider := fs.String("remote-provider", "", "Generated remote config provider: consul")
 	withDocs := fs.Bool("docs", true, "Generate docs")
 	withTests := fs.Bool("tests", false, "Generate tests")
 	withModel := fs.Bool("model", true, "Generate model")
@@ -110,30 +114,32 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 	}
 
 	return config{
-		idlPath:     *idlPath,
-		fromDB:      *fromDB,
-		dbDSN:       *dsn,
-		dbName:      *dbName,
-		dbTables:    splitComma(*tables),
-		addTables:   splitComma(*addTables),
-		outputDir:   *outputDir,
-		ImportPath:  *importPath,
-		protocols:   protos,
-		withConfig:  *withConfig,
-		withDocs:    *withDocs,
-		withTests:   *withTests,
-		withModel:   *withModel,
-		withGRPC:    hasGRPC,
-		withDB:      *withDB,
-		dbDriver:    *driver,
-		withSwag:    *withSwag,
-		withSkill:   *withSkill,
-		serviceName: *serviceName,
-		routePrefix: *routePrefix,
-		checkOnly:   *checkOnly,
-		appendSvc:   *appendSvc,
-		appendModel: *appendModel,
-		appendMW:    splitComma(*appendMiddleware),
+		idlPath:        *idlPath,
+		fromDB:         *fromDB,
+		dbDSN:          *dsn,
+		dbName:         *dbName,
+		dbTables:       splitComma(*tables),
+		addTables:      splitComma(*addTables),
+		outputDir:      *outputDir,
+		ImportPath:     *importPath,
+		protocols:      protos,
+		withConfig:     *withConfig,
+		configMode:     strings.TrimSpace(*configMode),
+		remoteProvider: strings.TrimSpace(*remoteProvider),
+		withDocs:       *withDocs,
+		withTests:      *withTests,
+		withModel:      *withModel,
+		withGRPC:       hasGRPC,
+		withDB:         *withDB,
+		dbDriver:       *driver,
+		withSwag:       *withSwag,
+		withSkill:      *withSkill,
+		serviceName:    *serviceName,
+		routePrefix:    *routePrefix,
+		checkOnly:      *checkOnly,
+		appendSvc:      *appendSvc,
+		appendModel:    *appendModel,
+		appendMW:       splitComma(*appendMiddleware),
 	}
 }
 
@@ -154,6 +160,35 @@ func splitComma(s string) []string {
 func (c config) validate() error {
 	if !c.fromDB && c.idlPath == "" {
 		return fmt.Errorf("either -idl or -from-db is required")
+	}
+	if !c.withConfig {
+		if c.configMode != "" {
+			return fmt.Errorf("-config-mode requires -config=true")
+		}
+		if c.remoteProvider != "" {
+			return fmt.Errorf("-remote-provider requires -config=true")
+		}
+		return nil
+	}
+	mode := c.configMode
+	if mode == "" {
+		mode = "file"
+	}
+	switch mode {
+	case "file", "hybrid", "remote":
+	default:
+		return fmt.Errorf("unsupported -config-mode %q (want file, hybrid, or remote)", c.configMode)
+	}
+	switch c.remoteProvider {
+	case "", "consul":
+	default:
+		return fmt.Errorf("unsupported -remote-provider %q", c.remoteProvider)
+	}
+	if mode == "file" && c.remoteProvider != "" {
+		return fmt.Errorf("-remote-provider requires -config-mode=hybrid or -config-mode=remote")
+	}
+	if (mode == "hybrid" || mode == "remote") && c.remoteProvider == "" {
+		return fmt.Errorf("-config-mode=%s requires -remote-provider", mode)
 	}
 	return nil
 }
@@ -190,22 +225,24 @@ func main() {
 	}
 
 	gen, err := generator.New(generator.Options{
-		TemplateFS:  &templateFS,
-		OutputDir:   cfg.outputDir,
-		ImportPath:  cfg.ImportPath,
-		ServiceName: cfg.serviceName,
-		Protocols:   cfg.protocols,
-		WithConfig:  cfg.withConfig,
-		WithDocs:    cfg.withDocs,
-		WithTests:   cfg.withTests,
-		WithModel:   cfg.withModel,
-		WithGRPC:    cfg.withGRPC,
-		WithDB:      cfg.withDB,
-		DBDriver:    cfg.dbDriver,
-		WithSwag:    cfg.withSwag,
-		WithSkill:   cfg.withSkill,
-		IDLSrcPath:  idlPath,
-		RoutePrefix: cfg.routePrefix,
+		TemplateFS:     &templateFS,
+		OutputDir:      cfg.outputDir,
+		ImportPath:     cfg.ImportPath,
+		ServiceName:    cfg.serviceName,
+		Protocols:      cfg.protocols,
+		WithConfig:     cfg.withConfig,
+		ConfigMode:     cfg.configMode,
+		RemoteProvider: cfg.remoteProvider,
+		WithDocs:       cfg.withDocs,
+		WithTests:      cfg.withTests,
+		WithModel:      cfg.withModel,
+		WithGRPC:       cfg.withGRPC,
+		WithDB:         cfg.withDB,
+		DBDriver:       cfg.dbDriver,
+		WithSwag:       cfg.withSwag,
+		WithSkill:      cfg.withSkill,
+		IDLSrcPath:     idlPath,
+		RoutePrefix:    cfg.routePrefix,
 	})
 	if err != nil {
 		log.Fatal(err)

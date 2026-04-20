@@ -33,19 +33,19 @@ Today the generator already produces a local config path when `-config=true`.
 Current behavior:
 
 - generates `config/config.yaml`
-- generates `config/config.go`
+- generates `config/config.go`, `config/local.go`, `config/env.go`, `config/remote.go`, and `config/loader.go`
 - generated `cmd/main.go` can load config from `config/config.yaml`
 - missing config files fall back to generated defaults
-- generated `config/config.go` now also includes explicit `LoadLocal(...)`, `ApplyEnv(...)`, and `LoadRemote(...)` helpers behind the stable `Load(path string)` entry point
+- generated config now exposes explicit `LoadLocal(...)`, `ApplyEnv(...)`, and `LoadRemote(...)` helpers behind the stable `Load(path string)` entry point
 - generated `config/config.yaml` now also includes a `remote:` section with conservative defaults
 - environment variable overrides are now a first shipped layer for scalar config fields under the `APP_` prefix
-- remote loading is currently exposed as a no-op seam so generated projects remain runnable with local config only while provider integration is still pending
+- remote loading now has a first real provider-backed implementation for `provider: consul`
+- CLI generation now also supports `-config-mode file|hybrid|remote` and `-remote-provider consul`
 
 Current limitations:
 
-- generated config still lives in one `config.go` file rather than separate `loader.go` / `env.go` / `remote.go` files
 - the config schema still uses the current `server` / `logging` / `database` shape instead of the longer-term normalized shape proposed below
-- remote loading does not yet call a concrete provider
+- only one remote provider is currently implemented
 - config structure is still tightly coupled to the current template set
 
 ## Goals
@@ -93,10 +93,12 @@ Not every file must exist immediately, but the generated package should move tow
 
 Current implementation note:
 
-- the repo has now partially entered this rollout without splitting files yet:
-  - env overrides are implemented inside generated `config.go`
-  - remote loading has a generated seam inside `config.go`
-  - a future refactor can still split those helpers into dedicated files without changing the startup-facing contract
+- the generated config package now follows the split-file direction while preserving the same startup-facing contract:
+  - `config.go` for types and defaults
+  - `local.go` for YAML loading
+  - `env.go` for environment overrides
+  - `remote.go` for provider-backed remote loading
+  - `loader.go` for the shared `Load(...)` entry point
 
 ## Public Generated API
 

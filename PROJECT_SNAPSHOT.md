@@ -176,14 +176,25 @@ Recently completed:
   - generated `config/config.go` now exposes `Default()`, `LoadLocal(path string)`, `ApplyEnv(cfg *Config)`, `LoadRemote(cfg *Config)`, and `Load(path string)`
   - generated `Load(path string)` now follows the first shared seam: defaults, local YAML, environment overrides, and a remote-loading seam
   - generated config now includes a `RemoteConfig` section plus `remote:` values in `config/config.yaml`
+  - generated config output now also uses a clearer split-file layout under `config/`:
+    - `config.go`
+    - `local.go`
+    - `env.go`
+    - `remote.go`
+    - `loader.go`
   - the first real remote-loading implementation now exists behind that seam:
     - `LoadRemote(...)` uses Viper remote loading for `provider: consul`
     - remote config is read from Consul KV via `remote.data_id`
     - remote values are layered onto the already-resolved local+env config
     - when `remote.fallback_to_local: true`, provider read failures fall back to local config instead of aborting startup
+  - `microgen` now also exposes the first explicit public generator surface for config loading mode:
+    - `-config-mode file|hybrid|remote`
+    - `-remote-provider consul`
+    - `hybrid` generates remote-enabled config with local fallback
+    - `remote` generates remote-enabled config without local fallback
   - generated config structs now also include `mapstructure` tags so Viper remote decoding follows the same field names as YAML loading
   - generated `go.mod` now includes the Viper dependency when config generation is enabled
-  - focused generator tests plus default-flags and remote-config integration coverage now protect that generated config contract
+  - focused generator tests plus default-flags, remote-config fallback, and strict remote-failure integration coverage now protect that generated config contract
 - `README.md` was updated so the generated project layout description matches current generator behavior more closely:
   - `client/` is called out explicitly
   - `pb/` is described as proto-related gRPC output

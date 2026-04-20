@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"reflect"
 	"strings"
 	"testing"
@@ -36,12 +37,33 @@ func TestConfigValidate(t *testing.T) {
 		{config{fromDB: false, idlPath: ""}, false},
 		{config{fromDB: true, idlPath: ""}, true},
 		{config{fromDB: false, idlPath: "test.go"}, true},
+		{config{fromDB: false, idlPath: "test.go", withConfig: true, configMode: "file"}, true},
+		{config{fromDB: false, idlPath: "test.go", withConfig: true, configMode: "hybrid", remoteProvider: "consul"}, true},
+		{config{fromDB: false, idlPath: "test.go", withConfig: true, configMode: "remote", remoteProvider: "consul"}, true},
+		{config{fromDB: false, idlPath: "test.go", withConfig: true, configMode: "remote"}, false},
+		{config{fromDB: false, idlPath: "test.go", withConfig: true, configMode: "file", remoteProvider: "consul"}, false},
+		{config{fromDB: false, idlPath: "test.go", withConfig: false, configMode: "hybrid"}, false},
 	}
 	for i, c := range cases {
 		err := c.cfg.validate()
 		if (err == nil) != c.pass {
 			t.Errorf("case %d: validate() error = %v, want pass = %v", i, err, c.pass)
 		}
+	}
+}
+
+func TestParseConfig_ConfigModeAndRemoteProvider(t *testing.T) {
+	fs := flag.NewFlagSet("microgen", flag.ContinueOnError)
+	cfg := parseConfig(fs, []string{
+		"-idl", "service.go",
+		"-config-mode", "hybrid",
+		"-remote-provider", "consul",
+	})
+	if cfg.configMode != "hybrid" {
+		t.Fatalf("configMode = %q, want hybrid", cfg.configMode)
+	}
+	if cfg.remoteProvider != "consul" {
+		t.Fatalf("remoteProvider = %q, want consul", cfg.remoteProvider)
 	}
 }
 
@@ -162,11 +184,11 @@ func TestPrintExtendCheckReport(t *testing.T) {
 			GeneratedRoutes:   "D:/work/demo/cmd/generated_routes.go",
 		},
 		Ownership: map[string]generator.FileOwnership{
-			"service/userservice/generated_repos.go":          {Tier: generator.OwnershipGeneratorRebuildable},
-			"endpoint/userservice/generated_chain.go":         {Tier: generator.OwnershipGeneratorRebuildable},
-			"cmd/generated_services.go":                       {Tier: generator.OwnershipGeneratorAggregation},
-			"cmd/generated_routes.go":                         {Tier: generator.OwnershipGeneratorAggregation},
-			"cmd/main.go":                                     {Tier: generator.OwnershipUserProtected},
+			"service/userservice/generated_repos.go":  {Tier: generator.OwnershipGeneratorRebuildable},
+			"endpoint/userservice/generated_chain.go": {Tier: generator.OwnershipGeneratorRebuildable},
+			"cmd/generated_services.go":               {Tier: generator.OwnershipGeneratorAggregation},
+			"cmd/generated_routes.go":                 {Tier: generator.OwnershipGeneratorAggregation},
+			"cmd/main.go":                             {Tier: generator.OwnershipUserProtected},
 		},
 		Warnings: []string{"cmd/main.go is treated as protected and will not be rewritten by extend mode"},
 		Features: generator.ExistingProjectFeatures{

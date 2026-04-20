@@ -27,14 +27,18 @@ func (l projectLayout) cmdGeneratedRuntime() string {
 func (l projectLayout) cmdCustomRoutes() string {
 	return filepath.Join(l.root, "cmd", "custom_routes.go")
 }
-func (l projectLayout) configYAML() string { return filepath.Join(l.root, "config", "config.yaml") }
-func (l projectLayout) configCode() string { return filepath.Join(l.root, "config", "config.go") }
-func (l projectLayout) readme() string     { return filepath.Join(l.root, "README.md") }
-func (l projectLayout) docsDir() string    { return filepath.Join(l.root, "docs") }
-func (l projectLayout) docsStub() string   { return filepath.Join(l.docsDir(), "docs.go") }
-func (l projectLayout) skillFile() string  { return filepath.Join(l.root, "skill", "skill.go") }
-func (l projectLayout) goMod() string      { return filepath.Join(l.root, "go.mod") }
-func (l projectLayout) idlCopy() string    { return filepath.Join(l.root, "idl.go") }
+func (l projectLayout) configYAML() string   { return filepath.Join(l.root, "config", "config.yaml") }
+func (l projectLayout) configCode() string   { return filepath.Join(l.root, "config", "config.go") }
+func (l projectLayout) configLocal() string  { return filepath.Join(l.root, "config", "local.go") }
+func (l projectLayout) configEnv() string    { return filepath.Join(l.root, "config", "env.go") }
+func (l projectLayout) configRemote() string { return filepath.Join(l.root, "config", "remote.go") }
+func (l projectLayout) configLoader() string { return filepath.Join(l.root, "config", "loader.go") }
+func (l projectLayout) readme() string       { return filepath.Join(l.root, "README.md") }
+func (l projectLayout) docsDir() string      { return filepath.Join(l.root, "docs") }
+func (l projectLayout) docsStub() string     { return filepath.Join(l.docsDir(), "docs.go") }
+func (l projectLayout) skillFile() string    { return filepath.Join(l.root, "skill", "skill.go") }
+func (l projectLayout) goMod() string        { return filepath.Join(l.root, "go.mod") }
+func (l projectLayout) idlCopy() string      { return filepath.Join(l.root, "idl.go") }
 func (l projectLayout) generatedModelFile(modelName string) string {
 	return filepath.Join(l.root, "model", "generated_"+strings.ToLower(modelName)+".go")
 }

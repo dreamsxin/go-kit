@@ -81,12 +81,16 @@ func (g *Generator) generateCustomRoutesFile() error {
 func (g *Generator) generateConfigFile(services []*serviceView) error {
 	dbMeta, _ := supportedDrivers[g.config.DBDriver]
 	data := map[string]any{
-		"Services":     services,
-		"DBDriver":     g.config.DBDriver,
-		"DBDefaultDSN": dbMeta.DefaultDSN,
-		"WithGRPC":     g.config.WithGRPC,
-		"WithSwag":     g.config.WithSwag,
-		"WithDB":       g.config.WithDB,
+		"Services":              services,
+		"DBDriver":              g.config.DBDriver,
+		"DBDefaultDSN":          dbMeta.DefaultDSN,
+		"WithGRPC":              g.config.WithGRPC,
+		"WithSwag":              g.config.WithSwag,
+		"WithDB":                g.config.WithDB,
+		"ConfigMode":            g.config.ConfigMode,
+		"RemoteProvider":        g.config.RemoteProvider,
+		"RemoteEnabledDefault":  g.config.ConfigMode == "hybrid" || g.config.ConfigMode == "remote",
+		"RemoteFallbackDefault": g.config.ConfigMode != "remote",
 	}
 	return g.executeTemplate("config.tmpl", g.layout.configYAML(), data)
 }
@@ -94,14 +98,33 @@ func (g *Generator) generateConfigFile(services []*serviceView) error {
 func (g *Generator) generateConfigCodeFile(services []*serviceView) error {
 	dbMeta, _ := supportedDrivers[g.config.DBDriver]
 	data := map[string]any{
-		"Services":     services,
-		"WithDB":       g.config.WithDB,
-		"WithGRPC":     g.config.WithGRPC,
-		"WithSwag":     g.config.WithSwag,
-		"DBDriver":     g.config.DBDriver,
-		"DBDefaultDSN": dbMeta.DefaultDSN,
+		"Services":              services,
+		"WithDB":                g.config.WithDB,
+		"WithGRPC":              g.config.WithGRPC,
+		"WithSwag":              g.config.WithSwag,
+		"DBDriver":              g.config.DBDriver,
+		"DBDefaultDSN":          dbMeta.DefaultDSN,
+		"ConfigMode":            g.config.ConfigMode,
+		"RemoteProvider":        g.config.RemoteProvider,
+		"RemoteEnabledDefault":  g.config.ConfigMode == "hybrid" || g.config.ConfigMode == "remote",
+		"RemoteFallbackDefault": g.config.ConfigMode != "remote",
 	}
-	return g.executeTemplate("config_code.tmpl", g.layout.configCode(), data)
+	targets := []struct {
+		template string
+		path     string
+	}{
+		{template: "config_types.tmpl", path: g.layout.configCode()},
+		{template: "config_local.tmpl", path: g.layout.configLocal()},
+		{template: "config_env.tmpl", path: g.layout.configEnv()},
+		{template: "config_remote.tmpl", path: g.layout.configRemote()},
+		{template: "config_loader.tmpl", path: g.layout.configLoader()},
+	}
+	for _, target := range targets {
+		if err := g.executeTemplate(target.template, target.path, data); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (g *Generator) generateReadme(ctx generationContext) error {

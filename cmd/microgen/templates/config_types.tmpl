@@ -10,7 +10,9 @@ import "time"
 type Config struct {
 	Server    ServerConfig     `yaml:"server" mapstructure:"server"`
 	Logging   LoggingConfig    `yaml:"logging" mapstructure:"logging"`
+{{- if .WithDB}}
 	Database  DatabaseConfig   `yaml:"database" mapstructure:"database"`
+{{- end}}
 	Middleware MiddlewareConfig `yaml:"middleware" mapstructure:"middleware"`
 	Debug      DebugConfig      `yaml:"debug" mapstructure:"debug"`
 	Remote     RemoteConfig     `yaml:"remote" mapstructure:"remote"`
@@ -19,9 +21,15 @@ type Config struct {
 // ServerConfig holds HTTP and optional gRPC listener settings.
 type ServerConfig struct {
 	HTTPAddr                string        `yaml:"http_addr" mapstructure:"http_addr"`
+{{- if .WithGRPC}}
+	GRPCAddr                string        `yaml:"grpc_addr" mapstructure:"grpc_addr"`
+{{- end}}
 	ReadTimeout             time.Duration `yaml:"read_timeout" mapstructure:"read_timeout"`
 	WriteTimeout            time.Duration `yaml:"write_timeout" mapstructure:"write_timeout"`
 	GracefulShutdownTimeout time.Duration `yaml:"graceful_shutdown_timeout" mapstructure:"graceful_shutdown_timeout"`
+{{- if .WithSwag}}
+	SwaggerHost             string        `yaml:"swagger_host" mapstructure:"swagger_host"`
+{{- end}}
 }
 
 // LoggingConfig holds logger settings.
@@ -29,6 +37,8 @@ type LoggingConfig struct {
 	Level  string `yaml:"level" mapstructure:"level"`
 	Format string `yaml:"format" mapstructure:"format"`
 }
+
+{{- if .WithDB}}
 
 // DatabaseConfig holds database connection settings.
 type DatabaseConfig struct {
@@ -38,6 +48,7 @@ type DatabaseConfig struct {
 	MaxIdleConns    int           `yaml:"max_idle_conns" mapstructure:"max_idle_conns"`
 	ConnMaxLifetime time.Duration `yaml:"conn_max_lifetime" mapstructure:"conn_max_lifetime"`
 }
+{{- end}}
 
 // MiddlewareConfig groups generated middleware settings.
 type MiddlewareConfig struct {
@@ -89,6 +100,9 @@ func Default() *Config {
 	return &Config{
 		Server: ServerConfig{
 			HTTPAddr:                ":8080",
+{{- if .WithGRPC}}
+			GRPCAddr:                ":8081",
+{{- end}}
 			ReadTimeout:             15 * time.Second,
 			WriteTimeout:            15 * time.Second,
 			GracefulShutdownTimeout: 30 * time.Second,
@@ -97,13 +111,15 @@ func Default() *Config {
 			Level:  "info",
 			Format: "json",
 		},
+{{- if .WithDB}}
 		Database: DatabaseConfig{
-			Driver:          "mysql",
-			DSN:             "root:password@tcp(127.0.0.1:3306)/{svcname}?charset=utf8mb4&parseTime=True&loc=Local",
+			Driver:          "{{.DBDriver}}",
+			DSN:             "{{.DBDefaultDSN}}",
 			MaxOpenConns:    20,
 			MaxIdleConns:    5,
 			ConnMaxLifetime: time.Hour,
 		},
+{{- end}}
 		Middleware: MiddlewareConfig{
 			CircuitBreaker: CircuitBreakerConfig{
 				Enabled:          true,
@@ -125,14 +141,14 @@ func Default() *Config {
 			PrintRoutes:   true,
 		},
 		Remote: RemoteConfig{
-			Enabled:         false,
-			Provider:        "",
+			Enabled:         {{if .RemoteEnabledDefault}}true{{else}}false{{end}},
+			Provider:        "{{.RemoteProvider}}",
 			Endpoint:        "",
 			Namespace:       "",
 			Group:           "",
 			DataID:          "",
 			Timeout:         5 * time.Second,
-			FallbackToLocal: true,
+			FallbackToLocal: {{if .RemoteFallbackDefault}}true{{else}}false{{end}},
 		},
 	}
 }

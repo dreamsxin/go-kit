@@ -144,7 +144,23 @@ microgen -from-db -driver mysql -dsn "user:pass@tcp(localhost:3306)/dbname"
 - **Client SDK**: Automatically generates a ready-to-use Go client for your service.
 - **Middleware**: Built-in support for circuit breakers, rate limiting, and logging.
 - **Multi-service**: Supports generating multiple services into a single module using the same layout as single-service projects, with one `service/`, `endpoint/`, `transport/`, `client/`, and `sdk/` subtree per service.
+- **Config Modes**: Generated config now supports explicit `-config-mode file|hybrid|remote` plus `-remote-provider consul` to make local-only, fallback-enabled remote, and strict remote loading behavior explicit at generation time.
 - **Incremental Extension**: Existing generated projects can now be extended with `microgen extend -idl <full-combined.go> -out <project> -append-service <Name>`, `-append-model <Name>`, or `-append-middleware <Name[,Name...]>`, updating only generator-owned aggregation files plus newly generated files.
+
+### Generated Config Modes
+
+Use the generated config surface that matches the startup contract you want:
+
+```bash
+# Local file + env only
+microgen -idl idl.go -out . -import example.com/mysvc -config-mode file
+
+# Local file + env + remote with fallback to local
+microgen -idl idl.go -out . -import example.com/mysvc -config-mode hybrid -remote-provider consul
+
+# Remote-first config with strict failure when remote load fails
+microgen -idl idl.go -out . -import example.com/mysvc -config-mode remote -remote-provider consul
+```
 
 ### Extend Existing Projects
 
@@ -221,6 +237,7 @@ A generated `go-kit` project follows this layout:
 |-- cmd/main.go          # Entry point, wires everything together
 |-- cmd/generated_*.go   # Generator-owned runtime, service, and route wiring
 |-- cmd/custom_routes.go # User-owned custom HTTP route hook
+|-- config/              # Generated config package and local config file
 |-- service/<svcname>/   # Pure business logic
 |-- endpoint/<svcname>/  # Endpoints plus generated/custom middleware seams
 |-- transport/<svcname>/ # HTTP/gRPC handlers
@@ -233,6 +250,8 @@ A generated `go-kit` project follows this layout:
 |-- idl.go               # Optional: copied Go IDL input (not used for .proto input)
 `-- skill/               # AI tool definitions
 ```
+
+When config generation is enabled, `microgen` now splits the generated config package into clearer files such as `config/config.go`, `config/local.go`, `config/env.go`, `config/remote.go`, and `config/loader.go` while keeping the same startup-facing loading contract.
 
 When model generation is enabled, `microgen` now keeps generated model schemas and generated repositories in finer-grained files such as `model/generated_<name>.go`, `repository/generated_<name>_repository.go`, and `repository/generated_base.go`. User-customizable model hooks remain in separate `model/<name>.go` files and are not rewritten on rerun.
 
