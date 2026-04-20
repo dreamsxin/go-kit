@@ -65,8 +65,19 @@ func (g *Generator) generateServiceArtifacts(ctx generationContext) error {
 		if err := g.generateServiceFileFull(service, ctx.models, irService, ctx.source); err != nil {
 			return fmt.Errorf("generate service[%s] failed: %w", service.ServiceName, err)
 		}
+		if g.config.WithModel {
+			if err := g.generateServiceGeneratedReposFile(service, ctx.models); err != nil {
+				return fmt.Errorf("generate service generated repos[%s] failed: %w", service.ServiceName, err)
+			}
+		}
 		if err := g.generateEndpointsFile(service, irService, ctx.source); err != nil {
 			return fmt.Errorf("generate endpoints[%s] failed: %w", service.ServiceName, err)
+		}
+		if err := g.generateEndpointGeneratedChainFile(service); err != nil {
+			return fmt.Errorf("generate endpoint generated chain[%s] failed: %w", service.ServiceName, err)
+		}
+		if err := g.generateEndpointCustomChainFile(service); err != nil {
+			return fmt.Errorf("generate endpoint custom chain[%s] failed: %w", service.ServiceName, err)
 		}
 		if err := g.generateHTTPTransportFile(service, irService, ctx.source); err != nil {
 			return fmt.Errorf("generate http transport[%s] failed: %w", service.ServiceName, err)
@@ -96,6 +107,18 @@ func (g *Generator) generateServiceArtifacts(ctx generationContext) error {
 }
 
 func (g *Generator) generateFinalProjectArtifacts(ctx generationContext) error {
+	if err := g.generateGeneratedRuntimeFile(ctx); err != nil {
+		return fmt.Errorf("generate generated runtime failed: %w", err)
+	}
+	if err := g.generateGeneratedServicesFile(ctx); err != nil {
+		return fmt.Errorf("generate generated services failed: %w", err)
+	}
+	if err := g.generateGeneratedRoutesFile(ctx); err != nil {
+		return fmt.Errorf("generate generated routes failed: %w", err)
+	}
+	if err := g.generateCustomRoutesFile(); err != nil {
+		return fmt.Errorf("generate custom routes failed: %w", err)
+	}
 	if err := g.generateMainFileFull(ctx); err != nil {
 		return fmt.Errorf("generate main failed: %w", err)
 	}

@@ -144,6 +144,47 @@ microgen -from-db -driver mysql -dsn "user:pass@tcp(localhost:3306)/dbname"
 - **Client SDK**: Automatically generates a ready-to-use Go client for your service.
 - **Middleware**: Built-in support for circuit breakers, rate limiting, and logging.
 - **Multi-service**: Supports generating multiple services into a single module using the same layout as single-service projects, with one `service/`, `endpoint/`, `transport/`, `client/`, and `sdk/` subtree per service.
+- **Incremental Extension**: Existing generated projects can now be extended with `microgen extend -idl <full-combined.go> -out <project> -append-service <Name>`, `-append-model <Name>`, or `-append-middleware <Name[,Name...]>`, updating only generator-owned aggregation files plus newly generated files.
+
+### Extend Existing Projects
+
+`microgen` now has conservative extend paths for appending a new service, a new model, or generator-owned endpoint middleware to an existing generated Go-IDL project.
+
+```bash
+microgen extend -check -out ./myservice
+microgen extend -idl full_combined.go -out ./myservice -append-service OrderService
+microgen extend -idl full_combined.go -out ./myservice -append-model Product
+microgen extend -idl full_combined.go -out ./myservice -append-middleware tracing,error-handling,metrics
+```
+
+Current extend-mode contract:
+
+- `microgen extend -check -out <project>` scans an existing generated project and prints extend compatibility without changing files
+- `append-service`, `append-model`, and `append-middleware` currently require a Go IDL input, not `.proto`
+- the `-idl` file must contain the full combined contract for existing services plus the new service being appended
+- extend mode scans the target project first and fails clearly when required generator-owned aggregation files are missing
+- existing user-owned files such as `service/<svc>/service.go` are not overwritten
+- `append-model` expects an existing generated project with model output enabled and updates only generated model/repository files plus generator-owned model wiring seams such as `service/<svc>/generated_repos.go`
+- `append-middleware` updates only generator-owned endpoint middleware seams such as `endpoint/<svc>/generated_chain.go` and preserves user-owned `endpoint/<svc>/custom_chain.go`
+- extend mode updates generator-owned aggregation files such as `cmd/generated_services.go`, `cmd/generated_routes.go`, `cmd/generated_runtime.go`, and the generator-managed `idl.go` snapshot when present
+
+This conservative contract is intentional so `microgen` can evolve generated projects without turning extension into a handwritten-code merge engine.
+
+Recommended workflow:
+
+```bash
+# 1. Check whether the existing project already has the required compatibility seams.
+microgen extend -check -out ./myservice
+
+# 2. If the project is ready, run one explicit append operation.
+microgen extend -idl full_combined.go -out ./myservice -append-service OrderService
+```
+
+The `-check` report is especially useful for older generated projects because it tells you which generator-owned seams are present, which append paths are ready, and which compatibility seams are still missing.
+
+Exit-code note:
+
+- `microgen extend -check` exits with `0` when all supported append paths are ready, and `2` when the scan succeeds but compatibility seams are still missing.
 
 ---
 
@@ -178,18 +219,26 @@ A generated `go-kit` project follows this layout:
 ```text
 .
 |-- cmd/main.go          # Entry point, wires everything together
+|-- cmd/generated_*.go   # Generator-owned runtime, service, and route wiring
+|-- cmd/custom_routes.go # User-owned custom HTTP route hook
 |-- service/<svcname>/   # Pure business logic
-|-- endpoint/<svcname>/  # Go-kit endpoints and middleware wiring
+|-- endpoint/<svcname>/  # Endpoints plus generated/custom middleware seams
 |-- transport/<svcname>/ # HTTP/gRPC handlers
 |-- client/<svcname>/    # Optional: runnable generated demo client
 |-- pb/                  # Optional: proto-related assets for generated gRPC services
 |-- model/               # Optional: GORM database models
-|-- repository/          # Optional: Data access layer
+|-- repository/          # Optional: generated data access layer
 |-- sdk/<svcname>sdk/    # Generated client SDK
 |-- docs/docs.go         # Optional: Swagger stub scaffold
 |-- idl.go               # Optional: copied Go IDL input (not used for .proto input)
 `-- skill/               # AI tool definitions
 ```
+
+When model generation is enabled, `microgen` now keeps generated model schemas and generated repositories in finer-grained files such as `model/generated_<name>.go`, `repository/generated_<name>_repository.go`, and `repository/generated_base.go`. User-customizable model hooks remain in separate `model/<name>.go` files and are not rewritten on rerun.
+
+Generated HTTP business routes stay in generator-owned files such as `cmd/generated_routes.go`, while project-specific custom routes belong in `cmd/custom_routes.go`, which is created once and preserved on rerun.
+
+Generated endpoint middleware chains now live in generator-owned files such as `endpoint/<svc>/generated_chain.go`, while project-specific middleware customization belongs in `endpoint/<svc>/custom_chain.go`, which is created once and preserved on rerun.
 
 ---
 
@@ -206,6 +255,12 @@ If you are resuming a refactor or starting a new AI coding session, read [PROJEC
 If you are deciding what should belong in the framework, what should remain internal, where customization is allowed, what patterns to avoid, and how to review changes consistently, see [FRAMEWORK_BOUNDARIES.md](FRAMEWORK_BOUNDARIES.md), [STABILITY.md](STABILITY.md), [PACKAGE_SURFACES.md](PACKAGE_SURFACES.md), [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md), [ANTI_PATTERNS.md](ANTI_PATTERNS.md), [PR_CHECKLIST.md](PR_CHECKLIST.md), and [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
 If you need the recommended target architecture for package roles, generated project layout, `microgen` evolution, AI skill generation, and the shared direction for errors/metadata/context/testing, read [FRAMEWORK_ARCHITECTURE.md](FRAMEWORK_ARCHITECTURE.md).
+
+If you are working on the next `microgen` roadmap for generated config, remote config, and incremental extension of existing generated projects, read [MICROGEN_NEXT_PHASE.md](MICROGEN_NEXT_PHASE.md).
+
+If you are implementing those roadmap items directly, read [MICROGEN_CONFIG_DESIGN.md](MICROGEN_CONFIG_DESIGN.md) and [MICROGEN_EXTEND_DESIGN.md](MICROGEN_EXTEND_DESIGN.md).
+
+If you need the ownership rule for generated files versus user-edited files, read [MICROGEN_OWNERSHIP.md](MICROGEN_OWNERSHIP.md).
 
 ---
 

@@ -41,6 +41,11 @@ The following should be treated as compatibility-sensitive:
   - `-skill`
   - `-service`
   - `-prefix`
+  - `extend`
+  - `-check`
+  - `-append-service`
+  - `-append-model`
+  - `-append-middleware`
 - the ability to generate from:
   - Go IDL
   - Proto
@@ -95,9 +100,19 @@ Not every directory appears in every mode, but the meaning of these directories 
 - `sdk/` contains generated client usage surface
 - `skill/` contains AI-facing capability definitions
 
+Ownership guidance that should be treated as compatibility-sensitive:
+
+- generator-owned files and user-owned files should remain meaningfully separated
+- users should not be expected to modify files the generator must keep rewriting
+- future extend or append behavior should prefer new generated files and explicit generator-owned aggregation files over rewriting user business logic files
+- generated model and repository scaffolding should continue moving toward explicit generator-owned files such as `model/generated_<name>.go`, `repository/generated_<name>_repository.go`, and `repository/generated_base.go`, with separate user-owned customization seams where needed
+- generated endpoint middleware wiring should continue using explicit generator-owned seams such as `endpoint/<service>/generated_chain.go` with separate user-owned customization seams such as `endpoint/<service>/custom_chain.go`
+
 Additional current conventions that should be treated as compatibility-sensitive:
 
 - `cmd/main.go` remains the generated startup entry point
+- `cmd/generated_services.go`, `cmd/generated_routes.go`, and `cmd/generated_runtime.go` are the generator-owned aggregation files used as stable extend-mode mutation points
+- `endpoint/<service>/generated_chain.go` is the generator-owned middleware aggregation seam, while `endpoint/<service>/custom_chain.go` remains user-owned
 - `client/<service>/demo.go` remains the generated runnable client/demo entry for a service
 - `README.md` may be generated when docs output is enabled
 - `docs/docs.go` may be generated as a Swagger stub when swag output is enabled
@@ -152,6 +167,7 @@ For `microgen`, the following should be treated as breaking or near-breaking cha
 - changing the skill generation contract in a user-visible way
 - making an HTTP-only generated project require gRPC or other previously optional runtime pieces
 - changing generated output in a way that invalidates documented examples or upgrade assumptions
+- changing file ownership expectations in a way that makes previously user-safe files generator-managed without clear migration guidance
 
 These changes require:
 
@@ -179,6 +195,7 @@ Current expectations:
 - Go IDL input may be copied into generated output as `idl.go`
 - Proto input should not be copied into `idl.go`
 - users may rely on `idl.go` being present only for Go-IDL-driven project generation
+- in current `append-service` extend mode, `idl.go` is treated as a generator-managed Go-IDL snapshot and may be refreshed from the full combined source contract
 
 ### Docs stub behavior
 
@@ -195,6 +212,29 @@ Current expectations:
 - route prefix configuration should affect generated HTTP transport code
 - route prefix configuration should stay aligned with generated startup wiring
 - maintainers should treat prefix drift between transport and startup output as a compatibility regression
+
+### Extend mode behavior
+
+Current expectations:
+
+- `microgen extend -check -out <project>` is a supported read-only compatibility check for existing generated projects
+- `microgen extend -idl <file> -out <project> -append-service <Name>` is the first supported incremental extend path
+- `microgen extend -idl <file> -out <project> -append-model <Name>` is now also supported for generated projects that already have model output enabled
+- `microgen extend -idl <file> -out <project> -append-middleware <Name[,Name...]>` is now supported for generator-owned endpoint middleware seams
+- `extend -check` should not require an IDL file and should not mutate project files
+- `extend -check` should exit with `0` when compatibility is ready and `2` when the scan succeeds but required compatibility seams are still missing
+- current `append-service` support is limited to Go IDL inputs, not Proto inputs
+- current `append-model` support is also limited to Go IDL inputs, not Proto inputs
+- current `append-middleware` support is also limited to Go IDL inputs, not Proto inputs
+- current `append-service` expects the provided Go IDL file to contain the full combined contract for both existing services and the new service being appended
+- current `append-model` expects the provided Go IDL file to contain the full combined contract for both existing services/models and the new model being appended
+- current `append-middleware` expects the provided Go IDL file to contain the full combined contract for existing services so endpoint middleware seams can be regenerated safely
+- extend mode should scan the target project and fail clearly if required generator-owned aggregation files are missing
+- extend check mode should report generator-owned compatibility seams and current append readiness clearly enough that users can decide whether regeneration is needed before append
+- extend mode should create new generated files for the appended service while preserving existing user-owned implementation files such as `service/<svc>/service.go`
+- extend mode should create new generated model/repository files for the appended model while preserving existing user-owned customization seams such as `model/<name>.go`
+- extend mode should update only generator-owned endpoint middleware seams such as `endpoint/<svc>/generated_chain.go` when appending middleware and should preserve user-owned files such as `endpoint/<svc>/custom_chain.go`
+- extend mode may update generator-owned aggregation files and generator-managed snapshots such as `cmd/generated_services.go`, `cmd/generated_routes.go`, `cmd/generated_runtime.go`, `skill/skill.go`, and `idl.go` when those outputs are part of the generated project shape
 
 ## What Does Not Automatically Count As Breaking
 
@@ -232,6 +272,15 @@ When changing generated directories or major files:
 2. avoid moving user-expected code between `service`, `endpoint`, and `transport`
 3. update docs immediately if the generated layout changes
 4. assume users may have automation or onboarding docs built around the current layout
+
+## Rules For Ownership Boundaries
+
+When changing which files are generator-owned versus user-owned:
+
+1. prefer introducing new generator-owned aggregation files over reclaiming user-edited files
+2. do not make append or rerun behavior depend on overwriting business logic files
+3. document which files extend mode may update
+4. treat ownership-boundary changes as compatibility-sensitive behavior
 
 ## Validation Requirements
 
@@ -278,5 +327,6 @@ Use this guide together with:
 - [STABILITY.md](STABILITY.md)
 - [PACKAGE_SURFACES.md](PACKAGE_SURFACES.md)
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+- [MICROGEN_OWNERSHIP.md](MICROGEN_OWNERSHIP.md)
 
 Together they define framework scope, package stability, allowed usage, and generator compatibility expectations.

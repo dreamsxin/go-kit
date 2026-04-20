@@ -1,17 +1,25 @@
 package generator
 
+import "os"
+
 func (g *Generator) generateModelFile(model *modelView) error {
 	data := map[string]any{
-		"Models":     []*modelView{model},
+		"Model":      model,
 		"ImportPath": g.config.ImportPath,
 	}
-	if err := g.executeTemplate("model.tmpl", g.layout.modelFile(), data); err != nil {
+	if err := g.executeTemplate("model.tmpl", g.layout.generatedModelFile(model.Name), data); err != nil {
+		return err
+	}
+	path := g.layout.modelHooksFile(model.Name)
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
 		return err
 	}
 	hooksData := map[string]any{
 		"Name": model.Name,
 	}
-	return g.executeTemplate("model_hooks.tmpl", g.layout.modelHooksFile(model.Name), hooksData)
+	return g.executeTemplate("model_hooks.tmpl", path, hooksData)
 }
 
 func (g *Generator) generateRepositoryBaseFile() error {
@@ -26,5 +34,5 @@ func (g *Generator) generateRepositoryFile(model *modelView) error {
 		"Model":      model,
 		"ImportPath": g.config.ImportPath,
 	}
-	return g.executeTemplate("repository.tmpl", g.layout.repositoryFile(), data)
+	return g.executeTemplate("repository.tmpl", g.layout.repositoryFile(model.Name), data)
 }

@@ -123,35 +123,23 @@ gen-from-db: install-microgen
 
 ## run-demo: run the generated service from OUT
 run-demo:
-	@if [ ! -d "$(OUT)" ]; then \
-		echo "Error: output directory '$(OUT)' not found. Run 'make gen' first."; \
-		exit 1; \
-	fi
+	@go run ./tools/makeguard dir-exists "$(OUT)" "output directory '$(OUT)' not found. Run 'make gen' first."
 	@echo ">>> Starting demo service on $(HTTP_PORT)..."
 	@cd $(OUT) && go run ./cmd/main.go -http.addr $(HTTP_PORT)
 
 ## swag-demo: regenerate Swagger docs for the generated service in OUT
 swag-demo:
-	@if [ ! -d "$(OUT)" ]; then \
-		echo "Error: output directory '$(OUT)' not found. Run 'make gen' first."; \
-		exit 1; \
-	fi
+	@go run ./tools/makeguard dir-exists "$(OUT)" "output directory '$(OUT)' not found. Run 'make gen' first."
 	@echo ">>> Running swag init for $(OUT)..."
 	@cd $(OUT) && swag init -g cmd/main.go -o docs
 	@echo ">>> Done. Start with: make run-demo"
 
+## swag: alias for swag-demo
+swag: swag-demo
+
 ## proto: generate protobuf Go files from PROTO_DIR
 proto:
-	@echo ">>> Generating protobuf Go files..."
-	@for dir in $(shell find $(PROTO_DIR) -name "*.proto" -exec dirname {} \; | sort -u); do \
-		echo "  protoc: $$dir"; \
-		protoc \
-			--proto_path=$$dir \
-			--go_out=$$dir --go_opt=paths=source_relative \
-			--go-grpc_out=$$dir --go-grpc_opt=paths=source_relative \
-			$$dir/*.proto; \
-	done
-	@echo ">>> Done. pb.go files generated."
+	@go run ./tools/makeguard proto "$(PROTO_DIR)"
 
 ## build: build the whole repository
 build:
@@ -194,7 +182,7 @@ tools:
 clean:
 	@echo ">>> Cleaning..."
 	@go clean
-	@rm -f coverage.out coverage.html
+	@go run ./tools/makeguard remove coverage.out coverage.html
 
 ## help: show available targets
 help:

@@ -14,7 +14,19 @@ func newProjectLayout(root string) projectLayout {
 	return projectLayout{root: root}
 }
 
-func (l projectLayout) cmdMain() string    { return filepath.Join(l.root, "cmd", "main.go") }
+func (l projectLayout) cmdMain() string { return filepath.Join(l.root, "cmd", "main.go") }
+func (l projectLayout) cmdGeneratedServices() string {
+	return filepath.Join(l.root, "cmd", "generated_services.go")
+}
+func (l projectLayout) cmdGeneratedRoutes() string {
+	return filepath.Join(l.root, "cmd", "generated_routes.go")
+}
+func (l projectLayout) cmdGeneratedRuntime() string {
+	return filepath.Join(l.root, "cmd", "generated_runtime.go")
+}
+func (l projectLayout) cmdCustomRoutes() string {
+	return filepath.Join(l.root, "cmd", "custom_routes.go")
+}
 func (l projectLayout) configYAML() string { return filepath.Join(l.root, "config", "config.yaml") }
 func (l projectLayout) configCode() string { return filepath.Join(l.root, "config", "config.go") }
 func (l projectLayout) readme() string     { return filepath.Join(l.root, "README.md") }
@@ -23,12 +35,14 @@ func (l projectLayout) docsStub() string   { return filepath.Join(l.docsDir(), "
 func (l projectLayout) skillFile() string  { return filepath.Join(l.root, "skill", "skill.go") }
 func (l projectLayout) goMod() string      { return filepath.Join(l.root, "go.mod") }
 func (l projectLayout) idlCopy() string    { return filepath.Join(l.root, "idl.go") }
-func (l projectLayout) modelFile() string  { return filepath.Join(l.root, "model", "model.go") }
-func (l projectLayout) repositoryBaseFile() string {
-	return filepath.Join(l.root, "repository", "base.go")
+func (l projectLayout) generatedModelFile(modelName string) string {
+	return filepath.Join(l.root, "model", "generated_"+strings.ToLower(modelName)+".go")
 }
-func (l projectLayout) repositoryFile() string {
-	return filepath.Join(l.root, "repository", "repository.go")
+func (l projectLayout) repositoryBaseFile() string {
+	return filepath.Join(l.root, "repository", "generated_base.go")
+}
+func (l projectLayout) repositoryFile(modelName string) string {
+	return filepath.Join(l.root, "repository", "generated_"+strings.ToLower(modelName)+"_repository.go")
 }
 func (l projectLayout) testDir() string                          { return filepath.Join(l.root, "test") }
 func (l projectLayout) servicePackage(serviceName string) string { return strings.ToLower(serviceName) }
@@ -41,8 +55,20 @@ func (l projectLayout) serviceFile(serviceName string) string {
 	return filepath.Join(l.root, "service", l.servicePackage(serviceName), "service.go")
 }
 
+func (l projectLayout) serviceGeneratedReposFile(serviceName string) string {
+	return filepath.Join(l.root, "service", l.servicePackage(serviceName), "generated_repos.go")
+}
+
 func (l projectLayout) endpointsFile(serviceName string) string {
 	return filepath.Join(l.root, "endpoint", l.servicePackage(serviceName), "endpoints.go")
+}
+
+func (l projectLayout) endpointGeneratedChainFile(serviceName string) string {
+	return filepath.Join(l.root, "endpoint", l.servicePackage(serviceName), "generated_chain.go")
+}
+
+func (l projectLayout) endpointCustomChainFile(serviceName string) string {
+	return filepath.Join(l.root, "endpoint", l.servicePackage(serviceName), "custom_chain.go")
 }
 
 func (l projectLayout) httpTransportFile(serviceName string) string {

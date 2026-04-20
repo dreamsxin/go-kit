@@ -18,6 +18,16 @@ func (g *Generator) generateServiceFileFull(service *serviceView, models []*mode
 	return g.executeTemplate("service.tmpl", g.layout.serviceFile(service.ServiceName), data)
 }
 
+func (g *Generator) generateServiceGeneratedReposFile(service *serviceView, models []*modelView) error {
+	data := map[string]any{
+		"Service":    service,
+		"Models":     models,
+		"WithModel":  g.config.WithModel,
+		"ImportPath": g.config.ImportPath,
+	}
+	return g.executeTemplate("service_generated_repos.tmpl", g.layout.serviceGeneratedReposFile(service.ServiceName), data)
+}
+
 func (g *Generator) generateEndpointsFile(service *serviceView, irService *ir.Service, source string) error {
 	data := map[string]any{
 		"Service":    service,
@@ -26,6 +36,27 @@ func (g *Generator) generateEndpointsFile(service *serviceView, irService *ir.Se
 		"Source":     source,
 	}
 	return g.executeTemplate("endpoints.tmpl", g.layout.endpointsFile(service.ServiceName), data)
+}
+
+func (g *Generator) generateEndpointGeneratedChainFile(service *serviceView) error {
+	data := map[string]any{
+		"Service":              service,
+		"GeneratedMiddlewares": normalizeGeneratedMiddlewares(g.config.GeneratedMiddlewares),
+	}
+	return g.executeTemplate("endpoint_generated_chain.tmpl", g.layout.endpointGeneratedChainFile(service.ServiceName), data)
+}
+
+func (g *Generator) generateEndpointCustomChainFile(service *serviceView) error {
+	path := g.layout.endpointCustomChainFile(service.ServiceName)
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	data := map[string]any{
+		"Service": service,
+	}
+	return g.executeTemplate("endpoint_custom_chain.tmpl", path, data)
 }
 
 func (g *Generator) generateHTTPTransportFile(service *serviceView, irService *ir.Service, source string) error {

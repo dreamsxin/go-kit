@@ -4,12 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/sony/gobreaker"
-	"golang.org/x/time/rate"
-
 	"github.com/dreamsxin/go-kit/endpoint"
-	"github.com/dreamsxin/go-kit/endpoint/circuitbreaker"
-	"github.com/dreamsxin/go-kit/endpoint/ratelimit"
 	kitlog "github.com/dreamsxin/go-kit/log"
 	idl "example.com/gen_idl_runnable"
 	svc "example.com/gen_idl_runnable/service/userservice"
@@ -59,35 +54,9 @@ func MakeServerEndpointsWithConfig(
 	logger *kitlog.Logger,
 	cfg MiddlewareConfig,
 ) UserServiceEndpoints {
-	var cbMiddleware endpoint.Middleware
-	if cfg.CBEnabled {
-		cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
-			Name: "UserService",
-			ReadyToTrip: func(c gobreaker.Counts) bool {
-				return c.ConsecutiveFailures >= cfg.CBFailureThreshold
-			},
-			Timeout: cfg.CBTimeout,
-		})
-		cbMiddleware = circuitbreaker.Gobreaker(cb)
-	}
-
-	var rlMiddleware endpoint.Middleware
-	if cfg.RLEnabled && cfg.RLRps > 0 {
-		lim := rate.NewLimiter(rate.Limit(cfg.RLRps), int(cfg.RLRps))
-		rlMiddleware = ratelimit.NewErroringLimiter(lim)
-	}
-
 	build := func(ep endpoint.Endpoint, name string) endpoint.Endpoint {
-		b := endpoint.NewBuilder(ep).
-			WithLogging(logger, name).
-			WithTimeout(cfg.Timeout)
-		if cbMiddleware != nil {
-			b = b.Use(cbMiddleware)
-		}
-		if rlMiddleware != nil {
-			b = b.Use(rlMiddleware)
-		}
-		return b.Build()
+		ep = applyGeneratedMiddleware(ep, logger, cfg, name)
+		return applyCustomMiddleware(ep, logger, cfg, name)
 	}
 
 	return UserServiceEndpoints{

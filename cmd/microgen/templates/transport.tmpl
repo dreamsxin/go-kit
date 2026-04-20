@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/dreamsxin/go-kit/transport/http/server"
 	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
 	genendpoint "{{.ImportPath}}/endpoint/{{.Service.ServiceName | lower}}"
@@ -13,16 +14,35 @@ import (
 // NewHTTPHandler returns the generated HTTP handler set.
 func NewHTTPHandler(endpoints genendpoint.{{.Service.ServiceName}}Endpoints) http.Handler {
 	m := http.NewServeMux()
+	registerHTTPServeMuxRoutes(m, endpoints)
+	return m
+}
 
+// RegisterHTTPRoutes binds the generated HTTP routes onto a gorilla/mux router.
+func RegisterHTTPRoutes(router *mux.Router, endpoints genendpoint.{{.Service.ServiceName}}Endpoints, prefix string) {
 {{range .IRService.Methods}}
 	// {{.HTTPMethod}} {{.Route}}
+	router.Handle(routePath(prefix, "{{.Route}}"), server.NewJSONEndpoint[idl.{{.InputName}}](
+		endpoints.{{.Name}}Endpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("{{.HTTPMethod | upper}}")
+{{end}}
+}
+
+func registerHTTPServeMuxRoutes(m *http.ServeMux, endpoints genendpoint.{{.Service.ServiceName}}Endpoints) {
+{{range .IRService.Methods}}
 	m.Handle("{{.HTTPMethod}} {{.Route}}", server.NewJSONEndpoint[idl.{{.InputName}}](
 		endpoints.{{.Name}}Endpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 {{end}}
+}
 
-	return m
+func routePath(prefix, route string) string {
+	if prefix == "" {
+		return route
+	}
+	return prefix + route
 }
 
 {{range .IRService.Methods}}

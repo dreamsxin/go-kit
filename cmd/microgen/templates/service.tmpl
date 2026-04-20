@@ -8,9 +8,6 @@ import (
 	"time"
 
 	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
-{{- if and .WithModel .Models}}
-	"{{.ImportPath}}/repository"
-{{- end}}
 )
 
 // {{.Service.ServiceName}} defines the business contract.
@@ -36,31 +33,20 @@ var defaultConfig = &ServiceConfig{
 }
 
 {{if .WithModel}}
-// Repos groups repository dependencies for injection.
-type Repos struct {
-{{- range .Models}}
-{{- if .HasGormTags}}
-	{{.Name}}Repo *repository.{{.Name}}Repository
-{{- end}}
-{{- end}}
-}
-{{end}}
-
-{{if .WithModel}}
 // NewService creates a service without repository dependencies.
 func NewService(cfg *ServiceConfig) {{.Service.ServiceName}} {
-	return NewServiceWithRepo(cfg, Repos{})
+	return NewServiceWithRepo(cfg, GeneratedRepos{})
 }
 
 // NewServiceWithRepo creates a service with repository dependencies.
-func NewServiceWithRepo(cfg *ServiceConfig, repos Repos) {{.Service.ServiceName}} {
+func NewServiceWithRepo(cfg *ServiceConfig, repos GeneratedRepos) {{.Service.ServiceName}} {
 	if cfg == nil {
 		cfg = defaultConfig
 	}
 	return newServiceImpl(cfg, repos)
 }
 
-func newServiceImpl(cfg *ServiceConfig, repos Repos) {{.Service.ServiceName}} {
+func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) {{.Service.ServiceName}} {
 	var svc {{.Service.ServiceName}} = &serviceImpl{
 		config: cfg,
 		logger: log.Default(),
@@ -106,7 +92,7 @@ type serviceImpl struct {
 	config *ServiceConfig
 	logger *log.Logger
 {{- if .WithModel}}
-	repos  Repos
+	repos  GeneratedRepos
 {{- end}}
 }
 

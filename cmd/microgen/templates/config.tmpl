@@ -1,7 +1,5 @@
-# {{.ServiceName}} 服务配置
-# 字段与 config/config.go 中的 Config struct 一一对应。
-# 未填写的字段将使用代码中 Default() 的内置默认值。
-
+# Generated config values for the service.
+# Unspecified fields inherit the defaults returned by config.Default().
 server:
   http_addr: ":8080"
 {{- if .WithGRPC}}
@@ -11,8 +9,6 @@ server:
   write_timeout: "15s"
   graceful_shutdown_timeout: "30s"
 {{- if .WithSwag}}
-  # swagger_host 是 Swagger UI 中展示的 host（如 "localhost:8080" 或 "api.example.com"）。
-  # 留空时服务启动后自动用 http_addr 推导（":8080" → "localhost:8080"）。
   swagger_host: ""
 {{- end}}
 
@@ -44,7 +40,15 @@ middleware:
     backoff: "2s"
 
 debug:
-  # 是否启用 /debug/routes 端点（生产环境建议关闭或加鉴权）
   routes_enabled: true
-  # 是否在启动时打印路由表
   print_routes: true
+
+remote:
+  enabled: false
+  provider: ""
+  endpoint: ""
+  namespace: ""
+  group: ""
+  data_id: ""
+  timeout: "5s"
+  fallback_to_local: true

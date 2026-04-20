@@ -29,9 +29,6 @@ import (
 	"syscall"
 	"time"
 
-	catalogserviceSvc "example.com/gen_fromdb_sqlite/service/catalogservice"
-	catalogserviceEndpoint "example.com/gen_fromdb_sqlite/endpoint/catalogservice"
-	catalogserviceTransport "example.com/gen_fromdb_sqlite/transport/catalogservice"
 	"github.com/gorilla/mux"
 	kitlog "github.com/dreamsxin/go-kit/log"
 
@@ -39,46 +36,26 @@ import (
 )
 
 func printBanner(logger *kitlog.Logger, httpAddr string, withSwag bool, withSkill bool) {
-	logger.Sugar().Info("╔══════════════════════════════════════════╗")
-	logger.Sugar().Infof("║  %-40s  ║", "CatalogService Service")
-	logger.Sugar().Info("╠══════════════════════════════════════════╣")
-	logger.Sugar().Infof("║  HTTP  → http://localhost%s%-*s║", httpAddr, 23-len(httpAddr), "")
+	logger.Sugar().Info("------------------------------------------------------------")
+	logger.Sugar().Infof(" Service: CatalogService ")
+	logger.Sugar().Infof(" HTTP: http://localhost%s", httpAddr)
 	if withSwag {
-		swaggerURL := fmt.Sprintf("http://localhost%s/swagger/index.html", httpAddr)
-		logger.Sugar().Infof("║  Swagger → %-30s  ║", swaggerURL)
+		logger.Sugar().Infof(" Swagger: http://localhost%s/swagger/index.html", httpAddr)
 	}
 	if withSkill {
-		skillURL := fmt.Sprintf("http://localhost%s/skill", httpAddr)
-		logger.Sugar().Infof("║  Skill → %-30s    ║", skillURL)
+		logger.Sugar().Infof(" Skill: http://localhost%s/skill", httpAddr)
 	}
-	logger.Sugar().Info("╠══════════════════════════════════════════╣")
-	logger.Sugar().Info("║  Press Ctrl+C to stop                    ║")
-	logger.Sugar().Info("╚══════════════════════════════════════════╝")
+	logger.Sugar().Info(" Press Ctrl+C to stop")
 }
 
-func printAllRoutes(logger *kitlog.Logger) {
-	type routeEntry struct {
-		Method string
-		Path   string
+func printAllRoutes(logger *kitlog.Logger, routes []generatedRouteEntry) {
+	logger.Sugar().Info("Registered Routes")
+	for _, route := range routes {
+		logger.Sugar().Infof("  %-7s %s", route.Method, route.Path)
 	}
-	routes := []routeEntry{
-		{"GET", "/health"},
-		{"GET", "/debug/routes"},
-		{"POST", "/user"},
-		{"GET", "/user/{id}"},
-		{"PUT", "/user/{id}"},
-		{"DELETE", "/user/{id}"},
-		{"GET", "/users"},
-	}
-	logger.Sugar().Info("─── Registered Routes ───────────────────────────")
-	for _, rt := range routes {
-		logger.Sugar().Infof("  %-7s %s", rt.Method, rt.Path)
-	}
-	logger.Sugar().Info("─────────────────────────────────────────────────")
 }
 
 func main() {
-	// ─── 命令行参数 ───
 	var (
 		httpAddr = flag.String("http.addr", ":8080", "HTTP listen address")
 	)
@@ -90,18 +67,12 @@ func main() {
 
 
 
-	// ─── 初始化服务 ───
-	catalogserviceSvcInst := catalogserviceSvc.NewService(nil)
+	generated := initGeneratedServices(logger)
+	runtime := generated.generatedRuntime()
 
 
-	// ─── 初始化端点（配置驱动中间件）───
-	catalogserviceEndpoints := catalogserviceEndpoint.MakeServerEndpoints(catalogserviceSvcInst, logger)
 
-
-	// ─── 构建路由 ───
 	r := mux.NewRouter()
-
-	// 请求日志中间件
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			start := time.Now()
@@ -110,7 +81,6 @@ func main() {
 		})
 	})
 
-	// 健康检查（无鉴权）
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -121,31 +91,17 @@ func main() {
 
 
 
-	// /debug/routes — 聚合所有服务路由，方便调试
 	r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
-		type routeInfo struct {
-			Method  string `json:"method"`
-			Path    string `json:"path"`
-			Handler string `json:"handler"`
-		}
-		var all []routeInfo
-		all = append(all, routeInfo{"GET", "/health", "health"})
-		all = append(all, routeInfo{"GET", "/debug/routes", "debug"})
-		all = append(all, routeInfo{"POST", "/user", "CreateUser"})
-		all = append(all, routeInfo{"GET", "/user/{id}", "GetUser"})
-		all = append(all, routeInfo{"PUT", "/user/{id}", "UpdateUser"})
-		all = append(all, routeInfo{"DELETE", "/user/{id}", "DeleteUser"})
-		all = append(all, routeInfo{"GET", "/users", "ListUsers"})
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(all)
+		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, false, false))
 	}).Methods("GET")
 
-	r.PathPrefix("").Handler(
-		http.StripPrefix("", catalogserviceTransport.NewHTTPHandler(catalogserviceEndpoints)),
-	)
 
+	runtime.registerRoutes(r)
 
-	printAllRoutes(logger)
+	allRoutes := generatedRouteEntries(runtime, false, false)
+	printAllRoutes(logger, allRoutes)
+
 
 	httpServer := &http.Server{
 		Addr:         *httpAddr,
@@ -165,7 +121,6 @@ func main() {
 
 	printBanner(logger, *httpAddr, false, false)
 
-	// ─── 优雅关闭 ───
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -177,7 +132,6 @@ func main() {
 	if err := httpServer.Shutdown(ctx); err != nil {
 		logger.Sugar().Infof("HTTP shutdown error: %v", err)
 	}
-
 	logger.Sugar().Info("Server exited cleanly")
 }
 

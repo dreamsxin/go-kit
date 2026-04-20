@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/dreamsxin/go-kit/transport/http/server"
 	idl "example.com/gen_idl_runnable"
 	genendpoint "example.com/gen_idl_runnable/endpoint/userservice"
@@ -13,82 +14,156 @@ import (
 // NewHTTPHandler returns the generated HTTP handler set.
 func NewHTTPHandler(endpoints genendpoint.UserServiceEndpoints) http.Handler {
 	m := http.NewServeMux()
+	registerHTTPServeMuxRoutes(m, endpoints)
+	return m
+}
 
+// RegisterHTTPRoutes binds the generated HTTP routes onto a gorilla/mux router.
+func RegisterHTTPRoutes(router *mux.Router, endpoints genendpoint.UserServiceEndpoints, prefix string) {
 
 	// POST /createuser
+	router.Handle(routePath(prefix, "/createuser"), server.NewJSONEndpoint[idl.CreateUserRequest](
+		endpoints.CreateUserEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("POST")
+
+	// GET /getuser
+	router.Handle(routePath(prefix, "/getuser"), server.NewJSONEndpoint[idl.GetUserRequest](
+		endpoints.GetUserEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("GET")
+
+	// GET /listusers
+	router.Handle(routePath(prefix, "/listusers"), server.NewJSONEndpoint[idl.ListUsersRequest](
+		endpoints.ListUsersEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("GET")
+
+	// DELETE /deleteuser
+	router.Handle(routePath(prefix, "/deleteuser"), server.NewJSONEndpoint[idl.DeleteUserRequest](
+		endpoints.DeleteUserEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("DELETE")
+
+	// PUT /updateuser
+	router.Handle(routePath(prefix, "/updateuser"), server.NewJSONEndpoint[idl.UpdateUserRequest](
+		endpoints.UpdateUserEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("PUT")
+
+	// GET /findbyemail
+	router.Handle(routePath(prefix, "/findbyemail"), server.NewJSONEndpoint[idl.GetUserRequest](
+		endpoints.FindByEmailEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("GET")
+
+	// GET /searchusers
+	router.Handle(routePath(prefix, "/searchusers"), server.NewJSONEndpoint[idl.ListUsersRequest](
+		endpoints.SearchUsersEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("GET")
+
+	// GET /querystats
+	router.Handle(routePath(prefix, "/querystats"), server.NewJSONEndpoint[idl.GetUserRequest](
+		endpoints.QueryStatsEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("GET")
+
+	// DELETE /removeexpired
+	router.Handle(routePath(prefix, "/removeexpired"), server.NewJSONEndpoint[idl.DeleteUserRequest](
+		endpoints.RemoveExpiredEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("DELETE")
+
+	// PUT /editprofile
+	router.Handle(routePath(prefix, "/editprofile"), server.NewJSONEndpoint[idl.UpdateUserRequest](
+		endpoints.EditProfileEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("PUT")
+
+	// PUT /modifyemail
+	router.Handle(routePath(prefix, "/modifyemail"), server.NewJSONEndpoint[idl.UpdateUserRequest](
+		endpoints.ModifyEmailEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("PUT")
+
+	// PUT /patchstatus
+	router.Handle(routePath(prefix, "/patchstatus"), server.NewJSONEndpoint[idl.UpdateUserRequest](
+		endpoints.PatchStatusEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("PUT")
+
+}
+
+func registerHTTPServeMuxRoutes(m *http.ServeMux, endpoints genendpoint.UserServiceEndpoints) {
+
 	m.Handle("POST /createuser", server.NewJSONEndpoint[idl.CreateUserRequest](
 		endpoints.CreateUserEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// GET /getuser
 	m.Handle("GET /getuser", server.NewJSONEndpoint[idl.GetUserRequest](
 		endpoints.GetUserEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// GET /listusers
 	m.Handle("GET /listusers", server.NewJSONEndpoint[idl.ListUsersRequest](
 		endpoints.ListUsersEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// DELETE /deleteuser
 	m.Handle("DELETE /deleteuser", server.NewJSONEndpoint[idl.DeleteUserRequest](
 		endpoints.DeleteUserEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// PUT /updateuser
 	m.Handle("PUT /updateuser", server.NewJSONEndpoint[idl.UpdateUserRequest](
 		endpoints.UpdateUserEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// GET /findbyemail
 	m.Handle("GET /findbyemail", server.NewJSONEndpoint[idl.GetUserRequest](
 		endpoints.FindByEmailEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// GET /searchusers
 	m.Handle("GET /searchusers", server.NewJSONEndpoint[idl.ListUsersRequest](
 		endpoints.SearchUsersEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// GET /querystats
 	m.Handle("GET /querystats", server.NewJSONEndpoint[idl.GetUserRequest](
 		endpoints.QueryStatsEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// DELETE /removeexpired
 	m.Handle("DELETE /removeexpired", server.NewJSONEndpoint[idl.DeleteUserRequest](
 		endpoints.RemoveExpiredEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// PUT /editprofile
 	m.Handle("PUT /editprofile", server.NewJSONEndpoint[idl.UpdateUserRequest](
 		endpoints.EditProfileEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// PUT /modifyemail
 	m.Handle("PUT /modifyemail", server.NewJSONEndpoint[idl.UpdateUserRequest](
 		endpoints.ModifyEmailEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// PUT /patchstatus
 	m.Handle("PUT /patchstatus", server.NewJSONEndpoint[idl.UpdateUserRequest](
 		endpoints.PatchStatusEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
+}
 
-	return m
+func routePath(prefix, route string) string {
+	if prefix == "" {
+		return route
+	}
+	return prefix + route
 }
 
 

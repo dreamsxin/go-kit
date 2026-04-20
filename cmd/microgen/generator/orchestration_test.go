@@ -103,7 +103,7 @@ func TestGenerateFull_RoutePrefix_AlignedAcrossArtifacts(t *testing.T) {
 
 	expectedPrefix := "/api/v2/userservice"
 	mustContain(t, filepath.Join(outDir, "transport", "userservice", "transport_http.go"), expectedPrefix)
-	mustContain(t, filepath.Join(outDir, "cmd", "main.go"), expectedPrefix)
+	mustContain(t, filepath.Join(outDir, "cmd", "generated_routes.go"), expectedPrefix)
 }
 
 func TestGenerateFull_WithSwag_GeneratesDocsStubAtConventionalPath(t *testing.T) {
@@ -178,11 +178,13 @@ func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testin
 
 	mustExist(t, filepath.Join(outDir, "go.mod"))
 	mustExist(t, filepath.Join(outDir, "idl.go"))
-	mustExist(t, filepath.Join(outDir, "model", "model.go"))
-	mustExist(t, filepath.Join(outDir, "repository", "repository.go"))
-	mustExist(t, filepath.Join(outDir, "repository", "base.go"))
+	mustExist(t, filepath.Join(outDir, "model", "generated_user.go"))
+	mustExist(t, filepath.Join(outDir, "repository", "generated_user_repository.go"))
+	mustExist(t, filepath.Join(outDir, "repository", "generated_base.go"))
 	mustExist(t, filepath.Join(outDir, "service", "userservice", "service.go"))
 	mustExist(t, filepath.Join(outDir, "endpoint", "userservice", "endpoints.go"))
+	mustExist(t, filepath.Join(outDir, "endpoint", "userservice", "generated_chain.go"))
+	mustExist(t, filepath.Join(outDir, "endpoint", "userservice", "custom_chain.go"))
 	mustExist(t, filepath.Join(outDir, "transport", "userservice", "transport_http.go"))
 	mustExist(t, filepath.Join(outDir, "transport", "userservice", "transport_grpc.go"))
 	mustExist(t, filepath.Join(outDir, "pb", "userservice", "userservice.proto"))
@@ -190,6 +192,10 @@ func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testin
 	mustExist(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"))
 	mustExist(t, filepath.Join(outDir, "test", "userservice_test.go"))
 	mustExist(t, filepath.Join(outDir, "cmd", "main.go"))
+	mustExist(t, filepath.Join(outDir, "cmd", "generated_runtime.go"))
+	mustExist(t, filepath.Join(outDir, "cmd", "generated_services.go"))
+	mustExist(t, filepath.Join(outDir, "cmd", "generated_routes.go"))
+	mustExist(t, filepath.Join(outDir, "cmd", "custom_routes.go"))
 	mustExist(t, filepath.Join(outDir, "config", "config.yaml"))
 	mustExist(t, filepath.Join(outDir, "config", "config.go"))
 	mustExist(t, filepath.Join(outDir, "README.md"))
@@ -198,7 +204,7 @@ func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testin
 
 	expectedPrefix := "/api/v3/userservice"
 	mustContain(t, filepath.Join(outDir, "transport", "userservice", "transport_http.go"), expectedPrefix)
-	mustContain(t, filepath.Join(outDir, "cmd", "main.go"), expectedPrefix)
+	mustContain(t, filepath.Join(outDir, "cmd", "generated_routes.go"), expectedPrefix)
 	mustContain(t, filepath.Join(outDir, "docs", "docs.go"), "package docs")
 	mustContain(t, filepath.Join(outDir, "skill", "skill.go"), "CreateUser")
 }

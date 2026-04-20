@@ -29,6 +29,7 @@ type Options struct {
 	WithSkill   bool
 	IDLSrcPath  string
 	RoutePrefix string
+	GeneratedMiddlewares []string
 }
 
 // Generator executes project generation from parsed definitions.

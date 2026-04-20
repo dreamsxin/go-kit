@@ -41,8 +41,8 @@ func TestGenerateProject_FromDBIR_GeneratesArtifactsFromExplicitIR(t *testing.T)
 	mustExist(t, filepath.Join(outDir, "service", "useradminservice", "service.go"))
 	mustExist(t, filepath.Join(outDir, "endpoint", "useradminservice", "endpoints.go"))
 	mustExist(t, filepath.Join(outDir, "transport", "useradminservice", "transport_http.go"))
-	mustExist(t, filepath.Join(outDir, "model", "model.go"))
-	mustExist(t, filepath.Join(outDir, "repository", "repository.go"))
+	mustExist(t, filepath.Join(outDir, "model", "generated_user.go"))
+	mustExist(t, filepath.Join(outDir, "repository", "generated_user_repository.go"))
 	mustExist(t, filepath.Join(outDir, "cmd", "main.go"))
 	mustExist(t, filepath.Join(outDir, "README.md"))
 	mustExist(t, filepath.Join(outDir, "skill", "skill.go"))
@@ -78,10 +78,10 @@ func TestGenerateProject_FromDBIR_GeneratesModelArtifactsWithoutCompatParseResul
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	mustExist(t, filepath.Join(outDir, "model", "model.go"))
-	mustExist(t, filepath.Join(outDir, "repository", "repository.go"))
-	mustContain(t, filepath.Join(outDir, "model", "model.go"), `gorm:"column:username;not null;type:varchar(64)"`)
-	mustContain(t, filepath.Join(outDir, "repository", "repository.go"), "users.Create")
+	mustExist(t, filepath.Join(outDir, "model", "generated_user.go"))
+	mustExist(t, filepath.Join(outDir, "repository", "generated_user_repository.go"))
+	mustContain(t, filepath.Join(outDir, "model", "generated_user.go"), `gorm:"column:username;not null;type:varchar(64)"`)
+	mustContain(t, filepath.Join(outDir, "repository", "generated_user_repository.go"), "users.Create")
 }
 
 func TestGenerateProject_FromGoIR_GeneratesArtifactsWithoutCompatParseResult(t *testing.T) {
@@ -108,13 +108,13 @@ func TestGenerateProject_FromGoIR_GeneratesArtifactsWithoutCompatParseResult(t *
 	mustExist(t, filepath.Join(outDir, "service", "userservice", "service.go"))
 	mustExist(t, filepath.Join(outDir, "endpoint", "userservice", "endpoints.go"))
 	mustExist(t, filepath.Join(outDir, "transport", "userservice", "transport_http.go"))
-	mustExist(t, filepath.Join(outDir, "model", "model.go"))
-	mustExist(t, filepath.Join(outDir, "repository", "repository.go"))
+	mustExist(t, filepath.Join(outDir, "model", "generated_user.go"))
+	mustExist(t, filepath.Join(outDir, "repository", "generated_user_repository.go"))
 	mustExist(t, filepath.Join(outDir, "README.md"))
 	mustExist(t, filepath.Join(outDir, "skill", "skill.go"))
 
 	mustContain(t, filepath.Join(outDir, "service", "userservice", "service.go"), "CreateUser")
-	mustContain(t, filepath.Join(outDir, "model", "model.go"), `gorm:"primaryKey;autoIncrement"`)
+	mustContain(t, filepath.Join(outDir, "model", "generated_user.go"), `gorm:"primaryKey;autoIncrement"`)
 	mustContain(t, filepath.Join(outDir, "README.md"), "UserService")
 }
 

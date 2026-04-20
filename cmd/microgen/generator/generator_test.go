@@ -227,8 +227,8 @@ func TestGenerateFull_DirectoryStructure_WithModel(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	mustExist(t, filepath.Join(outDir, "model", "model.go"))
-	mustExist(t, filepath.Join(outDir, "repository", "repository.go"))
+	mustExist(t, filepath.Join(outDir, "model", "generated_user.go"))
+	mustExist(t, filepath.Join(outDir, "repository", "generated_user_repository.go"))
 }
 
 func TestGenerateFull_DirectoryStructure_WithTests(t *testing.T) {
@@ -510,7 +510,7 @@ func TestGenerateFull_ModelFile_Contents(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	modelPath := filepath.Join(outDir, "model", "model.go")
+	modelPath := filepath.Join(outDir, "model", "generated_user.go")
 	mustContain(t, modelPath, "User")
 	mustContain(t, modelPath, "TableName")
 }
@@ -531,7 +531,7 @@ func TestGenerateFull_RepositoryFile_Contents(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	repoPath := filepath.Join(outDir, "repository", "repository.go")
+	repoPath := filepath.Join(outDir, "repository", "generated_user_repository.go")
 	mustContain(t, repoPath, "Repository")
 	mustContain(t, repoPath, "GetByID")
 	mustContain(t, repoPath, "Create")
@@ -786,6 +786,8 @@ func TestGenerateFull_ConfigYAML_HTTPOnly(t *testing.T) {
 	configPath := filepath.Join(outDir, "config", "config.yaml")
 	mustContain(t, configPath, "http_addr")
 	mustContain(t, configPath, "circuit_breaker")
+	mustContain(t, configPath, "remote:")
+	mustContain(t, configPath, "fallback_to_local: true")
 }
 
 func TestGenerateFull_ConfigYAML_WithGRPC(t *testing.T) {
@@ -849,8 +851,72 @@ func TestGenerateFull_ConfigCode_Generated(t *testing.T) {
 	mustExist(t, codePath)
 	mustContain(t, codePath, "type Config struct")
 	mustContain(t, codePath, "func Load(path string)")
+	mustContain(t, codePath, "func LoadLocal(path string)")
+	mustContain(t, codePath, "func ApplyEnv(cfg *Config) error")
+	mustContain(t, codePath, "func LoadRemote(cfg *Config) (*Config, error)")
 	mustContain(t, codePath, "func Default()")
 	mustContain(t, codePath, `yaml:"server"`)
+	mustContain(t, codePath, "type RemoteConfig struct")
+	mustContain(t, codePath, `yaml:"remote"`)
+}
+
+func TestGenerateFull_ConfigCode_EnvOverrides(t *testing.T) {
+	outDir := newTmpDir(t)
+	project := parseIDLProject(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		Protocols:  []string{"http", "grpc"},
+		DBDriver:   "mysql",
+		WithDB:     true,
+		WithSwag:   true,
+		WithConfig: true,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	codePath := filepath.Join(outDir, "config", "config.go")
+	mustContain(t, codePath, `const envPrefix = "APP_"`)
+	mustContain(t, codePath, `readString("HTTP_ADDR"`)
+	mustContain(t, codePath, `readString("GRPC_ADDR"`)
+	mustContain(t, codePath, `readString("LOG_LEVEL"`)
+	mustContain(t, codePath, `readString("DB_DSN"`)
+	mustContain(t, codePath, `readString("SWAGGER_HOST"`)
+	mustContain(t, codePath, `readBool("DEBUG_ROUTES_ENABLED"`)
+	mustContain(t, codePath, `readBool("REMOTE_ENABLED"`)
+	mustContain(t, codePath, `readString("REMOTE_PROVIDER"`)
+	mustContain(t, codePath, `readDuration("REMOTE_TIMEOUT"`)
+	mustContain(t, codePath, `readBool("REMOTE_FALLBACK_TO_LOCAL"`)
+	mustContain(t, codePath, "strconv.ParseBool")
+	mustContain(t, codePath, "strconv.Atoi")
+	mustContain(t, codePath, "strconv.ParseFloat")
+	mustContain(t, codePath, "time.ParseDuration")
+}
+
+func TestGenerateFull_ConfigCode_RemoteConfigDefaults(t *testing.T) {
+	outDir := newTmpDir(t)
+	project := parseIDLProject(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		DBDriver:   "sqlite",
+		WithConfig: true,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	codePath := filepath.Join(outDir, "config", "config.go")
+	mustContain(t, codePath, "Enabled         bool")
+	mustContain(t, codePath, "Provider        string")
+	mustContain(t, codePath, "DataID          string")
+	mustContain(t, codePath, "FallbackToLocal bool")
+	mustContain(t, codePath, "Timeout:         5 * time.Second")
 }
 
 func TestGenerateFull_ConfigCode_WithGRPC(t *testing.T) {
@@ -1088,7 +1154,7 @@ func TestGenerateFull_NoServiceIDL_ModelStillGenerated(t *testing.T) {
 	// 但不会有具体�?service/xxx/service.go 文件
 	mustNotExist(t, filepath.Join(outDir, "service", "product", "service.go"))
 	// model �?gorm tag �?生成 model
-	mustExist(t, filepath.Join(outDir, "model", "model.go"))
+	mustExist(t, filepath.Join(outDir, "model", "generated_onlymodel.go"))
 }
 
 // ─────────────────────────── 各数据库驱动 DSN 验证 ─────────────────────

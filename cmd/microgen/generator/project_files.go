@@ -29,6 +29,55 @@ func (g *Generator) generateMainFileFull(ctx generationContext) error {
 	return g.executeTemplate("main.tmpl", g.layout.cmdMain(), data)
 }
 
+func (g *Generator) generateGeneratedRuntimeFile(ctx generationContext) error {
+	data := map[string]any{
+		"Project":    ctx.project,
+		"GormModels": ctx.models,
+		"WithDB":     g.config.WithDB,
+		"WithGRPC":   g.config.WithGRPC,
+		"WithSwag":   g.config.WithSwag,
+		"WithSkill":  g.config.WithSkill,
+		"SvcRoutes":  g.serviceRoutes(ctx.project),
+		"ImportPath": g.config.ImportPath,
+	}
+	return g.executeTemplate("generated_runtime.tmpl", g.layout.cmdGeneratedRuntime(), data)
+}
+
+func (g *Generator) generateGeneratedServicesFile(ctx generationContext) error {
+	data := map[string]any{
+		"Project":    ctx.project,
+		"Services":   ctx.services,
+		"GormModels": ctx.models,
+		"ImportPath": g.config.ImportPath,
+		"WithDB":     g.config.WithDB,
+		"WithConfig": g.config.WithConfig,
+	}
+	return g.executeTemplate("generated_services.tmpl", g.layout.cmdGeneratedServices(), data)
+}
+
+func (g *Generator) generateGeneratedRoutesFile(ctx generationContext) error {
+	data := map[string]any{
+		"Project":     ctx.project,
+		"Services":    ctx.services,
+		"SvcRoutes":   g.serviceRoutes(ctx.project),
+		"ImportPath":  g.config.ImportPath,
+		"WithGRPC":    g.config.WithGRPC,
+		"RoutePrefix": g.config.RoutePrefix,
+	}
+	return g.executeTemplate("generated_routes.tmpl", g.layout.cmdGeneratedRoutes(), data)
+}
+
+func (g *Generator) generateCustomRoutesFile() error {
+	path := g.layout.cmdCustomRoutes()
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	}
+	data := map[string]any{
+		"ImportPath": g.config.ImportPath,
+	}
+	return g.executeTemplate("custom_routes.tmpl", path, data)
+}
+
 func (g *Generator) generateConfigFile(services []*serviceView) error {
 	dbMeta, _ := supportedDrivers[g.config.DBDriver]
 	data := map[string]any{

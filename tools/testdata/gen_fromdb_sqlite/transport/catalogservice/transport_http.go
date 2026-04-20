@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/dreamsxin/go-kit/transport/http/server"
 	idl "example.com/gen_fromdb_sqlite"
 	genendpoint "example.com/gen_fromdb_sqlite/endpoint/catalogservice"
@@ -13,40 +14,79 @@ import (
 // NewHTTPHandler returns the generated HTTP handler set.
 func NewHTTPHandler(endpoints genendpoint.CatalogServiceEndpoints) http.Handler {
 	m := http.NewServeMux()
+	registerHTTPServeMuxRoutes(m, endpoints)
+	return m
+}
 
+// RegisterHTTPRoutes binds the generated HTTP routes onto a gorilla/mux router.
+func RegisterHTTPRoutes(router *mux.Router, endpoints genendpoint.CatalogServiceEndpoints, prefix string) {
 
 	// POST /user
+	router.Handle(routePath(prefix, "/user"), server.NewJSONEndpoint[idl.CreateUserRequest](
+		endpoints.CreateUserEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("POST")
+
+	// GET /user/{id}
+	router.Handle(routePath(prefix, "/user/{id}"), server.NewJSONEndpoint[idl.GetUserRequest](
+		endpoints.GetUserEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("GET")
+
+	// PUT /user/{id}
+	router.Handle(routePath(prefix, "/user/{id}"), server.NewJSONEndpoint[idl.UpdateUserRequest](
+		endpoints.UpdateUserEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("PUT")
+
+	// DELETE /user/{id}
+	router.Handle(routePath(prefix, "/user/{id}"), server.NewJSONEndpoint[idl.DeleteUserRequest](
+		endpoints.DeleteUserEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("DELETE")
+
+	// GET /users
+	router.Handle(routePath(prefix, "/users"), server.NewJSONEndpoint[idl.ListUsersRequest](
+		endpoints.ListUsersEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("GET")
+
+}
+
+func registerHTTPServeMuxRoutes(m *http.ServeMux, endpoints genendpoint.CatalogServiceEndpoints) {
+
 	m.Handle("POST /user", server.NewJSONEndpoint[idl.CreateUserRequest](
 		endpoints.CreateUserEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// GET /user/{id}
 	m.Handle("GET /user/{id}", server.NewJSONEndpoint[idl.GetUserRequest](
 		endpoints.GetUserEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// PUT /user/{id}
 	m.Handle("PUT /user/{id}", server.NewJSONEndpoint[idl.UpdateUserRequest](
 		endpoints.UpdateUserEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// DELETE /user/{id}
 	m.Handle("DELETE /user/{id}", server.NewJSONEndpoint[idl.DeleteUserRequest](
 		endpoints.DeleteUserEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// GET /users
 	m.Handle("GET /users", server.NewJSONEndpoint[idl.ListUsersRequest](
 		endpoints.ListUsersEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
+}
 
-	return m
+func routePath(prefix, route string) string {
+	if prefix == "" {
+		return route
+	}
+	return prefix + route
 }
 
 

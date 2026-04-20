@@ -2,16 +2,14 @@ package model
 
 import "gorm.io/gorm"
 
-// ─────────────────────────── {{.Name}} Hooks ──────────────────────────────────────────
-
-// BeforeCreate 在插入记录前执行
+// BeforeCreate runs before inserting {{.Name}}.
 func (m *{{.Name}}) BeforeCreate(tx *gorm.DB) (err error) {
-	// TODO: 在此添加创建前的逻辑（如生成 UUID）
+	// TODO: Add create-time model hooks here.
 	return nil
 }
 
-// BeforeUpdate 在更新记录前执行
+// BeforeUpdate runs before updating {{.Name}}.
 func (m *{{.Name}}) BeforeUpdate(tx *gorm.DB) (err error) {
-	// TODO: 在此添加更新前的逻辑
+	// TODO: Add update-time model hooks here.
 	return nil
 }

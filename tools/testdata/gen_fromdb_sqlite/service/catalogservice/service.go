@@ -8,7 +8,6 @@ import (
 	"time"
 
 	idl "example.com/gen_fromdb_sqlite"
-	"example.com/gen_fromdb_sqlite/repository"
 )
 
 // CatalogService defines the business contract.
@@ -46,27 +45,20 @@ var defaultConfig = &ServiceConfig{
 }
 
 
-// Repos groups repository dependencies for injection.
-type Repos struct {
-	UserRepo *repository.UserRepository
-}
-
-
-
 // NewService creates a service without repository dependencies.
 func NewService(cfg *ServiceConfig) CatalogService {
-	return NewServiceWithRepo(cfg, Repos{})
+	return NewServiceWithRepo(cfg, GeneratedRepos{})
 }
 
 // NewServiceWithRepo creates a service with repository dependencies.
-func NewServiceWithRepo(cfg *ServiceConfig, repos Repos) CatalogService {
+func NewServiceWithRepo(cfg *ServiceConfig, repos GeneratedRepos) CatalogService {
 	if cfg == nil {
 		cfg = defaultConfig
 	}
 	return newServiceImpl(cfg, repos)
 }
 
-func newServiceImpl(cfg *ServiceConfig, repos Repos) CatalogService {
+func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) CatalogService {
 	var svc CatalogService = &serviceImpl{
 		config: cfg,
 		logger: log.Default(),
@@ -87,7 +79,7 @@ func newServiceImpl(cfg *ServiceConfig, repos Repos) CatalogService {
 type serviceImpl struct {
 	config *ServiceConfig
 	logger *log.Logger
-	repos  Repos
+	repos  GeneratedRepos
 }
 
 

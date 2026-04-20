@@ -8,7 +8,6 @@ import (
 	"time"
 
 	idl "example.com/gen_idl_default_flags"
-	"example.com/gen_idl_default_flags/repository"
 )
 
 // UserService defines the business contract.
@@ -67,27 +66,20 @@ var defaultConfig = &ServiceConfig{
 }
 
 
-// Repos groups repository dependencies for injection.
-type Repos struct {
-	UserRepo *repository.UserRepository
-}
-
-
-
 // NewService creates a service without repository dependencies.
 func NewService(cfg *ServiceConfig) UserService {
-	return NewServiceWithRepo(cfg, Repos{})
+	return NewServiceWithRepo(cfg, GeneratedRepos{})
 }
 
 // NewServiceWithRepo creates a service with repository dependencies.
-func NewServiceWithRepo(cfg *ServiceConfig, repos Repos) UserService {
+func NewServiceWithRepo(cfg *ServiceConfig, repos GeneratedRepos) UserService {
 	if cfg == nil {
 		cfg = defaultConfig
 	}
 	return newServiceImpl(cfg, repos)
 }
 
-func newServiceImpl(cfg *ServiceConfig, repos Repos) UserService {
+func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) UserService {
 	var svc UserService = &serviceImpl{
 		config: cfg,
 		logger: log.Default(),
@@ -108,7 +100,7 @@ func newServiceImpl(cfg *ServiceConfig, repos Repos) UserService {
 type serviceImpl struct {
 	config *ServiceConfig
 	logger *log.Logger
-	repos  Repos
+	repos  GeneratedRepos
 }
 
 

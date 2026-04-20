@@ -28,6 +28,11 @@ That layering should remain intact during refactors.
 
 The repository is in an active structural-cleanup phase.
 
+The next planned product phase is now clear:
+
+1. add stronger generated configuration output, including a path to remote configuration
+2. add incremental extension support so already-generated projects can gain new services, models, and middleware without destructive regeneration
+
 Recently completed:
 
 - `kit/kit.go` was split into smaller files for service setup, options, HTTP registration, lifecycle, gRPC access, JSON helpers, and request ID handling.
@@ -125,6 +130,42 @@ Recently completed:
   - `go.mod` update behavior
   - docs stub overwrite expectations
   - route prefix consistency
+- `microgen` now also has the first concrete extend-mode implementation path for existing generated projects:
+  - new project generation now emits generator-owned aggregation files under `cmd/`:
+    - `generated_services.go`
+    - `generated_routes.go`
+    - `generated_runtime.go`
+  - `cmd/main.go` is now thinner, and service wiring plus route registration were moved toward generator-owned aggregation files instead of remaining mixed into one startup file
+  - `cmd/microgen/generator/extend_scan.go` now scans existing generated projects for module path, services, models, aggregation points, ownership classification, and current generated-feature signals
+  - `cmd/microgen/generator/extend_plan.go` now builds a structured append-service artifact plan before any controlled writes happen
+  - `cmd/microgen/generator/extend_apply.go` now performs the first controlled append-service apply flow
+  - `cmd/microgen/main.go` now exposes an explicit `microgen extend ... -append-service ...` entry point instead of hiding incremental mutation inside the normal generation flow
+  - the first shipped extend constraint is intentionally conservative:
+    - append-service currently expects a Go IDL input containing the full combined contract for both existing and new services
+    - extend mode updates only new generated files plus generator-owned aggregation files and the generator-managed `idl.go` snapshot
+    - extend mode does not rewrite existing `service/<svc>/service.go` files
+- generated HTTP route aggregation was also tightened while doing the extend work:
+  - generated service routes are now registered explicitly onto `gorilla/mux` routers instead of relying on broad `PathPrefix(...).Handler(...)` attachment for every service
+  - this removes the empty-prefix multi-service routing conflict that would otherwise block safe append-service behavior when multiple services share one generated project
+- generator and integration coverage now also protects the extend/aggregation path:
+  - package-level tests now cover existing-project scan, ownership classification, append-service planning, and controlled append apply behavior
+  - end-to-end integration now verifies that `microgen extend -append-service`:
+    - creates the new service subtree
+    - preserves edits in pre-existing service implementation files
+    - updates generated routing and skill output
+    - leaves the resulting generated project buildable and runnable
+- extend-mode usability was then tightened so the current first append-service path fails more clearly:
+  - CLI extend validation now rejects `-from-db` and `.proto` input up front for `-append-service`
+  - missing `-idl` and missing `-append-service` now report extend-specific guidance
+  - append-service planning now reports available service names when the requested append target is not found in the supplied contract
+  - append-service apply now reports missing existing service definitions as a full-combined-contract requirement instead of a more generic mismatch
+  - focused tests now lock in those clearer failure messages, while the end-to-end append-service integration path still passes
+- generated configuration was also advanced toward the next-phase loading model:
+  - generated `config/config.go` now exposes `Default()`, `LoadLocal(path string)`, `ApplyEnv(cfg *Config)`, `LoadRemote(cfg *Config)`, and `Load(path string)`
+  - generated `Load(path string)` now follows the first shared seam: defaults, local YAML, environment overrides, and a remote-loading seam
+  - generated config now includes a `RemoteConfig` section plus `remote:` values in `config/config.yaml`
+  - the current remote-loading implementation is intentionally a no-op seam so generated projects remain fully runnable with local config only
+  - focused generator tests plus default-flags integration coverage now protect that generated config contract
 - `README.md` was updated so the generated project layout description matches current generator behavior more closely:
   - `client/` is called out explicitly
   - `pb/` is described as proto-related gRPC output
@@ -183,6 +224,85 @@ Recently completed:
   - a real gRPC client dials the configured address and completes a unary RPC successfully
 
 This means the generator is now closer to an orchestration layer rather than a single monolithic file.
+
+## Planned Next Phase
+
+The next `microgen` roadmap is centered on two linked capabilities.
+
+### 1. Generated configuration with remote-config support
+
+Intent:
+
+- every generated project should have a consistent `config/` layer
+- local config should remain the default runnable path
+- remote config should be additive, not mandatory
+
+Planned direction:
+
+- standardize generated config files and runtime loading flow
+- introduce a provider seam for file, env, and remote loading
+- update generated startup code to consume the shared config layer
+- add at least one concrete remote-config provider after the seam exists
+
+Important constraint:
+
+- remote config must not make the default quick-start path harder for users who only want a local generated service
+
+### 2. Incremental extension of existing generated projects
+
+Intent:
+
+- allow `microgen` to add new capability to an existing generated project instead of requiring full regeneration
+
+Planned direction:
+
+- design an explicit extend/append mode
+- scan existing generated projects before writing changes
+- classify files into safe-to-regenerate, aggregation, and user-owned zones
+- implement append-service first
+- then extend to append-model and append-middleware
+
+Current status:
+
+- the generator-owned aggregation-file migration is now in place for newly generated projects
+- extend mode is now explicit in the CLI via `microgen extend`
+- scanner, ownership classification, artifact planning, and a first append-service apply flow are implemented
+- append-service now works end-to-end for the conservative first contract:
+  - target project must already be in the supported generated layout
+  - generator-owned `cmd/generated_*.go` files act as the mutation points
+  - input must currently be a full combined Go IDL contract, not a partial delta-only contract
+  - CLI and generator error messages are now tighter around unsupported `.proto` input, missing `-append-service`, and incomplete combined Go IDL contracts
+- the next work in this track is no longer “design append-service from scratch”; it is:
+  - documenting the current extend contract more explicitly
+  - improving failure reporting and compatibility guidance
+  - extending the same ownership model toward append-model and append-middleware
+
+Important constraint:
+
+Update 2026-04-20:
+
+- the extend track has now moved past "append-service only"
+- controlled extend flows are implemented for:
+  - `-append-service`
+  - `-append-model`
+  - `-append-middleware`
+  - `-check`
+- append-model now works through the same ownership model:
+  - generated model/repository output is split into finer-grained generator-owned files such as `model/generated_<name>.go`, `repository/generated_<name>_repository.go`, and `repository/generated_base.go`
+  - user model customization remains in `model/<name>.go`
+  - generated repository wiring now flows through `service/<svc>/generated_repos.go` and generated runtime migration wiring
+- append-middleware now works through explicit generated/custom middleware seams:
+  - generator-owned endpoint middleware composition lives in `endpoint/<svc>/generated_chain.go`
+  - user-owned middleware customization lives in `endpoint/<svc>/custom_chain.go`
+  - generated route vs custom route ownership is also explicit via `cmd/generated_routes.go` and `cmd/custom_routes.go`
+- `microgen extend -check -out <project>` now provides a read-only compatibility scan:
+  - prints summary, compatibility seams, append-path readiness, and warnings
+  - reports missing seams directly on each append path
+  - exits `0` when all supported append paths are ready and `2` when compatibility seams are still missing
+- the remaining major gap in this track is no longer append capability itself; it is keeping the extend contract documented and stable while shifting focus to the config track's real remote-provider integration
+
+- prefer generating new files plus updating a small number of controlled aggregation files
+- avoid overwriting user-owned service implementation files opportunistically
 
 ## Working Tree Summary
 
@@ -246,6 +366,8 @@ Interpretation:
 - the repo is mid-refactor but in a coherent state
 - the active branch has not yet been normalized into a final commit
 - future sessions should read the new files rather than looking for old monoliths like `kit/kit.go`
+- future `microgen` work should treat config generation and remote-provider integration as the highest-value next ticket
+- append-service is no longer only a roadmap item, and append-model / append-middleware / extend-check are no longer design-only work either; the immediate next `microgen` task is to turn the current config remote seam into one real provider-backed implementation
 
 ## Recent Verification
 
@@ -282,6 +404,8 @@ The following checks passed during the current refactor thread:
 - `go test ./tools/... -run TestMicrogenIntegration -v` after adding generated-project build-and-run validation
 - `go test ./tools/... -run TestMicrogenIntegration -v` after adding minimal-feature-off generated-project build-and-run validation
 - `go test ./tools/... -run TestMicrogenIntegration -v` after adding prefixed generated-project runtime validation
+- `go test ./cmd/microgen/...` after adding explicit extend mode, existing-project scan, artifact planning, and first append-service apply support
+- `go test ./tools/... -run TestMicrogenIntegration -v` after adding CLI-level append-service integration coverage and moving generated route aggregation onto explicit mux registration
 - `go test ./tools/... -run TestMicrogenIntegration/IDL_GeneratedProject_BuildsAndRuns -v` after adding `/debug/routes` and `/skill?format=mcp` startup validation
 - `go test ./tools/... -run TestMicrogenIntegration/IDL_MinimalProject_BuildsAndRunsWithoutOptionalFeatures -v` after checking both OpenAI-tool and MCP `/skill` endpoints stay disabled when `-skill=false`
 - `go test ./tools/... -run "TestMicrogenIntegration/(IDL_GeneratedProject_BuildsAndRuns|IDL_MinimalProject_BuildsAndRunsWithoutOptionalFeatures|IDL_PrefixedProject_BuildsAndServesPrefixedBusinessRoute)" -v` after widening runnable generated-project route assertions
@@ -317,6 +441,10 @@ The following checks passed during the current refactor thread:
 - `go test ./cmd/microgen/... -count=1` after moving orchestration tests onto `GenerateIR(...)` and repairing comment-encoding fallout in `generator_test.go` so the package remains buildable
 - `go test ./cmd/microgen/generator -count=1`
 - `go test ./cmd/microgen/... -count=1` after removing the remaining generator compatibility entry points and compatibility-context bridge so the package is now IR-only
+- `go test ./cmd/microgen/generator -count=1` after splitting model/repository output into generator-owned files and introducing generated service repository seams
+- `go test ./cmd/microgen/... -count=1` after adding `-append-model`, `-append-middleware`, and `extend -check`
+- `go test ./tools/... -run "TestMicrogenIntegration/(IDL_Extend_AppendService_PreservesExistingFilesAndServesNewRoute|IDL_Extend_AppendModel_PreservesExistingHooksAndBuilds|IDL_Extend_AppendMiddleware_PreservesCustomChainAndServesWrappedErrors|IDL_Extend_Check_ReportsCompatibility|IDL_Extend_Check_ReturnsExitCodes)" -count=1`
+- `go test ./tools/... -run "TestMicrogenIntegration/(IDL_CustomRoutes_ArePreservedAndServed|IDL_DefaultFlags)" -count=1`
 
 These results mean the recent runtime split and generator decomposition are at least passing their focused validation loops.
 
@@ -344,7 +472,7 @@ Highest-value active areas:
 - `kit/`
   Runtime convenience layer. Recently decomposed and still a likely place for cleanup or contract tightening; recent work has focused on making option misuse fail safely, degrade predictably, or fail fast when configuration is clearly invalid.
 - `cmd/microgen/generator/`
-  Main refactor zone. Structure is much improved, generator output conventions are more explicitly documented and tested, there is now a broader combined-feature orchestration test guarding phase interaction, generated README behavior distinguishes between immediately runnable IDL output and proto output that still needs protobuf stub generation, proto asset generation now emits more concrete message schemas instead of defaulting to placeholder bodies, including richer handling for common composite types, well-known time types, and pointer-backed optional scalars, and the IR-only generation path is now explicitly protected for DB, Go-IDL, and Proto inputs.
+  Main refactor zone. Structure is much improved, generator output conventions are more explicitly documented and tested, the IR-only generation path is explicitly protected for DB, Go-IDL, and Proto inputs, and extend support now includes append-service, append-model, append-middleware, and a read-only compatibility check. The main remaining product gap here is config remote-provider integration rather than extend scaffolding itself.
 - `tools/`
   Integration coverage now checks more of the user-visible generated output shape, including docs, proto/gRPC artifacts, route-prefix propagation, default CLI usability, rerun reliability, clear failure behavior for invalid CLI usage, whether a generated project can actually compile and start, whether a minimal feature-off project still remains runnable, whether prefixed runtime routes actually behave correctly after startup, whether generated `client/` and `sdk/` components remain usable against the generated service, whether generated `service/endpoint/transport` packages can actually be assembled with framework logging into a working request path, and whether proto-generated README plus `.proto` assets accurately reflect the current contract instead of a blanket scaffold-only story. On machines with a protobuf toolchain, it now also reaches one step deeper into proto component compilation, runtime-style component assembly, and modern gRPC server-interface compatibility.
 - `endpoint/`
@@ -356,33 +484,22 @@ Highest-value active areas:
 
 If continuing the current refactor line, prefer this order:
 
-1. Decide whether current helper plus artifact-level generator coverage is sufficient or whether one broader sequencing test would add real value.
-2. Audit whether any remaining generator guarantees still need to move up into `tools` integration tests, or whether the current split is now sufficient.
-3. Revisit `endpoint` and `transport` shared patterns only after generator refactor momentum settles.
-4. Update docs when user-facing behavior changes, not before.
+1. Implement the first real remote-config provider behind the generated `LoadRemote(...)` seam.
+2. Add focused integration coverage for provider-enabled config loading plus fallback behavior.
+3. Audit whether any remaining extend or config guarantees still need to move up into `tools` integration tests.
+4. Revisit `endpoint` and `transport` shared patterns only after generator/config momentum settles.
 
 Good next tickets:
 
-- decide whether more orchestration rules should be encoded as tests or documentation now that the main output paths are documented
-- continue treating `microgen` as a product by testing default-flag behavior and rerun safety, not just feature-on paths
-- continue treating `microgen` as a product by testing clear failure behavior as well as successful generation paths
-- keep at least one generated-project smoke test that proves the output is not only structurally correct but also runnable
-- keep at least one generated-project smoke test for the feature-minimal path so optional layers do not become hidden runtime dependencies
-- keep route-prefix guarantees protected at runtime, not only as generated-file string assertions
-- keep generated README and quick-start guidance aligned with what each generation mode can actually do, especially for proto workflows that still require protobuf codegen
-- continue tightening proto generation so fewer contracts fall back to placeholder `TODO` message bodies
-- decide whether timestamp mapping should stay on `google.protobuf.Timestamp` or whether additional well-known types should join it
-- decide how far pointer semantics should go beyond scalar `optional`, for example whether slices or maps need extra presence conventions in generated contracts
-- decide whether the next well-known-type step should be `structpb`, wrappers, or more duration/timestamp-adjacent conventions rather than adding isolated one-off mappings
-- keep testing generated user-facing components as products, not just generated source trees, especially `client/` and `sdk/` entry points
-- keep generated gRPC transport templates aligned with the current `protoc-gen-go-grpc` server interface contract, not only older registration patterns
+- choose the first real remote-config provider instead of extending the current no-op seam indefinitely
+- keep local-config startup as the default happy path while adding provider-backed remote loading
+- add at least one focused generated-project test that proves remote config can be enabled without breaking local fallback behavior
+- keep `microgen` extend treated as a product surface by preserving CLI help, failure diagnostics, compatibility scanning, and exit-code behavior
+- keep generated user-facing components treated as products, not just source trees, especially `client/`, `sdk/`, and generated startup/config behavior
+- keep route-prefix, rerun safety, and protected-file guarantees locked in at runtime or integration level, not only as string assertions
 - keep generator entry points IR-only unless a new, deliberate migration policy says otherwise
-- check whether any remaining phase-order assumptions only live in package tests and truly need end-to-end coverage
 - check whether any remaining endpoint sharp edges still panic at request time and should instead fail earlier with explicit contracts
-- check whether any remaining `kit` options still accept obviously invalid values that should fail fast at construction time
-- decide whether transport duplication should stay as documented parallel structure or whether a small shared abstraction would now pay for itself
-- check whether any remaining HTTP/gRPC transport mismatches exist beyond the gRPC server error-handler and client metadata-parity fixes
-- unless a new concrete mismatch is found, transport parity work can pause and focus can return to broader runtime architecture or generator compatibility
+- unless a new concrete runtime mismatch is found, transport parity work can pause and focus can return to broader generator/config compatibility
 
 ## Recommended Next Session Start
 
@@ -397,14 +514,14 @@ If a new AI session resumes this work, the best low-friction start is:
 
 Recommended first task right now:
 
-- check whether any remaining endpoint or transport sharp edges still rely on delayed panics instead of explicit construction-time or type-level contracts
+- implement the first real remote-config provider behind `LoadRemote(...)`, then add one generated-project integration test that proves both provider-backed loading and local fallback behavior
 
 Specifically:
 
-- review whether typed endpoint, builder, and middleware composition boundaries are now consistent with the framework's stated runtime model
-- check whether any user-visible generator guarantees are still missing from either documentation or tests
-- decide whether any remaining runtime sharp edges belong in endpoint, transport, or kit-level contract tightening
-- then revisit transport duplication or broader generator work once runtime contract cleanup slows down
+- read `MICROGEN_NEXT_PHASE.md`, `MICROGEN_CONFIG_DESIGN.md`, and the generated config templates first
+- confirm which provider should be first and keep it behind the existing `LoadRemote(...)` seam
+- add or update tests before broadening the provider surface
+- only revisit transport/runtime cleanup after the config thread lands
 
 ## Validation Shortcuts
 
@@ -416,6 +533,12 @@ For recent refactor areas:
   `go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils`
 - generator changes:
   `go test ./cmd/microgen/...`
+- targeted extend integration:
+  `go test ./tools/... -run "TestMicrogenIntegration/IDL_Extend_AppendService_PreservesExistingFilesAndServesNewRoute" -v`
+- targeted extend check integration:
+  `go test ./tools/... -run "TestMicrogenIntegration/(IDL_Extend_Check_ReportsCompatibility|IDL_Extend_Check_ReturnsExitCodes)" -v`
+- targeted default-config integration:
+  `go test ./tools/... -run "TestMicrogenIntegration/IDL_DefaultFlags" -v`
 - broader verification:
   `make verify`
 

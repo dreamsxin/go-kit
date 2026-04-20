@@ -5,9 +5,17 @@ This document turns the current repository state into a concrete refactor roadma
 It is intentionally narrower and more execution-oriented than `FRAMEWORK_BOUNDARIES.md`.
 Use that document for product scope decisions, and use this one for sequencing code cleanup.
 
+Important status note:
+
+- the earlier structural cleanup around `kit`, transport safety, and the IR-first `microgen` flow is largely in place
+- the next planned phase is no longer just decomposition and cleanup
+- the next planned phase is additive `microgen` product expansion in two linked tracks:
+  - generated configuration with remote-config support
+  - incremental extension of already-generated projects with new services, models, and middleware
+
 ## Refactor Goals
 
-This refactor focuses on six outcomes:
+The current roadmap focuses on eight outcomes:
 
 1. Reduce hidden coupling across runtime packages.
 2. Split oversized modules into clearer responsibilities.
@@ -15,6 +23,8 @@ This refactor focuses on six outcomes:
 4. Treat generated output as a compatibility contract.
 5. Keep examples and docs aligned with the runtime architecture.
 6. Strengthen validation so future refactors stay safe.
+7. Add a first-class generated configuration layer that can grow from local files to remote configuration.
+8. Let `microgen` evolve existing generated projects incrementally instead of forcing all-or-nothing regeneration.
 
 ## Current Signals From The Codebase
 
@@ -27,7 +37,9 @@ The repository is already structurally close to the intended product shape, but 
 - Source comments contain encoding corruption in a few places, which lowers maintainability and signals inconsistent file handling.
 - There are placeholder or sharp-edge runtime behaviors that should be normalized before expanding APIs, such as panic-based guardrails and no-op middleware stubs.
 
-These signals suggest that the next phase should be structural cleanup, not feature expansion.
+These signals originally pointed to structural cleanup before feature expansion.
+
+That cleanup has now advanced far enough that the next phase can safely shift toward additive `microgen` capability work, as long as compatibility guardrails remain in place.
 
 ## Guardrails
 
@@ -38,6 +50,9 @@ The refactor should preserve these non-negotiables:
 - Treat `microgen` output layout and CLI flags as user-facing behavior.
 - Prefer additive extension seams over hidden special cases.
 - Do not mix repository-internal cleanup with platform-scope expansion.
+- Prefer extending generated projects through new files and explicit aggregation points instead of patching user-owned files opportunistically.
+- Keep generated projects runnable with local configuration even when remote-config support is enabled as an option.
+- Treat append/extend behavior as a compatibility-sensitive product contract, not an internal convenience helper.
 
 ## Workstreams
 
@@ -165,6 +180,107 @@ Success criteria:
 - each refactor step has a clear minimum test loop
 - broader regressions are caught before merge, not after release
 
+## Workstream 7: Generated Configuration And Remote Config
+
+Objective:
+
+- make generated projects ship with a consistent configuration layer that starts simple locally and can grow into remote configuration safely
+
+Actions:
+
+- standardize generated `config/` output around a single project-facing config model
+- keep local `config.yaml` as the default runnable path for generated projects
+- introduce an internal provider abstraction for config loading so file, env, and remote sources can share one startup contract
+- add generator flags for configuration mode and remote provider selection without breaking the current default flow
+- wire generated `cmd/main.go` through that config layer instead of ad hoc config bootstrapping
+- choose one initial remote provider only after the provider seam exists, so the first integration does not hard-code the whole design prematurely
+
+Deliverables:
+
+- generated `config/` scaffolding with stable local behavior
+- a remote-config loading seam with at least one implementation path
+- updated README and compatibility docs for any new flags or generated files
+
+Success criteria:
+
+- generated services still run out of the box with local config only
+- remote config can be enabled explicitly without changing the basic project structure
+- configuration behavior is tested end to end instead of relying only on template inspection
+
+Recommended design constraints:
+
+- support three conceptual loading modes:
+  - file
+  - env
+  - remote
+- allow a hybrid path where remote config can override or augment local defaults
+- prefer fallback-to-local behavior over hard startup failure when remote config is optional
+
+## Workstream 8: Incremental Extension Of Generated Projects
+
+Objective:
+
+- let `microgen` add new capability to already-generated projects without treating regeneration as the only maintenance path
+
+Actions:
+
+- design an explicit extend/append mode rather than hiding incremental behavior inside the current full-generation flow
+- scan an existing generated project before writing files so the generator understands current services, models, middleware, and key aggregation points
+- classify generated files into:
+  - safe-to-regenerate files
+  - compatibility-sensitive aggregation files
+  - user-owned files that should not be overwritten casually
+- implement append-service first, because it exercises routing, startup wiring, transport generation, and SDK/client evolution together
+- follow with append-model after the IR and model/repository boundaries are stable
+- add middleware extension through a dedicated generated aggregation file rather than scattering edits across user-touched files
+
+Deliverables:
+
+- an extend-mode CLI design
+- project scanning logic
+- file-ownership rules for generated versus user-maintained areas
+- integration tests for append workflows on real generated projects
+
+Current status:
+
+- the prerequisite generator-owned aggregation files are now emitted for newly generated projects under `cmd/generated_services.go`, `cmd/generated_routes.go`, and `cmd/generated_runtime.go`
+- the extend CLI shape is no longer only conceptual; a first explicit path now exists:
+  - `microgen extend -idl <file> -out <project> -append-service <name>`
+- existing-project scan, ownership classification, artifact planning, and first append-service apply logic are implemented
+- append-service now has end-to-end test coverage proving:
+  - the new service subtree is generated
+  - existing service implementation edits are preserved
+  - generated routing and skill output are updated
+  - the resulting project still builds and runs
+- the current implementation is intentionally conservative:
+  - it currently requires a Go IDL source containing the full combined contract
+  - it updates generator-owned aggregation files plus `idl.go`, rather than attempting arbitrary partial merges into user-owned files
+
+Success criteria:
+
+- an existing generated project can receive a new service without losing user edits
+- new models and middleware can be added through controlled generation seams
+- append behavior is predictable enough to document as part of the `microgen` product story
+
+Recommended design constraints:
+
+- prefer generating new files plus updating a small number of explicit registry or aggregation files
+- avoid rewriting existing service implementation files when a user may already have edited them
+- if a file is user-owned in practice, treat it as protected unless generation is scoped to clearly delimited regions
+- make append behavior explicit in the CLI so users understand they are extending, not regenerating
+
+Suggested CLI direction:
+
+- keep the current full-generation mode for new projects
+- add an explicit extension path such as:
+  - `microgen extend -idl <file> -out <project>`
+  - or targeted options like:
+    - `-append-service`
+    - `-append-model`
+    - `-append-middleware`
+
+The exact CLI shape is still open, but the product direction should be “explicit incremental evolution”, not “best-effort hidden merge”.
+
 ## Execution Order
 
 Recommended order:
@@ -174,34 +290,53 @@ Recommended order:
 3. Tighten endpoint and transport contracts around middleware, error flow, and hooks.
 4. Modularize `microgen` around artifact families and output conventions.
 5. Align examples and docs with the refactored runtime shape.
-6. Finish with a full repository verification pass.
+6. Add a unified generated configuration layer with stable local-config behavior.
+7. Add remote-config provider seams and one first provider integration.
+8. Build existing-project scan and append-service support.
+9. Extend incremental generation to models, then middleware.
+10. Finish each milestone with a full repository verification pass.
 
-This order keeps the runtime spine stable before reshaping generator output around it.
+This order keeps the runtime spine stable before reshaping generator output around it, and it keeps the first incremental-generation work focused on the highest-value path.
 
 ## Immediate Next Tasks
 
-These are the best first implementation tickets to open:
+These are the best next implementation tickets to open:
 
-### Task 1: split `kit/kit.go`
+### Task 1: define generated config contract
 
-- extract service lifecycle code
-- extract option wiring and middleware registration
-- add direct tests for request-ID behavior and graceful shutdown
+- standardize the generated `config/` package shape
+- document required fields for HTTP, gRPC, log, database, and remote config
+- keep local `config.yaml` the default runnable path
 
-### Task 2: create a generator layout helper
+### Task 2: add config provider seam
 
-- move output path and directory rules out of `generator.go`
-- make generated directory conventions explicit and reusable
+- introduce a config loading abstraction for file, env, and remote sources
+- update generated `cmd/main.go` to load through the shared seam
+- choose fallback behavior when remote config is enabled but unavailable
 
-### Task 3: audit duplicated transport option patterns
+### Task 3: design incremental extension mode
 
-- compare HTTP and gRPC client/server option types
-- identify which concepts are shared by contract and which are only coincidentally similar
+- decide the CLI contract for extend/append behavior
+- define which files are safe to regenerate versus protected
+- identify aggregation files that can act as controlled update points
 
-### Task 4: clean encoding-corrupted comments in touched files
+### Task 4: implement append-service first
 
-- normalize source comments as files are refactored
-- avoid mixing broad formatting churn into unrelated commits
+- scan an existing generated project
+- generate a new service subtree without rewriting existing business logic
+- update startup and routing aggregation in a limited, testable way
+
+### Task 5: add append-model and append-middleware follow-ups
+
+- keep model/repository generation incremental
+- route middleware extension through a dedicated generated composition file
+- avoid direct edits to arbitrarily user-owned files
+
+### Task 6: expand integration coverage for config and append workflows
+
+- add generated-project tests for local config
+- add tests for remote-config fallback or activation behavior
+- add tests that generate a project, modify it, append new capability, and confirm existing edits survive
 
 ## Non-Goals
 
@@ -210,7 +345,8 @@ This refactor does not aim to:
 - redesign the framework into a platform product
 - replace the package layout wholesale in one pass
 - introduce a plugin system before current seams are stabilized
-- add major new runtime features before core contracts are clearer
+- add hidden merge heuristics that silently rewrite user-owned generated-project files
+- make remote config mandatory for the default quick-start experience
 
 ## Definition Of Done
 
@@ -221,3 +357,5 @@ This refactor is in good shape when:
 - transport and endpoint contracts are clearer and better protected by tests
 - generated output conventions are documented as product behavior
 - docs and examples still describe the real framework accurately
+- generated projects have a stable configuration story from local config to optional remote config
+- existing generated projects can be extended intentionally without destructive regeneration

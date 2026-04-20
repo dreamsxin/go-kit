@@ -66,8 +66,6 @@ var defaultConfig = &ServiceConfig{
 }
 
 
-
-
 // NewService creates a service instance.
 func NewService(cfg *ServiceConfig) UserService {
 	if cfg == nil {

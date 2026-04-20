@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/dreamsxin/go-kit/transport/http/server"
 	idl "example.com/gen_proto_grpc_runtime/pb"
 	genendpoint "example.com/gen_proto_grpc_runtime/endpoint/userservice"
@@ -13,22 +14,46 @@ import (
 // NewHTTPHandler returns the generated HTTP handler set.
 func NewHTTPHandler(endpoints genendpoint.UserServiceEndpoints) http.Handler {
 	m := http.NewServeMux()
+	registerHTTPServeMuxRoutes(m, endpoints)
+	return m
+}
 
+// RegisterHTTPRoutes binds the generated HTTP routes onto a gorilla/mux router.
+func RegisterHTTPRoutes(router *mux.Router, endpoints genendpoint.UserServiceEndpoints, prefix string) {
 
 	// GET /getuser
+	router.Handle(routePath(prefix, "/getuser"), server.NewJSONEndpoint[idl.GetUserRequest](
+		endpoints.GetUserEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("GET")
+
+	// POST /createuser
+	router.Handle(routePath(prefix, "/createuser"), server.NewJSONEndpoint[idl.CreateUserRequest](
+		endpoints.CreateUserEndpoint,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+	)).Methods("POST")
+
+}
+
+func registerHTTPServeMuxRoutes(m *http.ServeMux, endpoints genendpoint.UserServiceEndpoints) {
+
 	m.Handle("GET /getuser", server.NewJSONEndpoint[idl.GetUserRequest](
 		endpoints.GetUserEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	// POST /createuser
 	m.Handle("POST /createuser", server.NewJSONEndpoint[idl.CreateUserRequest](
 		endpoints.CreateUserEndpoint,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
+}
 
-	return m
+func routePath(prefix, route string) string {
+	if prefix == "" {
+		return route
+	}
+	return prefix + route
 }
 
 

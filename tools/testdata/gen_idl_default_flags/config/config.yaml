@@ -1,7 +1,5 @@
-# <no value> 服务配置
-# 字段与 config/config.go 中的 Config struct 一一对应。
-# 未填写的字段将使用代码中 Default() 的内置默认值。
-
+# Generated config values for the service.
+# Unspecified fields inherit the defaults returned by config.Default().
 server:
   http_addr: ":8080"
   read_timeout: "15s"
@@ -33,7 +31,15 @@ middleware:
     backoff: "2s"
 
 debug:
-  # 是否启用 /debug/routes 端点（生产环境建议关闭或加鉴权）
   routes_enabled: true
-  # 是否在启动时打印路由表
   print_routes: true
+
+remote:
+  enabled: false
+  provider: ""
+  endpoint: ""
+  namespace: ""
+  group: ""
+  data_id: ""
+  timeout: "5s"
+  fallback_to_local: true
