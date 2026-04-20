@@ -1,12 +1,14 @@
 package tools_test
 
 import (
+	"encoding/base64"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -465,6 +467,46 @@ func main() {
 	return "./testdata/" + probeDirName
 }
 
+func writeConfigRemoteProbe(t *testing.T, outDir, probeDirName, importPath string) string {
+	t.Helper()
+
+	probeDir := filepath.Join(outDir, "testdata", probeDirName)
+	if err := os.MkdirAll(probeDir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", probeDirName, err)
+	}
+
+	probePath := filepath.Join(probeDir, "main.go")
+	probe := `package main
+
+import (
+	"fmt"
+	"os"
+
+	"` + importPath + `/config"
+)
+
+func main() {
+	if len(os.Args) != 2 {
+		panic("expected config path")
+	}
+
+	cfg, err := config.Load(os.Args[1])
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("%s\n", cfg.Server.HTTPAddr)
+	fmt.Printf("%s\n", cfg.Logging.Level)
+}
+`
+
+	if err := os.WriteFile(probePath, []byte(probe), 0o644); err != nil {
+		t.Fatalf("write remote config probe: %v", err)
+	}
+
+	return "./testdata/" + probeDirName
+}
+
 func createSQLiteSchema(t *testing.T, dbPath string) {
 	t.Helper()
 
@@ -614,6 +656,98 @@ func TestMicrogenIntegration(t *testing.T) {
 		mustNotExistFile(t, filepath.Join(outDir, "docs", "docs.go"))
 		mustNotExistFile(t, filepath.Join(outDir, "transport", "userservice", "transport_grpc.go"))
 		mustNotExistFile(t, filepath.Join(outDir, "pb", "userservice", "userservice.proto"))
+	})
+
+	t.Run("IDL_Config_RemoteConsul_UsesRemoteAndFallsBackToLocal", func(t *testing.T) {
+		outDir := filepath.Join(cwd, "testdata", "gen_idl_remote_config")
+		os.RemoveAll(outDir)
+
+		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
+		cmd := exec.Command("go", "run", microgenPath,
+			"-idl", idlFile,
+			"-out", outDir,
+			"-import", "example.com/gen_idl_remote_config",
+		)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("microgen remote-config fixture failed: %v\n%s", err, out)
+		}
+
+		probePkg := writeConfigRemoteProbe(t, outDir, "remoteconfigprobe", "example.com/gen_idl_remote_config")
+
+		remotePayload := strings.TrimSpace(`
+server:
+  http_addr: ":19090"
+logging:
+  level: "debug"
+`)
+		encodedPayload := base64.StdEncoding.EncodeToString([]byte(remotePayload))
+		remote := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/v1/kv/microgen/config" {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `[{"Key":"microgen/config","Value":"`+encodedPayload+`"}]`)
+		})
+		testServer := httptest.NewServer(remote)
+		defer testServer.Close()
+
+		successConfig := strings.TrimSpace(fmt.Sprintf(`
+server:
+  http_addr: ":8080"
+logging:
+  level: "info"
+remote:
+  enabled: true
+  provider: "consul"
+  endpoint: "%s"
+  data_id: "microgen/config"
+  fallback_to_local: true
+`, testServer.URL))
+		successConfigPath := filepath.Join(outDir, "config", "remote-success.yaml")
+		if err := os.WriteFile(successConfigPath, []byte(successConfig), 0o644); err != nil {
+			t.Fatalf("write success config: %v", err)
+		}
+
+		successProbe := exec.Command("go", "run", "-mod=mod", probePkg, "./config/remote-success.yaml")
+		successProbe.Dir = outDir
+		successProbe.Env = append(os.Environ(), "GOPROXY=https://proxy.golang.org,direct")
+		successOut := runCommand(t, successProbe)
+		if !strings.Contains(successOut, ":19090") {
+			t.Fatalf("expected remote config to override http addr, got:\n%s", successOut)
+		}
+		if !strings.Contains(successOut, "debug") {
+			t.Fatalf("expected remote config to override log level, got:\n%s", successOut)
+		}
+
+		fallbackAddr := freeTCPAddr(t)
+		fallbackConfig := strings.TrimSpace(fmt.Sprintf(`
+server:
+  http_addr: ":28080"
+logging:
+  level: "warn"
+remote:
+  enabled: true
+  provider: "consul"
+  endpoint: "http://%s"
+  data_id: "microgen/config"
+  fallback_to_local: true
+`, fallbackAddr))
+		fallbackConfigPath := filepath.Join(outDir, "config", "remote-fallback.yaml")
+		if err := os.WriteFile(fallbackConfigPath, []byte(fallbackConfig), 0o644); err != nil {
+			t.Fatalf("write fallback config: %v", err)
+		}
+
+		fallbackProbe := exec.Command("go", "run", "-mod=mod", probePkg, "./config/remote-fallback.yaml")
+		fallbackProbe.Dir = outDir
+		fallbackProbe.Env = append(os.Environ(), "GOPROXY=https://proxy.golang.org,direct")
+		fallbackOut := runCommand(t, fallbackProbe)
+		if !strings.Contains(fallbackOut, ":28080") {
+			t.Fatalf("expected fallback config to keep local http addr, got:\n%s", fallbackOut)
+		}
+		if !strings.Contains(fallbackOut, "warn") {
+			t.Fatalf("expected fallback config to keep local log level, got:\n%s", fallbackOut)
+		}
 	})
 
 	t.Run("IDL_GeneratedProject_BuildsAndRuns", func(t *testing.T) {

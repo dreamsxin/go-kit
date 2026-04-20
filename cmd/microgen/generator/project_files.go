@@ -153,6 +153,7 @@ func (g *Generator) generateGoModFile() error {
 
 	data := map[string]any{
 		"ImportPath":  g.config.ImportPath,
+		"WithConfig":  g.config.WithConfig,
 		"RootRelPath": g.rootRelativePath(),
 	}
 	return g.executeTemplate("go_mod.tmpl", g.layout.goMod(), data)

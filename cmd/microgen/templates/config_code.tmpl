@@ -9,98 +9,101 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
+	_ "github.com/spf13/viper/remote"
+	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
 
 // Config groups all generated config sections.
 type Config struct {
-	Server    ServerConfig     `yaml:"server"`
-	Logging   LoggingConfig    `yaml:"logging"`
+	Server    ServerConfig     `yaml:"server" mapstructure:"server"`
+	Logging   LoggingConfig    `yaml:"logging" mapstructure:"logging"`
 {{- if .WithDB}}
-	Database  DatabaseConfig   `yaml:"database"`
+	Database  DatabaseConfig   `yaml:"database" mapstructure:"database"`
 {{- end}}
-	Middleware MiddlewareConfig `yaml:"middleware"`
-	Debug      DebugConfig      `yaml:"debug"`
-	Remote     RemoteConfig     `yaml:"remote"`
+	Middleware MiddlewareConfig `yaml:"middleware" mapstructure:"middleware"`
+	Debug      DebugConfig      `yaml:"debug" mapstructure:"debug"`
+	Remote     RemoteConfig     `yaml:"remote" mapstructure:"remote"`
 }
 
 // ServerConfig holds HTTP and optional gRPC listener settings.
 type ServerConfig struct {
-	HTTPAddr                string        `yaml:"http_addr"`
+	HTTPAddr                string        `yaml:"http_addr" mapstructure:"http_addr"`
 {{- if .WithGRPC}}
-	GRPCAddr                string        `yaml:"grpc_addr"`
+	GRPCAddr                string        `yaml:"grpc_addr" mapstructure:"grpc_addr"`
 {{- end}}
-	ReadTimeout             time.Duration `yaml:"read_timeout"`
-	WriteTimeout            time.Duration `yaml:"write_timeout"`
-	GracefulShutdownTimeout time.Duration `yaml:"graceful_shutdown_timeout"`
+	ReadTimeout             time.Duration `yaml:"read_timeout" mapstructure:"read_timeout"`
+	WriteTimeout            time.Duration `yaml:"write_timeout" mapstructure:"write_timeout"`
+	GracefulShutdownTimeout time.Duration `yaml:"graceful_shutdown_timeout" mapstructure:"graceful_shutdown_timeout"`
 {{- if .WithSwag}}
-	SwaggerHost             string        `yaml:"swagger_host"`
+	SwaggerHost             string        `yaml:"swagger_host" mapstructure:"swagger_host"`
 {{- end}}
 }
 
 // LoggingConfig holds logger settings.
 type LoggingConfig struct {
-	Level  string `yaml:"level"`
-	Format string `yaml:"format"`
+	Level  string `yaml:"level" mapstructure:"level"`
+	Format string `yaml:"format" mapstructure:"format"`
 }
 
 {{- if .WithDB}}
 
 // DatabaseConfig holds database connection settings.
 type DatabaseConfig struct {
-	Driver          string        `yaml:"driver"`
-	DSN             string        `yaml:"dsn"`
-	MaxOpenConns    int           `yaml:"max_open_conns"`
-	MaxIdleConns    int           `yaml:"max_idle_conns"`
-	ConnMaxLifetime time.Duration `yaml:"conn_max_lifetime"`
+	Driver          string        `yaml:"driver" mapstructure:"driver"`
+	DSN             string        `yaml:"dsn" mapstructure:"dsn"`
+	MaxOpenConns    int           `yaml:"max_open_conns" mapstructure:"max_open_conns"`
+	MaxIdleConns    int           `yaml:"max_idle_conns" mapstructure:"max_idle_conns"`
+	ConnMaxLifetime time.Duration `yaml:"conn_max_lifetime" mapstructure:"conn_max_lifetime"`
 }
 {{- end}}
 
 // MiddlewareConfig groups generated middleware settings.
 type MiddlewareConfig struct {
-	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker"`
-	RateLimit      RateLimitConfig      `yaml:"rate_limit"`
-	Retry          RetryConfig          `yaml:"retry"`
+	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker" mapstructure:"circuit_breaker"`
+	RateLimit      RateLimitConfig      `yaml:"rate_limit" mapstructure:"rate_limit"`
+	Retry          RetryConfig          `yaml:"retry" mapstructure:"retry"`
 }
 
 // CircuitBreakerConfig holds circuit breaker settings.
 type CircuitBreakerConfig struct {
-	Enabled          bool          `yaml:"enabled"`
-	FailureThreshold int           `yaml:"failure_threshold"`
-	Timeout          time.Duration `yaml:"timeout"`
+	Enabled          bool          `yaml:"enabled" mapstructure:"enabled"`
+	FailureThreshold int           `yaml:"failure_threshold" mapstructure:"failure_threshold"`
+	Timeout          time.Duration `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // RateLimitConfig holds rate limiting settings.
 type RateLimitConfig struct {
-	Enabled           bool    `yaml:"enabled"`
-	RequestsPerSecond float64 `yaml:"requests_per_second"`
+	Enabled           bool    `yaml:"enabled" mapstructure:"enabled"`
+	RequestsPerSecond float64 `yaml:"requests_per_second" mapstructure:"requests_per_second"`
 }
 
 // RetryConfig holds retry settings.
 type RetryConfig struct {
-	Enabled     bool          `yaml:"enabled"`
-	MaxAttempts int           `yaml:"max_attempts"`
-	Backoff     time.Duration `yaml:"backoff"`
+	Enabled     bool          `yaml:"enabled" mapstructure:"enabled"`
+	MaxAttempts int           `yaml:"max_attempts" mapstructure:"max_attempts"`
+	Backoff     time.Duration `yaml:"backoff" mapstructure:"backoff"`
 }
 
 // DebugConfig holds debug endpoint settings.
 type DebugConfig struct {
-	RoutesEnabled bool `yaml:"routes_enabled"`
-	PrintRoutes   bool `yaml:"print_routes"`
+	RoutesEnabled bool `yaml:"routes_enabled" mapstructure:"routes_enabled"`
+	PrintRoutes   bool `yaml:"print_routes" mapstructure:"print_routes"`
 }
 
 // RemoteConfig holds optional remote-config loading settings.
 type RemoteConfig struct {
-	Enabled         bool          `yaml:"enabled"`
-	Provider        string        `yaml:"provider"`
-	Endpoint        string        `yaml:"endpoint"`
-	Namespace       string        `yaml:"namespace"`
-	Group           string        `yaml:"group"`
-	DataID          string        `yaml:"data_id"`
-	Timeout         time.Duration `yaml:"timeout"`
-	FallbackToLocal bool          `yaml:"fallback_to_local"`
+	Enabled         bool          `yaml:"enabled" mapstructure:"enabled"`
+	Provider        string        `yaml:"provider" mapstructure:"provider"`
+	Endpoint        string        `yaml:"endpoint" mapstructure:"endpoint"`
+	Namespace       string        `yaml:"namespace" mapstructure:"namespace"`
+	Group           string        `yaml:"group" mapstructure:"group"`
+	DataID          string        `yaml:"data_id" mapstructure:"data_id"`
+	Timeout         time.Duration `yaml:"timeout" mapstructure:"timeout"`
+	FallbackToLocal bool          `yaml:"fallback_to_local" mapstructure:"fallback_to_local"`
 }
 
 // Default returns generated defaults aligned with config.yaml.
@@ -329,14 +332,66 @@ func ApplyEnv(cfg *Config) error {
 	return nil
 }
 
-// LoadRemote is the generated seam for future remote-provider integration.
-// The first milestone keeps it as a no-op so generated projects remain fully
-// runnable with local config only.
+// LoadRemote optionally loads remote config on top of the local/env-resolved
+// base config. The first concrete provider uses Viper remote support for
+// Consul while preserving local fallback behavior.
 func LoadRemote(cfg *Config) (*Config, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config: nil config")
 	}
-	return cfg, nil
+	if !cfg.Remote.Enabled {
+		return cfg, nil
+	}
+
+	provider := strings.ToLower(strings.TrimSpace(cfg.Remote.Provider))
+	var loaded *Config
+	var err error
+
+	switch provider {
+	case "consul":
+		loaded, err = loadRemoteFromConsul(cfg)
+	case "":
+		err = fmt.Errorf("config: remote enabled but provider is empty")
+	default:
+		err = fmt.Errorf("config: unsupported remote provider %q", cfg.Remote.Provider)
+	}
+
+	if err != nil {
+		if cfg.Remote.FallbackToLocal {
+			return cfg, nil
+		}
+		return nil, err
+	}
+
+	return loaded, nil
+}
+
+func loadRemoteFromConsul(cfg *Config) (*Config, error) {
+	endpoint := strings.TrimSpace(cfg.Remote.Endpoint)
+	if endpoint == "" {
+		return nil, fmt.Errorf("config: remote consul endpoint is empty")
+	}
+
+	dataID := strings.TrimSpace(cfg.Remote.DataID)
+	if dataID == "" {
+		return nil, fmt.Errorf("config: remote consul data_id is empty")
+	}
+
+	v := viper.New()
+	v.SetConfigType("yaml")
+	if err := v.AddRemoteProvider("consul", endpoint, dataID); err != nil {
+		return nil, fmt.Errorf("config: add consul remote provider: %w", err)
+	}
+	if err := v.ReadRemoteConfig(); err != nil {
+		return nil, fmt.Errorf("config: read consul remote config: %w", err)
+	}
+
+	merged := *cfg
+	if err := v.Unmarshal(&merged); err != nil {
+		return nil, fmt.Errorf("config: unmarshal consul remote config: %w", err)
+	}
+
+	return &merged, nil
 }
 
 // Load preserves the generated public contract:

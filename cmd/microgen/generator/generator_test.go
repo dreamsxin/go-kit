@@ -664,6 +664,25 @@ func TestGenerateFull_GoMod_Created(t *testing.T) {
 	mustContain(t, goModPath, "go 1.25.8")
 }
 
+func TestGenerateFull_GoMod_WithConfigIncludesViper(t *testing.T) {
+	outDir := newTmpDir(t)
+	project := parseIDLProject(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/myproject",
+		DBDriver:   "sqlite",
+		WithConfig: true,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	goModPath := filepath.Join(outDir, "go.mod")
+	mustContain(t, goModPath, "github.com/spf13/viper")
+}
+
 // TestGenerateFull_GoMod_ModuleUpdatedWhenMismatch 验证：go.mod 已存在但 module 名与 -import 不符时，
 // generator 只更�?module 行，其余内容（go 版本、require 块等）保持不变�?
 func TestGenerateFull_GoMod_ModuleUpdatedWhenMismatch(t *testing.T) {
@@ -917,6 +936,13 @@ func TestGenerateFull_ConfigCode_RemoteConfigDefaults(t *testing.T) {
 	mustContain(t, codePath, "DataID          string")
 	mustContain(t, codePath, "FallbackToLocal bool")
 	mustContain(t, codePath, "Timeout:         5 * time.Second")
+	mustContain(t, codePath, `"github.com/spf13/viper/remote"`)
+	mustContain(t, codePath, `"github.com/spf13/viper"`)
+	mustContain(t, codePath, `case "consul":`)
+	mustContain(t, codePath, "func loadRemoteFromConsul(cfg *Config) (*Config, error)")
+	mustContain(t, codePath, `v.AddRemoteProvider("consul", endpoint, dataID)`)
+	mustContain(t, codePath, "v.ReadRemoteConfig()")
+	mustContain(t, codePath, "v.Unmarshal(&merged)")
 }
 
 func TestGenerateFull_ConfigCode_WithGRPC(t *testing.T) {

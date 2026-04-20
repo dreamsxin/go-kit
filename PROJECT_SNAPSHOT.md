@@ -164,8 +164,14 @@ Recently completed:
   - generated `config/config.go` now exposes `Default()`, `LoadLocal(path string)`, `ApplyEnv(cfg *Config)`, `LoadRemote(cfg *Config)`, and `Load(path string)`
   - generated `Load(path string)` now follows the first shared seam: defaults, local YAML, environment overrides, and a remote-loading seam
   - generated config now includes a `RemoteConfig` section plus `remote:` values in `config/config.yaml`
-  - the current remote-loading implementation is intentionally a no-op seam so generated projects remain fully runnable with local config only
-  - focused generator tests plus default-flags integration coverage now protect that generated config contract
+  - the first real remote-loading implementation now exists behind that seam:
+    - `LoadRemote(...)` uses Viper remote loading for `provider: consul`
+    - remote config is read from Consul KV via `remote.data_id`
+    - remote values are layered onto the already-resolved local+env config
+    - when `remote.fallback_to_local: true`, provider read failures fall back to local config instead of aborting startup
+  - generated config structs now also include `mapstructure` tags so Viper remote decoding follows the same field names as YAML loading
+  - generated `go.mod` now includes the Viper dependency when config generation is enabled
+  - focused generator tests plus default-flags and remote-config integration coverage now protect that generated config contract
 - `README.md` was updated so the generated project layout description matches current generator behavior more closely:
   - `client/` is called out explicitly
   - `pb/` is described as proto-related gRPC output
@@ -445,6 +451,9 @@ The following checks passed during the current refactor thread:
 - `go test ./cmd/microgen/... -count=1` after adding `-append-model`, `-append-middleware`, and `extend -check`
 - `go test ./tools/... -run "TestMicrogenIntegration/(IDL_Extend_AppendService_PreservesExistingFilesAndServesNewRoute|IDL_Extend_AppendModel_PreservesExistingHooksAndBuilds|IDL_Extend_AppendMiddleware_PreservesCustomChainAndServesWrappedErrors|IDL_Extend_Check_ReportsCompatibility|IDL_Extend_Check_ReturnsExitCodes)" -count=1`
 - `go test ./tools/... -run "TestMicrogenIntegration/(IDL_CustomRoutes_ArePreservedAndServed|IDL_DefaultFlags)" -count=1`
+- `go test ./cmd/microgen/generator -count=1` after adding the first Viper-backed Consul remote-config provider
+- `go test ./cmd/microgen/... -count=1` after wiring the first real remote-config provider through generated config output
+- `go test ./tools/... -run "TestMicrogenIntegration/(IDL_DefaultFlags|IDL_Config_RemoteConsul_UsesRemoteAndFallsBackToLocal)" -count=1 -v`
 
 These results mean the recent runtime split and generator decomposition are at least passing their focused validation loops.
 
@@ -472,7 +481,7 @@ Highest-value active areas:
 - `kit/`
   Runtime convenience layer. Recently decomposed and still a likely place for cleanup or contract tightening; recent work has focused on making option misuse fail safely, degrade predictably, or fail fast when configuration is clearly invalid.
 - `cmd/microgen/generator/`
-  Main refactor zone. Structure is much improved, generator output conventions are more explicitly documented and tested, the IR-only generation path is explicitly protected for DB, Go-IDL, and Proto inputs, and extend support now includes append-service, append-model, append-middleware, and a read-only compatibility check. The main remaining product gap here is config remote-provider integration rather than extend scaffolding itself.
+  Main refactor zone. Structure is much improved, generator output conventions are more explicitly documented and tested, the IR-only generation path is explicitly protected for DB, Go-IDL, and Proto inputs, and extend support now includes append-service, append-model, append-middleware, and a read-only compatibility check. The config track now has a first real Viper-backed Consul provider behind the generated `LoadRemote(...)` seam, so the next likely work here is CLI/provider-surface tightening rather than the initial provider implementation itself.
 - `tools/`
   Integration coverage now checks more of the user-visible generated output shape, including docs, proto/gRPC artifacts, route-prefix propagation, default CLI usability, rerun reliability, clear failure behavior for invalid CLI usage, whether a generated project can actually compile and start, whether a minimal feature-off project still remains runnable, whether prefixed runtime routes actually behave correctly after startup, whether generated `client/` and `sdk/` components remain usable against the generated service, whether generated `service/endpoint/transport` packages can actually be assembled with framework logging into a working request path, and whether proto-generated README plus `.proto` assets accurately reflect the current contract instead of a blanket scaffold-only story. On machines with a protobuf toolchain, it now also reaches one step deeper into proto component compilation, runtime-style component assembly, and modern gRPC server-interface compatibility.
 - `endpoint/`
@@ -484,16 +493,16 @@ Highest-value active areas:
 
 If continuing the current refactor line, prefer this order:
 
-1. Implement the first real remote-config provider behind the generated `LoadRemote(...)` seam.
-2. Add focused integration coverage for provider-enabled config loading plus fallback behavior.
-3. Audit whether any remaining extend or config guarantees still need to move up into `tools` integration tests.
+1. Decide whether the next config milestone should add explicit CLI surface such as `-config-mode` or `-remote-provider`, now that one provider exists behind the stable seam.
+2. Audit whether any remaining config guarantees should move up into `tools` integration tests, especially strict remote-failure behavior or provider validation.
+3. Consider whether generated config should split `config.go` into `env.go` and `remote.go` now that the remote path is real.
 4. Revisit `endpoint` and `transport` shared patterns only after generator/config momentum settles.
 
 Good next tickets:
 
-- choose the first real remote-config provider instead of extending the current no-op seam indefinitely
-- keep local-config startup as the default happy path while adding provider-backed remote loading
-- add at least one focused generated-project test that proves remote config can be enabled without breaking local fallback behavior
+- keep local-config startup as the default happy path while deciding whether to expand beyond the first Consul-backed provider
+- add stricter provider validation and future CLI/provider-selection coverage only if the public generator surface is ready to expand
+- consider one more generated-project test for strict remote failure behavior if non-fallback mode becomes part of the contract
 - keep `microgen` extend treated as a product surface by preserving CLI help, failure diagnostics, compatibility scanning, and exit-code behavior
 - keep generated user-facing components treated as products, not just source trees, especially `client/`, `sdk/`, and generated startup/config behavior
 - keep route-prefix, rerun safety, and protected-file guarantees locked in at runtime or integration level, not only as string assertions
@@ -514,12 +523,12 @@ If a new AI session resumes this work, the best low-friction start is:
 
 Recommended first task right now:
 
-- implement the first real remote-config provider behind `LoadRemote(...)`, then add one generated-project integration test that proves both provider-backed loading and local fallback behavior
+- decide whether to ship the current Viper-backed Consul provider as the first stable contract or follow immediately with CLI-level provider selection
 
 Specifically:
 
 - read `MICROGEN_NEXT_PHASE.md`, `MICROGEN_CONFIG_DESIGN.md`, and the generated config templates first
-- confirm which provider should be first and keep it behind the existing `LoadRemote(...)` seam
+- if continuing the config track, read `MICROGEN_NEXT_PHASE.md`, `MICROGEN_CONFIG_DESIGN.md`, and the generated config templates first, then decide whether the next slice is CLI surface, stricter validation, or config package file-splitting
 - add or update tests before broadening the provider surface
 - only revisit transport/runtime cleanup after the config thread lands
 
