@@ -1,5 +1,16 @@
 # Project Snapshot
 
+Purpose:
+- Give maintainers and AI agents a fast re-entry summary of the current repo state, recent changes, and next recommended work.
+
+Read this when:
+- You are resuming work, taking over a refactor thread, or deciding what to do next.
+
+See also:
+- [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md)
+- [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md)
+- [DOCS_INDEX.md](DOCS_INDEX.md)
+
 This file is the fastest re-entry point for a new maintainer or AI coding session.
 
 Read this first when you need to answer:
@@ -28,10 +39,11 @@ That layering should remain intact during refactors.
 
 The repository is in an active structural-cleanup phase.
 
-The next planned product phase is now clear:
+Current priority summary:
 
-1. add stronger generated configuration output, including a path to remote configuration
-2. add incremental extension support so already-generated projects can gain new services, models, and middleware without destructive regeneration
+1. keep the new remote-config provider contract stable and decide whether to add explicit CLI/provider surface next
+2. keep extend-mode guarantees documented and compatibility-safe
+3. continue favoring generator-owned seams and integration-tested user-visible behavior
 
 Recently completed:
 
@@ -493,22 +505,17 @@ Highest-value active areas:
 
 If continuing the current refactor line, prefer this order:
 
-1. Decide whether the next config milestone should add explicit CLI surface such as `-config-mode` or `-remote-provider`, now that one provider exists behind the stable seam.
-2. Audit whether any remaining config guarantees should move up into `tools` integration tests, especially strict remote-failure behavior or provider validation.
-3. Consider whether generated config should split `config.go` into `env.go` and `remote.go` now that the remote path is real.
+1. Decide whether the next config milestone should add explicit CLI surface such as `-config-mode` or `-remote-provider`.
+2. Add any missing config integration coverage, especially strict remote-failure behavior or provider validation.
+3. Split generated config helpers into smaller files only if it improves clarity without changing the public contract.
 4. Revisit `endpoint` and `transport` shared patterns only after generator/config momentum settles.
 
-Good next tickets:
+Keep these constraints in mind:
 
-- keep local-config startup as the default happy path while deciding whether to expand beyond the first Consul-backed provider
-- add stricter provider validation and future CLI/provider-selection coverage only if the public generator surface is ready to expand
-- consider one more generated-project test for strict remote failure behavior if non-fallback mode becomes part of the contract
-- keep `microgen` extend treated as a product surface by preserving CLI help, failure diagnostics, compatibility scanning, and exit-code behavior
-- keep generated user-facing components treated as products, not just source trees, especially `client/`, `sdk/`, and generated startup/config behavior
-- keep route-prefix, rerun safety, and protected-file guarantees locked in at runtime or integration level, not only as string assertions
-- keep generator entry points IR-only unless a new, deliberate migration policy says otherwise
-- check whether any remaining endpoint sharp edges still panic at request time and should instead fail earlier with explicit contracts
-- unless a new concrete runtime mismatch is found, transport parity work can pause and focus can return to broader generator/config compatibility
+- local-config startup should remain the default happy path
+- extend mode should remain a documented product surface, not a best-effort merge path
+- generated user-facing outputs such as config, routes, `client/`, and `sdk/` should stay protected by integration tests
+- generator entry points should remain IR-first unless a deliberate migration decision changes that
 
 ## Recommended Next Session Start
 
@@ -528,7 +535,7 @@ Recommended first task right now:
 Specifically:
 
 - read `MICROGEN_NEXT_PHASE.md`, `MICROGEN_CONFIG_DESIGN.md`, and the generated config templates first
-- if continuing the config track, read `MICROGEN_NEXT_PHASE.md`, `MICROGEN_CONFIG_DESIGN.md`, and the generated config templates first, then decide whether the next slice is CLI surface, stricter validation, or config package file-splitting
+- then decide whether the next slice is CLI surface, stricter validation, or config package file-splitting
 - add or update tests before broadening the provider surface
 - only revisit transport/runtime cleanup after the config thread lands
 

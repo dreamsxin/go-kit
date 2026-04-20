@@ -1,5 +1,16 @@
 # microgen Extend Mode Design
 
+Purpose:
+- Define the implementation-level design for safe extension of already-generated projects.
+
+Read this when:
+- You are changing extend mode, append flows, project scanning, or generator-owned aggregation updates.
+
+See also:
+- [MICROGEN_INDEX.md](MICROGEN_INDEX.md)
+- [MICROGEN_OWNERSHIP.md](MICROGEN_OWNERSHIP.md)
+- [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
+
 This document defines the implementation-level design for incremental extension of already-generated projects.
 
 It is a deeper companion to:

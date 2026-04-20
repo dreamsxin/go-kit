@@ -9,9 +9,9 @@ Use it when you know you need "the right doc" but do not want to hunt through th
 - New to `go-kit` as a user:
   Read [README.md](README.md)
 - Resuming work on the repository or an AI coding session:
-  Read [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md)
+  Read [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md), then [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md)
 - Working on the repository itself:
-  Read [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md)
+  Read [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md)
 
 ## By Goal
 
@@ -24,6 +24,8 @@ Use it when you know you need "the right doc" but do not want to hunt through th
 
 ### Resume Current Work Quickly
 
+- [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md)
+  Shortest maintainer/AI-agent entry point.
 - [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md)
   Current repository state, recent changes, validation history, next recommended tasks.
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
@@ -54,6 +56,8 @@ Use it when you know you need "the right doc" but do not want to hunt through th
 
 ### Work On `microgen`
 
+- [MICROGEN_INDEX.md](MICROGEN_INDEX.md)
+  Shortest entry point for `microgen` docs by question and task.
 - [MICROGEN_NEXT_PHASE.md](MICROGEN_NEXT_PHASE.md)
   Next product phase for generated config, remote config, and incremental extension.
 - [MICROGEN_CONFIG_DESIGN.md](MICROGEN_CONFIG_DESIGN.md)
@@ -92,15 +96,15 @@ Use it when you know you need "the right doc" but do not want to hunt through th
 ### For A New Maintainer
 
 1. [README.md](README.md)
-2. [DOCS_INDEX.md](DOCS_INDEX.md)
+2. [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md)
 3. [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md)
 4. [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md)
 5. [FRAMEWORK_ARCHITECTURE.md](FRAMEWORK_ARCHITECTURE.md)
 
 ### For A `microgen` Change
 
-1. [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md)
-2. [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md)
+1. [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md)
+2. [MICROGEN_INDEX.md](MICROGEN_INDEX.md)
 3. [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
 4. [MICROGEN_NEXT_PHASE.md](MICROGEN_NEXT_PHASE.md)
 5. The relevant design doc:

@@ -1,5 +1,16 @@
 # Framework Architecture
 
+Purpose:
+- Define the target architecture for `go-kit`, including runtime layering, generator direction, and AI-facing capability exposure.
+
+Read this when:
+- You are deciding where code should live, how layers should interact, or how `microgen` should shape generated projects.
+
+See also:
+- [FRAMEWORK_BOUNDARIES.md](FRAMEWORK_BOUNDARIES.md)
+- [PACKAGE_SURFACES.md](PACKAGE_SURFACES.md)
+- [MICROGEN_INDEX.md](MICROGEN_INDEX.md)
+
 This document defines the recommended target architecture for `go-kit`.
 
 It is the bridge between:
@@ -570,4 +581,3 @@ The highest-value next steps are:
 3. Document package-level layering rules in generator-facing terms so codegen can enforce them.
 4. Turn AI Skill generation into a first-class IR output instead of a mostly template-driven extra.
 5. Refactor `tools/integration_test.go` helper structure so the growing component/runnable probes remain maintainable.
-

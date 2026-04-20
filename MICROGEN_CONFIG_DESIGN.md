@@ -1,5 +1,16 @@
 # microgen Config And Remote Config Design
 
+Purpose:
+- Define the implementation-level design for generated config, env overrides, and remote config loading in `microgen`.
+
+Read this when:
+- You are changing generated `config/`, remote-provider behavior, config loading order, or config-related tests.
+
+See also:
+- [MICROGEN_INDEX.md](MICROGEN_INDEX.md)
+- [MICROGEN_NEXT_PHASE.md](MICROGEN_NEXT_PHASE.md)
+- [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
+
 This document defines the implementation-level design for generated configuration in `microgen`.
 
 It is a deeper companion to:

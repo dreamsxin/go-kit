@@ -1,5 +1,16 @@
 # microgen Next Phase Design
 
+Purpose:
+- Define the next product-phase direction for generated config, remote config, and incremental extension.
+
+Read this when:
+- You are deciding roadmap direction, milestone order, CLI surface direction, or what should happen next in `microgen`.
+
+See also:
+- [MICROGEN_INDEX.md](MICROGEN_INDEX.md)
+- [MICROGEN_CONFIG_DESIGN.md](MICROGEN_CONFIG_DESIGN.md)
+- [MICROGEN_EXTEND_DESIGN.md](MICROGEN_EXTEND_DESIGN.md)
+
 This document turns the next `microgen` roadmap into a concrete product and implementation design.
 
 It focuses on two linked capabilities:

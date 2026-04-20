@@ -1,5 +1,16 @@
 # Framework Boundaries
 
+Purpose:
+- Define what belongs in the framework, what should stay outside it, and where customization is allowed.
+
+Read this when:
+- You are deciding whether a change is framework scope, application scope, or an anti-pattern.
+
+See also:
+- [STABILITY.md](STABILITY.md)
+- [PACKAGE_SURFACES.md](PACKAGE_SURFACES.md)
+- [ANTI_PATTERNS.md](ANTI_PATTERNS.md)
+
 This document defines what `go-kit` is responsible for, what it intentionally does not solve, which capabilities it exposes to business teams, and where customization is allowed.
 
 ## Framework Mission

@@ -1,5 +1,16 @@
 # Project Workflow
 
+Purpose:
+- Define the recommended development and validation workflow for work inside this repository.
+
+Read this when:
+- You are about to change runtime packages, `microgen`, docs, examples, or prepare a release.
+
+See also:
+- [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md)
+- [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md)
+- [PR_CHECKLIST.md](PR_CHECKLIST.md)
+
 This document describes the recommended development workflow for the `go-kit` repository itself.
 
 Important distinction:

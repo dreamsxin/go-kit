@@ -244,27 +244,34 @@ Generated endpoint middleware chains now live in generator-owned files such as `
 
 ## Repository Workflow
 
-If you are not sure which repository doc to read first, start with [DOCS_INDEX.md](DOCS_INDEX.md) for a task-oriented documentation map.
+If you are working on this repository itself rather than using it as a dependency:
 
-If you are working on this repository itself rather than using it as a dependency, see [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md) for the recommended development workflow across framework packages, `microgen`, examples, and tooling.
-
-If you are resuming a refactor or starting a new AI coding session, read [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md) first for the current repository status and next recommended steps.
+- start with [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md) for the shortest maintainer/AI-agent entry point
+- use [DOCS_INDEX.md](DOCS_INDEX.md) for the full documentation map
+- read [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md) for current state and next recommended work
+- use [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md) for validation and development workflow
 
 ---
 
 ## Framework Boundaries
 
-For the full repository documentation map, including architecture, workflow, stability, `microgen`, and review docs, see [DOCS_INDEX.md](DOCS_INDEX.md).
+Use these only when you are working on the framework itself:
 
-If you are deciding what should belong in the framework, what should remain internal, where customization is allowed, what patterns to avoid, and how to review changes consistently, see [FRAMEWORK_BOUNDARIES.md](FRAMEWORK_BOUNDARIES.md), [STABILITY.md](STABILITY.md), [PACKAGE_SURFACES.md](PACKAGE_SURFACES.md), [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md), [ANTI_PATTERNS.md](ANTI_PATTERNS.md), [PR_CHECKLIST.md](PR_CHECKLIST.md), and [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
-
-If you need the recommended target architecture for package roles, generated project layout, `microgen` evolution, AI skill generation, and the shared direction for errors/metadata/context/testing, read [FRAMEWORK_ARCHITECTURE.md](FRAMEWORK_ARCHITECTURE.md).
-
-If you are working on the next `microgen` roadmap for generated config, remote config, and incremental extension of existing generated projects, read [MICROGEN_NEXT_PHASE.md](MICROGEN_NEXT_PHASE.md).
-
-If you are implementing those roadmap items directly, read [MICROGEN_CONFIG_DESIGN.md](MICROGEN_CONFIG_DESIGN.md) and [MICROGEN_EXTEND_DESIGN.md](MICROGEN_EXTEND_DESIGN.md).
-
-If you need the ownership rule for generated files versus user-edited files, read [MICROGEN_OWNERSHIP.md](MICROGEN_OWNERSHIP.md).
+- Scope, stability, and review rules:
+  [FRAMEWORK_BOUNDARIES.md](FRAMEWORK_BOUNDARIES.md),
+  [STABILITY.md](STABILITY.md),
+  [PACKAGE_SURFACES.md](PACKAGE_SURFACES.md),
+  [ANTI_PATTERNS.md](ANTI_PATTERNS.md),
+  [PR_CHECKLIST.md](PR_CHECKLIST.md)
+- Target architecture:
+  [FRAMEWORK_ARCHITECTURE.md](FRAMEWORK_ARCHITECTURE.md)
+- `microgen` roadmap and implementation docs:
+  [MICROGEN_INDEX.md](MICROGEN_INDEX.md),
+  [MICROGEN_NEXT_PHASE.md](MICROGEN_NEXT_PHASE.md),
+  [MICROGEN_CONFIG_DESIGN.md](MICROGEN_CONFIG_DESIGN.md),
+  [MICROGEN_EXTEND_DESIGN.md](MICROGEN_EXTEND_DESIGN.md),
+  [MICROGEN_OWNERSHIP.md](MICROGEN_OWNERSHIP.md),
+  [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
 
 ---
 

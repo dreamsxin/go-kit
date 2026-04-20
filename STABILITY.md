@@ -1,5 +1,16 @@
 # Stability Guide
 
+Purpose:
+- Classify `go-kit` surfaces by stability so maintainers know which changes are compatibility-sensitive.
+
+Read this when:
+- You are changing public behavior, generated output, or package APIs and need to judge release risk.
+
+See also:
+- [PACKAGE_SURFACES.md](PACKAGE_SURFACES.md)
+- [FRAMEWORK_BOUNDARIES.md](FRAMEWORK_BOUNDARIES.md)
+- [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
+
 This document classifies the main `go-kit` surfaces into stability tiers so maintainers and business teams can distinguish supported contracts from implementation details.
 
 ## Stability Tiers
