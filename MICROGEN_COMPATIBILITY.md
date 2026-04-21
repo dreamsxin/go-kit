@@ -327,6 +327,6 @@ Use this guide together with:
 - [STABILITY.md](STABILITY.md)
 - [PACKAGE_SURFACES.md](PACKAGE_SURFACES.md)
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
-- [MICROGEN_OWNERSHIP.md](MICROGEN_OWNERSHIP.md)
+- [MICROGEN_DESIGN.md](MICROGEN_DESIGN.md)
 
 Together they define framework scope, package stability, allowed usage, and generator compatibility expectations.

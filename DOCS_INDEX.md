@@ -58,14 +58,12 @@ Use it when you know you need "the right doc" but do not want to hunt through th
 
 - [MICROGEN_INDEX.md](MICROGEN_INDEX.md)
   Shortest entry point for `microgen` docs by question and task.
-- [MICROGEN_NEXT_PHASE.md](MICROGEN_NEXT_PHASE.md)
-  Next product phase for generated config, remote config, and incremental extension.
+- [MICROGEN_DESIGN.md](MICROGEN_DESIGN.md)
+  Product-level direction for generated config, extend mode, and file ownership.
 - [MICROGEN_CONFIG_DESIGN.md](MICROGEN_CONFIG_DESIGN.md)
   Implementation-level design for generated config and remote config.
 - [MICROGEN_EXTEND_DESIGN.md](MICROGEN_EXTEND_DESIGN.md)
   Implementation-level design for extend mode and append operations.
-- [MICROGEN_OWNERSHIP.md](MICROGEN_OWNERSHIP.md)
-  Generator-owned versus user-owned file boundaries.
 - [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
   Current compatibility guarantees for generated output and rerun behavior.
 
@@ -106,7 +104,7 @@ Use it when you know you need "the right doc" but do not want to hunt through th
 1. [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md)
 2. [MICROGEN_INDEX.md](MICROGEN_INDEX.md)
 3. [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
-4. [MICROGEN_NEXT_PHASE.md](MICROGEN_NEXT_PHASE.md)
+4. [MICROGEN_DESIGN.md](MICROGEN_DESIGN.md)
 5. The relevant design doc:
    [MICROGEN_CONFIG_DESIGN.md](MICROGEN_CONFIG_DESIGN.md) or [MICROGEN_EXTEND_DESIGN.md](MICROGEN_EXTEND_DESIGN.md)
 

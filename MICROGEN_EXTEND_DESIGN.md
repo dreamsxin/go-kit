@@ -8,16 +8,15 @@ Read this when:
 
 See also:
 - [MICROGEN_INDEX.md](MICROGEN_INDEX.md)
-- [MICROGEN_OWNERSHIP.md](MICROGEN_OWNERSHIP.md)
+- [MICROGEN_DESIGN.md](MICROGEN_DESIGN.md)
 - [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
 
 This document defines the implementation-level design for incremental extension of already-generated projects.
 
 It is a deeper companion to:
 
-- [MICROGEN_NEXT_PHASE.md](MICROGEN_NEXT_PHASE.md)
+- [MICROGEN_DESIGN.md](MICROGEN_DESIGN.md)
 - [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
-- [MICROGEN_OWNERSHIP.md](MICROGEN_OWNERSHIP.md)
 
 Use this document when implementing:
 
@@ -41,7 +40,7 @@ But once that project exists, the user experience weakens:
 - users may already have edited service or repository files
 - naive regeneration risks overwriting valuable handwritten code
 
-The next phase should let users intentionally extend a generated project without turning the generator into a fragile merge engine.
+The current implementation goal is to let users intentionally extend a generated project without turning the generator into a fragile merge engine.
 
 ## Goals
 
@@ -60,36 +59,40 @@ The next phase should let users intentionally extend a generated project without
 
 ## Product Shape
 
-Recommended user-facing concept:
+Current user-facing concept:
 
 - project creation and project extension are different workflows
 - extension works by adding generated slices, not by rewriting user-owned files
 
-Current shipped first step:
+Current shipped extend surface:
 
-- `microgen extend -idl <full-combined.go> -out <project> -append-service <Name>` is now implemented as the first real extend flow
-- it scans the existing project, validates ownership and aggregation points, generates artifacts into a temporary tree, and copies only planned new files plus allowed generator-owned updates
-- existing `service/<svc>/service.go` files are preserved
-- generated aggregation files under `cmd/` act as the stable mutation points
+- `microgen extend -check -out <project>` provides a read-only compatibility scan
+- `microgen extend -idl <full-combined.go> -out <project> -append-service <Name>` is implemented
+- `microgen extend -idl <full-combined.go> -out <project> -append-model <Name>` is implemented
+- `microgen extend -idl <full-combined.go> -out <project> -append-middleware <Name[,Name...]>` is implemented
+- extend mode scans the existing project, validates ownership and aggregation points, generates artifacts into a temporary tree, and copies only planned new files plus allowed generator-owned updates
+- existing user-owned files such as `service/<svc>/service.go` are preserved
+- generated aggregation files under `cmd/` and `endpoint/` act as the stable mutation points
 
-Recommended CLI direction:
+Current CLI shape:
 
 ```bash
 microgen extend -idl <file> -out <project>
 ```
 
-Optional targeted flags:
+Current targeted flags:
 
 - `-append-service <name>`
 - `-append-model <name>`
 - `-append-middleware <name[,name...]>`
 
-Recommended rollout:
+Current status summary:
 
-1. explicit extend mode
-2. append-service
-3. append-model
-4. append-middleware
+- explicit extend mode is implemented
+- append-service is implemented
+- append-model is implemented
+- append-middleware is implemented
+- `extend -check` is implemented
 
 ## Required Preconditions
 
@@ -108,7 +111,7 @@ If the target is unsupported, extend mode should fail clearly instead of guessin
 
 Extend mode needs a dedicated scan pass before writing files.
 
-Recommended scanner output:
+Current scanner output shape:
 
 ```go
 type ExistingProject struct {
@@ -140,7 +143,7 @@ type ExistingProject struct {
 
 This is the most important rule set in extend mode.
 
-For the full policy, see [MICROGEN_OWNERSHIP.md](MICROGEN_OWNERSHIP.md).
+For the consolidated product-level policy, see [MICROGEN_DESIGN.md](MICROGEN_DESIGN.md).
 
 ### Tier 1: Safe Generator-Owned Files
 
@@ -180,21 +183,11 @@ Hard rule:
 
 - if an append operation would require rewriting one of these files, the generator should fail instead of attempting a best-effort merge
 
-## Migration Toward Better Aggregation
+## Aggregation Seams
 
-Current generated projects center a lot of startup logic in `cmd/main.go`.
+Current extend behavior depends on keeping startup and routing mutation points in explicit generator-owned files.
 
-That is acceptable for project creation, but not ideal for future extension.
-
-Recommended future direction:
-
-- keep `cmd/main.go` small
-- move generated service wiring into generator-owned files
-- move generated route registration into generator-owned files
-- move generated middleware assembly into generator-owned files
-- keep user customization outside those generated files
-
-Suggested future file set:
+Current important file set:
 
 ```text
 cmd/
@@ -204,11 +197,11 @@ cmd/
 └─ generated_runtime.go
 ```
 
-This gives extend mode stable patch points and reduces the need to rewrite `cmd/main.go`.
+Implementation rule:
 
-## Append-Service Design
+- keep these generated aggregation files as the preferred patch points so extend mode does not need to rewrite user-owned startup files
 
-Append-service should be the first supported extend operation.
+## Append-Service
 
 Current implementation status:
 
@@ -243,7 +236,7 @@ Current implementation status:
 - fail if the provided source contract does not include already-existing services needed to rebuild aggregation files safely
 - treat `.proto` input as unsupported for current append-service behavior
 
-### Preferred Implementation Strategy
+### Apply Flow
 
 1. scan existing project
 2. validate append target does not already exist
@@ -253,15 +246,12 @@ Current implementation status:
 6. copy only allowed generator-owned aggregation and snapshot updates
 7. run validation checks
 
-### Why It Comes First
+## Append-Model
 
-- highest product value
-- strongest test of scan and ownership rules
-- exercises startup, routing, transport, and SDK/client behavior together
+Current implementation status:
 
-## Append-Model Design
-
-Append-model should come after append-service.
+- implemented for supported generated projects with model/repository output
+- relies on the same scan, planning, temporary-generation, and controlled-apply pattern as append-service
 
 ### Outputs
 
@@ -277,23 +267,22 @@ Append-model should come after append-service.
 
 ### Important Constraint
 
-Repository code is very likely to be user-modified, so append-model must be conservative by default.
+Repository code is very likely to be user-modified, so append-model stays conservative by default.
 
-## Append-Middleware Design
+## Append-Middleware
 
-Append-middleware is valuable but riskier.
+Current implementation status:
 
-### Product Intent
+- implemented for supported generated projects with generator-owned middleware seams
+- intended to update only generated middleware composition files rather than handwritten endpoint code
 
-Users should be able to add generated middleware wiring without forcing the generator to edit arbitrary service endpoint code.
-
-### Recommended Strategy
+### Apply Strategy
 
 - introduce a generator-owned middleware aggregation file
 - keep generated middleware registration there
 - let users keep custom middleware in separate, user-owned code
 
-### Example Direction
+### Current seam shape
 
 ```text
 endpoint/
@@ -317,7 +306,7 @@ The generator should not silently degrade into partial hidden edits.
 
 ## CLI Semantics
 
-Recommended semantics:
+Current semantics:
 
 ### `microgen extend`
 
@@ -337,11 +326,9 @@ Recommended semantics:
 
 - append named generated middleware to supported generated middleware chain
 
-If these are added as flags without a subcommand, the CLI still needs to make the mode explicit in help text and behavior.
-
 ## Internal Generator Architecture
 
-Recommended internal additions:
+Current internal types:
 
 ```go
 type ExtendOptions struct {
@@ -355,7 +342,7 @@ type ExistingProjectScanner interface {
 }
 ```
 
-Recommended generator phases for extend mode:
+Current generator phases for extend mode:
 
 1. scan existing project
 2. validate extend request
@@ -366,7 +353,7 @@ Recommended generator phases for extend mode:
 
 ## Artifact Plan
 
-Before writing files, extend mode should build a structured plan.
+Before writing files, extend mode builds a structured plan.
 
 Example:
 
@@ -379,13 +366,13 @@ type ArtifactPlan struct {
 }
 ```
 
-Benefits:
+Implementation benefits:
 
 - easier testing
 - clearer failure reporting
 - lower chance of partial accidental mutation
 
-## Testing Plan
+## Testing Guidance
 
 ### Unit Tests
 
@@ -396,7 +383,7 @@ Benefits:
 
 ### Integration Tests
 
-Add `tools` cases for:
+The important integration checks are:
 
 - generate base project, append a new service, build and run
 - append-service updates routes and startup wiring correctly
@@ -432,33 +419,14 @@ That means:
 
 If extend mode cannot safely update a project, it should say so directly.
 
-## Suggested Milestones
+## Remaining Implementation Gaps
 
-### Milestone 1
+The main remaining gaps in this area are now implementation and compatibility-hardening work:
 
-- existing-project scan
-- ownership model
-- no-op validation mode
-
-### Milestone 2
-
-- append-service support
-- generator-owned aggregation files introduced where necessary
-
-### Milestone 3
-
-- append-model support
-
-### Milestone 4
-
-- append-middleware support
-
-## Open Decisions
-
-- subcommand versus flag-based extend UX
-- which generated aggregation files to introduce first
-- how much migration support to offer for older generated projects
-- whether extend mode should write metadata to help future scans
+- keep failure reporting specific when compatibility seams are missing
+- decide how much compatibility help to offer older generated projects that predate current aggregation seams
+- consider whether extend metadata would materially improve scan clarity without becoming another fragile contract
+- keep extend coverage focused on protected-file preservation and clear exit behavior
 
 ## Definition Of Done
 

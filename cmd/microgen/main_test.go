@@ -212,6 +212,10 @@ func TestPrintExtendCheckReport(t *testing.T) {
 		"- append-service: ready",
 		"- append-model: ready",
 		"- append-middleware: ready",
+		"Recommended Actions:",
+		"- append-service: ready; use `microgen extend -out <project> -idl <full-combined.go> -append-service <Name>`",
+		"- append-model: ready; use `microgen extend -out <project> -idl <full-combined.go> -append-model <Name>`",
+		"- append-middleware: ready; use `microgen extend -out <project> -idl <full-combined.go> -append-middleware <Name[,Name...]>`",
 		"Warnings:",
 	} {
 		if !strings.Contains(report, want) {
@@ -243,6 +247,10 @@ func TestPrintExtendCheckReport_ShowsMissingSeamsPerAppendPath(t *testing.T) {
 		"- append-service: needs compatibility seams (missing: cmd/generated_services.go, cmd/generated_routes.go)",
 		"- append-model: needs compatibility seams (missing: cmd/generated_services.go, cmd/generated_runtime.go, service/userservice/generated_repos.go)",
 		"- append-middleware: needs compatibility seams (missing: cmd/generated_routes.go, endpoint/userservice/generated_chain.go)",
+		"Recommended Actions:",
+		"- append-service: regenerate or migrate the project into the current generated layout so extend can update generator-owned seams (cmd/generated_services.go, cmd/generated_routes.go).",
+		"- append-model: restore generator-owned model/runtime seams before using `-append-model` (cmd/generated_services.go, cmd/generated_runtime.go, service/userservice/generated_repos.go); DB-backed model append needs these files to stay generator-managed.",
+		"- append-middleware: restore generated route and middleware seams before using `-append-middleware` (cmd/generated_routes.go, endpoint/userservice/generated_chain.go); extend only updates generated chain files, not handwritten endpoint code.",
 	} {
 		if !strings.Contains(report, want) {
 			t.Fatalf("extend report missing %q:\n%s", want, report)

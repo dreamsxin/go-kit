@@ -335,9 +335,9 @@ Update 2026-04-20:
 
 ## Working Tree Summary
 
-Current local state is a work-in-progress refactor, not a clean snapshot.
+This snapshot now describes a coherent, test-backed state rather than a half-finished working tree.
 
-Notable uncommitted areas:
+Recent structural areas worth knowing about:
 
 - `kit/`
   `kit/kit.go` was deleted and replaced by smaller files:
@@ -392,11 +392,10 @@ Notable uncommitted areas:
 
 Interpretation:
 
-- the repo is mid-refactor but in a coherent state
-- the active branch has not yet been normalized into a final commit
+- the repo is still in an active cleanup/refinement phase, but the current state is already coherent and validated
 - future sessions should read the new files rather than looking for old monoliths like `kit/kit.go`
-- future `microgen` work should treat config generation and remote-provider integration as the highest-value next ticket
-- append-service is no longer only a roadmap item, and append-model / append-middleware / extend-check are no longer design-only work either; the immediate next `microgen` task is to turn the current config remote seam into one real provider-backed implementation
+- `microgen` config and extend behavior have moved beyond design-only status and now need documentation to stay aligned with shipped behavior
+- the next `microgen` work is no longer "add the first provider seam" or "invent extend mode"; it is to stabilize and tighten the now-shipped contracts
 
 ## Recent Verification
 
@@ -516,10 +515,11 @@ Highest-value active areas:
 
 If continuing the current refactor line, prefer this order:
 
-1. Decide whether the next config milestone should add explicit CLI surface such as `-config-mode` or `-remote-provider`.
-2. Add any missing config integration coverage, especially strict remote-failure behavior or provider validation.
-3. Split generated config helpers into smaller files only if it improves clarity without changing the public contract.
-4. Revisit `endpoint` and `transport` shared patterns only after generator/config momentum settles.
+1. Keep the generated config contract stable now that `-config-mode` and `-remote-provider` are already part of the CLI surface.
+2. Tighten any remaining config validation and integration coverage around strict remote-failure behavior, provider validation, and generated output expectations.
+3. Keep `microgen` product docs aligned with shipped extend/config behavior so maintainers are not reading stale roadmap text.
+4. Split generated config helpers further only if it improves clarity without changing the public contract.
+5. Revisit `endpoint` and `transport` shared patterns only after generator/config momentum settles.
 
 Keep these constraints in mind:
 
@@ -541,12 +541,12 @@ If a new AI session resumes this work, the best low-friction start is:
 
 Recommended first task right now:
 
-- decide whether to ship the current Viper-backed Consul provider as the first stable contract or follow immediately with CLI-level provider selection
+- treat the current Viper-backed Consul path plus explicit config CLI flags as the first stable contract, then decide whether to broaden providers or only tighten validation/docs
 
 Specifically:
 
-- read `MICROGEN_NEXT_PHASE.md`, `MICROGEN_CONFIG_DESIGN.md`, and the generated config templates first
-- then decide whether the next slice is CLI surface, stricter validation, or config package file-splitting
+- read `MICROGEN_DESIGN.md`, `MICROGEN_CONFIG_DESIGN.md`, and the generated config templates first
+- then decide whether the next slice is stricter validation, provider-surface tightening, or config package file-splitting
 - add or update tests before broadening the provider surface
 - only revisit transport/runtime cleanup after the config thread lands
 

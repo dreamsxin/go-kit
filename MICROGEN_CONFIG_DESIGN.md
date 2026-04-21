@@ -8,14 +8,14 @@ Read this when:
 
 See also:
 - [MICROGEN_INDEX.md](MICROGEN_INDEX.md)
-- [MICROGEN_NEXT_PHASE.md](MICROGEN_NEXT_PHASE.md)
+- [MICROGEN_DESIGN.md](MICROGEN_DESIGN.md)
 - [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
 
 This document defines the implementation-level design for generated configuration in `microgen`.
 
 It is a deeper companion to:
 
-- [MICROGEN_NEXT_PHASE.md](MICROGEN_NEXT_PHASE.md)
+- [MICROGEN_DESIGN.md](MICROGEN_DESIGN.md)
 - [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
 
 Use this document when implementing:
@@ -62,9 +62,9 @@ Current limitations:
 - supporting multiple remote providers in the first implementation
 - exposing config internals as a stable framework package outside generated projects
 
-## Proposed Generated Layout
+## Generated Layout
 
-Recommended target shape:
+Current generated shape:
 
 ```text
 config/
@@ -76,24 +76,9 @@ config/
 └─ remote.go
 ```
 
-Recommended rollout by milestone:
+Implementation note:
 
-### Milestone 1
-
-- `config/config.go`
-- `config/config.yaml`
-- optional `config/loader.go`
-
-### Milestone 2
-
-- add `config/env.go`
-- add `config/remote.go`
-
-Not every file must exist immediately, but the generated package should move toward this shape rather than growing `config.go` indefinitely.
-
-Current implementation note:
-
-- the generated config package now follows the split-file direction while preserving the same startup-facing contract:
+- the generated config package already follows this split-file layout while preserving the same startup-facing contract:
   - `config.go` for types and defaults
   - `local.go` for YAML loading
   - `env.go` for environment overrides
@@ -102,7 +87,7 @@ Current implementation note:
 
 ## Public Generated API
 
-The generated config package should converge on a small public surface:
+The generated config package currently centers on a small startup-facing surface:
 
 ```go
 package config
@@ -121,13 +106,15 @@ func Default() *Config
 func Load(path string, opts ...Option) (*Config, error)
 ```
 
-This API may still evolve, but the generated startup code should stop depending on template-local helper behavior and instead depend on the generated config package contract.
+Implementation rule:
 
-## Proposed Config Structure
+- generated startup code should depend on the generated config package contract rather than template-local helper behavior
+
+## Config Structure
 
 ### Top-Level Sections
 
-Recommended sections:
+Current logical sections:
 
 - `service`
 - `http`
@@ -138,7 +125,7 @@ Recommended sections:
 - `debug`
 - `remote`
 
-Suggested shape:
+Representative shape:
 
 ```yaml
 service:
@@ -190,7 +177,7 @@ remote:
   fallback_to_local: true
 ```
 
-### Compatibility Guidance
+### Schema Compatibility Guidance
 
 The current `server` and `logging` shape in generated config can evolve, but if changed:
 
@@ -198,14 +185,13 @@ The current `server` and `logging` shape in generated config can evolve, but if 
 - template and integration tests must be updated together
 - migration guidance should be provided if generated examples or docs are affected
 
-Recommended migration direction:
+Current implementation constraint:
 
-- normalize names gradually
-- prefer additive aliases or controlled regeneration over abrupt schema churn
+- schema cleanup should happen through controlled, documented changes rather than silent template churn
 
 ## Loading Pipeline
 
-Recommended generated loading pipeline:
+Current generated loading pipeline:
 
 1. create defaults through `Default()`
 2. load local file if present
@@ -213,7 +199,7 @@ Recommended generated loading pipeline:
 4. optionally load remote config
 5. validate final config
 
-Suggested internal flow:
+Implementation shape:
 
 ```go
 cfg := Default()
@@ -235,11 +221,11 @@ This keeps generated services easy to run immediately after generation.
 
 ## Environment Variable Overrides
 
-Env support should be explicit and predictable.
+Env support is intentionally explicit and predictable.
 
-Recommended naming:
+Current naming direction:
 
-- prefix by service or generic generated prefix
+- use the generated `APP_` prefix
 - use upper snake case
 
 Examples:
@@ -250,17 +236,17 @@ Examples:
 - `APP_DB_DSN`
 - `APP_REMOTE_ENABLED`
 
-Recommended first milestone behavior:
+Current implementation constraints:
 
 - env overrides are simple scalar overrides
 - no complex nested list parsing
 - env applies after local file load
 
-## Remote Config Design
+## Remote Config
 
 ### Required Properties
 
-Remote config should be:
+Remote config is currently expected to be:
 
 - optional
 - provider-driven
@@ -269,7 +255,7 @@ Remote config should be:
 
 ### RemoteConfig Shape
 
-Suggested generated struct:
+Current generated struct shape:
 
 ```go
 type RemoteConfig struct {
@@ -284,13 +270,13 @@ type RemoteConfig struct {
 }
 ```
 
-This is intentionally provider-neutral.
+Implementation rule:
 
-Provider-specific fields can be added later if the first provider needs them.
+- keep the config struct provider-neutral unless a concrete provider requirement justifies widening it
 
 ## Loader Abstraction
 
-Recommended internal interface:
+Current internal abstraction direction:
 
 ```go
 type RemoteLoader interface {
@@ -304,25 +290,16 @@ Supporting helpers:
 - `ApplyEnv(cfg *Config) error`
 - `LoadRemote(ctx context.Context, cfg *Config) (*Config, error)`
 
-This keeps startup logic readable and testable.
+Implementation rule:
 
-## CLI Additions
+- keep startup logic readable and testable by routing file, env, and remote loading through explicit helpers
 
-Recommended additive flags:
+## CLI Surface
+
+Current additive flags:
 
 - `-config-mode file|hybrid|remote`
 - `-remote-provider <name>`
-
-Optional alternative:
-
-- `-remote-config`
-- `-remote-provider <name>`
-
-Recommended choice:
-
-- keep `-config` as-is
-- add `-config-mode` only when remote config is implemented
-- reserve `hybrid` to mean local + env + remote layering
 
 ### CLI Semantics
 
@@ -335,53 +312,44 @@ Recommended choice:
 - `-config-mode=hybrid`
   local file plus env plus optional remote
 - `-config-mode=remote`
-  remote intended as primary source, but exact strictness should still be opt-in if added later
+  remote intended as primary source, with failure behavior controlled by generated config defaults
 
-## Template Changes
+## Implementation Touchpoints
 
 ### `cmd/microgen/main.go`
 
-Add parsing and plumbing for:
+Current responsibility:
 
-- `ConfigMode`
-- `RemoteProvider`
-
-These should become generator options, not template-only ad hoc variables.
+- parse and validate `ConfigMode`
+- parse and validate `RemoteProvider`
+- map those values into generator options
 
 ### `cmd/microgen/generator/project_files.go`
 
-Update config generation helpers to:
+Current responsibility:
 
-- render the new config schema
-- render any additional config source files
-- keep file creation phased and explicit
+- render config package files
+- render config YAML defaults
+- keep config artifact creation explicit and phased
 
-### `cmd/microgen/templates/config.tmpl`
+### `cmd/microgen/templates/config*.tmpl`
 
-Needs to:
+Current responsibility:
 
-- move toward the new config schema
-- include `remote` settings only when config support is enabled
-- keep defaults friendly for immediate local startup
-
-### `cmd/microgen/templates/config_code.tmpl`
-
-Needs to:
-
-- split or prepare for split into smaller config package files
-- expose a stable generated API
-- support env and remote loading without turning one file into another monolith
+- render the generated config schema and defaults
+- render split config package files
+- keep local startup friendly while exposing env and remote seams
 
 ### `cmd/microgen/templates/main.tmpl`
 
-Needs to:
+Current responsibility:
 
 - depend on config package loading rather than inline config assumptions
 - use loaded config consistently for HTTP, gRPC, DB, logging, debug routes, and swagger host behavior
 
 ## Generator Options
 
-Recommended additions to generator options:
+Current option shape:
 
 ```go
 type Options struct {
@@ -391,13 +359,13 @@ type Options struct {
 }
 ```
 
-Recommended validation:
+Current validation rules:
 
 - unknown `ConfigMode` should fail fast
 - unknown `RemoteProvider` should fail fast when remote config is requested
 - remote-provider flags should be ignored or rejected clearly when config generation is disabled
 
-## Testing Plan
+## Testing Guidance
 
 ### Unit Tests
 
@@ -407,7 +375,7 @@ Recommended validation:
 
 ### Integration Tests
 
-Add or extend `TestMicrogenIntegration` cases for:
+The important integration checks are:
 
 - generated local-config project still builds and runs
 - env overrides affect generated runtime config
@@ -420,12 +388,14 @@ Add or extend `TestMicrogenIntegration` cases for:
 - current generated local config path must remain runnable
 - config changes must not break proto, from-db, or minimal-runtime generation
 
-## Open Decisions
+## Remaining Implementation Gaps
 
-- which config schema names to preserve versus normalize
-- which remote provider should be first
-- whether remote config should merge deeply or replace sections wholesale
-- whether generated config loading should expose options or keep a fixed generated flow
+The main remaining gaps in this area are now implementation cleanup items rather than product-shape questions:
+
+- tighten validation around unsupported provider/mode combinations
+- keep strict remote-failure behavior clearly covered by integration tests
+- decide whether schema normalization is worth a compatibility-managed change
+- avoid letting config templates drift back toward one large monolith
 
 ## Definition Of Done
 

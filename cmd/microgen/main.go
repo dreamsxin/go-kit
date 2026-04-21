@@ -396,6 +396,12 @@ func printExtendCheckReport(w io.Writer, existing *generator.ExistingProject) {
 	printAppendPathStatus(w, "append-model", appendModelMissing)
 	printAppendPathStatus(w, "append-middleware", appendMiddlewareMissing)
 
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Recommended Actions:")
+	printAppendPathRecommendation(w, existing, "append-service", appendServiceMissing)
+	printAppendPathRecommendation(w, existing, "append-model", appendModelMissing)
+	printAppendPathRecommendation(w, existing, "append-middleware", appendMiddlewareMissing)
+
 	if len(existing.Warnings) > 0 {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "Warnings:")
@@ -418,6 +424,46 @@ func printAppendPathStatus(w io.Writer, name string, missing []string) {
 		return
 	}
 	fmt.Fprintf(w, "- %s: %s (missing: %s)\n", name, readinessLabel(false), strings.Join(missing, ", "))
+}
+
+func printAppendPathRecommendation(w io.Writer, existing *generator.ExistingProject, name string, missing []string) {
+	if len(missing) == 0 {
+		fmt.Fprintf(w, "- %s: ready; use `microgen extend -out <project> %s`\n", name, appendPathUsage(name))
+		return
+	}
+	fmt.Fprintf(w, "- %s: %s\n", name, appendPathRemediation(existing, name, missing))
+}
+
+func appendPathUsage(name string) string {
+	switch name {
+	case "append-service":
+		return "-idl <full-combined.go> -append-service <Name>"
+	case "append-model":
+		return "-idl <full-combined.go> -append-model <Name>"
+	case "append-middleware":
+		return "-idl <full-combined.go> -append-middleware <Name[,Name...]>"
+	default:
+		return "extend-compatible mutation flags"
+	}
+}
+
+func appendPathRemediation(existing *generator.ExistingProject, name string, missing []string) string {
+	switch name {
+	case "append-service":
+		return fmt.Sprintf("regenerate or migrate the project into the current generated layout so extend can update generator-owned seams (%s).", strings.Join(missing, ", "))
+	case "append-model":
+		if len(missing) == 1 && missing[0] == "generated model/repository output" {
+			return "regenerate the project with model output enabled before using `-append-model`; this path requires generated model/repository seams."
+		}
+		if existing != nil && existing.Features.WithDB {
+			return fmt.Sprintf("restore generator-owned model/runtime seams before using `-append-model` (%s); DB-backed model append needs these files to stay generator-managed.", strings.Join(missing, ", "))
+		}
+		return fmt.Sprintf("restore generator-owned model/repository seams before using `-append-model` (%s).", strings.Join(missing, ", "))
+	case "append-middleware":
+		return fmt.Sprintf("restore generated route and middleware seams before using `-append-middleware` (%s); extend only updates generated chain files, not handwritten endpoint code.", strings.Join(missing, ", "))
+	default:
+		return fmt.Sprintf("restore the required extend seams: %s.", strings.Join(missing, ", "))
+	}
 }
 
 func appendServiceMissingSeams(existing *generator.ExistingProject) []string {

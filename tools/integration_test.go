@@ -1262,6 +1262,8 @@ type Product struct {
 			"append-service: ready",
 			"append-model: ready",
 			"append-middleware: ready",
+			"Recommended Actions:",
+			"append-service: ready; use `microgen extend -out <project> -idl <full-combined.go> -append-service <Name>`",
 		} {
 			if !strings.Contains(report, want) {
 				t.Fatalf("extend-check output missing %q:\n%s", want, report)
@@ -1348,6 +1350,9 @@ type Product struct {
 		}
 		if !strings.Contains(string(missingOut), "missing: cmd/generated_routes.go") {
 			t.Fatalf("missing-seam extend-check output missing seam guidance:\n%s", missingOut)
+		}
+		if !strings.Contains(string(missingOut), "restore generated route and middleware seams before using `-append-middleware`") {
+			t.Fatalf("missing-seam extend-check output missing remediation guidance:\n%s", missingOut)
 		}
 	})
 

@@ -284,12 +284,11 @@ Use these only when you are working on the framework itself:
   [PR_CHECKLIST.md](PR_CHECKLIST.md)
 - Target architecture:
   [FRAMEWORK_ARCHITECTURE.md](FRAMEWORK_ARCHITECTURE.md)
-- `microgen` roadmap and implementation docs:
+- `microgen` product and implementation docs:
   [MICROGEN_INDEX.md](MICROGEN_INDEX.md),
-  [MICROGEN_NEXT_PHASE.md](MICROGEN_NEXT_PHASE.md),
+  [MICROGEN_DESIGN.md](MICROGEN_DESIGN.md),
   [MICROGEN_CONFIG_DESIGN.md](MICROGEN_CONFIG_DESIGN.md),
   [MICROGEN_EXTEND_DESIGN.md](MICROGEN_EXTEND_DESIGN.md),
-  [MICROGEN_OWNERSHIP.md](MICROGEN_OWNERSHIP.md),
   [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
 
 ---

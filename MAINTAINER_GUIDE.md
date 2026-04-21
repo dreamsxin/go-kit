@@ -51,7 +51,8 @@ Read:
 
 1. [MICROGEN_INDEX.md](MICROGEN_INDEX.md)
 2. [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
-3. The relevant design doc:
+3. [MICROGEN_DESIGN.md](MICROGEN_DESIGN.md)
+4. The relevant implementation doc:
    [MICROGEN_CONFIG_DESIGN.md](MICROGEN_CONFIG_DESIGN.md) or [MICROGEN_EXTEND_DESIGN.md](MICROGEN_EXTEND_DESIGN.md)
 
 Use this path when changing:
