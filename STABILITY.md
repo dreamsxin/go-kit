@@ -158,7 +158,7 @@ Business teams should avoid depending on:
 Use this file together with:
 
 - [FRAMEWORK_BOUNDARIES.md](FRAMEWORK_BOUNDARIES.md)
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+- [REFACTOR_ROADMAP.md](REFACTOR_ROADMAP.md)
 - [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md)
 
 Together, these documents define scope, stability, workflow, and execution order for future framework changes.

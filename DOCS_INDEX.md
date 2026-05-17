@@ -30,8 +30,8 @@ Use it when you know you need "the right doc" but do not want to hunt through th
   Shortest maintainer/AI-agent entry point.
 - [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md)
   Current repository state, recent changes, validation history, next recommended tasks.
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
-  Higher-level roadmap and sequencing.
+- [REFACTOR_ROADMAP.md](REFACTOR_ROADMAP.md)
+  Higher-level refactor roadmap and sequencing.
 
 ### Work On The Repository Safely
 
@@ -129,3 +129,10 @@ Use it when you know you need "the right doc" but do not want to hunt through th
 ## Maintenance Note
 
 When adding a new top-level design, policy, or workflow document, update this index in the same change so the documentation remains navigable.
+
+Naming and ownership rules:
+
+- Use descriptive top-level filenames such as `REFACTOR_ROADMAP.md`, `MICROGEN_COMPATIBILITY.md`, or `PROJECT_WORKFLOW.md`; avoid generic names like `PLAN.md` or `NOTES.md`.
+- Package-level files should normally be named `README.md`, but their first heading should name the package or directory, for example `# sd/consul`.
+- Generated Markdown under `tools/testdata/` is test fixture output, not hand-maintained documentation, and should not be added to this index.
+- Historical status should live in [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md); stable policy and workflow should live in the dedicated guide documents listed above.

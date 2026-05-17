@@ -1,4 +1,4 @@
-# Implementation Plan
+# Refactor Roadmap
 
 This document turns the current repository state into a concrete refactor roadmap.
 

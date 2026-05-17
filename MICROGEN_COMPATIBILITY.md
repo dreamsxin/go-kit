@@ -326,7 +326,7 @@ Use this guide together with:
 - [FRAMEWORK_BOUNDARIES.md](FRAMEWORK_BOUNDARIES.md)
 - [STABILITY.md](STABILITY.md)
 - [PACKAGE_SURFACES.md](PACKAGE_SURFACES.md)
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+- [REFACTOR_ROADMAP.md](REFACTOR_ROADMAP.md)
 - [MICROGEN_DESIGN.md](MICROGEN_DESIGN.md)
 
 Together they define framework scope, package stability, allowed usage, and generator compatibility expectations.

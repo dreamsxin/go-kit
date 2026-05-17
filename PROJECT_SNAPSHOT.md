@@ -364,7 +364,7 @@ Recent structural areas worth knowing about:
 - docs and planning files updated:
   - `README.md`
   - `PROJECT_WORKFLOW.md`
-  - `IMPLEMENTATION_PLAN.md`
+  - `REFACTOR_ROADMAP.md`
   - `MICROGEN_COMPATIBILITY.md`
   - `PROJECT_SNAPSHOT.md`
 - endpoint documentation updated:
@@ -420,7 +420,7 @@ Read these first when resuming work:
   Repository development workflow and validation strategy.
 - `PROJECT_SNAPSHOT.md`
   Current repo status, active refactor thread, and next steps.
-- `IMPLEMENTATION_PLAN.md`
+- `REFACTOR_ROADMAP.md`
   Refactor roadmap and sequencing.
 - `FRAMEWORK_BOUNDARIES.md`
   Scope and ownership rules for what belongs in the framework.
@@ -509,7 +509,7 @@ When ending a work session after meaningful structural changes:
    - what remains risky
    - what should happen next
    - which focused tests were actually run
-2. Update `IMPLEMENTATION_PLAN.md` only if the roadmap or sequencing changed.
+2. Update `REFACTOR_ROADMAP.md` only if the roadmap or sequencing changed.
 3. Update `README.md` only if user-visible behavior changed.
 4. Prefer leaving the next session a concrete first task, not a vague status note.
 
