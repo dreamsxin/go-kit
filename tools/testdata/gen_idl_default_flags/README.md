@@ -39,6 +39,17 @@ microgen extend -idl full_combined.go -out . -append-middleware tracing,error-ha
 
 Extend mode updates new generated files plus generator-owned aggregation seams. Keep business logic in user-owned files such as `service/<name>/service.go`, `endpoint/<name>/custom_chain.go`, and `cmd/custom_routes.go`.
 
+## Configuration
+
+Generated config loads through `config.Load(path)`: defaults first, local YAML next, environment overrides after that, and remote config last when enabled.
+
+- Current generated config mode: `file`
+- Current remote provider: `none`
+- Local mode keeps remote config disabled and remains the default runnable path.
+- Hybrid mode enables remote config with local fallback when the remote provider is unavailable.
+- Remote mode enables strict remote loading and fails startup when remote config cannot be loaded.
+- Environment overrides use the `APP_` prefix, such as `APP_HTTP_ADDR`, `APP_LOG_LEVEL`, and `APP_REMOTE_ENABLED`.
+
 ## Quick Start
 
 ```bash

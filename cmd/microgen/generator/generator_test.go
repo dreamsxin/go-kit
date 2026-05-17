@@ -1174,7 +1174,54 @@ func TestGenerateFull_Readme_Contents(t *testing.T) {
 	mustContain(t, readmePath, "microgen extend -idl full_combined.go -out . -append-middleware tracing,error-handling,metrics")
 	mustContain(t, readmePath, "Keep business logic in user-owned files")
 	mustContain(t, readmePath, "GET /debug/routes")
+	mustNotContain(t, readmePath, "## Configuration")
 	mustNotContain(t, readmePath, "protoc --go_out=.")
+}
+
+func TestGenerateFull_Readme_ConfigDefaults(t *testing.T) {
+	outDir := newTmpDir(t)
+	project := parseIDLProject(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		DBDriver:   "sqlite",
+		WithConfig: true,
+		WithDocs:   true,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	readmePath := filepath.Join(outDir, "README.md")
+	mustContain(t, readmePath, "## Configuration")
+	mustContain(t, readmePath, "Generated config loads through `config.Load(path)`")
+	mustContain(t, readmePath, "Current generated config mode: `file`")
+	mustContain(t, readmePath, "Current remote provider: `none`")
+	mustContain(t, readmePath, "APP_HTTP_ADDR")
+}
+
+func TestGenerateFull_Readme_RemoteConfigMode(t *testing.T) {
+	outDir := newTmpDir(t)
+	project := parseIDLProject(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:      outDir,
+		ImportPath:     "example.com/basic",
+		DBDriver:       "sqlite",
+		WithConfig:     true,
+		ConfigMode:     "remote",
+		RemoteProvider: "consul",
+		WithDocs:       true,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	readmePath := filepath.Join(outDir, "README.md")
+	mustContain(t, readmePath, "Current generated config mode: `remote`")
+	mustContain(t, readmePath, "Current remote provider: `consul`")
+	mustContain(t, readmePath, "Remote mode enables strict remote loading")
 }
 
 func TestGenerateFull_Readme_ProtoQuickStart(t *testing.T) {

@@ -129,9 +129,12 @@ func (g *Generator) generateConfigCodeFile(services []*serviceView) error {
 
 func (g *Generator) generateReadme(ctx generationContext) error {
 	data := map[string]any{
-		"Project":      ctx.project,
-		"IsProtoInput": strings.EqualFold(ctx.source, "proto") || strings.HasSuffix(g.config.IDLSrcPath, ".proto"),
-		"WithSkill":    g.config.WithSkill,
+		"Project":        ctx.project,
+		"IsProtoInput":   strings.EqualFold(ctx.source, "proto") || strings.HasSuffix(g.config.IDLSrcPath, ".proto"),
+		"WithSkill":      g.config.WithSkill,
+		"WithConfig":     g.config.WithConfig,
+		"ConfigMode":     g.config.ConfigMode,
+		"RemoteProvider": g.config.RemoteProvider,
 	}
 	return g.executeTemplate("readme.tmpl", g.layout.readme(), data)
 }
