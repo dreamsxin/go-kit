@@ -13,6 +13,7 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 - Added generated gRPC streaming SDK clients and success-path integration coverage for streaming flows.
 - Added generated gRPC streaming integration coverage for error propagation and cancellation paths.
 - Added generated streaming SDK guidance and coverage for synchronous callback backpressure behavior.
+- Added generated streaming coverage for slow-consumer context deadline behavior.
 
 ### Documentation
 

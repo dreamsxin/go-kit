@@ -1289,6 +1289,7 @@ message CreateUserResponse {}
 	mustContain(t, readmePath, "generated from the current service contract and should be reviewed before running `protoc`")
 	mustContain(t, readmePath, "gRPC streaming generation is a preview surface")
 	mustContain(t, readmePath, "slow `send` callback applies backpressure to local message delivery")
+	mustContain(t, readmePath, "context deadlines/cancellation")
 	mustContain(t, readmePath, "go run ./cmd/main.go")
 }
 

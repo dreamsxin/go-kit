@@ -169,9 +169,10 @@ Deliverables:
 - integration tests for generated SDK streaming success paths
 - integration tests for generated streaming error propagation and cancellation paths
 - integration tests for synchronous streaming callback backpressure behavior
+- integration tests for slow-consumer context deadline behavior
 
 Remaining:
-- deeper slow-consumer transport/runtime policy tests beyond generated SDK callback behavior
+- release validation and preview documentation cleanup before tagging the next preview/stable release
 
 ## Phase 8: WebSocket Transport
 

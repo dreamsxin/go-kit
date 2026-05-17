@@ -520,6 +520,17 @@ func (streamSvc) WatchMessages(ctx context.Context, req idl.WatchMessagesRequest
 		}
 		return send(idl.MessageEvent{Id: "2", Body: "second"})
 	}
+	if req.RoomId == "deadline" {
+		if err := send(idl.MessageEvent{Id: "1", Body: "first"}); err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+			return send(idl.MessageEvent{Id: "2", Body: "late"})
+		}
+	}
 	if req.RoomId != "room-1" {
 		return fmt.Errorf("unexpected room %q", req.RoomId)
 	}
@@ -693,6 +704,19 @@ func main() {
 	}
 	if len(slowEvents) != 2 || slowEvents[0] != "first" || slowEvents[1] != "second" {
 		panic(fmt.Sprintf("unexpected slow callback events: %#v", slowEvents))
+	}
+
+	slowCtx, slowCancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer slowCancel()
+	var deadlineEvents []string
+	err = client.WatchMessages(slowCtx, idl.WatchMessagesRequest{RoomId: "deadline"}, func(event idl.MessageEvent) error {
+		deadlineEvents = append(deadlineEvents, event.Body)
+		time.Sleep(80 * time.Millisecond)
+		return nil
+	})
+	expectErrContains("watch slow consumer deadline", err, "deadline")
+	if len(deadlineEvents) != 1 || deadlineEvents[0] != "first" {
+		panic(fmt.Sprintf("unexpected deadline events: %#v", deadlineEvents))
 	}
 
 	_, err = client.UploadMessages(context.Background(), func() (idl.MessageEvent, error) {

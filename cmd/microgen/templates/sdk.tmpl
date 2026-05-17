@@ -53,7 +53,8 @@ type Client interface {
 // StreamingClient exposes preview gRPC-only streaming methods.
 //
 // Streaming callbacks are synchronous. A slow send callback applies local
-// backpressure and blocks delivery of later messages until it returns.
+// backpressure and blocks delivery of later messages until it returns. Use
+// context deadlines/cancellation and bounded application queues for slow work.
 type StreamingClient interface {
 	Client
 {{range .ServerStreamMethods}}	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}

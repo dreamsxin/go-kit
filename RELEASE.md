@@ -96,7 +96,7 @@ Before v1.0, add streaming, WebSocket, and AI interaction integration suites to 
 
 Current open release gaps:
 
-- gRPC streaming still needs deeper slow-consumer transport/runtime policy coverage before it can graduate beyond preview.
+- gRPC streaming needs final release validation and explicit preview/stability wording before it can be tagged.
 - AI interaction runtime interfaces and tests are not implemented yet.
 - WebSocket remains optional and should not block v1.0 unless it becomes an accepted supported preview surface.
 - Security hardening, OpenTelemetry guidance, and compatibility-freeze docs still need final release work.
