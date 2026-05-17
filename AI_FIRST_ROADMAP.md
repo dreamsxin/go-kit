@@ -195,7 +195,7 @@ Decision gate:
 ## Phase 9: AI Interaction Runtime
 
 Status:
-- Planned.
+- Started. The `interaction` preview package now defines the first transport-neutral session, event, tool registry, runtime, and hook contracts with in-memory implementations.
 
 Goal:
 - Move from tool discovery only to an interaction server runtime that can host AI-facing sessions and tool-call loops.
@@ -207,6 +207,20 @@ Deliverables:
 - audit and authorization hooks
 - MCP server endpoint preview, separate from the existing MCP-style schema response
 - generated project orientation for interaction services
+
+Implemented:
+- `interaction.SessionStore`
+- `interaction.EventSink`
+- `interaction.ToolRegistry`
+- `interaction.Runtime`
+- `interaction.Hook`
+- in-memory preview implementations for local testing and generated-project experiments
+
+Remaining:
+- MCP server endpoint preview
+- generated project orientation for interaction services
+- production auth/audit policy examples
+- transport adapters that consume the runtime contracts
 
 ## Phase 10: Industrial v1.0 Hardening
 

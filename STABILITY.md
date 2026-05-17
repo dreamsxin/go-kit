@@ -61,7 +61,8 @@ Preview surfaces must be documented as preview until they graduate into the stab
 | `transport/grpc/client` | Semi-stable | Public, but should be treated as evolving |
 | `transport/ws` | Preview | Optional planned WebSocket transport for browser/session interaction requirements |
 | gRPC streaming transport | Preview | Generated Proto streaming surface for server/client/bidirectional streams; runtime hardening still in progress |
-| AI interaction runtime | Preview | Planned session/event/tool-call runtime for interactive AI services |
+| `interaction` | Preview | Minimal session/event/tool-call runtime contracts and in-memory preview implementations |
+| AI interaction runtime | Preview | Broader generated interaction-server runtime is still planned |
 | `sd` | Stable | Public service discovery and endpoint wiring surface |
 | `sd/endpointer` | Semi-stable | Publicly useful but still closer to infra-level composition |
 | `sd/endpointer/balancer` | Semi-stable | Extension-oriented package, allowed to grow |

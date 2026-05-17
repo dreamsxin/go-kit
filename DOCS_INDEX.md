@@ -91,6 +91,8 @@ Use it when you know you need "the right doc" but do not want to hunt through th
   Events helpers used by service discovery components.
 - [sd/endpointer/README.md](sd/endpointer/README.md)
   Endpointer helpers and composition behavior.
+- `interaction/`
+  Preview package for transport-neutral AI interaction sessions, events, tool calls, and hooks.
 
 ### Work On Tools And Skills
 

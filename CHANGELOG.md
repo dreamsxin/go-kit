@@ -18,6 +18,7 @@ Recommended next tag:
 - Added generated gRPC streaming integration coverage for error propagation and cancellation paths.
 - Added generated streaming SDK guidance and coverage for synchronous callback backpressure behavior.
 - Added generated streaming coverage for slow-consumer context deadline behavior.
+- Added the `interaction` preview package for transport-neutral AI sessions, events, tool calls, runtime coordination, and hooks.
 
 ### Documentation
 

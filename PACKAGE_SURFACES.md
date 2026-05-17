@@ -125,6 +125,40 @@ Role in the framework:
 
 - focused governance helper package
 
+## `interaction`
+
+Who should use it:
+
+- maintainers building the AI interaction runtime preview
+- generated-project experiments that need session, event, and tool-call contracts without binding to WebSocket or any other transport
+
+Recommended entry points:
+
+- `interaction.NewRuntime`
+- `interaction.NewMemorySessionStore`
+- `interaction.NewMemoryEventSink`
+- `interaction.NewMemoryToolRegistry`
+- `interaction.ToolFunc`
+- `interaction.HookFuncs`
+
+Approved extension points:
+
+- custom `SessionStore`
+- custom `EventSink`
+- custom `ToolRegistry`
+- custom `Hook`
+
+Do not depend on:
+
+- the in-memory implementations as production storage
+- the current preview event taxonomy being frozen before v1.0
+- WebSocket behavior; this package is transport-neutral
+
+Role in the framework:
+
+- preview contract layer for AI-facing session/event/tool-call flows
+- should stay transport-neutral so HTTP, gRPC streaming, WebSocket, or MCP adapters can be added later without changing business interaction contracts
+
 ## `transport/http/server`
 
 Who should use it:
