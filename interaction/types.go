@@ -61,10 +61,23 @@ type ToolResult struct {
 	Metadata map[string]string
 }
 
+// ToolDescriptor describes one AI-callable action for discovery endpoints.
+type ToolDescriptor struct {
+	Name        string
+	Description string
+	InputSchema any
+	Metadata    map[string]string
+}
+
 // Tool executes one AI-callable action.
 type Tool interface {
 	Name() string
 	Call(ctx context.Context, call ToolCall) (ToolResult, error)
+}
+
+// ToolDescriber lets tools expose richer discovery metadata.
+type ToolDescriber interface {
+	Descriptor() ToolDescriptor
 }
 
 // ToolFunc adapts a function into a Tool.
@@ -100,6 +113,11 @@ type ToolRegistry interface {
 	Register(tool Tool) error
 	Get(name string) (Tool, bool)
 	Call(ctx context.Context, call ToolCall) (ToolResult, error)
+}
+
+// ToolLister is implemented by registries that can list registered tools.
+type ToolLister interface {
+	List() []ToolDescriptor
 }
 
 // Hook observes or rejects runtime operations.

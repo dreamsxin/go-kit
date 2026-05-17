@@ -126,6 +126,27 @@ func TestToolRegistryValidation(t *testing.T) {
 	}
 }
 
+func TestToolRegistryListsDescriptorsInStableOrder(t *testing.T) {
+	registry := NewMemoryToolRegistry()
+	for _, name := range []string{"zeta", "alpha"} {
+		tool := ToolFunc{ToolName: name, Fn: func(context.Context, ToolCall) (ToolResult, error) {
+			return ToolResult{}, nil
+		}}
+		if err := registry.Register(tool); err != nil {
+			t.Fatalf("Register %s: %v", name, err)
+		}
+	}
+
+	got := registry.List()
+	if len(got) != 2 {
+		t.Fatalf("List length = %d, want 2", len(got))
+	}
+	names := []string{got[0].Name, got[1].Name}
+	if !reflect.DeepEqual(names, []string{"alpha", "zeta"}) {
+		t.Fatalf("names = %v, want stable sorted order", names)
+	}
+}
+
 func TestMemoryStoresDefensivelyCopyMetadata(t *testing.T) {
 	store := NewMemorySessionStore()
 	meta := map[string]string{"k": "v"}

@@ -2,6 +2,7 @@ package interaction
 
 import (
 	"context"
+	"sort"
 	"sync"
 )
 
@@ -49,4 +50,31 @@ func (r *MemoryToolRegistry) Call(ctx context.Context, call ToolCall) (ToolResul
 		return ToolResult{}, ErrToolNotFound
 	}
 	return tool.Call(ctx, call)
+}
+
+func (r *MemoryToolRegistry) List() []ToolDescriptor {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	names := make([]string, 0, len(r.tools))
+	for name := range r.tools {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	tools := make([]ToolDescriptor, 0, len(r.tools))
+	for _, name := range names {
+		tool := r.tools[name]
+		if describer, ok := tool.(ToolDescriber); ok {
+			descriptor := describer.Descriptor()
+			if descriptor.Name == "" {
+				descriptor.Name = name
+			}
+			descriptor.Metadata = cloneStringMap(descriptor.Metadata)
+			tools = append(tools, descriptor)
+			continue
+		}
+		tools = append(tools, ToolDescriptor{Name: name})
+	}
+	return tools
 }

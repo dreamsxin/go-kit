@@ -19,6 +19,7 @@ Recommended next tag:
 - Added generated streaming SDK guidance and coverage for synchronous callback backpressure behavior.
 - Added generated streaming coverage for slow-consumer context deadline behavior.
 - Added the `interaction` preview package for transport-neutral AI sessions, events, tool calls, runtime coordination, and hooks.
+- Added `interaction/mcp`, a preview MCP-style JSON-RPC HTTP endpoint for listing and calling registered interaction runtime tools.
 
 ### Documentation
 

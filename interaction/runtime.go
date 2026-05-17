@@ -54,6 +54,14 @@ func (r *Runtime) RegisterTool(tool Tool) error {
 	return r.Tools.Register(tool)
 }
 
+func (r *Runtime) ListTools() []ToolDescriptor {
+	lister, ok := r.Tools.(ToolLister)
+	if !ok {
+		return nil
+	}
+	return lister.List()
+}
+
 func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, error) {
 	session, err := r.Sessions.Get(ctx, call.SessionID)
 	if err != nil {

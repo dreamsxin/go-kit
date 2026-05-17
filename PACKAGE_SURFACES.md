@@ -140,6 +140,7 @@ Recommended entry points:
 - `interaction.NewMemoryToolRegistry`
 - `interaction.ToolFunc`
 - `interaction.HookFuncs`
+- `interaction/mcp.NewHandler`
 
 Approved extension points:
 
@@ -147,17 +148,20 @@ Approved extension points:
 - custom `EventSink`
 - custom `ToolRegistry`
 - custom `Hook`
+- HTTP adapters around `interaction.Runtime`
 
 Do not depend on:
 
 - the in-memory implementations as production storage
 - the current preview event taxonomy being frozen before v1.0
 - WebSocket behavior; this package is transport-neutral
+- complete MCP protocol compatibility; the current adapter is preview-level JSON-RPC over HTTP
 
 Role in the framework:
 
 - preview contract layer for AI-facing session/event/tool-call flows
 - should stay transport-neutral so HTTP, gRPC streaming, WebSocket, or MCP adapters can be added later without changing business interaction contracts
+- `interaction/mcp` is the first adapter preview and should stay thin over runtime contracts
 
 ## `transport/http/server`
 

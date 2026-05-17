@@ -54,7 +54,6 @@ Partially complete:
 
 Not started:
 
-- Phase 9 AI Interaction Runtime
 - Phase 10 Industrial v1.0 Hardening
 
 Optional:
@@ -195,7 +194,7 @@ Decision gate:
 ## Phase 9: AI Interaction Runtime
 
 Status:
-- Started. The `interaction` preview package now defines the first transport-neutral session, event, tool registry, runtime, and hook contracts with in-memory implementations.
+- In progress. The `interaction` preview package now defines the first transport-neutral session, event, tool registry, runtime, and hook contracts with in-memory implementations. `interaction/mcp` adds the first MCP-style JSON-RPC HTTP endpoint preview for listing and calling registered runtime tools.
 
 Goal:
 - Move from tool discovery only to an interaction server runtime that can host AI-facing sessions and tool-call loops.
@@ -215,9 +214,9 @@ Implemented:
 - `interaction.Runtime`
 - `interaction.Hook`
 - in-memory preview implementations for local testing and generated-project experiments
+- MCP-style HTTP endpoint preview for `initialize`, `tools/list`, and `tools/call`
 
 Remaining:
-- MCP server endpoint preview
 - generated project orientation for interaction services
 - production auth/audit policy examples
 - transport adapters that consume the runtime contracts
