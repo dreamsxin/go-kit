@@ -262,7 +262,7 @@ When changing templates:
 1. ask whether the change is visible to users
 2. if visible, decide whether it affects generated project conventions
 3. if yes, treat it as a product change rather than an internal refactor
-4. verify it with `TestMicrogenIntegration` and related generator tests
+4. verify it with the split `TestMicrogen*` integration suite and related generator tests
 
 ## Rules For Generated Layout Changes
 
@@ -304,7 +304,7 @@ The repository already includes strong validation for `microgen`:
 - generator package tests
 - parser package tests
 - dbschema tests
-- `TestMicrogenIntegration`
+- split `TestMicrogen*` integration tests plus `TestReadmeQuickStartSmoke`
 - example smoke tests for generated-service behavior
 - orchestration-focused generator tests for `idl.go`, `go.mod`, docs stub, and route prefix behavior
 

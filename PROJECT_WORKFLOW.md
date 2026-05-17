@@ -109,7 +109,7 @@ Suggested commands:
 
 ```bash
 go test ./cmd/microgen/...
-go test ./tools/... -run TestMicrogenIntegration -v
+go test ./tools/... -run 'Test(Microgen|ReadmeQuickStartSmoke)' -v
 go test ./tools/... -run TestAllExamples -v
 ```
 
