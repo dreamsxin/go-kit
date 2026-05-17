@@ -58,6 +58,8 @@ Use it when you know you need "the right doc" but do not want to hunt through th
   Package-level public/internal contract guidance.
 - [OBSERVABILITY.md](OBSERVABILITY.md)
   Tracing, metrics, logging, request correlation, and OpenTelemetry integration guidance.
+- [SECURITY_HARDENING.md](SECURITY_HARDENING.md)
+  Authentication, authorization, request limits, audit, secrets, and generated-project hardening guidance.
 
 ### Understand Target Architecture
 
@@ -87,6 +89,8 @@ Use it when you know you need "the right doc" but do not want to hunt through th
   HTTP/gRPC transport hook semantics and transport-level expectations.
 - [OBSERVABILITY.md](OBSERVABILITY.md)
   Cross-layer observability guidance for endpoint middleware, transport hooks, and OpenTelemetry.
+- [SECURITY_HARDENING.md](SECURITY_HARDENING.md)
+  Production security hardening guidance for runtime and generated services.
 - [sd/README.md](sd/README.md)
   Service discovery overview.
 - [sd/consul/README.md](sd/consul/README.md)

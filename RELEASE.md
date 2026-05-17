@@ -108,7 +108,7 @@ Release posture:
 - [ ] gRPC streaming support documented and integration-tested for success, errors, cancellation, and slow-consumer behavior
 - [ ] WebSocket transport documented and integration-tested if enabled as a supported preview surface
 - [ ] AI interaction runtime documented and integration-tested
-- [ ] Auth, limits, and audit hooks documented for generated services
+- [x] Auth, limits, and audit hooks documented for generated services
 - [x] OpenTelemetry tracing/metrics guidance documented
 - [ ] Release validation command set documented and repeatable
 

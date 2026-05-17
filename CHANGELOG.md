@@ -9,6 +9,7 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 ### Documentation
 
 - Added `OBSERVABILITY.md` with tracing, metrics, logging, request correlation, and OpenTelemetry integration guidance.
+- Added `SECURITY_HARDENING.md` with authentication, authorization, request limits, audit, secrets, error response, and generated-project hardening guidance.
 
 ## v1.5.0 - 2026-05-17
 

@@ -58,11 +58,11 @@ Current state:
 - Phase 7 gRPC Streaming: stable generated-output behavior for supported Proto stream shapes in `v1.5.0`. Proto streaming declarations now generate service contracts, gRPC server adapters, transport client helpers, SDK streaming clients, and integration tests for success, error propagation, cancellation, synchronous callback backpressure behavior, and slow-consumer context deadline behavior across server-stream, client-stream, and bidirectional-stream flows.
 - Phase 8 WebSocket Transport: optional preview only. It should not block v1.0 unless a concrete browser/session product requirement is adopted.
 - Phase 9 AI Interaction Runtime: in progress. The `interaction` preview package now provides transport-neutral session, event, tool registry, runtime, hook, authorization, and audit contracts with in-memory implementations. `interaction/mcp` now provides a preview MCP-style JSON-RPC HTTP endpoint for `initialize`, `tools/list`, and `tools/call`. Generated README output now explains the split between `/skill?format=mcp` discovery and executable `interaction` runtime endpoints. `examples/interaction_policy` now shows production-style authorization and audit hook composition. Durable storage examples and additional transport adapters remain open.
-- Phase 10 Industrial v1.0 Hardening: started. Observability and OpenTelemetry guidance is now documented. Full v1.0 compatibility freeze, broader security hardening, and final v1.0 validation matrix remain open.
+- Phase 10 Industrial v1.0 Hardening: started. Observability, OpenTelemetry, authentication, authorization, request-limit, audit, secrets, and generated-project hardening guidance are now documented. Full v1.0 compatibility freeze and final v1.0 validation matrix remain open.
 
 Next recommended task:
 
-1. Continue Phase 10 hardening with security guidance for authn/authz, request limits, and generated project hardening.
+1. Continue Phase 10 hardening with the final CI matrix for supported Go versions and required toolchains.
 2. Keep `interaction`, `interaction/mcp`, WebSocket, and future generated interaction adapters as preview surfaces.
 3. Preserve the `v1.5.0` stable scope while preparing the broader v1.0 compatibility freeze.
 
