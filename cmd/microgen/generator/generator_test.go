@@ -1161,6 +1161,11 @@ func TestGenerateFull_Readme_Contents(t *testing.T) {
 	readmePath := filepath.Join(outDir, "README.md")
 	mustContain(t, readmePath, "UserService")
 	mustContain(t, readmePath, "go run ./cmd/main.go")
+	mustContain(t, readmePath, "## Project Map")
+	mustContain(t, readmePath, "service/<name>/service.go")
+	mustContain(t, readmePath, "cmd/generated_*.go")
+	mustContain(t, readmePath, "microgen extend -check -out .")
+	mustContain(t, readmePath, "GET /debug/routes")
 	mustNotContain(t, readmePath, "protoc --go_out=.")
 }
 

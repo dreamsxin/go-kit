@@ -53,6 +53,8 @@ Use it when you know you need "the right doc" but do not want to hunt through th
 
 - [FRAMEWORK_ARCHITECTURE.md](FRAMEWORK_ARCHITECTURE.md)
   Target architecture for runtime packages, generated project layout, IR direction, AI skill generation, and shared cross-cutting guidance.
+- [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md)
+  Phased roadmap for making the framework easier for humans and AI agents to generate, extend, and verify.
 
 ### Work On `microgen`
 

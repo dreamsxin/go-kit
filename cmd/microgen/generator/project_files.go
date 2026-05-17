@@ -131,6 +131,7 @@ func (g *Generator) generateReadme(ctx generationContext) error {
 	data := map[string]any{
 		"Project":      ctx.project,
 		"IsProtoInput": strings.EqualFold(ctx.source, "proto") || strings.HasSuffix(g.config.IDLSrcPath, ".proto"),
+		"WithSkill":    g.config.WithSkill,
 	}
 	return g.executeTemplate("readme.tmpl", g.layout.readme(), data)
 }
