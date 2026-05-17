@@ -41,7 +41,7 @@ Release posture:
 Scope:
 
 - IR support for interaction method kinds
-- gRPC server-stream, client-stream, and bidirectional-stream generation
+- gRPC server-stream, client-stream, and bidirectional-stream generation, currently previewed through generated server adapters, transport client helpers, SDK streaming clients, and success-path integration tests
 - optional WebSocket transport preview after gRPC streaming stabilizes
 - AI interaction runtime preview for sessions, events, tool calls, cancellation, and audit hooks
 - generated examples and integration tests for streaming and WebSocket flows
@@ -73,7 +73,7 @@ Release posture:
 - [ ] Generated output compatibility freeze for documented `microgen` defaults
 - [ ] `CHANGELOG.md` maintained for user-visible changes
 - [ ] `MIGRATION.md` documents breaking or compatibility-sensitive moves
-- [ ] gRPC streaming support documented and integration-tested
+- [ ] gRPC streaming support documented and integration-tested for success, errors, cancellation, and slow-consumer behavior
 - [ ] WebSocket transport documented and integration-tested if enabled as a supported preview surface
 - [ ] AI interaction runtime documented and integration-tested
 - [ ] Auth, limits, and audit hooks documented for generated services
@@ -93,3 +93,10 @@ git diff --check
 ```
 
 Before v1.0, add streaming, WebSocket, and AI interaction integration suites to this loop.
+
+Current open release gaps:
+
+- gRPC streaming still needs error, cancellation, and slow-consumer runtime coverage before it can graduate beyond preview.
+- AI interaction runtime interfaces and tests are not implemented yet.
+- WebSocket remains optional and should not block v1.0 unless it becomes an accepted supported preview surface.
+- Security hardening, OpenTelemetry guidance, and compatibility-freeze docs still need final release work.

@@ -42,8 +42,29 @@ The repository is in an active structural-cleanup phase.
 Current priority summary:
 
 1. keep the current `v0.8 Beta` release posture explicit until the v1.0 checklist in `RELEASE.md` is complete
-2. implement the `v0.9 AI Interaction Preview` path in small slices: IR interaction kinds first, then gRPC streaming, then WebSocket, then AI interaction runtime
+2. finish the remaining `v0.9 AI Interaction Preview` hardening work around gRPC streaming runtime behavior, then AI interaction runtime contracts
 3. keep extend-mode and generated-output guarantees documented and compatibility-safe while adding preview interaction protocols
+
+## AI Roadmap Status
+
+Current state:
+
+- Phase 1 Generated Project Orientation: implemented.
+- Phase 2 Capability Contract Tightening: implemented.
+- Phase 3 Extension Workflow Hardening: implemented.
+- Phase 4 Config And Runtime Confidence: implemented.
+- Phase 5 Agent Workflow Packaging: implemented.
+- Phase 6 Interaction Contract IR: partially implemented. `MethodKind` now models unary, server-stream, client-stream, bidirectional-stream, WebSocket-session, and event-source shapes; cancellation/timeout metadata, error/event envelopes, and Go IDL syntax for non-unary shapes remain open.
+- Phase 7 gRPC Streaming: in progress and usable as a preview. Proto streaming declarations now generate service contracts, gRPC server adapters, transport client helpers, SDK streaming clients, and success-path integration tests for server-stream, client-stream, and bidirectional-stream flows. Remaining work is stream error propagation, cancellation, and slow-consumer/runtime behavior tests.
+- Phase 8 WebSocket Transport: optional preview only. It should not block v1.0 unless a concrete browser/session product requirement is adopted.
+- Phase 9 AI Interaction Runtime: planned. Session lifecycle, event stream abstraction, tool-call execution hooks, audit/authorization hooks, and MCP server endpoint preview are not implemented yet.
+- Phase 10 Industrial v1.0 Hardening: planned. Compatibility freeze, release governance, security hardening, OpenTelemetry guidance, and final validation matrix remain open.
+
+Next recommended task:
+
+1. Add gRPC streaming runtime hardening tests for error propagation, context cancellation, and slow-consumer behavior.
+2. Then define the minimal AI interaction runtime interfaces before adding new transports.
+3. Keep WebSocket as optional preview until the interaction runtime has a concrete browser/session requirement.
 
 Recently completed:
 

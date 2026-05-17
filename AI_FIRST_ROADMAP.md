@@ -37,6 +37,30 @@ The v0.9 goal is to add first-class interaction protocols without weakening the 
 - AI interaction runtime for sessions, event streams, tool calls, cancellation, and audit hooks
 - generated docs, SDKs, and integration tests that make these interaction surfaces usable by humans and AI agents
 
+## Current Phase Summary
+
+Completed:
+
+- Phase 1 Generated Project Orientation
+- Phase 2 Capability Contract Tightening
+- Phase 3 Extension Workflow Hardening
+- Phase 4 Config And Runtime Confidence
+- Phase 5 Agent Workflow Packaging
+
+Partially complete:
+
+- Phase 6 Interaction Contract IR
+- Phase 7 gRPC Streaming
+
+Not started:
+
+- Phase 9 AI Interaction Runtime
+- Phase 10 Industrial v1.0 Hardening
+
+Optional:
+
+- Phase 8 WebSocket Transport. Keep this as a preview candidate unless browser/session requirements become concrete.
+
 ## Phase 1: Generated Project Orientation
 
 Status:
@@ -146,6 +170,7 @@ Deliverables:
 
 Remaining:
 - stream errors, cancellation, and slow-consumer runtime tests
+- generated README/SDK guidance for streaming preview usage
 
 ## Phase 8: WebSocket Transport
 
@@ -161,6 +186,9 @@ Deliverables:
 - heartbeat, close reason, max message size, and backpressure policy hooks
 - generated WebSocket transport, demo client, and SDK support behind a preview flag
 - integration tests for request/response, server event push, cancellation, and connection close paths
+
+Decision gate:
+- Start this only after gRPC streaming hardening and the minimal AI interaction runtime contract are in place, or after a concrete browser/session product requirement is accepted.
 
 ## Phase 9: AI Interaction Runtime
 
