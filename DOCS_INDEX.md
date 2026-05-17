@@ -7,7 +7,7 @@ Use it when you know you need "the right doc" but do not want to hunt through th
 ## Start Here
 
 - New to `go-kit` as a user:
-  Read [README.md](README.md)
+  Read [README.md](README.md), or [README_zh.md](README_zh.md) for Simplified Chinese.
 - Resuming work on the repository or an AI coding session:
   Read [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md), then [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md)
 - Working on the repository itself:
@@ -19,6 +19,8 @@ Use it when you know you need "the right doc" but do not want to hunt through th
 
 - [README.md](README.md)
   Product overview, quick start, architecture summary, `microgen`, skills, generated project layout.
+- [README_zh.md](README_zh.md)
+  Simplified Chinese product overview and quick start.
 - [examples/README.md](examples/README.md)
   Example programs and learning path.
 

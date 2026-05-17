@@ -3,153 +3,167 @@
 [![Go Version](https://img.shields.io/badge/go-1.25+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
-Modern, production-ready Go microservice framework with AI-first design. Built for developers who want clear architecture without the boilerplate.
+English | [简体中文](README_zh.md)
 
-## Core Pillars
-
-1. **Clear Architecture**: Enforces a clean separation between Transport, Endpoint, and Service layers. Uses modern Go features like `any` and generics for flexibility and type safety.
-2. **microgen**: A code generator that turns definitions (Protobuf, IDL, or DB schema) into complete, runnable services in seconds.
-3. **AI-Ready (Skills)**: Built-in support for generating AI tool definitions that are compatible with OpenAI Tool and MCP formats.
-
----
-
-## Quick Start (30 Seconds)
-
-Define a service in one file and run it.
-
-```go
-package main
-
-import (
-    "context"
-    "github.com/dreamsxin/go-kit/kit"
-)
-
-type HelloReq struct {
-    Name string `json:"name"`
-}
-
-type HelloResp struct {
-    Message string `json:"message"`
-}
-
-func main() {
-    svc := kit.New(":8080")
-
-    // kit.JSON[Req] creates a typed JSON handler with automatic decode/encode.
-    svc.Handle("/hello", kit.JSON[HelloReq](func(ctx context.Context, req HelloReq) (any, error) {
-        return HelloResp{Message: "Hello, " + req.Name + "!"}, nil
-    }))
-
-    svc.Run()
-}
-```
-
-### With Middleware
-
-```go
-svc := kit.New(":8080",
-    kit.WithRateLimit(100),    // 100 req/s
-    kit.WithCircuitBreaker(5), // open after 5 consecutive failures
-    kit.WithTimeout(5*time.Second),
-    kit.WithRequestID(),
-    kit.WithLogging(logger),
-    kit.WithMetrics(&metrics),
-)
-```
-
-If you don't have a logger yet, `kit.WithLogging(nil)` safely degrades to a no-op logger instead of crashing.
-
-Configuration note:
-
-- invalid `kit` option inputs now fail fast at construction time, such as non-positive timeouts, non-positive rate limits, zero circuit-breaker thresholds, or empty gRPC listen addresses.
-
-### With gRPC
-
-```go
-svc := kit.New(":8080", kit.WithGRPC(":8081"))
-
-// Register your proto-generated service implementation.
-pb.RegisterGreeterServer(svc.GRPCServer(), &myGreeter{})
-
-svc.Run() // starts both HTTP and gRPC with graceful shutdown
-```
-
----
-
-## Three-Layer Architecture
-
-go-kit enforces a clean separation of concerns:
+`go-kit` is a Go microservice framework built around a simple idea:
 
 ```text
-Transport (HTTP / gRPC)
-  -> decodes requests, encodes responses, routes calls
-
-Endpoint (middleware chain)
-  -> logging, metrics, rate limiting, circuit breaking
-
-Service (pure business logic)
-  -> no framework imports, fully testable in isolation
+Service -> Endpoint -> Transport
 ```
 
-Each layer has a single responsibility:
+You define the service capability once, then `microgen` generates a runnable project with HTTP routes, optional gRPC, config, SDKs, and AI tool metadata.
 
-- **Service**: Implements your domain logic as a plain Go interface.
-- **Endpoint**: Wraps each service method as `func(ctx, request) (response, error)`, where middleware is composed.
-- **Transport**: Maps HTTP/gRPC requests to endpoints and back.
+## Start Here: Generate A Local Service
 
-The `kit` package provides a zero-boilerplate shortcut for prototyping. For production services, use `microgen` to generate the full three-layer structure.
+Use this path when you want a new service that a human or AI agent can continue working on.
 
----
-
-## Code Generation (microgen)
-
-`microgen` automates the repetitive parts of microservice development.
-
-### Installation
+### 1. Install `microgen`
 
 ```bash
 go install github.com/dreamsxin/go-kit/cmd/microgen@latest
 ```
 
-### Modes of Operation
-
-#### 1. From Protobuf (.proto)
-
-Generate full HTTP/gRPC services from your contract.
+### 2. Create a project
 
 ```bash
-microgen -idl service.proto -out . -import example.com/mysvc -protocols http,grpc
+mkdir hello-svc
+cd hello-svc
 ```
 
-#### 2. From IDL (.go)
+### 3. Define the service contract
 
-Define a Go interface, and let `microgen` build the rest.
+Create `idl.go`:
+
+```go
+package hello
+
+import "context"
+
+type HelloRequest struct {
+	Name string `json:"name"`
+}
+
+type HelloResponse struct {
+	Message string `json:"message"`
+}
+
+type HelloService interface {
+	// SayHello returns a greeting.
+	SayHello(ctx context.Context, req HelloRequest) (HelloResponse, error)
+}
+```
+
+### 4. Generate and run
+
+```bash
+microgen -idl idl.go -out . -import example.com/hello-svc -config=false -model=false -db=false
+go mod tidy
+go run ./cmd/main.go
+```
+
+### 5. Check the generated service
+
+In another terminal:
+
+```bash
+curl http://localhost:8080/health
+curl http://localhost:8080/debug/routes
+curl http://localhost:8080/skill
+curl "http://localhost:8080/skill?format=mcp"
+```
+
+The generated business method initially returns a scaffolded “not implemented” error. Add real behavior in:
+
+```text
+service/helloservice/service.go
+```
+
+## Let AI Continue The Work
+
+After generation, give your AI coding agent these files and runtime surfaces first:
+
+- `README.md` in the generated project
+- `idl.go`, the source contract snapshot
+- `service/<name>/service.go`, where business logic belongs
+- `GET /debug/routes`, the live route map
+- `GET /skill?format=mcp`, the MCP tool view
+
+Recommended prompt:
+
+```text
+Read README.md and idl.go first. Keep business logic in service/<name>/service.go.
+Do not hand-edit generator-owned files such as cmd/generated_*.go, endpoint/*/generated_chain.go, or skill/.
+Use /debug/routes and /skill?format=mcp to understand the current service surface.
+```
+
+## Where To Edit
+
+Generated projects separate user-owned files from generator-owned files.
+
+Edit these:
+
+- `service/<svc>/service.go` for business logic
+- `endpoint/<svc>/custom_chain.go` for custom endpoint middleware
+- `cmd/custom_routes.go` for custom HTTP routes
+- `config/config.yaml` for local configuration
+
+Avoid hand-editing these:
+
+- `cmd/generated_*.go`
+- `endpoint/<svc>/generated_chain.go`
+- `model/generated_*.go`
+- `repository/generated_*.go`
+- `client/`, `sdk/`, `skill/`, and generated `pb/` assets
+
+## Extend An Existing Generated Project
+
+Run a read-only compatibility check first:
+
+```bash
+microgen extend -check -out .
+```
+
+Then append one explicit capability from a full combined Go IDL contract:
+
+```bash
+microgen extend -idl full_combined.go -out . -append-service OrderService
+microgen extend -idl full_combined.go -out . -append-model Product
+microgen extend -idl full_combined.go -out . -append-middleware tracing,error-handling,metrics
+```
+
+Extend mode updates new files plus generator-owned aggregation seams. It is designed to preserve user-owned implementation files.
+
+## Common Generation Modes
+
+### From Go IDL
 
 ```bash
 microgen -idl idl.go -out . -import example.com/mysvc
 ```
 
-#### 3. From Database (Reverse Engineering)
-
-Generate a full CRUD service including GORM models and repositories from an existing DB.
+### From Protobuf
 
 ```bash
-microgen -from-db -driver mysql -dsn "user:pass@tcp(localhost:3306)/dbname"
+microgen -idl service.proto -out . -import example.com/mysvc -protocols http,grpc
 ```
 
-### Key Features
+For proto projects, review generated proto assets under `pb/`, run `protoc`, then start the service.
 
-- **AI Skill Generation**: Use the `-skill` flag to generate a `/skill` endpoint for AI agents.
-- **Client SDK**: Automatically generates a ready-to-use Go client for your service.
-- **Middleware**: Built-in support for circuit breakers, rate limiting, and logging.
-- **Multi-service**: Supports generating multiple services into a single module using the same layout as single-service projects, with one `service/`, `endpoint/`, `transport/`, `client/`, and `sdk/` subtree per service.
-- **Config Modes**: Generated config now supports explicit `-config-mode file|hybrid|remote` plus `-remote-provider consul` to make local-only, fallback-enabled remote, and strict remote loading behavior explicit at generation time.
-- **Incremental Extension**: Existing generated projects can now be extended with `microgen extend -idl <full-combined.go> -out <project> -append-service <Name>`, `-append-model <Name>`, or `-append-middleware <Name[,Name...]>`, updating only generator-owned aggregation files plus newly generated files.
+### From Database
 
-### Generated Config Modes
+```bash
+microgen -from-db -driver mysql -dsn "user:pass@tcp(localhost:3306)/dbname" -out . -import example.com/mysvc
+```
 
-Use the generated config surface that matches the startup contract you want:
+## Config Modes
+
+Generated config loads in this order:
+
+```text
+defaults -> local YAML -> environment variables -> optional remote config
+```
+
+Choose the mode when generating:
 
 ```bash
 # Local file + env only
@@ -162,136 +176,100 @@ microgen -idl idl.go -out . -import example.com/mysvc -config-mode hybrid -remot
 microgen -idl idl.go -out . -import example.com/mysvc -config-mode remote -remote-provider consul
 ```
 
-### Extend Existing Projects
+Environment overrides use the `APP_` prefix, such as `APP_HTTP_ADDR`, `APP_LOG_LEVEL`, and `APP_REMOTE_ENABLED`.
 
-`microgen` now has conservative extend paths for appending a new service, a new model, or generator-owned endpoint middleware to an existing generated Go-IDL project.
+## AI And MCP Integration
 
-```bash
-microgen extend -check -out ./myservice
-microgen extend -idl full_combined.go -out ./myservice -append-service OrderService
-microgen extend -idl full_combined.go -out ./myservice -append-model Product
-microgen extend -idl full_combined.go -out ./myservice -append-middleware tracing,error-handling,metrics
+Generated services expose AI-readable tool definitions when skill generation is enabled. It is enabled by default.
+
+- OpenAI-style tools: `GET /skill`
+- MCP-style tools: `GET /skill?format=mcp`
+
+Responses include `metadata` with:
+
+- `schemaVersion`, currently `microgen.skill.v1`
+- `source`, currently `microgen-ir`
+- `services`
+- `formats`
+
+This lets AI agents discover service methods as callable tools without reverse-engineering HTTP handlers.
+
+## Architecture
+
+The framework keeps concerns separated:
+
+```text
+Service
+  Pure business logic. No HTTP or gRPC imports.
+
+Endpoint
+  Runtime policy: middleware, logging, metrics, rate limits, circuit breakers.
+
+Transport
+  Protocol adapters: HTTP, gRPC, request decoding, response encoding.
 ```
 
-Current extend-mode contract:
+Use `microgen` for production services. Use the `kit` package for quick prototypes or tiny services.
 
-- `microgen extend -check -out <project>` scans an existing generated project and prints extend compatibility without changing files
-- `append-service`, `append-model`, and `append-middleware` currently require a Go IDL input, not `.proto`
-- the `-idl` file must contain the full combined contract for existing services plus the new service being appended
-- extend mode scans the target project first and fails clearly when required generator-owned aggregation files are missing
-- existing user-owned files such as `service/<svc>/service.go` are not overwritten
-- `append-model` expects an existing generated project with model output enabled and updates only generated model/repository files plus generator-owned model wiring seams such as `service/<svc>/generated_repos.go`
-- `append-middleware` updates only generator-owned endpoint middleware seams such as `endpoint/<svc>/generated_chain.go` and preserves user-owned `endpoint/<svc>/custom_chain.go`
-- extend mode updates generator-owned aggregation files such as `cmd/generated_services.go`, `cmd/generated_routes.go`, `cmd/generated_runtime.go`, and the generator-managed `idl.go` snapshot when present
+## Tiny Prototype With `kit`
 
-This conservative contract is intentional so `microgen` can evolve generated projects without turning extension into a handwritten-code merge engine.
+```go
+package main
 
-Recommended workflow:
+import (
+	"context"
 
-```bash
-# 1. Check whether the existing project already has the required compatibility seams.
-microgen extend -check -out ./myservice
+	"github.com/dreamsxin/go-kit/kit"
+)
 
-# 2. If the project is ready, run one explicit append operation.
-microgen extend -idl full_combined.go -out ./myservice -append-service OrderService
+type HelloReq struct {
+	Name string `json:"name"`
+}
+
+type HelloResp struct {
+	Message string `json:"message"`
+}
+
+func main() {
+	svc := kit.New(":8080")
+
+	svc.Handle("/hello", kit.JSON[HelloReq](func(ctx context.Context, req HelloReq) (any, error) {
+		return HelloResp{Message: "Hello, " + req.Name + "!"}, nil
+	}))
+
+	svc.Run()
+}
 ```
 
-The `-check` report is especially useful for older generated projects because it tells you which generator-owned seams are present, which append paths are ready, and which compatibility seams are still missing.
-
-Exit-code note:
-
-- `microgen extend -check` exits with `0` when all supported append paths are ready, and `2` when the scan succeeds but compatibility seams are still missing.
-
----
-
-## AI & MCP Integration
-
-go-kit is designed for the agentic era. By enabling the skill feature, your service exposes a machine-readable definition of all its capabilities:
-
-- **OpenAI Tool Format**: `GET /skill`
-- **MCP (Model Context Protocol)**: `GET /skill?format=mcp`
-
-Behavior notes:
-
-- `/skill` returns OpenAI-style tool definitions by default.
-- `/skill?format=openai` is equivalent to `/skill`.
-- `/skill?format=mcp` returns MCP-style tools with `inputSchema`.
-- unknown `format` values currently fall back to the default OpenAI-style response.
-- generated services only expose `/skill` when `microgen` runs with `-skill=true` (enabled by default).
-
-Response shape overview:
-
-- OpenAI-style responses return `{"tools":[{"type":"function","function":{...}}]}`
-- MCP-style responses return `{"tools":[{"name":"...","inputSchema":{...}}]}`
-
-This allows an AI agent to discover your service methods as callable tools.
-
----
-
-## Project Structure
-
-A generated `go-kit` project follows this layout:
+## Generated Project Layout
 
 ```text
 .
-|-- cmd/main.go          # Entry point, wires everything together
-|-- cmd/generated_*.go   # Generator-owned runtime, service, and route wiring
-|-- cmd/custom_routes.go # User-owned custom HTTP route hook
-|-- config/              # Generated config package and local config file
-|-- service/<svcname>/   # Pure business logic
-|-- endpoint/<svcname>/  # Endpoints plus generated/custom middleware seams
-|-- transport/<svcname>/ # HTTP/gRPC handlers
-|-- client/<svcname>/    # Optional: runnable generated demo client
-|-- pb/                  # Optional: proto-related assets for generated gRPC services
-|-- model/               # Optional: GORM database models
-|-- repository/          # Optional: generated data access layer
-|-- sdk/<svcname>sdk/    # Generated client SDK
-|-- docs/docs.go         # Optional: Swagger stub scaffold
-|-- idl.go               # Optional: copied Go IDL input (not used for .proto input)
-`-- skill/               # AI tool definitions
+|-- cmd/main.go
+|-- cmd/generated_*.go
+|-- cmd/custom_routes.go
+|-- config/
+|-- service/<svc>/
+|-- endpoint/<svc>/
+|-- transport/<svc>/
+|-- client/<svc>/
+|-- sdk/<svc>sdk/
+|-- model/
+|-- repository/
+|-- pb/
+|-- docs/
+|-- skill/
+`-- idl.go
 ```
 
-When config generation is enabled, `microgen` now splits the generated config package into clearer files such as `config/config.go`, `config/local.go`, `config/env.go`, `config/remote.go`, and `config/loader.go` while keeping the same startup-facing loading contract.
+## Working On This Repository
 
-When model generation is enabled, `microgen` now keeps generated model schemas and generated repositories in finer-grained files such as `model/generated_<name>.go`, `repository/generated_<name>_repository.go`, and `repository/generated_base.go`. User-customizable model hooks remain in separate `model/<name>.go` files and are not rewritten on rerun.
+If you are modifying the framework itself rather than using it:
 
-Generated HTTP business routes stay in generator-owned files such as `cmd/generated_routes.go`, while project-specific custom routes belong in `cmd/custom_routes.go`, which is created once and preserved on rerun.
-
-Generated endpoint middleware chains now live in generator-owned files such as `endpoint/<svc>/generated_chain.go`, while project-specific middleware customization belongs in `endpoint/<svc>/custom_chain.go`, which is created once and preserved on rerun.
-
----
-
-## Repository Workflow
-
-If you are working on this repository itself rather than using it as a dependency:
-
-- start with [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md) for the shortest maintainer/AI-agent entry point
-- use [DOCS_INDEX.md](DOCS_INDEX.md) for the full documentation map
-- read [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md) for current state and next recommended work
-- use [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md) for validation and development workflow
-
----
-
-## Framework Boundaries
-
-Use these only when you are working on the framework itself:
-
-- Scope, stability, and review rules:
-  [FRAMEWORK_BOUNDARIES.md](FRAMEWORK_BOUNDARIES.md),
-  [STABILITY.md](STABILITY.md),
-  [PACKAGE_SURFACES.md](PACKAGE_SURFACES.md),
-  [ANTI_PATTERNS.md](ANTI_PATTERNS.md),
-  [PR_CHECKLIST.md](PR_CHECKLIST.md)
-- Target architecture:
-  [FRAMEWORK_ARCHITECTURE.md](FRAMEWORK_ARCHITECTURE.md)
-- `microgen` product and implementation docs:
-  [MICROGEN_INDEX.md](MICROGEN_INDEX.md),
-  [MICROGEN_DESIGN.md](MICROGEN_DESIGN.md),
-  [MICROGEN_CONFIG_DESIGN.md](MICROGEN_CONFIG_DESIGN.md),
-  [MICROGEN_EXTEND_DESIGN.md](MICROGEN_EXTEND_DESIGN.md),
-  [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
-
----
+- Start with [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md).
+- Use [DOCS_INDEX.md](DOCS_INDEX.md) for the documentation map.
+- Read [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md) for current status.
+- Use [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md) for validation commands.
 
 ## License
 
