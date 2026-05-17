@@ -55,16 +55,26 @@ Current state:
 - Phase 4 Config And Runtime Confidence: implemented.
 - Phase 5 Agent Workflow Packaging: implemented.
 - Phase 6 Interaction Contract IR: partially implemented. `MethodKind` now models unary, server-stream, client-stream, bidirectional-stream, WebSocket-session, and event-source shapes; cancellation/timeout metadata, error/event envelopes, and Go IDL syntax for non-unary shapes remain open.
-- Phase 7 gRPC Streaming: in progress and usable as a preview. Proto streaming declarations now generate service contracts, gRPC server adapters, transport client helpers, SDK streaming clients, and integration tests for success, error propagation, cancellation, synchronous callback backpressure behavior, and slow-consumer context deadline behavior across server-stream, client-stream, and bidirectional-stream flows. Remaining work is release validation and preview documentation cleanup before tagging the next preview or stable release.
+- Phase 7 gRPC Streaming: preview release candidate. Proto streaming declarations now generate service contracts, gRPC server adapters, transport client helpers, SDK streaming clients, and integration tests for success, error propagation, cancellation, synchronous callback backpressure behavior, and slow-consumer context deadline behavior across server-stream, client-stream, and bidirectional-stream flows. Release validation passed on 2026-05-17.
 - Phase 8 WebSocket Transport: optional preview only. It should not block v1.0 unless a concrete browser/session product requirement is adopted.
 - Phase 9 AI Interaction Runtime: planned. Session lifecycle, event stream abstraction, tool-call execution hooks, audit/authorization hooks, and MCP server endpoint preview are not implemented yet.
 - Phase 10 Industrial v1.0 Hardening: planned. Compatibility freeze, release governance, security hardening, OpenTelemetry guidance, and final validation matrix remain open.
 
 Next recommended task:
 
-1. Run the release validation lane and decide whether the streaming work ships as preview or stable.
+1. If publishing now, tag the work as a preview release rather than a stable industrial release.
 2. Then define the minimal AI interaction runtime interfaces before adding new transports.
 3. Keep WebSocket as optional preview until the interaction runtime has a concrete browser/session requirement.
+
+Latest release validation:
+
+- `go test ./cmd/microgen/... -count=1`
+- `go test ./tools/... -run "Test(Microgen|ReadmeQuickStartSmoke)" -count=1 -v`
+- `go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils -count=1`
+- `go test ./tools/... -run TestSKILL -count=1 -v`
+- `git diff --check`
+
+All passed on 2026-05-17.
 
 Recently completed:
 

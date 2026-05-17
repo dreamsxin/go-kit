@@ -6,6 +6,10 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 
 ## Unreleased
 
+Recommended next tag:
+
+- `v1.5.0-preview.1` for the gRPC streaming preview work.
+
 ### Preview
 
 - Added IR method kinds for unary, server-stream, client-stream, bidirectional-stream, WebSocket-session, and event-source contract shapes.
