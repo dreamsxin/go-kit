@@ -218,9 +218,10 @@ Implemented:
 - in-memory preview implementations for local testing and generated-project experiments
 - MCP-style HTTP endpoint preview for `initialize`, `tools/list`, and `tools/call`
 - generated README orientation for interaction services
+- production-style auth/audit policy example under `examples/interaction_policy`
 
 Remaining:
-- production storage and policy examples for auth/audit sinks
+- production storage examples for durable auth/audit sinks
 - transport adapters that consume the runtime contracts
 
 ## Phase 10: Industrial v1.0 Hardening
