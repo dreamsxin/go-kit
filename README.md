@@ -13,6 +13,18 @@ Service -> Endpoint -> Transport
 
 You define the service capability once, then `microgen` generates a runnable project with HTTP routes, optional gRPC, config, SDKs, and AI tool metadata.
 
+## Release Status
+
+Current posture:
+
+```text
+v0.8 Beta
+```
+
+The framework is suitable for internal services, prototypes, and controlled production trials where the owning team accepts pre-v1 evolution. It is not yet an industrial v1.0 release.
+
+The next roadmap target is `v0.9 AI Interaction Preview`, focused on gRPC streaming, WebSocket transport, and AI interaction runtime support. See [RELEASE.md](RELEASE.md) and [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md).
+
 ## Start Here: Generate A Local Service
 
 Use this path when you want a new service that a human or AI agent can continue working on.
@@ -193,6 +205,12 @@ Responses include `metadata` with:
 - `formats`
 
 This lets AI agents discover service methods as callable tools without reverse-engineering HTTP handlers.
+
+Planned preview work:
+
+- gRPC streaming for server-stream, client-stream, and bidirectional-stream methods
+- WebSocket transport for browser and agent interaction loops
+- AI interaction runtime for sessions, events, tool calls, cancellation, and audit hooks
 
 ## Architecture
 

@@ -40,6 +40,9 @@ func TestFromParseResult_GoIDL(t *testing.T) {
 	if createUser.Name != "CreateUser" {
 		t.Fatalf("method name = %q, want %q", createUser.Name, "CreateUser")
 	}
+	if createUser.Kind != ir.MethodKindUnary {
+		t.Fatalf("method kind = %q, want %q", createUser.Kind, ir.MethodKindUnary)
+	}
 	if createUser.HTTPMethod != "POST" {
 		t.Fatalf("HTTPMethod = %q, want %q", createUser.HTTPMethod, "POST")
 	}
@@ -94,6 +97,9 @@ message HelloResponse {
 		t.Fatalf("len(Services) = %d, want 1", len(project.Services))
 	}
 	method := project.Services[0].Methods[0]
+	if method.Kind != ir.MethodKindUnary {
+		t.Fatalf("method kind = %q, want %q", method.Kind, ir.MethodKindUnary)
+	}
 	if method.Input == nil || method.Input.Name != "HelloRequest" {
 		t.Fatalf("input = %#v, want HelloRequest", method.Input)
 	}
@@ -102,6 +108,68 @@ message HelloResponse {
 	}
 	if method.Output == nil || method.Output.Name != "HelloResponse" {
 		t.Fatalf("output = %#v, want HelloResponse", method.Output)
+	}
+}
+
+func TestFromParseResult_ProtoStreamingKinds(t *testing.T) {
+	dir := t.TempDir()
+	protoPath := filepath.Join(dir, "chat.proto")
+	content := `
+syntax = "proto3";
+package chat;
+
+service ChatService {
+  rpc Watch (WatchRequest) returns (stream ChatEvent);
+  rpc Upload (stream ClientEvent) returns (UploadSummary);
+  rpc Interact (stream ClientEvent) returns (stream ChatEvent);
+}
+
+message WatchRequest {
+  string topic = 1;
+}
+
+message ClientEvent {
+  string text = 1;
+}
+
+message ChatEvent {
+  string text = 1;
+}
+
+message UploadSummary {
+  int32 count = 1;
+}
+`
+	if err := os.WriteFile(protoPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	result, err := parser.ParseProto(protoPath)
+	if err != nil {
+		t.Fatalf("ParseProto: %v", err)
+	}
+
+	project := ir.FromParseResult(result)
+	if len(project.Services) != 1 {
+		t.Fatalf("len(Services) = %d, want 1", len(project.Services))
+	}
+
+	kinds := map[string]ir.MethodKind{}
+	for _, method := range project.Services[0].Methods {
+		kinds[method.Name] = method.Kind
+		if !method.IsStreaming() {
+			t.Fatalf("%s IsStreaming() = false, want true", method.Name)
+		}
+	}
+
+	if kinds["Watch"] != ir.MethodKindServerStream {
+		t.Fatalf("Watch kind = %q, want %q", kinds["Watch"], ir.MethodKindServerStream)
+	}
+	if kinds["Upload"] != ir.MethodKindClientStream {
+		t.Fatalf("Upload kind = %q, want %q", kinds["Upload"], ir.MethodKindClientStream)
+	}
+	if kinds["Interact"] != ir.MethodKindBidirectional {
+		t.Fatalf("Interact kind = %q, want %q", kinds["Interact"], ir.MethodKindBidirectional)
 	}
 }
 
@@ -142,6 +210,9 @@ func TestFromTableSchemas(t *testing.T) {
 	createUser := svc.Methods[0]
 	if createUser.Name != "CreateUser" {
 		t.Fatalf("first method = %q, want %q", createUser.Name, "CreateUser")
+	}
+	if createUser.Kind != ir.MethodKindUnary {
+		t.Fatalf("first method kind = %q, want %q", createUser.Kind, ir.MethodKindUnary)
 	}
 	if createUser.Input == nil || createUser.Input.Name != "CreateUserRequest" {
 		t.Fatalf("input = %#v, want CreateUserRequest", createUser.Input)

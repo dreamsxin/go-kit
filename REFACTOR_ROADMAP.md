@@ -9,13 +9,15 @@ Important status note:
 
 - the earlier structural cleanup around `kit`, transport safety, and the IR-first `microgen` flow is largely in place
 - the next planned phase is no longer just decomposition and cleanup
-- the next planned phase is additive `microgen` product expansion in two linked tracks:
+- the current release posture is `v0.8 Beta`; do not treat the framework as industrial v1.0 until [RELEASE.md](RELEASE.md) is satisfied
+- the next planned phase is additive `microgen` and transport product expansion in these linked tracks:
   - generated configuration with remote-config support
   - incremental extension of already-generated projects with new services, models, and middleware
+  - AI interaction protocols: gRPC streaming, WebSocket, and interaction runtime preview
 
 ## Refactor Goals
 
-The current roadmap focuses on eight outcomes:
+The current roadmap focuses on eleven outcomes:
 
 1. Reduce hidden coupling across runtime packages.
 2. Split oversized modules into clearer responsibilities.
@@ -25,6 +27,9 @@ The current roadmap focuses on eight outcomes:
 6. Strengthen validation so future refactors stay safe.
 7. Add a first-class generated configuration layer that can grow from local files to remote configuration.
 8. Let `microgen` evolve existing generated projects incrementally instead of forcing all-or-nothing regeneration.
+9. Extend the IR so service contracts can represent unary, streaming, WebSocket, and AI interaction methods.
+10. Add preview transports for gRPC streaming and WebSocket interaction flows.
+11. Harden release governance, security hooks, observability guidance, and migration policy before v1.0.
 
 ## Current Signals From The Codebase
 
@@ -278,6 +283,80 @@ Suggested CLI direction:
     - `-append-service`
     - `-append-model`
     - `-append-middleware`
+
+## Workstream 9: Interaction Contract IR
+
+Objective:
+
+- make the IR expressive enough for AI-era interaction services without mixing protocol concerns into business services
+
+Actions:
+
+- add method-kind metadata for unary, server stream, client stream, bidirectional stream, WebSocket session, and event-source methods
+- keep request, response, event, and error message metadata source-agnostic
+- teach Proto parsing to preserve streaming RPC direction
+- define the Go IDL conventions for stream-shaped contracts before generating code from them
+- update generated README and skill output only after the IR model is stable enough to describe these methods
+
+Deliverables:
+
+- expanded IR types and tests
+- Proto streaming parser tests
+- documented Go IDL stream convention
+
+Success criteria:
+
+- generator code can branch on explicit interaction method kind instead of inferring streaming behavior from names or protocol-specific types
+
+## Workstream 10: gRPC Streaming And WebSocket Preview
+
+Objective:
+
+- add preview long-lived interaction transports while keeping unary HTTP/gRPC behavior stable
+
+Actions:
+
+- implement generated gRPC server-stream support first because Proto has a native streaming contract
+- follow with client-stream and bidirectional-stream support
+- add `transport/ws/server` and `transport/ws/client` around a standard JSON envelope
+- generate WebSocket transport, demo client, and SDK helpers behind preview documentation
+- add integration tests for success, errors, cancellation, slow consumers, and close behavior
+
+Deliverables:
+
+- generated gRPC streaming transport and SDK support
+- WebSocket transport package and generated preview artifacts
+- interaction protocol examples
+
+Success criteria:
+
+- a generated service can expose both unary methods and at least one streaming method without breaking existing generated layout
+
+## Workstream 11: AI Interaction Runtime And v1.0 Hardening
+
+Objective:
+
+- move from AI tool discovery to a production-ready interaction runtime, then freeze stable v1.0 surfaces
+
+Actions:
+
+- introduce session lifecycle interfaces
+- introduce event-stream and tool-call execution hooks
+- add authorization, audit, request limits, and cancellation hooks to interaction flows
+- add an MCP server endpoint preview that is separate from the existing MCP-style `/skill` schema response
+- document OpenTelemetry trace/metrics guidance for unary and streaming requests
+- maintain `CHANGELOG.md`, `MIGRATION.md`, and release validation in [RELEASE.md](RELEASE.md)
+
+Deliverables:
+
+- interaction runtime package or generated project module
+- MCP server preview
+- security and observability guidance
+- v1.0 release checklist completion
+
+Success criteria:
+
+- the framework can be released as an industrial Go service framework with stable APIs, generated-output compatibility, migration guidance, and repeatable release validation
 
 The exact CLI shape is still open, but the product direction should be “explicit incremental evolution”, not “best-effort hidden merge”.
 

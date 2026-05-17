@@ -13,6 +13,18 @@ Service -> Endpoint -> Transport
 
 你只需要定义一次服务能力，`microgen` 就可以生成一个可运行项目，包括 HTTP 路由、可选 gRPC、配置、SDK，以及 AI 工具元数据。
 
+## 发布状态
+
+当前定位：
+
+```text
+v0.8 Beta
+```
+
+本框架适合内部服务、原型项目，以及团队接受 pre-v1 演进的受控生产试点。它还不是工业级 v1.0 正式发布。
+
+下一阶段目标是 `v0.9 AI Interaction Preview`，重点是 gRPC 流式接口、WebSocket transport，以及 AI 交互运行时。详见 [RELEASE.md](RELEASE.md) 和 [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md)。
+
 ## 从这里开始：本地生成一个服务
 
 如果你想创建一个新服务，并让人或 AI 继续开发，推荐走这条路径。
@@ -193,6 +205,12 @@ microgen -idl idl.go -out . -import example.com/mysvc -config-mode remote -remot
 - `formats`
 
 这样 AI agent 不需要反向分析 HTTP handler，就能发现服务方法并作为工具调用。
+
+规划中的 preview 能力：
+
+- gRPC server-stream、client-stream、bidirectional-stream 流式方法
+- 面向浏览器和 Agent 交互循环的 WebSocket transport
+- 支持 session、event、tool call、取消和审计 hook 的 AI 交互运行时
 
 ## 架构
 

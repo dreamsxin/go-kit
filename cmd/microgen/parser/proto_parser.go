@@ -48,9 +48,11 @@ func ParseProto(protoPath string) (*ParseResult, error) {
 				return
 			}
 			method := Method{
-				Name:   r.Name,
-				Input:  r.RequestType,
-				Output: r.ReturnsType,
+				Name:          r.Name,
+				Input:         r.RequestType,
+				Output:        r.ReturnsType,
+				StreamsInput:  r.StreamsRequest,
+				StreamsOutput: r.StreamsReturns,
 			}
 			if r.Comment != nil {
 				raw := strings.TrimSpace(r.Comment.Message())

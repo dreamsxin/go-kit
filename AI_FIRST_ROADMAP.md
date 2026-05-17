@@ -16,6 +16,27 @@ Primary path:
 5. Extend the project through explicit `microgen extend` commands.
 6. Verify with the smallest relevant test loop.
 
+## Release Target
+
+Current posture:
+
+```text
+v0.8 Beta
+```
+
+The next product target is:
+
+```text
+v0.9 AI Interaction Preview
+```
+
+The v0.9 goal is to add first-class interaction protocols without weakening the existing `service -> endpoint -> transport` model:
+
+- gRPC streaming for server-stream, client-stream, and bidirectional-stream services
+- WebSocket transport for browser and agent interaction loops
+- AI interaction runtime for sessions, event streams, tool calls, cancellation, and audit hooks
+- generated docs, SDKs, and integration tests that make these interaction surfaces usable by humans and AI agents
+
 ## Phase 1: Generated Project Orientation
 
 Status:
@@ -82,3 +103,83 @@ Deliverables:
 - Repository docs keep a short "start here" path for AI sessions.
 - Generated projects include enough local orientation to avoid reading framework internals first.
 - Tooling docs map common changes to validation commands.
+
+## Phase 6: Interaction Contract IR
+
+Status:
+- Planned.
+
+Goal:
+- Extend the IR so one service contract can describe unary calls, gRPC streams, WebSocket sessions, and AI interaction events.
+
+Deliverables:
+- `MethodKind` or equivalent metadata for:
+  - `unary`
+  - `server_stream`
+  - `client_stream`
+  - `bidi_stream`
+  - `websocket_session`
+  - `event_source`
+- cancellation and timeout metadata
+- request, response, event, and error message metadata
+- tests for Go IDL and Proto conversion into the expanded IR
+
+## Phase 7: gRPC Streaming
+
+Status:
+- Planned.
+
+Goal:
+- Make gRPC streaming a first-class generated transport and SDK surface.
+
+Deliverables:
+- parser support for Proto streaming RPC declarations
+- generated server-stream, client-stream, and bidirectional-stream handlers
+- generated streaming clients and SDK helpers
+- integration tests for stream success, stream errors, cancellation, and slow-consumer behavior
+
+## Phase 8: WebSocket Transport
+
+Status:
+- Planned.
+
+Goal:
+- Add a browser- and agent-friendly bidirectional transport for interactive services.
+
+Deliverables:
+- `transport/ws/server` and `transport/ws/client`
+- a standard JSON envelope with message id, type, method, payload, error, and metadata
+- heartbeat, close reason, max message size, and backpressure policy hooks
+- generated WebSocket transport, demo client, and SDK support behind a preview flag
+- integration tests for request/response, server event push, cancellation, and connection close paths
+
+## Phase 9: AI Interaction Runtime
+
+Status:
+- Planned.
+
+Goal:
+- Move from tool discovery only to an interaction server runtime that can host AI-facing sessions and tool-call loops.
+
+Deliverables:
+- session lifecycle interfaces
+- event stream abstraction
+- tool registry and tool call execution hooks
+- audit and authorization hooks
+- MCP server endpoint preview, separate from the existing MCP-style schema response
+- generated project orientation for interaction services
+
+## Phase 10: Industrial v1.0 Hardening
+
+Status:
+- Planned.
+
+Goal:
+- Graduate from beta/preview to an industrial Go framework release.
+
+Deliverables:
+- release, changelog, and migration discipline as defined in [RELEASE.md](RELEASE.md)
+- authentication, authorization, request limits, and audit guidance
+- OpenTelemetry tracing and metrics guidance
+- compatibility freeze for stable runtime APIs and default generated output
+- CI and release validation matrix that includes streaming, WebSocket, and AI interaction tests

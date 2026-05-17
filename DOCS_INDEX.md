@@ -39,6 +39,12 @@ Use it when you know you need "the right doc" but do not want to hunt through th
   Validation lanes, recommended commands, release/regression workflow.
 - [PR_CHECKLIST.md](PR_CHECKLIST.md)
   Review and merge checklist for scope, layering, compatibility, docs, and validation.
+- [RELEASE.md](RELEASE.md)
+  Release posture, version targets, and v1.0 industrial checklist.
+- [CHANGELOG.md](CHANGELOG.md)
+  User-visible changes by release.
+- [MIGRATION.md](MIGRATION.md)
+  Compatibility-sensitive upgrade guidance.
 
 ### Understand Framework Scope And Stability
 
@@ -122,9 +128,12 @@ Use it when you know you need "the right doc" but do not want to hunt through th
 
 ### For Release Or Review Work
 
-1. [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md)
-2. [PR_CHECKLIST.md](PR_CHECKLIST.md)
-3. [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md)
+1. [RELEASE.md](RELEASE.md)
+2. [CHANGELOG.md](CHANGELOG.md)
+3. [MIGRATION.md](MIGRATION.md)
+4. [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md)
+5. [PR_CHECKLIST.md](PR_CHECKLIST.md)
+6. [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md)
 
 ## Maintenance Note
 

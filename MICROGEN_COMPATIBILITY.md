@@ -55,6 +55,17 @@ The following should be treated as compatibility-sensitive:
 - generation of skill output when `-skill` is enabled
 - generation of gRPC output when `grpc` is included in `-protocols`
 
+## Preview And Planned Surfaces
+
+The following are planned or preview surfaces, not stable generated-output promises yet:
+
+- gRPC server-stream, client-stream, and bidirectional-stream generation
+- WebSocket transport generation
+- AI interaction runtime generation for sessions, event streams, tool-call execution, cancellation, and audit hooks
+- MCP server runtime endpoints beyond the current MCP-style `/skill?format=mcp` schema response
+
+These surfaces should be added behind clear documentation and integration tests before they are described as supported product behavior.
+
 ## Internal Surface
 
 The following are implementation details and not public compatibility promises:

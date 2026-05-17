@@ -39,6 +39,14 @@ Meaning:
 - can change when implementation needs change
 - users should avoid depending on these details directly
 
+## Release Posture
+
+The project is currently `v0.8 Beta`.
+
+Current stable and semi-stable labels describe intended direction, not a v1.0 compatibility freeze. The v1.0 freeze happens only after the checklist in [RELEASE.md](RELEASE.md) is complete.
+
+Preview surfaces must be documented as preview until they graduate into the stable or semi-stable tables below.
+
 ## Package-Level Classification
 
 | Area | Stability | Notes |
@@ -51,6 +59,9 @@ Meaning:
 | `transport/http/client` | Stable | Public client constructor and hook surface |
 | `transport/grpc/server` | Semi-stable | Public, but less simplified than HTTP path |
 | `transport/grpc/client` | Semi-stable | Public, but should be treated as evolving |
+| `transport/ws` | Preview | Planned WebSocket transport for AI-era interactive services |
+| gRPC streaming transport | Preview | Planned streaming surface for server/client/bidirectional streams |
+| AI interaction runtime | Preview | Planned session/event/tool-call runtime for interactive AI services |
 | `sd` | Stable | Public service discovery and endpoint wiring surface |
 | `sd/endpointer` | Semi-stable | Publicly useful but still closer to infra-level composition |
 | `sd/endpointer/balancer` | Semi-stable | Extension-oriented package, allowed to grow |

@@ -23,14 +23,16 @@ type Service struct {
 
 // Method 服务方法
 type Method struct {
-	Name       string
-	Input      string
-	Output     string
-	Doc        string // 方法注释（原始文本）
-	Summary    string // swag @Summary（取 Doc 第一行）
-	Tags       string // swag @Tags（默认 = ServiceName）
-	HTTPMethod string // swag @Router 方法（默认 POST）
-	Route      string // swag @Router 路径（默认 /{lower(Name)}）
+	Name          string
+	Input         string
+	Output        string
+	Doc           string // 方法注释（原始文本）
+	Summary       string // swag @Summary（取 Doc 第一行）
+	Tags          string // swag @Tags（默认 = ServiceName）
+	HTTPMethod    string // swag @Router 方法（默认 POST）
+	Route         string // swag @Router 路径（默认 /{lower(Name)}）
+	StreamsInput  bool   // true for proto client-streaming or bidirectional-streaming RPCs
+	StreamsOutput bool   // true for proto server-streaming or bidirectional-streaming RPCs
 }
 
 // ModelField 模型字段（结构体字段）

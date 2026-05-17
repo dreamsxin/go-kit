@@ -2,6 +2,18 @@ package ir
 
 import "strings"
 
+// MethodKind describes the interaction shape of a service method.
+type MethodKind string
+
+const (
+	MethodKindUnary            MethodKind = "unary"
+	MethodKindServerStream     MethodKind = "server_stream"
+	MethodKindClientStream     MethodKind = "client_stream"
+	MethodKindBidirectional    MethodKind = "bidi_stream"
+	MethodKindWebSocketSession MethodKind = "websocket_session"
+	MethodKindEventSource      MethodKind = "event_source"
+)
+
 // Project is the source-agnostic intermediate representation used by microgen.
 // It intentionally models service contracts, messages, and fields without
 // committing to a specific input source such as Go IDL, proto, or DB schema.
@@ -26,6 +38,7 @@ type Method struct {
 	Name        string
 	Summary     string
 	Description string
+	Kind        MethodKind
 	HTTPMethod  string
 	Route       string
 	Tags        []string
@@ -33,6 +46,19 @@ type Method struct {
 	OutputName  string
 	Input       *Message
 	Output      *Message
+}
+
+// IsStreaming reports whether the method uses a long-lived stream shape.
+func (m *Method) IsStreaming() bool {
+	if m == nil {
+		return false
+	}
+	switch m.Kind {
+	case MethodKindServerStream, MethodKindClientStream, MethodKindBidirectional:
+		return true
+	default:
+		return false
+	}
 }
 
 // Message describes a request/response payload or model shape.

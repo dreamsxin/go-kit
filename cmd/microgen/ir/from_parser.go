@@ -58,6 +58,7 @@ func FromParseResult(result *parser.ParseResult) *Project {
 				Name:        method.Name,
 				Summary:     method.Summary,
 				Description: method.Doc,
+				Kind:        methodKindFromParser(method),
 				HTTPMethod:  strings.ToUpper(method.HTTPMethod),
 				Route:       method.Route,
 				Tags:        compactTags(method.Tags),
@@ -72,6 +73,19 @@ func FromParseResult(result *parser.ParseResult) *Project {
 	}
 
 	return project
+}
+
+func methodKindFromParser(method parser.Method) MethodKind {
+	switch {
+	case method.StreamsInput && method.StreamsOutput:
+		return MethodKindBidirectional
+	case method.StreamsInput:
+		return MethodKindClientStream
+	case method.StreamsOutput:
+		return MethodKindServerStream
+	default:
+		return MethodKindUnary
+	}
 }
 
 func fieldJSONName(field parser.ModelField) string {

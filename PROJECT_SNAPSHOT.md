@@ -41,9 +41,9 @@ The repository is in an active structural-cleanup phase.
 
 Current priority summary:
 
-1. keep the new remote-config provider contract stable and decide whether to add explicit CLI/provider surface next
-2. keep extend-mode guarantees documented and compatibility-safe
-3. continue favoring generator-owned seams and integration-tested user-visible behavior
+1. keep the current `v0.8 Beta` release posture explicit until the v1.0 checklist in `RELEASE.md` is complete
+2. implement the `v0.9 AI Interaction Preview` path in small slices: IR interaction kinds first, then gRPC streaming, then WebSocket, then AI interaction runtime
+3. keep extend-mode and generated-output guarantees documented and compatibility-safe while adding preview interaction protocols
 
 Recently completed:
 
@@ -75,6 +75,8 @@ Recently completed:
   - generator tests now consistently exercise the IR-first path for normal generation behavior, and the old compatibility-entry tests/helpers have been removed along with the obsolete entry points
   - while doing that cleanup, historical comment-encoding damage in `generator_test.go` was repaired enough to keep the package compiling and the migrated test suite stable
   - focused `cmd/microgen/ir` tests now protect the Go-IDL and Proto conversion paths
+  - `ir.MethodKind` now captures the first interaction-shape contract for unary, server-stream, client-stream, bidirectional-stream, WebSocket session, and event-source methods
+  - Proto parser output now preserves RPC streaming direction so `ir.FromParseResult(...)` can classify server/client/bidirectional streaming methods before code generation support lands
 - `kit.WithRequestID()` now performs real request ID propagation instead of acting as a stub.
 - `cmd/microgen/generator/generator.go` was decomposed so responsibilities are now split across:
   - `layout.go`
