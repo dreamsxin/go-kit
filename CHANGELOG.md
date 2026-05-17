@@ -6,9 +6,9 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 
 ## Unreleased
 
-Recommended next tag:
+No unreleased changes yet.
 
-- `v1.5.0-preview.1` for the gRPC streaming preview work.
+## v1.5.0-preview.1 - 2026-05-17
 
 ### Preview
 

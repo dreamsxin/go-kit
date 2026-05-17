@@ -96,15 +96,16 @@ Before v1.0, add streaming, WebSocket, and AI interaction integration suites to 
 
 Current open release gaps:
 
-- gRPC streaming preview release validation passed on 2026-05-17. It can be tagged as a preview release, but should not be described as an industrial stable surface yet.
-- AI interaction runtime interfaces and tests are not implemented yet.
+- `v1.5.0-preview.1` was released on 2026-05-17 for the gRPC streaming preview and initial AI interaction runtime preview. It should not be described as an industrial stable surface.
+- AI interaction runtime production adapters, generated-project orientation, auth/audit examples, and hardening remain open.
 - WebSocket remains optional and should not block v1.0 unless it becomes an accepted supported preview surface.
 - Security hardening, OpenTelemetry guidance, and compatibility-freeze docs still need final release work.
 
-Latest validation result:
+Latest validation result for `v1.5.0-preview.1`:
 
 - `go test ./cmd/microgen/... -count=1`: passed
 - `go test ./tools/... -run "Test(Microgen|ReadmeQuickStartSmoke)" -count=1 -v`: passed
 - `go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils -count=1`: passed
 - `go test ./tools/... -run TestSKILL -count=1 -v`: passed
+- `go test ./interaction/... -count=1`: passed
 - `git diff --check`: passed

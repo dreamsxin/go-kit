@@ -62,7 +62,7 @@ Current state:
 
 Next recommended task:
 
-1. If publishing now, tag the work as a preview release rather than a stable industrial release.
+1. `v1.5.0-preview.1` has been prepared as the preview release for gRPC streaming and the first AI interaction runtime preview.
 2. Build the next AI interaction slice on top of the new `interaction` package, preferably generated-project orientation for interaction services or production auth/audit examples.
 3. Keep WebSocket as optional preview until the interaction runtime has a concrete browser/session requirement.
 
@@ -72,6 +72,7 @@ Latest release validation:
 - `go test ./tools/... -run "Test(Microgen|ReadmeQuickStartSmoke)" -count=1 -v`
 - `go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils -count=1`
 - `go test ./tools/... -run TestSKILL -count=1 -v`
+- `go test ./interaction/... -count=1`
 - `git diff --check`
 
 All passed on 2026-05-17.
