@@ -514,6 +514,12 @@ func (streamSvc) WatchMessages(ctx context.Context, req idl.WatchMessagesRequest
 			return nil
 		}
 	}
+	if req.RoomId == "backpressure" {
+		if err := send(idl.MessageEvent{Id: "1", Body: "first"}); err != nil {
+			return err
+		}
+		return send(idl.MessageEvent{Id: "2", Body: "second"})
+	}
 	if req.RoomId != "room-1" {
 		return fmt.Errorf("unexpected room %q", req.RoomId)
 	}
@@ -666,6 +672,28 @@ func main() {
 		return nil
 	})
 	expectErrContains("watch cancellation", err, "canceled")
+
+	var slowMu sync.Mutex
+	var slowEvents []string
+	err = client.WatchMessages(context.Background(), idl.WatchMessagesRequest{RoomId: "backpressure"}, func(event idl.MessageEvent) error {
+		slowMu.Lock()
+		slowEvents = append(slowEvents, event.Body)
+		if len(slowEvents) == 1 {
+			time.Sleep(50 * time.Millisecond)
+			if len(slowEvents) != 1 {
+				slowMu.Unlock()
+				return fmt.Errorf("stream callback was re-entered before first callback returned")
+			}
+		}
+		slowMu.Unlock()
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	if len(slowEvents) != 2 || slowEvents[0] != "first" || slowEvents[1] != "second" {
+		panic(fmt.Sprintf("unexpected slow callback events: %#v", slowEvents))
+	}
 
 	_, err = client.UploadMessages(context.Background(), func() (idl.MessageEvent, error) {
 		return idl.MessageEvent{}, fmt.Errorf("upload recv error")

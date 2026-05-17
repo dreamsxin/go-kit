@@ -55,14 +55,14 @@ Current state:
 - Phase 4 Config And Runtime Confidence: implemented.
 - Phase 5 Agent Workflow Packaging: implemented.
 - Phase 6 Interaction Contract IR: partially implemented. `MethodKind` now models unary, server-stream, client-stream, bidirectional-stream, WebSocket-session, and event-source shapes; cancellation/timeout metadata, error/event envelopes, and Go IDL syntax for non-unary shapes remain open.
-- Phase 7 gRPC Streaming: in progress and usable as a preview. Proto streaming declarations now generate service contracts, gRPC server adapters, transport client helpers, SDK streaming clients, and integration tests for success, error propagation, and cancellation paths across server-stream, client-stream, and bidirectional-stream flows. Remaining work is slow-consumer/runtime behavior tests and explicit backpressure guidance.
+- Phase 7 gRPC Streaming: in progress and usable as a preview. Proto streaming declarations now generate service contracts, gRPC server adapters, transport client helpers, SDK streaming clients, and integration tests for success, error propagation, cancellation, and synchronous callback backpressure behavior across server-stream, client-stream, and bidirectional-stream flows. Remaining work is deeper slow-consumer transport/runtime policy tests beyond generated SDK callback behavior.
 - Phase 8 WebSocket Transport: optional preview only. It should not block v1.0 unless a concrete browser/session product requirement is adopted.
 - Phase 9 AI Interaction Runtime: planned. Session lifecycle, event stream abstraction, tool-call execution hooks, audit/authorization hooks, and MCP server endpoint preview are not implemented yet.
 - Phase 10 Industrial v1.0 Hardening: planned. Compatibility freeze, release governance, security hardening, OpenTelemetry guidance, and final validation matrix remain open.
 
 Next recommended task:
 
-1. Add gRPC streaming slow-consumer runtime tests and document explicit backpressure guidance.
+1. Add deeper gRPC streaming slow-consumer transport/runtime policy tests beyond generated SDK callback behavior.
 2. Then define the minimal AI interaction runtime interfaces before adding new transports.
 3. Keep WebSocket as optional preview until the interaction runtime has a concrete browser/session requirement.
 

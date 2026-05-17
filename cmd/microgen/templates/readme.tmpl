@@ -95,6 +95,7 @@ Runtime inspection:
 
 - `pb/{{lower (index .Project.Services 0).Name}}/{{lower (index .Project.Services 0).Name}}.proto` is generated from the current service contract and should be reviewed before running `protoc`.
 - If any unsupported shape still falls back to `TODO`, complete those message fields before generating stubs.
+- gRPC streaming generation is a preview surface. Generated streaming SDK callbacks are synchronous: a slow `send` callback applies backpressure to local message delivery, and applications should return promptly or hand work to their own bounded queue.
 {{end}}
 
 {{range .Project.Services}}

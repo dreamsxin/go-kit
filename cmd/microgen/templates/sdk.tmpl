@@ -50,7 +50,10 @@ type Client interface {
 
 {{if .WithGRPC}}
 {{if or .ServerStreamMethods .ClientStreamMethods .BidiStreamMethods}}
-// StreamingClient exposes gRPC-only streaming methods.
+// StreamingClient exposes preview gRPC-only streaming methods.
+//
+// Streaming callbacks are synchronous. A slow send callback applies local
+// backpressure and blocks delivery of later messages until it returns.
 type StreamingClient interface {
 	Client
 {{range .ServerStreamMethods}}	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}

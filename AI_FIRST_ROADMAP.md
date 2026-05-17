@@ -168,10 +168,10 @@ Deliverables:
 - generated gRPC streaming clients and SDK helpers
 - integration tests for generated SDK streaming success paths
 - integration tests for generated streaming error propagation and cancellation paths
+- integration tests for synchronous streaming callback backpressure behavior
 
 Remaining:
-- slow-consumer runtime tests and explicit backpressure policy guidance
-- generated README/SDK guidance for streaming preview usage
+- deeper slow-consumer transport/runtime policy tests beyond generated SDK callback behavior
 
 ## Phase 8: WebSocket Transport
 

@@ -1287,6 +1287,8 @@ message CreateUserResponse {}
 	mustContain(t, readmePath, "pb/userservice/userservice.proto")
 	mustContain(t, readmePath, "Review the generated proto contract before generating stubs")
 	mustContain(t, readmePath, "generated from the current service contract and should be reviewed before running `protoc`")
+	mustContain(t, readmePath, "gRPC streaming generation is a preview surface")
+	mustContain(t, readmePath, "slow `send` callback applies backpressure to local message delivery")
 	mustContain(t, readmePath, "go run ./cmd/main.go")
 }
 
