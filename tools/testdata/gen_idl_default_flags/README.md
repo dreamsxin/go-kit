@@ -19,6 +19,26 @@ The service capability contract starts from the input definition and is normaliz
 
 When `skill/` is generated, `/skill` exposes OpenAI-style tools and `/skill?format=mcp` exposes MCP-style tools from that same contract. The response also includes metadata with schema version `microgen.skill.v1`, source, services, and supported formats.
 
+## Extend Existing Project
+
+Use extend mode for generated projects instead of editing generator-owned files directly.
+
+```bash
+# Check whether this project has the generated seams required for safe extension.
+microgen extend -check -out .
+
+# Append a service from a full combined Go IDL contract.
+microgen extend -idl full_combined.go -out . -append-service OrderService
+
+# Append a model from a full combined Go IDL contract.
+microgen extend -idl full_combined.go -out . -append-model Product
+
+# Append generator-owned endpoint middleware.
+microgen extend -idl full_combined.go -out . -append-middleware tracing,error-handling,metrics
+```
+
+Extend mode updates new generated files plus generator-owned aggregation seams. Keep business logic in user-owned files such as `service/<name>/service.go`, `endpoint/<name>/custom_chain.go`, and `cmd/custom_routes.go`.
+
 ## Quick Start
 
 ```bash

@@ -1168,6 +1168,11 @@ func TestGenerateFull_Readme_Contents(t *testing.T) {
 	mustContain(t, readmePath, "## Capability Contract")
 	mustContain(t, readmePath, "The same contract drives HTTP routes, gRPC/proto assets, generated clients, SDKs, README endpoint listings, and AI tool metadata.")
 	mustContain(t, readmePath, "microgen.skill.v1")
+	mustContain(t, readmePath, "## Extend Existing Project")
+	mustContain(t, readmePath, "microgen extend -idl full_combined.go -out . -append-service OrderService")
+	mustContain(t, readmePath, "microgen extend -idl full_combined.go -out . -append-model Product")
+	mustContain(t, readmePath, "microgen extend -idl full_combined.go -out . -append-middleware tracing,error-handling,metrics")
+	mustContain(t, readmePath, "Keep business logic in user-owned files")
 	mustContain(t, readmePath, "GET /debug/routes")
 	mustNotContain(t, readmePath, "protoc --go_out=.")
 }
