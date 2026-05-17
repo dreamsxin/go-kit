@@ -13,6 +13,12 @@ Generated with `go-kit microgen`.
 
 For existing projects, prefer `microgen extend -check -out .` before changing generated seams.
 
+## Capability Contract
+
+The service capability contract starts from the input definition and is normalized by `microgen` before output is written. The same contract drives HTTP routes, gRPC/proto assets, generated clients, SDKs, README endpoint listings, and AI tool metadata.
+
+When `skill/` is generated, `/skill` exposes OpenAI-style tools and `/skill?format=mcp` exposes MCP-style tools from that same contract. The response also includes metadata with schema version `microgen.skill.v1`, source, services, and supported formats.
+
 ## Quick Start
 
 ```bash

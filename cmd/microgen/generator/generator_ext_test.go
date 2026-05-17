@@ -23,6 +23,10 @@ func TestGenerateFull_Skill(t *testing.T) {
 	skillPath := filepath.Join(outDir, "skill", "skill.go")
 	mustExist(t, skillPath)
 	mustContain(t, skillPath, "func Handler(w http.ResponseWriter, r *http.Request)")
+	mustContain(t, skillPath, "type SkillMetadata struct")
+	mustContain(t, skillPath, `SchemaVersion: "microgen.skill.v1"`)
+	mustContain(t, skillPath, `Source:        "microgen-ir"`)
+	mustContain(t, skillPath, `"UserService"`)
 	mustContain(t, skillPath, "getOpenAITools()")
 	mustContain(t, skillPath, "getMCPTools()")
 }
