@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -44,53 +43,14 @@ type Generator struct {
 
 // New creates a new generator.
 func New(opt Options) (*Generator, error) {
-	if opt.OutputDir == "" {
-		opt.OutputDir = "."
-	}
+	opt = opt.Normalize()
 	absOut, err := filepath.Abs(opt.OutputDir)
 	if err != nil {
 		return nil, err
 	}
 
-	if opt.DBDriver != "" {
-		if _, ok := supportedDrivers[opt.DBDriver]; !ok && opt.DBDriver != "sqlite" {
-			return nil, fmt.Errorf("unsupported db driver: %s", opt.DBDriver)
-		}
-	}
-
-	if opt.WithConfig {
-		if opt.ConfigMode == "" {
-			opt.ConfigMode = "file"
-		}
-		switch opt.ConfigMode {
-		case "file", "hybrid", "remote":
-		default:
-			return nil, fmt.Errorf("unsupported config mode: %s", opt.ConfigMode)
-		}
-		switch opt.RemoteProvider {
-		case "", "consul":
-		default:
-			return nil, fmt.Errorf("unsupported remote provider: %s", opt.RemoteProvider)
-		}
-		if opt.ConfigMode == "file" && opt.RemoteProvider != "" {
-			return nil, fmt.Errorf("remote provider requires config mode hybrid or remote")
-		}
-		if (opt.ConfigMode == "hybrid" || opt.ConfigMode == "remote") && opt.RemoteProvider == "" {
-			return nil, fmt.Errorf("config mode %s requires -remote-provider", opt.ConfigMode)
-		}
-	} else {
-		if opt.ConfigMode != "" {
-			return nil, fmt.Errorf("config mode requires -config=true")
-		}
-		if opt.RemoteProvider != "" {
-			return nil, fmt.Errorf("remote provider requires -config=true")
-		}
-	}
-
-	for _, p := range opt.Protocols {
-		if strings.ToLower(p) == "grpc" {
-			opt.WithGRPC = true
-		}
+	if err := opt.Validate(); err != nil {
+		return nil, err
 	}
 
 	tmpl := newTemplateSet()

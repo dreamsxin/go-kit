@@ -43,12 +43,21 @@ func TestConfigValidate(t *testing.T) {
 		{config{fromDB: false, idlPath: "test.go", withConfig: true, configMode: "remote"}, false},
 		{config{fromDB: false, idlPath: "test.go", withConfig: true, configMode: "file", remoteProvider: "consul"}, false},
 		{config{fromDB: false, idlPath: "test.go", withConfig: false, configMode: "hybrid"}, false},
+		{config{fromDB: false, idlPath: "test.go", dbDriver: "oracle"}, false},
 	}
 	for i, c := range cases {
 		err := c.cfg.validate()
 		if (err == nil) != c.pass {
 			t.Errorf("case %d: validate() error = %v, want pass = %v", i, err, c.pass)
 		}
+	}
+}
+
+func TestConfigValidate_UsesGeneratorOptionValidation(t *testing.T) {
+	cfg := config{idlPath: "test.go", withConfig: true, configMode: "remote"}
+	err := cfg.validate()
+	if err == nil || !strings.Contains(err.Error(), "-config-mode=remote requires -remote-provider") {
+		t.Fatalf("validate() error = %v, want generator option validation message", err)
 	}
 }
 

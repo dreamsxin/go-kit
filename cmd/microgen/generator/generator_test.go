@@ -689,6 +689,23 @@ func TestGenerateFull_GoMod_WithConfigIncludesViper(t *testing.T) {
 	mustContain(t, goModPath, "github.com/spf13/viper/remote")
 }
 
+func TestOptionsNormalize_DerivesDefaults(t *testing.T) {
+	opt := generator.Options{
+		WithConfig: true,
+		Protocols:  []string{"http", " grpc "},
+	}
+	got := opt.Normalize()
+	if got.OutputDir != "." {
+		t.Fatalf("OutputDir = %q, want .", got.OutputDir)
+	}
+	if got.ConfigMode != "file" {
+		t.Fatalf("ConfigMode = %q, want file", got.ConfigMode)
+	}
+	if !got.WithGRPC {
+		t.Fatal("WithGRPC = false, want true")
+	}
+}
+
 func TestNew_ConfigModeValidation(t *testing.T) {
 	_, err := generator.New(generator.Options{
 		TemplateFS: testTemplateFS,
@@ -696,8 +713,8 @@ func TestNew_ConfigModeValidation(t *testing.T) {
 		WithConfig: true,
 		ConfigMode: "invalid",
 	})
-	if err == nil || !strings.Contains(err.Error(), "unsupported config mode") {
-		t.Fatalf("New invalid config mode error = %v, want unsupported config mode", err)
+	if err == nil || !strings.Contains(err.Error(), "unsupported -config-mode") {
+		t.Fatalf("New invalid config mode error = %v, want unsupported -config-mode", err)
 	}
 }
 
@@ -709,8 +726,8 @@ func TestNew_RemoteProviderValidation(t *testing.T) {
 		ConfigMode:     "hybrid",
 		RemoteProvider: "apollo",
 	})
-	if err == nil || !strings.Contains(err.Error(), "unsupported remote provider") {
-		t.Fatalf("New invalid remote provider error = %v, want unsupported remote provider", err)
+	if err == nil || !strings.Contains(err.Error(), "unsupported -remote-provider") {
+		t.Fatalf("New invalid remote provider error = %v, want unsupported -remote-provider", err)
 	}
 }
 
@@ -721,7 +738,7 @@ func TestNew_RemoteModeRequiresProvider(t *testing.T) {
 		WithConfig: true,
 		ConfigMode: "remote",
 	})
-	if err == nil || !strings.Contains(err.Error(), "requires -remote-provider") {
+	if err == nil || !strings.Contains(err.Error(), "-config-mode=remote requires -remote-provider") {
 		t.Fatalf("New remote mode without provider error = %v, want provider requirement", err)
 	}
 }

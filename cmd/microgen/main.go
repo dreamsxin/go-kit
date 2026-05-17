@@ -161,36 +161,7 @@ func (c config) validate() error {
 	if !c.fromDB && c.idlPath == "" {
 		return fmt.Errorf("either -idl or -from-db is required")
 	}
-	if !c.withConfig {
-		if c.configMode != "" {
-			return fmt.Errorf("-config-mode requires -config=true")
-		}
-		if c.remoteProvider != "" {
-			return fmt.Errorf("-remote-provider requires -config=true")
-		}
-		return nil
-	}
-	mode := c.configMode
-	if mode == "" {
-		mode = "file"
-	}
-	switch mode {
-	case "file", "hybrid", "remote":
-	default:
-		return fmt.Errorf("unsupported -config-mode %q (want file, hybrid, or remote)", c.configMode)
-	}
-	switch c.remoteProvider {
-	case "", "consul":
-	default:
-		return fmt.Errorf("unsupported -remote-provider %q", c.remoteProvider)
-	}
-	if mode == "file" && c.remoteProvider != "" {
-		return fmt.Errorf("-remote-provider requires -config-mode=hybrid or -config-mode=remote")
-	}
-	if (mode == "hybrid" || mode == "remote") && c.remoteProvider == "" {
-		return fmt.Errorf("-config-mode=%s requires -remote-provider", mode)
-	}
-	return nil
+	return c.generatorOptions("", "").Normalize().Validate()
 }
 
 func main() {
@@ -224,26 +195,7 @@ func main() {
 		cfg.serviceName = project.Services[0].Name
 	}
 
-	gen, err := generator.New(generator.Options{
-		TemplateFS:     &templateFS,
-		OutputDir:      cfg.outputDir,
-		ImportPath:     cfg.ImportPath,
-		ServiceName:    cfg.serviceName,
-		Protocols:      cfg.protocols,
-		WithConfig:     cfg.withConfig,
-		ConfigMode:     cfg.configMode,
-		RemoteProvider: cfg.remoteProvider,
-		WithDocs:       cfg.withDocs,
-		WithTests:      cfg.withTests,
-		WithModel:      cfg.withModel,
-		WithGRPC:       cfg.withGRPC,
-		WithDB:         cfg.withDB,
-		DBDriver:       cfg.dbDriver,
-		WithSwag:       cfg.withSwag,
-		WithSkill:      cfg.withSkill,
-		IDLSrcPath:     idlPath,
-		RoutePrefix:    cfg.routePrefix,
-	})
+	gen, err := generator.New(cfg.generatorOptions(idlPath, cfg.serviceName))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -253,6 +205,29 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Printf("Done! Output: %s", cfg.outputDir)
+}
+
+func (c config) generatorOptions(idlPath, serviceName string) generator.Options {
+	return generator.Options{
+		TemplateFS:     &templateFS,
+		OutputDir:      c.outputDir,
+		ImportPath:     c.ImportPath,
+		ServiceName:    serviceName,
+		Protocols:      c.protocols,
+		WithConfig:     c.withConfig,
+		ConfigMode:     c.configMode,
+		RemoteProvider: c.remoteProvider,
+		WithDocs:       c.withDocs,
+		WithTests:      c.withTests,
+		WithModel:      c.withModel,
+		WithGRPC:       c.withGRPC,
+		WithDB:         c.withDB,
+		DBDriver:       c.dbDriver,
+		WithSwag:       c.withSwag,
+		WithSkill:      c.withSkill,
+		IDLSrcPath:     idlPath,
+		RoutePrefix:    c.routePrefix,
+	}
 }
 
 func runExtend() {

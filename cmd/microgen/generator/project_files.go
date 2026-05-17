@@ -9,60 +9,60 @@ import (
 
 func (g *Generator) generateMainFileFull(ctx generationContext) error {
 	dbMeta, _ := supportedDrivers[g.config.DBDriver]
-	data := map[string]any{
-		"Project":      ctx.project,
-		"Services":     ctx.services,
-		"Models":       ctx.models,
-		"GormModels":   ctx.models,
-		"SvcRoutes":    g.serviceRoutes(ctx.project),
-		"ImportPath":   g.config.ImportPath,
-		"WithDB":       g.config.WithDB,
-		"DBDriver":     g.config.DBDriver,
-		"DBImportPkg":  dbMeta.ImportPkg,
-		"DBOpenCall":   dbMeta.OpenCall,
-		"DBDefaultDSN": dbMeta.DefaultDSN,
-		"WithConfig":   g.config.WithConfig,
-		"WithGRPC":     g.config.WithGRPC,
-		"WithSwag":     g.config.WithSwag,
-		"WithSkill":    g.config.WithSkill,
+	data := mainTemplateData{
+		Project:      ctx.project,
+		Services:     ctx.services,
+		Models:       ctx.models,
+		GormModels:   ctx.models,
+		SvcRoutes:    g.serviceRoutes(ctx.project),
+		ImportPath:   g.config.ImportPath,
+		WithDB:       g.config.WithDB,
+		DBDriver:     g.config.DBDriver,
+		DBImportPkg:  dbMeta.ImportPkg,
+		DBOpenCall:   dbMeta.OpenCall,
+		DBDefaultDSN: dbMeta.DefaultDSN,
+		WithConfig:   g.config.WithConfig,
+		WithGRPC:     g.config.WithGRPC,
+		WithSwag:     g.config.WithSwag,
+		WithSkill:    g.config.WithSkill,
 	}
 	return g.executeTemplate("main.tmpl", g.layout.cmdMain(), data)
 }
 
 func (g *Generator) generateGeneratedRuntimeFile(ctx generationContext) error {
-	data := map[string]any{
-		"Project":    ctx.project,
-		"GormModels": ctx.models,
-		"WithDB":     g.config.WithDB,
-		"WithGRPC":   g.config.WithGRPC,
-		"WithSwag":   g.config.WithSwag,
-		"WithSkill":  g.config.WithSkill,
-		"SvcRoutes":  g.serviceRoutes(ctx.project),
-		"ImportPath": g.config.ImportPath,
+	data := generatedRuntimeTemplateData{
+		Project:    ctx.project,
+		GormModels: ctx.models,
+		WithDB:     g.config.WithDB,
+		WithGRPC:   g.config.WithGRPC,
+		WithSwag:   g.config.WithSwag,
+		WithSkill:  g.config.WithSkill,
+		SvcRoutes:  g.serviceRoutes(ctx.project),
+		ImportPath: g.config.ImportPath,
 	}
 	return g.executeTemplate("generated_runtime.tmpl", g.layout.cmdGeneratedRuntime(), data)
 }
 
 func (g *Generator) generateGeneratedServicesFile(ctx generationContext) error {
-	data := map[string]any{
-		"Project":    ctx.project,
-		"Services":   ctx.services,
-		"GormModels": ctx.models,
-		"ImportPath": g.config.ImportPath,
-		"WithDB":     g.config.WithDB,
-		"WithConfig": g.config.WithConfig,
+	data := generatedServicesTemplateData{
+		Project:    ctx.project,
+		Services:   ctx.services,
+		GormModels: ctx.models,
+		ImportPath: g.config.ImportPath,
+		WithDB:     g.config.WithDB,
+		WithConfig: g.config.WithConfig,
 	}
 	return g.executeTemplate("generated_services.tmpl", g.layout.cmdGeneratedServices(), data)
 }
 
 func (g *Generator) generateGeneratedRoutesFile(ctx generationContext) error {
-	data := map[string]any{
-		"Project":     ctx.project,
-		"Services":    ctx.services,
-		"SvcRoutes":   g.serviceRoutes(ctx.project),
-		"ImportPath":  g.config.ImportPath,
-		"WithGRPC":    g.config.WithGRPC,
-		"RoutePrefix": g.config.RoutePrefix,
+	data := generatedRoutesTemplateData{
+		Project:     ctx.project,
+		Services:    ctx.services,
+		SvcRoutes:   g.serviceRoutes(ctx.project),
+		ImportPath:  g.config.ImportPath,
+		WithGRPC:    g.config.WithGRPC,
+		RoutePrefix: g.config.RoutePrefix,
 	}
 	return g.executeTemplate("generated_routes.tmpl", g.layout.cmdGeneratedRoutes(), data)
 }
@@ -72,42 +72,44 @@ func (g *Generator) generateCustomRoutesFile() error {
 	if _, err := os.Stat(path); err == nil {
 		return nil
 	}
-	data := map[string]any{
-		"ImportPath": g.config.ImportPath,
+	data := customRoutesTemplateData{
+		ImportPath: g.config.ImportPath,
 	}
 	return g.executeTemplate("custom_routes.tmpl", path, data)
 }
 
 func (g *Generator) generateConfigFile(services []*serviceView) error {
 	dbMeta, _ := supportedDrivers[g.config.DBDriver]
-	data := map[string]any{
-		"Services":              services,
-		"DBDriver":              g.config.DBDriver,
-		"DBDefaultDSN":          dbMeta.DefaultDSN,
-		"WithGRPC":              g.config.WithGRPC,
-		"WithSwag":              g.config.WithSwag,
-		"WithDB":                g.config.WithDB,
-		"ConfigMode":            g.config.ConfigMode,
-		"RemoteProvider":        g.config.RemoteProvider,
-		"RemoteEnabledDefault":  g.config.ConfigMode == "hybrid" || g.config.ConfigMode == "remote",
-		"RemoteFallbackDefault": g.config.ConfigMode != "remote",
+	data := configTemplateData{
+		Services:              services,
+		DBDriver:              g.config.DBDriver,
+		DBDefaultDSN:          dbMeta.DefaultDSN,
+		DBConfigDSN:           dbMeta.ConfigDSN,
+		WithGRPC:              g.config.WithGRPC,
+		WithSwag:              g.config.WithSwag,
+		WithDB:                g.config.WithDB,
+		ConfigMode:            g.config.ConfigMode,
+		RemoteProvider:        g.config.RemoteProvider,
+		RemoteEnabledDefault:  g.config.ConfigMode == "hybrid" || g.config.ConfigMode == "remote",
+		RemoteFallbackDefault: g.config.ConfigMode != "remote",
 	}
 	return g.executeTemplate("config.tmpl", g.layout.configYAML(), data)
 }
 
 func (g *Generator) generateConfigCodeFile(services []*serviceView) error {
 	dbMeta, _ := supportedDrivers[g.config.DBDriver]
-	data := map[string]any{
-		"Services":              services,
-		"WithDB":                g.config.WithDB,
-		"WithGRPC":              g.config.WithGRPC,
-		"WithSwag":              g.config.WithSwag,
-		"DBDriver":              g.config.DBDriver,
-		"DBDefaultDSN":          dbMeta.DefaultDSN,
-		"ConfigMode":            g.config.ConfigMode,
-		"RemoteProvider":        g.config.RemoteProvider,
-		"RemoteEnabledDefault":  g.config.ConfigMode == "hybrid" || g.config.ConfigMode == "remote",
-		"RemoteFallbackDefault": g.config.ConfigMode != "remote",
+	data := configTemplateData{
+		Services:              services,
+		WithDB:                g.config.WithDB,
+		WithGRPC:              g.config.WithGRPC,
+		WithSwag:              g.config.WithSwag,
+		DBDriver:              g.config.DBDriver,
+		DBDefaultDSN:          dbMeta.DefaultDSN,
+		DBConfigDSN:           dbMeta.ConfigDSN,
+		ConfigMode:            g.config.ConfigMode,
+		RemoteProvider:        g.config.RemoteProvider,
+		RemoteEnabledDefault:  g.config.ConfigMode == "hybrid" || g.config.ConfigMode == "remote",
+		RemoteFallbackDefault: g.config.ConfigMode != "remote",
 	}
 	targets := []struct {
 		template string
@@ -128,13 +130,13 @@ func (g *Generator) generateConfigCodeFile(services []*serviceView) error {
 }
 
 func (g *Generator) generateReadme(ctx generationContext) error {
-	data := map[string]any{
-		"Project":        ctx.project,
-		"IsProtoInput":   strings.EqualFold(ctx.source, "proto") || strings.HasSuffix(g.config.IDLSrcPath, ".proto"),
-		"WithSkill":      g.config.WithSkill,
-		"WithConfig":     g.config.WithConfig,
-		"ConfigMode":     g.config.ConfigMode,
-		"RemoteProvider": g.config.RemoteProvider,
+	data := readmeTemplateData{
+		Project:        ctx.project,
+		IsProtoInput:   strings.EqualFold(ctx.source, "proto") || strings.HasSuffix(g.config.IDLSrcPath, ".proto"),
+		WithSkill:      g.config.WithSkill,
+		WithConfig:     g.config.WithConfig,
+		ConfigMode:     g.config.ConfigMode,
+		RemoteProvider: g.config.RemoteProvider,
 	}
 	return g.executeTemplate("readme.tmpl", g.layout.readme(), data)
 }
@@ -147,16 +149,18 @@ func (g *Generator) generateDocsStub(services []*serviceView) error {
 	if _, err := os.Stat(path); err == nil {
 		return nil
 	}
-	data := map[string]any{
-		"Services": services,
+	data := docsTemplateData{
+		Services:   services,
+		LeftDelim:  "{{",
+		RightDelim: "}}",
 	}
 	return g.executeTemplate("docs.tmpl", path, data)
 }
 
 func (g *Generator) generateSkillFile(ctx generationContext) error {
-	data := map[string]any{
-		"Project":    ctx.project,
-		"ImportPath": g.config.ImportPath,
+	data := skillTemplateData{
+		Project:    ctx.project,
+		ImportPath: g.config.ImportPath,
 	}
 	return g.executeTemplate("skill.tmpl", g.layout.skillFile(), data)
 }
@@ -178,10 +182,10 @@ func (g *Generator) generateGoModFile() error {
 		return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
 	}
 
-	data := map[string]any{
-		"ImportPath":  g.config.ImportPath,
-		"WithConfig":  g.config.WithConfig,
-		"RootRelPath": g.rootRelativePath(),
+	data := goModTemplateData{
+		ImportPath:  g.config.ImportPath,
+		WithConfig:  g.config.WithConfig,
+		RootRelPath: g.rootRelativePath(),
 	}
 	return g.executeTemplate("go_mod.tmpl", g.layout.goMod(), data)
 }
