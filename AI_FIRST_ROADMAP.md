@@ -18,6 +18,9 @@ Primary path:
 
 ## Phase 1: Generated Project Orientation
 
+Status:
+- Implemented in generated `README.md` through the Project Map, runtime inspection endpoints, and ownership guidance.
+
 Goal:
 - Every generated project should tell a human or AI agent where the contract lives, where business code lives, what endpoints expose runtime capability, and which files are generator-owned.
 
@@ -29,6 +32,9 @@ Deliverables:
 
 ## Phase 2: Capability Contract Tightening
 
+Status:
+- Implemented for generated README/skill output through `microgen.skill.v1` metadata and tests that protect generated capability metadata.
+
 Goal:
 - Keep IR as the single source of truth for generated runtime code, docs, client SDKs, OpenAI tools, and MCP tools.
 
@@ -38,6 +44,9 @@ Deliverables:
 - Unsupported contract shapes produce explicit guidance instead of vague placeholders.
 
 ## Phase 3: Extension Workflow Hardening
+
+Status:
+- Implemented in generated `README.md` through explicit `microgen extend -check`, append-service, append-model, and append-middleware guidance.
 
 Goal:
 - Make incremental change the normal workflow for existing generated projects.
@@ -50,6 +59,9 @@ Deliverables:
 
 ## Phase 4: Config And Runtime Confidence
 
+Status:
+- Implemented in generated `README.md` for config-enabled projects through `file`, `hybrid`, and `remote` mode guidance plus environment override hints.
+
 Goal:
 - Keep generated services runnable locally while supporting production config needs.
 
@@ -59,6 +71,9 @@ Deliverables:
 - `/debug/routes` remains available as a low-friction runtime inspection endpoint.
 
 ## Phase 5: Agent Workflow Packaging
+
+Status:
+- Implemented in generated `README.md` through the Agent Workflow loop and in repository docs through the maintainer/workflow entry points.
 
 Goal:
 - Let AI agents operate safely with a small, stable command and file map.

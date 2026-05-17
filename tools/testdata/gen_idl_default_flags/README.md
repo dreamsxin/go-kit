@@ -39,6 +39,16 @@ microgen extend -idl full_combined.go -out . -append-middleware tracing,error-ha
 
 Extend mode updates new generated files plus generator-owned aggregation seams. Keep business logic in user-owned files such as `service/<name>/service.go`, `endpoint/<name>/custom_chain.go`, and `cmd/custom_routes.go`.
 
+## Agent Workflow
+
+Use this loop when an AI agent or maintainer changes the generated project:
+
+1. Read this README and inspect the source contract snapshot before editing.
+2. Check `GET /debug/routes` and, when enabled, `GET /skill` or `GET /skill?format=mcp` to see the runtime capability surface.
+3. Put business behavior in user-owned files; do not hand-edit generator-owned files.
+4. For new services, models, or middleware, run `microgen extend -check -out .` before an append command.
+5. Run the smallest relevant validation first, usually `go test ./...`, then start the service with `go run ./cmd/main.go`.
+
 ## Configuration
 
 Generated config loads through `config.Load(path)`: defaults first, local YAML next, environment overrides after that, and remote config last when enabled.
