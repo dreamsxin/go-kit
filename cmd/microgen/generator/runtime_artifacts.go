@@ -12,6 +12,8 @@ func (g *Generator) generateServiceFileFull(service *serviceView, models []*mode
 		IRService:           irService,
 		UnaryMethods:        unaryMethods(irService),
 		ServerStreamMethods: serverStreamMethods(irService),
+		ClientStreamMethods: clientStreamMethods(irService),
+		BidiStreamMethods:   bidiStreamMethods(irService),
 		Models:              models,
 		WithModel:           g.config.WithModel,
 		ImportPath:          g.config.ImportPath,
@@ -80,6 +82,8 @@ func (g *Generator) generateGRPCTransportFile(service *serviceView, irService *i
 		IRService:           irService,
 		UnaryMethods:        unaryMethods(irService),
 		ServerStreamMethods: serverStreamMethods(irService),
+		ClientStreamMethods: clientStreamMethods(irService),
+		BidiStreamMethods:   bidiStreamMethods(irService),
 		ImportPath:          g.config.ImportPath,
 		Source:              source,
 	}
@@ -119,6 +123,8 @@ func (g *Generator) generateTestFile(service *serviceView, irService *ir.Service
 		IRService:           irService,
 		UnaryMethods:        unaryMethods(irService),
 		ServerStreamMethods: serverStreamMethods(irService),
+		ClientStreamMethods: clientStreamMethods(irService),
+		BidiStreamMethods:   bidiStreamMethods(irService),
 		ImportPath:          g.config.ImportPath,
 		Source:              source,
 	}

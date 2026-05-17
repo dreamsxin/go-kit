@@ -42,7 +42,7 @@ Scope:
 
 - IR support for interaction method kinds
 - gRPC server-stream, client-stream, and bidirectional-stream generation
-- WebSocket transport preview
+- optional WebSocket transport preview after gRPC streaming stabilizes
 - AI interaction runtime preview for sessions, events, tool calls, cancellation, and audit hooks
 - generated examples and integration tests for streaming and WebSocket flows
 
@@ -74,7 +74,7 @@ Release posture:
 - [ ] `CHANGELOG.md` maintained for user-visible changes
 - [ ] `MIGRATION.md` documents breaking or compatibility-sensitive moves
 - [ ] gRPC streaming support documented and integration-tested
-- [ ] WebSocket transport documented and integration-tested
+- [ ] WebSocket transport documented and integration-tested if enabled as a supported preview surface
 - [ ] AI interaction runtime documented and integration-tested
 - [ ] Auth, limits, and audit hooks documented for generated services
 - [ ] OpenTelemetry tracing/metrics guidance documented

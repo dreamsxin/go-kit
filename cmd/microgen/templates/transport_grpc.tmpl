@@ -1,7 +1,7 @@
 package {{.Service.ServiceName | lower}}
 
 import (
-{{- if or .UnaryMethods .ServerStreamMethods}}
+{{- if or .UnaryMethods .ServerStreamMethods .ClientStreamMethods .BidiStreamMethods}}
 	"context"
 {{- end}}
 
@@ -17,6 +17,8 @@ import (
 
 type streamService interface {
 {{range .ServerStreamMethods}}	{{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error
+{{end}}{{range .ClientStreamMethods}}	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (idl.{{.OutputName}}, error)
+{{end}}{{range .BidiStreamMethods}}	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error
 {{end}}}
 
 // grpcServer implements the generated gRPC server contract.
@@ -41,6 +43,34 @@ func (s *grpcServer) {{.Name}}(ctx context.Context, req *idl.{{.InputName}}) (*i
 {{range .ServerStreamMethods}}
 func (s *grpcServer) {{.Name}}(req *idl.{{.InputName}}, stream idl.{{$.Service.ServiceName}}_{{.Name}}Server) error {
 	return s.stream.{{.Name}}(stream.Context(), *req, func(resp idl.{{.OutputName}}) error {
+		return stream.Send(&resp)
+	})
+}
+{{end}}
+{{range .ClientStreamMethods}}
+func (s *grpcServer) {{.Name}}(stream idl.{{$.Service.ServiceName}}_{{.Name}}Server) error {
+	resp, err := s.stream.{{.Name}}(stream.Context(), func() (idl.{{.InputName}}, error) {
+		req, err := stream.Recv()
+		if err != nil {
+			return idl.{{.InputName}}{}, err
+		}
+		return *req, nil
+	})
+	if err != nil {
+		return err
+	}
+	return stream.SendAndClose(&resp)
+}
+{{end}}
+{{range .BidiStreamMethods}}
+func (s *grpcServer) {{.Name}}(stream idl.{{$.Service.ServiceName}}_{{.Name}}Server) error {
+	return s.stream.{{.Name}}(stream.Context(), func() (idl.{{.InputName}}, error) {
+		req, err := stream.Recv()
+		if err != nil {
+			return idl.{{.InputName}}{}, err
+		}
+		return *req, nil
+	}, func(resp idl.{{.OutputName}}) error {
 		return stream.Send(&resp)
 	})
 }

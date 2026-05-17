@@ -30,6 +30,26 @@ func Test{{.Service.ServiceName}}(t *testing.T) {
 		}
 	})
 {{end}}
+{{range .ClientStreamMethods}}
+	t.Run("{{.Name}}", func(t *testing.T) {
+		_, err := svc.{{.Name}}(ctx, func() (idl.{{.InputName}}, error) {
+			return idl.{{.InputName}}{}, context.Canceled
+		})
+		if err != nil {
+			t.Errorf("{{.Name}} failed: %v", err)
+		}
+	})
+{{end}}
+{{range .BidiStreamMethods}}
+	t.Run("{{.Name}}", func(t *testing.T) {
+		err := svc.{{.Name}}(ctx, func() (idl.{{.InputName}}, error) {
+			return idl.{{.InputName}}{}, context.Canceled
+		}, func(idl.{{.OutputName}}) error { return nil })
+		if err != nil {
+			t.Errorf("{{.Name}} failed: %v", err)
+		}
+	})
+{{end}}
 }
 
 func Test{{.Service.ServiceName}}Middleware(t *testing.T) {
@@ -54,6 +74,32 @@ func Test{{.Service.ServiceName}}Middleware(t *testing.T) {
 		
 		req := idl.{{.InputName}}{}
 		err := loggingSvc.{{.Name}}(ctx, req, func(idl.{{.OutputName}}) error { return nil })
+		if err != nil {
+			t.Errorf("{{.Name}} with logging failed: %v", err)
+		}
+	})
+{{end}}
+{{range .ClientStreamMethods}}
+	t.Run("{{.Name}}WithLogging", func(t *testing.T) {
+		svc := {{$.Service.PackageName}}.NewService(nil)
+		loggingSvc := {{$.Service.PackageName}}.LoggingMiddleware(nil)(svc)
+
+		_, err := loggingSvc.{{.Name}}(ctx, func() (idl.{{.InputName}}, error) {
+			return idl.{{.InputName}}{}, context.Canceled
+		})
+		if err != nil {
+			t.Errorf("{{.Name}} with logging failed: %v", err)
+		}
+	})
+{{end}}
+{{range .BidiStreamMethods}}
+	t.Run("{{.Name}}WithLogging", func(t *testing.T) {
+		svc := {{$.Service.PackageName}}.NewService(nil)
+		loggingSvc := {{$.Service.PackageName}}.LoggingMiddleware(nil)(svc)
+
+		err := loggingSvc.{{.Name}}(ctx, func() (idl.{{.InputName}}, error) {
+			return idl.{{.InputName}}{}, context.Canceled
+		}, func(idl.{{.OutputName}}) error { return nil })
 		if err != nil {
 			t.Errorf("{{.Name}} with logging failed: %v", err)
 		}

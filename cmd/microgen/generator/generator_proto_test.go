@@ -61,12 +61,15 @@ package chat;
 service ChatService {
   rpc SendMessage (SendMessageRequest) returns (SendMessageResponse);
   rpc WatchMessages (WatchMessagesRequest) returns (stream MessageEvent);
+  rpc UploadMessages (stream MessageEvent) returns (UploadSummary);
+  rpc Interact (stream MessageEvent) returns (stream MessageEvent);
 }
 
 message SendMessageRequest { string body = 1; }
 message SendMessageResponse { string id = 1; }
 message WatchMessagesRequest { string room_id = 1; }
 message MessageEvent { string id = 1; string body = 2; }
+message UploadSummary { int32 count = 1; }
 `
 
 // ── Proto → HTTP 生成 ─────────────────────────────────────────────────────────
@@ -212,6 +215,8 @@ func TestGenerateFull_FromProto_ServerStreamContents(t *testing.T) {
 	servicePath := filepath.Join(outDir, "service", "chatservice", "service.go")
 	mustContain(t, servicePath, "SendMessage(ctx context.Context, req idl.SendMessageRequest) (idl.SendMessageResponse, error)")
 	mustContain(t, servicePath, "WatchMessages(ctx context.Context, req idl.WatchMessagesRequest, send func(idl.MessageEvent) error) error")
+	mustContain(t, servicePath, "UploadMessages(ctx context.Context, recv func() (idl.MessageEvent, error)) (idl.UploadSummary, error)")
+	mustContain(t, servicePath, "Interact(ctx context.Context, recv func() (idl.MessageEvent, error), send func(idl.MessageEvent) error) error")
 
 	endpointPath := filepath.Join(outDir, "endpoint", "chatservice", "endpoints.go")
 	mustContain(t, endpointPath, "SendMessageEndpoint endpoint.Endpoint")
@@ -225,7 +230,12 @@ func TestGenerateFull_FromProto_ServerStreamContents(t *testing.T) {
 	mustContain(t, grpcPath, "RegisterGRPCServer(s *grpc.Server, service streamService, endpoints genendpoint.ChatServiceEndpoints)")
 	mustContain(t, grpcPath, "func (s *grpcServer) WatchMessages(req *idl.WatchMessagesRequest, stream idl.ChatService_WatchMessagesServer) error")
 	mustContain(t, grpcPath, "return stream.Send(&resp)")
+	mustContain(t, grpcPath, "func (s *grpcServer) UploadMessages(stream idl.ChatService_UploadMessagesServer) error")
+	mustContain(t, grpcPath, "return stream.SendAndClose(&resp)")
+	mustContain(t, grpcPath, "func (s *grpcServer) Interact(stream idl.ChatService_InteractServer) error")
 	mustNotContain(t, grpcPath, "NewGRPCWatchMessagesClient")
+	mustNotContain(t, grpcPath, "NewGRPCUploadMessagesClient")
+	mustNotContain(t, grpcPath, "NewGRPCInteractClient")
 
 	routesPath := filepath.Join(outDir, "cmd", "generated_routes.go")
 	mustContain(t, routesPath, "RegisterGRPCServer(server, g.chatserviceSvc, g.chatserviceEndpoints)")
@@ -233,6 +243,8 @@ func TestGenerateFull_FromProto_ServerStreamContents(t *testing.T) {
 
 	protoPath := filepath.Join(outDir, "pb", "chatservice", "chatservice.proto")
 	mustContain(t, protoPath, "rpc WatchMessages (WatchMessagesRequest) returns (stream MessageEvent);")
+	mustContain(t, protoPath, "rpc UploadMessages (stream MessageEvent) returns (UploadSummary);")
+	mustContain(t, protoPath, "rpc Interact (stream MessageEvent) returns (stream MessageEvent);")
 }
 
 // ── Proto → Skill 生成 ────────────────────────────────────────────────────────

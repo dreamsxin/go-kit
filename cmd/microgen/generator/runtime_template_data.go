@@ -7,6 +7,8 @@ type serviceTemplateData struct {
 	IRService           *ir.Service
 	UnaryMethods        []*ir.Method
 	ServerStreamMethods []*ir.Method
+	ClientStreamMethods []*ir.Method
+	BidiStreamMethods   []*ir.Method
 	Models              []*modelView
 	WithModel           bool
 	ImportPath          string
@@ -51,6 +53,8 @@ type grpcTransportTemplateData struct {
 	IRService           *ir.Service
 	UnaryMethods        []*ir.Method
 	ServerStreamMethods []*ir.Method
+	ClientStreamMethods []*ir.Method
+	BidiStreamMethods   []*ir.Method
 	ImportPath          string
 	Source              string
 }
@@ -68,6 +72,8 @@ type serviceTestTemplateData struct {
 	IRService           *ir.Service
 	UnaryMethods        []*ir.Method
 	ServerStreamMethods []*ir.Method
+	ClientStreamMethods []*ir.Method
+	BidiStreamMethods   []*ir.Method
 	ImportPath          string
 	Source              string
 }

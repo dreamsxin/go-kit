@@ -118,7 +118,7 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 		runCommand(t, componentCmd)
 	})
 
-	t.Run("Proto_ServerStream_GeneratedProject_Builds", func(t *testing.T) {
+	t.Run("Proto_Streaming_GeneratedProject_Builds", func(t *testing.T) {
 		protoc, protocGenGo, protocGenGoGRPC := requireProtoToolchain(t)
 
 		outDir := filepath.Join(cwd, "testdata", "gen_proto_server_stream")
@@ -131,12 +131,15 @@ package chat;
 service ChatService {
   rpc SendMessage (SendMessageRequest) returns (SendMessageResponse);
   rpc WatchMessages (WatchMessagesRequest) returns (stream MessageEvent);
+  rpc UploadMessages (stream MessageEvent) returns (UploadSummary);
+  rpc Interact (stream MessageEvent) returns (stream MessageEvent);
 }
 
 message SendMessageRequest { string body = 1; }
 message SendMessageResponse { string id = 1; }
 message WatchMessagesRequest { string room_id = 1; }
 message MessageEvent { string id = 1; string body = 2; }
+message UploadSummary { int32 count = 1; }
 `), 0o644); err != nil {
 			t.Fatalf("write stream proto: %v", err)
 		}
@@ -158,8 +161,13 @@ message MessageEvent { string id = 1; string body = 2; }
 		}
 
 		mustContainFile(t, filepath.Join(outDir, "pb", "chatservice", "chatservice.proto"), "returns (stream MessageEvent)")
+		mustContainFile(t, filepath.Join(outDir, "pb", "chatservice", "chatservice.proto"), "rpc UploadMessages (stream MessageEvent) returns (UploadSummary);")
+		mustContainFile(t, filepath.Join(outDir, "pb", "chatservice", "chatservice.proto"), "rpc Interact (stream MessageEvent) returns (stream MessageEvent);")
 		mustContainFile(t, filepath.Join(outDir, "service", "chatservice", "service.go"), "send func(idl.MessageEvent) error")
+		mustContainFile(t, filepath.Join(outDir, "service", "chatservice", "service.go"), "recv func() (idl.MessageEvent, error)")
 		mustContainFile(t, filepath.Join(outDir, "transport", "chatservice", "transport_grpc.go"), "ChatService_WatchMessagesServer")
+		mustContainFile(t, filepath.Join(outDir, "transport", "chatservice", "transport_grpc.go"), "ChatService_UploadMessagesServer")
+		mustContainFile(t, filepath.Join(outDir, "transport", "chatservice", "transport_grpc.go"), "ChatService_InteractServer")
 
 		protocCmd := exec.Command(protoc,
 			"--go_out=.",

@@ -19,6 +19,14 @@ type {{.Service.ServiceName}} interface {
 	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
 	{{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error
 {{end}}
+{{range .ClientStreamMethods}}
+	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (idl.{{.OutputName}}, error)
+{{end}}
+{{range .BidiStreamMethods}}
+	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error
+{{end}}
 }
 
 // ServiceConfig controls generated service behavior.
@@ -112,6 +120,19 @@ func (s *serviceImpl) {{.Name}}(ctx context.Context, req idl.{{.InputName}}, sen
 	return errors.New("{{.Name}}: not implemented")
 }
 {{end}}
+{{range .ClientStreamMethods}}
+func (s *serviceImpl) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (idl.{{.OutputName}}, error) {
+	_ = recv
+	return idl.{{.OutputName}}{}, errors.New("{{.Name}}: not implemented")
+}
+{{end}}
+{{range .BidiStreamMethods}}
+func (s *serviceImpl) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error {
+	_ = recv
+	_ = send
+	return errors.New("{{.Name}}: not implemented")
+}
+{{end}}
 
 type ServiceMiddleware func({{.Service.ServiceName}}) {{.Service.ServiceName}}
 
@@ -152,6 +173,32 @@ func (m *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}
 	return m.next.{{.Name}}(ctx, req, send)
 }
 {{end}}
+{{range .ClientStreamMethods}}
+func (m *loggingMiddleware) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (resp idl.{{.OutputName}}, err error) {
+	start := time.Now()
+	defer func() {
+		if err != nil {
+			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
+		} else {
+			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
+		}
+	}()
+	return m.next.{{.Name}}(ctx, recv)
+}
+{{end}}
+{{range .BidiStreamMethods}}
+func (m *loggingMiddleware) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) (err error) {
+	start := time.Now()
+	defer func() {
+		if err != nil {
+			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
+		} else {
+			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
+		}
+	}()
+	return m.next.{{.Name}}(ctx, recv, send)
+}
+{{end}}
 
 func MetricsMiddleware() ServiceMiddleware {
 	return func(next {{.Service.ServiceName}}) {{.Service.ServiceName}} {
@@ -171,5 +218,15 @@ func (m *metricsMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}
 {{range .ServerStreamMethods}}
 func (m *metricsMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error {
 	return m.next.{{.Name}}(ctx, req, send)
+}
+{{end}}
+{{range .ClientStreamMethods}}
+func (m *metricsMiddleware) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (idl.{{.OutputName}}, error) {
+	return m.next.{{.Name}}(ctx, recv)
+}
+{{end}}
+{{range .BidiStreamMethods}}
+func (m *metricsMiddleware) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error {
+	return m.next.{{.Name}}(ctx, recv, send)
 }
 {{end}}

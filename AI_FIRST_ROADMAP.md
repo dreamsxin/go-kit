@@ -33,7 +33,7 @@ v0.9 AI Interaction Preview
 The v0.9 goal is to add first-class interaction protocols without weakening the existing `service -> endpoint -> transport` model:
 
 - gRPC streaming for server-stream, client-stream, and bidirectional-stream services
-- WebSocket transport for browser and agent interaction loops
+- optional WebSocket transport preview for browser and agent interaction loops after the gRPC streaming path is stable
 - AI interaction runtime for sessions, event streams, tool calls, cancellation, and audit hooks
 - generated docs, SDKs, and integration tests that make these interaction surfaces usable by humans and AI agents
 
@@ -107,13 +107,13 @@ Deliverables:
 ## Phase 6: Interaction Contract IR
 
 Status:
-- Planned.
+- Implemented for unary, server-stream, client-stream, bidirectional-stream, WebSocket-session, and event-source method kinds.
 
 Goal:
 - Extend the IR so one service contract can describe unary calls, gRPC streams, WebSocket sessions, and AI interaction events.
 
 Deliverables:
-- `MethodKind` or equivalent metadata for:
+- `MethodKind` metadata for:
   - `unary`
   - `server_stream`
   - `client_stream`
@@ -124,10 +124,15 @@ Deliverables:
 - request, response, event, and error message metadata
 - tests for Go IDL and Proto conversion into the expanded IR
 
+Remaining:
+- cancellation and timeout metadata
+- request, response, event, and error envelope metadata beyond the current method shape
+- Go IDL syntax for non-unary interaction shapes
+
 ## Phase 7: gRPC Streaming
 
 Status:
-- Planned.
+- In progress. Server-stream, client-stream, and bidirectional-stream service and gRPC server adapters are generated from Proto contracts.
 
 Goal:
 - Make gRPC streaming a first-class generated transport and SDK surface.
@@ -135,13 +140,16 @@ Goal:
 Deliverables:
 - parser support for Proto streaming RPC declarations
 - generated server-stream, client-stream, and bidirectional-stream handlers
+- integration tests proving generated streaming projects compile after `protoc`
+
+Remaining:
 - generated streaming clients and SDK helpers
-- integration tests for stream success, stream errors, cancellation, and slow-consumer behavior
+- stream success, stream errors, cancellation, and slow-consumer runtime tests
 
 ## Phase 8: WebSocket Transport
 
 Status:
-- Planned.
+- Optional preview, not required for the v1.0 industrial release gate unless a concrete browser/session product requirement is adopted.
 
 Goal:
 - Add a browser- and agent-friendly bidirectional transport for interactive services.
