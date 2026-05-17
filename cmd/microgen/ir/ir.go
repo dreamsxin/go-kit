@@ -61,6 +61,22 @@ func (m *Method) IsStreaming() bool {
 	}
 }
 
+// StreamsInput reports whether the request side of the method is streamed.
+func (m *Method) StreamsInput() bool {
+	if m == nil {
+		return false
+	}
+	return m.Kind == MethodKindClientStream || m.Kind == MethodKindBidirectional
+}
+
+// StreamsOutput reports whether the response side of the method is streamed.
+func (m *Method) StreamsOutput() bool {
+	if m == nil {
+		return false
+	}
+	return m.Kind == MethodKindServerStream || m.Kind == MethodKindBidirectional
+}
+
 // Message describes a request/response payload or model shape.
 type Message struct {
 	Name        string

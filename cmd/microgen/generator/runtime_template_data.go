@@ -3,12 +3,14 @@ package generator
 import "github.com/dreamsxin/go-kit/cmd/microgen/ir"
 
 type serviceTemplateData struct {
-	Service    *serviceView
-	IRService  *ir.Service
-	Models     []*modelView
-	WithModel  bool
-	ImportPath string
-	Source     string
+	Service             *serviceView
+	IRService           *ir.Service
+	UnaryMethods        []*ir.Method
+	ServerStreamMethods []*ir.Method
+	Models              []*modelView
+	WithModel           bool
+	ImportPath          string
+	Source              string
 }
 
 type serviceGeneratedReposTemplateData struct {
@@ -19,10 +21,11 @@ type serviceGeneratedReposTemplateData struct {
 }
 
 type endpointTemplateData struct {
-	Service    *serviceView
-	IRService  *ir.Service
-	ImportPath string
-	Source     string
+	Service      *serviceView
+	IRService    *ir.Service
+	UnaryMethods []*ir.Method
+	ImportPath   string
+	Source       string
 }
 
 type endpointGeneratedChainTemplateData struct {
@@ -35,18 +38,21 @@ type endpointCustomChainTemplateData struct {
 }
 
 type httpTransportTemplateData struct {
-	Service     *serviceView
-	IRService   *ir.Service
-	ImportPath  string
-	RoutePrefix string
-	Source      string
+	Service      *serviceView
+	IRService    *ir.Service
+	UnaryMethods []*ir.Method
+	ImportPath   string
+	RoutePrefix  string
+	Source       string
 }
 
 type grpcTransportTemplateData struct {
-	Service    *serviceView
-	IRService  *ir.Service
-	ImportPath string
-	Source     string
+	Service             *serviceView
+	IRService           *ir.Service
+	UnaryMethods        []*ir.Method
+	ServerStreamMethods []*ir.Method
+	ImportPath          string
+	Source              string
 }
 
 type protoTemplateData struct {
@@ -58,28 +64,32 @@ type protoTemplateData struct {
 }
 
 type serviceTestTemplateData struct {
-	Service    *serviceView
-	IRService  *ir.Service
-	ImportPath string
-	Source     string
+	Service             *serviceView
+	IRService           *ir.Service
+	UnaryMethods        []*ir.Method
+	ServerStreamMethods []*ir.Method
+	ImportPath          string
+	Source              string
 }
 
 type clientTemplateData struct {
-	Service     *serviceView
-	IRService   *ir.Service
-	ImportPath  string
-	WithGRPC    bool
-	RoutePrefix string
-	Source      string
+	Service      *serviceView
+	IRService    *ir.Service
+	UnaryMethods []*ir.Method
+	ImportPath   string
+	WithGRPC     bool
+	RoutePrefix  string
+	Source       string
 }
 
 type sdkTemplateData struct {
-	Service     *serviceView
-	IRService   *ir.Service
-	ImportPath  string
-	WithGRPC    bool
-	Source      string
-	RoutePrefix string
+	Service      *serviceView
+	IRService    *ir.Service
+	UnaryMethods []*ir.Method
+	ImportPath   string
+	WithGRPC     bool
+	Source       string
+	RoutePrefix  string
 }
 
 type modelTemplateData struct {

@@ -1,18 +1,22 @@
 package {{.Service.ServiceName | lower}}
 
 import (
+{{- if .UnaryMethods}}
 	"context"
+{{- end}}
 	"time"
 
 	"github.com/dreamsxin/go-kit/endpoint"
 	kitlog "github.com/dreamsxin/go-kit/log"
+{{- if .UnaryMethods}}
 	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
+{{- end}}
 	svc "{{.ImportPath}}/service/{{.Service.ServiceName | lower}}"
 )
 
 // {{.Service.ServiceName}}Endpoints groups the generated endpoints.
 type {{.Service.ServiceName}}Endpoints struct {
-{{range .IRService.Methods}}	{{.Name}}Endpoint endpoint.Endpoint
+{{range .UnaryMethods}}	{{.Name}}Endpoint endpoint.Endpoint
 {{end}}
 }
 
@@ -43,17 +47,19 @@ func MakeServerEndpointsWithConfig(
 	logger *kitlog.Logger,
 	cfg MiddlewareConfig,
 ) {{.Service.ServiceName}}Endpoints {
+{{- if .UnaryMethods}}
 	build := func(ep endpoint.Endpoint, name string) endpoint.Endpoint {
 		ep = applyGeneratedMiddleware(ep, logger, cfg, name)
 		return applyCustomMiddleware(ep, logger, cfg, name)
 	}
 
+{{- end}}
 	return {{.Service.ServiceName}}Endpoints{
-{{range .IRService.Methods}}		{{.Name}}Endpoint: build(Make{{.Name}}Endpoint(s), "{{.Name}}"),
+{{range .UnaryMethods}}		{{.Name}}Endpoint: build(Make{{.Name}}Endpoint(s), "{{.Name}}"),
 {{end}}	}
 }
 
-{{range .IRService.Methods}}
+{{range .UnaryMethods}}
 func Make{{.Name}}Endpoint(s svc.{{$.Service.ServiceName}}) endpoint.Endpoint {
 	return func(ctx context.Context, request any) (any, error) {
 		req := request.(idl.{{.InputName}})
@@ -66,7 +72,7 @@ func Make{{.Name}}Endpoint(s svc.{{$.Service.ServiceName}}) endpoint.Endpoint {
 }
 {{end}}
 
-{{range .IRService.Methods}}
+{{range .UnaryMethods}}
 func (e {{$.Service.ServiceName}}Endpoints) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
 	resp, err := e.{{.Name}}Endpoint(ctx, req)
 	if err != nil {

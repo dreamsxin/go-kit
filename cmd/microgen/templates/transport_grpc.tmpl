@@ -1,25 +1,34 @@
 package {{.Service.ServiceName | lower}}
 
 import (
+{{- if or .UnaryMethods .ServerStreamMethods}}
 	"context"
+{{- end}}
 
+{{- if .UnaryMethods}}
 	"github.com/dreamsxin/go-kit/endpoint"
 	grpcclient "github.com/dreamsxin/go-kit/transport/grpc/client"
 	grpcserver "github.com/dreamsxin/go-kit/transport/grpc/server"
+{{- end}}
 	"google.golang.org/grpc"
 	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
 	genendpoint "{{.ImportPath}}/endpoint/{{.Service.ServiceName | lower}}"
 )
+
+type streamService interface {
+{{range .ServerStreamMethods}}	{{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error
+{{end}}}
 
 // grpcServer implements the generated gRPC server contract.
 type grpcServer struct {
 {{- if eq .Source "proto"}}
 	idl.Unimplemented{{.Service.ServiceName}}Server
 {{- end}}
-{{range .IRService.Methods}}	{{.Name | lower}} grpcserver.Handler
+	stream streamService
+{{range .UnaryMethods}}	{{.Name | lower}} grpcserver.Handler
 {{end}}}
 
-{{range .IRService.Methods}}
+{{range .UnaryMethods}}
 func (s *grpcServer) {{.Name}}(ctx context.Context, req *idl.{{.InputName}}) (*idl.{{.OutputName}}, error) {
 	_, resp, err := s.{{.Name | lower}}.ServeGRPC(ctx, req)
 	if err != nil {
@@ -29,9 +38,18 @@ func (s *grpcServer) {{.Name}}(ctx context.Context, req *idl.{{.InputName}}) (*i
 }
 {{end}}
 
-func NewGRPCServer(endpoints genendpoint.{{.Service.ServiceName}}Endpoints) *grpcServer {
+{{range .ServerStreamMethods}}
+func (s *grpcServer) {{.Name}}(req *idl.{{.InputName}}, stream idl.{{$.Service.ServiceName}}_{{.Name}}Server) error {
+	return s.stream.{{.Name}}(stream.Context(), *req, func(resp idl.{{.OutputName}}) error {
+		return stream.Send(&resp)
+	})
+}
+{{end}}
+
+func NewGRPCServer(service streamService, endpoints genendpoint.{{.Service.ServiceName}}Endpoints) *grpcServer {
 	return &grpcServer{
-{{range .IRService.Methods}}		{{.Name | lower}}: grpcserver.NewServer(
+		stream: service,
+{{range .UnaryMethods}}		{{.Name | lower}}: grpcserver.NewServer(
 			endpoints.{{.Name}}Endpoint,
 			decodeGRPC{{.Name}}Request,
 			encodeGRPC{{.Name}}Response,
@@ -39,11 +57,11 @@ func NewGRPCServer(endpoints genendpoint.{{.Service.ServiceName}}Endpoints) *grp
 {{end}}	}
 }
 
-func RegisterGRPCServer(s *grpc.Server, endpoints genendpoint.{{.Service.ServiceName}}Endpoints) {
-	idl.Register{{.Service.ServiceName}}Server(s, NewGRPCServer(endpoints))
+func RegisterGRPCServer(s *grpc.Server, service streamService, endpoints genendpoint.{{.Service.ServiceName}}Endpoints) {
+	idl.Register{{.Service.ServiceName}}Server(s, NewGRPCServer(service, endpoints))
 }
 
-{{range .IRService.Methods}}
+{{range .UnaryMethods}}
 func NewGRPC{{.Name}}Client(conn *grpc.ClientConn, options ...grpcclient.ClientOption) endpoint.Endpoint {
 	return grpcclient.NewClient(
 		conn,
@@ -57,7 +75,7 @@ func NewGRPC{{.Name}}Client(conn *grpc.ClientConn, options ...grpcclient.ClientO
 }
 {{end}}
 
-{{range .IRService.Methods}}
+{{range .UnaryMethods}}
 func decodeGRPC{{.Name}}Request(_ context.Context, grpcReq any) (any, error) {
 	req := grpcReq.(*idl.{{.InputName}})
 	return *req, nil

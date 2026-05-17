@@ -56,13 +56,15 @@ func (g *Generator) generateGeneratedServicesFile(ctx generationContext) error {
 }
 
 func (g *Generator) generateGeneratedRoutesFile(ctx generationContext) error {
+	svcRoutes := g.serviceRoutes(ctx.project)
 	data := generatedRoutesTemplateData{
-		Project:     ctx.project,
-		Services:    ctx.services,
-		SvcRoutes:   g.serviceRoutes(ctx.project),
-		ImportPath:  g.config.ImportPath,
-		WithGRPC:    g.config.WithGRPC,
-		RoutePrefix: g.config.RoutePrefix,
+		Project:        ctx.project,
+		Services:       ctx.services,
+		SvcRoutes:      svcRoutes,
+		UnarySvcRoutes: unaryServiceRoutes(svcRoutes),
+		ImportPath:     g.config.ImportPath,
+		WithGRPC:       g.config.WithGRPC,
+		RoutePrefix:    g.config.RoutePrefix,
 	}
 	return g.executeTemplate("generated_routes.tmpl", g.layout.cmdGeneratedRoutes(), data)
 }

@@ -41,12 +41,13 @@ type generatedServicesTemplateData struct {
 }
 
 type generatedRoutesTemplateData struct {
-	Project     *ir.Project
-	Services    []*serviceView
-	SvcRoutes   []SvcRoute
-	ImportPath  string
-	WithGRPC    bool
-	RoutePrefix string
+	Project        *ir.Project
+	Services       []*serviceView
+	SvcRoutes      []SvcRoute
+	UnarySvcRoutes []SvcRoute
+	ImportPath     string
+	WithGRPC       bool
+	RoutePrefix    string
 }
 
 type customRoutesTemplateData struct {

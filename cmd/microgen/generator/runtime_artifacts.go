@@ -8,12 +8,14 @@ import (
 
 func (g *Generator) generateServiceFileFull(service *serviceView, models []*modelView, irService *ir.Service, source string) error {
 	data := serviceTemplateData{
-		Service:    service,
-		IRService:  irService,
-		Models:     models,
-		WithModel:  g.config.WithModel,
-		ImportPath: g.config.ImportPath,
-		Source:     source,
+		Service:             service,
+		IRService:           irService,
+		UnaryMethods:        unaryMethods(irService),
+		ServerStreamMethods: serverStreamMethods(irService),
+		Models:              models,
+		WithModel:           g.config.WithModel,
+		ImportPath:          g.config.ImportPath,
+		Source:              source,
 	}
 	return g.executeTemplate("service.tmpl", g.layout.serviceFile(service.ServiceName), data)
 }
@@ -30,10 +32,11 @@ func (g *Generator) generateServiceGeneratedReposFile(service *serviceView, mode
 
 func (g *Generator) generateEndpointsFile(service *serviceView, irService *ir.Service, source string) error {
 	data := endpointTemplateData{
-		Service:    service,
-		IRService:  irService,
-		ImportPath: g.config.ImportPath,
-		Source:     source,
+		Service:      service,
+		IRService:    irService,
+		UnaryMethods: unaryMethods(irService),
+		ImportPath:   g.config.ImportPath,
+		Source:       source,
 	}
 	return g.executeTemplate("endpoints.tmpl", g.layout.endpointsFile(service.ServiceName), data)
 }
@@ -61,21 +64,24 @@ func (g *Generator) generateEndpointCustomChainFile(service *serviceView) error 
 
 func (g *Generator) generateHTTPTransportFile(service *serviceView, irService *ir.Service, source string) error {
 	data := httpTransportTemplateData{
-		Service:     service,
-		IRService:   irService,
-		ImportPath:  g.config.ImportPath,
-		RoutePrefix: routePrefix(g.config.RoutePrefix, service.ServiceName),
-		Source:      source,
+		Service:      service,
+		IRService:    irService,
+		UnaryMethods: unaryMethods(irService),
+		ImportPath:   g.config.ImportPath,
+		RoutePrefix:  routePrefix(g.config.RoutePrefix, service.ServiceName),
+		Source:       source,
 	}
 	return g.executeTemplate("transport.tmpl", g.layout.httpTransportFile(service.ServiceName), data)
 }
 
 func (g *Generator) generateGRPCTransportFile(service *serviceView, irService *ir.Service, source string) error {
 	data := grpcTransportTemplateData{
-		Service:    service,
-		IRService:  irService,
-		ImportPath: g.config.ImportPath,
-		Source:     source,
+		Service:             service,
+		IRService:           irService,
+		UnaryMethods:        unaryMethods(irService),
+		ServerStreamMethods: serverStreamMethods(irService),
+		ImportPath:          g.config.ImportPath,
+		Source:              source,
 	}
 	return g.executeTemplate("transport_grpc.tmpl", g.layout.grpcTransportFile(service.ServiceName), data)
 }
@@ -109,10 +115,12 @@ func (g *Generator) generateProtoFile(service *serviceView, models []*modelView,
 
 func (g *Generator) generateTestFile(service *serviceView, irService *ir.Service, source string) error {
 	data := serviceTestTemplateData{
-		Service:    service,
-		IRService:  irService,
-		ImportPath: g.config.ImportPath,
-		Source:     source,
+		Service:             service,
+		IRService:           irService,
+		UnaryMethods:        unaryMethods(irService),
+		ServerStreamMethods: serverStreamMethods(irService),
+		ImportPath:          g.config.ImportPath,
+		Source:              source,
 	}
 	if err := os.MkdirAll(g.layout.testDir(), 0o755); err != nil {
 		return err
@@ -122,24 +130,26 @@ func (g *Generator) generateTestFile(service *serviceView, irService *ir.Service
 
 func (g *Generator) generateClientDemo(service *serviceView, irService *ir.Service, source string) error {
 	data := clientTemplateData{
-		Service:     service,
-		IRService:   irService,
-		ImportPath:  g.config.ImportPath,
-		WithGRPC:    g.config.WithGRPC,
-		RoutePrefix: g.config.RoutePrefix,
-		Source:      source,
+		Service:      service,
+		IRService:    irService,
+		UnaryMethods: unaryMethods(irService),
+		ImportPath:   g.config.ImportPath,
+		WithGRPC:     g.config.WithGRPC,
+		RoutePrefix:  g.config.RoutePrefix,
+		Source:       source,
 	}
 	return g.executeTemplate("client.tmpl", g.layout.clientDemoFile(service.ServiceName), data)
 }
 
 func (g *Generator) generateSDKFile(service *serviceView, irService *ir.Service, source string) error {
 	data := sdkTemplateData{
-		Service:     service,
-		IRService:   irService,
-		ImportPath:  g.config.ImportPath,
-		WithGRPC:    g.config.WithGRPC,
-		Source:      source,
-		RoutePrefix: g.config.RoutePrefix,
+		Service:      service,
+		IRService:    irService,
+		UnaryMethods: unaryMethods(irService),
+		ImportPath:   g.config.ImportPath,
+		WithGRPC:     g.config.WithGRPC,
+		Source:       source,
+		RoutePrefix:  g.config.RoutePrefix,
 	}
 	if err := os.MkdirAll(g.layout.sdkDir(service.ServiceName), 0o755); err != nil {
 		return err

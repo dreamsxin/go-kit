@@ -12,7 +12,9 @@ import (
 
 	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
 {{- if .WithGRPC}}
+{{- if .UnaryMethods}}
 	genTransport "{{.ImportPath}}/transport/{{.Service.ServiceName | lower}}"
+{{- end}}
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 {{- end}}
@@ -55,7 +57,7 @@ func (c *{{.Service.ServiceName}}HTTPClient) do(ctx context.Context, path string
 	return json.NewDecoder(r.Body).Decode(resp)
 }
 
-{{range .IRService.Methods}}
+{{range .UnaryMethods}}
 // {{.Name}} 通过 HTTP 调用 {{.Name}}
 func (c *{{$.Service.ServiceName}}HTTPClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
 	var resp idl.{{.OutputName}}
@@ -69,7 +71,7 @@ func (c *{{$.Service.ServiceName}}HTTPClient) {{.Name}}(ctx context.Context, req
 // {{.Service.ServiceName}}GRPCClient gRPC 客户端
 type {{.Service.ServiceName}}GRPCClient struct {
 	conn *grpc.ClientConn
-{{range .IRService.Methods}}	{{.Name | lower}} func(ctx context.Context, request interface{}) (interface{}, error)
+{{range .UnaryMethods}}	{{.Name | lower}} func(ctx context.Context, request interface{}) (interface{}, error)
 {{end}}
 }
 
@@ -87,7 +89,7 @@ func New{{.Service.ServiceName}}GRPCClient(addr string, opts ...grpc.DialOption)
 	}
 	return &{{.Service.ServiceName}}GRPCClient{
 		conn: conn,
-{{range .IRService.Methods}}		{{.Name | lower}}: genTransport.NewGRPC{{.Name}}Client(conn),
+{{range .UnaryMethods}}		{{.Name | lower}}: genTransport.NewGRPC{{.Name}}Client(conn),
 {{end}}
 	}, nil
 }
@@ -97,7 +99,7 @@ func (c *{{.Service.ServiceName}}GRPCClient) Close() error {
 	return c.conn.Close()
 }
 
-{{range .IRService.Methods}}
+{{range .UnaryMethods}}
 // {{.Name}} 通过 gRPC 调用 {{.Name}}
 func (c *{{$.Service.ServiceName}}GRPCClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
 	resp, err := c.{{.Name | lower}}(ctx, req)
@@ -113,7 +115,7 @@ func (c *{{$.Service.ServiceName}}GRPCClient) {{.Name}}(ctx context.Context, req
 
 // {{.Service.ServiceName}}Client 统一客户端接口（HTTP 和 gRPC 均实现该接口）
 type {{.Service.ServiceName}}Client interface {
-{{range .IRService.Methods}}	{{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error)
+{{range .UnaryMethods}}	{{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error)
 {{end}}
 }
 
@@ -121,7 +123,7 @@ type {{.Service.ServiceName}}Client interface {
 
 func runDemo(client {{.Service.ServiceName}}Client, logger *log.Logger) {
 	ctx := context.Background()
-{{range .IRService.Methods}}
+{{range .UnaryMethods}}
 	logger.Println(">>> {{.Name}}")
 	{{.Name | lower}}Resp, err := client.{{.Name}}(ctx, idl.{{.InputName}}{})
 	if err != nil {

@@ -54,6 +54,21 @@ message UpdateRequest  { string id = 1; string name = 2; }
 message UpdateResponse { string message = 1; }
 `
 
+var chatStreamProto = `
+syntax = "proto3";
+package chat;
+
+service ChatService {
+  rpc SendMessage (SendMessageRequest) returns (SendMessageResponse);
+  rpc WatchMessages (WatchMessagesRequest) returns (stream MessageEvent);
+}
+
+message SendMessageRequest { string body = 1; }
+message SendMessageResponse { string id = 1; }
+message WatchMessagesRequest { string room_id = 1; }
+message MessageEvent { string id = 1; string body = 2; }
+`
+
 // ── Proto → HTTP 生成 ─────────────────────────────────────────────────────────
 
 func TestGenerateFull_FromProto_HTTPService(t *testing.T) {
@@ -66,6 +81,7 @@ func TestGenerateFull_FromProto_HTTPService(t *testing.T) {
 		DBDriver:   "sqlite",
 		WithConfig: false,
 		WithDocs:   false,
+		WithTests:  true,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -175,6 +191,48 @@ func TestGenerateFull_FromProto_ProtoFileContents(t *testing.T) {
 	mustContain(t, protoPath, "string message = 1;")
 	mustContain(t, protoPath, "int32 page = 1;")
 	mustNotContain(t, protoPath, "TODO: fill in the message fields")
+}
+
+func TestGenerateFull_FromProto_ServerStreamContents(t *testing.T) {
+	outDir := t.TempDir()
+	project := parseProtoProject(t, chatStreamProto)
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/chat",
+		Protocols:  []string{"http", "grpc"},
+		DBDriver:   "sqlite",
+		WithConfig: false,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	servicePath := filepath.Join(outDir, "service", "chatservice", "service.go")
+	mustContain(t, servicePath, "SendMessage(ctx context.Context, req idl.SendMessageRequest) (idl.SendMessageResponse, error)")
+	mustContain(t, servicePath, "WatchMessages(ctx context.Context, req idl.WatchMessagesRequest, send func(idl.MessageEvent) error) error")
+
+	endpointPath := filepath.Join(outDir, "endpoint", "chatservice", "endpoints.go")
+	mustContain(t, endpointPath, "SendMessageEndpoint endpoint.Endpoint")
+	mustNotContain(t, endpointPath, "WatchMessagesEndpoint")
+
+	httpPath := filepath.Join(outDir, "transport", "chatservice", "transport_http.go")
+	mustContain(t, httpPath, "SendMessage")
+	mustNotContain(t, httpPath, "WatchMessages")
+
+	grpcPath := filepath.Join(outDir, "transport", "chatservice", "transport_grpc.go")
+	mustContain(t, grpcPath, "RegisterGRPCServer(s *grpc.Server, service streamService, endpoints genendpoint.ChatServiceEndpoints)")
+	mustContain(t, grpcPath, "func (s *grpcServer) WatchMessages(req *idl.WatchMessagesRequest, stream idl.ChatService_WatchMessagesServer) error")
+	mustContain(t, grpcPath, "return stream.Send(&resp)")
+	mustNotContain(t, grpcPath, "NewGRPCWatchMessagesClient")
+
+	routesPath := filepath.Join(outDir, "cmd", "generated_routes.go")
+	mustContain(t, routesPath, "RegisterGRPCServer(server, g.chatserviceSvc, g.chatserviceEndpoints)")
+	mustNotContain(t, routesPath, `Handler: "WatchMessages"`)
+
+	protoPath := filepath.Join(outDir, "pb", "chatservice", "chatservice.proto")
+	mustContain(t, protoPath, "rpc WatchMessages (WatchMessagesRequest) returns (stream MessageEvent);")
 }
 
 // ── Proto → Skill 生成 ────────────────────────────────────────────────────────

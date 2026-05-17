@@ -118,6 +118,78 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 		runCommand(t, componentCmd)
 	})
 
+	t.Run("Proto_ServerStream_GeneratedProject_Builds", func(t *testing.T) {
+		protoc, protocGenGo, protocGenGoGRPC := requireProtoToolchain(t)
+
+		outDir := filepath.Join(cwd, "testdata", "gen_proto_server_stream")
+		os.RemoveAll(outDir)
+
+		protoFile := filepath.Join(cwd, "testdata", "server_stream.proto")
+		if err := os.WriteFile(protoFile, []byte(`syntax = "proto3";
+package chat;
+
+service ChatService {
+  rpc SendMessage (SendMessageRequest) returns (SendMessageResponse);
+  rpc WatchMessages (WatchMessagesRequest) returns (stream MessageEvent);
+}
+
+message SendMessageRequest { string body = 1; }
+message SendMessageResponse { string id = 1; }
+message WatchMessagesRequest { string room_id = 1; }
+message MessageEvent { string id = 1; string body = 2; }
+`), 0o644); err != nil {
+			t.Fatalf("write stream proto: %v", err)
+		}
+		defer os.Remove(protoFile)
+
+		cmd := exec.Command("go", "run", microgenPath,
+			"-idl", protoFile,
+			"-out", outDir,
+			"-import", "example.com/gen_proto_server_stream",
+			"-protocols", "http,grpc",
+			"-config=false",
+			"-docs=false",
+			"-model=false",
+			"-db=false",
+			"-skill=false",
+		)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("microgen proto server stream failed: %v\n%s", err, out)
+		}
+
+		mustContainFile(t, filepath.Join(outDir, "pb", "chatservice", "chatservice.proto"), "returns (stream MessageEvent)")
+		mustContainFile(t, filepath.Join(outDir, "service", "chatservice", "service.go"), "send func(idl.MessageEvent) error")
+		mustContainFile(t, filepath.Join(outDir, "transport", "chatservice", "transport_grpc.go"), "ChatService_WatchMessagesServer")
+
+		protocCmd := exec.Command(protoc,
+			"--go_out=.",
+			"--go-grpc_out=.",
+			"pb/chatservice/chatservice.proto",
+		)
+		protocCmd.Dir = outDir
+		protocCmd.Env = append(os.Environ(),
+			"PATH="+strings.Join([]string{
+				filepath.Dir(protoc),
+				filepath.Dir(protocGenGo),
+				filepath.Dir(protocGenGoGRPC),
+				os.Getenv("PATH"),
+			}, string(os.PathListSeparator)),
+		)
+		runCommand(t, protocCmd)
+
+		buildTargets := []string{
+			"./cmd",
+			"./service/...",
+			"./endpoint/...",
+			"./transport/...",
+			"./client/...",
+			"./sdk/...",
+		}
+		buildCmd := exec.Command("go", append([]string{"build", "-mod=mod"}, buildTargets...)...)
+		buildCmd.Dir = outDir
+		runCommand(t, buildCmd)
+	})
+
 	t.Run("Proto_GRPC_GeneratedProject_BuildsAndServesRequests", func(t *testing.T) {
 		protoc, protocGenGo, protocGenGoGRPC := requireProtoToolchain(t)
 

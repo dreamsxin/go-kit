@@ -13,7 +13,7 @@ option go_package = "./pb";
 // {{.Service.ServiceName}} gRPC 服务定义
 service {{.Service.ServiceName}} {
 {{range .IRService.Methods}}  // {{.Description}}
-  rpc {{.Name}} ({{.InputName}}) returns ({{.OutputName}});
+  rpc {{.Name}} ({{if .StreamsInput}}stream {{end}}{{.InputName}}) returns ({{if .StreamsOutput}}stream {{end}}{{.OutputName}});
 {{end}}}
 
 {{range .Messages}}

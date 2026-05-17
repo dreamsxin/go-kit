@@ -3,7 +3,6 @@ package {{.Service.ServiceName | lower}}
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"time"
 
@@ -12,9 +11,13 @@ import (
 
 // {{.Service.ServiceName}} defines the business contract.
 type {{.Service.ServiceName}} interface {
-{{range .IRService.Methods}}
+{{range .UnaryMethods}}
 	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
 	{{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error)
+{{end}}
+{{range .ServerStreamMethods}}
+	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	{{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error
 {{end}}
 }
 
@@ -96,16 +99,19 @@ type serviceImpl struct {
 {{- end}}
 }
 
-{{range .IRService.Methods}}
+{{range .UnaryMethods}}
 func (s *serviceImpl) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
 	_ = req
 	return idl.{{.OutputName}}{}, errors.New("{{.Name}}: not implemented")
 }
 {{end}}
-
-func errorf(format string, args ...any) error {
-	return fmt.Errorf(format, args...)
+{{range .ServerStreamMethods}}
+func (s *serviceImpl) {{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error {
+	_ = req
+	_ = send
+	return errors.New("{{.Name}}: not implemented")
 }
+{{end}}
 
 type ServiceMiddleware func({{.Service.ServiceName}}) {{.Service.ServiceName}}
 
@@ -120,7 +126,7 @@ type loggingMiddleware struct {
 	logger *log.Logger
 }
 
-{{range .IRService.Methods}}
+{{range .UnaryMethods}}
 func (m *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (resp idl.{{.OutputName}}, err error) {
 	start := time.Now()
 	defer func() {
@@ -131,6 +137,19 @@ func (m *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}
 		}
 	}()
 	return m.next.{{.Name}}(ctx, req)
+}
+{{end}}
+{{range .ServerStreamMethods}}
+func (m *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) (err error) {
+	start := time.Now()
+	defer func() {
+		if err != nil {
+			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
+		} else {
+			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
+		}
+	}()
+	return m.next.{{.Name}}(ctx, req, send)
 }
 {{end}}
 
@@ -144,8 +163,13 @@ type metricsMiddleware struct {
 	next {{.Service.ServiceName}}
 }
 
-{{range .IRService.Methods}}
+{{range .UnaryMethods}}
 func (m *metricsMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
 	return m.next.{{.Name}}(ctx, req)
+}
+{{end}}
+{{range .ServerStreamMethods}}
+func (m *metricsMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error {
+	return m.next.{{.Name}}(ctx, req, send)
 }
 {{end}}
