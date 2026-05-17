@@ -399,86 +399,17 @@ Interpretation:
 
 ## Recent Verification
 
-The following checks passed during the current refactor thread:
+The current refactor thread has recently passed these focused loops:
 
-- `go test ./kit`
-- `go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils`
-- `go test ./cmd/microgen/generator`
-- `go test ./cmd/microgen/...`
-- `go test ./cmd/microgen/generator ./cmd/microgen/...`
-- `go test ./transport/...`
-- `go test ./transport/grpc/server ./transport/...`
-- `go test ./transport/http/client ./transport/grpc/client ./transport/...`
-- `go test ./transport/grpc/client`
-- `go test ./transport/http/client ./transport/grpc/client ./transport/...` after gRPC client metadata propagation alignment
-- `go test ./transport/http/server ./transport/grpc/server ./transport/http/client ./transport/grpc/client ./transport/...` after nil-hook filtering and nil override fallback tightening
-- `go test ./endpoint`
-- `go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils` after endpoint contract tightening
-- `go test ./endpoint ./kit`
-- `go test ./tools/... -run TestMicrogenIntegration -v`
-- `go test ./kit -run "Test(Readme_WithGRPC_LiveRPC|Service_WithGRPC_.*)" -v`
-- `go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils` after nil-logger contract tightening
-- `go test ./kit`
-- `go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils` after kit option validation tightening
-- `go test ./cmd/microgen/generator` after adding layout/orchestration compatibility tests
-- `go test ./cmd/microgen/...` after aligning generator docs and structure-protection tests
-- `go test ./cmd/microgen/generator` after adding a full-feature phase/orchestration test
-- `go test ./cmd/microgen/...` after widening generator phase coverage
-- `go test ./tools/... -run TestMicrogenIntegration -v` after extending end-to-end generator artifact checks
-- `go test ./tools/... -run TestMicrogenIntegration -v` after promoting `docs/` and `pb/` guarantees into integration coverage
-- `go test ./tools/... -run TestMicrogenIntegration -v` after promoting route-prefix guarantees into CLI-level integration coverage
-- `go test ./tools/... -run TestMicrogenIntegration -v` after adding default-flags and rerun-reliability checks
-- `go test ./tools/... -run TestMicrogenIntegration -v` after adding CLI failure-path reliability checks
-- `go test ./tools/... -run TestMicrogenIntegration -v` after adding generated-project build-and-run validation
-- `go test ./tools/... -run TestMicrogenIntegration -v` after adding minimal-feature-off generated-project build-and-run validation
-- `go test ./tools/... -run TestMicrogenIntegration -v` after adding prefixed generated-project runtime validation
-- `go test ./cmd/microgen/...` after adding explicit extend mode, existing-project scan, artifact planning, and first append-service apply support
-- `go test ./tools/... -run TestMicrogenIntegration -v` after adding CLI-level append-service integration coverage and moving generated route aggregation onto explicit mux registration
-- `go test ./tools/... -run TestMicrogenIntegration/IDL_GeneratedProject_BuildsAndRuns -v` after adding `/debug/routes` and `/skill?format=mcp` startup validation
-- `go test ./tools/... -run TestMicrogenIntegration/IDL_MinimalProject_BuildsAndRunsWithoutOptionalFeatures -v` after checking both OpenAI-tool and MCP `/skill` endpoints stay disabled when `-skill=false`
-- `go test ./tools/... -run "TestMicrogenIntegration/(IDL_GeneratedProject_BuildsAndRuns|IDL_MinimalProject_BuildsAndRunsWithoutOptionalFeatures|IDL_PrefixedProject_BuildsAndServesPrefixedBusinessRoute)" -v` after widening runnable generated-project route assertions
-- `go test ./tools/... -run TestMicrogenIntegration/IDL_FullGeneratedComponents_AreUsable -v` after adding end-to-end component usability coverage for generated `cmd/`, `client/`, `sdk/`, and `skill/`
-- `go test ./tools/... -run TestMicrogenIntegration/IDL_FullGeneratedComponents_AreUsable -v` after extending that component-usage coverage to explicitly assemble generated `service`, `endpoint`, `transport`, and framework `log` into a working request path
-- `go test ./tools/... -run "TestMicrogenIntegration/(IDL_MinimalProject_BuildsAndRunsWithoutOptionalFeatures|IDL_FullGeneratedComponents_AreUsable)" -v` after extracting a reusable IDL component probe and using it in both minimal and fuller generated-project paths
-- `go test ./tools/... -run TestMicrogenIntegration/Proto_ComponentFlow_WhenProtocAvailable -v` after adding a `protoc`-gated proto component-flow check that skips cleanly when the local protobuf toolchain is unavailable
-- `go test ./tools/... -run TestMicrogenIntegration/Proto_ComponentFlow_WhenProtocAvailable -v` after improving protobuf tool detection so the skip reason now reports the exact missing binary (currently `protoc-gen-go` in this environment)
-- `go test ./tools/... -run TestMicrogenIntegration/Proto_ComponentFlow_WhenProtocAvailable -count=1 -v` after updating generated gRPC server transport code to embed `Unimplemented...Server` so the proto component flow passes with the installed protobuf toolchain
-- `go test ./tools/... -run TestMicrogenIntegration/Proto_ComponentFlow_WhenProtocAvailable -count=1 -v` after extending the proto component-flow test from compilation-only coverage to a real `service/endpoint/transport/log` assembly probe
-- `go test ./cmd/microgen/generator ./tools/...` after tightening proto README quick-start guidance and locking it with package plus integration tests
-- `go test ./cmd/microgen/generator ./tools/...` after tightening proto scaffold guidance so README explains both the required `TODO` field completion and the required `protoc` step
-- `go test ./cmd/microgen/generator ./tools/...` after deriving concrete proto message fields from parsed contracts and updating README guidance to match
-- `go test ./cmd/microgen/generator` after tightening proto complex-type mappings for bytes, repeated fields, maps, nested messages, and `google.protobuf.Timestamp`
-- `go test ./tools/...` after verifying end-to-end generator coverage still passes with the richer proto field derivation
-- `go test ./cmd/microgen/generator` after adding `proto3 optional` mapping for pointer-backed scalar fields
-- `go test ./tools/...` after verifying integration coverage still passes with `proto3 optional` field generation
-- `go test ./cmd/microgen/generator` after mapping `time.Duration` to `google.protobuf.Duration`
-- `go test ./tools/...` after verifying integration coverage still passes with `Duration` well-known-type imports
-- `go test ./cmd/microgen/generator -run "TestGenerateProject_(FromDBIR_GeneratesModelArtifactsWithoutCompatParseResult|FromGoIR_GeneratesArtifactsWithoutCompatParseResult|FromProtoIR_GeneratesProtoArtifactsWithoutCompatParseResult)" -count=1` after locking in IR-only generation coverage for DB, Go-IDL, and Proto inputs
-- `go test ./cmd/microgen/generator ./tools/... -count=1` after moving model/repository generation off the last required `ParseResult` compatibility path
-- `go test ./cmd/microgen/generator ./cmd/microgen/... ./tools/... -count=1` after replacing generator-internal `parser.SourceType` branching with IR-backed source strings
-- `go test ./cmd/microgen/generator -run "TestGenerate(IR|Project_)" -count=1`
-- `go test ./cmd/microgen ./tools/... -count=1` after switching the CLI orchestration path over to `GenerateIR(...)`
-- `go test ./cmd/microgen/... -count=1` after making the CLI IDL/DB helper paths return explicit errors and locking unsupported-driver plus `idl.go` write failures with focused tests
-- `go test ./cmd/microgen/generator -count=1`
-- `go test ./cmd/microgen/... -count=1` after moving common proto/skill/sdk/route-prefix generator tests onto `GenerateIR(...)`
-- `go test ./cmd/microgen/generator -count=1`
-- `go test ./cmd/microgen/... -count=1` after moving a broader set of generator contract tests (`go.mod`, config, docs, README, multi-service layout/content) onto `GenerateIR(...)`
-- `go test ./cmd/microgen/generator -count=1`
-- `go test ./cmd/microgen/... -count=1` after finishing the migration of the remaining general `generator_test.go` cases onto `GenerateIR(...)`
-- `go test ./cmd/microgen/generator -count=1`
-- `go test ./cmd/microgen/... -count=1` after moving orchestration tests onto `GenerateIR(...)` and repairing comment-encoding fallout in `generator_test.go` so the package remains buildable
-- `go test ./cmd/microgen/generator -count=1`
-- `go test ./cmd/microgen/... -count=1` after removing the remaining generator compatibility entry points and compatibility-context bridge so the package is now IR-only
-- `go test ./cmd/microgen/generator -count=1` after splitting model/repository output into generator-owned files and introducing generated service repository seams
-- `go test ./cmd/microgen/... -count=1` after adding `-append-model`, `-append-middleware`, and `extend -check`
-- `go test ./tools/... -run "TestMicrogenIntegration/(IDL_Extend_AppendService_PreservesExistingFilesAndServesNewRoute|IDL_Extend_AppendModel_PreservesExistingHooksAndBuilds|IDL_Extend_AppendMiddleware_PreservesCustomChainAndServesWrappedErrors|IDL_Extend_Check_ReportsCompatibility|IDL_Extend_Check_ReturnsExitCodes)" -count=1`
-- `go test ./tools/... -run "TestMicrogenIntegration/(IDL_CustomRoutes_ArePreservedAndServed|IDL_DefaultFlags)" -count=1`
-- `go test ./cmd/microgen/generator -count=1` after adding the first Viper-backed Consul remote-config provider
-- `go test ./cmd/microgen/... -count=1` after wiring the first real remote-config provider through generated config output
-- `go test ./tools/... -run "TestMicrogenIntegration/(IDL_DefaultFlags|IDL_Config_RemoteConsul_UsesRemoteAndFallsBackToLocal)" -count=1 -v`
+- `go test ./cmd/microgen/... -count=1`
+- `go test ./tools/... -run "Test(Microgen|ReadmeQuickStartSmoke)" -count=1 -v`
+- `go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils -count=1`
+- `go test ./tools/... -run TestDoesNotExist -count=1`
+- `git diff --check`
 
-These results mean the recent runtime split and generator decomposition are at least passing their focused validation loops.
+The historical monolithic `TestMicrogenIntegration` suite has been split into focused `TestMicrogen*` top-level tests. Use `Test(Microgen|ReadmeQuickStartSmoke)` for the current broad microgen integration pass.
 
+These results mean the recent runtime split, generator decomposition, option-validation cleanup, and template-data typing work are passing their focused validation loops.
 ## Most Relevant Files
 
 Read these first when resuming work:
@@ -561,11 +492,11 @@ For recent refactor areas:
 - generator changes:
   `go test ./cmd/microgen/...`
 - targeted extend integration:
-  `go test ./tools/... -run "TestMicrogenIntegration/IDL_Extend_AppendService_PreservesExistingFilesAndServesNewRoute" -v`
+  `go test ./tools/... -run "TestMicrogenExtendIntegration/IDL_Extend_AppendService_PreservesExistingFilesAndServesNewRoute" -v`
 - targeted extend check integration:
-  `go test ./tools/... -run "TestMicrogenIntegration/(IDL_Extend_Check_ReportsCompatibility|IDL_Extend_Check_ReturnsExitCodes)" -v`
+  `go test ./tools/... -run "TestMicrogenExtendIntegration/(IDL_Extend_Check_ReportsCompatibility|IDL_Extend_Check_ReturnsExitCodes)" -v`
 - targeted default-config integration:
-  `go test ./tools/... -run "TestMicrogenIntegration/IDL_DefaultFlags" -v`
+  `go test ./tools/... -run "TestMicrogenIDLDefaultFlags" -v`
 - broader verification:
   `make verify`
 
