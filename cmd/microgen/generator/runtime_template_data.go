@@ -79,23 +79,29 @@ type serviceTestTemplateData struct {
 }
 
 type clientTemplateData struct {
-	Service      *serviceView
-	IRService    *ir.Service
-	UnaryMethods []*ir.Method
-	ImportPath   string
-	WithGRPC     bool
-	RoutePrefix  string
-	Source       string
+	Service             *serviceView
+	IRService           *ir.Service
+	UnaryMethods        []*ir.Method
+	ServerStreamMethods []*ir.Method
+	ClientStreamMethods []*ir.Method
+	BidiStreamMethods   []*ir.Method
+	ImportPath          string
+	WithGRPC            bool
+	RoutePrefix         string
+	Source              string
 }
 
 type sdkTemplateData struct {
-	Service      *serviceView
-	IRService    *ir.Service
-	UnaryMethods []*ir.Method
-	ImportPath   string
-	WithGRPC     bool
-	Source       string
-	RoutePrefix  string
+	Service             *serviceView
+	IRService           *ir.Service
+	UnaryMethods        []*ir.Method
+	ServerStreamMethods []*ir.Method
+	ClientStreamMethods []*ir.Method
+	BidiStreamMethods   []*ir.Method
+	ImportPath          string
+	WithGRPC            bool
+	Source              string
+	RoutePrefix         string
 }
 
 type modelTemplateData struct {

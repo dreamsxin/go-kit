@@ -196,6 +196,11 @@ message UploadSummary { int32 count = 1; }
 		buildCmd := exec.Command("go", append([]string{"build", "-mod=mod"}, buildTargets...)...)
 		buildCmd.Dir = outDir
 		runCommand(t, buildCmd)
+
+		streamProbePkg := writeProtoStreamingSDKProbe(t, outDir, "protostreamsdkprobe", "example.com/gen_proto_server_stream")
+		streamProbeCmd := exec.Command("go", "run", "-mod=mod", streamProbePkg)
+		streamProbeCmd.Dir = outDir
+		runCommand(t, streamProbeCmd)
 	})
 
 	t.Run("Proto_GRPC_GeneratedProject_BuildsAndServesRequests", func(t *testing.T) {

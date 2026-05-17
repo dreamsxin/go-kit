@@ -230,12 +230,12 @@ func TestGenerateFull_FromProto_ServerStreamContents(t *testing.T) {
 	mustContain(t, grpcPath, "RegisterGRPCServer(s *grpc.Server, service streamService, endpoints genendpoint.ChatServiceEndpoints)")
 	mustContain(t, grpcPath, "func (s *grpcServer) WatchMessages(req *idl.WatchMessagesRequest, stream idl.ChatService_WatchMessagesServer) error")
 	mustContain(t, grpcPath, "return stream.Send(&resp)")
+	mustContain(t, grpcPath, "NewGRPCWatchMessagesClient(ctx context.Context, client idl.ChatServiceClient, req idl.WatchMessagesRequest")
 	mustContain(t, grpcPath, "func (s *grpcServer) UploadMessages(stream idl.ChatService_UploadMessagesServer) error")
 	mustContain(t, grpcPath, "return stream.SendAndClose(&resp)")
+	mustContain(t, grpcPath, "NewGRPCUploadMessagesClient(ctx context.Context, client idl.ChatServiceClient")
 	mustContain(t, grpcPath, "func (s *grpcServer) Interact(stream idl.ChatService_InteractServer) error")
-	mustNotContain(t, grpcPath, "NewGRPCWatchMessagesClient")
-	mustNotContain(t, grpcPath, "NewGRPCUploadMessagesClient")
-	mustNotContain(t, grpcPath, "NewGRPCInteractClient")
+	mustContain(t, grpcPath, "NewGRPCInteractClient(ctx context.Context, client idl.ChatServiceClient")
 
 	routesPath := filepath.Join(outDir, "cmd", "generated_routes.go")
 	mustContain(t, routesPath, "RegisterGRPCServer(server, g.chatserviceSvc, g.chatserviceEndpoints)")
@@ -245,6 +245,13 @@ func TestGenerateFull_FromProto_ServerStreamContents(t *testing.T) {
 	mustContain(t, protoPath, "rpc WatchMessages (WatchMessagesRequest) returns (stream MessageEvent);")
 	mustContain(t, protoPath, "rpc UploadMessages (stream MessageEvent) returns (UploadSummary);")
 	mustContain(t, protoPath, "rpc Interact (stream MessageEvent) returns (stream MessageEvent);")
+
+	sdkPath := filepath.Join(outDir, "sdk", "chatservicesdk", "client.go")
+	mustContain(t, sdkPath, "type StreamingClient interface")
+	mustContain(t, sdkPath, "func NewGRPCStreaming(conn *grpc.ClientConn) StreamingClient")
+	mustContain(t, sdkPath, "WatchMessages(ctx context.Context, req idl.WatchMessagesRequest, send func(idl.MessageEvent) error) error")
+	mustContain(t, sdkPath, "UploadMessages(ctx context.Context, recv func() (idl.MessageEvent, error)) (idl.UploadSummary, error)")
+	mustContain(t, sdkPath, "Interact(ctx context.Context, recv func() (idl.MessageEvent, error), send func(idl.MessageEvent) error) error")
 }
 
 // ── Proto → Skill 生成 ────────────────────────────────────────────────────────

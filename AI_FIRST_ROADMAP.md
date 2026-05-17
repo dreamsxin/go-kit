@@ -132,7 +132,7 @@ Remaining:
 ## Phase 7: gRPC Streaming
 
 Status:
-- In progress. Server-stream, client-stream, and bidirectional-stream service and gRPC server adapters are generated from Proto contracts.
+- In progress. Server-stream, client-stream, and bidirectional-stream service adapters, gRPC server adapters, transport client helpers, and SDK streaming clients are generated from Proto contracts.
 
 Goal:
 - Make gRPC streaming a first-class generated transport and SDK surface.
@@ -141,10 +141,11 @@ Deliverables:
 - parser support for Proto streaming RPC declarations
 - generated server-stream, client-stream, and bidirectional-stream handlers
 - integration tests proving generated streaming projects compile after `protoc`
+- generated gRPC streaming clients and SDK helpers
+- integration tests for generated SDK streaming success paths
 
 Remaining:
-- generated streaming clients and SDK helpers
-- stream success, stream errors, cancellation, and slow-consumer runtime tests
+- stream errors, cancellation, and slow-consumer runtime tests
 
 ## Phase 8: WebSocket Transport
 

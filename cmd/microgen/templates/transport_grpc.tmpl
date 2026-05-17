@@ -104,6 +104,21 @@ func NewGRPC{{.Name}}Client(conn *grpc.ClientConn, options ...grpcclient.ClientO
 	).Endpoint()
 }
 {{end}}
+{{range .ServerStreamMethods}}
+func NewGRPC{{.Name}}Client(ctx context.Context, client idl.{{$.Service.ServiceName}}Client, req idl.{{.InputName}}, opts ...grpc.CallOption) (idl.{{$.Service.ServiceName}}_{{.Name}}Client, error) {
+	return client.{{.Name}}(ctx, &req, opts...)
+}
+{{end}}
+{{range .ClientStreamMethods}}
+func NewGRPC{{.Name}}Client(ctx context.Context, client idl.{{$.Service.ServiceName}}Client, opts ...grpc.CallOption) (idl.{{$.Service.ServiceName}}_{{.Name}}Client, error) {
+	return client.{{.Name}}(ctx, opts...)
+}
+{{end}}
+{{range .BidiStreamMethods}}
+func NewGRPC{{.Name}}Client(ctx context.Context, client idl.{{$.Service.ServiceName}}Client, opts ...grpc.CallOption) (idl.{{$.Service.ServiceName}}_{{.Name}}Client, error) {
+	return client.{{.Name}}(ctx, opts...)
+}
+{{end}}
 
 {{range .UnaryMethods}}
 func decodeGRPC{{.Name}}Request(_ context.Context, grpcReq any) (any, error) {

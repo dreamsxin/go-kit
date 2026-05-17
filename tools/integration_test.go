@@ -465,6 +465,172 @@ func main() {
 	return "./testdata/" + probeDirName
 }
 
+func writeProtoStreamingSDKProbe(t *testing.T, outDir, probeDirName, importPath string) string {
+	t.Helper()
+
+	probeDir := filepath.Join(outDir, "testdata", probeDirName)
+	if err := os.MkdirAll(probeDir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", probeDirName, err)
+	}
+
+	probePath := filepath.Join(probeDir, "main.go")
+	probe := `package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"sync"
+
+	idl "` + importPath + `/pb"
+	chatendpoint "` + importPath + `/endpoint/chatservice"
+	chatsdk "` + importPath + `/sdk/chatservicesdk"
+	chatsvc "` + importPath + `/service/chatservice"
+	chattransport "` + importPath + `/transport/chatservice"
+	kitlog "github.com/dreamsxin/go-kit/log"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/test/bufconn"
+)
+
+type streamSvc struct{}
+
+func (streamSvc) SendMessage(ctx context.Context, req idl.SendMessageRequest) (idl.SendMessageResponse, error) {
+	return idl.SendMessageResponse{Id: "sent:" + req.Body}, nil
+}
+
+func (streamSvc) WatchMessages(ctx context.Context, req idl.WatchMessagesRequest, send func(idl.MessageEvent) error) error {
+	if req.RoomId != "room-1" {
+		return fmt.Errorf("unexpected room %q", req.RoomId)
+	}
+	if err := send(idl.MessageEvent{Id: "1", Body: "hello"}); err != nil {
+		return err
+	}
+	return send(idl.MessageEvent{Id: "2", Body: "world"})
+}
+
+func (streamSvc) UploadMessages(ctx context.Context, recv func() (idl.MessageEvent, error)) (idl.UploadSummary, error) {
+	var count int32
+	for {
+		_, err := recv()
+		if errors.Is(err, io.EOF) {
+			return idl.UploadSummary{Count: count}, nil
+		}
+		if err != nil {
+			return idl.UploadSummary{}, err
+		}
+		count++
+	}
+}
+
+func (streamSvc) Interact(ctx context.Context, recv func() (idl.MessageEvent, error), send func(idl.MessageEvent) error) error {
+	for {
+		event, err := recv()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := send(idl.MessageEvent{Id: event.Id, Body: "echo:" + event.Body}); err != nil {
+			return err
+		}
+	}
+}
+
+func main() {
+	logger, err := kitlog.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	svc := streamSvc{}
+	endpoints := chatendpoint.MakeServerEndpoints(svc, logger)
+	server := grpc.NewServer()
+	chattransport.RegisterGRPCServer(server, svc, endpoints)
+
+	lis := bufconn.Listen(1024 * 1024)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := server.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+			panic(err)
+		}
+	}()
+	defer func() {
+		server.Stop()
+		_ = lis.Close()
+		wg.Wait()
+	}()
+
+	conn, err := grpc.DialContext(context.Background(), "bufnet", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}), grpc.WithInsecure())
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+
+	client := chatsdk.NewGRPCStreaming(conn)
+	var watched []string
+	if err := client.WatchMessages(context.Background(), idl.WatchMessagesRequest{RoomId: "room-1"}, func(event idl.MessageEvent) error {
+		watched = append(watched, event.Body)
+		return nil
+	}); err != nil {
+		panic(err)
+	}
+	if len(watched) != 2 || watched[0] != "hello" || watched[1] != "world" {
+		panic(fmt.Sprintf("unexpected watch events: %#v", watched))
+	}
+
+	uploadInputs := []idl.MessageEvent{{Id: "1", Body: "a"}, {Id: "2", Body: "b"}}
+	uploadIndex := 0
+	summary, err := client.UploadMessages(context.Background(), func() (idl.MessageEvent, error) {
+		if uploadIndex >= len(uploadInputs) {
+			return idl.MessageEvent{}, io.EOF
+		}
+		event := uploadInputs[uploadIndex]
+		uploadIndex++
+		return event, nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	if summary.Count != 2 {
+		panic(fmt.Sprintf("unexpected upload count: %d", summary.Count))
+	}
+
+	interactInputs := []idl.MessageEvent{{Id: "x", Body: "ping"}}
+	interactIndex := 0
+	var echoed []string
+	if err := client.Interact(context.Background(), func() (idl.MessageEvent, error) {
+		if interactIndex >= len(interactInputs) {
+			return idl.MessageEvent{}, io.EOF
+		}
+		event := interactInputs[interactIndex]
+		interactIndex++
+		return event, nil
+	}, func(event idl.MessageEvent) error {
+		echoed = append(echoed, event.Body)
+		return nil
+	}); err != nil {
+		panic(err)
+	}
+	if len(echoed) != 1 || echoed[0] != "echo:ping" {
+		panic(fmt.Sprintf("unexpected bidi events: %#v", echoed))
+	}
+
+	_ = chatsvc.NewService
+}
+`
+	if err := os.WriteFile(probePath, []byte(probe), 0o644); err != nil {
+		t.Fatalf("write %s: %v", probeDirName, err)
+	}
+	return "./testdata/" + probeDirName
+}
+
 func writeConfigRemoteProbe(t *testing.T, outDir, probeDirName, importPath string) string {
 	t.Helper()
 

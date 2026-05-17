@@ -29,6 +29,8 @@ import (
 	"google.golang.org/grpc"
 {{- if .UnaryMethods}}
 	"github.com/dreamsxin/go-kit/endpoint"
+{{- end}}
+{{- if or .UnaryMethods .ServerStreamMethods .ClientStreamMethods .BidiStreamMethods}}
 	svcTransport "{{.ImportPath}}/transport/{{.Service.ServiceName | lower}}"
 {{- end}}
 {{end}}
@@ -45,6 +47,24 @@ type Client interface {
 	{{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error)
 {{end}}
 }
+
+{{if .WithGRPC}}
+{{if or .ServerStreamMethods .ClientStreamMethods .BidiStreamMethods}}
+// StreamingClient exposes gRPC-only streaming methods.
+type StreamingClient interface {
+	Client
+{{range .ServerStreamMethods}}	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	{{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error
+{{end}}
+{{range .ClientStreamMethods}}	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (idl.{{.OutputName}}, error)
+{{end}}
+{{range .BidiStreamMethods}}	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error
+{{end}}
+}
+{{end}}
+{{end}}
 
 // ─────────────────────────── HTTP Constructor ────────────────────────────────
 
@@ -100,9 +120,21 @@ func New(baseURL string, opts ...Option) Client {
 {{if .WithGRPC}}
 // NewGRPC creates a {{.Service.ServiceName}} gRPC client.
 func NewGRPC(conn *grpc.ClientConn) Client {
+	return newGRPCClient(conn)
+}
+
+{{if or .ServerStreamMethods .ClientStreamMethods .BidiStreamMethods}}
+// NewGRPCStreaming creates a {{.Service.ServiceName}} gRPC streaming client.
+func NewGRPCStreaming(conn *grpc.ClientConn) StreamingClient {
+	return newGRPCClient(conn)
+}
+
+{{end}}
+func newGRPCClient(conn *grpc.ClientConn) *grpcClient {
 	return &grpcClient{
 {{range .UnaryMethods}}		{{.Name | lower}}: svcTransport.NewGRPC{{.Name}}Client(conn),
-{{end}}	}
+{{end}}		client: idl.New{{.Service.ServiceName}}Client(conn),
+	}
 }
 {{end}}
 
@@ -198,7 +230,8 @@ func (c *httpClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl
 {{if .WithGRPC}}
 type grpcClient struct {
 {{range .UnaryMethods}}	{{.Name | lower}} endpoint.Endpoint
-{{end}}}
+{{end}}	client idl.{{.Service.ServiceName}}Client
+}
 
 {{range .UnaryMethods}}
 func (c *grpcClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
@@ -207,6 +240,88 @@ func (c *grpcClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl
 		return idl.{{.OutputName}}{}, err
 	}
 	return resp.(idl.{{.OutputName}}), nil
+}
+{{end}}
+{{range .ServerStreamMethods}}
+func (c *grpcClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error {
+	stream, err := svcTransport.NewGRPC{{.Name}}Client(ctx, c.client, req)
+	if err != nil {
+		return err
+	}
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := send(*resp); err != nil {
+			return err
+		}
+	}
+}
+{{end}}
+{{range .ClientStreamMethods}}
+func (c *grpcClient) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (idl.{{.OutputName}}, error) {
+	stream, err := svcTransport.NewGRPC{{.Name}}Client(ctx, c.client)
+	if err != nil {
+		return idl.{{.OutputName}}{}, err
+	}
+	for {
+		req, err := recv()
+		if err == io.EOF {
+			resp, err := stream.CloseAndRecv()
+			if err != nil {
+				return idl.{{.OutputName}}{}, err
+			}
+			return *resp, nil
+		}
+		if err != nil {
+			return idl.{{.OutputName}}{}, err
+		}
+		if err := stream.Send(&req); err != nil {
+			return idl.{{.OutputName}}{}, err
+		}
+	}
+}
+{{end}}
+{{range .BidiStreamMethods}}
+func (c *grpcClient) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error {
+	stream, err := svcTransport.NewGRPC{{.Name}}Client(ctx, c.client)
+	if err != nil {
+		return err
+	}
+	errCh := make(chan error, 1)
+	go func() {
+		for {
+			req, err := recv()
+			if err == io.EOF {
+				errCh <- stream.CloseSend()
+				return
+			}
+			if err != nil {
+				errCh <- err
+				return
+			}
+			if err := stream.Send(&req); err != nil {
+				errCh <- err
+				return
+			}
+		}
+	}()
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			return <-errCh
+		}
+		if err != nil {
+			return err
+		}
+		if err := send(*resp); err != nil {
+			return err
+		}
+	}
 }
 {{end}}
 {{end}}
