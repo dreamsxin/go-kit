@@ -482,7 +482,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
+	"time"
 
 	idl "` + importPath + `/pb"
 	chatendpoint "` + importPath + `/endpoint/chatservice"
@@ -501,6 +503,17 @@ func (streamSvc) SendMessage(ctx context.Context, req idl.SendMessageRequest) (i
 }
 
 func (streamSvc) WatchMessages(ctx context.Context, req idl.WatchMessagesRequest, send func(idl.MessageEvent) error) error {
+	if req.RoomId == "server-error" {
+		return fmt.Errorf("watch server error")
+	}
+	if req.RoomId == "slow" {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+			return nil
+		}
+	}
 	if req.RoomId != "room-1" {
 		return fmt.Errorf("unexpected room %q", req.RoomId)
 	}
@@ -513,12 +526,15 @@ func (streamSvc) WatchMessages(ctx context.Context, req idl.WatchMessagesRequest
 func (streamSvc) UploadMessages(ctx context.Context, recv func() (idl.MessageEvent, error)) (idl.UploadSummary, error) {
 	var count int32
 	for {
-		_, err := recv()
+		event, err := recv()
 		if errors.Is(err, io.EOF) {
 			return idl.UploadSummary{Count: count}, nil
 		}
 		if err != nil {
 			return idl.UploadSummary{}, err
+		}
+		if event.Body == "server-error" {
+			return idl.UploadSummary{}, fmt.Errorf("upload server error")
 		}
 		count++
 	}
@@ -532,6 +548,9 @@ func (streamSvc) Interact(ctx context.Context, recv func() (idl.MessageEvent, er
 		}
 		if err != nil {
 			return err
+		}
+		if event.Body == "server-error" {
+			return fmt.Errorf("interact server error")
 		}
 		if err := send(idl.MessageEvent{Id: event.Id, Body: "echo:" + event.Body}); err != nil {
 			return err
@@ -621,6 +640,85 @@ func main() {
 	if len(echoed) != 1 || echoed[0] != "echo:ping" {
 		panic(fmt.Sprintf("unexpected bidi events: %#v", echoed))
 	}
+
+	expectErrContains := func(name string, err error, want string) {
+		if err == nil {
+			panic(name + ": expected error")
+		}
+		if !strings.Contains(err.Error(), want) {
+			panic(fmt.Sprintf("%s: error %q does not contain %q", name, err.Error(), want))
+		}
+	}
+
+	err = client.WatchMessages(context.Background(), idl.WatchMessagesRequest{RoomId: "server-error"}, func(idl.MessageEvent) error {
+		return nil
+	})
+	expectErrContains("watch server error", err, "watch server error")
+
+	err = client.WatchMessages(context.Background(), idl.WatchMessagesRequest{RoomId: "room-1"}, func(idl.MessageEvent) error {
+		return fmt.Errorf("watch callback error")
+	})
+	expectErrContains("watch callback error", err, "watch callback error")
+
+	cancelCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err = client.WatchMessages(cancelCtx, idl.WatchMessagesRequest{RoomId: "slow"}, func(idl.MessageEvent) error {
+		return nil
+	})
+	expectErrContains("watch cancellation", err, "canceled")
+
+	_, err = client.UploadMessages(context.Background(), func() (idl.MessageEvent, error) {
+		return idl.MessageEvent{}, fmt.Errorf("upload recv error")
+	})
+	expectErrContains("upload recv error", err, "upload recv error")
+
+	uploadServerErrorInputs := []idl.MessageEvent{{Id: "1", Body: "server-error"}}
+	uploadServerErrorIndex := 0
+	_, err = client.UploadMessages(context.Background(), func() (idl.MessageEvent, error) {
+		if uploadServerErrorIndex >= len(uploadServerErrorInputs) {
+			return idl.MessageEvent{}, io.EOF
+		}
+		event := uploadServerErrorInputs[uploadServerErrorIndex]
+		uploadServerErrorIndex++
+		return event, nil
+	})
+	expectErrContains("upload server error", err, "upload server error")
+
+	interactRecvErrInputs := []idl.MessageEvent{{Id: "1", Body: "first"}}
+	interactRecvErrIndex := 0
+	err = client.Interact(context.Background(), func() (idl.MessageEvent, error) {
+		if interactRecvErrIndex >= len(interactRecvErrInputs) {
+			return idl.MessageEvent{}, fmt.Errorf("interact recv error")
+		}
+		event := interactRecvErrInputs[interactRecvErrIndex]
+		interactRecvErrIndex++
+		return event, nil
+	}, func(idl.MessageEvent) error { return nil })
+	expectErrContains("interact recv error", err, "interact recv error")
+
+	interactSendErrInputs := []idl.MessageEvent{{Id: "1", Body: "first"}}
+	interactSendErrIndex := 0
+	err = client.Interact(context.Background(), func() (idl.MessageEvent, error) {
+		if interactSendErrIndex >= len(interactSendErrInputs) {
+			return idl.MessageEvent{}, io.EOF
+		}
+		event := interactSendErrInputs[interactSendErrIndex]
+		interactSendErrIndex++
+		return event, nil
+	}, func(idl.MessageEvent) error { return fmt.Errorf("interact send callback error") })
+	expectErrContains("interact send callback error", err, "interact send callback error")
+
+	interactServerErrorInputs := []idl.MessageEvent{{Id: "1", Body: "server-error"}}
+	interactServerErrorIndex := 0
+	err = client.Interact(context.Background(), func() (idl.MessageEvent, error) {
+		if interactServerErrorIndex >= len(interactServerErrorInputs) {
+			return idl.MessageEvent{}, io.EOF
+		}
+		event := interactServerErrorInputs[interactServerErrorIndex]
+		interactServerErrorIndex++
+		return event, nil
+	}, func(idl.MessageEvent) error { return nil })
+	expectErrContains("interact server error", err, "interact server error")
 
 	_ = chatsvc.NewService
 }

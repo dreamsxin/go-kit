@@ -167,9 +167,10 @@ Deliverables:
 - integration tests proving generated streaming projects compile after `protoc`
 - generated gRPC streaming clients and SDK helpers
 - integration tests for generated SDK streaming success paths
+- integration tests for generated streaming error propagation and cancellation paths
 
 Remaining:
-- stream errors, cancellation, and slow-consumer runtime tests
+- slow-consumer runtime tests and explicit backpressure policy guidance
 - generated README/SDK guidance for streaming preview usage
 
 ## Phase 8: WebSocket Transport

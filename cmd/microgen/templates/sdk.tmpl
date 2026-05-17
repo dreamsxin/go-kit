@@ -288,6 +288,9 @@ func (c *grpcClient) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputNam
 {{end}}
 {{range .BidiStreamMethods}}
 func (c *grpcClient) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	stream, err := svcTransport.NewGRPC{{.Name}}Client(ctx, c.client)
 	if err != nil {
 		return err
@@ -301,10 +304,13 @@ func (c *grpcClient) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputNam
 				return
 			}
 			if err != nil {
+				_ = stream.CloseSend()
+				cancel()
 				errCh <- err
 				return
 			}
 			if err := stream.Send(&req); err != nil {
+				cancel()
 				errCh <- err
 				return
 			}
@@ -316,9 +322,18 @@ func (c *grpcClient) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputNam
 			return <-errCh
 		}
 		if err != nil {
+			select {
+			case sendErr := <-errCh:
+				if sendErr != nil {
+					return sendErr
+				}
+			default:
+			}
 			return err
 		}
 		if err := send(*resp); err != nil {
+			_ = stream.CloseSend()
+			cancel()
 			return err
 		}
 	}

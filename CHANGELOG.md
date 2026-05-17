@@ -11,6 +11,7 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 - Added IR method kinds for unary, server-stream, client-stream, bidirectional-stream, WebSocket-session, and event-source contract shapes.
 - Added generated gRPC streaming preview support for Proto server-stream, client-stream, and bidirectional-stream RPCs.
 - Added generated gRPC streaming SDK clients and success-path integration coverage for streaming flows.
+- Added generated gRPC streaming integration coverage for error propagation and cancellation paths.
 
 ### Documentation
 
