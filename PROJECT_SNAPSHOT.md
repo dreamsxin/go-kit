@@ -37,13 +37,13 @@ That layering should remain intact during refactors.
 
 ## Current Refactor Status
 
-The repository is in an active structural-cleanup phase.
+The repository is in a release-stabilization phase for `v1.5.0`.
 
 Current priority summary:
 
-1. keep the current `v0.8 Beta` release posture explicit until the v1.0 checklist in `RELEASE.md` is complete
-2. finish the remaining `v0.9 AI Interaction Preview` hardening work around gRPC streaming runtime behavior, then AI interaction runtime contracts
-3. keep extend-mode and generated-output guarantees documented and compatibility-safe while adding preview interaction protocols
+1. keep the `v1.5.0` stable scope limited to documented core runtime and `microgen` generated-output behavior
+2. keep `interaction`, `interaction/mcp`, WebSocket, and future interaction adapters explicitly preview
+3. run the final `v1.5.0` release validation loop before tagging
 
 ## AI Roadmap Status
 
@@ -55,16 +55,16 @@ Current state:
 - Phase 4 Config And Runtime Confidence: implemented.
 - Phase 5 Agent Workflow Packaging: implemented.
 - Phase 6 Interaction Contract IR: partially implemented. `MethodKind` now models unary, server-stream, client-stream, bidirectional-stream, WebSocket-session, and event-source shapes; cancellation/timeout metadata, error/event envelopes, and Go IDL syntax for non-unary shapes remain open.
-- Phase 7 gRPC Streaming: preview release candidate. Proto streaming declarations now generate service contracts, gRPC server adapters, transport client helpers, SDK streaming clients, and integration tests for success, error propagation, cancellation, synchronous callback backpressure behavior, and slow-consumer context deadline behavior across server-stream, client-stream, and bidirectional-stream flows. Release validation passed on 2026-05-17.
+- Phase 7 gRPC Streaming: stable generated-output behavior for supported Proto stream shapes in `v1.5.0`. Proto streaming declarations now generate service contracts, gRPC server adapters, transport client helpers, SDK streaming clients, and integration tests for success, error propagation, cancellation, synchronous callback backpressure behavior, and slow-consumer context deadline behavior across server-stream, client-stream, and bidirectional-stream flows.
 - Phase 8 WebSocket Transport: optional preview only. It should not block v1.0 unless a concrete browser/session product requirement is adopted.
 - Phase 9 AI Interaction Runtime: in progress. The `interaction` preview package now provides transport-neutral session, event, tool registry, runtime, hook, authorization, and audit contracts with in-memory implementations. `interaction/mcp` now provides a preview MCP-style JSON-RPC HTTP endpoint for `initialize`, `tools/list`, and `tools/call`. Generated README output now explains the split between `/skill?format=mcp` discovery and executable `interaction` runtime endpoints. `examples/interaction_policy` now shows production-style authorization and audit hook composition. Durable storage examples and additional transport adapters remain open.
-- Phase 10 Industrial v1.0 Hardening: planned. Compatibility freeze, release governance, security hardening, OpenTelemetry guidance, and final validation matrix remain open.
+- Phase 10 Industrial v1.0 Hardening: planned. Full v1.0 compatibility freeze, broader security hardening, OpenTelemetry guidance, and final v1.0 validation matrix remain open.
 
 Next recommended task:
 
-1. `v1.5.0-preview.1` has been prepared as the preview release for gRPC streaming and the first AI interaction runtime preview.
-2. Build the next AI interaction slice on top of the new `interaction` package, preferably production storage/policy examples or transport adapters that consume the runtime contracts.
-3. Keep WebSocket as optional preview until the interaction runtime has a concrete browser/session requirement.
+1. Run the final `v1.5.0` release validation loop from [RELEASE.md](RELEASE.md).
+2. If validation passes, tag `v1.5.0` as stable for the documented core/generator scope.
+3. Keep `interaction`, `interaction/mcp`, WebSocket, and future generated interaction adapters as preview surfaces.
 
 Latest release validation:
 
@@ -72,7 +72,7 @@ Latest release validation:
 - `go test ./tools/... -run "Test(Microgen|ReadmeQuickStartSmoke)" -count=1 -v`
 - `go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils -count=1`
 - `go test ./tools/... -run TestSKILL -count=1 -v`
-- `go test ./interaction/... -count=1`
+- `go test ./interaction/... ./examples/interaction_policy/... -count=1`
 - `git diff --check`
 
 All passed on 2026-05-17.

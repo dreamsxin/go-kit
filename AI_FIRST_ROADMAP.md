@@ -21,8 +21,10 @@ Primary path:
 Current posture:
 
 ```text
-v0.8 Beta
+v1.5.0 Stable candidate
 ```
+
+The `v1.5.0` stable scope covers the documented core runtime and `microgen` generated-output behavior. `interaction`, `interaction/mcp`, WebSocket, and future generated interaction adapters remain preview surfaces.
 
 The next product target is:
 
@@ -155,7 +157,7 @@ Remaining:
 ## Phase 7: gRPC Streaming
 
 Status:
-- In progress. Server-stream, client-stream, and bidirectional-stream service adapters, gRPC server adapters, transport client helpers, and SDK streaming clients are generated from Proto contracts.
+- Implemented as stable generated-output behavior for supported Proto stream shapes in `v1.5.0`. Server-stream, client-stream, and bidirectional-stream service adapters, gRPC server adapters, transport client helpers, and SDK streaming clients are generated from Proto contracts.
 
 Goal:
 - Make gRPC streaming a first-class generated transport and SDK surface.
@@ -171,7 +173,7 @@ Deliverables:
 - integration tests for slow-consumer context deadline behavior
 
 Remaining:
-- release validation and preview documentation cleanup before tagging the next preview/stable release
+- final `v1.5.0` release validation and tag
 
 ## Phase 8: WebSocket Transport
 

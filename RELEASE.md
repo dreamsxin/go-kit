@@ -96,7 +96,7 @@ Release posture:
 - [x] gRPC streaming support is documented and integration-tested for success, errors, cancellation, backpressure, and slow-consumer behavior
 - [x] AI interaction preview has package tests, MCP endpoint tests, policy hook tests, and an example
 - [ ] Final release validation passes on the release commit
-- [ ] `CHANGELOG.md` has a `v1.5.0` section with date and stable/preview split
+- [x] `CHANGELOG.md` has a `v1.5.0` section with date and stable/preview split
 - [ ] Annotated `v1.5.0` tag points at the release commit
 
 ## v1.0 Checklist
@@ -129,7 +129,6 @@ For `v1.5.0`, this loop is the required release validation. WebSocket is not req
 
 Current open release gaps before `v1.5.0`:
 
-- Move unreleased changelog entries into a `v1.5.0` section.
 - Run final release validation on the release commit.
 - Create an annotated `v1.5.0` tag.
 - Keep `interaction`, `interaction/mcp`, and WebSocket explicitly marked as preview.

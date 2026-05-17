@@ -6,6 +6,16 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 
 ## Unreleased
 
+No unreleased changes yet.
+
+## v1.5.0 - 2026-05-17
+
+### Stable
+
+- Promoted documented core runtime and `microgen` generated-output behavior to the `v1.5.0` stable release scope.
+- Promoted generated Proto gRPC streaming support for supported server-stream, client-stream, and bidirectional-stream RPC shapes to stable generated-output behavior.
+- Documented the `v1.5.0` stable scope and compatibility boundary across release, stability, workflow, and migration docs.
+
 ### Preview
 
 - Added transport-neutral `interaction.AuthorizationHook` and `interaction.AuditHook` preview helpers for tool-call policy and audit integration.
