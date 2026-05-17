@@ -6,7 +6,9 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 
 ## Unreleased
 
-No unreleased changes yet.
+### Documentation
+
+- Added `OBSERVABILITY.md` with tracing, metrics, logging, request correlation, and OpenTelemetry integration guidance.
 
 ## v1.5.0 - 2026-05-17
 

@@ -56,7 +56,7 @@ Partially complete:
 
 Not started:
 
-- Phase 10 Industrial v1.0 Hardening
+- none
 
 Optional:
 
@@ -229,7 +229,7 @@ Remaining:
 ## Phase 10: Industrial v1.0 Hardening
 
 Status:
-- Planned.
+- Started. Observability and OpenTelemetry guidance is now documented without making OpenTelemetry a core runtime dependency.
 
 Goal:
 - Graduate from beta/preview to an industrial Go framework release.
@@ -240,3 +240,11 @@ Deliverables:
 - OpenTelemetry tracing and metrics guidance
 - compatibility freeze for stable runtime APIs and default generated output
 - CI and release validation matrix that includes streaming, WebSocket, and AI interaction tests
+
+Implemented:
+- Observability guidance for request correlation, endpoint metrics, logging, transport hooks, and OpenTelemetry integration.
+
+Remaining:
+- full v1.0 API and generated-output compatibility freeze
+- security hardening guidance for authn/authz and request limits
+- final CI matrix for supported Go versions and required toolchains

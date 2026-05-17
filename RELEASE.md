@@ -109,7 +109,7 @@ Release posture:
 - [ ] WebSocket transport documented and integration-tested if enabled as a supported preview surface
 - [ ] AI interaction runtime documented and integration-tested
 - [ ] Auth, limits, and audit hooks documented for generated services
-- [ ] OpenTelemetry tracing/metrics guidance documented
+- [x] OpenTelemetry tracing/metrics guidance documented
 - [ ] Release validation command set documented and repeatable
 
 ## Release Validation

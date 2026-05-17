@@ -56,6 +56,8 @@ Use it when you know you need "the right doc" but do not want to hunt through th
   Stable, semi-stable, and internal surface expectations.
 - [PACKAGE_SURFACES.md](PACKAGE_SURFACES.md)
   Package-level public/internal contract guidance.
+- [OBSERVABILITY.md](OBSERVABILITY.md)
+  Tracing, metrics, logging, request correlation, and OpenTelemetry integration guidance.
 
 ### Understand Target Architecture
 
@@ -83,6 +85,8 @@ Use it when you know you need "the right doc" but do not want to hunt through th
   Endpoint concepts, composition, and middleware layer behavior.
 - [transport/README.md](transport/README.md)
   HTTP/gRPC transport hook semantics and transport-level expectations.
+- [OBSERVABILITY.md](OBSERVABILITY.md)
+  Cross-layer observability guidance for endpoint middleware, transport hooks, and OpenTelemetry.
 - [sd/README.md](sd/README.md)
   Service discovery overview.
 - [sd/consul/README.md](sd/consul/README.md)
