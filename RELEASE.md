@@ -5,19 +5,26 @@ Purpose:
 
 ## Current Release Position
 
-`go-kit` should currently be treated as:
+`go-kit` is preparing for:
 
 ```text
-v0.8 Beta
+v1.5.0 Stable
 ```
 
-This means:
+Stable in this release means:
 
-- core runtime layering and `microgen` generation are usable for internal projects, prototypes, and controlled pilots
-- generated output and documented CLI flags are compatibility-sensitive
-- advanced interaction protocols, security policy, observability policy, and release governance are still being hardened before v1.0
+- the core `service -> endpoint -> transport` runtime layering is the supported product contract
+- documented `kit`, `endpoint`, HTTP transport, service discovery, logging, and `microgen` CLI behavior are compatibility-sensitive
+- generated unary HTTP/gRPC projects, config loading, extend mode, AI skill metadata, and Proto gRPC streaming generation are covered by release validation
 
-Do not describe the project as an industrial v1.0 framework until the v1.0 checklist below is complete.
+Preview surfaces remain preview even in a stable release:
+
+- `interaction`
+- `interaction/mcp`
+- optional WebSocket work
+- future generated interaction adapters
+
+Do not describe the preview surfaces as stable industrial APIs until they graduate in [STABILITY.md](STABILITY.md).
 
 ## Version Targets
 
@@ -67,6 +74,31 @@ Release posture:
 - stable public framework release
 - breaking changes require a documented migration path
 
+### v1.5.0 Stable
+
+Scope:
+
+- stable core runtime and documented `microgen` generation behavior
+- generated Proto gRPC streaming support promoted from preview candidate to stable generated-output behavior for supported Proto stream shapes
+- AI interaction runtime remains preview and explicitly out of the stable compatibility promise
+
+Release posture:
+
+- suitable for stable adoption of the documented core framework and generator surfaces
+- preview packages may still evolve with changelog and migration notes
+
+## v1.5.0 Stable Checklist
+
+- [x] Stable scope excludes preview `interaction`, `interaction/mcp`, and WebSocket surfaces
+- [x] Stable package surfaces are documented in [STABILITY.md](STABILITY.md)
+- [x] Generated output compatibility expectations are documented in [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
+- [x] `CHANGELOG.md` distinguishes stable and preview changes
+- [x] gRPC streaming support is documented and integration-tested for success, errors, cancellation, backpressure, and slow-consumer behavior
+- [x] AI interaction preview has package tests, MCP endpoint tests, policy hook tests, and an example
+- [ ] Final release validation passes on the release commit
+- [ ] `CHANGELOG.md` has a `v1.5.0` section with date and stable/preview split
+- [ ] Annotated `v1.5.0` tag points at the release commit
+
 ## v1.0 Checklist
 
 - [ ] Public API freeze for stable packages in `STABILITY.md`
@@ -89,17 +121,18 @@ go test ./cmd/microgen/... -count=1
 go test ./tools/... -run "Test(Microgen|ReadmeQuickStartSmoke)" -count=1 -v
 go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils -count=1
 go test ./tools/... -run TestSKILL -count=1 -v
+go test ./interaction/... ./examples/interaction_policy/... -count=1
 git diff --check
 ```
 
-Before v1.0, add streaming, WebSocket, and AI interaction integration suites to this loop.
+For `v1.5.0`, this loop is the required release validation. WebSocket is not required because it is not in the stable release scope.
 
-Current open release gaps:
+Current open release gaps before `v1.5.0`:
 
-- `v1.5.0-preview.1` was released on 2026-05-17 for the gRPC streaming preview and initial AI interaction runtime preview. It should not be described as an industrial stable surface.
-- AI interaction runtime production adapters, generated-project orientation, auth/audit examples, and hardening remain open.
-- WebSocket remains optional and should not block v1.0 unless it becomes an accepted supported preview surface.
-- Security hardening, OpenTelemetry guidance, and compatibility-freeze docs still need final release work.
+- Move unreleased changelog entries into a `v1.5.0` section.
+- Run final release validation on the release commit.
+- Create an annotated `v1.5.0` tag.
+- Keep `interaction`, `interaction/mcp`, and WebSocket explicitly marked as preview.
 
 Latest validation result for `v1.5.0-preview.1`:
 

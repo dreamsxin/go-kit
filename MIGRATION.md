@@ -5,7 +5,9 @@ Purpose:
 
 ## Current Status
 
-There is no v1.0 compatibility promise yet. The current release posture is `v0.8 Beta`.
+There is no v1.0 compatibility promise yet. The current release posture is preparing for `v1.5.0 Stable`.
+
+`v1.5.0` stabilizes the documented core runtime and `microgen` generated-output behavior, but does not stabilize preview packages such as `interaction`, `interaction/mcp`, optional WebSocket work, or future generated interaction adapters.
 
 For now, treat these as compatibility-sensitive:
 
@@ -29,12 +31,14 @@ When upgrading between pre-v1 releases:
 
 ### Generated Interaction Protocols
 
-The upcoming streaming, WebSocket, and AI interaction features will start as preview surfaces.
+Generated Proto gRPC streaming is part of the `v1.5.0` generated-output contract for supported Proto stream shapes.
+
+WebSocket and AI interaction adapters remain preview surfaces.
 
 Expected migration risk:
 
-- generated transport file layout may change while preview APIs settle
-- stream endpoint abstractions may change before v1.0
+- WebSocket transport file layout may change while preview APIs settle
+- AI interaction adapters may change before v1.0
 - AI interaction session/event envelope may change before v1.0
 
 Migration guidance will be added here when those preview features land.

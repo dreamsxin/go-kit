@@ -41,9 +41,11 @@ Meaning:
 
 ## Release Posture
 
-The project is currently `v0.8 Beta`.
+The project is preparing for `v1.5.0 Stable`.
 
-Current stable and semi-stable labels describe intended direction, not a v1.0 compatibility freeze. The v1.0 freeze happens only after the checklist in [RELEASE.md](RELEASE.md) is complete.
+Stable in `v1.5.0` applies to the documented core runtime, documented `microgen` CLI behavior, and validated generated output. It does not graduate preview surfaces such as `interaction`, `interaction/mcp`, optional WebSocket work, or future generated interaction adapters.
+
+The full v1.0 industrial compatibility freeze happens only after the v1.0 checklist in [RELEASE.md](RELEASE.md) is complete.
 
 Preview surfaces must be documented as preview until they graduate into the stable or semi-stable tables below.
 
@@ -60,7 +62,7 @@ Preview surfaces must be documented as preview until they graduate into the stab
 | `transport/grpc/server` | Semi-stable | Public, but less simplified than HTTP path |
 | `transport/grpc/client` | Semi-stable | Public, but should be treated as evolving |
 | `transport/ws` | Preview | Optional planned WebSocket transport for browser/session interaction requirements |
-| gRPC streaming transport | Preview | Generated Proto streaming surface for server/client/bidirectional streams; runtime hardening still in progress |
+| gRPC streaming transport | Stable | Generated Proto streaming surface for supported server/client/bidirectional stream shapes; validated through integration coverage |
 | `interaction` | Preview | Minimal session/event/tool-call runtime contracts, auth/audit hooks, in-memory preview implementations, and MCP-style HTTP endpoint preview |
 | AI interaction runtime | Preview | Broader generated interaction-server runtime is still planned |
 | `sd` | Stable | Public service discovery and endpoint wiring surface |

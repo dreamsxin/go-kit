@@ -161,11 +161,15 @@ Recommended sequence:
 Suggested commands:
 
 ```bash
-go build ./...
-go test -race ./...
-go test ./tools/... -v
-golangci-lint run
+go test ./cmd/microgen/... -count=1
+go test ./tools/... -run "Test(Microgen|ReadmeQuickStartSmoke)" -count=1 -v
+go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils -count=1
+go test ./tools/... -run TestSKILL -count=1 -v
+go test ./interaction/... ./examples/interaction_policy/... -count=1
+git diff --check
 ```
+
+For broader regression work, also run `go build ./...`, `go test -race ./...`, and `golangci-lint run` when the local environment has the required tooling.
 
 ## Practical Validation Matrix
 
