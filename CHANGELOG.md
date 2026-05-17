@@ -9,6 +9,7 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 ### Preview
 
 - Added transport-neutral `interaction.AuthorizationHook` and `interaction.AuditHook` preview helpers for tool-call policy and audit integration.
+- Updated generated README output to explain that `/skill?format=mcp` is discovery metadata and executable AI sessions should use the `interaction` runtime and `interaction/mcp` preview adapter.
 
 ## v1.5.0-preview.1 - 2026-05-17
 

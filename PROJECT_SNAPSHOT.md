@@ -57,13 +57,13 @@ Current state:
 - Phase 6 Interaction Contract IR: partially implemented. `MethodKind` now models unary, server-stream, client-stream, bidirectional-stream, WebSocket-session, and event-source shapes; cancellation/timeout metadata, error/event envelopes, and Go IDL syntax for non-unary shapes remain open.
 - Phase 7 gRPC Streaming: preview release candidate. Proto streaming declarations now generate service contracts, gRPC server adapters, transport client helpers, SDK streaming clients, and integration tests for success, error propagation, cancellation, synchronous callback backpressure behavior, and slow-consumer context deadline behavior across server-stream, client-stream, and bidirectional-stream flows. Release validation passed on 2026-05-17.
 - Phase 8 WebSocket Transport: optional preview only. It should not block v1.0 unless a concrete browser/session product requirement is adopted.
-- Phase 9 AI Interaction Runtime: in progress. The `interaction` preview package now provides transport-neutral session, event, tool registry, runtime, hook, authorization, and audit contracts with in-memory implementations. `interaction/mcp` now provides a preview MCP-style JSON-RPC HTTP endpoint for `initialize`, `tools/list`, and `tools/call`. Generated-project orientation, production storage/policy examples, and additional transport adapters remain open.
+- Phase 9 AI Interaction Runtime: in progress. The `interaction` preview package now provides transport-neutral session, event, tool registry, runtime, hook, authorization, and audit contracts with in-memory implementations. `interaction/mcp` now provides a preview MCP-style JSON-RPC HTTP endpoint for `initialize`, `tools/list`, and `tools/call`. Generated README output now explains the split between `/skill?format=mcp` discovery and executable `interaction` runtime endpoints. Production storage/policy examples and additional transport adapters remain open.
 - Phase 10 Industrial v1.0 Hardening: planned. Compatibility freeze, release governance, security hardening, OpenTelemetry guidance, and final validation matrix remain open.
 
 Next recommended task:
 
 1. `v1.5.0-preview.1` has been prepared as the preview release for gRPC streaming and the first AI interaction runtime preview.
-2. Build the next AI interaction slice on top of the new `interaction` package, preferably generated-project orientation for interaction services or production storage/policy examples.
+2. Build the next AI interaction slice on top of the new `interaction` package, preferably production storage/policy examples or transport adapters that consume the runtime contracts.
 3. Keep WebSocket as optional preview until the interaction runtime has a concrete browser/session requirement.
 
 Latest release validation:

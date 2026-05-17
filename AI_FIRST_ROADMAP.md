@@ -194,7 +194,7 @@ Decision gate:
 ## Phase 9: AI Interaction Runtime
 
 Status:
-- In progress. The `interaction` preview package now defines the first transport-neutral session, event, tool registry, runtime, hook, authorization, and audit contracts with in-memory implementations. `interaction/mcp` adds the first MCP-style JSON-RPC HTTP endpoint preview for listing and calling registered runtime tools.
+- In progress. The `interaction` preview package now defines the first transport-neutral session, event, tool registry, runtime, hook, authorization, and audit contracts with in-memory implementations. `interaction/mcp` adds the first MCP-style JSON-RPC HTTP endpoint preview for listing and calling registered runtime tools. Generated project README output now explains the split between `/skill?format=mcp` discovery and executable `interaction` runtime endpoints.
 
 Goal:
 - Move from tool discovery only to an interaction server runtime that can host AI-facing sessions and tool-call loops.
@@ -217,9 +217,9 @@ Implemented:
 - `interaction.AuditHook`
 - in-memory preview implementations for local testing and generated-project experiments
 - MCP-style HTTP endpoint preview for `initialize`, `tools/list`, and `tools/call`
+- generated README orientation for interaction services
 
 Remaining:
-- generated project orientation for interaction services
 - production storage and policy examples for auth/audit sinks
 - transport adapters that consume the runtime contracts
 
