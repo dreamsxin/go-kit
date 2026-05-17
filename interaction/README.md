@@ -23,6 +23,8 @@ Current entry points:
 - `NewMemoryToolRegistry`
 - `ToolFunc`
 - `HookFuncs`
+- `AuthorizationHook`
+- `AuditHook`
 - `mcp.NewHandler`
 
 The `interaction/mcp` subpackage provides a preview MCP-style JSON-RPC HTTP
@@ -35,6 +37,17 @@ adapter for the runtime:
 It is separate from generated `/skill?format=mcp` output. `/skill?format=mcp`
 describes available tools, while `interaction/mcp` can execute registered
 runtime tools inside interaction sessions.
+
+Policy hooks:
+
+- `AuthorizationHook` runs before a tool call and returns `ErrUnauthorized`
+  when the configured `Authorizer` denies access.
+- `AuditHook` records before/after tool-call audit records through an
+  application-provided `AuditSink`.
+
+These hooks are intentionally transport-neutral. HTTP, gRPC streaming,
+WebSocket, and MCP adapters should pass subject and request metadata into the
+runtime rather than implementing separate policy stacks per transport.
 
 Preview limits:
 

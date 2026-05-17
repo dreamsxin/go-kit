@@ -140,6 +140,8 @@ Recommended entry points:
 - `interaction.NewMemoryToolRegistry`
 - `interaction.ToolFunc`
 - `interaction.HookFuncs`
+- `interaction.AuthorizationHook`
+- `interaction.AuditHook`
 - `interaction/mcp.NewHandler`
 
 Approved extension points:
@@ -148,6 +150,8 @@ Approved extension points:
 - custom `EventSink`
 - custom `ToolRegistry`
 - custom `Hook`
+- custom `Authorizer`
+- custom `AuditSink`
 - HTTP adapters around `interaction.Runtime`
 
 Do not depend on:

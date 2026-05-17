@@ -10,4 +10,5 @@ var (
 	ErrToolNotFound    = errors.New("interaction: tool not found")
 	ErrSessionNotFound = errors.New("interaction: session not found")
 	ErrSessionClosed   = errors.New("interaction: session closed")
+	ErrUnauthorized    = errors.New("interaction: unauthorized")
 )
