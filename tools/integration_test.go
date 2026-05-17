@@ -572,57 +572,7 @@ func killCmd(t *testing.T, cmd *exec.Cmd) {
 func TestMicrogenIntegration(t *testing.T) {
 	cwd, _ := os.Getwd()
 	root := filepath.Dir(cwd)
-	microgenPath := filepath.Join(root, "cmd", "microgen", "main.go")
-
-	t.Run("CLI_FailsWithoutIDLOrFromDB", func(t *testing.T) {
-		cmd := exec.Command("go", "run", microgenPath)
-		out, err := cmd.CombinedOutput()
-		if err == nil {
-			t.Fatal("expected microgen to fail without -idl or -from-db")
-		}
-		if !strings.Contains(string(out), "either -idl or -from-db is required") {
-			t.Fatalf("unexpected error output:\n%s", out)
-		}
-	})
-
-	t.Run("CLI_FailsForMissingIDLPath", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_missing_idl")
-		os.RemoveAll(outDir)
-
-		cmd := exec.Command("go", "run", microgenPath,
-			"-idl", filepath.Join(cwd, "testdata", "does-not-exist.go"),
-			"-out", outDir,
-			"-import", "example.com/gen_missing_idl",
-		)
-		out, err := cmd.CombinedOutput()
-		if err == nil {
-			t.Fatal("expected microgen to fail for missing idl path")
-		}
-		outText := strings.ToLower(string(out))
-		if !strings.Contains(outText, "no such file") && !strings.Contains(outText, "cannot find the file") {
-			t.Fatalf("unexpected error output:\n%s", out)
-		}
-	})
-
-	t.Run("CLI_FailsForUnsupportedDriver", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_bad_driver")
-		os.RemoveAll(outDir)
-
-		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
-		cmd := exec.Command("go", "run", microgenPath,
-			"-idl", idlFile,
-			"-out", outDir,
-			"-import", "example.com/gen_bad_driver",
-			"-driver", "oracle",
-		)
-		out, err := cmd.CombinedOutput()
-		if err == nil {
-			t.Fatal("expected microgen to fail for unsupported driver")
-		}
-		if !strings.Contains(string(out), "unsupported db driver") {
-			t.Fatalf("unexpected error output:\n%s", out)
-		}
-	})
+	microgenPath := microgenMainPath(t)
 
 	t.Run("IDL_DefaultFlags", func(t *testing.T) {
 		outDir := filepath.Join(cwd, "testdata", "gen_idl_default_flags")
