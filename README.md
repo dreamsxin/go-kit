@@ -5,29 +5,42 @@
 
 English | [简体中文](README_zh.md)
 
-`go-kit` is a Go microservice framework built around a simple idea:
+`go-kit` is a Go microservice framework built around one stable architecture:
 
 ```text
 Service -> Endpoint -> Transport
 ```
 
-You define the service capability once, then `microgen` generates a runnable project with HTTP routes, optional gRPC, config, SDKs, and AI tool metadata.
+Define the service contract once. `microgen` generates a runnable project with HTTP routes, optional gRPC, config, clients, SDKs, generated docs, and AI tool discovery metadata.
 
 ## Release Status
 
-Current posture:
+Current release:
 
 ```text
-v0.8 Beta
+v1.5.0 Stable
 ```
 
-The framework is suitable for internal services, prototypes, and controlled production trials where the owning team accepts pre-v1 evolution. It is not yet an industrial v1.0 release.
+Stable scope:
 
-The next roadmap target is `v0.9 AI Interaction Preview`, focused on gRPC streaming, WebSocket transport, and AI interaction runtime support. See [RELEASE.md](RELEASE.md) and [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md).
+- core `service -> endpoint -> transport` runtime layering
+- documented `kit`, `endpoint`, HTTP transport, service discovery, logging, and `microgen` CLI behavior
+- generated unary HTTP/gRPC projects
+- generated config, extend mode, clients, SDKs, and AI skill metadata
+- generated Proto gRPC streaming for supported server-stream, client-stream, and bidirectional-stream RPC shapes
 
-## Start Here: Generate A Local Service
+Preview surfaces:
 
-Use this path when you want a new service that a human or AI agent can continue working on.
+- `interaction`
+- `interaction/mcp`
+- optional WebSocket work
+- future generated interaction adapters
+
+Preview APIs may evolve before v1.0. See [RELEASE.md](RELEASE.md), [STABILITY.md](STABILITY.md), and [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md).
+
+## Quick Start: Generate A Local Service
+
+Use this path when you want a new service that a human or AI coding agent can continue working on.
 
 ### 1. Install `microgen`
 
@@ -73,9 +86,7 @@ go mod tidy
 go run ./cmd/main.go
 ```
 
-### 5. Check the generated service
-
-In another terminal:
+### 5. Inspect the service
 
 ```bash
 curl http://localhost:8080/health
@@ -84,29 +95,31 @@ curl http://localhost:8080/skill
 curl "http://localhost:8080/skill?format=mcp"
 ```
 
-The generated business method initially returns a scaffolded “not implemented” error. Add real behavior in:
+The generated business method initially returns a scaffolded `not implemented` error. Add real behavior in:
 
 ```text
 service/helloservice/service.go
 ```
 
-## Let AI Continue The Work
+## AI Agent Workflow
 
 After generation, give your AI coding agent these files and runtime surfaces first:
 
-- `README.md` in the generated project
-- `idl.go`, the source contract snapshot
+- generated `README.md`
+- `idl.go`, the source contract snapshot when generated from Go IDL
 - `service/<name>/service.go`, where business logic belongs
 - `GET /debug/routes`, the live route map
-- `GET /skill?format=mcp`, the MCP tool view
+- `GET /skill?format=mcp`, the AI tool discovery view
 
 Recommended prompt:
 
 ```text
 Read README.md and idl.go first. Keep business logic in service/<name>/service.go.
 Do not hand-edit generator-owned files such as cmd/generated_*.go, endpoint/*/generated_chain.go, or skill/.
-Use /debug/routes and /skill?format=mcp to understand the current service surface.
+Use /debug/routes and /skill?format=mcp to understand the generated capability surface.
 ```
+
+`/skill?format=mcp` is discovery metadata, not a tool execution endpoint. For executable AI sessions, use the preview `interaction` runtime and `interaction/mcp` adapter.
 
 ## Where To Edit
 
@@ -159,7 +172,9 @@ microgen -idl idl.go -out . -import example.com/mysvc
 microgen -idl service.proto -out . -import example.com/mysvc -protocols http,grpc
 ```
 
-For proto projects, review generated proto assets under `pb/`, run `protoc`, then start the service.
+For Proto projects, review generated proto assets under `pb/`, run `protoc`, then start the service.
+
+Proto streaming RPCs are supported for generated gRPC output when the contract uses supported server-stream, client-stream, or bidirectional-stream shapes.
 
 ### From Database
 
@@ -190,27 +205,37 @@ microgen -idl idl.go -out . -import example.com/mysvc -config-mode remote -remot
 
 Environment overrides use the `APP_` prefix, such as `APP_HTTP_ADDR`, `APP_LOG_LEVEL`, and `APP_REMOTE_ENABLED`.
 
-## AI And MCP Integration
+## AI And MCP
 
 Generated services expose AI-readable tool definitions when skill generation is enabled. It is enabled by default.
 
-- OpenAI-style tools: `GET /skill`
-- MCP-style tools: `GET /skill?format=mcp`
+- OpenAI-style tool descriptors: `GET /skill`
+- MCP-style tool descriptors: `GET /skill?format=mcp`
 
-Responses include `metadata` with:
+Responses include metadata:
 
 - `schemaVersion`, currently `microgen.skill.v1`
 - `source`, currently `microgen-ir`
 - `services`
 - `formats`
 
-This lets AI agents discover service methods as callable tools without reverse-engineering HTTP handlers.
+For executable AI sessions and tool-call loops, use preview packages:
 
-Planned preview work:
+- `interaction.NewRuntime` for sessions, events, tools, and hooks
+- `interaction.AuthorizationHook` and `interaction.AuditHook` for policy and audit
+- `interaction/mcp.NewHandler` for the preview MCP-style JSON-RPC HTTP adapter
 
-- gRPC streaming for server-stream, client-stream, and bidirectional-stream methods
-- WebSocket transport for browser and agent interaction loops
-- AI interaction runtime for sessions, events, tool calls, cancellation, and audit hooks
+See [interaction/README.md](interaction/README.md) and [examples/interaction_policy](examples/interaction_policy).
+
+## Production Guidance
+
+Read these before production adoption:
+
+- [RELEASE.md](RELEASE.md) for release scope and validation
+- [STABILITY.md](STABILITY.md) for stable, semi-stable, preview, and internal surfaces
+- [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md) for generated-output compatibility
+- [OBSERVABILITY.md](OBSERVABILITY.md) for tracing, metrics, logging, request correlation, and OpenTelemetry integration
+- [SECURITY_HARDENING.md](SECURITY_HARDENING.md) for authn/authz, request limits, audit, secrets, and generated-project hardening
 
 ## Architecture
 

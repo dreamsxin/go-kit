@@ -5,29 +5,42 @@
 
 [English](README.md) | 简体中文
 
-`go-kit` 是一个围绕清晰分层构建的 Go 微服务框架：
+`go-kit` 是一个围绕稳定分层构建的 Go 微服务框架：
 
 ```text
 Service -> Endpoint -> Transport
 ```
 
-你只需要定义一次服务能力，`microgen` 就可以生成一个可运行项目，包括 HTTP 路由、可选 gRPC、配置、SDK，以及 AI 工具元数据。
+你只需要定义一次服务契约，`microgen` 就可以生成可运行项目，包括 HTTP 路由、可选 gRPC、配置、客户端、SDK、生成文档，以及 AI 工具发现元数据。
 
 ## 发布状态
 
-当前定位：
+当前发布：
 
 ```text
-v0.8 Beta
+v1.5.0 Stable
 ```
 
-本框架适合内部服务、原型项目，以及团队接受 pre-v1 演进的受控生产试点。它还不是工业级 v1.0 正式发布。
+稳定范围：
 
-下一阶段目标是 `v0.9 AI Interaction Preview`，重点是 gRPC 流式接口、WebSocket transport，以及 AI 交互运行时。详见 [RELEASE.md](RELEASE.md) 和 [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md)。
+- 核心 `service -> endpoint -> transport` 运行时分层
+- 已文档化的 `kit`、`endpoint`、HTTP transport、服务发现、日志和 `microgen` CLI 行为
+- 生成的 unary HTTP/gRPC 项目
+- 生成配置、extend 模式、客户端、SDK 和 AI skill 元数据
+- 支持的 server-stream、client-stream、bidirectional-stream Proto gRPC 生成输出
 
-## 从这里开始：本地生成一个服务
+仍为 preview 的能力：
 
-如果你想创建一个新服务，并让人或 AI 继续开发，推荐走这条路径。
+- `interaction`
+- `interaction/mcp`
+- 可选 WebSocket 工作
+- 未来生成的 interaction adapters
+
+Preview API 在 v1.0 前仍可能演进。详见 [RELEASE.md](RELEASE.md)、[STABILITY.md](STABILITY.md) 和 [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md)。
+
+## 快速开始：本地生成服务
+
+如果你想创建一个新服务，并让人或 AI 编程助手继续开发，推荐走这条路径。
 
 ### 1. 安装 `microgen`
 
@@ -73,9 +86,7 @@ go mod tidy
 go run ./cmd/main.go
 ```
 
-### 5. 检查生成服务
-
-另开一个终端：
+### 5. 检查服务
 
 ```bash
 curl http://localhost:8080/health
@@ -84,29 +95,31 @@ curl http://localhost:8080/skill
 curl "http://localhost:8080/skill?format=mcp"
 ```
 
-刚生成的业务方法会返回脚手架的 “not implemented” 错误。真实业务逻辑写在：
+刚生成的业务方法会返回脚手架的 `not implemented` 错误。真实业务逻辑写在：
 
 ```text
 service/helloservice/service.go
 ```
 
-## 让 AI 快速接手
+## AI Agent 工作流
 
 生成项目后，优先把这些文件和运行时信息交给 AI 编程助手：
 
 - 生成项目里的 `README.md`
-- `idl.go`，服务契约快照
+- `idl.go`，从 Go IDL 生成时的服务契约快照
 - `service/<name>/service.go`，业务逻辑文件
 - `GET /debug/routes`，实时路由表
-- `GET /skill?format=mcp`，MCP 工具视图
+- `GET /skill?format=mcp`，AI 工具发现视图
 
 推荐提示词：
 
 ```text
 先阅读 README.md 和 idl.go。业务逻辑只写在 service/<name>/service.go。
 不要手动修改 cmd/generated_*.go、endpoint/*/generated_chain.go、skill/ 等生成器管理文件。
-使用 /debug/routes 和 /skill?format=mcp 理解当前服务能力。
+使用 /debug/routes 和 /skill?format=mcp 理解生成的服务能力。
 ```
+
+`/skill?format=mcp` 是发现元数据，不是工具执行端点。可执行 AI session 应使用 preview `interaction` runtime 和 `interaction/mcp` adapter。
 
 ## 应该改哪里
 
@@ -161,6 +174,8 @@ microgen -idl service.proto -out . -import example.com/mysvc -protocols http,grp
 
 Proto 项目需要先检查 `pb/` 下生成的 proto 资源，运行 `protoc` 后再启动服务。
 
+当 Proto 契约使用支持的 server-stream、client-stream 或 bidirectional-stream 形状时，生成的 gRPC 输出支持流式 RPC。
+
 ### 从数据库生成
 
 ```bash
@@ -190,27 +205,37 @@ microgen -idl idl.go -out . -import example.com/mysvc -config-mode remote -remot
 
 环境变量使用 `APP_` 前缀，例如 `APP_HTTP_ADDR`、`APP_LOG_LEVEL`、`APP_REMOTE_ENABLED`。
 
-## AI 与 MCP 集成
+## AI 与 MCP
 
 启用 skill 生成后，生成服务会暴露 AI 可读的工具定义。默认会启用。
 
-- OpenAI 风格工具：`GET /skill`
-- MCP 风格工具：`GET /skill?format=mcp`
+- OpenAI 风格工具描述：`GET /skill`
+- MCP 风格工具描述：`GET /skill?format=mcp`
 
-响应包含 `metadata`：
+响应包含元数据：
 
 - `schemaVersion`，当前是 `microgen.skill.v1`
 - `source`，当前是 `microgen-ir`
 - `services`
 - `formats`
 
-这样 AI agent 不需要反向分析 HTTP handler，就能发现服务方法并作为工具调用。
+可执行 AI session 和 tool-call loop 使用 preview 包：
 
-规划中的 preview 能力：
+- `interaction.NewRuntime`：session、event、tool 和 hook
+- `interaction.AuthorizationHook` 与 `interaction.AuditHook`：策略和审计
+- `interaction/mcp.NewHandler`：preview MCP 风格 JSON-RPC HTTP adapter
 
-- gRPC server-stream、client-stream、bidirectional-stream 流式方法
-- 面向浏览器和 Agent 交互循环的 WebSocket transport
-- 支持 session、event、tool call、取消和审计 hook 的 AI 交互运行时
+详见 [interaction/README.md](interaction/README.md) 和 [examples/interaction_policy](examples/interaction_policy)。
+
+## 生产指导
+
+生产采用前建议阅读：
+
+- [RELEASE.md](RELEASE.md)：发布范围和验证
+- [STABILITY.md](STABILITY.md)：stable、semi-stable、preview、internal 表面
+- [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)：生成输出兼容性
+- [OBSERVABILITY.md](OBSERVABILITY.md)：tracing、metrics、logging、request correlation 和 OpenTelemetry 集成
+- [SECURITY_HARDENING.md](SECURITY_HARDENING.md)：认证、授权、请求限制、审计、密钥和生成项目安全加固
 
 ## 架构
 
