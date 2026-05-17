@@ -32,7 +32,7 @@ test-microgen:
 	@echo ">>> Running microgen tests..."
 	@go test -v ./cmd/microgen/...
 	@echo ">>> Running microgen integration tests..."
-	@go test -v ./tools/... -run TestMicrogenIntegration
+	@go test -v ./tools/... -run "Test(Microgen|ReadmeQuickStartSmoke)"
 
 test-docs:
 	@echo ">>> Running docs and skill verification..."
