@@ -95,7 +95,7 @@ Release posture:
 - [x] `CHANGELOG.md` distinguishes stable and preview changes
 - [x] gRPC streaming support is documented and integration-tested for success, errors, cancellation, backpressure, and slow-consumer behavior
 - [x] AI interaction preview has package tests, MCP endpoint tests, policy hook tests, and an example
-- [ ] Final release validation passes on the release commit
+- [x] Final release validation passes on the release commit
 - [x] `CHANGELOG.md` has a `v1.5.0` section with date and stable/preview split
 - [ ] Annotated `v1.5.0` tag points at the release commit
 
@@ -129,15 +129,14 @@ For `v1.5.0`, this loop is the required release validation. WebSocket is not req
 
 Current open release gaps before `v1.5.0`:
 
-- Run final release validation on the release commit.
 - Create an annotated `v1.5.0` tag.
 - Keep `interaction`, `interaction/mcp`, and WebSocket explicitly marked as preview.
 
-Latest validation result for `v1.5.0-preview.1`:
+Latest validation result for `v1.5.0`:
 
 - `go test ./cmd/microgen/... -count=1`: passed
 - `go test ./tools/... -run "Test(Microgen|ReadmeQuickStartSmoke)" -count=1 -v`: passed
 - `go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils -count=1`: passed
 - `go test ./tools/... -run TestSKILL -count=1 -v`: passed
-- `go test ./interaction/... -count=1`: passed
+- `go test ./interaction/... ./examples/interaction_policy/... -count=1`: passed
 - `git diff --check`: passed
