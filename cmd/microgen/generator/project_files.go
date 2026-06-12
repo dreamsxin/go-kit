@@ -10,35 +10,37 @@ import (
 func (g *Generator) generateMainFileFull(ctx generationContext) error {
 	dbMeta, _ := supportedDrivers[g.config.DBDriver]
 	data := mainTemplateData{
-		Project:      ctx.project,
-		Services:     ctx.services,
-		Models:       ctx.models,
-		GormModels:   ctx.models,
-		SvcRoutes:    g.serviceRoutes(ctx.project),
-		ImportPath:   g.config.ImportPath,
-		WithDB:       g.config.WithDB,
-		DBDriver:     g.config.DBDriver,
-		DBImportPkg:  dbMeta.ImportPkg,
-		DBOpenCall:   dbMeta.OpenCall,
-		DBDefaultDSN: dbMeta.DefaultDSN,
-		WithConfig:   g.config.WithConfig,
-		WithGRPC:     g.config.WithGRPC,
-		WithSwag:     g.config.WithSwag,
-		WithSkill:    g.config.WithSkill,
+		Project:         ctx.project,
+		Services:        ctx.services,
+		Models:          ctx.models,
+		GormModels:      ctx.models,
+		SvcRoutes:       g.serviceRoutes(ctx.project),
+		ImportPath:      g.config.ImportPath,
+		WithDB:          g.config.WithDB,
+		DBDriver:        g.config.DBDriver,
+		DBImportPkg:     dbMeta.ImportPkg,
+		DBOpenCall:      dbMeta.OpenCall,
+		DBDefaultDSN:    dbMeta.DefaultDSN,
+		WithConfig:      g.config.WithConfig,
+		WithGRPC:        g.config.WithGRPC,
+		WithSwag:        g.config.WithSwag,
+		WithSkill:       g.config.WithSkill,
+		WithInteraction: g.config.WithInteraction,
 	}
 	return g.executeTemplate("main.tmpl", g.layout.cmdMain(), data)
 }
 
 func (g *Generator) generateGeneratedRuntimeFile(ctx generationContext) error {
 	data := generatedRuntimeTemplateData{
-		Project:    ctx.project,
-		GormModels: ctx.models,
-		WithDB:     g.config.WithDB,
-		WithGRPC:   g.config.WithGRPC,
-		WithSwag:   g.config.WithSwag,
-		WithSkill:  g.config.WithSkill,
-		SvcRoutes:  g.serviceRoutes(ctx.project),
-		ImportPath: g.config.ImportPath,
+		Project:         ctx.project,
+		GormModels:      ctx.models,
+		WithDB:          g.config.WithDB,
+		WithGRPC:        g.config.WithGRPC,
+		WithSwag:        g.config.WithSwag,
+		WithSkill:       g.config.WithSkill,
+		WithInteraction: g.config.WithInteraction,
+		SvcRoutes:       g.serviceRoutes(ctx.project),
+		ImportPath:      g.config.ImportPath,
 	}
 	return g.executeTemplate("generated_runtime.tmpl", g.layout.cmdGeneratedRuntime(), data)
 }
@@ -133,12 +135,13 @@ func (g *Generator) generateConfigCodeFile(services []*serviceView) error {
 
 func (g *Generator) generateReadme(ctx generationContext) error {
 	data := readmeTemplateData{
-		Project:        ctx.project,
-		IsProtoInput:   strings.EqualFold(ctx.source, "proto") || strings.HasSuffix(g.config.IDLSrcPath, ".proto"),
-		WithSkill:      g.config.WithSkill,
-		WithConfig:     g.config.WithConfig,
-		ConfigMode:     g.config.ConfigMode,
-		RemoteProvider: g.config.RemoteProvider,
+		Project:         ctx.project,
+		IsProtoInput:    strings.EqualFold(ctx.source, "proto") || strings.HasSuffix(g.config.IDLSrcPath, ".proto"),
+		WithSkill:       g.config.WithSkill,
+		WithInteraction: g.config.WithInteraction,
+		WithConfig:      g.config.WithConfig,
+		ConfigMode:      g.config.ConfigMode,
+		RemoteProvider:  g.config.RemoteProvider,
 	}
 	return g.executeTemplate("readme.tmpl", g.layout.readme(), data)
 }
@@ -165,6 +168,29 @@ func (g *Generator) generateSkillFile(ctx generationContext) error {
 		ImportPath: g.config.ImportPath,
 	}
 	return g.executeTemplate("skill.tmpl", g.layout.skillFile(), data)
+}
+
+func (g *Generator) generateInteractionFile(ctx generationContext) error {
+	data := interactionTemplateData{
+		Project:    ctx.project,
+		Services:   ctx.services,
+		ImportPath: g.config.ImportPath,
+	}
+	return g.executeTemplate("interaction.tmpl", g.layout.cmdGeneratedInteraction(), data)
+}
+
+func (g *Generator) generateAIProjectGuide(ctx generationContext) error {
+	data := aiProjectGuideTemplateData{
+		Project:         ctx.project,
+		ImportPath:      g.config.ImportPath,
+		WithConfig:      g.config.WithConfig,
+		WithDB:          g.config.WithDB,
+		WithGRPC:        g.config.WithGRPC,
+		WithSwag:        g.config.WithSwag,
+		WithSkill:       g.config.WithSkill,
+		WithInteraction: g.config.WithInteraction,
+	}
+	return g.executeTemplate("ai_project_guide.tmpl", g.layout.aiProjectGuide(), data)
 }
 
 func (g *Generator) generateGoModFile() error {

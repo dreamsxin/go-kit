@@ -88,8 +88,9 @@ type UserService interface {
 	PatchStatus(ctx context.Context, req UpdateUserRequest) (UpdateUserResponse, error)
 }
 
-
-type Product struct {
-	ID   uint   `json:"id" gorm:"primaryKey"`
-	Name string `json:"name" gorm:"not null"`
-}
+	
+	type Product struct {
+		ID   uint   `json:"id" gorm:"primaryKey"`
+		Name string `json:"name" gorm:"not null"`
+	}
+	

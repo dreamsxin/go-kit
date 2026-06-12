@@ -72,6 +72,8 @@ func main() {
 
 
 
+
+
 	r := mux.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -86,6 +88,7 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, `{"status":"ok","service":"UserService"}`)
 	}).Methods("GET", "HEAD")
+
 
 
 

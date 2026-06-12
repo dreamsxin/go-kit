@@ -19,11 +19,15 @@ The service capability contract starts from the input definition and is normaliz
 
 When `skill/` is generated, `/skill` exposes OpenAI-style tools and `/skill?format=mcp` exposes MCP-style tool descriptors from that same contract. The response also includes metadata with schema version `microgen.skill.v1`, source, services, and supported formats.
 
+{{- if .WithInteraction }}
+This project also generates an AI interaction runtime. `POST /mcp` exposes an MCP-compliant JSON-RPC 2.0 endpoint (protocol version 2025-06-18) supporting `initialize`, `ping`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, and `logging/setLevel`. Every unary service method is automatically registered as an executable tool backed by the generated endpoints, preserving middleware and policy composition.
+{{- else }}
 `/skill?format=mcp` is discovery output, not a tool execution endpoint. If this project needs AI-facing sessions, tool-call execution, authorization, audit records, or an MCP-style JSON-RPC endpoint, build that runtime surface with the framework `interaction` package:
 
 - `interaction.NewRuntime` for sessions, events, tools, and hooks.
 - `interaction.AuthorizationHook` and `interaction.AuditHook` for transport-neutral policy.
-- `interaction/mcp.NewHandler` for the preview MCP-style `initialize`, `tools/list`, and `tools/call` HTTP adapter.
+- `interaction/mcp.NewHandler` for the MCP-compliant `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, and `logging/setLevel` HTTP adapter.
+{{- end }}
 
 ## Extend Existing Project
 
@@ -53,7 +57,11 @@ Use this loop when an AI agent or maintainer changes the generated project:
 2. Check `GET /debug/routes` and, when enabled, `GET /skill` or `GET /skill?format=mcp` to see the generated route and tool discovery surface.
 3. Put business behavior in user-owned files; do not hand-edit generator-owned files.
 4. For new services, models, or middleware, run `microgen extend -check -out .` before an append command.
+{{- if .WithInteraction }}
+5. The `/mcp` endpoint is ready for AI tool-call loops; change business logic in `service/<name>/service.go` and the tools automatically reflect it.
+{{- else }}
 5. Use `interaction` runtime hooks for executable AI sessions instead of turning generated `skill/` metadata into business logic.
+{{- end }}
 6. Run the smallest relevant validation first, usually `go test ./...`, then start the service with `go run ./cmd/main.go`.
 
 {{- if .WithConfig}}
@@ -95,6 +103,8 @@ Runtime inspection:
 - `GET /debug/routes`
 {{if .WithSkill}}- `GET /skill`
 - `GET /skill?format=mcp`
+{{end}}
+{{if .WithInteraction}}- `POST /mcp` — MCP JSON-RPC 2.0 endpoint (tools, resources, prompts, logging)
 {{end}}
 
 {{if .IsProtoInput}}

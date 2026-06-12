@@ -73,6 +73,8 @@ func main() {
 
 
 
+
+
 	r := mux.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -89,6 +91,7 @@ func main() {
 	}).Methods("GET", "HEAD")
 
 	r.HandleFunc("/skill", skill.Handler).Methods("GET")
+
 
 
 

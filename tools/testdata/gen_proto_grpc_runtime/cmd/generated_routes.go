@@ -21,7 +21,7 @@ func (g generatedServices) generatedRuntime() generatedRuntime {
 	}
 	rt.grpcRegistrars = []func(*grpc.Server){
 		func(server *grpc.Server) {
-			userserviceTransport.RegisterGRPCServer(server, g.userserviceEndpoints)
+			userserviceTransport.RegisterGRPCServer(server, g.userserviceSvc, g.userserviceEndpoints)
 		},
 	}
 	return rt

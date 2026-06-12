@@ -22,17 +22,19 @@ func (rt generatedRuntime) registerRoutes(r *mux.Router) {
 	}
 }
 
-func generatedRouteEntries(rt generatedRuntime, withSwag bool, withSkill bool) []generatedRouteEntry {
+func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEntry, withSwag bool, withSkill bool) []generatedRouteEntry {
 	routes := []generatedRouteEntry{
 		{Method: "GET", Path: "/health", Handler: "health"},
 		{Method: "GET", Path: "/debug/routes", Handler: "debug"},
 	}
 	routes = append(routes, rt.routeEntries...)
+	routes = append(routes, customRoutes...)
 	if withSwag {
 		routes = append(routes, generatedRouteEntry{Method: "GET", Path: "/swagger/", Handler: "swagger-ui"})
 	}
 	if withSkill {
 		routes = append(routes, generatedRouteEntry{Method: "GET", Path: "/skill", Handler: "skill"})
 	}
+
 	return routes
 }

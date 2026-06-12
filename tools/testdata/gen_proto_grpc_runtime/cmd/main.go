@@ -74,6 +74,10 @@ func main() {
 	generated := initGeneratedServices(logger)
 	runtime := generated.generatedRuntime()
 
+
+
+
+
 	r := mux.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -93,15 +97,17 @@ func main() {
 
 
 
+
+	runtime.registerRoutes(r)
+	customRoutes := registerCustomRoutes(r)
+
 	r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, false, false))
+		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, false, false))
 	}).Methods("GET")
 
 
-	runtime.registerRoutes(r)
-
-	allRoutes := generatedRouteEntries(runtime, false, false)
+	allRoutes := generatedRouteEntries(runtime, customRoutes, false, false)
 	printAllRoutes(logger, allRoutes)
 
 

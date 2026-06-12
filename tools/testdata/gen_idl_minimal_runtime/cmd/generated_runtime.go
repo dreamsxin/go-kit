@@ -35,5 +35,6 @@ func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEnt
 	if withSkill {
 		routes = append(routes, generatedRouteEntry{Method: "GET", Path: "/skill", Handler: "skill"})
 	}
+
 	return routes
 }

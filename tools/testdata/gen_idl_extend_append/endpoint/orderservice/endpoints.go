@@ -47,7 +47,6 @@ func MakeServerEndpointsWithConfig(
 		ep = applyGeneratedMiddleware(ep, logger, cfg, name)
 		return applyCustomMiddleware(ep, logger, cfg, name)
 	}
-
 	return OrderServiceEndpoints{
 		PlaceOrderEndpoint: build(MakePlaceOrderEndpoint(s), "PlaceOrder"),
 	}

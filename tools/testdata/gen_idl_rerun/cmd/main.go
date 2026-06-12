@@ -100,6 +100,8 @@ func main() {
 	generated := initGeneratedServices(logger, cfg, repoDB)
 	runtime := generated.generatedRuntime()
 
+
+
 	if err := runtime.autoMigrate(db); err != nil {
 		logger.Sugar().Fatalf("FATAL: auto migrate failed: %v", err)
 	}
@@ -122,6 +124,7 @@ func main() {
 	}).Methods("GET", "HEAD")
 
 	r.HandleFunc("/skill", skill.Handler).Methods("GET")
+
 
 
 	{

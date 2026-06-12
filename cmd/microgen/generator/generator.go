@@ -28,6 +28,7 @@ type Options struct {
 	DBDriver             string
 	WithSwag             bool
 	WithSkill            bool
+	WithInteraction      bool
 	IDLSrcPath           string
 	RoutePrefix          string
 	GeneratedMiddlewares []string

@@ -57,7 +57,7 @@ func (rt generatedRuntime) registerGRPCServices(server *grpc.Server) {
 }
 {{- end}}
 
-func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEntry, withSwag bool, withSkill bool) []generatedRouteEntry {
+func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEntry, withSwag bool, withSkill bool{{if .WithInteraction}}, withInteraction bool{{end}}) []generatedRouteEntry {
 	routes := []generatedRouteEntry{
 		{Method: "GET", Path: "/health", Handler: "health"},
 		{Method: "GET", Path: "/debug/routes", Handler: "debug"},
@@ -70,5 +70,9 @@ func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEnt
 	if withSkill {
 		routes = append(routes, generatedRouteEntry{Method: "GET", Path: "/skill", Handler: "skill"})
 	}
+{{if .WithInteraction}}	if withInteraction {
+		routes = append(routes, generatedRouteEntry{Method: "POST", Path: "/mcp", Handler: "mcp"})
+	}
+{{end}}
 	return routes
 }

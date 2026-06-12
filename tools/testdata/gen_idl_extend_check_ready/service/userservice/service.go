@@ -3,7 +3,6 @@ package userservice
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"time"
 
@@ -48,6 +47,9 @@ type UserService interface {
 
 	// PatchStatus - PatchStatus patches status.
 	PatchStatus(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error)
+
+
+
 
 }
 
@@ -165,9 +167,8 @@ func (s *serviceImpl) PatchStatus(ctx context.Context, req idl.UpdateUserRequest
 }
 
 
-func errorf(format string, args ...any) error {
-	return fmt.Errorf(format, args...)
-}
+
+
 
 type ServiceMiddleware func(UserService) UserService
 
@@ -328,6 +329,9 @@ func (m *loggingMiddleware) PatchStatus(ctx context.Context, req idl.UpdateUserR
 }
 
 
+
+
+
 func MetricsMiddleware() ServiceMiddleware {
 	return func(next UserService) UserService {
 		return &metricsMiddleware{next: next}
@@ -386,4 +390,7 @@ func (m *metricsMiddleware) ModifyEmail(ctx context.Context, req idl.UpdateUserR
 func (m *metricsMiddleware) PatchStatus(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
 	return m.next.PatchStatus(ctx, req)
 }
+
+
+
 

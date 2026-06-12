@@ -3,7 +3,6 @@ package userservice
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"time"
 
@@ -18,6 +17,9 @@ type UserService interface {
 
 	// CreateUser - CreateUser creates a new user.
 	CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error)
+
+
+
 
 }
 
@@ -34,8 +36,6 @@ var defaultConfig = &ServiceConfig{
 	Timeout:       30 * time.Second,
 	EnableLogging: true,
 }
-
-
 
 
 // NewService creates a service instance.
@@ -80,9 +80,8 @@ func (s *serviceImpl) CreateUser(ctx context.Context, req idl.CreateUserRequest)
 }
 
 
-func errorf(format string, args ...any) error {
-	return fmt.Errorf(format, args...)
-}
+
+
 
 type ServiceMiddleware func(UserService) UserService
 
@@ -123,6 +122,9 @@ func (m *loggingMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRe
 }
 
 
+
+
+
 func MetricsMiddleware() ServiceMiddleware {
 	return func(next UserService) UserService {
 		return &metricsMiddleware{next: next}
@@ -141,4 +143,7 @@ func (m *metricsMiddleware) GetUser(ctx context.Context, req idl.GetUserRequest)
 func (m *metricsMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	return m.next.CreateUser(ctx, req)
 }
+
+
+
 

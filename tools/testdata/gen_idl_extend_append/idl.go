@@ -88,15 +88,16 @@ type UserService interface {
 	PatchStatus(ctx context.Context, req UpdateUserRequest) (UpdateUserResponse, error)
 }
 
-
-type PlaceOrderRequest struct {
-	UserID uint `json:"user_id"`
-}
-type PlaceOrderResponse struct {
-	OrderID uint   `json:"order_id"`
-	Error   string `json:"error"`
-}
-
-type OrderService interface {
-	PlaceOrder(ctx context.Context, req PlaceOrderRequest) (PlaceOrderResponse, error)
-}
+	
+	type PlaceOrderRequest struct {
+		UserID uint `json:"user_id"`
+	}
+	type PlaceOrderResponse struct {
+		OrderID uint   `json:"order_id"`
+		Error   string `json:"error"`
+	}
+	
+	type OrderService interface {
+		PlaceOrder(ctx context.Context, req PlaceOrderRequest) (PlaceOrderResponse, error)
+	}
+	

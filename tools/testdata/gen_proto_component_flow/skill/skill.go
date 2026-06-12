@@ -24,6 +24,24 @@ type MCPTool struct {
 	InputSchema interface{} `json:"inputSchema,omitempty"`
 }
 
+type SkillMetadata struct {
+	SchemaVersion string   `json:"schemaVersion"`
+	Source        string   `json:"source"`
+	Services      []string `json:"services"`
+	Formats       []string `json:"formats"`
+}
+
+func getSkillMetadata() SkillMetadata {
+	return SkillMetadata{
+		SchemaVersion: "microgen.skill.v1",
+		Source:        "microgen-ir",
+		Services: []string{
+			"UserService",
+		},
+		Formats: []string{"openai", "mcp"},
+	}
+}
+
 func getOpenAITools() []OpenAITool {
 	return []OpenAITool{
 		{
@@ -121,11 +139,13 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	format := r.URL.Query().Get("format")
 	if format == "mcp" {
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"tools": getMCPTools(),
+			"metadata": getSkillMetadata(),
+			"tools":    getMCPTools(),
 		})
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"tools": getOpenAITools(),
+		"metadata": getSkillMetadata(),
+		"tools":    getOpenAITools(),
 	})
 }

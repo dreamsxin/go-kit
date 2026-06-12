@@ -46,6 +46,10 @@ type Client interface {
 
 }
 
+
+
+
+
 // ─────────────────────────── HTTP Constructor ────────────────────────────────
 
 // Option configures the HTTP client.
@@ -100,9 +104,15 @@ func New(baseURL string, opts ...Option) Client {
 
 // NewGRPC creates a UserService gRPC client.
 func NewGRPC(conn *grpc.ClientConn) Client {
+	return newGRPCClient(conn)
+}
+
+
+func newGRPCClient(conn *grpc.ClientConn) *grpcClient {
 	return &grpcClient{
 		getuser: svcTransport.NewGRPCGetUserClient(conn),
 		createuser: svcTransport.NewGRPCCreateUserClient(conn),
+		client: idl.NewUserServiceClient(conn),
 	}
 }
 
@@ -202,6 +212,7 @@ func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) 
 type grpcClient struct {
 	getuser endpoint.Endpoint
 	createuser endpoint.Endpoint
+	client idl.UserServiceClient
 }
 
 
@@ -220,5 +231,8 @@ func (c *grpcClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) 
 	}
 	return resp.(idl.CreateUserResponse), nil
 }
+
+
+
 
 

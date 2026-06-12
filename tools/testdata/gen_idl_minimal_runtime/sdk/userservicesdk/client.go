@@ -57,6 +57,8 @@ type Client interface {
 
 }
 
+
+
 // ─────────────────────────── HTTP Constructor ────────────────────────────────
 
 // Option configures the HTTP client.

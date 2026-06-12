@@ -3,32 +3,34 @@ package generator
 import "github.com/dreamsxin/go-kit/cmd/microgen/ir"
 
 type mainTemplateData struct {
-	Project      *ir.Project
-	Services     []*serviceView
-	Models       []*modelView
-	GormModels   []*modelView
-	SvcRoutes    []SvcRoute
-	ImportPath   string
-	WithDB       bool
-	DBDriver     string
-	DBImportPkg  string
-	DBOpenCall   string
-	DBDefaultDSN string
-	WithConfig   bool
-	WithGRPC     bool
-	WithSwag     bool
-	WithSkill    bool
+	Project         *ir.Project
+	Services        []*serviceView
+	Models          []*modelView
+	GormModels      []*modelView
+	SvcRoutes       []SvcRoute
+	ImportPath      string
+	WithDB          bool
+	DBDriver        string
+	DBImportPkg     string
+	DBOpenCall      string
+	DBDefaultDSN    string
+	WithConfig      bool
+	WithGRPC        bool
+	WithSwag        bool
+	WithSkill       bool
+	WithInteraction bool
 }
 
 type generatedRuntimeTemplateData struct {
-	Project    *ir.Project
-	GormModels []*modelView
-	WithDB     bool
-	WithGRPC   bool
-	WithSwag   bool
-	WithSkill  bool
-	SvcRoutes  []SvcRoute
-	ImportPath string
+	Project         *ir.Project
+	GormModels      []*modelView
+	WithDB          bool
+	WithGRPC        bool
+	WithSwag        bool
+	WithSkill       bool
+	WithInteraction bool
+	SvcRoutes       []SvcRoute
+	ImportPath      string
 }
 
 type generatedServicesTemplateData struct {
@@ -69,12 +71,13 @@ type configTemplateData struct {
 }
 
 type readmeTemplateData struct {
-	Project        *ir.Project
-	IsProtoInput   bool
-	WithSkill      bool
-	WithConfig     bool
-	ConfigMode     string
-	RemoteProvider string
+	Project         *ir.Project
+	IsProtoInput    bool
+	WithSkill       bool
+	WithInteraction bool
+	WithConfig      bool
+	ConfigMode      string
+	RemoteProvider  string
 }
 
 type docsTemplateData struct {
@@ -86,6 +89,23 @@ type docsTemplateData struct {
 type skillTemplateData struct {
 	Project    *ir.Project
 	ImportPath string
+}
+
+type interactionTemplateData struct {
+	Project    *ir.Project
+	Services   []*serviceView
+	ImportPath string
+}
+
+type aiProjectGuideTemplateData struct {
+	Project        *ir.Project
+	ImportPath     string
+	WithConfig     bool
+	WithDB         bool
+	WithGRPC       bool
+	WithSwag       bool
+	WithSkill      bool
+	WithInteraction bool
 }
 
 type goModTemplateData struct {

@@ -3,7 +3,6 @@ package catalogservice
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"time"
 
@@ -27,6 +26,9 @@ type CatalogService interface {
 
 	// ListUsers - List Users
 	ListUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error)
+
+
+
 
 }
 
@@ -109,9 +111,8 @@ func (s *serviceImpl) ListUsers(ctx context.Context, req idl.ListUsersRequest) (
 }
 
 
-func errorf(format string, args ...any) error {
-	return fmt.Errorf(format, args...)
-}
+
+
 
 type ServiceMiddleware func(CatalogService) CatalogService
 
@@ -188,6 +189,9 @@ func (m *loggingMiddleware) ListUsers(ctx context.Context, req idl.ListUsersRequ
 }
 
 
+
+
+
 func MetricsMiddleware() ServiceMiddleware {
 	return func(next CatalogService) CatalogService {
 		return &metricsMiddleware{next: next}
@@ -218,4 +222,7 @@ func (m *metricsMiddleware) DeleteUser(ctx context.Context, req idl.DeleteUserRe
 func (m *metricsMiddleware) ListUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error) {
 	return m.next.ListUsers(ctx, req)
 }
+
+
+
 

@@ -58,7 +58,6 @@ func MakeServerEndpointsWithConfig(
 		ep = applyGeneratedMiddleware(ep, logger, cfg, name)
 		return applyCustomMiddleware(ep, logger, cfg, name)
 	}
-
 	return UserServiceEndpoints{
 		CreateUserEndpoint: build(MakeCreateUserEndpoint(s), "CreateUser"),
 		GetUserEndpoint: build(MakeGetUserEndpoint(s), "GetUser"),

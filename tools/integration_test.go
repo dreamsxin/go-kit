@@ -714,7 +714,7 @@ func main() {
 		time.Sleep(80 * time.Millisecond)
 		return nil
 	})
-	expectErrContains("watch slow consumer deadline", err, "deadline")
+	expectErrContains("watch slow consumer deadline", err, "DeadlineExceeded")
 	if len(deadlineEvents) != 1 || deadlineEvents[0] != "first" {
 		panic(fmt.Sprintf("unexpected deadline events: %#v", deadlineEvents))
 	}

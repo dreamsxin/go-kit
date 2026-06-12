@@ -150,6 +150,15 @@ func (g *Generator) generateFinalProjectArtifacts(ctx generationContext) error {
 		}
 	}
 
+	if g.config.WithInteraction {
+		if err := g.generateInteractionFile(ctx); err != nil {
+			return fmt.Errorf("generate interaction file failed: %w", err)
+		}
+		if err := g.generateAIProjectGuide(ctx); err != nil {
+			return fmt.Errorf("generate ai project guide failed: %w", err)
+		}
+	}
+
 	return nil
 }
 

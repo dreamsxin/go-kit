@@ -12,7 +12,7 @@ logging:
 
 database:
   driver: "mysql"
-  dsn: "<no value>"
+  dsn: "root:password@tcp(127.0.0.1:3306)/{svcname}?charset=utf8mb4&parseTime=True&loc=Local"
   max_open_conns: 20
   max_idle_conns: 5
   conn_max_lifetime: "1h"

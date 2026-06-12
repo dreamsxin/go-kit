@@ -37,6 +37,11 @@ func (l projectLayout) readme() string       { return filepath.Join(l.root, "REA
 func (l projectLayout) docsDir() string      { return filepath.Join(l.root, "docs") }
 func (l projectLayout) docsStub() string     { return filepath.Join(l.docsDir(), "docs.go") }
 func (l projectLayout) skillFile() string    { return filepath.Join(l.root, "skill", "skill.go") }
+func (l projectLayout) aiDir() string        { return filepath.Join(l.root, ".ai") }
+func (l projectLayout) aiProjectGuide() string { return filepath.Join(l.aiDir(), "PROJECT_GUIDE.md") }
+func (l projectLayout) cmdGeneratedInteraction() string {
+	return filepath.Join(l.root, "cmd", "generated_interaction.go")
+}
 func (l projectLayout) goMod() string        { return filepath.Join(l.root, "go.mod") }
 func (l projectLayout) idlCopy() string      { return filepath.Join(l.root, "idl.go") }
 func (l projectLayout) generatedModelFile(modelName string) string {
@@ -133,6 +138,9 @@ func (l projectLayout) requiredDirs(services []*serviceView, opts Options) []str
 	}
 	if opts.WithSkill {
 		dirs = append(dirs, filepath.Join(l.root, "skill"))
+	}
+	if opts.WithInteraction {
+		dirs = append(dirs, l.aiDir())
 	}
 
 	return dirs

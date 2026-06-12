@@ -43,10 +43,11 @@ import (
 {{if .WithConfig}}	docs "{{$.ImportPath}}/docs"
 {{else}}	_ "{{$.ImportPath}}/docs"
 {{end}}{{end}}{{if .WithSkill}}	"{{$.ImportPath}}/skill"
+{{end}}{{if .WithInteraction}}	"github.com/dreamsxin/go-kit/interaction/mcp"
 {{end}}{{if .WithConfig}}	"{{$.ImportPath}}/config"
 {{end}})
 
-func printBanner(logger *kitlog.Logger, httpAddr string{{if .WithGRPC}}, grpcAddr string{{end}}, withSwag bool, withSkill bool) {
+func printBanner(logger *kitlog.Logger, httpAddr string{{if .WithGRPC}}, grpcAddr string{{end}}, withSwag bool, withSkill bool{{if .WithInteraction}}, withInteraction bool{{end}}) {
 	logger.Sugar().Info("------------------------------------------------------------")
 	logger.Sugar().Infof(" Service: {{range .Project.Services}}{{.Name}} {{end}}")
 	logger.Sugar().Infof(" HTTP: http://localhost%s", httpAddr)
@@ -56,7 +57,10 @@ func printBanner(logger *kitlog.Logger, httpAddr string{{if .WithGRPC}}, grpcAdd
 	if withSkill {
 		logger.Sugar().Infof(" Skill: http://localhost%s/skill", httpAddr)
 	}
-{{if .WithGRPC}}	logger.Sugar().Infof(" gRPC: %s", grpcAddr)
+{{if .WithInteraction}}	if withInteraction {
+		logger.Sugar().Infof(" MCP: http://localhost%s/mcp", httpAddr)
+	}
+{{end}}{{if .WithGRPC}}	logger.Sugar().Infof(" gRPC: %s", grpcAddr)
 {{end}}	logger.Sugar().Info(" Press Ctrl+C to stop")
 }
 
@@ -120,6 +124,9 @@ func main() {
 {{else}}	generated := initGeneratedServices(logger{{if .WithConfig}}, cfg{{end}})
 {{end}}	runtime := generated.generatedRuntime()
 
+{{if .WithInteraction}}	interactionRuntime := initInteractionRuntime(&generated)
+{{end}}
+
 {{if .WithDB}}	if err := runtime.autoMigrate(db); err != nil {
 		logger.Sugar().Fatalf("FATAL: auto migrate failed: %v", err)
 	}
@@ -142,6 +149,8 @@ func main() {
 	}).Methods("GET", "HEAD")
 
 {{if .WithSkill}}	r.HandleFunc("/skill", skill.Handler).Methods("GET")
+{{end}}
+{{if .WithInteraction}}	r.Handle("/mcp", mcp.NewHandler(interactionRuntime))
 {{end}}
 
 {{if .WithSwag}}{{if .WithConfig}}	{
@@ -171,12 +180,12 @@ func main() {
 {{if .WithConfig}}	if cfg.Debug.RoutesEnabled {
 {{end}}	r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, {{if .WithSwag}}true{{else}}false{{end}}, {{if .WithSkill}}true{{else}}false{{end}}))
+		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, {{if .WithSwag}}true{{else}}false{{end}}, {{if .WithSkill}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}}))
 	}).Methods("GET")
 {{if .WithConfig}}	}
 {{end}}
 
-	allRoutes := generatedRouteEntries(runtime, customRoutes, {{if .WithSwag}}true{{else}}false{{end}}, {{if .WithSkill}}true{{else}}false{{end}})
+	allRoutes := generatedRouteEntries(runtime, customRoutes, {{if .WithSwag}}true{{else}}false{{end}}, {{if .WithSkill}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}})
 {{if .WithConfig}}	if cfg.Debug.PrintRoutes {
 		printAllRoutes(logger, allRoutes)
 	}
@@ -212,7 +221,7 @@ func main() {
 	}()
 {{end}}
 
-	printBanner(logger, *httpAddr{{if .WithGRPC}}, *grpcAddr{{end}}, {{if .WithSwag}}true{{else}}false{{end}}, {{if .WithSkill}}true{{else}}false{{end}})
+	printBanner(logger, *httpAddr{{if .WithGRPC}}, *grpcAddr{{end}}, {{if .WithSwag}}true{{else}}false{{end}}, {{if .WithSkill}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}})
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

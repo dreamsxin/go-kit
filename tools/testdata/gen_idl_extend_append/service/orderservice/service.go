@@ -3,7 +3,6 @@ package orderservice
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"time"
 
@@ -15,6 +14,9 @@ type OrderService interface {
 
 	// PlaceOrder
 	PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (idl.PlaceOrderResponse, error)
+
+
+
 
 }
 
@@ -70,9 +72,8 @@ func (s *serviceImpl) PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest)
 }
 
 
-func errorf(format string, args ...any) error {
-	return fmt.Errorf(format, args...)
-}
+
+
 
 type ServiceMiddleware func(OrderService) OrderService
 
@@ -101,6 +102,9 @@ func (m *loggingMiddleware) PlaceOrder(ctx context.Context, req idl.PlaceOrderRe
 }
 
 
+
+
+
 func MetricsMiddleware() ServiceMiddleware {
 	return func(next OrderService) OrderService {
 		return &metricsMiddleware{next: next}
@@ -115,4 +119,7 @@ type metricsMiddleware struct {
 func (m *metricsMiddleware) PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (idl.PlaceOrderResponse, error) {
 	return m.next.PlaceOrder(ctx, req)
 }
+
+
+
 

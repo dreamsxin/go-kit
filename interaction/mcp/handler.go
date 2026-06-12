@@ -1,4 +1,11 @@
-// Package mcp exposes a preview MCP-style JSON-RPC endpoint for interaction runtimes.
+// Package mcp exposes an MCP-compliant JSON-RPC endpoint for interaction runtimes.
+//
+// The handler implements the Model Context Protocol (2025-06-18) server surface:
+// tools, resources, prompts, logging, ping, and capability negotiation.
+//
+// Two transport modes are available:
+//   - Handler: simple POST-only JSON-RPC (for basic integrations)
+//   - StreamableHandler: full Streamable HTTP with SSE, sessions, and sampling
 package mcp
 
 import (
@@ -7,70 +14,117 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
+	"sync"
 
 	"github.com/dreamsxin/go-kit/interaction"
 )
 
-const jsonRPCVersion = "2.0"
+const (
+	jsonRPCVersion  = "2.0"
+	protocolVersion = "2025-06-18"
+	serverName      = "go-kit interaction"
+	serverTitle     = "Go Kit Interaction MCP Server"
+	defaultPageSize = 50
+	serverVersion   = "0.3.0"
+)
 
-type Handler struct {
-	Runtime *interaction.Runtime
+// ─── shared dispatch core ────────────────────────────────────────────────────
+//
+// dispatchCore contains the method implementations shared by both Handler
+// (simple POST-only) and StreamableHandler (Streamable HTTP with SSE).
+
+type dispatchCore struct {
+	Runtime  *interaction.Runtime
+	logLevel string
+	mu       sync.RWMutex
 }
 
-func NewHandler(runtime *interaction.Runtime) *Handler {
-	if runtime == nil {
-		runtime = interaction.NewRuntime(nil, nil, nil)
-	}
-	return &Handler{Runtime: runtime}
-}
-
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", http.MethodPost)
-		writeHTTPError(w, http.StatusMethodNotAllowed, "method_not_allowed", "MCP preview endpoint expects POST")
-		return
-	}
-	defer r.Body.Close()
-
-	var req request
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeResponse(w, response{JSONRPC: jsonRPCVersion, Error: newError(-32700, "parse error", err.Error())})
-		return
-	}
-	resp := h.handle(r.Context(), req)
-	writeResponse(w, resp)
-}
-
-func (h *Handler) handle(ctx context.Context, req request) response {
+func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 	resp := response{JSONRPC: jsonRPCVersion, ID: req.ID}
 	switch req.Method {
-	case "initialize":
-		resp.Result = map[string]any{
-			"protocolVersion": "microgen.interaction.mcp.preview",
-			"serverInfo": map[string]any{
-				"name":    "go-kit interaction",
-				"version": "preview",
-			},
-			"capabilities": map[string]any{
-				"tools": map[string]any{},
-			},
-		}
+	case "ping":
+		resp.Result = map[string]any{}
 	case "tools/list":
-		resp.Result = map[string]any{"tools": toMCPTools(h.Runtime.ListTools())}
+		resp.Result = c.handleToolsList(ctx, req.Params)
 	case "tools/call":
-		result, err := h.callTool(ctx, req.Params)
+		result, err := c.callTool(ctx, req.Params)
 		if err != nil {
 			resp.Error = newError(-32000, "tool call failed", err.Error())
 			return resp
 		}
 		resp.Result = result
+	case "resources/list":
+		resp.Result = c.handleResourcesList(ctx, req.Params)
+	case "resources/read":
+		result, err := c.handleResourcesRead(ctx, req.Params)
+		if err != nil {
+			resp.Error = resourceError(err)
+			return resp
+		}
+		resp.Result = result
+	case "resources/templates/list":
+		resp.Result = c.handleResourceTemplatesList(ctx, req.Params)
+	case "prompts/list":
+		resp.Result = c.handlePromptsList(ctx, req.Params)
+	case "prompts/get":
+		result, err := c.handlePromptsGet(ctx, req.Params)
+		if err != nil {
+			resp.Error = promptError(err)
+			return resp
+		}
+		resp.Result = result
+	case "logging/setLevel":
+		resp.Result = c.handleLoggingSetLevel(req.Params)
 	default:
 		resp.Error = newError(-32601, "method not found", req.Method)
 	}
 	return resp
 }
 
-func (h *Handler) callTool(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
+func (c *dispatchCore) buildCapabilities() map[string]any {
+	caps := map[string]any{
+		"tools":   map[string]any{"listChanged": true},
+		"logging": map[string]any{},
+	}
+	if c.Runtime.Resources != nil {
+		caps["resources"] = map[string]any{"subscribe": false, "listChanged": true}
+	}
+	if c.Runtime.Prompts != nil {
+		caps["prompts"] = map[string]any{"listChanged": true}
+	}
+	return caps
+}
+
+func (c *dispatchCore) buildInitializeResult() map[string]any {
+	return map[string]any{
+		"protocolVersion": protocolVersion,
+		"serverInfo": map[string]any{
+			"name":    serverName,
+			"title":   serverTitle,
+			"version": serverVersion,
+		},
+		"capabilities": c.buildCapabilities(),
+		"instructions": "Expose go-kit service methods as MCP tools, resources, and prompts.",
+	}
+}
+
+// ─── tools ───────────────────────────────────────────────────────────────────
+
+func (c *dispatchCore) handleToolsList(ctx context.Context, raw json.RawMessage) map[string]any {
+	cursor, _ := parseCursor(raw)
+	all := c.Runtime.ListTools()
+	page, next := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
+		return toMCPTool(all[i])
+	})
+	result := map[string]any{"tools": page}
+	if next != "" {
+		result["nextCursor"] = next
+	}
+	return result
+}
+
+func (c *dispatchCore) callTool(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
 	var params callParams
 	if len(raw) > 0 {
 		if err := json.Unmarshal(raw, &params); err != nil {
@@ -83,14 +137,14 @@ func (h *Handler) callTool(ctx context.Context, raw json.RawMessage) (map[string
 
 	sessionID := interaction.SessionID(params.SessionID)
 	if sessionID == "" {
-		session, err := h.Runtime.StartSession(ctx, params.Subject, params.Metadata)
+		session, err := c.Runtime.StartSession(ctx, params.Subject, params.Metadata)
 		if err != nil {
 			return nil, err
 		}
 		sessionID = session.ID
 	}
 
-	result, err := h.Runtime.CallTool(ctx, interaction.ToolCall{
+	result, err := c.Runtime.CallTool(ctx, interaction.ToolCall{
 		SessionID: sessionID,
 		Name:      params.Name,
 		Input:     params.Arguments,
@@ -110,22 +164,292 @@ func (h *Handler) callTool(ctx context.Context, raw json.RawMessage) (map[string
 	}, nil
 }
 
-func toMCPTools(descriptors []interaction.ToolDescriptor) []map[string]any {
-	tools := make([]map[string]any, 0, len(descriptors))
-	for _, descriptor := range descriptors {
-		tool := map[string]any{"name": descriptor.Name}
-		if descriptor.Description != "" {
-			tool["description"] = descriptor.Description
-		}
-		if descriptor.InputSchema != nil {
-			tool["inputSchema"] = descriptor.InputSchema
-		}
-		if len(descriptor.Metadata) > 0 {
-			tool["metadata"] = descriptor.Metadata
-		}
-		tools = append(tools, tool)
+// ─── resources ───────────────────────────────────────────────────────────────
+
+func (c *dispatchCore) handleResourcesList(ctx context.Context, raw json.RawMessage) map[string]any {
+	if c.Runtime.Resources == nil {
+		return map[string]any{"resources": []any{}}
 	}
-	return tools
+	cursor, _ := parseCursor(raw)
+	all, err := c.Runtime.ListResources(ctx)
+	if err != nil {
+		return map[string]any{"resources": []any{}}
+	}
+	page, next := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
+		return toMCPResource(all[i])
+	})
+	result := map[string]any{"resources": page}
+	if next != "" {
+		result["nextCursor"] = next
+	}
+	return result
+}
+
+func (c *dispatchCore) handleResourcesRead(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
+	var params struct {
+		URI string `json:"uri"`
+	}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return nil, fmt.Errorf("decode params: %w", err)
+		}
+	}
+	if params.URI == "" {
+		return nil, errors.New("resource uri is required")
+	}
+	contents, err := c.Runtime.ReadResource(ctx, params.URI)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]map[string]any, 0, len(contents))
+	for _, ct := range contents {
+		item := map[string]any{"uri": ct.URI}
+		if ct.MIMEType != "" {
+			item["mimeType"] = ct.MIMEType
+		}
+		if len(ct.Blob) > 0 {
+			item["blob"] = ct.Blob
+		} else {
+			item["text"] = ct.Text
+		}
+		items = append(items, item)
+	}
+	return map[string]any{"contents": items}, nil
+}
+
+func (c *dispatchCore) handleResourceTemplatesList(ctx context.Context, raw json.RawMessage) map[string]any {
+	if c.Runtime.Resources == nil {
+		return map[string]any{"resourceTemplates": []any{}}
+	}
+	cursor, _ := parseCursor(raw)
+	all, err := c.Runtime.ListResourceTemplates(ctx)
+	if err != nil || len(all) == 0 {
+		return map[string]any{"resourceTemplates": []any{}}
+	}
+	page, next := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
+		return toMCPResourceTemplate(all[i])
+	})
+	result := map[string]any{"resourceTemplates": page}
+	if next != "" {
+		result["nextCursor"] = next
+	}
+	return result
+}
+
+// ─── prompts ─────────────────────────────────────────────────────────────────
+
+func (c *dispatchCore) handlePromptsList(ctx context.Context, raw json.RawMessage) map[string]any {
+	if c.Runtime.Prompts == nil {
+		return map[string]any{"prompts": []any{}}
+	}
+	cursor, _ := parseCursor(raw)
+	all, err := c.Runtime.ListPrompts(ctx)
+	if err != nil {
+		return map[string]any{"prompts": []any{}}
+	}
+	page, next := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
+		return toMCPPrompt(all[i])
+	})
+	result := map[string]any{"prompts": page}
+	if next != "" {
+		result["nextCursor"] = next
+	}
+	return result
+}
+
+func (c *dispatchCore) handlePromptsGet(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
+	var params struct {
+		Name      string            `json:"name"`
+		Arguments map[string]string `json:"arguments,omitempty"`
+	}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return nil, fmt.Errorf("decode params: %w", err)
+		}
+	}
+	if params.Name == "" {
+		return nil, errors.New("prompt name is required")
+	}
+	result, err := c.Runtime.GetPrompt(ctx, params.Name, params.Arguments)
+	if err != nil {
+		return nil, err
+	}
+	messages := make([]map[string]any, 0, len(result.Messages))
+	for _, m := range result.Messages {
+		msg := map[string]any{"role": m.Role}
+		content := map[string]any{"type": m.Content.Type}
+		switch m.Content.Type {
+		case "text":
+			content["text"] = m.Content.Text
+		case "image", "audio":
+			content["data"] = m.Content.Data
+			if m.Content.MIMEType != "" {
+				content["mimeType"] = m.Content.MIMEType
+			}
+		case "resource":
+			content["uri"] = m.Content.Data
+		}
+		msg["content"] = content
+		messages = append(messages, msg)
+	}
+	out := map[string]any{"messages": messages}
+	if result.Description != "" {
+		out["description"] = result.Description
+	}
+	return out, nil
+}
+
+// ─── logging ─────────────────────────────────────────────────────────────────
+
+func (c *dispatchCore) handleLoggingSetLevel(raw json.RawMessage) map[string]any {
+	var params struct {
+		Level string `json:"level"`
+	}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &params)
+	}
+	validLevels := map[string]bool{
+		"debug": true, "info": true, "notice": true, "warning": true,
+		"error": true, "critical": true, "alert": true, "emergency": true,
+	}
+	if validLevels[params.Level] {
+		c.mu.Lock()
+		c.logLevel = params.Level
+		c.mu.Unlock()
+	}
+	return map[string]any{}
+}
+
+// ─── MCP format helpers ──────────────────────────────────────────────────────
+
+func toMCPTool(d interaction.ToolDescriptor) map[string]any {
+	tool := map[string]any{"name": d.Name}
+	if d.Description != "" {
+		tool["description"] = d.Description
+	}
+	if d.InputSchema != nil {
+		tool["inputSchema"] = d.InputSchema
+	}
+	if len(d.Metadata) > 0 {
+		tool["metadata"] = d.Metadata
+	}
+	return tool
+}
+
+func toMCPResource(r interaction.Resource) map[string]any {
+	m := map[string]any{"uri": r.URI, "name": r.Name}
+	if r.Title != "" {
+		m["title"] = r.Title
+	}
+	if r.Description != "" {
+		m["description"] = r.Description
+	}
+	if r.MIMEType != "" {
+		m["mimeType"] = r.MIMEType
+	}
+	if r.Size > 0 {
+		m["size"] = r.Size
+	}
+	if len(r.Metadata) > 0 {
+		m["metadata"] = r.Metadata
+	}
+	return m
+}
+
+func toMCPResourceTemplate(t interaction.ResourceTemplate) map[string]any {
+	m := map[string]any{"uriTemplate": t.URITemplate, "name": t.Name}
+	if t.Title != "" {
+		m["title"] = t.Title
+	}
+	if t.Description != "" {
+		m["description"] = t.Description
+	}
+	if t.MIMEType != "" {
+		m["mimeType"] = t.MIMEType
+	}
+	if len(t.Metadata) > 0 {
+		m["metadata"] = t.Metadata
+	}
+	return m
+}
+
+func toMCPPrompt(p interaction.Prompt) map[string]any {
+	m := map[string]any{"name": p.Name}
+	if p.Title != "" {
+		m["title"] = p.Title
+	}
+	if p.Description != "" {
+		m["description"] = p.Description
+	}
+	if len(p.Arguments) > 0 {
+		args := make([]map[string]any, 0, len(p.Arguments))
+		for _, a := range p.Arguments {
+			arg := map[string]any{"name": a.Name}
+			if a.Description != "" {
+				arg["description"] = a.Description
+			}
+			if a.Required {
+				arg["required"] = true
+			}
+			args = append(args, arg)
+		}
+		m["arguments"] = args
+	}
+	return m
+}
+
+// ─── pagination ──────────────────────────────────────────────────────────────
+
+func parseCursor(raw json.RawMessage) (string, bool) {
+	if len(raw) == 0 {
+		return "", false
+	}
+	var params struct {
+		Cursor string `json:"cursor"`
+	}
+	_ = json.Unmarshal(raw, &params)
+	return params.Cursor, params.Cursor != ""
+}
+
+func paginate(cursor string, total, pageSize int, render func(int) map[string]any) ([]map[string]any, string) {
+	offset := 0
+	if cursor != "" {
+		if n, err := strconv.Atoi(cursor); err == nil && n >= 0 && n < total {
+			offset = n
+		}
+	}
+	end := offset + pageSize
+	if end > total {
+		end = total
+	}
+	items := make([]map[string]any, 0, end-offset)
+	for i := offset; i < end; i++ {
+		items = append(items, render(i))
+	}
+	var next string
+	if end < total {
+		next = strconv.Itoa(end)
+	}
+	return items, next
+}
+
+// ─── error helpers ───────────────────────────────────────────────────────────
+
+func resourceError(err error) *rpcError {
+	if errors.Is(err, interaction.ErrResourceNotFound) {
+		return newError(-32002, "resource not found", err.Error())
+	}
+	return newError(-32603, "internal error", err.Error())
+}
+
+func promptError(err error) *rpcError {
+	if errors.Is(err, interaction.ErrPromptNotFound) {
+		return newError(-32602, "prompt not found", err.Error())
+	}
+	if errors.Is(err, interaction.ErrInvalidArgument) {
+		return newError(-32602, "invalid argument", err.Error())
+	}
+	return newError(-32603, "internal error", err.Error())
 }
 
 func writeHTTPError(w http.ResponseWriter, status int, code, message string) {
@@ -142,6 +466,8 @@ func writeResponse(w http.ResponseWriter, resp response) {
 func newError(code int, message, data string) *rpcError {
 	return &rpcError{Code: code, Message: message, Data: data}
 }
+
+// ─── wire types ──────────────────────────────────────────────────────────────
 
 type request struct {
 	JSONRPC string          `json:"jsonrpc,omitempty"`

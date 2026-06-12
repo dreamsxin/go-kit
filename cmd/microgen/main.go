@@ -44,10 +44,11 @@ type config struct {
 	withGRPC       bool
 	withDB         bool
 	dbDriver       string
-	withSwag       bool
-	withSkill      bool
-	serviceName    string
-	routePrefix    string
+	withSwag        bool
+	withSkill       bool
+	withInteraction bool
+	serviceName     string
+	routePrefix     string
 	checkOnly      bool
 	appendSvc      string
 	appendModel    string
@@ -96,6 +97,7 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 	driver := fs.String("driver", "mysql", "Database driver")
 	withSwag := fs.Bool("swag", false, "Generate swagger")
 	withSkill := fs.Bool("skill", true, "Generate AI skill support")
+	withInteraction := fs.Bool("interaction", false, "Generate AI interaction runtime and MCP endpoint")
 	serviceName := fs.String("service", "", "Service name")
 	routePrefix := fs.String("prefix", "", "HTTP route prefix")
 	checkOnly := fs.Bool("check", false, "Scan an existing project and print extend compatibility without changing files")
@@ -132,10 +134,11 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 		withGRPC:       hasGRPC,
 		withDB:         *withDB,
 		dbDriver:       *driver,
-		withSwag:       *withSwag,
-		withSkill:      *withSkill,
-		serviceName:    *serviceName,
-		routePrefix:    *routePrefix,
+		withSwag:        *withSwag,
+		withSkill:       *withSkill,
+		withInteraction: *withInteraction,
+		serviceName:     *serviceName,
+		routePrefix:     *routePrefix,
 		checkOnly:      *checkOnly,
 		appendSvc:      *appendSvc,
 		appendModel:    *appendModel,
@@ -223,10 +226,11 @@ func (c config) generatorOptions(idlPath, serviceName string) generator.Options 
 		WithGRPC:       c.withGRPC,
 		WithDB:         c.withDB,
 		DBDriver:       c.dbDriver,
-		WithSwag:       c.withSwag,
-		WithSkill:      c.withSkill,
-		IDLSrcPath:     idlPath,
-		RoutePrefix:    c.routePrefix,
+		WithSwag:        c.withSwag,
+		WithSkill:       c.withSkill,
+		WithInteraction: c.withInteraction,
+		IDLSrcPath:      idlPath,
+		RoutePrefix:     c.routePrefix,
 	}
 }
 

@@ -2,12 +2,14 @@ package interaction
 
 import "context"
 
-// Runtime coordinates sessions, events, tools, and hooks.
+// Runtime coordinates sessions, events, tools, hooks, resources, and prompts.
 type Runtime struct {
-	Sessions SessionStore
-	Events   EventSink
-	Tools    ToolRegistry
-	Hooks    []Hook
+	Sessions  SessionStore
+	Events    EventSink
+	Tools     ToolRegistry
+	Hooks     []Hook
+	Resources ResourceProvider
+	Prompts   PromptProvider
 }
 
 func NewRuntime(sessions SessionStore, events EventSink, tools ToolRegistry, hooks ...Hook) *Runtime {
@@ -21,11 +23,23 @@ func NewRuntime(sessions SessionStore, events EventSink, tools ToolRegistry, hoo
 		tools = NewMemoryToolRegistry()
 	}
 	return &Runtime{
-		Sessions: sessions,
-		Events:   events,
-		Tools:    tools,
-		Hooks:    append([]Hook(nil), hooks...),
+		Sessions:  sessions,
+		Events:    events,
+		Tools:     tools,
+		Hooks:     append([]Hook(nil), hooks...),
 	}
+}
+
+// WithResources sets the resource provider and returns the runtime for chaining.
+func (r *Runtime) WithResources(provider ResourceProvider) *Runtime {
+	r.Resources = provider
+	return r
+}
+
+// WithPrompts sets the prompt provider and returns the runtime for chaining.
+func (r *Runtime) WithPrompts(provider PromptProvider) *Runtime {
+	r.Prompts = provider
+	return r
 }
 
 func (r *Runtime) StartSession(ctx context.Context, subject string, metadata map[string]string) (Session, error) {
@@ -108,6 +122,50 @@ func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, erro
 		}
 	}
 	return result, err
+}
+
+// ListResources returns all registered resources.
+func (r *Runtime) ListResources(ctx context.Context) ([]Resource, error) {
+	if r.Resources == nil {
+		return nil, nil
+	}
+	return r.Resources.ListResources(ctx)
+}
+
+// ReadResource reads the content of a resource by URI.
+func (r *Runtime) ReadResource(ctx context.Context, uri string) ([]ResourceContent, error) {
+	if r.Resources == nil {
+		return nil, ErrResourceNotFound
+	}
+	return r.Resources.ReadResource(ctx, uri)
+}
+
+// ListResourceTemplates returns resource URI templates if the provider supports them.
+func (r *Runtime) ListResourceTemplates(ctx context.Context) ([]ResourceTemplate, error) {
+	if r.Resources == nil {
+		return nil, nil
+	}
+	lister, ok := r.Resources.(ResourceTemplateLister)
+	if !ok {
+		return nil, nil
+	}
+	return lister.ListResourceTemplates(ctx)
+}
+
+// ListPrompts returns all registered prompts.
+func (r *Runtime) ListPrompts(ctx context.Context) ([]Prompt, error) {
+	if r.Prompts == nil {
+		return nil, nil
+	}
+	return r.Prompts.ListPrompts(ctx)
+}
+
+// GetPrompt renders a prompt by name with the given arguments.
+func (r *Runtime) GetPrompt(ctx context.Context, name string, args map[string]string) (PromptResult, error) {
+	if r.Prompts == nil {
+		return PromptResult{}, ErrPromptNotFound
+	}
+	return r.Prompts.GetPrompt(ctx, name, args)
 }
 
 // HookFuncs adapts functions into a Hook.
