@@ -223,8 +223,7 @@ For executable AI sessions and tool-call loops, use the interaction runtime:
 
 - `interaction.NewRuntime` for sessions, events, tools, resources, prompts, and hooks
 - `interaction.AuthorizationHook` and `interaction.AuditHook` for policy and audit
-- `interaction/mcp.NewHandler` for simple POST-only MCP JSON-RPC adapter
-- `interaction/mcp.NewStreamableHandler` for full Streamable HTTP transport (POST/GET/DELETE with SSE)
+- `interaction/mcp.NewHandler` — Streamable HTTP MCP transport (alias for `NewStreamableHandler`, supports POST/GET/DELETE with SSE)
 
 The MCP endpoint implements protocol version 2025-06-18 with tools, resources, prompts, completions, logging, sampling, and server-initiated notifications.
 

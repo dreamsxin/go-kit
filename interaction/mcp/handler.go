@@ -51,7 +51,12 @@ func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 		}
 		resp.Result = result
 	case "resources/list":
-		resp.Result = c.handleResourcesList(ctx, req.Params)
+		result, err := c.handleResourcesList(ctx, req.Params)
+		if err != nil {
+			resp.Error = newError(-32603, "internal error", err.Error())
+			return resp
+		}
+		resp.Result = result
 	case "resources/read":
 		result, err := c.handleResourcesRead(ctx, req.Params)
 		if err != nil {
@@ -60,9 +65,19 @@ func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 		}
 		resp.Result = result
 	case "resources/templates/list":
-		resp.Result = c.handleResourceTemplatesList(ctx, req.Params)
+		result, err := c.handleResourceTemplatesList(ctx, req.Params)
+		if err != nil {
+			resp.Error = newError(-32603, "internal error", err.Error())
+			return resp
+		}
+		resp.Result = result
 	case "prompts/list":
-		resp.Result = c.handlePromptsList(ctx, req.Params)
+		result, err := c.handlePromptsList(ctx, req.Params)
+		if err != nil {
+			resp.Error = newError(-32603, "internal error", err.Error())
+			return resp
+		}
+		resp.Result = result
 	case "prompts/get":
 		result, err := c.handlePromptsGet(ctx, req.Params)
 		if err != nil {
@@ -71,7 +86,12 @@ func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 		}
 		resp.Result = result
 	case "logging/setLevel":
-		resp.Result = c.handleLoggingSetLevel(req.Params)
+		result, err := c.handleLoggingSetLevel(req.Params)
+		if err != nil {
+			resp.Error = newError(-32602, "invalid argument", err.Error())
+			return resp
+		}
+		resp.Result = result
 	case "completion/complete":
 		result, err := c.handleCompletionComplete(req.Params)
 		if err != nil {
@@ -176,14 +196,14 @@ func (c *dispatchCore) callTool(ctx context.Context, raw json.RawMessage) (map[s
 
 // ─── resources ───────────────────────────────────────────────────────────────
 
-func (c *dispatchCore) handleResourcesList(ctx context.Context, raw json.RawMessage) map[string]any {
+func (c *dispatchCore) handleResourcesList(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
 	if c.Runtime.Resources == nil {
-		return map[string]any{"resources": []any{}}
+		return map[string]any{"resources": []any{}}, nil
 	}
 	cursor, _ := parseCursor(raw)
 	all, err := c.Runtime.ListResources(ctx)
 	if err != nil {
-		return map[string]any{"resources": []any{}}
+		return nil, err
 	}
 	page, next := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
 		return toMCPResource(all[i])
@@ -192,7 +212,7 @@ func (c *dispatchCore) handleResourcesList(ctx context.Context, raw json.RawMess
 	if next != "" {
 		result["nextCursor"] = next
 	}
-	return result
+	return result, nil
 }
 
 func (c *dispatchCore) handleResourcesRead(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
@@ -227,14 +247,14 @@ func (c *dispatchCore) handleResourcesRead(ctx context.Context, raw json.RawMess
 	return map[string]any{"contents": items}, nil
 }
 
-func (c *dispatchCore) handleResourceTemplatesList(ctx context.Context, raw json.RawMessage) map[string]any {
+func (c *dispatchCore) handleResourceTemplatesList(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
 	if c.Runtime.Resources == nil {
-		return map[string]any{"resourceTemplates": []any{}}
+		return map[string]any{"resourceTemplates": []any{}}, nil
 	}
 	cursor, _ := parseCursor(raw)
 	all, err := c.Runtime.ListResourceTemplates(ctx)
-	if err != nil || len(all) == 0 {
-		return map[string]any{"resourceTemplates": []any{}}
+	if err != nil {
+		return nil, err
 	}
 	page, next := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
 		return toMCPResourceTemplate(all[i])
@@ -243,19 +263,19 @@ func (c *dispatchCore) handleResourceTemplatesList(ctx context.Context, raw json
 	if next != "" {
 		result["nextCursor"] = next
 	}
-	return result
+	return result, nil
 }
 
 // ─── prompts ─────────────────────────────────────────────────────────────────
 
-func (c *dispatchCore) handlePromptsList(ctx context.Context, raw json.RawMessage) map[string]any {
+func (c *dispatchCore) handlePromptsList(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
 	if c.Runtime.Prompts == nil {
-		return map[string]any{"prompts": []any{}}
+		return map[string]any{"prompts": []any{}}, nil
 	}
 	cursor, _ := parseCursor(raw)
 	all, err := c.Runtime.ListPrompts(ctx)
 	if err != nil {
-		return map[string]any{"prompts": []any{}}
+		return nil, err
 	}
 	page, next := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
 		return toMCPPrompt(all[i])
@@ -264,7 +284,7 @@ func (c *dispatchCore) handlePromptsList(ctx context.Context, raw json.RawMessag
 	if next != "" {
 		result["nextCursor"] = next
 	}
-	return result
+	return result, nil
 }
 
 func (c *dispatchCore) handlePromptsGet(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
@@ -311,23 +331,26 @@ func (c *dispatchCore) handlePromptsGet(ctx context.Context, raw json.RawMessage
 
 // ─── logging ─────────────────────────────────────────────────────────────────
 
-func (c *dispatchCore) handleLoggingSetLevel(raw json.RawMessage) map[string]any {
+func (c *dispatchCore) handleLoggingSetLevel(raw json.RawMessage) (map[string]any, error) {
 	var params struct {
 		Level string `json:"level"`
 	}
 	if len(raw) > 0 {
-		_ = json.Unmarshal(raw, &params)
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return nil, fmt.Errorf("decode params: %w", err)
+		}
 	}
 	validLevels := map[string]bool{
 		"debug": true, "info": true, "notice": true, "warning": true,
 		"error": true, "critical": true, "alert": true, "emergency": true,
 	}
-	if validLevels[params.Level] {
-		c.mu.Lock()
-		c.logLevel = params.Level
-		c.mu.Unlock()
+	if !validLevels[params.Level] {
+		return nil, fmt.Errorf("invalid log level %q", params.Level)
 	}
-	return map[string]any{}
+	c.mu.Lock()
+	c.logLevel = params.Level
+	c.mu.Unlock()
+	return map[string]any{}, nil
 }
 
 // ─── completions ─────────────────────────────────────────────────────────────

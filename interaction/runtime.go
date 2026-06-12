@@ -98,6 +98,7 @@ func (r *Runtime) RegisterPrompt(p Prompt, render func(map[string]string) (Promp
 	return provider.Register(p, render)
 }
 
+// StartSession creates a new session and emits a session-started event.
 func (r *Runtime) StartSession(ctx context.Context, subject string, metadata map[string]string) (Session, error) {
 	session, err := r.Sessions.Create(ctx, subject, metadata)
 	if err != nil {
@@ -109,6 +110,7 @@ func (r *Runtime) StartSession(ctx context.Context, subject string, metadata map
 	return session, nil
 }
 
+// EndSession closes the session and emits a session-ended event.
 func (r *Runtime) EndSession(ctx context.Context, id SessionID) (Session, error) {
 	session, err := r.Sessions.Close(ctx, id)
 	if err != nil {
@@ -120,10 +122,12 @@ func (r *Runtime) EndSession(ctx context.Context, id SessionID) (Session, error)
 	return session, nil
 }
 
+// RegisterTool registers a tool with the runtime's tool registry.
 func (r *Runtime) RegisterTool(tool Tool) error {
 	return r.Tools.Register(tool)
 }
 
+// ListTools returns descriptors of all registered tools.
 func (r *Runtime) ListTools() []ToolDescriptor {
 	lister, ok := r.Tools.(ToolLister)
 	if !ok {
@@ -132,6 +136,7 @@ func (r *Runtime) ListTools() []ToolDescriptor {
 	return lister.List()
 }
 
+// CallTool executes a tool call, invoking hooks and emitting events.
 func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, error) {
 	session, err := r.Sessions.Get(ctx, call.SessionID)
 	if err != nil {
@@ -250,6 +255,7 @@ type HookFuncs struct {
 	After  func(context.Context, Session, ToolCall, ToolResult, error) error
 }
 
+// BeforeToolCall calls h.Before if set; otherwise returns nil.
 func (h HookFuncs) BeforeToolCall(ctx context.Context, session Session, call ToolCall) error {
 	if h.Before == nil {
 		return nil
@@ -257,6 +263,7 @@ func (h HookFuncs) BeforeToolCall(ctx context.Context, session Session, call Too
 	return h.Before(ctx, session, call)
 }
 
+// AfterToolCall calls h.After if set; otherwise returns nil.
 func (h HookFuncs) AfterToolCall(ctx context.Context, session Session, call ToolCall, result ToolResult, err error) error {
 	if h.After == nil {
 		return nil

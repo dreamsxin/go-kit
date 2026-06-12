@@ -55,6 +55,8 @@ func NewStreamableHandler(runtime *interaction.Runtime) *StreamableHandler {
 	}
 }
 
+// ServeHTTP dispatches an HTTP request to the appropriate handler based on
+// the HTTP method (POST, GET, DELETE).
 func (h *StreamableHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:

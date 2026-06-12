@@ -12,10 +12,14 @@ type MemoryToolRegistry struct {
 	tools map[string]Tool
 }
 
+// NewMemoryToolRegistry returns an in-memory ToolRegistry suitable for tests
+// and lightweight usage.
 func NewMemoryToolRegistry() *MemoryToolRegistry {
 	return &MemoryToolRegistry{tools: make(map[string]Tool)}
 }
 
+// Register adds a tool to the registry. Returns ErrToolExists if a tool with
+// the same name is already registered.
 func (r *MemoryToolRegistry) Register(tool Tool) error {
 	if tool == nil {
 		return ErrNilTool
@@ -34,6 +38,7 @@ func (r *MemoryToolRegistry) Register(tool Tool) error {
 	return nil
 }
 
+// Get returns the tool with the given name, or false if not found.
 func (r *MemoryToolRegistry) Get(name string) (Tool, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -41,6 +46,8 @@ func (r *MemoryToolRegistry) Get(name string) (Tool, bool) {
 	return tool, ok
 }
 
+// Call executes the named tool. Returns ErrToolNotFound if the tool does not
+// exist.
 func (r *MemoryToolRegistry) Call(ctx context.Context, call ToolCall) (ToolResult, error) {
 	if err := ctx.Err(); err != nil {
 		return ToolResult{}, err
@@ -52,6 +59,7 @@ func (r *MemoryToolRegistry) Call(ctx context.Context, call ToolCall) (ToolResul
 	return tool.Call(ctx, call)
 }
 
+// List returns descriptors for all registered tools, sorted by name.
 func (r *MemoryToolRegistry) List() []ToolDescriptor {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

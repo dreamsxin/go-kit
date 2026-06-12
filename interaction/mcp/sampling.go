@@ -148,17 +148,25 @@ func (s *Sampler) CreateMessage(ctx context.Context, sessionID string, req Creat
 }
 
 // DeliverResponse delivers a client response to a pending sampling request.
-func (s *Sampler) DeliverResponse(sessionID string, idStr string, result CreateMessageResult) bool {
+// Returns false if the session or request ID is not found.
+func (s *Sampler) DeliverResponse(sessionID string, idStr string, result CreateMessageResult) (ok bool) {
 	tracker := s.getTracker(sessionID)
 	if tracker == nil {
 		return false
 	}
 	tracker.mu.Lock()
-	ch, ok := tracker.pending[idStr]
+	ch, found := tracker.pending[idStr]
 	tracker.mu.Unlock()
-	if !ok {
+	if !found {
 		return false
 	}
+	// Guard against a closed channel: UnregisterSession may close ch
+	// between the lock release above and this send.
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
 	ch <- result
 	return true
 }

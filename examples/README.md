@@ -12,6 +12,8 @@ A guided tour of the go-kit framework, from simplest to most complete.
 | `middleware/` | Every endpoint middleware: Chain, Builder, Failer, Timeout, Gobreaker, HandyBreaker, ErroringLimiter, DelayingLimiter | `go run ./examples/middleware` |
 | `httpclient/` | HTTP client: NewJSONClient, ClientBefore/After/Finalizer, SetClient | `go run ./examples/httpclient` |
 | `interaction_policy/` | AI interaction runtime: MCP-style tool calls with authorization and audit hooks | `go test ./examples/interaction_policy/...` |
+| `mcp_basic/` | Minimal MCP server: single tool, `NewRuntime()`, `mcp.ListenAndServe` | `go run ./examples/mcp_basic` |
+| `mcp_full/` | Full MCP server: tools, resources, prompts, notifications, completions, SSE streaming | `go test ./examples/mcp_full/...` |
 | `sd/` | Service discovery: instance.Cache, Endpointer, RoundRobin, Retry, RetryWithCallback, sd.NewEndpoint, InvalidateOnError | `go run ./examples/sd` |
 | `common/` | Shared helpers: Greeter interface, Headerer response | (library) |
 | `multisvc/` | IDL definition for two services in one package | (library) |

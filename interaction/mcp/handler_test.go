@@ -513,10 +513,13 @@ func TestLoggingSetLevel(t *testing.T) {
 func TestLoggingSetLevelInvalid(t *testing.T) {
 	handler := NewHandler(nil)
 	sid := initSessionHelper(t, handler)
-	postJSONSession(t, handler, sid, map[string]any{
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "logging/setLevel",
 		"params": map[string]any{"level": "bogus"},
 	})
+	if resp["error"] == nil {
+		t.Fatal("expected JSON-RPC error for invalid log level")
+	}
 	handler.core.mu.RLock()
 	if handler.core.logLevel != "info" {
 		t.Fatalf("logLevel = %v, want info (unchanged)", handler.core.logLevel)

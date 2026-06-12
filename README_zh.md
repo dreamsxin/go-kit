@@ -223,8 +223,7 @@ microgen -idl idl.go -out . -import example.com/mysvc -config-mode remote -remot
 
 - `interaction.NewRuntime`：session、event、tool、resource、prompt 和 hook
 - `interaction.AuthorizationHook` 与 `interaction.AuditHook`：策略和审计
-- `interaction/mcp.NewHandler`：简单 POST-only MCP JSON-RPC adapter
-- `interaction/mcp.NewStreamableHandler`：完整 Streamable HTTP 传输（POST/GET/DELETE + SSE）
+- `interaction/mcp.NewHandler`：Streamable HTTP MCP 传输（`NewStreamableHandler` 的别名，支持 POST/GET/DELETE + SSE）
 
 MCP 端点实现协议版本 2025-06-18，支持 tools、resources、prompts、completions、logging、sampling 和服务器发起的 notifications。
 

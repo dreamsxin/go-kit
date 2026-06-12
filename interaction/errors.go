@@ -2,6 +2,7 @@ package interaction
 
 import "errors"
 
+// Sentinel errors returned by the interaction package.
 var (
 	ErrNilToolFunc       = errors.New("interaction: nil tool func")
 	ErrNilTool           = errors.New("interaction: nil tool")

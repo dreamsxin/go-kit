@@ -15,6 +15,8 @@ type MemorySessionStore struct {
 	now      func() time.Time
 }
 
+// NewMemorySessionStore returns an in-memory SessionStore suitable for tests
+// and lightweight usage.
 func NewMemorySessionStore() *MemorySessionStore {
 	return &MemorySessionStore{
 		sessions: make(map[SessionID]Session),
@@ -22,6 +24,7 @@ func NewMemorySessionStore() *MemorySessionStore {
 	}
 }
 
+// Create creates a new session with the given subject and metadata.
 func (s *MemorySessionStore) Create(ctx context.Context, subject string, metadata map[string]string) (Session, error) {
 	if err := ctx.Err(); err != nil {
 		return Session{}, err
@@ -42,6 +45,7 @@ func (s *MemorySessionStore) Create(ctx context.Context, subject string, metadat
 	return session, nil
 }
 
+// Get returns the session with the given ID, or ErrSessionNotFound.
 func (s *MemorySessionStore) Get(ctx context.Context, id SessionID) (Session, error) {
 	if err := ctx.Err(); err != nil {
 		return Session{}, err
@@ -56,6 +60,8 @@ func (s *MemorySessionStore) Get(ctx context.Context, id SessionID) (Session, er
 	return copySession(session), nil
 }
 
+// Close marks the session as closed. Returns ErrSessionNotFound if the ID
+// does not exist.
 func (s *MemorySessionStore) Close(ctx context.Context, id SessionID) (Session, error) {
 	if err := ctx.Err(); err != nil {
 		return Session{}, err
@@ -84,6 +90,8 @@ type MemoryEventSink struct {
 	now    func() time.Time
 }
 
+// NewMemoryEventSink returns an in-memory EventSink suitable for tests and
+// lightweight usage.
 func NewMemoryEventSink() *MemoryEventSink {
 	return &MemoryEventSink{
 		events: make(map[SessionID][]Event),
@@ -91,6 +99,7 @@ func NewMemoryEventSink() *MemoryEventSink {
 	}
 }
 
+// Emit records an event. If event.At is zero it is set to the current time.
 func (s *MemoryEventSink) Emit(ctx context.Context, event Event) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -106,6 +115,7 @@ func (s *MemoryEventSink) Emit(ctx context.Context, event Event) error {
 	return nil
 }
 
+// List returns all events recorded for the given session ID.
 func (s *MemoryEventSink) List(ctx context.Context, id SessionID) ([]Event, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

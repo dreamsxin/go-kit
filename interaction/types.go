@@ -90,8 +90,10 @@ type ToolFunc struct {
 	Fn          func(context.Context, ToolCall) (ToolResult, error)
 }
 
+// Name returns the tool's name.
 func (f ToolFunc) Name() string { return f.ToolName }
 
+// Descriptor returns the tool's discovery metadata.
 func (f ToolFunc) Descriptor() ToolDescriptor {
 	return ToolDescriptor{
 		Name:        f.ToolName,
@@ -100,6 +102,7 @@ func (f ToolFunc) Descriptor() ToolDescriptor {
 	}
 }
 
+// Call executes the tool function. Returns ErrNilToolFunc if Fn is nil.
 func (f ToolFunc) Call(ctx context.Context, call ToolCall) (ToolResult, error) {
 	if f.Fn == nil {
 		return ToolResult{}, ErrNilToolFunc

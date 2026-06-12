@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -143,7 +142,4 @@ func TestMCPFullExample(t *testing.T) {
 	if logResp["error"] != nil {
 		t.Fatalf("logging/setLevel error: %v", logResp["error"])
 	}
-
-	// Verify runtime context is unused but compiles.
-	_ = context.Background()
 }

@@ -15,6 +15,8 @@ type MemoryResourceProvider struct {
 	templates []ResourceTemplate
 }
 
+// NewMemoryResourceProvider returns an in-memory ResourceProvider suitable for
+// tests and small deployments.
 func NewMemoryResourceProvider() *MemoryResourceProvider {
 	return &MemoryResourceProvider{
 		resources: make(map[string]Resource),
@@ -53,6 +55,7 @@ func (p *MemoryResourceProvider) RegisterText(uri, name, text string) error {
 	)
 }
 
+// ListResources returns all registered resources sorted by URI.
 func (p *MemoryResourceProvider) ListResources(ctx context.Context) ([]Resource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -75,6 +78,8 @@ func (p *MemoryResourceProvider) ListResources(ctx context.Context) ([]Resource,
 	return out, nil
 }
 
+// ReadResource returns the content of the resource identified by uri.
+// Returns ErrResourceNotFound if the URI is not registered.
 func (p *MemoryResourceProvider) ReadResource(ctx context.Context, uri string) ([]ResourceContent, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -91,6 +96,7 @@ func (p *MemoryResourceProvider) ReadResource(ctx context.Context, uri string) (
 	return out, nil
 }
 
+// ListResourceTemplates returns all registered resource URI templates.
 func (p *MemoryResourceProvider) ListResourceTemplates(ctx context.Context) ([]ResourceTemplate, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -117,6 +123,8 @@ type memoryPromptEntry struct {
 	render  func(args map[string]string) (PromptResult, error)
 }
 
+// NewMemoryPromptProvider returns an in-memory PromptProvider suitable for
+// tests and small deployments.
 func NewMemoryPromptProvider() *MemoryPromptProvider {
 	return &MemoryPromptProvider{
 		prompts: make(map[string]memoryPromptEntry),
@@ -137,6 +145,7 @@ func (p *MemoryPromptProvider) Register(prompt Prompt, render func(args map[stri
 	return nil
 }
 
+// ListPrompts returns all registered prompts sorted by name.
 func (p *MemoryPromptProvider) ListPrompts(ctx context.Context) ([]Prompt, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -157,6 +166,8 @@ func (p *MemoryPromptProvider) ListPrompts(ctx context.Context) ([]Prompt, error
 	return out, nil
 }
 
+// GetPrompt renders the named prompt with the given arguments.
+// Returns ErrPromptNotFound if the prompt does not exist.
 func (p *MemoryPromptProvider) GetPrompt(ctx context.Context, name string, args map[string]string) (PromptResult, error) {
 	if err := ctx.Err(); err != nil {
 		return PromptResult{}, err
