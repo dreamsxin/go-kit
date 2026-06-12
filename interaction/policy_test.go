@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestAuthorizationHookAllowsAndDeniesToolCalls(t *testing.T) {
@@ -114,4 +115,238 @@ func TestAuditHookRecordsToolErrors(t *testing.T) {
 
 func echoTool(ctx context.Context, call ToolCall) (ToolResult, error) {
 	return ToolResult{Output: call.Input, Metadata: map[string]string{"tool": call.Name}}, nil
+}
+
+// --- AuthorizationError unit tests ---
+
+func TestAuthorizationError_Error_WithReason(t *testing.T) {
+	err := AuthorizationError{Reason: "insufficient privileges"}
+	got := err.Error()
+	want := "interaction: unauthorized: insufficient privileges"
+	if got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestAuthorizationError_Error_EmptyReason(t *testing.T) {
+	err := AuthorizationError{}
+	got := err.Error()
+	want := ErrUnauthorized.Error()
+	if got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestAuthorizationError_Unwrap(t *testing.T) {
+	err := AuthorizationError{Reason: "test"}
+	if !errors.Is(err, ErrUnauthorized) {
+		t.Fatal("AuthorizationError should unwrap to ErrUnauthorized")
+	}
+}
+
+// --- AuthorizerFunc unit tests ---
+
+func TestAuthorizerFunc_Nil_AllowsByDefault(t *testing.T) {
+	var f AuthorizerFunc // nil
+	decision, err := f.AuthorizeToolCall(context.Background(), Session{}, ToolCall{})
+	if err != nil {
+		t.Fatalf("nil AuthorizerFunc should not error, got %v", err)
+	}
+	if !decision.Allowed {
+		t.Fatal("nil AuthorizerFunc should allow by default")
+	}
+}
+
+func TestAuthorizerFunc_Custom(t *testing.T) {
+	f := AuthorizerFunc(func(_ context.Context, _ Session, call ToolCall) (AuthorizationDecision, error) {
+		if call.Name == "admin" {
+			return AuthorizationDecision{Allowed: false, Reason: "admin only"}, nil
+		}
+		return AuthorizationDecision{Allowed: true}, nil
+	})
+
+	dec, err := f.AuthorizeToolCall(context.Background(), Session{}, ToolCall{Name: "admin"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dec.Allowed {
+		t.Fatal("admin tool should be denied")
+	}
+
+	dec, err = f.AuthorizeToolCall(context.Background(), Session{}, ToolCall{Name: "public"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !dec.Allowed {
+		t.Fatal("public tool should be allowed")
+	}
+}
+
+// --- AuthorizationHook unit tests ---
+
+func TestAuthorizationHook_NilAuthorizer(t *testing.T) {
+	h := AuthorizationHook{}
+	err := h.BeforeToolCall(context.Background(), Session{}, ToolCall{})
+	if err != nil {
+		t.Fatalf("nil Authorizer should return nil, got %v", err)
+	}
+}
+
+func TestAuthorizationHook_Denied_NoReason_ReturnsErrUnauthorized(t *testing.T) {
+	h := AuthorizationHook{
+		Authorizer: AuthorizerFunc(func(_ context.Context, _ Session, _ ToolCall) (AuthorizationDecision, error) {
+			return AuthorizationDecision{Allowed: false}, nil
+		}),
+	}
+	err := h.BeforeToolCall(context.Background(), Session{}, ToolCall{})
+	if !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("expected ErrUnauthorized for empty reason, got %v", err)
+	}
+}
+
+func TestAuthorizationHook_Denied_WithReason(t *testing.T) {
+	h := AuthorizationHook{
+		Authorizer: AuthorizerFunc(func(_ context.Context, _ Session, _ ToolCall) (AuthorizationDecision, error) {
+			return AuthorizationDecision{Allowed: false, Reason: "forbidden"}, nil
+		}),
+	}
+	err := h.BeforeToolCall(context.Background(), Session{}, ToolCall{})
+	if err == nil {
+		t.Fatal("denied decision should return error")
+	}
+	var authErr AuthorizationError
+	if !errors.As(err, &authErr) {
+		t.Fatalf("expected AuthorizationError, got %T: %v", err, err)
+	}
+	if authErr.Reason != "forbidden" {
+		t.Fatalf("expected reason 'forbidden', got %q", authErr.Reason)
+	}
+}
+
+func TestAuthorizationHook_AuthorizerError(t *testing.T) {
+	authErr := errors.New("auth service down")
+	h := AuthorizationHook{
+		Authorizer: AuthorizerFunc(func(_ context.Context, _ Session, _ ToolCall) (AuthorizationDecision, error) {
+			return AuthorizationDecision{}, authErr
+		}),
+	}
+	err := h.BeforeToolCall(context.Background(), Session{}, ToolCall{})
+	if !errors.Is(err, authErr) {
+		t.Fatalf("expected authorizer error, got %v", err)
+	}
+}
+
+func TestAuthorizationHook_AfterToolCall_ReturnsNil(t *testing.T) {
+	h := AuthorizationHook{}
+	err := h.AfterToolCall(context.Background(), Session{}, ToolCall{}, ToolResult{}, nil)
+	if err != nil {
+		t.Fatalf("AfterToolCall should return nil, got %v", err)
+	}
+}
+
+// --- AuditSinkFunc unit tests ---
+
+func TestAuditSinkFunc_Nil(t *testing.T) {
+	var f AuditSinkFunc // nil
+	err := f.RecordAudit(context.Background(), AuditRecord{})
+	if err != nil {
+		t.Fatalf("nil AuditSinkFunc should return nil, got %v", err)
+	}
+}
+
+func TestAuditSinkFunc_Custom(t *testing.T) {
+	var captured AuditRecord
+	f := AuditSinkFunc(func(_ context.Context, record AuditRecord) error {
+		captured = record
+		return nil
+	})
+	err := f.RecordAudit(context.Background(), AuditRecord{Tool: "echo", Phase: "before"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if captured.Tool != "echo" {
+		t.Fatalf("expected tool 'echo', got %q", captured.Tool)
+	}
+}
+
+// --- AuditHook unit tests ---
+
+func TestAuditHook_NilSink(t *testing.T) {
+	h := AuditHook{}
+	err := h.BeforeToolCall(context.Background(), Session{}, ToolCall{})
+	if err != nil {
+		t.Fatalf("nil Sink should return nil, got %v", err)
+	}
+	err = h.AfterToolCall(context.Background(), Session{}, ToolCall{}, ToolResult{}, nil)
+	if err != nil {
+		t.Fatalf("nil Sink should return nil, got %v", err)
+	}
+}
+
+func TestAuditHook_CustomNow(t *testing.T) {
+	fixedTime := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+	var captured AuditRecord
+	h := AuditHook{
+		Sink: AuditSinkFunc(func(_ context.Context, record AuditRecord) error {
+			captured = record
+			return nil
+		}),
+		Now: func() time.Time { return fixedTime },
+	}
+	h.BeforeToolCall(context.Background(), Session{ID: "s1"}, ToolCall{Name: "test"})
+	if !captured.At.Equal(fixedTime) {
+		t.Fatalf("expected At=%v, got %v", fixedTime, captured.At)
+	}
+}
+
+func TestAuditHook_MetadataCloned(t *testing.T) {
+	var captured AuditRecord
+	h := AuditHook{
+		Sink: AuditSinkFunc(func(_ context.Context, record AuditRecord) error {
+			captured = record
+			return nil
+		}),
+	}
+	original := map[string]string{"key": "original"}
+	h.BeforeToolCall(context.Background(), Session{}, ToolCall{Name: "test", Metadata: original})
+
+	original["key"] = "mutated"
+	if captured.Metadata["key"] != "original" {
+		t.Fatal("metadata should have been cloned, not shared")
+	}
+}
+
+func TestAuditHook_AfterToolCall_WithError(t *testing.T) {
+	var captured AuditRecord
+	h := AuditHook{
+		Sink: AuditSinkFunc(func(_ context.Context, record AuditRecord) error {
+			captured = record
+			return nil
+		}),
+	}
+	toolErr := errors.New("tool broke")
+	h.AfterToolCall(context.Background(), Session{}, ToolCall{Name: "x"}, ToolResult{}, toolErr)
+	if captured.Allowed {
+		t.Fatal("with error means Allowed=false")
+	}
+	if captured.Error != "tool broke" {
+		t.Fatalf("expected error 'tool broke', got %q", captured.Error)
+	}
+}
+
+func TestAuditHook_AfterToolCall_Success(t *testing.T) {
+	var captured AuditRecord
+	h := AuditHook{
+		Sink: AuditSinkFunc(func(_ context.Context, record AuditRecord) error {
+			captured = record
+			return nil
+		}),
+	}
+	h.AfterToolCall(context.Background(), Session{}, ToolCall{Name: "x"}, ToolResult{}, nil)
+	if !captured.Allowed {
+		t.Fatal("no error means Allowed=true")
+	}
+	if captured.Error != "" {
+		t.Fatalf("expected empty error, got %q", captured.Error)
+	}
 }
