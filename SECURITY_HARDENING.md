@@ -69,12 +69,12 @@ Use endpoint middleware for:
 
 Use service logic only for domain authorization that needs domain state and cannot be separated cleanly.
 
-For AI-facing preview tool loops, use:
+For AI-facing tool loops, use:
 
 - `interaction.AuthorizationHook`
 - `interaction.AuditHook`
 
-These APIs remain preview, but they show the intended policy shape for interaction runtimes.
+These APIs provide policy enforcement for interaction runtimes.
 
 ## Request Limits
 
@@ -126,7 +126,7 @@ Recommended fields:
 - error class when denied or failed
 - source address when available
 
-Use endpoint middleware for stable service API audit records. Use `interaction.AuditHook` for preview AI interaction tool loops.
+Use endpoint middleware for stable service API audit records. Use `interaction.AuditHook` for AI interaction tool loops.
 
 Do not rely on logs alone for required audit trails. Logs are useful operational evidence, but durable audit storage should be queryable and retained by policy.
 

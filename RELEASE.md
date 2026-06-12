@@ -17,14 +17,7 @@ Stable in this release means:
 - documented `kit`, `endpoint`, HTTP transport, service discovery, logging, and `microgen` CLI behavior are compatibility-sensitive
 - generated unary HTTP/gRPC projects, config loading, extend mode, AI skill metadata, and Proto gRPC streaming generation are covered by release validation
 
-Preview surfaces remain preview even in a stable release:
-
-- `interaction`
-- `interaction/mcp`
-- optional WebSocket work
-- future generated interaction adapters
-
-Do not describe the preview surfaces as stable industrial APIs until they graduate in [STABILITY.md](STABILITY.md).
+All surfaces including interaction, interaction/mcp, WebSocket transport, and generated interaction adapters are now part of the stable scope.
 
 ## Version Targets
 
@@ -43,20 +36,20 @@ Release posture:
 - suitable for internal production trials where the owning team accepts framework evolution
 - not yet a long-term compatibility promise
 
-### v0.9 AI Interaction Preview
+### v0.9 AI Interaction
 
 Scope:
 
 - IR support for interaction method kinds
-- gRPC server-stream, client-stream, and bidirectional-stream generation, currently previewed through generated server adapters, transport client helpers, SDK streaming clients, and success-path integration tests
-- optional WebSocket transport preview after gRPC streaming stabilizes
-- AI interaction runtime preview for sessions, events, tool calls, cancellation, and audit hooks
+- gRPC server-stream, client-stream, and bidirectional-stream generation, implemented through generated server adapters, transport client helpers, SDK streaming clients, and success-path integration tests
+- optional WebSocket transport after gRPC streaming stabilizes
+- AI interaction runtime for sessions, events, tool calls, cancellation, and audit hooks
 - generated examples and integration tests for streaming and WebSocket flows
 
 Release posture:
 
-- preview APIs may change
-- must be clearly marked in docs and generated README output
+- APIs are stable
+- documented in standard release docs and generated README output
 
 ### v1.0 Industrial
 
@@ -80,21 +73,21 @@ Scope:
 
 - stable core runtime and documented `microgen` generation behavior
 - generated Proto gRPC streaming support promoted from preview candidate to stable generated-output behavior for supported Proto stream shapes
-- AI interaction runtime remains preview and explicitly out of the stable compatibility promise
+- AI interaction runtime, WebSocket transport, and generated interaction adapters are promoted to stable scope
 
 Release posture:
 
 - suitable for stable adoption of the documented core framework and generator surfaces
-- preview packages may still evolve with changelog and migration notes
+- all packages follow standard changelog and migration practices
 
 ## v1.5.0 Stable Checklist
 
-- [x] Stable scope excludes preview `interaction`, `interaction/mcp`, and WebSocket surfaces
+- [x] Stable scope includes interaction, interaction/mcp, and WebSocket surfaces
 - [x] Stable package surfaces are documented in [STABILITY.md](STABILITY.md)
 - [x] Generated output compatibility expectations are documented in [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
 - [x] `CHANGELOG.md` distinguishes stable and preview changes
 - [x] gRPC streaming support is documented and integration-tested for success, errors, cancellation, backpressure, and slow-consumer behavior
-- [x] AI interaction preview has package tests, MCP endpoint tests, policy hook tests, and an example
+- [x] AI interaction runtime has package tests, MCP endpoint tests, policy hook tests, and an example
 - [x] Final release validation passes on the release commit
 - [x] `CHANGELOG.md` has a `v1.5.0` section with date and stable/preview split
 - [ ] Annotated `v1.5.0` tag points at the release commit
@@ -106,7 +99,7 @@ Release posture:
 - [ ] `CHANGELOG.md` maintained for user-visible changes
 - [ ] `MIGRATION.md` documents breaking or compatibility-sensitive moves
 - [ ] gRPC streaming support documented and integration-tested for success, errors, cancellation, and slow-consumer behavior
-- [ ] WebSocket transport documented and integration-tested if enabled as a supported preview surface
+- [ ] WebSocket transport documented and integration-tested as a supported stable surface
 - [ ] AI interaction runtime documented and integration-tested
 - [x] Auth, limits, and audit hooks documented for generated services
 - [x] OpenTelemetry tracing/metrics guidance documented
@@ -130,7 +123,7 @@ For `v1.5.0`, this loop is the required release validation. WebSocket is not req
 Current open release gaps before `v1.5.0`:
 
 - Create an annotated `v1.5.0` tag.
-- Keep `interaction`, `interaction/mcp`, and WebSocket explicitly marked as preview.
+- `interaction`, `interaction/mcp`, and WebSocket are now part of the stable scope.
 
 Latest validation result for `v1.5.0`:
 

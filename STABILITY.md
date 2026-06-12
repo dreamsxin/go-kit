@@ -43,11 +43,11 @@ Meaning:
 
 The project is preparing for `v1.5.0 Stable`.
 
-Stable in `v1.5.0` applies to the documented core runtime, documented `microgen` CLI behavior, and validated generated output. It does not graduate preview surfaces such as `interaction`, `interaction/mcp`, optional WebSocket work, or future generated interaction adapters.
+Stable in `v1.5.0` applies to the documented core runtime, documented `microgen` CLI behavior, and validated generated output. All surfaces including interaction, interaction/mcp, WebSocket transport, and generated interaction adapters are now part of the stable scope.
 
 The full v1.0 industrial compatibility freeze happens only after the v1.0 checklist in [RELEASE.md](RELEASE.md) is complete.
 
-Preview surfaces must be documented as preview until they graduate into the stable or semi-stable tables below.
+All public surfaces are classified into the stability tiers below.
 
 ## Package-Level Classification
 
@@ -61,10 +61,10 @@ Preview surfaces must be documented as preview until they graduate into the stab
 | `transport/http/client` | Stable | Public client constructor and hook surface |
 | `transport/grpc/server` | Semi-stable | Public, but less simplified than HTTP path |
 | `transport/grpc/client` | Semi-stable | Public, but should be treated as evolving |
-| `transport/ws` | Preview | Optional planned WebSocket transport for browser/session interaction requirements |
+| `transport/ws` | Stable | WebSocket transport for browser/session interaction requirements |
 | gRPC streaming transport | Stable | Generated Proto streaming surface for supported server/client/bidirectional stream shapes; validated through integration coverage |
-| `interaction` | Preview | Minimal session/event/tool-call runtime contracts, auth/audit hooks, in-memory preview implementations, and MCP-style HTTP endpoint preview |
-| AI interaction runtime | Preview | Broader generated interaction-server runtime is still planned |
+| `interaction` | Stable | Session/event/tool-call runtime contracts, auth/audit hooks, in-memory implementations, resources, prompts, and completions |
+| interaction/mcp | Stable | Full MCP 2025-06-18 Streamable HTTP transport with tools, resources, prompts, sampling, logging, notifications, and completions |
 | `sd` | Stable | Public service discovery and endpoint wiring surface |
 | `sd/endpointer` | Semi-stable | Publicly useful but still closer to infra-level composition |
 | `sd/endpointer/balancer` | Semi-stable | Extension-oriented package, allowed to grow |

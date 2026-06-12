@@ -96,7 +96,7 @@ Runtime inspection:
 
 - `pb/userservice/userservice.proto` is generated from the current service contract and should be reviewed before running `protoc`.
 - If any unsupported shape still falls back to `TODO`, complete those message fields before generating stubs.
-- gRPC streaming generation is a preview surface. Generated streaming SDK callbacks are synchronous: a slow `send` callback applies backpressure to local message delivery, and applications should use context deadlines/cancellation plus their own bounded queues for long-running work.
+- gRPC streaming generation is a stable surface. Generated streaming SDK callbacks are synchronous: a slow `send` callback applies backpressure to local message delivery, and applications should use context deadlines/cancellation plus their own bounded queues for long-running work.
 
 
 

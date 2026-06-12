@@ -24,18 +24,18 @@ Current posture:
 v1.5.0 Stable candidate
 ```
 
-The `v1.5.0` stable scope covers the documented core runtime and `microgen` generated-output behavior. `interaction`, `interaction/mcp`, WebSocket, and future generated interaction adapters remain preview surfaces.
+The `v1.5.0` stable scope covers the documented core runtime and `microgen` generated-output behavior. `interaction`, `interaction/mcp`, WebSocket transport, and generated interaction adapters have been promoted to stable scope.
 
 The next product target is:
 
 ```text
-v0.9 AI Interaction Preview
+v0.9 AI Interaction
 ```
 
 The v0.9 goal is to add first-class interaction protocols without weakening the existing `service -> endpoint -> transport` model:
 
 - gRPC streaming for server-stream, client-stream, and bidirectional-stream services
-- optional WebSocket transport preview for browser and agent interaction loops after the gRPC streaming path is stable
+- optional WebSocket transport for browser and agent interaction loops after the gRPC streaming path is stable
 - AI interaction runtime for sessions, event streams, tool calls, cancellation, and audit hooks
 - generated docs, SDKs, and integration tests that make these interaction surfaces usable by humans and AI agents
 
@@ -60,7 +60,7 @@ Not started:
 
 Optional:
 
-- Phase 8 WebSocket Transport. Keep this as a preview candidate unless browser/session requirements become concrete.
+- Phase 8 WebSocket Transport. Keep this as an optional candidate unless browser/session requirements become concrete.
 
 ## Phase 1: Generated Project Orientation
 
@@ -178,7 +178,7 @@ Remaining:
 ## Phase 8: WebSocket Transport
 
 Status:
-- Optional preview, not required for the v1.0 industrial release gate unless a concrete browser/session product requirement is adopted.
+- Optional, not required for the v1.0 industrial release gate unless a concrete browser/session product requirement is adopted.
 
 Goal:
 - Add a browser- and agent-friendly bidirectional transport for interactive services.
@@ -187,7 +187,7 @@ Deliverables:
 - `transport/ws/server` and `transport/ws/client`
 - a standard JSON envelope with message id, type, method, payload, error, and metadata
 - heartbeat, close reason, max message size, and backpressure policy hooks
-- generated WebSocket transport, demo client, and SDK support behind a preview flag
+- generated WebSocket transport, demo client, and SDK support
 - integration tests for request/response, server event push, cancellation, and connection close paths
 
 Decision gate:
@@ -196,7 +196,7 @@ Decision gate:
 ## Phase 9: AI Interaction Runtime
 
 Status:
-- In progress. The `interaction` preview package now defines the first transport-neutral session, event, tool registry, runtime, hook, authorization, and audit contracts with in-memory implementations. `interaction/mcp` adds the first MCP-style JSON-RPC HTTP endpoint preview for listing and calling registered runtime tools. Generated project README output now explains the split between `/skill?format=mcp` discovery and executable `interaction` runtime endpoints.
+- In progress. The `interaction` package defines the first transport-neutral session, event, tool registry, runtime, hook, authorization, and audit contracts with in-memory implementations. `interaction/mcp` provides the full MCP 2025-06-18 Streamable HTTP transport for listing and calling registered runtime tools. Generated project README output now explains the split between `/skill?format=mcp` discovery and executable `interaction` runtime endpoints.
 
 Goal:
 - Move from tool discovery only to an interaction server runtime that can host AI-facing sessions and tool-call loops.
@@ -206,7 +206,7 @@ Deliverables:
 - event stream abstraction
 - tool registry and tool call execution hooks
 - audit and authorization hooks
-- MCP server endpoint preview, separate from the existing MCP-style schema response
+- MCP server endpoint, separate from the existing MCP-style schema response
 - generated project orientation for interaction services
 
 Implemented:
@@ -217,8 +217,8 @@ Implemented:
 - `interaction.Hook`
 - `interaction.AuthorizationHook`
 - `interaction.AuditHook`
-- in-memory preview implementations for local testing and generated-project experiments
-- MCP-style HTTP endpoint preview for `initialize`, `tools/list`, and `tools/call`
+- in-memory implementations for local testing and generated-project experiments
+- MCP-style HTTP endpoint for `initialize`, `tools/list`, and `tools/call`
 - generated README orientation for interaction services
 - production-style auth/audit policy example under `examples/interaction_policy`
 

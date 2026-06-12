@@ -13,7 +13,7 @@ Important status note:
 - the next planned phase is additive `microgen` and transport product expansion in these linked tracks:
   - generated configuration with remote-config support
   - incremental extension of already-generated projects with new services, models, and middleware
-  - AI interaction protocols: gRPC streaming, WebSocket, and interaction runtime preview
+  - AI interaction protocols: gRPC streaming, WebSocket, and interaction runtime
 
 ## Refactor Goals
 
@@ -28,7 +28,7 @@ The current roadmap focuses on eleven outcomes:
 7. Add a first-class generated configuration layer that can grow from local files to remote configuration.
 8. Let `microgen` evolve existing generated projects incrementally instead of forcing all-or-nothing regeneration.
 9. Extend the IR so service contracts can represent unary, streaming, WebSocket, and AI interaction methods.
-10. Add preview transports for gRPC streaming and WebSocket interaction flows.
+10. Add transports for gRPC streaming and WebSocket interaction flows.
 11. Harden release governance, security hooks, observability guidance, and migration policy before v1.0.
 
 ## Current Signals From The Codebase
@@ -308,24 +308,24 @@ Success criteria:
 
 - generator code can branch on explicit interaction method kind instead of inferring streaming behavior from names or protocol-specific types
 
-## Workstream 10: gRPC Streaming And WebSocket Preview
+## Workstream 10: gRPC Streaming And WebSocket
 
 Objective:
 
-- add preview long-lived interaction transports while keeping unary HTTP/gRPC behavior stable
+- add long-lived interaction transports while keeping unary HTTP/gRPC behavior stable
 
 Actions:
 
 - implement generated gRPC server-stream support first because Proto has a native streaming contract
 - follow with client-stream and bidirectional-stream support
 - add `transport/ws/server` and `transport/ws/client` around a standard JSON envelope
-- generate WebSocket transport, demo client, and SDK helpers behind preview documentation
+- generate WebSocket transport, demo client, and SDK helpers
 - add integration tests for success, errors, cancellation, slow consumers, and close behavior
 
 Deliverables:
 
 - generated gRPC streaming transport and SDK support
-- WebSocket transport package and generated preview artifacts
+- WebSocket transport package and generated artifacts
 - interaction protocol examples
 
 Success criteria:
@@ -343,14 +343,14 @@ Actions:
 - introduce session lifecycle interfaces
 - introduce event-stream and tool-call execution hooks
 - add authorization, audit, request limits, and cancellation hooks to interaction flows
-- add an MCP server endpoint preview that is separate from the existing MCP-style `/skill` schema response
+- add an MCP server endpoint that is separate from the existing MCP-style `/skill` schema response
 - document OpenTelemetry trace/metrics guidance for unary and streaming requests
 - maintain `CHANGELOG.md`, `MIGRATION.md`, and release validation in [RELEASE.md](RELEASE.md)
 
 Deliverables:
 
 - interaction runtime package or generated project module
-- MCP server preview
+- MCP server endpoint
 - security and observability guidance
 - v1.0 release checklist completion
 

@@ -28,15 +28,11 @@ Stable scope:
 - generated unary HTTP/gRPC projects
 - generated config, extend mode, clients, SDKs, and AI skill metadata
 - generated Proto gRPC streaming for supported server-stream, client-stream, and bidirectional-stream RPC shapes
+- `interaction` and `interaction/mcp` — AI interaction runtime with sessions, events, tools, resources, prompts, hooks, and full MCP 2025-06-18 Streamable HTTP transport
+- optional WebSocket transport for browser and agent interaction loops
+- generated interaction adapters
 
-Preview surfaces:
-
-- `interaction`
-- `interaction/mcp`
-- optional WebSocket work
-- future generated interaction adapters
-
-Preview APIs may evolve before v1.0. See [RELEASE.md](RELEASE.md), [STABILITY.md](STABILITY.md), and [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md).
+See [RELEASE.md](RELEASE.md), [STABILITY.md](STABILITY.md), and [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md).
 
 ## Quick Start: Generate A Local Service
 
@@ -119,7 +115,7 @@ Do not hand-edit generator-owned files such as cmd/generated_*.go, endpoint/*/ge
 Use /debug/routes and /skill?format=mcp to understand the generated capability surface.
 ```
 
-`/skill?format=mcp` is discovery metadata, not a tool execution endpoint. For executable AI sessions, use the preview `interaction` runtime and `interaction/mcp` adapter.
+`/skill?format=mcp` is discovery metadata, not a tool execution endpoint. For executable AI sessions, use the `interaction` runtime and `interaction/mcp` adapter.
 
 ## Where To Edit
 
@@ -234,7 +230,7 @@ See [interaction/README.md](interaction/README.md), [examples/interaction_policy
 Read these before production adoption:
 
 - [RELEASE.md](RELEASE.md) for release scope and validation
-- [STABILITY.md](STABILITY.md) for stable, semi-stable, preview, and internal surfaces
+- [STABILITY.md](STABILITY.md) for stable, semi-stable, and internal surfaces
 - [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md) for generated-output compatibility
 - [OBSERVABILITY.md](OBSERVABILITY.md) for tracing, metrics, logging, request correlation, and OpenTelemetry integration
 - [SECURITY_HARDENING.md](SECURITY_HARDENING.md) for authn/authz, request limits, audit, secrets, and generated-project hardening

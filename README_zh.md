@@ -28,15 +28,11 @@ v1.5.0 Stable
 - 生成的 unary HTTP/gRPC 项目
 - 生成配置、extend 模式、客户端、SDK 和 AI skill 元数据
 - 支持的 server-stream、client-stream、bidirectional-stream Proto gRPC 生成输出
+- `interaction` 和 `interaction/mcp` — AI interaction runtime，包含 session、event、tool、resource、prompt、hook 和完整 MCP 2025-06-18 Streamable HTTP 传输
+- 可选 WebSocket 传输，用于浏览器和 agent interaction 场景
+- 生成的 interaction adapters
 
-仍为 preview 的能力：
-
-- `interaction`
-- `interaction/mcp`
-- 可选 WebSocket 工作
-- 未来生成的 interaction adapters
-
-Preview API 在 v1.0 前仍可能演进。详见 [RELEASE.md](RELEASE.md)、[STABILITY.md](STABILITY.md) 和 [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md)。
+详见 [RELEASE.md](RELEASE.md)、[STABILITY.md](STABILITY.md) 和 [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md)。
 
 ## 快速开始：本地生成服务
 
@@ -119,7 +115,7 @@ service/helloservice/service.go
 使用 /debug/routes 和 /skill?format=mcp 理解生成的服务能力。
 ```
 
-`/skill?format=mcp` 是发现元数据，不是工具执行端点。可执行 AI session 应使用 preview `interaction` runtime 和 `interaction/mcp` adapter。
+`/skill?format=mcp` 是发现元数据，不是工具执行端点。可执行 AI session 应使用 `interaction` runtime 和 `interaction/mcp` adapter。
 
 ## 应该改哪里
 
@@ -234,7 +230,7 @@ MCP 端点实现协议版本 2025-06-18，支持 tools、resources、prompts、c
 生产采用前建议阅读：
 
 - [RELEASE.md](RELEASE.md)：发布范围和验证
-- [STABILITY.md](STABILITY.md)：stable、semi-stable、preview、internal 表面
+- [STABILITY.md](STABILITY.md)：stable、semi-stable、internal 表面
 - [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)：生成输出兼容性
 - [OBSERVABILITY.md](OBSERVABILITY.md)：tracing、metrics、logging、request correlation 和 OpenTelemetry 集成
 - [SECURITY_HARDENING.md](SECURITY_HARDENING.md)：认证、授权、请求限制、审计、密钥和生成项目安全加固

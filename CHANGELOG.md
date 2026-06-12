@@ -6,7 +6,7 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 
 ## Unreleased
 
-### Preview
+### Stable
 
 - Implemented full MCP 2025-06-18 protocol support in `interaction/mcp`:
   - Resources: `resources/list`, `resources/read`, `resources/templates/list`
@@ -39,11 +39,11 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 - Promoted generated Proto gRPC streaming support for supported server-stream, client-stream, and bidirectional-stream RPC shapes to stable generated-output behavior.
 - Documented the `v1.5.0` stable scope and compatibility boundary across release, stability, workflow, and migration docs.
 
-### Preview
+### Stable (promoted from preview)
 
-- Added transport-neutral `interaction.AuthorizationHook` and `interaction.AuditHook` preview helpers for tool-call policy and audit integration.
-- Updated generated README output to explain that `/skill?format=mcp` is discovery metadata and executable AI sessions should use the `interaction` runtime and `interaction/mcp` preview adapter.
-- Added an `examples/interaction_policy` preview showing MCP-style tool calls with authorization and audit hooks.
+- Added transport-neutral `interaction.AuthorizationHook` and `interaction.AuditHook` helpers for tool-call policy and audit integration.
+- Updated generated README output to explain that `/skill?format=mcp` is discovery metadata and executable AI sessions should use the `interaction` runtime and `interaction/mcp` adapter.
+- Added an `examples/interaction_policy` example showing MCP-style tool calls with authorization and audit hooks.
 
 ## v1.5.0-preview.1 - 2026-05-17
 
@@ -55,8 +55,8 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 - Added generated gRPC streaming integration coverage for error propagation and cancellation paths.
 - Added generated streaming SDK guidance and coverage for synchronous callback backpressure behavior.
 - Added generated streaming coverage for slow-consumer context deadline behavior.
-- Added the `interaction` preview package for transport-neutral AI sessions, events, tool calls, runtime coordination, and hooks.
-- Added `interaction/mcp`, a preview MCP-style JSON-RPC HTTP endpoint for listing and calling registered interaction runtime tools.
+- Added the `interaction` package for transport-neutral AI sessions, events, tool calls, runtime coordination, and hooks.
+- Added `interaction/mcp`, a MCP-style JSON-RPC HTTP endpoint for listing and calling registered interaction runtime tools.
 
 ### Documentation
 

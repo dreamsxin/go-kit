@@ -55,9 +55,9 @@ The following should be treated as compatibility-sensitive:
 - generation of skill output when `-skill` is enabled
 - generation of gRPC output when `grpc` is included in `-protocols`
 
-## Preview And Planned Surfaces
+## Stable Interaction Surfaces
 
-The following are planned or preview surfaces, not stable generated-output promises yet:
+The following interaction surfaces are now part of the stable generated-output contract:
 
 - gRPC server-stream, client-stream, and bidirectional-stream generation
 - WebSocket transport generation
