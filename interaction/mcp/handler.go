@@ -23,7 +23,7 @@ const (
 	serverName      = "go-kit interaction"
 	serverTitle     = "Go Kit Interaction MCP Server"
 	defaultPageSize = 50
-	serverVersion   = "0.3.0"
+	serverVersion   = "0.4.0"
 )
 
 // ─── shared dispatch core ────────────────────────────────────────────────────

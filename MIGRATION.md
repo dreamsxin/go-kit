@@ -5,9 +5,9 @@ Purpose:
 
 ## Current Status
 
-There is no v1.0 compatibility promise yet. The current release posture is preparing for `v1.5.0 Stable`.
+There is no v1.0 compatibility promise yet. The current release posture is at `v1.6.0 Stable`.
 
-`v1.5.0` stabilizes the documented core runtime and `microgen` generated-output behavior, and now includes `interaction`, `interaction/mcp`, WebSocket transport, and generated interaction adapters in the stable scope.
+`v1.6.0` stabilizes the documented core runtime and `microgen` generated-output behavior, and now includes `interaction`, `interaction/mcp`, WebSocket transport, and generated interaction adapters in the stable scope.
 
 For now, treat these as compatibility-sensitive:
 
@@ -31,7 +31,7 @@ When upgrading between pre-v1 releases:
 
 ### Generated Interaction Protocols
 
-Generated Proto gRPC streaming is part of the `v1.5.0` generated-output contract for supported Proto stream shapes.
+Generated Proto gRPC streaming is part of the `v1.6.0` generated-output contract for supported Proto stream shapes.
 
 WebSocket and AI interaction adapters are now stable surfaces.
 

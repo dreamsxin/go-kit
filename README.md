@@ -18,7 +18,7 @@ Define the service contract once. `microgen` generates a runnable project with H
 Current release:
 
 ```text
-v1.5.0 Stable
+v1.6.0 Stable
 ```
 
 Stable scope:

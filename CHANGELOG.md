@@ -6,28 +6,45 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 
 ## Unreleased
 
+## v1.6.0 - 2026-06-12
+
 ### Stable
 
+- Promoted `interaction`, `interaction/mcp`, WebSocket transport, and generated interaction adapters from preview to stable scope.
 - Implemented full MCP 2025-06-18 protocol support in `interaction/mcp`:
   - Resources: `resources/list`, `resources/read`, `resources/templates/list`
   - Prompts: `prompts/list`, `prompts/get` with argument rendering
   - Completions: `completion/complete` with `PromptCompleter` interface for prompt argument auto-completion
-  - Logging: `logging/setLevel` with syslog severity levels
+  - Logging: `logging/setLevel` with syslog severity levels (now rejects invalid levels)
   - Cursor-based pagination for all list methods
   - `StreamableHandler` for full Streamable HTTP transport (POST/GET/DELETE with SSE streams and session management)
   - Server-initiated notifications: `notifications/message`, `notifications/progress`, `notifications/resources/updated`, `notifications/resources/list_changed`, `notifications/prompts/list_changed`, `notifications/tools/list_changed`
   - MCP Sampling: `sampling/createMessage` with async request-response correlation via SSE
+  - Session TTL with background cleanup via `StartCleanup()` / `StopCleanup()`
+- Unified `ToolFunc` type with optional `Description` and `Schema` fields, replacing separate `ToolFunc` + `DescribedToolFunc`.
+- `NewRuntime()` builder pattern with `WithSessions`, `WithEvents`, `WithTools`, `WithHooks`, `WithResources`, `WithPrompts` chaining, replacing variadic constructor.
+- `NewHandler` is now an alias for `NewStreamableHandler` — both return the full Streamable HTTP handler.
 - Added `interaction.ResourceProvider`, `interaction.PromptProvider`, and `interaction.PromptCompleter` interfaces with in-memory implementations.
 - Added `interaction.MemoryResourceProvider` and `interaction.MemoryPromptProvider` for tests and small deployments.
-- Added `examples/mcp_full` demonstrating tools, resources, prompts, completions, and server-initiated notifications via Streamable HTTP transport.
+- Added `examples/mcp_basic` (minimal MCP hello-world) and `examples/mcp_full` (tools, resources, prompts, completions, notifications).
+- Fixed sampling race condition: `DeliverResponse` now guards against closed-channel panic when `UnregisterSession` races with response delivery.
+- Error propagation in `handleResourcesList`, `handlePromptsList`, and `handleResourceTemplatesList` — errors are returned as JSON-RPC errors instead of silently returning empty results.
 - Updated `microgen` templates to document MCP capabilities including `completion/complete` and server-initiated notifications.
 - Fixed flaky gRPC deadline test error message assertion (`"deadline"` → `"DeadlineExceeded"`).
+
+### Breaking Changes
+
+- `ToolFunc` merged with `DescribedToolFunc` — use optional `Description` and `Schema` fields instead.
+- `NewRuntime()` is now zero-argument with builder chaining — old variadic `NewRuntime(sessions, events, tools, hooks...)` is removed.
+- `simple.go` Handler removed — `NewHandler` now aliases `NewStreamableHandler`.
 
 ### Documentation
 
 - Added `OBSERVABILITY.md` with tracing, metrics, logging, request correlation, and OpenTelemetry integration guidance.
 - Added `SECURITY_HARDENING.md` with authentication, authorization, request limits, audit, secrets, error response, and generated-project hardening guidance.
-- Updated `README.md` and `README_zh.md` to document the full MCP endpoint capabilities including Streamable HTTP transport, sampling, completions, and notifications.
+- Updated all documentation to remove preview status from `interaction`, `interaction/mcp`, WebSocket, and generated interaction adapters.
+- Updated `README.md` and `README_zh.md` to document full MCP endpoint capabilities and stable scope.
+- Added doc comments to ~30+ exported symbols across `interaction` and `interaction/mcp` packages.
 - Updated `PACKAGE_SURFACES.md` to reflect the expanded `interaction` and `interaction/mcp` public API surface.
 - Updated `DOCS_INDEX.md` interaction package description.
 

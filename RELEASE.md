@@ -8,7 +8,7 @@ Purpose:
 `go-kit` is preparing for:
 
 ```text
-v1.5.0 Stable
+v1.6.0 Stable
 ```
 
 Stable in this release means:
@@ -80,6 +80,21 @@ Release posture:
 - suitable for stable adoption of the documented core framework and generator surfaces
 - all packages follow standard changelog and migration practices
 
+### v1.6.0 Stable
+
+Scope:
+
+- all v1.5.0 stable scope preserved
+- `interaction` and `interaction/mcp` promoted from preview to stable: full MCP 2025-06-18 protocol with Streamable HTTP transport, sampling, notifications, completions, logging, resources, and prompts
+- WebSocket transport and generated interaction adapters promoted to stable scope
+- unified `ToolFunc` with optional `Description`/`Schema`, `NewRuntime()` builder pattern, `NewHandler` alias for `NewStreamableHandler`
+- session TTL with background cleanup, error propagation in list handlers, race condition fix in sampling
+
+Release posture:
+
+- all surfaces are now stable and compatibility-sensitive
+- breaking changes require documented migration paths
+
 ## v1.5.0 Stable Checklist
 
 - [x] Stable scope includes interaction, interaction/mcp, and WebSocket surfaces
@@ -91,6 +106,14 @@ Release posture:
 - [x] Final release validation passes on the release commit
 - [x] `CHANGELOG.md` has a `v1.5.0` section with date and stable/preview split
 - [ ] Annotated `v1.5.0` tag points at the release commit
+
+## v1.6.0 Stable Checklist
+
+- [x] All preview surfaces promoted to stable in STABILITY.md
+- [x] CHANGELOG.md has v1.6.0 section with date and breaking changes
+- [x] Breaking changes documented in MIGRATION.md
+- [x] `make verify` passes
+- [ ] Annotated `v1.6.0` tag points at the release commit
 
 ## v1.0 Checklist
 
@@ -118,11 +141,11 @@ go test ./interaction/... ./examples/interaction_policy/... -count=1
 git diff --check
 ```
 
-For `v1.5.0`, this loop is the required release validation. WebSocket is not required because it is not in the stable release scope.
+For `v1.6.0`, this loop is the required release validation. WebSocket is not required because it is not in the stable release scope.
 
-Current open release gaps before `v1.5.0`:
+Current open release gaps before `v1.6.0`:
 
-- Create an annotated `v1.5.0` tag.
+- Create an annotated `v1.6.0` tag.
 - `interaction`, `interaction/mcp`, and WebSocket are now part of the stable scope.
 
 Latest validation result for `v1.5.0`:

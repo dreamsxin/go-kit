@@ -21,10 +21,10 @@ Primary path:
 Current posture:
 
 ```text
-v1.5.0 Stable candidate
+v1.6.0 Stable
 ```
 
-The `v1.5.0` stable scope covers the documented core runtime and `microgen` generated-output behavior. `interaction`, `interaction/mcp`, WebSocket transport, and generated interaction adapters have been promoted to stable scope.
+The `v1.6.0` stable scope covers the documented core runtime and `microgen` generated-output behavior. `interaction`, `interaction/mcp`, WebSocket transport, and generated interaction adapters have been promoted to stable scope.
 
 The next product target is:
 

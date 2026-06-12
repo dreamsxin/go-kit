@@ -18,7 +18,7 @@ Service -> Endpoint -> Transport
 当前发布：
 
 ```text
-v1.5.0 Stable
+v1.6.0 Stable
 ```
 
 稳定范围：

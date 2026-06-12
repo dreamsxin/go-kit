@@ -41,9 +41,9 @@ Meaning:
 
 ## Release Posture
 
-The project is preparing for `v1.5.0 Stable`.
+The project is at `v1.6.0 Stable`.
 
-Stable in `v1.5.0` applies to the documented core runtime, documented `microgen` CLI behavior, and validated generated output. All surfaces including interaction, interaction/mcp, WebSocket transport, and generated interaction adapters are now part of the stable scope.
+Stable in `v1.6.0` applies to the documented core runtime, documented `microgen` CLI behavior, and validated generated output. All surfaces including interaction, interaction/mcp, WebSocket transport, and generated interaction adapters are now part of the stable scope.
 
 The full v1.0 industrial compatibility freeze happens only after the v1.0 checklist in [RELEASE.md](RELEASE.md) is complete.
 
