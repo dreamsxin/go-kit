@@ -8,7 +8,7 @@ import (
 )
 
 func TestAuthorizationHookAllowsAndDeniesToolCalls(t *testing.T) {
-	rt := NewRuntime(nil, nil, nil, AuthorizationHook{
+	rt := NewRuntime().WithHooks(AuthorizationHook{
 		Authorizer: AuthorizerFunc(func(ctx context.Context, session Session, call ToolCall) (AuthorizationDecision, error) {
 			return AuthorizationDecision{Allowed: call.Name == "allowed", Reason: "blocked tool"}, nil
 		}),
@@ -45,7 +45,7 @@ func TestAuthorizationHookAllowsAndDeniesToolCalls(t *testing.T) {
 
 func TestAuditHookRecordsBeforeAndAfterToolCalls(t *testing.T) {
 	var records []AuditRecord
-	rt := NewRuntime(nil, nil, nil, AuditHook{
+	rt := NewRuntime().WithHooks(AuditHook{
 		Sink: AuditSinkFunc(func(ctx context.Context, record AuditRecord) error {
 			records = append(records, record)
 			return nil
@@ -84,7 +84,7 @@ func TestAuditHookRecordsBeforeAndAfterToolCalls(t *testing.T) {
 
 func TestAuditHookRecordsToolErrors(t *testing.T) {
 	var records []AuditRecord
-	rt := NewRuntime(nil, nil, nil, AuditHook{
+	rt := NewRuntime().WithHooks(AuditHook{
 		Sink: AuditSinkFunc(func(ctx context.Context, record AuditRecord) error {
 			records = append(records, record)
 			return nil

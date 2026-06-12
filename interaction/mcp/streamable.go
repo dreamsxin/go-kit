@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/dreamsxin/go-kit/interaction"
 )
@@ -27,14 +29,24 @@ type StreamableHandler struct {
 	Sampler *Sampler
 	store   *sessionStore
 
+	// SessionTTL configures how long a session may remain idle before being
+	// automatically expired. When zero, sessions are never expired.
+	SessionTTL time.Duration
+
+	// cleanupInterval overrides the default cleanup tick interval.
+	// When zero, defaults to SessionTTL/2 with a minimum of 30 seconds.
+	cleanupInterval time.Duration
+
 	// activePostStreams tracks the current POST-initiated SSE stream per session.
 	activePostStreams sync.Map // sessionID -> *sseWriter
+
+	cleanupCancel context.CancelFunc
 }
 
 // NewStreamableHandler creates a StreamableHandler backed by the given runtime.
 func NewStreamableHandler(runtime *interaction.Runtime) *StreamableHandler {
 	if runtime == nil {
-		runtime = interaction.NewRuntime(nil, nil, nil)
+		runtime = interaction.NewRuntime()
 	}
 	return &StreamableHandler{
 		core:    dispatchCore{Runtime: runtime, logLevel: "info"},
@@ -127,7 +139,7 @@ func (h *StreamableHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 
 	// ── requests (have id) ───────────────────────────────────────────
 	accept := r.Header.Get("Accept")
-	if containsSSE(accept) {
+	if strings.Contains(accept, "text/event-stream") {
 		h.handleRequestSSE(w, r, sess, req)
 	} else {
 		resp := h.core.dispatch(r.Context(), req)
@@ -239,47 +251,45 @@ func (h *StreamableHandler) SendSamplingRequest(ctx context.Context, sessionID s
 	return h.Sampler.CreateMessage(ctx, sessionID, req, sendFn)
 }
 
-func containsSSE(accept string) bool {
-	for _, v := range splitAccept(accept) {
-		if v == "text/event-stream" {
-			return true
+// StartCleanup begins a background goroutine that periodically expires idle
+// sessions. It checks every SessionTTL/2 (minimum 30 seconds). Call StopCleanup
+// to terminate the goroutine. If SessionTTL is zero, this is a no-op.
+func (h *StreamableHandler) StartCleanup() {
+	if h.SessionTTL <= 0 {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	h.cleanupCancel = cancel
+
+	interval := h.cleanupInterval
+	if interval == 0 {
+		interval = h.SessionTTL / 2
+		if interval < 30*time.Second {
+			interval = 30 * time.Second
 		}
 	}
-	return false
-}
 
-func splitAccept(s string) []string {
-	var out []string
-	for _, part := range splitString(s, ',') {
-		trimmed := trimString(part)
-		if trimmed != "" {
-			out = append(out, trimmed)
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				for _, id := range h.store.expiredIDs(h.SessionTTL) {
+					h.Sampler.UnregisterSession(id)
+					h.store.remove(id)
+				}
+			}
 		}
-	}
-	return out
+	}()
 }
 
-func splitString(s string, sep byte) []string {
-	var parts []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == sep {
-			parts = append(parts, s[start:i])
-			start = i + 1
-		}
+// StopCleanup terminates the background session cleanup goroutine.
+func (h *StreamableHandler) StopCleanup() {
+	if h.cleanupCancel != nil {
+		h.cleanupCancel()
+		h.cleanupCancel = nil
 	}
-	parts = append(parts, s[start:])
-	return parts
-}
-
-func trimString(s string) string {
-	start := 0
-	end := len(s)
-	for start < end && s[start] == ' ' {
-		start++
-	}
-	for end > start && s[end-1] == ' ' {
-		end--
-	}
-	return s[start:end]
 }

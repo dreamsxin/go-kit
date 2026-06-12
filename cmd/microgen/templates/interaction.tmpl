@@ -87,7 +87,7 @@ func (t {{.Name}}Tool) Call(ctx context.Context, call interaction.ToolCall) (int
 // initInteractionRuntime creates an interaction runtime and registers all
 // service methods as executable tools backed by the generated endpoints.
 func initInteractionRuntime(svc *generatedServices) *interaction.Runtime {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 {{- range $svc := .Project.Services}}
 {{- range $svc.Methods}}
 {{- if or (eq .Kind "") (eq .Kind "unary") }}

@@ -17,7 +17,7 @@ func postJSON(t *testing.T, handler http.Handler, body map[string]any) map[strin
 	t.Helper()
 	payload, err := json.Marshal(body)
 	if err != nil {
-		t.Fatalf("Marshal: %v", err)
+		t.Fatalf("marshal: %v", err)
 	}
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
 	rec := httptest.NewRecorder()
@@ -27,7 +27,7 @@ func postJSON(t *testing.T, handler http.Handler, body map[string]any) map[strin
 	}
 	var resp map[string]any
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("Decode response: %v", err)
+		t.Fatalf("decode response: %v", err)
 	}
 	return resp
 }
@@ -36,7 +36,7 @@ func postJSONRaw(t *testing.T, handler http.Handler, body map[string]any) (int, 
 	t.Helper()
 	payload, err := json.Marshal(body)
 	if err != nil {
-		t.Fatalf("Marshal: %v", err)
+		t.Fatalf("marshal: %v", err)
 	}
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
 	rec := httptest.NewRecorder()
@@ -46,32 +46,76 @@ func postJSONRaw(t *testing.T, handler http.Handler, body map[string]any) (int, 
 	return rec.Code, resp
 }
 
-type describedTool struct {
-	interaction.ToolFunc
+// initSessionHelper sends an initialize request and returns the session ID.
+func initSessionHelper(t *testing.T, handler http.Handler) string {
+	t.Helper()
+	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	req.Header.Set("Accept", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("initialize: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	sid := rec.Header().Get(headerSessionID)
+	if sid == "" {
+		t.Fatal("initialize: no Mcp-Session-Id header")
+	}
+	return sid
 }
 
-func (d describedTool) Descriptor() interaction.ToolDescriptor {
-	return interaction.ToolDescriptor{
-		Name:        d.Name(),
+// postJSONSession sends a POST request with a session ID header.
+func postJSONSession(t *testing.T, handler http.Handler, sid string, body map[string]any) map[string]any {
+	t.Helper()
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	req.Header.Set(headerSessionID, sid)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return resp
+}
+
+// postJSONSessionRaw sends a POST request with session ID and returns status + body.
+func postJSONSessionRaw(t *testing.T, handler http.Handler, sid string, body map[string]any) (int, map[string]any) {
+	t.Helper()
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	req.Header.Set(headerSessionID, sid)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	var resp map[string]any
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+	return rec.Code, resp
+}
+
+func setupRuntime(t *testing.T) *interaction.Runtime {
+	t.Helper()
+	rt := interaction.NewRuntime()
+	if err := rt.RegisterTool(interaction.ToolFunc{
+		ToolName:    "echo",
 		Description: "Echoes the provided arguments.",
-		InputSchema: map[string]any{
+		Schema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"message": map[string]any{"type": "string"},
 			},
 		},
-	}
-}
-
-func setupRuntime(t *testing.T) *interaction.Runtime {
-	t.Helper()
-	rt := interaction.NewRuntime(nil, nil, nil)
-	if err := rt.RegisterTool(describedTool{
-		ToolFunc: interaction.ToolFunc{
-			ToolName: "echo",
-			Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
-				return interaction.ToolResult{Output: call.Input, Metadata: map[string]string{"ok": "true"}}, nil
-			},
+		Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
+			return interaction.ToolResult{Output: call.Input, Metadata: map[string]string{"ok": "true"}}, nil
 		},
 	}); err != nil {
 		t.Fatalf("RegisterTool: %v", err)
@@ -152,7 +196,7 @@ func TestInitialize(t *testing.T) {
 }
 
 func TestInitializeWithoutOptionalProviders(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	handler := NewHandler(rt)
 
 	resp := postJSON(t, handler, map[string]any{
@@ -176,7 +220,8 @@ func TestInitializeWithoutOptionalProviders(t *testing.T) {
 
 func TestPing(t *testing.T) {
 	handler := NewHandler(nil)
-	resp := postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "ping",
 	})
 	result := resp["result"].(map[string]any)
@@ -189,37 +234,53 @@ func TestPing(t *testing.T) {
 
 func TestNotificationsInitialized(t *testing.T) {
 	handler := NewHandler(nil)
-	status, resp := postJSONRaw(t, handler, map[string]any{
-		"jsonrpc": "2.0", "method": "notifications/initialized",
-	})
-	if status != http.StatusNoContent {
-		t.Fatalf("status = %d, want %d", status, http.StatusNoContent)
+	sid := initSessionHelper(t, handler)
+
+	body := map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	req.Header.Set(headerSessionID, sid)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusAccepted)
 	}
-	if len(resp) != 0 {
-		t.Fatalf("notification should produce empty body, got %v", resp)
+
+	// Verify session is marked as initialized.
+	sess, ok := handler.store.get(sid)
+	if !ok {
+		t.Fatal("session not found after initialized notification")
 	}
-	if !handler.ready {
-		t.Fatal("handler should be marked ready after initialized notification")
+	sess.mu.RLock()
+	if !sess.initialized {
+		t.Fatal("session should be marked initialized after notifications/initialized")
 	}
+	sess.mu.RUnlock()
 }
 
 // ─── tools ───────────────────────────────────────────────────────────────────
 
 func TestHandlerListsAndCallsTools(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
-	if err := rt.RegisterTool(describedTool{
-		ToolFunc: interaction.ToolFunc{
-			ToolName: "echo",
-			Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
-				return interaction.ToolResult{Output: call.Input, Metadata: map[string]string{"ok": "true"}}, nil
+	rt := interaction.NewRuntime()
+	if err := rt.RegisterTool(interaction.ToolFunc{
+		ToolName:    "echo",
+		Description: "Echoes the provided arguments.",
+		Schema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"message": map[string]any{"type": "string"},
 			},
+		},
+		Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
+			return interaction.ToolResult{Output: call.Input, Metadata: map[string]string{"ok": "true"}}, nil
 		},
 	}); err != nil {
 		t.Fatalf("RegisterTool: %v", err)
 	}
 	handler := NewHandler(rt)
+	sid := initSessionHelper(t, handler)
 
-	listResp := postJSON(t, handler, map[string]any{
+	listResp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "tools/list",
 	})
 	tools := listResp["result"].(map[string]any)["tools"].([]any)
@@ -231,7 +292,7 @@ func TestHandlerListsAndCallsTools(t *testing.T) {
 		t.Fatalf("unexpected tool descriptor: %+v", tool)
 	}
 
-	callResp := postJSON(t, handler, map[string]any{
+	callResp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": "call-1", "method": "tools/call",
 		"params": map[string]any{
 			"name":      "echo",
@@ -249,8 +310,9 @@ func TestHandlerListsAndCallsTools(t *testing.T) {
 }
 
 func TestHandlerReturnsJSONRPCErrors(t *testing.T) {
-	handler := NewHandler(interaction.NewRuntime(nil, nil, nil))
-	resp := postJSON(t, handler, map[string]any{
+	handler := NewHandler(interaction.NewRuntime())
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
 		"params": map[string]any{"name": "missing"},
 	})
@@ -260,8 +322,8 @@ func TestHandlerReturnsJSONRPCErrors(t *testing.T) {
 	}
 }
 
-func TestHandlerRejectsNonPOST(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
+func TestHandlerRejectsPut(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPut, "/mcp", nil)
 	rec := httptest.NewRecorder()
 	NewHandler(nil).ServeHTTP(rec, req)
 	if rec.Code != http.StatusMethodNotAllowed {
@@ -273,7 +335,8 @@ func TestHandlerRejectsNonPOST(t *testing.T) {
 
 func TestResourcesList(t *testing.T) {
 	handler := NewHandler(setupRuntime(t))
-	resp := postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "resources/list",
 	})
 	result := resp["result"].(map[string]any)
@@ -288,8 +351,9 @@ func TestResourcesList(t *testing.T) {
 }
 
 func TestResourcesListEmpty(t *testing.T) {
-	handler := NewHandler(interaction.NewRuntime(nil, nil, nil))
-	resp := postJSON(t, handler, map[string]any{
+	handler := NewHandler(interaction.NewRuntime())
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "resources/list",
 	})
 	result := resp["result"].(map[string]any)
@@ -301,7 +365,8 @@ func TestResourcesListEmpty(t *testing.T) {
 
 func TestResourcesRead(t *testing.T) {
 	handler := NewHandler(setupRuntime(t))
-	resp := postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "resources/read",
 		"params": map[string]any{"uri": "config://app/name"},
 	})
@@ -318,7 +383,8 @@ func TestResourcesRead(t *testing.T) {
 
 func TestResourcesReadNotFound(t *testing.T) {
 	handler := NewHandler(setupRuntime(t))
-	resp := postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "resources/read",
 		"params": map[string]any{"uri": "config://missing"},
 	})
@@ -330,7 +396,8 @@ func TestResourcesReadNotFound(t *testing.T) {
 
 func TestResourceTemplatesList(t *testing.T) {
 	handler := NewHandler(setupRuntime(t))
-	resp := postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "resources/templates/list",
 	})
 	result := resp["result"].(map[string]any)
@@ -348,7 +415,8 @@ func TestResourceTemplatesList(t *testing.T) {
 
 func TestPromptsList(t *testing.T) {
 	handler := NewHandler(setupRuntime(t))
-	resp := postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "prompts/list",
 	})
 	result := resp["result"].(map[string]any)
@@ -368,7 +436,8 @@ func TestPromptsList(t *testing.T) {
 
 func TestPromptsGet(t *testing.T) {
 	handler := NewHandler(setupRuntime(t))
-	resp := postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "prompts/get",
 		"params": map[string]any{
 			"name":      "code_review",
@@ -398,7 +467,8 @@ func TestPromptsGet(t *testing.T) {
 
 func TestPromptsGetNotFound(t *testing.T) {
 	handler := NewHandler(setupRuntime(t))
-	resp := postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "prompts/get",
 		"params": map[string]any{"name": "nonexistent"},
 	})
@@ -409,8 +479,9 @@ func TestPromptsGetNotFound(t *testing.T) {
 }
 
 func TestPromptsListEmpty(t *testing.T) {
-	handler := NewHandler(interaction.NewRuntime(nil, nil, nil))
-	resp := postJSON(t, handler, map[string]any{
+	handler := NewHandler(interaction.NewRuntime())
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "prompts/list",
 	})
 	result := resp["result"].(map[string]any)
@@ -424,7 +495,8 @@ func TestPromptsListEmpty(t *testing.T) {
 
 func TestLoggingSetLevel(t *testing.T) {
 	handler := NewHandler(nil)
-	resp := postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "logging/setLevel",
 		"params": map[string]any{"level": "debug"},
 	})
@@ -440,7 +512,8 @@ func TestLoggingSetLevel(t *testing.T) {
 
 func TestLoggingSetLevelInvalid(t *testing.T) {
 	handler := NewHandler(nil)
-	postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "logging/setLevel",
 		"params": map[string]any{"level": "bogus"},
 	})
@@ -454,7 +527,7 @@ func TestLoggingSetLevelInvalid(t *testing.T) {
 // ─── pagination ──────────────────────────────────────────────────────────────
 
 func TestToolsListPagination(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	for i := 0; i < 5; i++ {
 		name := "tool_" + string(rune('a'+i))
 		_ = rt.RegisterTool(interaction.ToolFunc{
@@ -471,9 +544,10 @@ func TestToolsListPagination(t *testing.T) {
 	_ = origPageSize
 
 	handler := NewHandler(rt)
+	sid := initSessionHelper(t, handler)
 
 	// First page: no cursor
-	resp := postJSON(t, handler, map[string]any{
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "tools/list",
 	})
 	result := resp["result"].(map[string]any)
@@ -490,7 +564,8 @@ func TestToolsListPagination(t *testing.T) {
 
 func TestUnknownMethod(t *testing.T) {
 	handler := NewHandler(nil)
-	resp := postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "frobnicate",
 	})
 	errObj := resp["error"].(map[string]any)
@@ -502,7 +577,7 @@ func TestUnknownMethod(t *testing.T) {
 // ─── completions ─────────────────────────────────────────────────────────────
 
 func TestCompletionComplete_Prompt(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	pp := interaction.NewMemoryPromptProvider()
 	_ = pp.Register(interaction.Prompt{
 		Name:        "summarize",
@@ -516,7 +591,8 @@ func TestCompletionComplete_Prompt(t *testing.T) {
 	rt.WithPrompts(pp)
 
 	handler := NewHandler(rt)
-	resp := postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "completion/complete",
 		"params": map[string]any{
 			"ref": map[string]any{"type": "ref/prompt", "name": "summarize"},
@@ -531,9 +607,10 @@ func TestCompletionComplete_Prompt(t *testing.T) {
 }
 
 func TestCompletionComplete_UnsupportedRefType(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	handler := NewHandler(rt)
-	resp := postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "completion/complete",
 		"params": map[string]any{
 			"ref":      map[string]any{"type": "ref/resource", "name": "foo"},
@@ -548,7 +625,8 @@ func TestCompletionComplete_UnsupportedRefType(t *testing.T) {
 
 func TestCompletionComplete_MissingRef(t *testing.T) {
 	handler := NewHandler(nil)
-	resp := postJSON(t, handler, map[string]any{
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "completion/complete",
 		"params":  map[string]any{"argument": map[string]any{"name": "x", "value": "y"}},
 	})

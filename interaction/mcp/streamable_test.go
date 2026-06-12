@@ -99,7 +99,7 @@ func TestStreamableInvalidSession(t *testing.T) {
 }
 
 func TestStreamableToolsListWithSession(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	_ = rt.RegisterTool(interaction.ToolFunc{
 		ToolName: "ping_tool",
 		Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
@@ -167,7 +167,7 @@ func TestStreamableDelete(t *testing.T) {
 // ─── StreamableHandler: SSE response ────────────────────────────────────────
 
 func TestStreamableSSEResponse(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	_ = rt.RegisterTool(interaction.ToolFunc{
 		ToolName: "echo",
 		Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
@@ -347,5 +347,68 @@ func TestStreamableSamplingResponseDelivery(t *testing.T) {
 	// Should be accepted (even though no pending request matches).
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202", rec.Code)
+	}
+}
+
+// ─── SessionTTL ──────────────────────────────────────────────────────────────
+
+func TestSessionTTL_ExpiredIDs(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	h.SessionTTL = 50 * time.Millisecond
+	sid := initSessionHelper(t, h)
+
+	// Session should not be expired immediately.
+	ids := h.store.expiredIDs(h.SessionTTL)
+	if len(ids) != 0 {
+		t.Fatalf("expected no expired sessions, got %d", len(ids))
+	}
+
+	// Wait for TTL to expire.
+	time.Sleep(100 * time.Millisecond)
+
+	ids = h.store.expiredIDs(h.SessionTTL)
+	if len(ids) != 1 || ids[0] != sid {
+		t.Fatalf("expected expired session %q, got %v", sid, ids)
+	}
+
+	// Verify the session can still be accessed before cleanup runs.
+	_, ok := h.store.get(sid)
+	if !ok {
+		t.Fatal("session should still exist before cleanup")
+	}
+}
+
+func TestSessionTTL_StartStopCleanup(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	h.SessionTTL = 50 * time.Millisecond
+	h.cleanupInterval = 30 * time.Millisecond
+	sid := initSessionHelper(t, h)
+
+	h.StartCleanup()
+	defer h.StopCleanup()
+
+	// Wait for the session to expire and cleanup to run.
+	time.Sleep(200 * time.Millisecond)
+
+	_, ok := h.store.get(sid)
+	if ok {
+		t.Fatal("session should have been cleaned up")
+	}
+}
+
+func TestSessionTTL_ZeroDisablesExpiry(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	// SessionTTL is zero by default.
+	sid := initSessionHelper(t, h)
+
+	// StartCleanup should be a no-op when SessionTTL is zero.
+	h.StartCleanup()
+	defer h.StopCleanup()
+
+	time.Sleep(100 * time.Millisecond)
+
+	_, ok := h.store.get(sid)
+	if !ok {
+		t.Fatal("session should still exist when SessionTTL is zero")
 	}
 }

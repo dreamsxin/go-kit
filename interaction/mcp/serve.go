@@ -6,24 +6,36 @@ import (
 	"github.com/dreamsxin/go-kit/interaction"
 )
 
-// ListenAndServe starts an HTTP server with a simple POST-only MCP handler
-// at /mcp. This is a convenience function for the minimal MCP server setup.
-// For full Streamable HTTP transport (SSE, sampling, notifications), use
-// ServeStreamable instead.
+// NewHandler returns a *StreamableHandler — the canonical MCP handler that
+// supports the full Streamable HTTP transport (POST/GET/DELETE, SSE,
+// sessions, sampling, notifications, completions).
+//
+// This is an alias for NewStreamableHandler retained as the simplest entry
+// point.
+func NewHandler(rt *interaction.Runtime) *StreamableHandler {
+	return NewStreamableHandler(rt)
+}
+
+// ListenAndServe starts an HTTP server with a StreamableHandler mounted at
+// /mcp on the given address. It blocks until the server exits.
+//
+//	rt := interaction.NewRuntime()
+//	_ = rt.RegisterTool(/* ... */)
+//	log.Fatal(mcp.ListenAndServe(":8080", rt))
 func ListenAndServe(addr string, rt *interaction.Runtime) error {
 	mux := http.NewServeMux()
-	mux.Handle("/mcp", NewHandler(rt))
+	mux.Handle("/mcp", NewStreamableHandler(rt))
 	return http.ListenAndServe(addr, mux)
 }
 
-// ServeStreamable starts an HTTP server with a full StreamableHandler at /mcp,
-// supporting POST/GET/DELETE with SSE streams, sessions, sampling, and
-// server-initiated notifications. It returns the handler so callers can send
-// notifications or sampling requests during tool execution.
+// ServeStreamable starts an HTTP server like ListenAndServe but returns the
+// underlying *StreamableHandler so the caller can send server-initiated
+// notifications or sampling requests during tool execution. Note that
+// http.ListenAndServe blocks, so the handler value is only useful if the
+// listener is set up out-of-band (e.g. via http.Server in another goroutine).
 func ServeStreamable(addr string, rt *interaction.Runtime) (*StreamableHandler, error) {
 	h := NewStreamableHandler(rt)
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", h)
-	err := http.ListenAndServe(addr, mux)
-	return h, err
+	return h, http.ListenAndServe(addr, mux)
 }

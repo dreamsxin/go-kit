@@ -10,11 +10,30 @@ import (
 	interactionmcp "github.com/dreamsxin/go-kit/interaction/mcp"
 )
 
+func initSession(t *testing.T, handler http.Handler) string {
+	t.Helper()
+	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	req.Header.Set("Accept", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("initialize: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	sid := rec.Header().Get("Mcp-Session-Id")
+	if sid == "" {
+		t.Fatal("initialize: no Mcp-Session-Id header")
+	}
+	return sid
+}
+
 func TestInteractionPolicyExampleAllowsAndAuditsToolCalls(t *testing.T) {
 	rt, audits := newRuntime()
 	handler := interactionmcp.NewHandler(rt)
+	sid := initSession(t, handler)
 
-	resp := postRPC(t, handler, map[string]any{
+	resp := postRPC(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0",
 		"id":      "call-1",
 		"method":  "tools/call",
@@ -41,8 +60,9 @@ func TestInteractionPolicyExampleAllowsAndAuditsToolCalls(t *testing.T) {
 func TestInteractionPolicyExampleDeniesUnknownTools(t *testing.T) {
 	rt, audits := newRuntime()
 	handler := interactionmcp.NewHandler(rt)
+	sid := initSession(t, handler)
 
-	resp := postRPC(t, handler, map[string]any{
+	resp := postRPC(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0",
 		"id":      "call-1",
 		"method":  "tools/call",
@@ -60,13 +80,14 @@ func TestInteractionPolicyExampleDeniesUnknownTools(t *testing.T) {
 	}
 }
 
-func postRPC(t *testing.T, handler http.Handler, body map[string]any) map[string]any {
+func postRPC(t *testing.T, handler http.Handler, sid string, body map[string]any) map[string]any {
 	t.Helper()
 	payload, err := json.Marshal(body)
 	if err != nil {
 		t.Fatalf("Marshal: %v", err)
 	}
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	req.Header.Set("Mcp-Session-Id", sid)
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)

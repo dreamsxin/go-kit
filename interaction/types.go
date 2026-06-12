@@ -1,5 +1,5 @@
-// Package interaction defines preview runtime contracts for AI-facing
-// interactive sessions, event streams, and tool-call loops.
+// Package interaction defines runtime contracts for AI-facing interactive
+// sessions, event streams, and tool-call loops.
 package interaction
 
 import (
@@ -80,34 +80,19 @@ type ToolDescriber interface {
 	Descriptor() ToolDescriptor
 }
 
-// ToolFunc adapts a function into a Tool.
+// ToolFunc adapts a function into a Tool. Optional Description and Schema
+// fields make the tool discoverable via MCP — when either is set, ToolFunc
+// also satisfies ToolDescriber.
 type ToolFunc struct {
-	ToolName string
-	Fn       func(context.Context, ToolCall) (ToolResult, error)
+	ToolName    string
+	Description string // optional, advertised via tools/list
+	Schema      any    // optional JSON schema for inputs
+	Fn          func(context.Context, ToolCall) (ToolResult, error)
 }
 
 func (f ToolFunc) Name() string { return f.ToolName }
 
-func (f ToolFunc) Call(ctx context.Context, call ToolCall) (ToolResult, error) {
-	if f.Fn == nil {
-		return ToolResult{}, ErrNilToolFunc
-	}
-	return f.Fn(ctx, call)
-}
-
-// DescribedToolFunc adapts a function into a Tool with description and input
-// schema metadata. Use this instead of ToolFunc when the tool needs to be
-// discoverable by MCP clients with a description and JSON schema.
-type DescribedToolFunc struct {
-	ToolName    string
-	Description string
-	Schema      any
-	Fn          func(context.Context, ToolCall) (ToolResult, error)
-}
-
-func (f DescribedToolFunc) Name() string { return f.ToolName }
-
-func (f DescribedToolFunc) Descriptor() ToolDescriptor {
+func (f ToolFunc) Descriptor() ToolDescriptor {
 	return ToolDescriptor{
 		Name:        f.ToolName,
 		Description: f.Description,
@@ -115,7 +100,7 @@ func (f DescribedToolFunc) Descriptor() ToolDescriptor {
 	}
 }
 
-func (f DescribedToolFunc) Call(ctx context.Context, call ToolCall) (ToolResult, error) {
+func (f ToolFunc) Call(ctx context.Context, call ToolCall) (ToolResult, error) {
 	if f.Fn == nil {
 		return ToolResult{}, ErrNilToolFunc
 	}

@@ -1,8 +1,8 @@
 # interaction
 
-Preview package for transport-neutral AI interaction runtime contracts.
+Package for transport-neutral AI interaction runtime contracts.
 
-Use it when experimenting with:
+Use it for:
 
 - session lifecycle
 - event streams
@@ -16,23 +16,30 @@ business logic.
 
 Current entry points:
 
-- `NewRuntime`
+- `NewRuntime` — builder pattern with `WithSessions`, `WithEvents`, `WithTools`, `WithHooks`, `WithResources`, `WithPrompts`
 - `Runtime.ListTools`
 - `NewMemorySessionStore`
 - `NewMemoryEventSink`
 - `NewMemoryToolRegistry`
-- `ToolFunc`
+- `ToolFunc` — unified tool adapter with optional `Description` and `Schema` fields
 - `HookFuncs`
 - `AuthorizationHook`
 - `AuditHook`
-- `mcp.NewHandler`
+- `mcp.NewHandler` — Streamable HTTP MCP transport (alias for `mcp.NewStreamableHandler`)
 
-The `interaction/mcp` subpackage provides a preview MCP-style JSON-RPC HTTP
-adapter for the runtime:
+The `interaction/mcp` subpackage provides a full MCP-compliant Streamable HTTP
+JSON-RPC adapter for the runtime:
 
-- `initialize`
-- `tools/list`
-- `tools/call`
+- `initialize` / `notifications/initialized`
+- `ping`
+- `tools/list`, `tools/call`
+- `resources/list`, `resources/read`, `resources/templates/list`
+- `prompts/list`, `prompts/get`
+- `completion/complete`
+- `logging/setLevel`
+- SSE streaming (POST and GET)
+- Server-initiated sampling (`sampling/createMessage`)
+- Server-initiated notifications (log, progress, list-changed)
 
 It is separate from generated `/skill?format=mcp` output. `/skill?format=mcp`
 describes available tools, while `interaction/mcp` can execute registered
@@ -49,9 +56,8 @@ These hooks are intentionally transport-neutral. HTTP, gRPC streaming,
 WebSocket, and MCP adapters should pass subject and request metadata into the
 runtime rather than implementing separate policy stacks per transport.
 
-Preview limits:
+Implementation notes:
 
-- In-memory implementations are for tests, demos, and local experiments.
-- Event names and runtime shape may still change before v1.0.
+- In-memory implementations are suitable for tests, demos, and local experiments.
+  Production deployments should provide durable implementations.
 - This is not a WebSocket runtime; WebSocket should remain an adapter decision.
-- The MCP adapter is a preview endpoint, not a full MCP transport commitment.

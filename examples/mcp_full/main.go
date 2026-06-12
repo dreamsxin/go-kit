@@ -5,7 +5,7 @@
 //
 //	go run ./examples/mcp_full
 //
-// Basic HTTP interaction (simple POST):
+// Basic HTTP interaction:
 //
 //	curl -X POST http://localhost:8090/mcp -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}'
 //	curl -X POST http://localhost:8090/mcp -H 'Mcp-Session-Id: <sid>' -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
@@ -77,9 +77,9 @@ func main() {
 }
 
 func buildRuntime() *interaction.Runtime {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 
-	// ── Register tools ────────────────────────────────────────────────
+	// ── Register tools using the unified ToolFunc with description+schema ────
 	if err := rt.RegisterTool(greetTool()); err != nil {
 		panic(err)
 	}
@@ -87,114 +87,118 @@ func buildRuntime() *interaction.Runtime {
 		panic(err)
 	}
 
-	// ── Register resources ────────────────────────────────────────────
-	resources := interaction.NewMemoryResourceProvider()
-	_ = resources.Register(interaction.Resource{
-		URI:         "info://app/name",
-		Name:        "app-name",
-		Title:       "Application Name",
-		Description: "The name of this demo application",
-		MIMEType:    "text/plain",
-	}, []interaction.ResourceContent{
-		{URI: "info://app/name", Text: "go-kit MCP Demo", MIMEType: "text/plain"},
-	})
-	_ = resources.Register(interaction.Resource{
-		URI:         "info://app/version",
-		Name:        "app-version",
-		Title:       "Application Version",
-		Description: "Current version of the demo application",
-		MIMEType:    "text/plain",
-	}, []interaction.ResourceContent{
-		{URI: "info://app/version", Text: "1.0.0", MIMEType: "text/plain"},
-	})
-	_ = resources.Register(interaction.Resource{
-		URI:         "info://app/uptime",
-		Name:        "app-uptime",
-		Title:       "Server Start Time",
-		Description: "The time when the server was started",
-		MIMEType:    "application/json",
-	}, []interaction.ResourceContent{
-		{URI: "info://app/uptime", Text: `{"startedAt":"` + time.Now().UTC().Format(time.RFC3339) + `"}`, MIMEType: "application/json"},
-	})
-	resources.SetTemplates([]interaction.ResourceTemplate{
-		{
-			URITemplate: "info://{key}",
-			Name:        "app-info",
-			Description: "Access any application info value by key (name, version, uptime)",
-			MIMEType:    "text/plain",
+	// ── Register resources via lazy-init shortcut ────────────────────────────
+	mustRegisterText(rt, "info://app/name", "app-name", "go-kit MCP Demo")
+	mustRegisterText(rt, "info://app/version", "app-version", "1.0.0")
+	if err := rt.RegisterResource(
+		interaction.Resource{
+			URI:         "info://app/uptime",
+			Name:        "app-uptime",
+			Title:       "Server Start Time",
+			Description: "The time when the server was started",
+			MIMEType:    "application/json",
 		},
-	})
-	rt.WithResources(resources)
+		[]interaction.ResourceContent{{
+			URI:      "info://app/uptime",
+			Text:     `{"startedAt":"` + time.Now().UTC().Format(time.RFC3339) + `"}`,
+			MIMEType: "application/json",
+		}},
+	); err != nil {
+		panic(err)
+	}
 
-	// ── Register prompts ──────────────────────────────────────────────
-	prompts := interaction.NewMemoryPromptProvider()
-	_ = prompts.Register(interaction.Prompt{
-		Name:        "summarize",
-		Title:       "Summarize Content",
-		Description: "Ask the LLM to summarize a piece of text",
-		Arguments: []interaction.PromptArgument{
-			{Name: "text", Description: "The text to summarize", Required: true},
-			{Name: "max_words", Description: "Maximum word count for the summary"},
-		},
-	}, func(args map[string]string) (interaction.PromptResult, error) {
-		maxWords := args["max_words"]
-		if maxWords == "" {
-			maxWords = "100"
-		}
-		return interaction.PromptResult{
-			Description: "Summarization prompt",
-			Messages: []interaction.PromptMessage{
-				{Role: "user", Content: interaction.PromptContent{
-					Type: "text",
-					Text: fmt.Sprintf("Please summarize the following text in at most %s words:\n\n%s", maxWords, args["text"]),
-				}},
+	// ── Register prompts via lazy-init shortcut ──────────────────────────────
+	if err := rt.RegisterPrompt(
+		interaction.Prompt{
+			Name:        "summarize",
+			Title:       "Summarize Content",
+			Description: "Ask the LLM to summarize a piece of text",
+			Arguments: []interaction.PromptArgument{
+				{Name: "text", Description: "The text to summarize", Required: true},
+				{Name: "max_words", Description: "Maximum word count for the summary"},
 			},
-		}, nil
-	})
-	_ = prompts.Register(interaction.Prompt{
-		Name:        "code_review",
-		Title:       "Code Review",
-		Description: "Ask the LLM to review source code",
-		Arguments: []interaction.PromptArgument{
-			{Name: "code", Description: "The source code to review", Required: true},
-			{Name: "language", Description: "Programming language (e.g. go, python, rust)"},
-			{Name: "focus", Description: "What to focus on (e.g. security, performance, style)"},
 		},
-	}, func(args map[string]string) (interaction.PromptResult, error) {
-		lang := args["language"]
-		if lang == "" {
-			lang = "unknown"
-		}
-		focus := args["focus"]
-		if focus == "" {
-			focus = "correctness, readability, and best practices"
-		}
-		return interaction.PromptResult{
-			Description: "Code review prompt",
-			Messages: []interaction.PromptMessage{
-				{Role: "system", Content: interaction.PromptContent{
-					Type: "text",
-					Text: "You are an expert code reviewer. Focus on " + focus + ".",
+		func(args map[string]string) (interaction.PromptResult, error) {
+			maxWords := args["max_words"]
+			if maxWords == "" {
+				maxWords = "100"
+			}
+			return interaction.PromptResult{
+				Description: "Summarization prompt",
+				Messages: []interaction.PromptMessage{{
+					Role: "user",
+					Content: interaction.PromptContent{
+						Type: "text",
+						Text: fmt.Sprintf("Please summarize the following text in at most %s words:\n\n%s", maxWords, args["text"]),
+					},
 				}},
-				{Role: "user", Content: interaction.PromptContent{
-					Type: "text",
-					Text: fmt.Sprintf("Please review this %s code:\n\n```\n%s\n```", lang, args["code"]),
-				}},
+			}, nil
+		},
+	); err != nil {
+		panic(err)
+	}
+
+	if err := rt.RegisterPrompt(
+		interaction.Prompt{
+			Name:        "code_review",
+			Title:       "Code Review",
+			Description: "Ask the LLM to review source code",
+			Arguments: []interaction.PromptArgument{
+				{Name: "code", Description: "The source code to review", Required: true},
+				{Name: "language", Description: "Programming language (e.g. go, python, rust)"},
+				{Name: "focus", Description: "What to focus on (e.g. security, performance, style)"},
 			},
-		}, nil
-	})
-	rt.WithPrompts(prompts)
+		},
+		func(args map[string]string) (interaction.PromptResult, error) {
+			lang := args["language"]
+			if lang == "" {
+				lang = "unknown"
+			}
+			focus := args["focus"]
+			if focus == "" {
+				focus = "correctness, readability, and best practices"
+			}
+			return interaction.PromptResult{
+				Description: "Code review prompt",
+				Messages: []interaction.PromptMessage{
+					{Role: "system", Content: interaction.PromptContent{
+						Type: "text",
+						Text: "You are an expert code reviewer. Focus on " + focus + ".",
+					}},
+					{Role: "user", Content: interaction.PromptContent{
+						Type: "text",
+						Text: fmt.Sprintf("Please review this %s code:\n\n```\n%s\n```", lang, args["code"]),
+					}},
+				},
+			}, nil
+		},
+	); err != nil {
+		panic(err)
+	}
 
 	return rt
+}
+
+func mustRegisterText(rt *interaction.Runtime, uri, name, text string) {
+	if rt.Resources == nil {
+		rt.Resources = interaction.NewMemoryResourceProvider()
+	}
+	provider, ok := rt.Resources.(*interaction.MemoryResourceProvider)
+	if !ok {
+		panic("expected *MemoryResourceProvider")
+	}
+	if err := provider.RegisterText(uri, name, text); err != nil {
+		panic(err)
+	}
 }
 
 // ── Tool definitions ────────────────────────────────────────────────────────
 
 func greetTool() interaction.Tool {
-	return &describedTool{
-		name:        "greet",
-		description: "Generate a greeting message",
-		inputSchema: map[string]any{
+	return interaction.ToolFunc{
+		ToolName:    "greet",
+		Description: "Generate a greeting message",
+		Schema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"name":  map[string]any{"type": "string", "description": "Person to greet"},
@@ -202,7 +206,7 @@ func greetTool() interaction.Tool {
 			},
 			"required": []string{"name"},
 		},
-		call: func(_ context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
+		Fn: func(_ context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
 			args, _ := json.Marshal(call.Input)
 			var params struct {
 				Name  string `json:"name"`
@@ -227,41 +231,20 @@ func greetTool() interaction.Tool {
 }
 
 func timeTool() interaction.Tool {
-	return &describedTool{
-		name:        "current_time",
-		description: "Get the current server time in UTC",
-		inputSchema: map[string]any{
+	return interaction.ToolFunc{
+		ToolName:    "current_time",
+		Description: "Get the current server time in UTC",
+		Schema: map[string]any{
 			"type":       "object",
 			"properties": map[string]any{},
 		},
-		call: func(_ context.Context, _ interaction.ToolCall) (interaction.ToolResult, error) {
+		Fn: func(_ context.Context, _ interaction.ToolCall) (interaction.ToolResult, error) {
 			now := time.Now().UTC()
 			return interaction.ToolResult{Output: map[string]string{
-				"time":     now.Format(time.RFC3339),
-				"unix":     fmt.Sprintf("%d", now.Unix()),
-				"weekday":  now.Weekday().String(),
+				"time":    now.Format(time.RFC3339),
+				"unix":    fmt.Sprintf("%d", now.Unix()),
+				"weekday": now.Weekday().String(),
 			}}, nil
 		},
 	}
-}
-
-type describedTool struct {
-	name        string
-	description string
-	inputSchema any
-	call        func(context.Context, interaction.ToolCall) (interaction.ToolResult, error)
-}
-
-func (t *describedTool) Name() string { return t.name }
-
-func (t *describedTool) Descriptor() interaction.ToolDescriptor {
-	return interaction.ToolDescriptor{
-		Name:        t.name,
-		Description: t.description,
-		InputSchema: t.inputSchema,
-	}
-}
-
-func (t *describedTool) Call(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
-	return t.call(ctx, call)
 }

@@ -19,22 +19,43 @@ type Runtime struct {
 	OnEmitError func(error)
 }
 
-func NewRuntime(sessions SessionStore, events EventSink, tools ToolRegistry, hooks ...Hook) *Runtime {
-	if sessions == nil {
-		sessions = NewMemorySessionStore()
-	}
-	if events == nil {
-		events = NewMemoryEventSink()
-	}
-	if tools == nil {
-		tools = NewMemoryToolRegistry()
-	}
+// NewRuntime returns a Runtime with default in-memory components for sessions,
+// events, and tools. Use the With* chaining methods or assign fields directly
+// to override the defaults.
+//
+//	rt := interaction.NewRuntime().
+//	    WithHooks(myHook).
+//	    WithResources(myResources)
+func NewRuntime() *Runtime {
 	return &Runtime{
-		Sessions:  sessions,
-		Events:    events,
-		Tools:     tools,
-		Hooks:     append([]Hook(nil), hooks...),
+		Sessions: NewMemorySessionStore(),
+		Events:   NewMemoryEventSink(),
+		Tools:    NewMemoryToolRegistry(),
 	}
+}
+
+// WithSessions overrides the SessionStore and returns the runtime for chaining.
+func (r *Runtime) WithSessions(store SessionStore) *Runtime {
+	r.Sessions = store
+	return r
+}
+
+// WithEvents overrides the EventSink and returns the runtime for chaining.
+func (r *Runtime) WithEvents(sink EventSink) *Runtime {
+	r.Events = sink
+	return r
+}
+
+// WithTools overrides the ToolRegistry and returns the runtime for chaining.
+func (r *Runtime) WithTools(registry ToolRegistry) *Runtime {
+	r.Tools = registry
+	return r
+}
+
+// WithHooks appends one or more Hooks and returns the runtime for chaining.
+func (r *Runtime) WithHooks(hooks ...Hook) *Runtime {
+	r.Hooks = append(r.Hooks, hooks...)
+	return r
 }
 
 // WithResources sets the resource provider and returns the runtime for chaining.

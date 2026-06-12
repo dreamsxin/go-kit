@@ -8,21 +8,17 @@
 // protocolVersion "2025-06-18" during the initialize handshake and declares
 // capabilities dynamically based on which providers are attached to the runtime.
 //
-// # Transport Modes
+// # Transport
 //
-// Two transport modes are available:
-//
-// Handler (simple POST-only): A basic JSON-RPC endpoint that accepts POST
-// requests and returns JSON responses. Suitable for simple integrations where
-// SSE streaming and server-initiated requests are not needed.
-//
-// StreamableHandler (Streamable HTTP): A full MCP transport supporting:
+// StreamableHandler implements the full MCP Streamable HTTP transport:
 //   - POST for client JSON-RPC messages (requests, notifications, responses)
 //   - GET  for persistent SSE streams (server-initiated messages)
 //   - DELETE for explicit session termination
 //   - Session management via Mcp-Session-Id header
 //   - SSE streaming responses when client sends Accept: text/event-stream
 //   - Server-initiated requests (sampling/createMessage)
+//
+// NewHandler is a convenience alias for NewStreamableHandler.
 //
 // # Supported Methods
 //
@@ -43,9 +39,9 @@
 //
 // Logging: logging/setLevel — adjust server log verbosity.
 //
-// # Notifications (StreamableHandler only)
+// # Notifications
 //
-// The StreamableHandler can send server-initiated notifications to the client
+// The handler can send server-initiated notifications to the client
 // via SSE streams. Available notification methods:
 //
 //   - LogNotification: sends notifications/message for server-side logging
@@ -58,9 +54,9 @@
 // Notifications are delivered to the client's active SSE stream (POST or GET).
 // If no active stream exists, the notification is silently dropped.
 //
-// # Sampling (StreamableHandler only)
+// # Sampling
 //
-// The StreamableHandler supports MCP Sampling, allowing the server to request
+// The handler supports MCP Sampling, allowing the server to request
 // LLM completions from the connected client. Tools can call
 // StreamableHandler.SendSamplingRequest during execution to request a
 // completion. The request is sent via SSE to the client, which responds via
@@ -81,16 +77,16 @@
 //	-32000  Tool call failed (application-level)
 //	-32002  Resource not found
 //
-// # Quick Start (Simple Handler)
+// # Quick Start
 //
-//	rt := interaction.NewRuntime(nil, nil, nil)
+//	rt := interaction.NewRuntime()
 //	rt.RegisterTool(myTool)
 //	http.Handle("/mcp", mcp.NewHandler(rt))
 //	http.ListenAndServe(":8080", nil)
 //
-// # Quick Start (Streamable HTTP with Sampling)
+// # Streamable HTTP with Sampling
 //
-//	rt := interaction.NewRuntime(nil, nil, nil)
+//	rt := interaction.NewRuntime()
 //	rt.RegisterTool(myTool)
 //	h := mcp.NewStreamableHandler(rt)
 //	http.Handle("/mcp", h)

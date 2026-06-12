@@ -8,7 +8,7 @@ import (
 )
 
 func TestRuntimeSessionLifecycleAndEvents(t *testing.T) {
-	rt := NewRuntime(nil, nil, nil)
+	rt := NewRuntime()
 
 	session, err := rt.StartSession(context.Background(), "agent-1", map[string]string{"trace": "abc"})
 	if err != nil {
@@ -39,7 +39,7 @@ func TestRuntimeSessionLifecycleAndEvents(t *testing.T) {
 
 func TestRuntimeToolCallRunsHooksAndRecordsEvents(t *testing.T) {
 	var hookOrder []string
-	rt := NewRuntime(nil, nil, nil, HookFuncs{
+	rt := NewRuntime().WithHooks(HookFuncs{
 		Before: func(ctx context.Context, session Session, call ToolCall) error {
 			hookOrder = append(hookOrder, "before:"+call.Name)
 			return nil
@@ -89,7 +89,7 @@ func TestRuntimeToolCallRunsHooksAndRecordsEvents(t *testing.T) {
 }
 
 func TestRuntimeRejectsClosedSessionToolCall(t *testing.T) {
-	rt := NewRuntime(nil, nil, nil)
+	rt := NewRuntime()
 	session, err := rt.StartSession(context.Background(), "agent", nil)
 	if err != nil {
 		t.Fatalf("StartSession: %v", err)

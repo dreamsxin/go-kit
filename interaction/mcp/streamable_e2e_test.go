@@ -167,7 +167,7 @@ func readSSEEvent(t *testing.T, reader *bufio.Reader) map[string]any {
 // ─── E2E: Full lifecycle ─────────────────────────────────────────────────────
 
 func TestE2E_FullLifecycle(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	_ = rt.RegisterTool(interaction.ToolFunc{
 		ToolName: "greet",
 		Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
@@ -245,7 +245,7 @@ func TestE2E_FullLifecycle(t *testing.T) {
 // ─── E2E: SSE streaming response ─────────────────────────────────────────────
 
 func TestE2E_SSEStreamingResponse(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	_ = rt.RegisterTool(interaction.ToolFunc{
 		ToolName: "echo",
 		Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
@@ -337,7 +337,7 @@ func TestE2E_GETSSEStream(t *testing.T) {
 // ─── E2E: Sampling end-to-end ────────────────────────────────────────────────
 
 func TestE2E_SamplingEndToEnd(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	env := newE2EEnv(t, rt)
 	sid := env.initialize(t)
 
@@ -492,7 +492,7 @@ func TestE2E_SamplingViaPostSSEStream(t *testing.T) {
 		},
 	}
 
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	_ = rt.RegisterTool(samplingTool)
 	handler = NewStreamableHandler(rt)
 	srv := httptest.NewServer(handler)
@@ -593,7 +593,7 @@ func TestE2E_SamplingViaPostSSEStream(t *testing.T) {
 // ─── E2E: Multiple independent sessions ────────────────────────────────────── ──────────────────────────────────────
 
 func TestE2E_MultipleSessions(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	_ = rt.RegisterTool(interaction.ToolFunc{
 		ToolName: "counter",
 		Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
@@ -646,7 +646,7 @@ func TestE2E_MultipleSessions(t *testing.T) {
 // ─── E2E: Resources and Prompts via Streamable ──────────────────────────────
 
 func TestE2E_ResourcesAndPrompts(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 
 	resources := interaction.NewMemoryResourceProvider()
 	_ = resources.Register(interaction.Resource{
@@ -728,7 +728,7 @@ func TestE2E_ResourcesAndPrompts(t *testing.T) {
 // ─── E2E: Concurrent tool calls ──────────────────────────────────────────────
 
 func TestE2E_ConcurrentToolCalls(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	_ = rt.RegisterTool(interaction.ToolFunc{
 		ToolName: "slow_tool",
 		Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
@@ -939,7 +939,7 @@ func TestE2E_InitializeResponseFormat(t *testing.T) {
 // ─── notifications & completions E2E ─────────────────────────────────────────
 
 func TestE2E_ServerNotifications(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	pp := interaction.NewMemoryPromptProvider()
 	_ = pp.Register(interaction.Prompt{Name: "test"}, func(args map[string]string) (interaction.PromptResult, error) {
 		return interaction.PromptResult{}, nil
@@ -1002,7 +1002,7 @@ func TestE2E_ServerNotifications(t *testing.T) {
 }
 
 func TestE2E_CompletionComplete(t *testing.T) {
-	rt := interaction.NewRuntime(nil, nil, nil)
+	rt := interaction.NewRuntime()
 	pp := interaction.NewMemoryPromptProvider()
 	_ = pp.Register(interaction.Prompt{
 		Name: "code_review",

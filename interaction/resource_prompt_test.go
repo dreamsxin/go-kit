@@ -149,7 +149,7 @@ func TestMemoryPromptProvider_GetNotFound(t *testing.T) {
 // ─── Runtime integration ─────────────────────────────────────────────────────
 
 func TestRuntime_WithResourcesAndPrompts(t *testing.T) {
-	rt := NewRuntime(nil, nil, nil)
+	rt := NewRuntime()
 	resources := NewMemoryResourceProvider()
 	_ = resources.Register(Resource{URI: "r://1", Name: "one"}, []ResourceContent{{URI: "r://1", Text: "data"}})
 	rt.WithResources(resources)
@@ -190,7 +190,7 @@ func TestRuntime_WithResourcesAndPrompts(t *testing.T) {
 }
 
 func TestRuntime_NilProvidersReturnNil(t *testing.T) {
-	rt := NewRuntime(nil, nil, nil)
+	rt := NewRuntime()
 	ctx := context.Background()
 
 	res, err := rt.ListResources(ctx)

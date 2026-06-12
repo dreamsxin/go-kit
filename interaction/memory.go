@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// MemorySessionStore is an in-memory SessionStore for tests and small previews.
+// MemorySessionStore is an in-memory SessionStore for tests and lightweight usage.
 type MemorySessionStore struct {
 	mu       sync.RWMutex
 	next     uint64

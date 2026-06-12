@@ -2,10 +2,7 @@
 //
 // The handler implements the Model Context Protocol (2025-06-18) server surface:
 // tools, resources, prompts, logging, ping, and capability negotiation.
-//
-// Two transport modes are available:
-//   - Handler: simple POST-only JSON-RPC (for basic integrations)
-//   - StreamableHandler: full Streamable HTTP with SSE, sessions, and sampling
+// See doc.go for full transport and protocol documentation.
 package mcp
 
 import (
@@ -31,8 +28,7 @@ const (
 
 // ─── shared dispatch core ────────────────────────────────────────────────────
 //
-// dispatchCore contains the method implementations shared by both Handler
-// (simple POST-only) and StreamableHandler (Streamable HTTP with SSE).
+// dispatchCore contains the method dispatch logic shared by the handler.
 
 type dispatchCore struct {
 	Runtime  *interaction.Runtime

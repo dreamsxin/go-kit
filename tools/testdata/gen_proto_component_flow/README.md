@@ -20,9 +20,9 @@ The service capability contract starts from the input definition and is normaliz
 When `skill/` is generated, `/skill` exposes OpenAI-style tools and `/skill?format=mcp` exposes MCP-style tool descriptors from that same contract. The response also includes metadata with schema version `microgen.skill.v1`, source, services, and supported formats.
 `/skill?format=mcp` is discovery output, not a tool execution endpoint. If this project needs AI-facing sessions, tool-call execution, authorization, audit records, or an MCP-style JSON-RPC endpoint, build that runtime surface with the framework `interaction` package:
 
-- `interaction.NewRuntime` for sessions, events, tools, and hooks.
+- `interaction.NewRuntime()` with `WithHooks`, `WithResources`, `WithPrompts` chaining for sessions, events, tools, and hooks.
 - `interaction.AuthorizationHook` and `interaction.AuditHook` for transport-neutral policy.
-- `interaction/mcp.NewHandler` for the MCP-compliant `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, `completion/complete`, and `logging/setLevel` HTTP adapter.
+- `interaction/mcp.NewHandler` (alias for `NewStreamableHandler`) for the MCP-compliant Streamable HTTP transport with `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, `completion/complete`, and `logging/setLevel`.
 
 ## Extend Existing Project
 

@@ -31,11 +31,26 @@ func main() {
 
 func newRuntime() (*interaction.Runtime, *memoryAuditSink) {
 	audits := &memoryAuditSink{}
-	rt := interaction.NewRuntime(nil, nil, nil,
+	rt := interaction.NewRuntime().WithHooks(
 		interaction.AuthorizationHook{Authorizer: allowTools("echo")},
 		interaction.AuditHook{Sink: audits},
 	)
-	if err := rt.RegisterTool(describedEchoTool{}); err != nil {
+	if err := rt.RegisterTool(interaction.ToolFunc{
+		ToolName:    "echo",
+		Description: "Echoes the provided arguments.",
+		Schema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"message": map[string]any{"type": "string"},
+			},
+		},
+		Fn: func(_ context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
+			return interaction.ToolResult{
+				Output:   call.Input,
+				Metadata: map[string]string{"tool": call.Name},
+			}, nil
+		},
+	}); err != nil {
 		panic(err)
 	}
 	return rt, audits
@@ -52,30 +67,6 @@ func allowTools(names ...string) interaction.AuthorizerFunc {
 		}
 		return interaction.AuthorizationDecision{Allowed: false, Reason: "tool is not allowed"}, nil
 	}
-}
-
-type describedEchoTool struct{}
-
-func (describedEchoTool) Name() string { return "echo" }
-
-func (describedEchoTool) Descriptor() interaction.ToolDescriptor {
-	return interaction.ToolDescriptor{
-		Name:        "echo",
-		Description: "Echoes the provided arguments.",
-		InputSchema: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"message": map[string]any{"type": "string"},
-			},
-		},
-	}
-}
-
-func (describedEchoTool) Call(_ context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
-	return interaction.ToolResult{
-		Output:   call.Input,
-		Metadata: map[string]string{"tool": call.Name},
-	}, nil
 }
 
 type memoryAuditSink struct {
