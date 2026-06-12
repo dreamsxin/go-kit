@@ -2,7 +2,6 @@ package orderservice
 
 import (
 	"sync"
-	"time"
 
 	"github.com/sony/gobreaker"
 	"golang.org/x/time/rate"
@@ -64,5 +63,3 @@ func applyGeneratedMiddleware(ep endpoint.Endpoint, logger *kitlog.Logger, cfg M
 	}
 	return b.Build()
 }
-
-var _ = time.Second

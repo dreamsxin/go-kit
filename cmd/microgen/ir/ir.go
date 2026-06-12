@@ -10,7 +10,6 @@ const (
 	MethodKindServerStream     MethodKind = "server_stream"
 	MethodKindClientStream     MethodKind = "client_stream"
 	MethodKindBidirectional    MethodKind = "bidi_stream"
-	MethodKindEventSource      MethodKind = "event_source"
 )
 
 // Project is the source-agnostic intermediate representation used by microgen.

@@ -10,7 +10,7 @@
 //
 // 
 //	// gRPC
-//	conn, _ := grpc.Dial("localhost:8081", grpc.WithInsecure())
+//	conn, _ := grpc.NewClient("localhost:8081", grpc.WithTransportCredentials(insecure.NewCredentials()))
 //	client := userservicesdk.NewGRPC(conn)
 //	resp, err := client.GetUser(ctx, idl.GetUserRequest{...})
 // 

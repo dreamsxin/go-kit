@@ -10,7 +10,7 @@
 //
 // {{if .WithGRPC}}
 //	// gRPC
-//	conn, _ := grpc.Dial("localhost:8081", grpc.WithInsecure())
+//	conn, _ := grpc.NewClient("localhost:8081", grpc.WithTransportCredentials(insecure.NewCredentials()))
 //	client := {{.Service.PackageName}}sdk.NewGRPC(conn)
 {{if .UnaryMethods}}//	resp, err := client.{{(index .UnaryMethods 0).Name}}(ctx, idl.{{(index .UnaryMethods 0).InputName}}{...}){{else}}// Unary methods are exposed by this SDK. Streaming methods are available on the gRPC service contract.{{end}}
 // {{end}}

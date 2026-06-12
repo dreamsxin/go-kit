@@ -977,9 +977,17 @@ func TestE2E_ServerNotifications(t *testing.T) {
 		}
 	}
 
-	// Send tool list changed notification.
-	if err := env.handler.ToolListChangedNotification(sid); err != nil {
-		t.Fatalf("ToolListChangedNotification: %v", err)
+	// Send tool list changed notification, retrying briefly until the GET
+	// SSE writer has been registered by the server handler goroutine.
+	var notifyErr error
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		notifyErr = env.handler.ToolListChangedNotification(sid)
+		if notifyErr == nil || !strings.Contains(notifyErr.Error(), "no active SSE") {
+			break
+		}
+	}
+	if notifyErr != nil {
+		t.Fatalf("ToolListChangedNotification: %v", notifyErr)
 	}
 
 	// Read the notification from SSE stream.

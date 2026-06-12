@@ -94,7 +94,7 @@ ep := sd.NewEndpoint(instancer, factory, logger,
 ## Run All Example Tests
 
 ```bash
-python tools/test_examples.py          # compile + go test + HTTP smoke tests
-python tools/test_examples.py --no-runtime  # compile + go test only (CI)
-python tools/test_examples.py -k transport  # filter by name
+go test ./examples/...                # compile + unit tests
+go test ./tools/... -run TestAll      # integration smoke tests
+make verify                           # full validation (runtime + microgen + integration)
 ```

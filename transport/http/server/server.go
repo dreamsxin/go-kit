@@ -76,7 +76,6 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				f(ctx, r, iw)
 			}
 		}()
-		//w = iw.reimplementInterfaces()
 	}
 
 	for _, f := range s.before {

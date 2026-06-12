@@ -81,10 +81,9 @@ func NewUserServiceGRPCClient(addr string, opts ...grpc.DialOption) (*UserServic
 	if len(opts) == 0 {
 		opts = []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithTimeout(5 * time.Second), //nolint:staticcheck
 		}
 	}
-	conn, err := grpc.Dial(addr, opts...) //nolint:staticcheck
+	conn, err := grpc.NewClient(addr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("grpc dial %s: %w", addr, err)
 	}

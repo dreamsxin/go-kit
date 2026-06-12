@@ -9,7 +9,7 @@ package main
 	)
 	
 	func main() {
-		client := userservicesdk.New("http://127.0.0.1:46245")
+		client := userservicesdk.New("http://127.0.0.1:46149")
 		_, err := client.CreateUser(context.Background(), idl.CreateUserRequest{
 			Username: "sdk-user",
 			Email:    "sdk@example.com",

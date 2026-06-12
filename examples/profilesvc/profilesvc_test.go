@@ -219,7 +219,10 @@ func TestHTTP_PutProfile(t *testing.T) {
 	}
 
 	// verify
-	getResp, _ := http.Get(srv.URL + "/profiles/h3")
+	getResp, err := http.Get(srv.URL + "/profiles/h3")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
 	defer getResp.Body.Close()
 	var result getProfileResponse
 	json.NewDecoder(getResp.Body).Decode(&result) //nolint:errcheck

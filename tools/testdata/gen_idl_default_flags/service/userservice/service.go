@@ -59,6 +59,7 @@ type ServiceConfig struct {
 	Timeout       time.Duration `json:"timeout"`
 	EnableLogging bool          `json:"enable_logging"`
 	EnableMetrics bool          `json:"enable_metrics"`
+	Logger        *kitlog.Logger `json:"-"`
 }
 
 var defaultConfig = &ServiceConfig{
@@ -82,14 +83,18 @@ func NewServiceWithRepo(cfg *ServiceConfig, repos GeneratedRepos) UserService {
 }
 
 func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) UserService {
+	logger := cfg.Logger
+	if logger == nil {
+		logger = kitlog.NewNopLogger()
+	}
 	var svc UserService = &serviceImpl{
 		config: cfg,
-		logger: kitlog.NewNopLogger(),
+		logger: logger,
 		repos:  repos,
 	}
 
 	if cfg.EnableLogging {
-		svc = LoggingMiddleware(kitlog.NewNopLogger())(svc)
+		svc = LoggingMiddleware(logger)(svc)
 	}
 	if cfg.EnableMetrics {
 		svc = MetricsMiddleware()(svc)
