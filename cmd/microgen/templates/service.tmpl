@@ -136,7 +136,7 @@ func (s *serviceImpl) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputNa
 
 type ServiceMiddleware func({{.Service.ServiceName}}) {{.Service.ServiceName}}
 
-func LoggingMiddleware(logger *log.Logger) ServiceMiddleware {
+func LoggingMiddleware(logger *kitlog.Logger) ServiceMiddleware {
 	return func(next {{.Service.ServiceName}}) {{.Service.ServiceName}} {
 		return &loggingMiddleware{next: next, logger: logger}
 	}

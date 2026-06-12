@@ -24,7 +24,7 @@ Current posture:
 v1.6.0 Stable
 ```
 
-The `v1.6.0` stable scope covers the documented core runtime and `microgen` generated-output behavior. `interaction`, `interaction/mcp`, WebSocket transport, and generated interaction adapters have been promoted to stable scope.
+The `v1.6.0` stable scope covers the documented core runtime and `microgen` generated-output behavior. `interaction`, `interaction/mcp`, and generated interaction adapters have been promoted to stable scope.
 
 The next product target is:
 
@@ -35,7 +35,6 @@ v0.9 AI Interaction
 The v0.9 goal is to add first-class interaction protocols without weakening the existing `service -> endpoint -> transport` model:
 
 - gRPC streaming for server-stream, client-stream, and bidirectional-stream services
-- optional WebSocket transport for browser and agent interaction loops after the gRPC streaming path is stable
 - AI interaction runtime for sessions, event streams, tool calls, cancellation, and audit hooks
 - generated docs, SDKs, and integration tests that make these interaction surfaces usable by humans and AI agents
 
@@ -57,10 +56,6 @@ Partially complete:
 Not started:
 
 - none
-
-Optional:
-
-- Phase 8 WebSocket Transport. Keep this as an optional candidate unless browser/session requirements become concrete.
 
 ## Phase 1: Generated Project Orientation
 
@@ -132,10 +127,10 @@ Deliverables:
 ## Phase 6: Interaction Contract IR
 
 Status:
-- Implemented for unary, server-stream, client-stream, bidirectional-stream, WebSocket-session, and event-source method kinds.
+- Implemented for unary, server-stream, client-stream, bidirectional-stream, and event-source method kinds.
 
 Goal:
-- Extend the IR so one service contract can describe unary calls, gRPC streams, WebSocket sessions, and AI interaction events.
+- Extend the IR so one service contract can describe unary calls, gRPC streams, and AI interaction events.
 
 Deliverables:
 - `MethodKind` metadata for:
@@ -143,7 +138,6 @@ Deliverables:
   - `server_stream`
   - `client_stream`
   - `bidi_stream`
-  - `websocket_session`
   - `event_source`
 - cancellation and timeout metadata
 - request, response, event, and error message metadata
@@ -175,25 +169,7 @@ Deliverables:
 Remaining:
 - final `v1.5.0` release validation and tag
 
-## Phase 8: WebSocket Transport
-
-Status:
-- Optional, not required for the v1.0 industrial release gate unless a concrete browser/session product requirement is adopted.
-
-Goal:
-- Add a browser- and agent-friendly bidirectional transport for interactive services.
-
-Deliverables:
-- `transport/ws/server` and `transport/ws/client`
-- a standard JSON envelope with message id, type, method, payload, error, and metadata
-- heartbeat, close reason, max message size, and backpressure policy hooks
-- generated WebSocket transport, demo client, and SDK support
-- integration tests for request/response, server event push, cancellation, and connection close paths
-
-Decision gate:
-- Start this only after gRPC streaming hardening and the minimal AI interaction runtime contract are in place, or after a concrete browser/session product requirement is accepted.
-
-## Phase 9: AI Interaction Runtime
+## Phase 8: AI Interaction Runtime
 
 Status:
 - In progress. The `interaction` package defines the first transport-neutral session, event, tool registry, runtime, hook, authorization, and audit contracts with in-memory implementations. `interaction/mcp` provides the full MCP 2025-06-18 Streamable HTTP transport for listing and calling registered runtime tools. Generated project README output now explains the split between `/skill?format=mcp` discovery and executable `interaction` runtime endpoints.
@@ -226,7 +202,7 @@ Remaining:
 - production storage examples for durable auth/audit sinks
 - transport adapters that consume the runtime contracts
 
-## Phase 10: Industrial v1.0 Hardening
+## Phase 9: Industrial v1.0 Hardening
 
 Status:
 - Started. Observability, OpenTelemetry, authentication, authorization, request-limit, audit, and generated-project hardening guidance are now documented without making provider-specific systems core runtime dependencies.
@@ -239,7 +215,7 @@ Deliverables:
 - authentication, authorization, request limits, and audit guidance
 - OpenTelemetry tracing and metrics guidance
 - compatibility freeze for stable runtime APIs and default generated output
-- CI and release validation matrix that includes streaming, WebSocket, and AI interaction tests
+- CI and release validation matrix that includes streaming and AI interaction tests
 
 Implemented:
 - Observability guidance for request correlation, endpoint metrics, logging, transport hooks, and OpenTelemetry integration.

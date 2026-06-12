@@ -3,9 +3,9 @@ package userservice
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
+	kitlog "github.com/dreamsxin/go-kit/log"
 	idl "example.com/gen_proto_component_flow/pb"
 )
 
@@ -49,11 +49,11 @@ func NewService(cfg *ServiceConfig) UserService {
 func newServiceImpl(cfg *ServiceConfig) UserService {
 	var svc UserService = &serviceImpl{
 		config: cfg,
-		logger: log.Default(),
+		logger: kitlog.NewNopLogger(),
 	}
 
 	if cfg.EnableLogging {
-		svc = LoggingMiddleware(log.Default())(svc)
+		svc = LoggingMiddleware(kitlog.NewNopLogger())(svc)
 	}
 	if cfg.EnableMetrics {
 		svc = MetricsMiddleware()(svc)
@@ -65,7 +65,7 @@ func newServiceImpl(cfg *ServiceConfig) UserService {
 
 type serviceImpl struct {
 	config *ServiceConfig
-	logger *log.Logger
+	logger *kitlog.Logger
 }
 
 
@@ -85,7 +85,7 @@ func (s *serviceImpl) CreateUser(ctx context.Context, req idl.CreateUserRequest)
 
 type ServiceMiddleware func(UserService) UserService
 
-func LoggingMiddleware(logger *log.Logger) ServiceMiddleware {
+func LoggingMiddleware(logger *kitlog.Logger) ServiceMiddleware {
 	return func(next UserService) UserService {
 		return &loggingMiddleware{next: next, logger: logger}
 	}
@@ -93,7 +93,7 @@ func LoggingMiddleware(logger *log.Logger) ServiceMiddleware {
 
 type loggingMiddleware struct {
 	next   UserService
-	logger *log.Logger
+	logger *kitlog.Logger
 }
 
 
@@ -101,9 +101,9 @@ func (m *loggingMiddleware) GetUser(ctx context.Context, req idl.GetUserRequest)
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] GetUser err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] GetUser err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] GetUser elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] GetUser elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.GetUser(ctx, req)
@@ -113,9 +113,9 @@ func (m *loggingMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRe
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] CreateUser err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] CreateUser err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] CreateUser elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] CreateUser elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.CreateUser(ctx, req)

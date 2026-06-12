@@ -60,7 +60,6 @@ The following should be treated as compatibility-sensitive:
 The following interaction surfaces are now part of the stable generated-output contract:
 
 - gRPC server-stream, client-stream, and bidirectional-stream generation
-- WebSocket transport generation
 - AI interaction runtime generation for sessions, event streams, tool-call execution, cancellation, and audit hooks
 - MCP server runtime endpoints beyond the current MCP-style `/skill?format=mcp` schema response
 

@@ -3,9 +3,9 @@ package catalogservice
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
+	kitlog "github.com/dreamsxin/go-kit/log"
 	idl "example.com/gen_fromdb_sqlite"
 )
 
@@ -63,12 +63,12 @@ func NewServiceWithRepo(cfg *ServiceConfig, repos GeneratedRepos) CatalogService
 func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) CatalogService {
 	var svc CatalogService = &serviceImpl{
 		config: cfg,
-		logger: log.Default(),
+		logger: kitlog.NewNopLogger(),
 		repos:  repos,
 	}
 
 	if cfg.EnableLogging {
-		svc = LoggingMiddleware(log.Default())(svc)
+		svc = LoggingMiddleware(kitlog.NewNopLogger())(svc)
 	}
 	if cfg.EnableMetrics {
 		svc = MetricsMiddleware()(svc)
@@ -80,7 +80,7 @@ func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) CatalogService {
 
 type serviceImpl struct {
 	config *ServiceConfig
-	logger *log.Logger
+	logger *kitlog.Logger
 	repos  GeneratedRepos
 }
 
@@ -116,7 +116,7 @@ func (s *serviceImpl) ListUsers(ctx context.Context, req idl.ListUsersRequest) (
 
 type ServiceMiddleware func(CatalogService) CatalogService
 
-func LoggingMiddleware(logger *log.Logger) ServiceMiddleware {
+func LoggingMiddleware(logger *kitlog.Logger) ServiceMiddleware {
 	return func(next CatalogService) CatalogService {
 		return &loggingMiddleware{next: next, logger: logger}
 	}
@@ -124,7 +124,7 @@ func LoggingMiddleware(logger *log.Logger) ServiceMiddleware {
 
 type loggingMiddleware struct {
 	next   CatalogService
-	logger *log.Logger
+	logger *kitlog.Logger
 }
 
 
@@ -132,9 +132,9 @@ func (m *loggingMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRe
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[CatalogService] CreateUser err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[CatalogService] CreateUser err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[CatalogService] CreateUser elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[CatalogService] CreateUser elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.CreateUser(ctx, req)
@@ -144,9 +144,9 @@ func (m *loggingMiddleware) GetUser(ctx context.Context, req idl.GetUserRequest)
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[CatalogService] GetUser err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[CatalogService] GetUser err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[CatalogService] GetUser elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[CatalogService] GetUser elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.GetUser(ctx, req)
@@ -156,9 +156,9 @@ func (m *loggingMiddleware) UpdateUser(ctx context.Context, req idl.UpdateUserRe
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[CatalogService] UpdateUser err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[CatalogService] UpdateUser err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[CatalogService] UpdateUser elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[CatalogService] UpdateUser elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.UpdateUser(ctx, req)
@@ -168,9 +168,9 @@ func (m *loggingMiddleware) DeleteUser(ctx context.Context, req idl.DeleteUserRe
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[CatalogService] DeleteUser err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[CatalogService] DeleteUser err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[CatalogService] DeleteUser elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[CatalogService] DeleteUser elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.DeleteUser(ctx, req)
@@ -180,9 +180,9 @@ func (m *loggingMiddleware) ListUsers(ctx context.Context, req idl.ListUsersRequ
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[CatalogService] ListUsers err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[CatalogService] ListUsers err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[CatalogService] ListUsers elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[CatalogService] ListUsers elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.ListUsers(ctx, req)

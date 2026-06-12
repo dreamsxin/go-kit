@@ -16,7 +16,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, "127.0.0.1:6896",
+	conn, err := grpc.DialContext(ctx, "127.0.0.1:5193",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithBlock(),
 	)

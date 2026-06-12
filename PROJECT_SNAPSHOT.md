@@ -42,7 +42,7 @@ The repository is in a post-`v1.6.0` release state.
 Current priority summary:
 
 1. keep the `v1.6.0` stable scope to documented core runtime and `microgen` generated-output behavior
-2. `interaction`, `interaction/mcp`, WebSocket, and generated interaction adapters are now part of the stable scope
+2. `interaction`, `interaction/mcp`, and generated interaction adapters are now part of the stable scope
 3. prepare for v1.0 industrial release
 
 ## AI Roadmap Status
@@ -54,16 +54,15 @@ Current state:
 - Phase 3 Extension Workflow Hardening: implemented.
 - Phase 4 Config And Runtime Confidence: implemented.
 - Phase 5 Agent Workflow Packaging: implemented.
-- Phase 6 Interaction Contract IR: partially implemented. `MethodKind` now models unary, server-stream, client-stream, bidirectional-stream, WebSocket-session, and event-source shapes; cancellation/timeout metadata, error/event envelopes, and Go IDL syntax for non-unary shapes remain open.
+- Phase 6 Interaction Contract IR: partially implemented. `MethodKind` now models unary, server-stream, client-stream, bidirectional-stream, and event-source shapes; cancellation/timeout metadata, error/event envelopes, and Go IDL syntax for non-unary shapes remain open.
 - Phase 7 gRPC Streaming: stable generated-output behavior for supported Proto stream shapes in `v1.6.0`. Proto streaming declarations now generate service contracts, gRPC server adapters, transport client helpers, SDK streaming clients, and integration tests for success, error propagation, cancellation, synchronous callback backpressure behavior, and slow-consumer context deadline behavior across server-stream, client-stream, and bidirectional-stream flows.
-- Phase 8 WebSocket Transport: optional, now stable. It should not block v1.0 unless a concrete browser/session product requirement is adopted.
-- Phase 9 AI Interaction Runtime: in progress. The `interaction` package now provides transport-neutral session, event, tool registry, runtime, hook, authorization, and audit contracts with in-memory implementations. `interaction/mcp` provides a full MCP-style JSON-RPC HTTP endpoint for `initialize`, `tools/list`, and `tools/call`. Generated README output now explains the split between `/skill?format=mcp` discovery and executable `interaction` runtime endpoints. `examples/interaction_policy` now shows production-style authorization and audit hook composition. Durable storage examples and additional transport adapters remain open.
-- Phase 10 Industrial v1.0 Hardening: started. Observability, OpenTelemetry, authentication, authorization, request-limit, audit, secrets, and generated-project hardening guidance are now documented. Full v1.0 compatibility freeze and final v1.0 validation matrix remain open.
+- Phase 8 AI Interaction Runtime: in progress. The `interaction` package now provides transport-neutral session, event, tool registry, runtime, hook, authorization, and audit contracts with in-memory implementations. `interaction/mcp` provides a full MCP-style JSON-RPC HTTP endpoint for `initialize`, `tools/list`, and `tools/call`. Generated README output now explains the split between `/skill?format=mcp` discovery and executable `interaction` runtime endpoints. `examples/interaction_policy` now shows production-style authorization and audit hook composition. Durable storage examples and additional transport adapters remain open.
+- Phase 9 Industrial v1.0 Hardening: started. Observability, OpenTelemetry, authentication, authorization, request-limit, audit, secrets, and generated-project hardening guidance are now documented. Full v1.0 compatibility freeze and final v1.0 validation matrix remain open.
 
 Next recommended task:
 
 1. Continue Phase 10 hardening with the final CI matrix for supported Go versions and required toolchains.
-2. `interaction`, `interaction/mcp`, WebSocket, and generated interaction adapters are now stable.
+2. `interaction`, `interaction/mcp`, and generated interaction adapters are now stable.
 3. Preserve the `v1.6.0` stable scope while preparing the broader v1.0 compatibility freeze.
 
 Latest release validation:
@@ -107,7 +106,7 @@ Recently completed:
   - generator tests now consistently exercise the IR-first path for normal generation behavior, and the old compatibility-entry tests/helpers have been removed along with the obsolete entry points
   - while doing that cleanup, historical comment-encoding damage in `generator_test.go` was repaired enough to keep the package compiling and the migrated test suite stable
   - focused `cmd/microgen/ir` tests now protect the Go-IDL and Proto conversion paths
-  - `ir.MethodKind` now captures the first interaction-shape contract for unary, server-stream, client-stream, bidirectional-stream, WebSocket session, and event-source methods
+  - `ir.MethodKind` now captures the first interaction-shape contract for unary, server-stream, client-stream, bidirectional-stream, and event-source methods
   - Proto parser output now preserves RPC streaming direction so `ir.FromParseResult(...)` can classify server/client/bidirectional streaming methods before code generation support lands
 - `kit.WithRequestID()` now performs real request ID propagation instead of acting as a stub.
 - `cmd/microgen/generator/generator.go` was decomposed so responsibilities are now split across:

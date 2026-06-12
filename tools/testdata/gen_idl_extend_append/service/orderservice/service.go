@@ -3,9 +3,9 @@ package orderservice
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
+	kitlog "github.com/dreamsxin/go-kit/log"
 	idl "example.com/gen_idl_extend_append"
 )
 
@@ -46,11 +46,11 @@ func NewService(cfg *ServiceConfig) OrderService {
 func newServiceImpl(cfg *ServiceConfig) OrderService {
 	var svc OrderService = &serviceImpl{
 		config: cfg,
-		logger: log.Default(),
+		logger: kitlog.NewNopLogger(),
 	}
 
 	if cfg.EnableLogging {
-		svc = LoggingMiddleware(log.Default())(svc)
+		svc = LoggingMiddleware(kitlog.NewNopLogger())(svc)
 	}
 	if cfg.EnableMetrics {
 		svc = MetricsMiddleware()(svc)
@@ -62,7 +62,7 @@ func newServiceImpl(cfg *ServiceConfig) OrderService {
 
 type serviceImpl struct {
 	config *ServiceConfig
-	logger *log.Logger
+	logger *kitlog.Logger
 }
 
 
@@ -77,7 +77,7 @@ func (s *serviceImpl) PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest)
 
 type ServiceMiddleware func(OrderService) OrderService
 
-func LoggingMiddleware(logger *log.Logger) ServiceMiddleware {
+func LoggingMiddleware(logger *kitlog.Logger) ServiceMiddleware {
 	return func(next OrderService) OrderService {
 		return &loggingMiddleware{next: next, logger: logger}
 	}
@@ -85,7 +85,7 @@ func LoggingMiddleware(logger *log.Logger) ServiceMiddleware {
 
 type loggingMiddleware struct {
 	next   OrderService
-	logger *log.Logger
+	logger *kitlog.Logger
 }
 
 
@@ -93,9 +93,9 @@ func (m *loggingMiddleware) PlaceOrder(ctx context.Context, req idl.PlaceOrderRe
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[OrderService] PlaceOrder err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[OrderService] PlaceOrder err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[OrderService] PlaceOrder elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[OrderService] PlaceOrder elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.PlaceOrder(ctx, req)

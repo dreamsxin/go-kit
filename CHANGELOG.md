@@ -6,6 +6,10 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 
 ## Unreleased
 
+### Removed
+
+- Removed `MethodKindWebSocketSession` from the microgen IR. WebSocket transport had no implementation — the constant and associated documentation references were dead code. The project focuses on MCP Streamable HTTP and gRPC as supported transports.
+
 ## v1.6.0 - 2026-06-12
 
 ### Stable

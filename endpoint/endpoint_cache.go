@@ -26,11 +26,15 @@ type EndpointCache struct {
 	timeNow            func() time.Time
 }
 
+// EndpointCloser pairs an Endpoint with an optional io.Closer so the cache
+// can release resources when a service instance is removed.
 type EndpointCloser struct {
 	Endpoint
 	io.Closer
 }
 
+// NewEndpointCache returns an EndpointCache that uses factory to create
+// Endpoints for each discovered service instance.
 func NewEndpointCache(factory Factory, logger *log.Logger, options EndpointerOptions) *EndpointCache {
 	return &EndpointCache{
 		options: options,
@@ -41,6 +45,11 @@ func NewEndpointCache(factory Factory, logger *log.Logger, options EndpointerOpt
 	}
 }
 
+// Update reconciles the cache with the latest service-discovery event.
+// Instances that appear in the event are kept (or created via the factory);
+// stale instances have their Closers invoked. If event.Err is non-nil and
+// InvalidateOnError is set, the cache begins returning the error after the
+// configured grace period.
 func (c *EndpointCache) Update(event events.Event) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -100,6 +109,9 @@ func (c *EndpointCache) updateCache(instances []string) {
 	c.cache = cache
 }
 
+// Endpoints returns the current set of active Endpoints. If a discovery
+// error is pending and the invalidation grace period has elapsed, the cache
+// is cleared and the error is returned.
 func (c *EndpointCache) Endpoints() ([]Endpoint, error) {
 	c.mtx.RLock()
 

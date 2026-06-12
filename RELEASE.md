@@ -17,7 +17,7 @@ Stable in this release means:
 - documented `kit`, `endpoint`, HTTP transport, service discovery, logging, and `microgen` CLI behavior are compatibility-sensitive
 - generated unary HTTP/gRPC projects, config loading, extend mode, AI skill metadata, and Proto gRPC streaming generation are covered by release validation
 
-All surfaces including interaction, interaction/mcp, WebSocket transport, and generated interaction adapters are now part of the stable scope.
+All surfaces including interaction, interaction/mcp, and generated interaction adapters are now part of the stable scope.
 
 ## Version Targets
 
@@ -42,9 +42,8 @@ Scope:
 
 - IR support for interaction method kinds
 - gRPC server-stream, client-stream, and bidirectional-stream generation, implemented through generated server adapters, transport client helpers, SDK streaming clients, and success-path integration tests
-- optional WebSocket transport after gRPC streaming stabilizes
 - AI interaction runtime for sessions, events, tool calls, cancellation, and audit hooks
-- generated examples and integration tests for streaming and WebSocket flows
+- generated examples and integration tests for streaming flows
 
 Release posture:
 
@@ -59,7 +58,7 @@ Scope:
 - release notes and migration notes for every compatibility-affecting change
 - production security hooks for authn/authz, request limits, and generated project hardening
 - OpenTelemetry tracing and metrics guidance
-- streaming, WebSocket, and AI interaction lifecycle tests
+- streaming and AI interaction lifecycle tests
 - CI matrix covering supported Go versions and required toolchains
 
 Release posture:
@@ -73,7 +72,7 @@ Scope:
 
 - stable core runtime and documented `microgen` generation behavior
 - generated Proto gRPC streaming support promoted from preview candidate to stable generated-output behavior for supported Proto stream shapes
-- AI interaction runtime, WebSocket transport, and generated interaction adapters are promoted to stable scope
+- AI interaction runtime and generated interaction adapters are promoted to stable scope
 
 Release posture:
 
@@ -86,7 +85,7 @@ Scope:
 
 - all v1.5.0 stable scope preserved
 - `interaction` and `interaction/mcp` promoted from preview to stable: full MCP 2025-06-18 protocol with Streamable HTTP transport, sampling, notifications, completions, logging, resources, and prompts
-- WebSocket transport and generated interaction adapters promoted to stable scope
+- generated interaction adapters promoted to stable scope
 - unified `ToolFunc` with optional `Description`/`Schema`, `NewRuntime()` builder pattern, `NewHandler` alias for `NewStreamableHandler`
 - session TTL with background cleanup, error propagation in list handlers, race condition fix in sampling
 
@@ -97,7 +96,7 @@ Release posture:
 
 ## v1.5.0 Stable Checklist
 
-- [x] Stable scope includes interaction, interaction/mcp, and WebSocket surfaces
+- [x] Stable scope includes interaction and interaction/mcp surfaces
 - [x] Stable package surfaces are documented in [STABILITY.md](STABILITY.md)
 - [x] Generated output compatibility expectations are documented in [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
 - [x] `CHANGELOG.md` distinguishes stable and preview changes
@@ -122,7 +121,6 @@ Release posture:
 - [ ] `CHANGELOG.md` maintained for user-visible changes
 - [ ] `MIGRATION.md` documents breaking or compatibility-sensitive moves
 - [ ] gRPC streaming support documented and integration-tested for success, errors, cancellation, and slow-consumer behavior
-- [ ] WebSocket transport documented and integration-tested as a supported stable surface
 - [ ] AI interaction runtime documented and integration-tested
 - [x] Auth, limits, and audit hooks documented for generated services
 - [x] OpenTelemetry tracing/metrics guidance documented
@@ -141,12 +139,12 @@ go test ./interaction/... ./examples/interaction_policy/... -count=1
 git diff --check
 ```
 
-For `v1.6.0`, this loop is the required release validation. WebSocket is not required because it is not in the stable release scope.
+For `v1.6.0`, this loop is the required release validation.
 
 Current open release gaps before `v1.6.0`:
 
 - Create an annotated `v1.6.0` tag.
-- `interaction`, `interaction/mcp`, and WebSocket are now part of the stable scope.
+- `interaction` and `interaction/mcp` are now part of the stable scope.
 
 Latest validation result for `v1.5.0`:
 

@@ -13,7 +13,7 @@ Important status note:
 - the next planned phase is additive `microgen` and transport product expansion in these linked tracks:
   - generated configuration with remote-config support
   - incremental extension of already-generated projects with new services, models, and middleware
-  - AI interaction protocols: gRPC streaming, WebSocket, and interaction runtime
+  - AI interaction protocols: gRPC streaming and interaction runtime
 
 ## Refactor Goals
 
@@ -27,8 +27,8 @@ The current roadmap focuses on eleven outcomes:
 6. Strengthen validation so future refactors stay safe.
 7. Add a first-class generated configuration layer that can grow from local files to remote configuration.
 8. Let `microgen` evolve existing generated projects incrementally instead of forcing all-or-nothing regeneration.
-9. Extend the IR so service contracts can represent unary, streaming, WebSocket, and AI interaction methods.
-10. Add transports for gRPC streaming and WebSocket interaction flows.
+9. Extend the IR so service contracts can represent unary, streaming, and AI interaction methods.
+10. Add transports for gRPC streaming interaction flows.
 11. Harden release governance, security hooks, observability guidance, and migration policy before v1.0.
 
 ## Current Signals From The Codebase
@@ -292,7 +292,7 @@ Objective:
 
 Actions:
 
-- add method-kind metadata for unary, server stream, client stream, bidirectional stream, WebSocket session, and event-source methods
+- add method-kind metadata for unary, server stream, client stream, bidirectional stream, and event-source methods
 - keep request, response, event, and error message metadata source-agnostic
 - teach Proto parsing to preserve streaming RPC direction
 - define the Go IDL conventions for stream-shaped contracts before generating code from them
@@ -308,7 +308,7 @@ Success criteria:
 
 - generator code can branch on explicit interaction method kind instead of inferring streaming behavior from names or protocol-specific types
 
-## Workstream 10: gRPC Streaming And WebSocket
+## Workstream 10: gRPC Streaming
 
 Objective:
 
@@ -318,14 +318,11 @@ Actions:
 
 - implement generated gRPC server-stream support first because Proto has a native streaming contract
 - follow with client-stream and bidirectional-stream support
-- add `transport/ws/server` and `transport/ws/client` around a standard JSON envelope
-- generate WebSocket transport, demo client, and SDK helpers
 - add integration tests for success, errors, cancellation, slow consumers, and close behavior
 
 Deliverables:
 
 - generated gRPC streaming transport and SDK support
-- WebSocket transport package and generated artifacts
 - interaction protocol examples
 
 Success criteria:

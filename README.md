@@ -29,7 +29,6 @@ Stable scope:
 - generated config, extend mode, clients, SDKs, and AI skill metadata
 - generated Proto gRPC streaming for supported server-stream, client-stream, and bidirectional-stream RPC shapes
 - `interaction` and `interaction/mcp` — AI interaction runtime with sessions, events, tools, resources, prompts, hooks, and full MCP 2025-06-18 Streamable HTTP transport
-- optional WebSocket transport for browser and agent interaction loops
 - generated interaction adapters
 
 See [RELEASE.md](RELEASE.md), [STABILITY.md](STABILITY.md), and [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md).

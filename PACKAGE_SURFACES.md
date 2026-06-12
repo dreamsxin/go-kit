@@ -130,7 +130,7 @@ Role in the framework:
 Who should use it:
 
 - maintainers building the AI interaction runtime
-- generated projects that need session, event, tool-call, resource, and prompt contracts without binding to WebSocket or any other transport
+- generated projects that need session, event, tool-call, resource, and prompt contracts without binding to any specific transport
 
 Recommended entry points:
 
@@ -163,12 +163,11 @@ Do not depend on:
 
 - the in-memory implementations as production storage
 - the current event taxonomy being frozen before v1.0
-- WebSocket behavior; this package is transport-neutral
 
 Role in the framework:
 
 - contract layer for AI-facing session/event/tool-call/resource/prompt flows
-- should stay transport-neutral so HTTP, gRPC streaming, WebSocket, or MCP adapters can be added later without changing business interaction contracts
+- should stay transport-neutral so HTTP, gRPC streaming, or MCP adapters can be added later without changing business interaction contracts
 - `interaction/mcp` provides both a simple POST-only `Handler` and a full Streamable HTTP `StreamableHandler` with SSE, sampling, completions, and server-initiated notifications
 
 ## `transport/http/server`
@@ -460,4 +459,4 @@ When a change touches a package surface:
 
 ## Suggested Next Step
 
-The next useful follow-up after this document is a generated-project compatibility guide for `microgen`, so that project layout and output expectations are treated as explicit product contracts.
+The generated-project compatibility guide for `microgen` has been published as `MICROGEN_COMPATIBILITY.md`. It defines project layout and output expectations as explicit product contracts. Further surface changes should be validated against that document.

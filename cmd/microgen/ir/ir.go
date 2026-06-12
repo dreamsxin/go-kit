@@ -10,7 +10,6 @@ const (
 	MethodKindServerStream     MethodKind = "server_stream"
 	MethodKindClientStream     MethodKind = "client_stream"
 	MethodKindBidirectional    MethodKind = "bidi_stream"
-	MethodKindWebSocketSession MethodKind = "websocket_session"
 	MethodKindEventSource      MethodKind = "event_source"
 )
 

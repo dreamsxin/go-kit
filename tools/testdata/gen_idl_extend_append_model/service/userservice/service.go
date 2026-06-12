@@ -3,9 +3,9 @@ package userservice
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
+	kitlog "github.com/dreamsxin/go-kit/log"
 	idl "example.com/gen_idl_extend_append_model"
 )
 
@@ -84,12 +84,12 @@ func NewServiceWithRepo(cfg *ServiceConfig, repos GeneratedRepos) UserService {
 func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) UserService {
 	var svc UserService = &serviceImpl{
 		config: cfg,
-		logger: log.Default(),
+		logger: kitlog.NewNopLogger(),
 		repos:  repos,
 	}
 
 	if cfg.EnableLogging {
-		svc = LoggingMiddleware(log.Default())(svc)
+		svc = LoggingMiddleware(kitlog.NewNopLogger())(svc)
 	}
 	if cfg.EnableMetrics {
 		svc = MetricsMiddleware()(svc)
@@ -101,7 +101,7 @@ func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) UserService {
 
 type serviceImpl struct {
 	config *ServiceConfig
-	logger *log.Logger
+	logger *kitlog.Logger
 	repos  GeneratedRepos
 }
 
@@ -172,7 +172,7 @@ func (s *serviceImpl) PatchStatus(ctx context.Context, req idl.UpdateUserRequest
 
 type ServiceMiddleware func(UserService) UserService
 
-func LoggingMiddleware(logger *log.Logger) ServiceMiddleware {
+func LoggingMiddleware(logger *kitlog.Logger) ServiceMiddleware {
 	return func(next UserService) UserService {
 		return &loggingMiddleware{next: next, logger: logger}
 	}
@@ -180,7 +180,7 @@ func LoggingMiddleware(logger *log.Logger) ServiceMiddleware {
 
 type loggingMiddleware struct {
 	next   UserService
-	logger *log.Logger
+	logger *kitlog.Logger
 }
 
 
@@ -188,9 +188,9 @@ func (m *loggingMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRe
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] CreateUser err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] CreateUser err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] CreateUser elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] CreateUser elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.CreateUser(ctx, req)
@@ -200,9 +200,9 @@ func (m *loggingMiddleware) GetUser(ctx context.Context, req idl.GetUserRequest)
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] GetUser err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] GetUser err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] GetUser elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] GetUser elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.GetUser(ctx, req)
@@ -212,9 +212,9 @@ func (m *loggingMiddleware) ListUsers(ctx context.Context, req idl.ListUsersRequ
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] ListUsers err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] ListUsers err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] ListUsers elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] ListUsers elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.ListUsers(ctx, req)
@@ -224,9 +224,9 @@ func (m *loggingMiddleware) DeleteUser(ctx context.Context, req idl.DeleteUserRe
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] DeleteUser err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] DeleteUser err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] DeleteUser elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] DeleteUser elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.DeleteUser(ctx, req)
@@ -236,9 +236,9 @@ func (m *loggingMiddleware) UpdateUser(ctx context.Context, req idl.UpdateUserRe
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] UpdateUser err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] UpdateUser err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] UpdateUser elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] UpdateUser elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.UpdateUser(ctx, req)
@@ -248,9 +248,9 @@ func (m *loggingMiddleware) FindByEmail(ctx context.Context, req idl.GetUserRequ
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] FindByEmail err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] FindByEmail err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] FindByEmail elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] FindByEmail elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.FindByEmail(ctx, req)
@@ -260,9 +260,9 @@ func (m *loggingMiddleware) SearchUsers(ctx context.Context, req idl.ListUsersRe
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] SearchUsers err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] SearchUsers err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] SearchUsers elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] SearchUsers elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.SearchUsers(ctx, req)
@@ -272,9 +272,9 @@ func (m *loggingMiddleware) QueryStats(ctx context.Context, req idl.GetUserReque
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] QueryStats err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] QueryStats err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] QueryStats elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] QueryStats elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.QueryStats(ctx, req)
@@ -284,9 +284,9 @@ func (m *loggingMiddleware) RemoveExpired(ctx context.Context, req idl.DeleteUse
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] RemoveExpired err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] RemoveExpired err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] RemoveExpired elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] RemoveExpired elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.RemoveExpired(ctx, req)
@@ -296,9 +296,9 @@ func (m *loggingMiddleware) EditProfile(ctx context.Context, req idl.UpdateUserR
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] EditProfile err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] EditProfile err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] EditProfile elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] EditProfile elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.EditProfile(ctx, req)
@@ -308,9 +308,9 @@ func (m *loggingMiddleware) ModifyEmail(ctx context.Context, req idl.UpdateUserR
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] ModifyEmail err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] ModifyEmail err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] ModifyEmail elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] ModifyEmail elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.ModifyEmail(ctx, req)
@@ -320,9 +320,9 @@ func (m *loggingMiddleware) PatchStatus(ctx context.Context, req idl.UpdateUserR
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[UserService] PatchStatus err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[UserService] PatchStatus err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[UserService] PatchStatus elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[UserService] PatchStatus elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.PatchStatus(ctx, req)

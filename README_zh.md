@@ -29,7 +29,6 @@ v1.6.0 Stable
 - 生成配置、extend 模式、客户端、SDK 和 AI skill 元数据
 - 支持的 server-stream、client-stream、bidirectional-stream Proto gRPC 生成输出
 - `interaction` 和 `interaction/mcp` — AI interaction runtime，包含 session、event、tool、resource、prompt、hook 和完整 MCP 2025-06-18 Streamable HTTP 传输
-- 可选 WebSocket 传输，用于浏览器和 agent interaction 场景
 - 生成的 interaction adapters
 
 详见 [RELEASE.md](RELEASE.md)、[STABILITY.md](STABILITY.md) 和 [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md)。

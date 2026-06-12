@@ -43,7 +43,7 @@ Meaning:
 
 The project is at `v1.6.0 Stable`.
 
-Stable in `v1.6.0` applies to the documented core runtime, documented `microgen` CLI behavior, and validated generated output. All surfaces including interaction, interaction/mcp, WebSocket transport, and generated interaction adapters are now part of the stable scope.
+Stable in `v1.6.0` applies to the documented core runtime, documented `microgen` CLI behavior, and validated generated output. All surfaces including interaction, interaction/mcp, and generated interaction adapters are now part of the stable scope. WebSocket transport was evaluated and removed — the project focuses on MCP Streamable HTTP and gRPC as the supported transport layer.
 
 The full v1.0 industrial compatibility freeze happens only after the v1.0 checklist in [RELEASE.md](RELEASE.md) is complete.
 
@@ -61,7 +61,6 @@ All public surfaces are classified into the stability tiers below.
 | `transport/http/client` | Stable | Public client constructor and hook surface |
 | `transport/grpc/server` | Semi-stable | Public, but less simplified than HTTP path |
 | `transport/grpc/client` | Semi-stable | Public, but should be treated as evolving |
-| `transport/ws` | Stable | WebSocket transport for browser/session interaction requirements |
 | gRPC streaming transport | Stable | Generated Proto streaming surface for supported server/client/bidirectional stream shapes; validated through integration coverage |
 | `interaction` | Stable | Session/event/tool-call runtime contracts, auth/audit hooks, in-memory implementations, resources, prompts, and completions |
 | interaction/mcp | Stable | Full MCP 2025-06-18 Streamable HTTP transport with tools, resources, prompts, sampling, logging, notifications, and completions |
