@@ -41,10 +41,12 @@ Generator-owned (do not hand-edit; use `microgen extend`):
   - `resources/list` / `resources/read` — read server-exposed data artifacts
   - `resources/templates/list` — discover parameterised resource URI patterns
   - `prompts/list` / `prompts/get` — list and render reusable prompt templates
+  - `completion/complete` — auto-complete prompt argument values
   - `logging/setLevel` — adjust server log verbosity
   - `notifications/initialized` — complete the MCP handshake (notification, no response)
   - Supports Streamable HTTP transport: GET for SSE streams, DELETE for session termination
   - Supports MCP Sampling: server can request LLM completions from connected clients
+  - Server-initiated notifications: tools/list_changed, prompts/list_changed, resources/list_changed, resources/updated, message, progress
 {{- end }}
 {{- if .WithSkill }}
 - `GET /skill` — OpenAI-style tool discovery

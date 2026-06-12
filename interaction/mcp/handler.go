@@ -76,6 +76,13 @@ func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 		resp.Result = result
 	case "logging/setLevel":
 		resp.Result = c.handleLoggingSetLevel(req.Params)
+	case "completion/complete":
+		result, err := c.handleCompletionComplete(req.Params)
+		if err != nil {
+			resp.Error = newError(-32602, "invalid argument", err.Error())
+			return resp
+		}
+		resp.Result = result
 	default:
 		resp.Error = newError(-32601, "method not found", req.Method)
 	}
@@ -92,6 +99,9 @@ func (c *dispatchCore) buildCapabilities() map[string]any {
 	}
 	if c.Runtime.Prompts != nil {
 		caps["prompts"] = map[string]any{"listChanged": true}
+		if _, ok := c.Runtime.Prompts.(interaction.PromptCompleter); ok {
+			caps["completions"] = map[string]any{}
+		}
 	}
 	return caps
 }
@@ -143,6 +153,10 @@ func (c *dispatchCore) callTool(ctx context.Context, raw json.RawMessage) (map[s
 		}
 		sessionID = session.ID
 	}
+
+	// Propagate session ID through context so tool implementations can
+	// access it for notifications, sampling, or audit.
+	ctx = context.WithValue(ctx, sessionIDContextKey{}, string(sessionID))
 
 	result, err := c.Runtime.CallTool(ctx, interaction.ToolCall{
 		SessionID: sessionID,
@@ -320,6 +334,57 @@ func (c *dispatchCore) handleLoggingSetLevel(raw json.RawMessage) map[string]any
 	return map[string]any{}
 }
 
+// ─── completions ─────────────────────────────────────────────────────────────
+
+func (c *dispatchCore) handleCompletionComplete(raw json.RawMessage) (map[string]any, error) {
+	var params struct {
+		Ref struct {
+			Type string `json:"type"`
+			Name string `json:"name"`
+		} `json:"ref"`
+		Argument struct {
+			Name  string `json:"name"`
+			Value string `json:"value"`
+		} `json:"argument"`
+	}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &params); err != nil {
+			return nil, fmt.Errorf("decode params: %w", err)
+		}
+	}
+	if params.Ref.Type == "" || params.Ref.Name == "" {
+		return nil, errors.New("ref type and name are required")
+	}
+	if params.Argument.Name == "" {
+		return nil, errors.New("argument name is required")
+	}
+
+	var result interaction.CompletionResult
+	var err error
+
+	switch params.Ref.Type {
+	case "ref/prompt":
+		result, err = c.Runtime.CompletePromptArgument(context.Background(), params.Ref.Name, params.Argument.Name, params.Argument.Value)
+	default:
+		return nil, fmt.Errorf("unsupported ref type %q", params.Ref.Type)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]any{
+		"completion": map[string]any{
+			"values":  result.Values,
+			"total":   result.Total,
+			"hasMore": result.HasMore,
+		},
+		"ref": map[string]any{
+			"type": params.Ref.Type,
+			"name": params.Ref.Name,
+		},
+	}, nil
+}
+
 // ─── MCP format helpers ──────────────────────────────────────────────────────
 
 func toMCPTool(d interaction.ToolDescriptor) map[string]any {
@@ -468,6 +533,19 @@ func newError(code int, message, data string) *rpcError {
 }
 
 // ─── wire types ──────────────────────────────────────────────────────────────
+
+// sessionIDContextKey is the context key for the MCP session ID.
+type sessionIDContextKey struct{}
+
+// SessionIDFromContext retrieves the MCP session ID stored in the context
+// during tool execution. Returns an empty string if no session ID is present.
+// Tool implementations can use this to send notifications or sampling requests.
+func SessionIDFromContext(ctx context.Context) string {
+	if v, ok := ctx.Value(sessionIDContextKey{}).(string); ok {
+		return v
+	}
+	return ""
+}
 
 type request struct {
 	JSONRPC string          `json:"jsonrpc,omitempty"`

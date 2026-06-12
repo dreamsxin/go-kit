@@ -20,13 +20,13 @@ The service capability contract starts from the input definition and is normaliz
 When `skill/` is generated, `/skill` exposes OpenAI-style tools and `/skill?format=mcp` exposes MCP-style tool descriptors from that same contract. The response also includes metadata with schema version `microgen.skill.v1`, source, services, and supported formats.
 
 {{- if .WithInteraction }}
-This project also generates an AI interaction runtime. `POST /mcp` exposes an MCP-compliant JSON-RPC 2.0 endpoint (protocol version 2025-06-18) supporting `initialize`, `ping`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, and `logging/setLevel`. Every unary service method is automatically registered as an executable tool backed by the generated endpoints, preserving middleware and policy composition.
+This project also generates an AI interaction runtime. `POST /mcp` exposes an MCP-compliant JSON-RPC 2.0 endpoint (protocol version 2025-06-18) supporting `initialize`, `ping`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, `completion/complete`, and `logging/setLevel`. Every unary service method is automatically registered as an executable tool backed by the generated endpoints, preserving middleware and policy composition.
 {{- else }}
 `/skill?format=mcp` is discovery output, not a tool execution endpoint. If this project needs AI-facing sessions, tool-call execution, authorization, audit records, or an MCP-style JSON-RPC endpoint, build that runtime surface with the framework `interaction` package:
 
 - `interaction.NewRuntime` for sessions, events, tools, and hooks.
 - `interaction.AuthorizationHook` and `interaction.AuditHook` for transport-neutral policy.
-- `interaction/mcp.NewHandler` for the MCP-compliant `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, and `logging/setLevel` HTTP adapter.
+- `interaction/mcp.NewHandler` for the MCP-compliant `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, `completion/complete`, and `logging/setLevel` HTTP adapter.
 {{- end }}
 
 ## Extend Existing Project

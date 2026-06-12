@@ -77,6 +77,19 @@ type PromptResult struct {
 	Messages    []PromptMessage
 }
 
+// CompletionResult holds suggestions for an MCP completion request.
+type CompletionResult struct {
+	Values  []string
+	Total   int
+	HasMore bool
+}
+
+// PromptCompleter is implemented by PromptProviders that support argument
+// auto-completion for MCP completion/complete requests.
+type PromptCompleter interface {
+	CompleteArgument(ctx context.Context, promptName, argName, partialValue string) (CompletionResult, error)
+}
+
 // PromptProvider exposes prompt templates to the interaction runtime.
 type PromptProvider interface {
 	ListPrompts(ctx context.Context) ([]Prompt, error)

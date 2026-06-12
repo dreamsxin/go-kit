@@ -219,13 +219,16 @@ Responses include metadata:
 - `services`
 - `formats`
 
-For executable AI sessions and tool-call loops, use preview packages:
+For executable AI sessions and tool-call loops, use the interaction runtime:
 
-- `interaction.NewRuntime` for sessions, events, tools, and hooks
+- `interaction.NewRuntime` for sessions, events, tools, resources, prompts, and hooks
 - `interaction.AuthorizationHook` and `interaction.AuditHook` for policy and audit
-- `interaction/mcp.NewHandler` for the preview MCP-style JSON-RPC HTTP adapter
+- `interaction/mcp.NewHandler` for simple POST-only MCP JSON-RPC adapter
+- `interaction/mcp.NewStreamableHandler` for full Streamable HTTP transport (POST/GET/DELETE with SSE)
 
-See [interaction/README.md](interaction/README.md) and [examples/interaction_policy](examples/interaction_policy).
+The MCP endpoint implements protocol version 2025-06-18 with tools, resources, prompts, completions, logging, sampling, and server-initiated notifications.
+
+See [interaction/README.md](interaction/README.md), [examples/interaction_policy](examples/interaction_policy), and [examples/mcp_full](examples/mcp_full).
 
 ## Production Guidance
 

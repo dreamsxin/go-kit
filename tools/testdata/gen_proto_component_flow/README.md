@@ -22,7 +22,7 @@ When `skill/` is generated, `/skill` exposes OpenAI-style tools and `/skill?form
 
 - `interaction.NewRuntime` for sessions, events, tools, and hooks.
 - `interaction.AuthorizationHook` and `interaction.AuditHook` for transport-neutral policy.
-- `interaction/mcp.NewHandler` for the MCP-compliant `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, and `logging/setLevel` HTTP adapter.
+- `interaction/mcp.NewHandler` for the MCP-compliant `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, `completion/complete`, and `logging/setLevel` HTTP adapter.
 
 ## Extend Existing Project
 

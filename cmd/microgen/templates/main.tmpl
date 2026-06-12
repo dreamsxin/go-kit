@@ -150,7 +150,8 @@ func main() {
 
 {{if .WithSkill}}	r.HandleFunc("/skill", skill.Handler).Methods("GET")
 {{end}}
-{{if .WithInteraction}}	r.Handle("/mcp", mcp.NewHandler(interactionRuntime))
+{{if .WithInteraction}}	mcpHandler := mcp.NewStreamableHandler(interactionRuntime)
+	r.Handle("/mcp", mcpHandler)
 {{end}}
 
 {{if .WithSwag}}{{if .WithConfig}}	{

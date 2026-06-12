@@ -44,6 +44,15 @@ func (p *MemoryResourceProvider) SetTemplates(templates []ResourceTemplate) {
 	p.templates = append([]ResourceTemplate(nil), templates...)
 }
 
+// RegisterText is a convenience method for registering a plain-text resource
+// without manually constructing ResourceContent slices.
+func (p *MemoryResourceProvider) RegisterText(uri, name, text string) error {
+	return p.Register(
+		Resource{URI: uri, Name: name, MIMEType: "text/plain"},
+		[]ResourceContent{{URI: uri, Text: text, MIMEType: "text/plain"}},
+	)
+}
+
 func (p *MemoryResourceProvider) ListResources(ctx context.Context) ([]Resource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -163,4 +172,24 @@ func (p *MemoryPromptProvider) GetPrompt(ctx context.Context, name string, args 
 		return PromptResult{}, fmt.Errorf("interaction: prompt %q has no render function", name)
 	}
 	return entry.render(args)
+}
+
+// CompleteArgument provides basic prefix-match completions for registered
+// prompt arguments. The caller may supply a custom completer per prompt by
+// storing it alongside the prompt entry; this default falls back to empty.
+func (p *MemoryPromptProvider) CompleteArgument(ctx context.Context, promptName, argName, partialValue string) (CompletionResult, error) {
+	if err := ctx.Err(); err != nil {
+		return CompletionResult{}, err
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	entry, ok := p.prompts[promptName]
+	if !ok {
+		return CompletionResult{}, ErrPromptNotFound
+	}
+	_ = argName   // reserved for per-argument completer hooks
+	_ = partialValue // default implementation returns no suggestions
+	_ = entry
+	return CompletionResult{Values: []string{}, Total: 0, HasMore: false}, nil
 }

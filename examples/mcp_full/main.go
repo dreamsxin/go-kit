@@ -1,12 +1,15 @@
-// Package main demonstrates a full MCP server with tools, resources, and prompts.
+// Package main demonstrates a full MCP server with tools, resources, prompts,
+// notifications, and completions using the Streamable HTTP transport.
 //
 // Start the server and interact via any MCP client:
 //
 //	go run ./examples/mcp_full
+//
+// Basic HTTP interaction (simple POST):
+//
 //	curl -X POST http://localhost:8090/mcp -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}'
-//	curl -X POST http://localhost:8090/mcp -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
-//	curl -X POST http://localhost:8090/mcp -d '{"jsonrpc":"2.0","id":3,"method":"resources/list"}'
-//	curl -X POST http://localhost:8090/mcp -d '{"jsonrpc":"2.0","id":4,"method":"prompts/list"}'
+//	curl -X POST http://localhost:8090/mcp -H 'Mcp-Session-Id: <sid>' -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+//	curl -X POST http://localhost:8090/mcp -H 'Mcp-Session-Id: <sid>' -d '{"jsonrpc":"2.0","id":3,"method":"completion/complete","params":{"ref":{"type":"ref/prompt","name":"code_review"},"argument":{"name":"language","value":"go"}}}'
 package main
 
 import (
@@ -24,14 +27,52 @@ import (
 func main() {
 	rt := buildRuntime()
 
+	// Use StreamableHandler for full Streamable HTTP support:
+	// POST for JSON-RPC, GET for SSE streams, DELETE for session termination
+	h := interactionmcp.NewStreamableHandler(rt)
+
 	mux := http.NewServeMux()
-	mux.Handle("/mcp", interactionmcp.NewHandler(rt))
+	mux.Handle("/mcp", h)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
+	// Demo: simulate a notification endpoint that sends tool list changed
+	mux.HandleFunc("/demo/notify-tools-changed", func(w http.ResponseWriter, r *http.Request) {
+		sessionID := r.URL.Query().Get("session")
+		if sessionID == "" {
+			http.Error(w, "session query parameter required", http.StatusBadRequest)
+			return
+		}
+		if err := h.ToolListChangedNotification(sessionID); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write([]byte("notification sent"))
+	})
+
+	// Demo: simulate a log notification endpoint
+	mux.HandleFunc("/demo/log", func(w http.ResponseWriter, r *http.Request) {
+		sessionID := r.URL.Query().Get("session")
+		msg := r.URL.Query().Get("msg")
+		if sessionID == "" || msg == "" {
+			http.Error(w, "session and msg query parameters required", http.StatusBadRequest)
+			return
+		}
+		if err := h.LogNotification(sessionID, "info", msg, "mcp_full_demo"); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write([]byte("log notification sent"))
+	})
+
 	log.Println("MCP full example listening on :8090")
+	log.Println("  POST /mcp           - MCP JSON-RPC endpoint")
+	log.Println("  GET  /mcp           - SSE stream for server-initiated messages")
+	log.Println("  DELETE /mcp         - terminate session")
+	log.Println("  GET  /demo/notify-tools-changed?session=<sid>")
+	log.Println("  GET  /demo/log?session=<sid>&msg=<message>")
 	log.Fatal(http.ListenAndServe(":8090", mux))
 }
 

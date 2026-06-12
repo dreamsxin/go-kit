@@ -6,10 +6,30 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 
 ## Unreleased
 
+### Preview
+
+- Implemented full MCP 2025-06-18 protocol support in `interaction/mcp`:
+  - Resources: `resources/list`, `resources/read`, `resources/templates/list`
+  - Prompts: `prompts/list`, `prompts/get` with argument rendering
+  - Completions: `completion/complete` with `PromptCompleter` interface for prompt argument auto-completion
+  - Logging: `logging/setLevel` with syslog severity levels
+  - Cursor-based pagination for all list methods
+  - `StreamableHandler` for full Streamable HTTP transport (POST/GET/DELETE with SSE streams and session management)
+  - Server-initiated notifications: `notifications/message`, `notifications/progress`, `notifications/resources/updated`, `notifications/resources/list_changed`, `notifications/prompts/list_changed`, `notifications/tools/list_changed`
+  - MCP Sampling: `sampling/createMessage` with async request-response correlation via SSE
+- Added `interaction.ResourceProvider`, `interaction.PromptProvider`, and `interaction.PromptCompleter` interfaces with in-memory implementations.
+- Added `interaction.MemoryResourceProvider` and `interaction.MemoryPromptProvider` for tests and small deployments.
+- Added `examples/mcp_full` demonstrating tools, resources, prompts, completions, and server-initiated notifications via Streamable HTTP transport.
+- Updated `microgen` templates to document MCP capabilities including `completion/complete` and server-initiated notifications.
+- Fixed flaky gRPC deadline test error message assertion (`"deadline"` → `"DeadlineExceeded"`).
+
 ### Documentation
 
 - Added `OBSERVABILITY.md` with tracing, metrics, logging, request correlation, and OpenTelemetry integration guidance.
 - Added `SECURITY_HARDENING.md` with authentication, authorization, request limits, audit, secrets, error response, and generated-project hardening guidance.
+- Updated `README.md` and `README_zh.md` to document the full MCP endpoint capabilities including Streamable HTTP transport, sampling, completions, and notifications.
+- Updated `PACKAGE_SURFACES.md` to reflect the expanded `interaction` and `interaction/mcp` public API surface.
+- Updated `DOCS_INDEX.md` interaction package description.
 
 ## v1.5.0 - 2026-05-17
 

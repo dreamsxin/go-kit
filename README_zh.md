@@ -219,13 +219,16 @@ microgen -idl idl.go -out . -import example.com/mysvc -config-mode remote -remot
 - `services`
 - `formats`
 
-可执行 AI session 和 tool-call loop 使用 preview 包：
+可执行 AI session 和 tool-call loop 使用 interaction runtime：
 
-- `interaction.NewRuntime`：session、event、tool 和 hook
+- `interaction.NewRuntime`：session、event、tool、resource、prompt 和 hook
 - `interaction.AuthorizationHook` 与 `interaction.AuditHook`：策略和审计
-- `interaction/mcp.NewHandler`：preview MCP 风格 JSON-RPC HTTP adapter
+- `interaction/mcp.NewHandler`：简单 POST-only MCP JSON-RPC adapter
+- `interaction/mcp.NewStreamableHandler`：完整 Streamable HTTP 传输（POST/GET/DELETE + SSE）
 
-详见 [interaction/README.md](interaction/README.md) 和 [examples/interaction_policy](examples/interaction_policy)。
+MCP 端点实现协议版本 2025-06-18，支持 tools、resources、prompts、completions、logging、sampling 和服务器发起的 notifications。
+
+详见 [interaction/README.md](interaction/README.md)、[examples/interaction_policy](examples/interaction_policy) 和 [examples/mcp_full](examples/mcp_full)。
 
 ## 生产指导
 

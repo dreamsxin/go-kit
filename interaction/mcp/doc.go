@@ -38,7 +38,25 @@
 // templates. Only advertised when a PromptProvider is attached via
 // Runtime.WithPrompts.
 //
+// Completions: completion/complete — provide argument auto-completion for
+// prompts. Advertised when the PromptProvider implements PromptCompleter.
+//
 // Logging: logging/setLevel — adjust server log verbosity.
+//
+// # Notifications (StreamableHandler only)
+//
+// The StreamableHandler can send server-initiated notifications to the client
+// via SSE streams. Available notification methods:
+//
+//   - LogNotification: sends notifications/message for server-side logging
+//   - ProgressNotification: sends notifications/progress for long operations
+//   - ResourceUpdatedNotification: sends notifications/resources/updated
+//   - ResourceListChangedNotification: sends notifications/resources/list_changed
+//   - PromptListChangedNotification: sends notifications/prompts/list_changed
+//   - ToolListChangedNotification: sends notifications/tools/list_changed
+//
+// Notifications are delivered to the client's active SSE stream (POST or GET).
+// If no active stream exists, the notification is silently dropped.
 //
 // # Sampling (StreamableHandler only)
 //

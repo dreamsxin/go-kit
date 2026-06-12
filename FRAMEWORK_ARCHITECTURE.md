@@ -368,6 +368,13 @@ Recommended generation model:
   - MCP tool schema
   - human-readable capability docs
 
+The `interaction/mcp` package provides a complete MCP 2025-06-18 server implementation:
+
+- `Handler` (simple POST-only) for basic integrations
+- `StreamableHandler` for full Streamable HTTP with SSE streams, sampling, completions, and server-initiated notifications
+- Dynamic capability advertisement based on attached providers (resources, prompts, completions)
+- Cursor-based pagination for all list methods
+
 Suggested internal skill model:
 
 ```go

@@ -935,3 +935,117 @@ func TestE2E_InitializeResponseFormat(t *testing.T) {
 
 	env.deleteSession(t, sid)
 }
+
+// ─── notifications & completions E2E ─────────────────────────────────────────
+
+func TestE2E_ServerNotifications(t *testing.T) {
+	rt := interaction.NewRuntime(nil, nil, nil)
+	pp := interaction.NewMemoryPromptProvider()
+	_ = pp.Register(interaction.Prompt{Name: "test"}, func(args map[string]string) (interaction.PromptResult, error) {
+		return interaction.PromptResult{}, nil
+	})
+	rt.WithPrompts(pp)
+
+	env := newE2EEnv(t, rt)
+	sid := env.initialize(t)
+
+	// Open GET SSE stream to receive notifications.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, env.baseURL, nil)
+	req.Header.Set(headerSessionID, sid)
+	resp, err := env.client.Do(req)
+	if err != nil {
+		t.Fatalf("GET SSE: %v", err)
+	}
+	defer resp.Body.Close()
+	reader := bufio.NewReader(resp.Body)
+
+	readSSEEvent := func() map[string]any {
+		t.Helper()
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				t.Fatalf("read SSE line: %v", err)
+			}
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "data: ") {
+				var ev map[string]any
+				_ = json.Unmarshal([]byte(strings.TrimPrefix(trimmed, "data: ")), &ev)
+				return ev
+			}
+		}
+	}
+
+	// Send tool list changed notification.
+	if err := env.handler.ToolListChangedNotification(sid); err != nil {
+		t.Fatalf("ToolListChangedNotification: %v", err)
+	}
+
+	// Read the notification from SSE stream.
+	notif := readSSEEvent()
+	if notif["method"] != "notifications/tools/list_changed" {
+		t.Fatalf("unexpected notification method: %v", notif["method"])
+	}
+
+	// Send a log message notification.
+	if err := env.handler.LogNotification(sid, "info", "hello from server", ""); err != nil {
+		t.Fatalf("LogNotification: %v", err)
+	}
+	notif = readSSEEvent()
+	if notif["method"] != "notifications/message" {
+		t.Fatalf("expected notifications/message, got %v", notif["method"])
+	}
+
+	cancel()
+	env.deleteSession(t, sid)
+}
+
+func TestE2E_CompletionComplete(t *testing.T) {
+	rt := interaction.NewRuntime(nil, nil, nil)
+	pp := interaction.NewMemoryPromptProvider()
+	_ = pp.Register(interaction.Prompt{
+		Name: "code_review",
+		Arguments: []interaction.PromptArgument{
+			{Name: "language", Description: "Programming language"},
+		},
+	}, func(args map[string]string) (interaction.PromptResult, error) {
+		return interaction.PromptResult{}, nil
+	})
+	rt.WithPrompts(pp)
+
+	env := newE2EEnv(t, rt)
+	sid := env.initialize(t)
+
+	resp := env.postJSON(t, sid, "completion/complete", map[string]any{
+		"ref":      map[string]any{"type": "ref/prompt", "name": "code_review"},
+		"argument": map[string]any{"name": "language", "value": "go"},
+	})
+	result := resp["result"].(map[string]any)
+	completion := result["completion"].(map[string]any)
+	if completion["total"].(float64) != 0 {
+		t.Fatalf("expected empty default completions, got %v", completion)
+	}
+	ref := result["ref"].(map[string]any)
+	if ref["type"] != "ref/prompt" || ref["name"] != "code_review" {
+		t.Fatalf("unexpected ref: %v", ref)
+	}
+
+	// Verify completions capability is advertised on re-initialize.
+	initResp := env.postJSON(t, sid, "initialize", map[string]any{"protocolVersion": protocolVersion})
+	caps := initResp["result"].(map[string]any)["capabilities"].(map[string]any)
+	if caps["completions"] == nil {
+		t.Fatal("expected completions capability to be advertised")
+	}
+
+	// Verify error for missing ref.
+	errResp := env.postJSON(t, sid, "completion/complete", map[string]any{
+		"argument": map[string]any{"name": "x", "value": "y"},
+	})
+	errObj := errResp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32602 {
+		t.Fatalf("error code = %v, want -32602", errObj["code"])
+	}
+
+	env.deleteSession(t, sid)
+}

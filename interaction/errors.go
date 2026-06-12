@@ -15,4 +15,5 @@ var (
 	ErrPromptNotFound    = errors.New("interaction: prompt not found")
 	ErrPromptExists      = errors.New("interaction: prompt already registered")
 	ErrInvalidArgument   = errors.New("interaction: invalid argument")
+	ErrCompletionUnsupported = errors.New("interaction: completions not supported")
 )

@@ -1,6 +1,9 @@
 package interaction
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // Runtime coordinates sessions, events, tools, hooks, resources, and prompts.
 type Runtime struct {
@@ -10,6 +13,10 @@ type Runtime struct {
 	Hooks     []Hook
 	Resources ResourceProvider
 	Prompts   PromptProvider
+
+	// OnEmitError is called when event emission fails during tool calls.
+	// If nil, emit errors are silently discarded.
+	OnEmitError func(error)
 }
 
 func NewRuntime(sessions SessionStore, events EventSink, tools ToolRegistry, hooks ...Hook) *Runtime {
@@ -40,6 +47,34 @@ func (r *Runtime) WithResources(provider ResourceProvider) *Runtime {
 func (r *Runtime) WithPrompts(provider PromptProvider) *Runtime {
 	r.Prompts = provider
 	return r
+}
+
+// RegisterResource lazily initializes a MemoryResourceProvider (if Resources
+// is nil) and registers a resource with its content. This is a convenience
+// shortcut equivalent to creating a provider externally and calling WithResources.
+func (r *Runtime) RegisterResource(res Resource, content []ResourceContent) error {
+	if r.Resources == nil {
+		r.Resources = NewMemoryResourceProvider()
+	}
+	provider, ok := r.Resources.(*MemoryResourceProvider)
+	if !ok {
+		return fmt.Errorf("interaction: Resources is not a *MemoryResourceProvider")
+	}
+	return provider.Register(res, content)
+}
+
+// RegisterPrompt lazily initializes a MemoryPromptProvider (if Prompts is nil)
+// and registers a prompt with its render function. This is a convenience
+// shortcut equivalent to creating a provider externally and calling WithPrompts.
+func (r *Runtime) RegisterPrompt(p Prompt, render func(map[string]string) (PromptResult, error)) error {
+	if r.Prompts == nil {
+		r.Prompts = NewMemoryPromptProvider()
+	}
+	provider, ok := r.Prompts.(*MemoryPromptProvider)
+	if !ok {
+		return fmt.Errorf("interaction: Prompts is not a *MemoryPromptProvider")
+	}
+	return provider.Register(p, render)
 }
 
 func (r *Runtime) StartSession(ctx context.Context, subject string, metadata map[string]string) (Session, error) {
@@ -91,7 +126,7 @@ func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, erro
 		}
 	}
 
-	_ = r.Events.Emit(ctx, Event{
+	r.emit(ctx, Event{
 		SessionID: call.SessionID,
 		Type:      EventToolCall,
 		Name:      call.Name,
@@ -100,7 +135,7 @@ func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, erro
 	})
 
 	result, err := r.Tools.Call(ctx, call)
-	_ = r.Events.Emit(ctx, Event{
+	r.emit(ctx, Event{
 		SessionID: call.SessionID,
 		Type:      EventToolResult,
 		Name:      call.Name,
@@ -108,7 +143,7 @@ func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, erro
 		Metadata:  result.Metadata,
 	})
 	if err != nil {
-		_ = r.Events.Emit(ctx, Event{
+		r.emit(ctx, Event{
 			SessionID: call.SessionID,
 			Type:      EventError,
 			Name:      call.Name,
@@ -122,6 +157,13 @@ func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, erro
 		}
 	}
 	return result, err
+}
+
+// emit sends an event and routes any error to OnEmitError.
+func (r *Runtime) emit(ctx context.Context, ev Event) {
+	if err := r.Events.Emit(ctx, ev); err != nil && r.OnEmitError != nil {
+		r.OnEmitError(err)
+	}
 }
 
 // ListResources returns all registered resources.
@@ -166,6 +208,19 @@ func (r *Runtime) GetPrompt(ctx context.Context, name string, args map[string]st
 		return PromptResult{}, ErrPromptNotFound
 	}
 	return r.Prompts.GetPrompt(ctx, name, args)
+}
+
+// CompletePromptArgument delegates to the prompt provider if it implements
+// PromptCompleter, otherwise returns ErrCompletionUnsupported.
+func (r *Runtime) CompletePromptArgument(ctx context.Context, promptName, argName, partialValue string) (CompletionResult, error) {
+	if r.Prompts == nil {
+		return CompletionResult{}, ErrCompletionUnsupported
+	}
+	completer, ok := r.Prompts.(PromptCompleter)
+	if !ok {
+		return CompletionResult{}, ErrCompletionUnsupported
+	}
+	return completer.CompleteArgument(ctx, promptName, argName, partialValue)
 }
 
 // HookFuncs adapts functions into a Hook.

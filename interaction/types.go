@@ -95,6 +95,33 @@ func (f ToolFunc) Call(ctx context.Context, call ToolCall) (ToolResult, error) {
 	return f.Fn(ctx, call)
 }
 
+// DescribedToolFunc adapts a function into a Tool with description and input
+// schema metadata. Use this instead of ToolFunc when the tool needs to be
+// discoverable by MCP clients with a description and JSON schema.
+type DescribedToolFunc struct {
+	ToolName    string
+	Description string
+	Schema      any
+	Fn          func(context.Context, ToolCall) (ToolResult, error)
+}
+
+func (f DescribedToolFunc) Name() string { return f.ToolName }
+
+func (f DescribedToolFunc) Descriptor() ToolDescriptor {
+	return ToolDescriptor{
+		Name:        f.ToolName,
+		Description: f.Description,
+		InputSchema: f.Schema,
+	}
+}
+
+func (f DescribedToolFunc) Call(ctx context.Context, call ToolCall) (ToolResult, error) {
+	if f.Fn == nil {
+		return ToolResult{}, ErrNilToolFunc
+	}
+	return f.Fn(ctx, call)
+}
+
 // SessionStore manages interaction sessions.
 type SessionStore interface {
 	Create(ctx context.Context, subject string, metadata map[string]string) (Session, error)

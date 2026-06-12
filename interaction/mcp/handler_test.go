@@ -498,3 +498,62 @@ func TestUnknownMethod(t *testing.T) {
 		t.Fatalf("error code = %v, want -32601", errObj["code"])
 	}
 }
+
+// ─── completions ─────────────────────────────────────────────────────────────
+
+func TestCompletionComplete_Prompt(t *testing.T) {
+	rt := interaction.NewRuntime(nil, nil, nil)
+	pp := interaction.NewMemoryPromptProvider()
+	_ = pp.Register(interaction.Prompt{
+		Name:        "summarize",
+		Description: "Summarize text",
+		Arguments: []interaction.PromptArgument{
+			{Name: "style", Description: "Style of summary"},
+		},
+	}, func(args map[string]string) (interaction.PromptResult, error) {
+		return interaction.PromptResult{}, nil
+	})
+	rt.WithPrompts(pp)
+
+	handler := NewHandler(rt)
+	resp := postJSON(t, handler, map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "completion/complete",
+		"params": map[string]any{
+			"ref": map[string]any{"type": "ref/prompt", "name": "summarize"},
+			"argument": map[string]any{"name": "style", "value": "bul"},
+		},
+	})
+	result := resp["result"].(map[string]any)
+	completion := result["completion"].(map[string]any)
+	if completion["total"].(float64) != 0 {
+		t.Fatalf("expected empty completions by default, got %v", completion)
+	}
+}
+
+func TestCompletionComplete_UnsupportedRefType(t *testing.T) {
+	rt := interaction.NewRuntime(nil, nil, nil)
+	handler := NewHandler(rt)
+	resp := postJSON(t, handler, map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "completion/complete",
+		"params": map[string]any{
+			"ref":      map[string]any{"type": "ref/resource", "name": "foo"},
+			"argument": map[string]any{"name": "bar", "value": "baz"},
+		},
+	})
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32602 {
+		t.Fatalf("error code = %v, want -32602", errObj["code"])
+	}
+}
+
+func TestCompletionComplete_MissingRef(t *testing.T) {
+	handler := NewHandler(nil)
+	resp := postJSON(t, handler, map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "completion/complete",
+		"params":  map[string]any{"argument": map[string]any{"name": "x", "value": "y"}},
+	})
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32602 {
+		t.Fatalf("error code = %v, want -32602", errObj["code"])
+	}
+}

@@ -100,7 +100,7 @@ Use it when you know you need "the right doc" but do not want to hunt through th
 - [sd/endpointer/README.md](sd/endpointer/README.md)
   Endpointer helpers and composition behavior.
 - [interaction/README.md](interaction/README.md)
-  Preview package for transport-neutral AI interaction sessions, events, tool calls, hooks, and the MCP-style endpoint adapter.
+  Package for transport-neutral AI interaction sessions, events, tool calls, resources, prompts, hooks, and the MCP endpoint adapter (Streamable HTTP with SSE, sampling, completions, and notifications).
 
 ### Work On Tools And Skills
 

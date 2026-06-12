@@ -71,7 +71,7 @@ func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEnt
 		routes = append(routes, generatedRouteEntry{Method: "GET", Path: "/skill", Handler: "skill"})
 	}
 {{if .WithInteraction}}	if withInteraction {
-		routes = append(routes, generatedRouteEntry{Method: "POST", Path: "/mcp", Handler: "mcp"})
+		routes = append(routes, generatedRouteEntry{Method: "POST, GET, DELETE", Path: "/mcp", Handler: "mcp"})
 	}
 {{end}}
 	return routes

@@ -73,13 +73,19 @@ func TestMicrogenInteractionIntegration(t *testing.T) {
 	smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
 	expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusOK, "/mcp")
 
-	// MCP initialize
+	// MCP initialize — StreamableHandler issues a Mcp-Session-Id header that
+	// must be used for all subsequent requests on the same session.
+	var mcpSessionID string
 	t.Run("MCP_Initialize", func(t *testing.T) {
-		resp := postMCP(t, baseURL+"/mcp", map[string]any{
+		sid, resp := postMCPWithSession(t, baseURL+"/mcp", "", map[string]any{
 			"jsonrpc": "2.0",
 			"id":      1,
 			"method":  "initialize",
 		})
+		if sid == "" {
+			t.Fatalf("expected Mcp-Session-Id header on initialize, got empty")
+		}
+		mcpSessionID = sid
 		result := resp["result"].(map[string]any)
 		serverInfo := result["serverInfo"].(map[string]any)
 		if serverInfo["name"] != "go-kit interaction" {
@@ -93,7 +99,7 @@ func TestMicrogenInteractionIntegration(t *testing.T) {
 
 	// MCP tools/list
 	t.Run("MCP_ToolsList", func(t *testing.T) {
-		resp := postMCP(t, baseURL+"/mcp", map[string]any{
+		_, resp := postMCPWithSession(t, baseURL+"/mcp", mcpSessionID, map[string]any{
 			"jsonrpc": "2.0",
 			"id":      2,
 			"method":  "tools/list",
@@ -119,7 +125,7 @@ func TestMicrogenInteractionIntegration(t *testing.T) {
 	// MCP tools/call — verify the call reaches the endpoint layer
 	// (service scaffold returns "not implemented", so we expect a JSON-RPC error)
 	t.Run("MCP_ToolsCall_ReachesEndpoint", func(t *testing.T) {
-		resp := postMCP(t, baseURL+"/mcp", map[string]any{
+		_, resp := postMCPWithSession(t, baseURL+"/mcp", mcpSessionID, map[string]any{
 			"jsonrpc": "2.0",
 			"id":      3,
 			"method":  "tools/call",
@@ -151,6 +157,12 @@ func TestMicrogenInteractionIntegration(t *testing.T) {
 
 func postMCP(t *testing.T, url string, body map[string]any) map[string]any {
 	t.Helper()
+	_, resp := postMCPWithSession(t, url, "", body)
+	return resp
+}
+
+func postMCPWithSession(t *testing.T, url, sessionID string, body map[string]any) (string, map[string]any) {
+	t.Helper()
 	payload, err := json.Marshal(body)
 	if err != nil {
 		t.Fatalf("Marshal: %v", err)
@@ -160,6 +172,9 @@ func postMCP(t *testing.T, url string, body map[string]any) map[string]any {
 		t.Fatalf("NewRequest: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if sessionID != "" {
+		req.Header.Set("Mcp-Session-Id", sessionID)
+	}
 
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Do(req)
@@ -176,5 +191,5 @@ func postMCP(t *testing.T, url string, body map[string]any) map[string]any {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("Decode response: %v", err)
 	}
-	return result
+	return resp.Header.Get("Mcp-Session-Id"), result
 }

@@ -96,16 +96,16 @@ Recommended integration pattern:
 
 This keeps OpenTelemetry replaceable while preserving the framework's stable layering.
 
-## AI Interaction Preview
+## AI Interaction
 
-The `interaction` package is preview. For AI-facing tool loops:
+The `interaction` package provides a transport-neutral runtime for AI-facing tool loops. For observability:
 
 - use `interaction.AuthorizationHook` for policy decisions
 - use `interaction.AuditHook` for audit records
 - store durable audit records in application-owned infrastructure
-- keep preview interaction events separate from stable endpoint metrics
+- keep interaction events separate from stable endpoint metrics
 
-Do not treat `interaction/mcp` as a stable observability integration point yet.
+The `interaction/mcp` StreamableHandler supports server-initiated notifications (`notifications/message`) for logging, which can be used to relay server-side log events to MCP clients over SSE streams. The current log level is adjustable via `logging/setLevel`.
 
 ## Release Expectations
 

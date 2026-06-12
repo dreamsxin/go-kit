@@ -129,8 +129,8 @@ Role in the framework:
 
 Who should use it:
 
-- maintainers building the AI interaction runtime preview
-- generated-project experiments that need session, event, and tool-call contracts without binding to WebSocket or any other transport
+- maintainers building the AI interaction runtime
+- generated projects that need session, event, tool-call, resource, and prompt contracts without binding to WebSocket or any other transport
 
 Recommended entry points:
 
@@ -138,17 +138,22 @@ Recommended entry points:
 - `interaction.NewMemorySessionStore`
 - `interaction.NewMemoryEventSink`
 - `interaction.NewMemoryToolRegistry`
+- `interaction.NewMemoryResourceProvider`
+- `interaction.NewMemoryPromptProvider`
 - `interaction.ToolFunc`
 - `interaction.HookFuncs`
 - `interaction.AuthorizationHook`
 - `interaction.AuditHook`
 - `interaction/mcp.NewHandler`
+- `interaction/mcp.NewStreamableHandler`
 
 Approved extension points:
 
 - custom `SessionStore`
 - custom `EventSink`
 - custom `ToolRegistry`
+- custom `ResourceProvider` (with optional `ResourceTemplateLister`)
+- custom `PromptProvider` (with optional `PromptCompleter`)
 - custom `Hook`
 - custom `Authorizer`
 - custom `AuditSink`
@@ -157,15 +162,14 @@ Approved extension points:
 Do not depend on:
 
 - the in-memory implementations as production storage
-- the current preview event taxonomy being frozen before v1.0
+- the current event taxonomy being frozen before v1.0
 - WebSocket behavior; this package is transport-neutral
-- complete MCP protocol compatibility; the current adapter is preview-level JSON-RPC over HTTP
 
 Role in the framework:
 
-- preview contract layer for AI-facing session/event/tool-call flows
+- contract layer for AI-facing session/event/tool-call/resource/prompt flows
 - should stay transport-neutral so HTTP, gRPC streaming, WebSocket, or MCP adapters can be added later without changing business interaction contracts
-- `interaction/mcp` is the first adapter preview and should stay thin over runtime contracts
+- `interaction/mcp` provides both a simple POST-only `Handler` and a full Streamable HTTP `StreamableHandler` with SSE, sampling, completions, and server-initiated notifications
 
 ## `transport/http/server`
 
