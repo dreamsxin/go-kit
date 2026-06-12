@@ -156,17 +156,16 @@ func (s *Sampler) DeliverResponse(sessionID string, idStr string, result CreateM
 	}
 	tracker.mu.Lock()
 	ch, found := tracker.pending[idStr]
-	tracker.mu.Unlock()
 	if !found {
+		tracker.mu.Unlock()
 		return false
 	}
-	// Guard against a closed channel: UnregisterSession may close ch
-	// between the lock release above and this send.
-	defer func() {
-		if recover() != nil {
-			ok = false
-		}
-	}()
+	// Remove from pending while holding the lock so UnregisterSession
+	// won't try to close this channel. The channel is buffered (cap 1),
+	// so the send below cannot block or panic.
+	delete(tracker.pending, idStr)
+	tracker.mu.Unlock()
+
 	ch <- result
 	return true
 }

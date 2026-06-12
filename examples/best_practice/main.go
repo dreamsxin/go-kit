@@ -50,11 +50,15 @@ type helloResponse struct {
 	Message string `json:"message"`
 }
 
+// errNameRequired is a sentinel error used by both helloLogic and the
+// error encoder so that errors.Is can match reliably.
+var errNameRequired = errors.New("name is required")
+
 // ── Business logic (no framework dependency) ──────────────────────────────────
 
 func helloLogic(_ context.Context, req helloRequest) (helloResponse, error) {
 	if req.Name == "" {
-		return helloResponse{}, errors.New("name is required")
+		return helloResponse{}, errNameRequired
 	}
 	return helloResponse{Message: fmt.Sprintf("Hello, %s!", req.Name)}, nil
 }
@@ -162,7 +166,7 @@ func jsonErrorEncoder(logger *zap.Logger) func(context.Context, error, http.Resp
 		switch {
 		case errors.Is(err, ratelimit.ErrLimited):
 			code = http.StatusTooManyRequests
-		case errors.Is(err, errors.New("name is required")):
+		case errors.Is(err, errNameRequired):
 			code = http.StatusBadRequest
 		}
 		logger.Sugar().Warnw("request error", "status", code, "err", err)

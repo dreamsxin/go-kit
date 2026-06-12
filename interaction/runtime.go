@@ -52,7 +52,10 @@ func (r *Runtime) WithTools(registry ToolRegistry) *Runtime {
 	return r
 }
 
-// WithHooks appends one or more Hooks and returns the runtime for chaining.
+// WithHooks appends one or more Hooks to the existing hook chain and returns
+// the runtime for chaining. Unlike WithSessions, WithEvents, and WithTools
+// which replace the current component, WithHooks accumulates — calling it
+// multiple times adds to the chain rather than overwriting it.
 func (r *Runtime) WithHooks(hooks ...Hook) *Runtime {
 	r.Hooks = append(r.Hooks, hooks...)
 	return r

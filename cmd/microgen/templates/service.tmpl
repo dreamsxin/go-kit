@@ -3,9 +3,9 @@ package {{.Service.ServiceName | lower}}
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
+	kitlog "github.com/dreamsxin/go-kit/log"
 	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
 )
 
@@ -60,12 +60,12 @@ func NewServiceWithRepo(cfg *ServiceConfig, repos GeneratedRepos) {{.Service.Ser
 func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) {{.Service.ServiceName}} {
 	var svc {{.Service.ServiceName}} = &serviceImpl{
 		config: cfg,
-		logger: log.Default(),
+		logger: kitlog.NewNopLogger(),
 		repos:  repos,
 	}
 
 	if cfg.EnableLogging {
-		svc = LoggingMiddleware(log.Default())(svc)
+		svc = LoggingMiddleware(kitlog.NewNopLogger())(svc)
 	}
 	if cfg.EnableMetrics {
 		svc = MetricsMiddleware()(svc)
@@ -85,11 +85,11 @@ func NewService(cfg *ServiceConfig) {{.Service.ServiceName}} {
 func newServiceImpl(cfg *ServiceConfig) {{.Service.ServiceName}} {
 	var svc {{.Service.ServiceName}} = &serviceImpl{
 		config: cfg,
-		logger: log.Default(),
+		logger: kitlog.NewNopLogger(),
 	}
 
 	if cfg.EnableLogging {
-		svc = LoggingMiddleware(log.Default())(svc)
+		svc = LoggingMiddleware(kitlog.NewNopLogger())(svc)
 	}
 	if cfg.EnableMetrics {
 		svc = MetricsMiddleware()(svc)
@@ -101,7 +101,7 @@ func newServiceImpl(cfg *ServiceConfig) {{.Service.ServiceName}} {
 
 type serviceImpl struct {
 	config *ServiceConfig
-	logger *log.Logger
+	logger *kitlog.Logger
 {{- if .WithModel}}
 	repos  GeneratedRepos
 {{- end}}
@@ -144,7 +144,7 @@ func LoggingMiddleware(logger *log.Logger) ServiceMiddleware {
 
 type loggingMiddleware struct {
 	next   {{.Service.ServiceName}}
-	logger *log.Logger
+	logger *kitlog.Logger
 }
 
 {{range .UnaryMethods}}
@@ -152,9 +152,9 @@ func (m *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.{{.Name}}(ctx, req)
@@ -165,9 +165,9 @@ func (m *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.{{.Name}}(ctx, req, send)
@@ -178,9 +178,9 @@ func (m *loggingMiddleware) {{.Name}}(ctx context.Context, recv func() (idl.{{.I
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.{{.Name}}(ctx, recv)
@@ -191,9 +191,9 @@ func (m *loggingMiddleware) {{.Name}}(ctx context.Context, recv func() (idl.{{.I
 	start := time.Now()
 	defer func() {
 		if err != nil {
-			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
 		} else {
-			m.logger.Printf("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
 		}
 	}()
 	return m.next.{{.Name}}(ctx, recv, send)

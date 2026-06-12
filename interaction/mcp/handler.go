@@ -93,7 +93,7 @@ func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 		}
 		resp.Result = result
 	case "completion/complete":
-		result, err := c.handleCompletionComplete(req.Params)
+		result, err := c.handleCompletionComplete(ctx, req.Params)
 		if err != nil {
 			resp.Error = newError(-32602, "invalid argument", err.Error())
 			return resp
@@ -168,6 +168,11 @@ func (c *dispatchCore) callTool(ctx context.Context, raw json.RawMessage) (map[s
 			return nil, err
 		}
 		sessionID = session.ID
+		// Auto-created sessions are scoped to this tool call only.
+		// Close them when we're done to avoid leaking sessions in the store.
+		defer func() {
+			_, _ = c.Runtime.EndSession(ctx, sessionID)
+		}()
 	}
 
 	// Propagate session ID through context so tool implementations can
@@ -355,7 +360,7 @@ func (c *dispatchCore) handleLoggingSetLevel(raw json.RawMessage) (map[string]an
 
 // ─── completions ─────────────────────────────────────────────────────────────
 
-func (c *dispatchCore) handleCompletionComplete(raw json.RawMessage) (map[string]any, error) {
+func (c *dispatchCore) handleCompletionComplete(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
 	var params struct {
 		Ref struct {
 			Type string `json:"type"`
@@ -383,7 +388,7 @@ func (c *dispatchCore) handleCompletionComplete(raw json.RawMessage) (map[string
 
 	switch params.Ref.Type {
 	case "ref/prompt":
-		result, err = c.Runtime.CompletePromptArgument(context.Background(), params.Ref.Name, params.Argument.Name, params.Argument.Value)
+		result, err = c.Runtime.CompletePromptArgument(ctx, params.Ref.Name, params.Argument.Name, params.Argument.Value)
 	default:
 		return nil, fmt.Errorf("unsupported ref type %q", params.Ref.Type)
 	}

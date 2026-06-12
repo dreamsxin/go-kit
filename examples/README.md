@@ -15,7 +15,6 @@ A guided tour of the go-kit framework, from simplest to most complete.
 | `mcp_basic/` | Minimal MCP server: single tool, `NewRuntime()`, `mcp.ListenAndServe` | `go run ./examples/mcp_basic` |
 | `mcp_full/` | Full MCP server: tools, resources, prompts, notifications, completions, SSE streaming | `go test ./examples/mcp_full/...` |
 | `sd/` | Service discovery: instance.Cache, Endpointer, RoundRobin, Retry, RetryWithCallback, sd.NewEndpoint, InvalidateOnError | `go run ./examples/sd` |
-| `common/` | Shared helpers: Greeter interface, Headerer response | (library) |
 | `multisvc/` | IDL definition for two services in one package | (library) |
 | `profilesvc/` | Full CRUD service: Service → Endpoint → HTTP transport + Consul client | `go run ./examples/profilesvc/cmd/profilesvc` |
 | `transport/` | Deep-dive tests for HTTP server, HTTP client, and gRPC | `go test ./examples/transport/...` |

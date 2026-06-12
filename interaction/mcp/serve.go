@@ -36,12 +36,16 @@ func ListenAndServe(addr string, rt *interaction.Runtime) error {
 // underlying *StreamableHandler so the caller can send server-initiated
 // notifications or sampling requests during tool execution.
 //
-// Because http.ListenAndServe blocks, the handler is returned alongside the
-// error (which is nil only after the server shuts down). Typical usage starts
-// the server in a goroutine:
+// Deprecated: Because http.ListenAndServe blocks, the returned handler is
+// only available after the server shuts down, making it unusable for
+// notifications during tool execution. Use NewStreamableHandler directly
+// instead:
 //
-//	h, _ := mcp.ServeStreamable(":8080", rt)
-//	// h is now available for h.StartCleanup(), notifications, etc.
+//	h := mcp.NewStreamableHandler(rt)
+//	mux := http.NewServeMux()
+//	mux.Handle("/mcp", h)
+//	h.StartCleanup()
+//	http.ListenAndServe(":8080", mux)
 func ServeStreamable(addr string, rt *interaction.Runtime) (*StreamableHandler, error) {
 	h := NewStreamableHandler(rt)
 	mux := http.NewServeMux()

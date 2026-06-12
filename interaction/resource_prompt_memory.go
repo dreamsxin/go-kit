@@ -25,6 +25,7 @@ func NewMemoryResourceProvider() *MemoryResourceProvider {
 }
 
 // Register adds a resource and its content to the provider.
+// Returns ErrResourceExists if a resource with the same URI is already registered.
 func (p *MemoryResourceProvider) Register(res Resource, content []ResourceContent) error {
 	if res.URI == "" {
 		return fmt.Errorf("interaction: resource URI is required")
@@ -34,6 +35,9 @@ func (p *MemoryResourceProvider) Register(res Resource, content []ResourceConten
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if _, exists := p.resources[res.URI]; exists {
+		return ErrResourceExists
+	}
 	p.resources[res.URI] = res
 	p.contents[res.URI] = content
 	return nil

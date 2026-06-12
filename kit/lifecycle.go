@@ -2,6 +2,7 @@ package kit
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -13,7 +14,9 @@ import (
 // Run starts the HTTP server (and gRPC server if enabled) and blocks until
 // SIGINT or SIGTERM. It performs a graceful shutdown with a 10-second deadline.
 func (s *Service) Run() {
-	s.Start()
+	if err := s.Start(); err != nil {
+		s.logger.Sugar().Fatalf("start: %v", err)
+	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -28,12 +31,19 @@ func (s *Service) Run() {
 }
 
 // Start starts the HTTP server (and gRPC server if enabled) in the background.
-func (s *Service) Start() {
+// It returns an error if either listener fails to bind.
+func (s *Service) Start() error {
+	// Bind the HTTP listener synchronously so bind errors (e.g. port in use)
+	// surface before we return to the caller.
+	httpLis, err := net.Listen("tcp", s.addr)
+	if err != nil {
+		return fmt.Errorf("http listen: %w", err)
+	}
 	s.srv = &http.Server{Addr: s.addr, Handler: s.mux}
 	go func() {
 		s.logger.Sugar().Infof("HTTP listening on %s", s.addr)
-		if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			s.logger.Sugar().Fatalf("listen: %v", err)
+		if err := s.srv.Serve(httpLis); err != nil && err != http.ErrServerClosed {
+			s.logger.Sugar().Errorf("HTTP serve: %v", err)
 		}
 	}()
 
@@ -41,7 +51,7 @@ func (s *Service) Start() {
 		gs := s.GRPCServer()
 		lis, err := net.Listen("tcp", s.grpcAddr)
 		if err != nil {
-			s.logger.Sugar().Fatalf("gRPC listen: %v", err)
+			return fmt.Errorf("grpc listen: %w", err)
 		}
 		go func() {
 			s.logger.Sugar().Infof("gRPC listening on %s", s.grpcAddr)
@@ -50,6 +60,7 @@ func (s *Service) Start() {
 			}
 		}()
 	}
+	return nil
 }
 
 // Shutdown gracefully stops the HTTP server and gRPC server if running.

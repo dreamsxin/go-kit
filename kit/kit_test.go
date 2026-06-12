@@ -123,7 +123,9 @@ func TestReadme_WithGRPC_LiveRPC(t *testing.T) {
 	svc := kit.New(":0", kit.WithGRPC(grpcAddr))
 	testpb.RegisterTestServer(svc.GRPCServer(), testgrpc.NewBinding(testgrpc.NewService()))
 
-	svc.Start()
+	if err := svc.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
 	defer svc.Shutdown(context.Background()) //nolint:errcheck
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -294,7 +296,9 @@ func TestService_HandleFunc(t *testing.T) {
 
 func TestService_StartShutdown(t *testing.T) {
 	svc := kit.New(":0")
-	svc.Start()
+	if err := svc.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := svc.Shutdown(ctx); err != nil {
@@ -556,7 +560,9 @@ func TestService_WithGRPC_ReturnsServer(t *testing.T) {
 func TestService_WithGRPC_StartShutdown(t *testing.T) {
 	svc := kit.New(":0", kit.WithGRPC(":0"))
 	// register nothing — just verify lifecycle
-	svc.Start()
+	if err := svc.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
