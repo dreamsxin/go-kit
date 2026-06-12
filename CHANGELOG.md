@@ -6,9 +6,40 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 
 ## Unreleased
 
+### Fixed
+
+- **SSE notification race** (`interaction/mcp`): `TestE2E_ServerNotifications` could fail with `"no active SSE stream for session"` because the notification was sent before the GET handler goroutine registered its SSE writer. Test now retries until the writer is ready.
+- **`best_practice` sentinel error** (`examples/best_practice`): `errors.Is` never matched because `errors.New("name is required")` was called inline, creating a new pointer each time. Replaced with a package-level `var errNameRequired`.
+- **`Start()` silent failure** (`kit`): HTTP listen errors occurred inside a goroutine and called `log.Fatalf`, killing the process without returning to the caller. `Start()` now binds listeners synchronously via `net.Listen` and returns an `error`.
+- **Session leak in `callTool`** (`interaction/mcp`): Auto-created sessions were never closed. Added `defer EndSession` for sessions created implicitly during tool calls.
+- **`recover()` anti-pattern** (`interaction/mcp/sampling.go`): Replaced `defer recover()` concurrency guard with mutex-protected delete-before-send, eliminating the panic entirely.
+- **`context.Background()` in completion handler** (`interaction/mcp`): `handleCompletionComplete` now accepts and propagates `ctx` from the dispatch call instead of using `context.Background()`.
+- **`service.tmpl` logging signature**: `LoggingMiddleware` parameter type was `*log.Logger` (stdlib) but the import had been changed to `kitlog`, causing `undefined: log` in all generated projects. Fixed to `*kitlog.Logger`.
+- **`service.tmpl` hardcoded NopLogger**: `LoggingMiddleware` and `serviceImpl` both used `kitlog.NewNopLogger()` regardless of config. `ServiceConfig` now accepts a `Logger *kitlog.Logger` field and passes it through.
+- **`profilesvc_test.go` unchecked error** (`examples/profilesvc`): HTTP GET response error was ignored before `defer Body.Close()`, triggering a `go vet` warning. Now checks error first.
+- **Duplicate resource overwrite** (`interaction`): `MemoryResourceProvider.Register` silently overwrote existing resources. Now returns `ErrResourceExists` sentinel error on duplicate URI.
+- **`ResourcePromptMemory` duplicate detection** (`interaction`): Added `ErrResourceExists` sentinel and duplicate check in `Register()`.
+
+### Added
+
+- **`examples/kit_basic`**: New standalone runnable example demonstrating the high-level `kit.New` + `kit.JSON` + `svc.Handle` + `svc.Run` API — the fastest path from zero to a running service. Includes 5 tests.
+- **`ErrResourceExists`** sentinel error in `interaction` package for duplicate resource registration.
+- **Doc comments** for 4 exported symbols in `endpoint/endpoint_cache.go`: `EndpointCloser`, `NewEndpointCache`, `Update`, `Endpoints`.
+- **`WithHooks` append semantics** (`interaction`): Updated doc comment to explicitly document that `WithHooks` accumulates (unlike `WithSessions`/`WithEvents`/`WithTools` which replace).
+
+### Changed
+
+- **`ServeStreamable` deprecated** (`interaction/mcp`): Marked with `Deprecated:` doc comment and migration example showing `NewStreamableHandler` usage.
+- **`client.tmpl` gRPC upgrade** (`cmd/microgen`): Replaced deprecated `grpc.Dial` with `grpc.NewClient`, removed `grpc.WithTimeout` in favor of context deadlines.
+- **`sdk.tmpl` gRPC upgrade** (`cmd/microgen`): Updated doc example from deprecated `grpc.WithInsecure()` to `grpc.WithTransportCredentials(insecure.NewCredentials())`.
+
 ### Removed
 
-- Removed `MethodKindWebSocketSession` from the microgen IR. WebSocket transport had no implementation — the constant and associated documentation references were dead code. The project focuses on MCP Streamable HTTP and gRPC as supported transports.
+- **`MethodKindWebSocketSession`** from the microgen IR. WebSocket transport had no implementation — the constant and associated documentation references were dead code. The project focuses on MCP Streamable HTTP and gRPC as supported transports.
+- **`MethodKindEventSource`** from the microgen IR. Unused constant with no references in parsers, generators, or templates.
+- **WebSocket documentation references** cleaned across 14 files: `STABILITY.md` (removed fictitious `transport/ws` row), `README.md`, `README_zh.md`, `AI_FIRST_ROADMAP.md` (removed Phase 8), `REFACTOR_ROADMAP.md`, `RELEASE.md`, `MIGRATION.md`, `PROJECT_SNAPSHOT.md`, `PACKAGE_SURFACES.md`, `MICROGEN_COMPATIBILITY.md`.
+- **Dead code**: commented-out `reimplementInterfaces` line in `transport/http/server/server.go`; `var _ = time.Second` hack and unused `"time"` import in `endpoint_generated_chain.tmpl`.
+- **Phantom `common/` directory** reference removed from `examples/README.md` learning path.
 
 ## v1.6.0 - 2026-06-12
 
