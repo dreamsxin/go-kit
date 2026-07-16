@@ -172,8 +172,18 @@ func main() {
 	if err := httpServer.Shutdown(ctx); err != nil {
 		logger.Sugar().Infof("HTTP shutdown error: %v", err)
 	}
-	grpcServer.GracefulStop()
-	logger.Sugar().Info("gRPC stopped")
+	grpcStopped := make(chan struct{})
+	go func() {
+		grpcServer.GracefulStop()
+		close(grpcStopped)
+	}()
+	select {
+	case <-grpcStopped:
+		logger.Sugar().Info("gRPC stopped")
+	case <-ctx.Done():
+		grpcServer.Stop()
+		logger.Sugar().Infof("gRPC graceful stop timed out: %v", ctx.Err())
+	}
 	logger.Sugar().Info("Server exited cleanly")
 }
 
@@ -195,4 +205,3 @@ func filterArgs(args []string, name string) []string {
 	}
 	return out
 }
-

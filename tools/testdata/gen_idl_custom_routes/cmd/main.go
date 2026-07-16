@@ -138,5 +138,3 @@ func main() {
 	}
 	logger.Sugar().Info("Server exited cleanly")
 }
-
-

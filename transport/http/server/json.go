@@ -34,14 +34,14 @@ func NewJSONServer[Req any](
 	return NewJSONEndpoint[Req](e, options...)
 }
 
-// NewJSONEndpoint creates an HTTP server for an existing endpoint.Endpoint.
-// Use this when you have already built your endpoint with middleware.
+// NewJSONEndpoint creates a strict JSON HTTP server for an existing
+// endpoint.Endpoint. Use this when you have already built your endpoint with
+// middleware.
 func NewJSONEndpoint[Req any](
 	e endpoint.Endpoint,
 	options ...ServerOption,
 ) *Server {
-	opts := append([]ServerOption{ServerErrorEncoder(JSONErrorEncoder)}, options...)
-	return NewServer(e, DecodeJSONRequest[Req](), EncodeJSONResponse, opts...)
+	return NewJSONEndpointWithDecodeOptions[Req](e, StrictJSONDecodeOptions(DefaultMaxJSONBodyBytes), options...)
 }
 
 // NewJSONEndpointWithDecodeOptions creates an HTTP server for an existing
@@ -66,8 +66,7 @@ func NewStrictJSONEndpoint[Req any](
 }
 
 // NewStrictJSONServer creates a strict JSON HTTP server around a handler
-// function. Use NewJSONServer when preserving historical loose decoding is
-// required.
+// function with an explicit body size limit.
 func NewStrictJSONServer[Req any](
 	handler func(ctx context.Context, req Req) (any, error),
 	maxBodyBytes int64,
@@ -93,13 +92,13 @@ func NewJSONServerWithMiddleware[Req any](
 	return NewJSONEndpoint[Req](ep, options...)
 }
 
-// DecodeJSONRequest returns a DecodeRequestFunc that decodes the HTTP request
-// body as JSON into a value of type T.
+// DecodeJSONRequest returns a DecodeRequestFunc that strictly decodes the HTTP
+// request body as JSON into a value of type T.
 func DecodeJSONRequest[T any]() DecodeRequestFunc {
 	return func(_ context.Context, r *http.Request) (any, error) {
 		var v T
-		if err := DecodeJSONBody(r, &v, JSONDecodeOptions{}); err != nil {
-			return nil, err
+		if err := DecodeJSONBody(r, &v, StrictJSONDecodeOptions(DefaultMaxJSONBodyBytes)); err != nil {
+			return nil, JSONDecodeError{Err: err}
 		}
 		return v, nil
 	}
@@ -118,7 +117,7 @@ func DecodeJSONRequestWithOptions[T any](options JSONDecodeOptions) DecodeReques
 }
 
 // JSONDecodeOptions controls optional safety checks for JSON request bodies.
-// A zero value preserves the historical DecodeJSONRequest behavior.
+// A zero value disables the optional checks.
 type JSONDecodeOptions struct {
 	// MaxBodyBytes limits the request body. A value <= 0 means unlimited.
 	MaxBodyBytes int64

@@ -70,8 +70,8 @@ func routePath(prefix, route string) string {
 // @Produce      json
 // @Param        request  query     idl.GetUserRequest  true  "GetUser request"
 // @Success      200      {object}  idl.GetUserResponse
-// @Failure      400      {object}  string
-// @Failure      500      {object}  string
+// @Failure      400      {object}  server.ErrorResponse
+// @Failure      500      {object}  server.ErrorResponse
 // @Router       /getuser [get]
 func decodeGetUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.GetUserRequest
@@ -94,8 +94,8 @@ func encodeGetUserResponse(ctx context.Context, w http.ResponseWriter, response 
 // @Produce      json
 // @Param        request  body      idl.CreateUserRequest  true  "CreateUser request"
 // @Success      200      {object}  idl.CreateUserResponse
-// @Failure      400      {object}  string
-// @Failure      500      {object}  string
+// @Failure      400      {object}  server.ErrorResponse
+// @Failure      500      {object}  server.ErrorResponse
 // @Router       /createuser [post]
 func decodeCreateUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.CreateUserRequest

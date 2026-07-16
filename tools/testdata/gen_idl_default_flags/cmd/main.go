@@ -90,7 +90,7 @@ func main() {
 	sqlDB.SetMaxIdleConns(cfg.Database.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
 
-	logger.Sugar().Infof("DB connected [driver=%s dsn=%s]", "mysql", *dsn)
+	logger.Sugar().Infof("DB connected [driver=%s dsn=%s]", "mysql", redactDSN(*dsn))
 
 	repoDB := repository.NewDB(db)
 
@@ -180,6 +180,13 @@ func main() {
 	logger.Sugar().Info("Server exited cleanly")
 }
 
+func redactDSN(dsn string) string {
+	if dsn == "" {
+		return ""
+	}
+	return "<redacted>"
+}
+
 func filterArgs(args []string, name string) []string {
 	var out []string
 	for i := 0; i < len(args); i++ {
@@ -198,4 +205,3 @@ func filterArgs(args []string, name string) []string {
 	}
 	return out
 }
-

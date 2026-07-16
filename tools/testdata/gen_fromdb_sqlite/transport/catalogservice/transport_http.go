@@ -109,8 +109,8 @@ func routePath(prefix, route string) string {
 // @Produce      json
 // @Param        request  body      idl.CreateUserRequest  true  "CreateUser request"
 // @Success      200      {object}  idl.CreateUserResponse
-// @Failure      400      {object}  string
-// @Failure      500      {object}  string
+// @Failure      400      {object}  server.ErrorResponse
+// @Failure      500      {object}  server.ErrorResponse
 // @Router       /user [post]
 func decodeCreateUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.CreateUserRequest
@@ -133,8 +133,8 @@ func encodeCreateUserResponse(ctx context.Context, w http.ResponseWriter, respon
 // @Produce      json
 // @Param        request  query     idl.GetUserRequest  true  "GetUser request"
 // @Success      200      {object}  idl.GetUserResponse
-// @Failure      400      {object}  string
-// @Failure      500      {object}  string
+// @Failure      400      {object}  server.ErrorResponse
+// @Failure      500      {object}  server.ErrorResponse
 // @Router       /user/{id} [get]
 func decodeGetUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.GetUserRequest
@@ -157,8 +157,8 @@ func encodeGetUserResponse(ctx context.Context, w http.ResponseWriter, response 
 // @Produce      json
 // @Param        request  body      idl.UpdateUserRequest  true  "UpdateUser request"
 // @Success      200      {object}  idl.UpdateUserResponse
-// @Failure      400      {object}  string
-// @Failure      500      {object}  string
+// @Failure      400      {object}  server.ErrorResponse
+// @Failure      500      {object}  server.ErrorResponse
 // @Router       /user/{id} [put]
 func decodeUpdateUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.UpdateUserRequest
@@ -181,8 +181,8 @@ func encodeUpdateUserResponse(ctx context.Context, w http.ResponseWriter, respon
 // @Produce      json
 // @Param        request  body      idl.DeleteUserRequest  true  "DeleteUser request"
 // @Success      200      {object}  idl.DeleteUserResponse
-// @Failure      400      {object}  string
-// @Failure      500      {object}  string
+// @Failure      400      {object}  server.ErrorResponse
+// @Failure      500      {object}  server.ErrorResponse
 // @Router       /user/{id} [delete]
 func decodeDeleteUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.DeleteUserRequest
@@ -205,8 +205,8 @@ func encodeDeleteUserResponse(ctx context.Context, w http.ResponseWriter, respon
 // @Produce      json
 // @Param        request  query     idl.ListUsersRequest  true  "ListUsers request"
 // @Success      200      {object}  idl.ListUsersResponse
-// @Failure      400      {object}  string
-// @Failure      500      {object}  string
+// @Failure      400      {object}  server.ErrorResponse
+// @Failure      500      {object}  server.ErrorResponse
 // @Router       /users [get]
 func decodeListUsersRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.ListUsersRequest

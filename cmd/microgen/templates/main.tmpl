@@ -115,7 +115,7 @@ func main() {
 {{end}}{{else}}
 	_ = time.Hour
 {{end}}
-	logger.Sugar().Infof("DB connected [driver=%s dsn=%s]", "{{.DBDriver}}", *dsn)
+	logger.Sugar().Infof("DB connected [driver=%s dsn=%s]", "{{.DBDriver}}", redactDSN(*dsn))
 
 	repoDB := repository.NewDB(db)
 {{end}}
@@ -240,12 +240,34 @@ func main() {
 	if err := httpServer.Shutdown(ctx); err != nil {
 		logger.Sugar().Infof("HTTP shutdown error: %v", err)
 	}
-{{if .WithGRPC}}	grpcServer.GracefulStop()
-	logger.Sugar().Info("gRPC stopped")
+{{if .WithGRPC}}	grpcStopped := make(chan struct{})
+	go func() {
+		grpcServer.GracefulStop()
+		close(grpcStopped)
+	}()
+	select {
+	case <-grpcStopped:
+		logger.Sugar().Info("gRPC stopped")
+	case <-ctx.Done():
+		grpcServer.Stop()
+		logger.Sugar().Infof("gRPC graceful stop timed out: %v", ctx.Err())
+	}
 {{end}}	logger.Sugar().Info("Server exited cleanly")
 }
 
-{{if .WithConfig}}func filterArgs(args []string, name string) []string {
+{{- if .WithDB }}
+
+func redactDSN(dsn string) string {
+	if dsn == "" {
+		return ""
+	}
+	return "<redacted>"
+}
+
+{{- end }}
+{{- if .WithConfig }}
+
+func filterArgs(args []string, name string) []string {
 	var out []string
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -263,4 +285,4 @@ func main() {
 	}
 	return out
 }
-{{end}}
+{{- end }}

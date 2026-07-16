@@ -379,6 +379,7 @@ func TestGenerateFull_TransportHTTP_Contents(t *testing.T) {
 	mustContain(t, httpPath, "NewStrictJSONEndpoint")
 	mustContain(t, httpPath, "DefaultMaxJSONBodyBytes")
 	mustContain(t, httpPath, "JSONDecodeError")
+	mustContain(t, httpPath, "server.ErrorResponse")
 	mustContain(t, httpPath, "decodeCreateUserRequest")
 	mustContain(t, httpPath, "encodeCreateUserResponse")
 }
@@ -626,6 +627,8 @@ func TestGenerateFull_MainFile_WithGRPC(t *testing.T) {
 
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	mustContain(t, mainPath, "grpc.addr")
+	mustContain(t, mainPath, "grpcStopped := make(chan struct{})")
+	mustContain(t, mainPath, "grpcServer.Stop()")
 }
 
 func TestGenerateFull_MainFile_WithDB(t *testing.T) {
@@ -647,6 +650,9 @@ func TestGenerateFull_MainFile_WithDB(t *testing.T) {
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	mustContain(t, mainPath, "gorm.Open")
 	mustContain(t, mainPath, "db.dsn")
+	mustContain(t, mainPath, "redactDSN(*dsn)")
+	mustContain(t, mainPath, "func redactDSN(dsn string) string")
+	mustNotContain(t, mainPath, `dsn=%s]", "mysql", *dsn`)
 }
 
 // ─────────────────────────── go.mod 生成 ─────────────────────────────────
@@ -1518,6 +1524,8 @@ func TestGenerateFull_Swag_TransportAnnotations(t *testing.T) {
 	mustContain(t, httpPath, "// @Success      200")
 	mustContain(t, httpPath, "// @Failure      400")
 	mustContain(t, httpPath, "// @Failure      500")
+	mustContain(t, httpPath, "// @Failure      400      {object}  server.ErrorResponse")
+	mustContain(t, httpPath, "// @Failure      500      {object}  server.ErrorResponse")
 
 	// POST 方法�?body 参数
 	mustContain(t, httpPath, `// @Param        request  body`)

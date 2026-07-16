@@ -263,8 +263,8 @@ func TestJSONErrorEncoder_DefaultStatus(t *testing.T) {
 	}
 	var body map[string]string
 	json.NewDecoder(rec.Body).Decode(&body) //nolint:errcheck
-	if body["message"] != "boom" {
-		t.Errorf("want 'boom', got %q", body["message"])
+	if body["message"] != http.StatusText(http.StatusInternalServerError) {
+		t.Errorf("message: got %q, want %q", body["message"], http.StatusText(http.StatusInternalServerError))
 	}
 	if body["code"] != "internal_server_error" {
 		t.Errorf("want internal_server_error code, got %q", body["code"])
@@ -284,6 +284,20 @@ func TestJSONErrorEncoder_CustomStatus(t *testing.T) {
 	server.JSONErrorEncoder(context.Background(), statusErr{http.StatusTeapot}, rec)
 	if rec.Code != http.StatusTeapot {
 		t.Errorf("want 418, got %d", rec.Code)
+	}
+}
+
+func TestJSONErrorEncoder_RedactsInternalErrors(t *testing.T) {
+	rec := httptest.NewRecorder()
+	server.JSONErrorEncoder(context.Background(), errors.New("database password leaked"), rec)
+
+	var body map[string]string
+	json.NewDecoder(rec.Body).Decode(&body) //nolint:errcheck
+	if body["message"] != http.StatusText(http.StatusInternalServerError) {
+		t.Errorf("message: got %q, want internal status text", body["message"])
+	}
+	if strings.Contains(body["message"], "password") {
+		t.Fatalf("internal error leaked to response: %q", body["message"])
 	}
 }
 

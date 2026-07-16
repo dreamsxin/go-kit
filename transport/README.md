@@ -109,7 +109,9 @@ handler := server.NewJSONServer[HelloReq](
 http.Handle("/hello", handler)
 ```
 
-For public APIs, prefer the strict helpers:
+The typed JSON helpers are strict by default: they reject unknown object fields,
+a second JSON value, and bodies larger than the default byte limit.
+Use the explicit strict helpers when a route needs a custom body limit:
 
 ```go
 handler := server.NewStrictJSONEndpoint[HelloReq](
@@ -119,16 +121,15 @@ handler := server.NewStrictJSONEndpoint[HelloReq](
 )
 ```
 
-Strict decoding rejects unknown object fields, a second JSON value, and bodies
-that exceed the configured byte limit. Decode errors returned by JSON request
-decoders carry HTTP 400 status metadata for `JSONErrorEncoder`. Existing
-`DecodeJSONRequest` callers keep their historical zero-option behavior for
-compatibility.
+Decode errors returned by JSON request decoders carry HTTP 400 status metadata
+for `JSONErrorEncoder`.
 
 `JSONErrorEncoder` writes `code`, `message`, and optional `request_id` fields.
 Return `server.NewHTTPError` or implement `interfaces.StatusCoder`,
 `interfaces.ErrorCoder`, and `interfaces.PublicMessager` on application errors
-when a route needs custom status, code, or public text.
+when a route needs custom status, code, or public text. For unclassified 5xx
+errors, the encoder returns the HTTP status text instead of exposing the
+internal error string.
 
 ## HTTP Client
 

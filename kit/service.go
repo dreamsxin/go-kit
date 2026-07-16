@@ -3,6 +3,7 @@ package kit
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"google.golang.org/grpc"
 
@@ -21,6 +22,7 @@ type Service struct {
 	httpConfig       HTTPServerConfig
 	requestID        bool
 	jsonMaxBodyBytes int64
+	healthTimeout    time.Duration
 	livenessChecks   []namedHealthCheck
 	readinessChecks  []namedHealthCheck
 	srv              *http.Server
@@ -42,6 +44,7 @@ func New(addr string, opts ...Option) *Service {
 		mux:              http.NewServeMux(),
 		logger:           logger,
 		jsonMaxBodyBytes: DefaultJSONMaxBodyBytes,
+		healthTimeout:    DefaultHealthCheckTimeout,
 		serveErrors:      make(chan error, 2),
 	}
 	for _, o := range opts {

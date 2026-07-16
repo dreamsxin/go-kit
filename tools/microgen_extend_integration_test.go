@@ -107,8 +107,8 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 		defer killCmd(t, runCmd)
 
 		waitServer(t, baseURL+"/health")
-		expectJSONStatusContains(t, "POST", baseURL+"/createuser", `{"username":"alice","email":"alice@example.com"}`, http.StatusInternalServerError, "CreateUser: not implemented")
-		expectJSONStatusContains(t, "POST", baseURL+"/placeorder", `{"user_id":1}`, http.StatusInternalServerError, "PlaceOrder: not implemented")
+		expectJSONStatusContains(t, "POST", baseURL+"/createuser", `{"username":"alice","email":"alice@example.com"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+		expectJSONStatusContains(t, "POST", baseURL+"/placeorder", `{"user_id":1}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		expectStatusContains(t, "GET", baseURL+"/skill", "", http.StatusOK, "PlaceOrder")
 	})
 
@@ -260,7 +260,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 		defer killCmd(t, runCmd)
 
 		waitServer(t, baseURL+"/health")
-		expectJSONStatusContains(t, "POST", baseURL+"/createuser", `{"username":"mw-user","email":"mw@example.com"}`, http.StatusInternalServerError, "CreateUser: CreateUser: not implemented")
+		expectJSONStatusContains(t, "POST", baseURL+"/createuser", `{"username":"mw-user","email":"mw@example.com"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 	})
 
 	t.Run("IDL_Extend_Check_ReportsCompatibility", func(t *testing.T) {

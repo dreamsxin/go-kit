@@ -57,8 +57,8 @@ func routePath(prefix, route string) string {
 // @Produce      json
 // @Param        request  body      idl.PlaceOrderRequest  true  "PlaceOrder request"
 // @Success      200      {object}  idl.PlaceOrderResponse
-// @Failure      400      {object}  string
-// @Failure      500      {object}  string
+// @Failure      400      {object}  server.ErrorResponse
+// @Failure      500      {object}  server.ErrorResponse
 // @Router       /placeorder [post]
 func decodePlaceOrderRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.PlaceOrderRequest

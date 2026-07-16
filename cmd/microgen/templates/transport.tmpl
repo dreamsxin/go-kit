@@ -67,8 +67,8 @@ func routePath(prefix, route string) string {
 // @Param        request  body      idl.{{.InputName}}  true  "{{.Name}} request"
 {{- end}}
 // @Success      200      {object}  idl.{{.OutputName}}
-// @Failure      400      {object}  string
-// @Failure      500      {object}  string
+// @Failure      400      {object}  server.ErrorResponse
+// @Failure      500      {object}  server.ErrorResponse
 // @Router       {{$.RoutePrefix}}{{.Route}} [{{.HTTPMethod | lower}}]
 func decode{{.Name}}Request(_ context.Context, r *http.Request) (any, error) {
 	var req idl.{{.InputName}}

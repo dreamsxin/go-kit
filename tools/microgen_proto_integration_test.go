@@ -275,7 +275,7 @@ message UploadSummary { int32 count = 1; }
 
 		waitServer(t, baseURL+"/health")
 		smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
-		expectJSONStatusContains(t, "POST", baseURL+"/createuser", `{"name":"http-user","email":"http@example.com"}`, http.StatusInternalServerError, "CreateUser: not implemented")
+		expectJSONStatusContains(t, "POST", baseURL+"/createuser", `{"name":"http-user","email":"http@example.com"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 
 		grpcProbePkg := writeProtoGRPCE2EProbe(t, outDir, "protogrpce2eprobe", "example.com/gen_proto_grpc_runtime", grpcAddr)
 		grpcProbeCmd := exec.Command("go", "run", "-mod=mod", grpcProbePkg)

@@ -97,12 +97,30 @@ func (s *Service) reportServeError(err error) {
 
 // Shutdown gracefully stops the HTTP server and gRPC server if running.
 func (s *Service) Shutdown(ctx context.Context) error {
+	var shutdownErr error
 	if s.grpcServer != nil {
-		s.grpcServer.GracefulStop()
-		s.logger.Sugar().Info("gRPC stopped")
+		shutdownErr = s.shutdownGRPC(ctx)
 	}
 	if s.srv == nil {
-		return nil
+		return shutdownErr
 	}
-	return s.srv.Shutdown(ctx)
+	return errors.Join(shutdownErr, s.srv.Shutdown(ctx))
+}
+
+func (s *Service) shutdownGRPC(ctx context.Context) error {
+	done := make(chan struct{})
+	go func() {
+		s.grpcServer.GracefulStop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		s.logger.Sugar().Info("gRPC stopped")
+		return nil
+	case <-ctx.Done():
+		s.grpcServer.Stop()
+		s.logger.Sugar().Errorf("gRPC graceful stop timed out: %v", ctx.Err())
+		return ctx.Err()
+	}
 }

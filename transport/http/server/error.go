@@ -130,14 +130,19 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 	if errors.As(err, &sc) {
 		code = sc.StatusCode()
 	}
+	if code < 100 || code > 999 {
+		code = http.StatusInternalServerError
+	}
 
-	message := ""
-	if err != nil {
-		message = err.Error()
+	message := http.StatusText(code)
+	if message == "" {
+		message = "HTTP error"
 	}
 	var pm interfaces.PublicMessager
 	if errors.As(err, &pm) && pm.PublicMessage() != "" {
 		message = pm.PublicMessage()
+	} else if code < http.StatusInternalServerError && err != nil {
+		message = err.Error()
 	}
 
 	errorCode := defaultErrorCode(code)

@@ -87,7 +87,7 @@ func TestMicrogenFromDBIntegration(t *testing.T) {
 		smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
 		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusOK, "/user")
 		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusOK, "/users")
-		expectJSONStatusContains(t, "POST", baseURL+"/user", `{"username":"db-user","email":"db@example.com"}`, http.StatusInternalServerError, "CreateUser: not implemented")
+		expectJSONStatusContains(t, "POST", baseURL+"/user", `{"username":"db-user","email":"db@example.com"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 	})
 
 }

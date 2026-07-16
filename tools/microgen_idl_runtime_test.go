@@ -68,7 +68,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		expectStatusContains(t, "GET", baseURL+"/skill?format=mcp", "", http.StatusOK, "\"inputSchema\"")
 		expectStatusContains(t, "GET", baseURL+"/skill?format=mcp", "", http.StatusOK, "microgen-ir")
 		expectStatusContains(t, "GET", baseURL+"/skill?format=unknown", "", http.StatusOK, "\"function\"")
-		expectJSONStatusContains(t, "POST", baseURL+"/createuser", `{"username":"alice","email":"alice@example.com"}`, http.StatusInternalServerError, "CreateUser: not implemented")
+		expectJSONStatusContains(t, "POST", baseURL+"/createuser", `{"username":"alice","email":"alice@example.com"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 	})
 
 	t.Run("IDL_MinimalProject_BuildsAndRunsWithoutOptionalFeatures", func(t *testing.T) {
@@ -203,7 +203,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		waitServer(t, baseURL+"/health")
 		smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
 		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusOK, "/api/runtime/userservice/createuser")
-		expectJSONStatusContains(t, "POST", baseURL+"/api/runtime/userservice/createuser", `{"username":"alice","email":"alice@example.com"}`, http.StatusInternalServerError, "CreateUser: not implemented")
+		expectJSONStatusContains(t, "POST", baseURL+"/api/runtime/userservice/createuser", `{"username":"alice","email":"alice@example.com"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 
 		resp, err := http.Post(baseURL+"/createuser", "application/json", strings.NewReader(`{"username":"alice","email":"alice@example.com"}`))
 		if err != nil {
@@ -334,8 +334,8 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		if !strings.Contains(sdkOut, "server returned 500") {
 			t.Fatalf("sdk probe output did not surface http api error:\n%s", sdkOut)
 		}
-		if !strings.Contains(sdkOut, "CreateUser: not implemented") {
-			t.Fatalf("sdk probe output did not contain scaffold error:\n%s", sdkOut)
+		if !strings.Contains(sdkOut, http.StatusText(http.StatusInternalServerError)) {
+			t.Fatalf("sdk probe output did not contain redacted error message:\n%s", sdkOut)
 		}
 	})
 

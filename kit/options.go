@@ -72,6 +72,14 @@ func WithReadinessCheck(name string, check HealthCheck) Option {
 	}
 }
 
+// WithHealthCheckTimeout configures the per-check timeout for /health, /livez,
+// and /readyz. A value <= 0 disables the timeout.
+func WithHealthCheckTimeout(timeout time.Duration) Option {
+	return func(s *Service) {
+		s.healthTimeout = timeout
+	}
+}
+
 func validateHealthCheck(name string, check HealthCheck) {
 	if name == "" {
 		panic("kit: health check name cannot be empty")
@@ -142,6 +150,9 @@ func WithLogging(logger *kitlog.Logger) Option {
 // WithMetrics attaches a Metrics collector.
 // The /health endpoint includes the request count when this option is set.
 func WithMetrics(m *endpoint.Metrics) Option {
+	if m == nil {
+		panic("kit: metrics cannot be nil")
+	}
 	return func(s *Service) {
 		s.metrics = m
 		s.middleware = append(s.middleware, endpoint.MetricsMiddleware(m))

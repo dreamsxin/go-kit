@@ -40,6 +40,23 @@ func TestDecodeJSONRequest_Invalid(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for invalid JSON")
 	}
+	type statusCoder interface{ StatusCode() int }
+	var sc statusCoder
+	if !errors.As(err, &sc) {
+		t.Fatalf("expected status-coded decode error, got %T", err)
+	}
+	if got := sc.StatusCode(); got != http.StatusBadRequest {
+		t.Fatalf("status code: got %d, want %d", got, http.StatusBadRequest)
+	}
+}
+
+func TestDecodeJSONRequest_RejectsUnknownFields(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"Alice","extra":true}`))
+	dec := server.DecodeJSONRequest[testReq]()
+	_, err := dec(context.Background(), r)
+	if err == nil {
+		t.Fatal("expected unknown field error")
+	}
 }
 
 func TestDecodeJSONBody_RejectsUnknownFields(t *testing.T) {
@@ -175,8 +192,8 @@ func TestJSONErrorEncoder_Default500(t *testing.T) {
 	}
 	var body map[string]string
 	json.NewDecoder(w.Body).Decode(&body) //nolint:errcheck
-	if body["message"] != "oops" {
-		t.Errorf("error message: got %q, want %q", body["message"], "oops")
+	if body["message"] != http.StatusText(http.StatusInternalServerError) {
+		t.Errorf("error message: got %q, want %q", body["message"], http.StatusText(http.StatusInternalServerError))
 	}
 	if body["code"] != "internal_server_error" {
 		t.Errorf("error code: got %q, want internal_server_error", body["code"])
@@ -254,6 +271,24 @@ func TestNewJSONServer_HandlerError(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("status: got %d, want %d", w.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestNewJSONServer_RejectsUnknownFieldsByDefault(t *testing.T) {
+	called := false
+	h := server.NewJSONServer[testReq](func(_ context.Context, _ testReq) (any, error) {
+		called = true
+		return "ok", nil
+	})
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"x","extra":true}`))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d, want %d", w.Code, http.StatusBadRequest)
+	}
+	if called {
+		t.Fatal("handler should not run for invalid strict JSON")
 	}
 }
 

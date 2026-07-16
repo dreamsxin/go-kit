@@ -36,7 +36,7 @@ func main() {
 	}
 
 	body, _ := io.ReadAll(rec.Body)
-	if !strings.Contains(string(body), "CreateUser: not implemented") {
+	if !strings.Contains(string(body), "Internal Server Error") {
 		panic("unexpected body")
 	}
 

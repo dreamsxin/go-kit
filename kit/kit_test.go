@@ -273,6 +273,39 @@ func TestService_ReadyzReportsReadinessFailure(t *testing.T) {
 	if len(body.Checks) != 1 || body.Checks[0].Name != "db" || body.Checks[0].Status != "error" {
 		t.Fatalf("checks: got %#v", body.Checks)
 	}
+	if body.Checks[0].Error != "check failed" {
+		t.Fatalf("check error: got %q, want check failed", body.Checks[0].Error)
+	}
+}
+
+func TestService_ReadyzTimesOutSlowReadinessCheck(t *testing.T) {
+	_, ts := newSvc(t,
+		kit.WithHealthCheckTimeout(10*time.Millisecond),
+		kit.WithReadinessCheck("db", func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
+		}),
+	)
+
+	resp, err := http.Get(ts.URL + "/readyz")
+	if err != nil {
+		t.Fatalf("GET /readyz: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusServiceUnavailable)
+	}
+	var body struct {
+		Checks []struct {
+			Error string `json:"error"`
+		} `json:"checks"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode health body: %v", err)
+	}
+	if len(body.Checks) != 1 || body.Checks[0].Error != "check timed out" {
+		t.Fatalf("checks: got %#v", body.Checks)
+	}
 }
 
 func TestService_LivezIgnoresReadinessFailure(t *testing.T) {
@@ -752,6 +785,10 @@ func TestKitOptions_PanicOnInvalidConfiguration(t *testing.T) {
 		{
 			name: "liveness check nil",
 			run:  func() { kit.WithLivenessCheck("process", nil) },
+		},
+		{
+			name: "metrics nil",
+			run:  func() { kit.WithMetrics(nil) },
 		},
 	}
 
