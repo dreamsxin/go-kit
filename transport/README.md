@@ -76,6 +76,8 @@ Recommended entry points:
 - `server.DefaultMaxJSONBodyBytes`
 - `server.EncodeJSONResponse`
 - `server.JSONErrorEncoder`
+- `server.NewHTTPError`
+- `server.WrapHTTPError`
 
 Primary extension points:
 
@@ -122,6 +124,11 @@ that exceed the configured byte limit. Decode errors returned by JSON request
 decoders carry HTTP 400 status metadata for `JSONErrorEncoder`. Existing
 `DecodeJSONRequest` callers keep their historical zero-option behavior for
 compatibility.
+
+`JSONErrorEncoder` keeps the historical `error` field and adds a stable
+machine-readable `code` field. Return `server.NewHTTPError` or implement
+`StatusCode() int`, `ErrorCode() string`, and `PublicMessage() string` on
+application errors when a route needs custom status, code, or public text.
 
 ## HTTP Client
 

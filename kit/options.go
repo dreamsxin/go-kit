@@ -1,6 +1,7 @@
 package kit
 
 import (
+	"context"
 	"time"
 
 	"github.com/sony/gobreaker"
@@ -53,6 +54,36 @@ func WithJSONMaxBodyBytes(maxBodyBytes int64) Option {
 	return func(s *Service) {
 		s.jsonMaxBodyBytes = maxBodyBytes
 	}
+}
+
+// WithLivenessCheck adds a check used by /livez and /health.
+func WithLivenessCheck(name string, check HealthCheck) Option {
+	validateHealthCheck(name, check)
+	return func(s *Service) {
+		s.livenessChecks = append(s.livenessChecks, namedHealthCheck{name: name, check: check})
+	}
+}
+
+// WithReadinessCheck adds a check used by /readyz and /health.
+func WithReadinessCheck(name string, check HealthCheck) Option {
+	validateHealthCheck(name, check)
+	return func(s *Service) {
+		s.readinessChecks = append(s.readinessChecks, namedHealthCheck{name: name, check: check})
+	}
+}
+
+func validateHealthCheck(name string, check HealthCheck) {
+	if name == "" {
+		panic("kit: health check name cannot be empty")
+	}
+	if check == nil {
+		panic("kit: health check cannot be nil")
+	}
+}
+
+// Healthy is a convenience health check that always succeeds.
+func Healthy(context.Context) error {
+	return nil
 }
 
 // WithRateLimit adds a token-bucket rate limiter (rps = requests per second).

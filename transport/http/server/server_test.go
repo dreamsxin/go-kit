@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -162,8 +163,12 @@ func TestServer_NilHooks_DoNotPanicAtRequestTime(t *testing.T) {
 // ── NewJSONServer ─────────────────────────────────────────────────────────────
 
 func TestNewJSONServer_OK(t *testing.T) {
-	type req struct{ Name string `json:"name"` }
-	type resp struct{ Msg string `json:"msg"` }
+	type req struct {
+		Name string `json:"name"`
+	}
+	type resp struct {
+		Msg string `json:"msg"`
+	}
 
 	h := server.NewJSONServer[req](func(_ context.Context, r req) (any, error) {
 		return resp{Msg: "hello " + r.Name}, nil
@@ -209,7 +214,9 @@ func TestNewJSONServer_ErrorUsesJSONErrorEncoder(t *testing.T) {
 // ── NewJSONServerWithMiddleware ───────────────────────────────────────────────
 
 func TestNewJSONServerWithMiddleware(t *testing.T) {
-	type req struct{ V int `json:"v"` }
+	type req struct {
+		V int `json:"v"`
+	}
 
 	var mwCalled bool
 	h := server.NewJSONServerWithMiddleware[req](
@@ -259,11 +266,14 @@ func TestJSONErrorEncoder_DefaultStatus(t *testing.T) {
 	if body["error"] != "boom" {
 		t.Errorf("want 'boom', got %q", body["error"])
 	}
+	if body["code"] != "internal_server_error" {
+		t.Errorf("want internal_server_error code, got %q", body["code"])
+	}
 }
 
 type statusErr struct{ code int }
 
-func (e statusErr) Error() string  { return "status error" }
+func (e statusErr) Error() string   { return "status error" }
 func (e statusErr) StatusCode() int { return e.code }
 
 func TestJSONErrorEncoder_CustomStatus(t *testing.T) {
@@ -274,10 +284,80 @@ func TestJSONErrorEncoder_CustomStatus(t *testing.T) {
 	}
 }
 
+func TestJSONErrorEncoder_HTTPErrorCodeAndMessage(t *testing.T) {
+	rec := httptest.NewRecorder()
+	err := server.NewHTTPError(http.StatusConflict, "user.email_taken", "email already exists")
+	server.JSONErrorEncoder(context.Background(), err, rec)
+
+	if rec.Code != http.StatusConflict {
+		t.Errorf("want 409, got %d", rec.Code)
+	}
+	var body map[string]string
+	json.NewDecoder(rec.Body).Decode(&body) //nolint:errcheck
+	if body["error"] != "email already exists" {
+		t.Errorf("error: got %q", body["error"])
+	}
+	if body["code"] != "user.email_taken" {
+		t.Errorf("code: got %q", body["code"])
+	}
+}
+
+func TestJSONErrorEncoder_UsesWrappedHTTPError(t *testing.T) {
+	rec := httptest.NewRecorder()
+	err := fmt.Errorf("create user: %w", server.NewHTTPError(
+		http.StatusConflict,
+		"user.email_taken",
+		"email already exists",
+	))
+	server.JSONErrorEncoder(context.Background(), err, rec)
+
+	if rec.Code != http.StatusConflict {
+		t.Errorf("want 409, got %d", rec.Code)
+	}
+	var body map[string]string
+	json.NewDecoder(rec.Body).Decode(&body) //nolint:errcheck
+	if body["error"] != "email already exists" {
+		t.Errorf("error: got %q", body["error"])
+	}
+	if body["code"] != "user.email_taken" {
+		t.Errorf("code: got %q", body["code"])
+	}
+}
+
+func TestHTTPError_WrapsCauseAndHeaders(t *testing.T) {
+	cause := errors.New("database unique constraint")
+	err := server.WrapHTTPError(http.StatusConflict, "user.email_taken", "email already exists", cause)
+	err.Header = http.Header{"X-Retryable": []string{"false"}}
+
+	if !errors.Is(err, cause) {
+		t.Fatal("wrapped HTTPError should preserve cause")
+	}
+
+	rec := httptest.NewRecorder()
+	server.JSONErrorEncoder(context.Background(), err, rec)
+	if got := rec.Header().Get("X-Retryable"); got != "false" {
+		t.Fatalf("header: got %q, want false", got)
+	}
+}
+
+func TestJSONErrorEncoder_IncludesRequestID(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx := endpoint.WithRequestID(context.Background(), "rid-123")
+	server.JSONErrorEncoder(ctx, errors.New("boom"), rec)
+
+	var body map[string]string
+	json.NewDecoder(rec.Body).Decode(&body) //nolint:errcheck
+	if body["request_id"] != "rid-123" {
+		t.Errorf("request_id: got %q", body["request_id"])
+	}
+}
+
 // ── DecodeJSONRequest ─────────────────────────────────────────────────────────
 
 func TestDecodeJSONRequest(t *testing.T) {
-	type payload struct{ X int `json:"x"` }
+	type payload struct {
+		X int `json:"x"`
+	}
 	dec := server.DecodeJSONRequest[payload]()
 
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"x":99}`))

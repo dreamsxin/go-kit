@@ -204,6 +204,119 @@ func TestService_HealthEndpoint_WithMetrics(t *testing.T) {
 	}
 }
 
+func TestService_HealthEndpoint_WithMetricsIncludesZeroRequests(t *testing.T) {
+	var m endpoint.Metrics
+	_, ts := newSvc(t, kit.WithMetrics(&m))
+
+	resp, err := http.Get(ts.URL + "/health")
+	if err != nil {
+		t.Fatalf("GET /health: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var health map[string]any
+	json.NewDecoder(resp.Body).Decode(&health) //nolint:errcheck
+	if got, ok := health["requests"]; !ok {
+		t.Fatal("health response should include 'requests' when WithMetrics is set")
+	} else if got != float64(0) {
+		t.Fatalf("requests: got %v, want 0", got)
+	}
+}
+
+func TestService_LivezReadyz_DefaultOK(t *testing.T) {
+	_, ts := newSvc(t)
+
+	for _, path := range []string{"/livez", "/readyz"} {
+		resp, err := http.Get(ts.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s status: got %d, want %d", path, resp.StatusCode, http.StatusOK)
+		}
+		var body map[string]any
+		json.NewDecoder(resp.Body).Decode(&body) //nolint:errcheck
+		if body["status"] != "ok" {
+			t.Fatalf("%s status body: got %v", path, body["status"])
+		}
+	}
+}
+
+func TestService_ReadyzReportsReadinessFailure(t *testing.T) {
+	_, ts := newSvc(t, kit.WithReadinessCheck("db", func(context.Context) error {
+		return errors.New("db unavailable")
+	}))
+
+	resp, err := http.Get(ts.URL + "/readyz")
+	if err != nil {
+		t.Fatalf("GET /readyz: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusServiceUnavailable)
+	}
+	var body struct {
+		Status string `json:"status"`
+		Checks []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+			Error  string `json:"error"`
+		} `json:"checks"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode health body: %v", err)
+	}
+	if body.Status != "unavailable" {
+		t.Fatalf("health status: got %q, want unavailable", body.Status)
+	}
+	if len(body.Checks) != 1 || body.Checks[0].Name != "db" || body.Checks[0].Status != "error" {
+		t.Fatalf("checks: got %#v", body.Checks)
+	}
+}
+
+func TestService_LivezIgnoresReadinessFailure(t *testing.T) {
+	_, ts := newSvc(t, kit.WithReadinessCheck("db", func(context.Context) error {
+		return errors.New("db unavailable")
+	}))
+
+	resp, err := http.Get(ts.URL + "/livez")
+	if err != nil {
+		t.Fatalf("GET /livez: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+}
+
+func TestService_HealthIncludesLivenessAndReadiness(t *testing.T) {
+	_, ts := newSvc(t,
+		kit.WithLivenessCheck("process", kit.Healthy),
+		kit.WithReadinessCheck("db", kit.Healthy),
+	)
+
+	resp, err := http.Get(ts.URL + "/health")
+	if err != nil {
+		t.Fatalf("GET /health: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	var body struct {
+		Checks []struct {
+			Name string `json:"name"`
+		} `json:"checks"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode health body: %v", err)
+	}
+	if len(body.Checks) != 2 {
+		t.Fatalf("checks len: got %d, want 2", len(body.Checks))
+	}
+}
+
 // ── kit.JSON (package-level function) ────────────────────────────────────────
 
 func TestKitJSON_Success(t *testing.T) {
@@ -623,6 +736,22 @@ func TestKitOptions_PanicOnInvalidConfiguration(t *testing.T) {
 		{
 			name: "json max body bytes negative",
 			run:  func() { kit.WithJSONMaxBodyBytes(-1) },
+		},
+		{
+			name: "readiness check empty name",
+			run:  func() { kit.WithReadinessCheck("", kit.Healthy) },
+		},
+		{
+			name: "readiness check nil",
+			run:  func() { kit.WithReadinessCheck("db", nil) },
+		},
+		{
+			name: "liveness check empty name",
+			run:  func() { kit.WithLivenessCheck("", kit.Healthy) },
+		},
+		{
+			name: "liveness check nil",
+			run:  func() { kit.WithLivenessCheck("process", nil) },
 		},
 	}
 

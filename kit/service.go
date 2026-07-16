@@ -2,7 +2,6 @@ package kit
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"google.golang.org/grpc"
@@ -22,6 +21,8 @@ type Service struct {
 	httpConfig       HTTPServerConfig
 	requestID        bool
 	jsonMaxBodyBytes int64
+	livenessChecks   []namedHealthCheck
+	readinessChecks  []namedHealthCheck
 	srv              *http.Server
 	serveErrors      chan error
 
@@ -46,19 +47,8 @@ func New(addr string, opts ...Option) *Service {
 	for _, o := range opts {
 		o(s)
 	}
-	s.registerHealthEndpoint()
+	s.registerHealthEndpoints()
 	return s
-}
-
-func (s *Service) registerHealthEndpoint() {
-	s.mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if s.metrics != nil {
-			fmt.Fprintf(w, `{"status":"ok","requests":%d}`, s.metrics.RequestCount)
-			return
-		}
-		fmt.Fprint(w, `{"status":"ok"}`)
-	})
 }
 
 type httpRequestKey struct{}

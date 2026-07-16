@@ -15,7 +15,7 @@ import (
 // encoding/decoding for the given handler function.
 //
 // JSONErrorEncoder is used by default — errors are written as
-// {"error": "..."} with an appropriate HTTP status code.
+// {"error": "...", "code": "..."} with an appropriate HTTP status code.
 // Pass ServerErrorEncoder to override.
 //
 // Example:
@@ -167,6 +167,10 @@ func (e JSONDecodeError) Unwrap() error {
 
 func (e JSONDecodeError) StatusCode() int {
 	return http.StatusBadRequest
+}
+
+func (e JSONDecodeError) ErrorCode() string {
+	return "bad_request.invalid_json"
 }
 
 // DecodeJSONBody decodes one JSON value from r into target.

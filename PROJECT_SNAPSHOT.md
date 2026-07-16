@@ -49,7 +49,10 @@ Recent runtime hardening candidate changes:
 
 - `transport/http/server.DecodeJSONBody` now provides opt-in bounded strict JSON decoding;
 - `transport/http/server.StrictJSONDecodeOptions` and `NewStrictJSONEndpoint` enable body limits, unknown-field rejection, trailing-data rejection, and HTTP 400 decode errors;
+- `transport/http/server.JSONErrorEncoder` now emits stable machine-readable error codes while preserving the historical `error` field;
+- `transport/http/server.NewHTTPError` and `WrapHTTPError` provide a small custom status/code/message helper without imposing a global error model;
 - `kit.HandleJSON` gives the high-level kit path a direct function -> endpoint middleware -> JSON transport flow;
+- `kit.WithLivenessCheck` and `WithReadinessCheck` expose low-intrusion `/livez`, `/readyz`, and combined `/health` checks;
 - `microgen` generated HTTP routes now use strict JSON decoding by default;
 - `kit.WithHTTPServerConfig` applies HTTP read/write/idle timeouts and maximum header size to `Service.Start`;
 - `kit.Service.Errors` exposes asynchronous HTTP and gRPC serving failures to host applications;

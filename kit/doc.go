@@ -20,5 +20,6 @@
 //	    kit.WithRequestID(),
 //	    kit.WithLogging(logger),
 //	    kit.WithMetrics(&metrics),
+//	    kit.WithReadinessCheck("database", checkDatabase),
 //	)
 package kit

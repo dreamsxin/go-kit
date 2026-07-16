@@ -2,19 +2,103 @@ package server
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
+	"errors"
 	"net/http"
+	"strings"
 
+	"github.com/dreamsxin/go-kit/endpoint"
 	"github.com/dreamsxin/go-kit/transport"
 )
+
+// ErrorResponse is the default JSON shape emitted by JSONErrorEncoder.
+//
+// The error field is kept for compatibility with earlier go-kit releases.
+// The code field gives clients a stable machine-readable value.
+type ErrorResponse struct {
+	Error     string `json:"error"`
+	Code      string `json:"code"`
+	RequestID string `json:"request_id,omitempty"`
+}
+
+// HTTPError is a small helper for returning transport-aware errors from
+// endpoints without adopting a larger application error framework.
+type HTTPError struct {
+	Status  int
+	Code    string
+	Message string
+	Err     error
+	Header  http.Header
+}
+
+// NewHTTPError creates an HTTPError with a public message.
+func NewHTTPError(status int, code, message string) *HTTPError {
+	return &HTTPError{Status: status, Code: code, Message: message}
+}
+
+// WrapHTTPError creates an HTTPError that preserves an underlying cause.
+func WrapHTTPError(status int, code, message string, err error) *HTTPError {
+	return &HTTPError{Status: status, Code: code, Message: message, Err: err}
+}
+
+func (e *HTTPError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Message != "" {
+		return e.Message
+	}
+	if e.Err != nil {
+		return e.Err.Error()
+	}
+	return http.StatusText(e.StatusCode())
+}
+
+func (e *HTTPError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+func (e *HTTPError) StatusCode() int {
+	if e == nil || e.Status <= 0 {
+		return http.StatusInternalServerError
+	}
+	return e.Status
+}
+
+func (e *HTTPError) ErrorCode() string {
+	if e == nil {
+		return ""
+	}
+	return e.Code
+}
+
+func (e *HTTPError) PublicMessage() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
+func (e *HTTPError) Headers() http.Header {
+	if e == nil {
+		return nil
+	}
+	return e.Header
+}
 
 // JSONErrorEncoder is a transport.ErrorEncoder that always writes a JSON
 // error body.  It inspects the error for optional interfaces:
 //
 //   - interfaces.StatusCoder  → uses that HTTP status code (default 500)
 //   - interfaces.Headerer     → merges those headers into the response
+//   - ErrorCode() string      → sets a stable machine-readable code
+//   - PublicMessage() string  → overrides the public message
 //
-// The response body is:  {"error": "<message>"}
+// The response body keeps the historical error field and adds code:
+// {"error": "<message>", "code": "<code>"}
 //
 // Use it with ServerErrorEncoder:
 //
@@ -27,13 +111,20 @@ import (
 //	server.NewJSONServer[Req](handler,
 //	    server.ServerErrorEncoder(server.JSONErrorEncoder),
 //	)
-var JSONErrorEncoder transport.ErrorEncoder = func(_ context.Context, err error, w http.ResponseWriter) {
+var JSONErrorEncoder transport.ErrorEncoder = func(ctx context.Context, err error, w http.ResponseWriter) {
+	encodeJSONError(ctx, err, w)
+}
+
+func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 	type statusCoder interface{ StatusCode() int }
 	type headerer interface{ Headers() http.Header }
+	type errorCoder interface{ ErrorCode() string }
+	type publicMessager interface{ PublicMessage() string }
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	if h, ok := err.(headerer); ok {
+	var h headerer
+	if errors.As(err, &h) {
 		for k, vals := range h.Headers() {
 			for _, v := range vals {
 				w.Header().Add(k, v)
@@ -42,9 +133,52 @@ var JSONErrorEncoder transport.ErrorEncoder = func(_ context.Context, err error,
 	}
 
 	code := http.StatusInternalServerError
-	if sc, ok := err.(statusCoder); ok {
+	var sc statusCoder
+	if errors.As(err, &sc) {
 		code = sc.StatusCode()
 	}
+
+	message := ""
+	if err != nil {
+		message = err.Error()
+	}
+	var pm publicMessager
+	if errors.As(err, &pm) && pm.PublicMessage() != "" {
+		message = pm.PublicMessage()
+	}
+
+	errorCode := defaultErrorCode(code)
+	var ec errorCoder
+	if errors.As(err, &ec) && ec.ErrorCode() != "" {
+		errorCode = ec.ErrorCode()
+	}
+
 	w.WriteHeader(code)
-	fmt.Fprintf(w, `{"error":%q}`, err.Error())
+	_ = json.NewEncoder(w).Encode(ErrorResponse{
+		Error:     message,
+		Code:      errorCode,
+		RequestID: endpoint.RequestIDFromContext(ctx),
+	})
+}
+
+func defaultErrorCode(status int) string {
+	text := http.StatusText(status)
+	if text == "" {
+		return "http_error"
+	}
+	text = strings.ToLower(text)
+	var b strings.Builder
+	underscore := false
+	for _, r := range text {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			underscore = false
+			continue
+		}
+		if !underscore && b.Len() > 0 {
+			b.WriteByte('_')
+			underscore = true
+		}
+	}
+	return strings.TrimSuffix(b.String(), "_")
 }

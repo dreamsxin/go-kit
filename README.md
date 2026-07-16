@@ -281,6 +281,10 @@ func main() {
 }
 ```
 
+`kit.New` exposes `/health`, `/livez`, and `/readyz` by default. Add dependency
+checks with `kit.WithLivenessCheck` or `kit.WithReadinessCheck` when the service
+needs process or readiness probes beyond the default OK response.
+
 ## Generated Project Layout
 
 ```text

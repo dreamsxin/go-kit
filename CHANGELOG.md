@@ -25,6 +25,8 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 ### Added
 
 - **Strict JSON decoding** (`transport/http/server`, `kit`, `microgen`): added bounded body decoding, unknown-field rejection, trailing-data rejection, strict JSON handler constructors, and `JSONDecodeError` status mapping. `kit.HandleJSON` and generated HTTP routes now use strict JSON decoding by default.
+- **Structured JSON errors** (`transport/http/server`): `JSONErrorEncoder` now emits a stable `code` field while preserving the historical `error` field. Added `HTTPError`, `NewHTTPError`, and `WrapHTTPError` for custom status, error code, public message, and headers.
+- **Health checks** (`kit`): added `/livez` and `/readyz` plus `WithLivenessCheck` and `WithReadinessCheck`; `/health` remains compatible and combines configured checks.
 - **HTTP server configuration** (`kit`): added `WithHTTPServerConfig` for read/write/idle timeouts and maximum header size when using `Service.Start`.
 - **Asynchronous serve errors** (`kit`): added `Service.Errors()` so applications can react to HTTP or gRPC serving failures after startup.
 - **`examples/kit_basic`**: New standalone runnable example demonstrating the high-level `kit.New` + `kit.JSON` + `svc.Handle` + `svc.Run` API — the fastest path from zero to a running service. Includes 5 tests.

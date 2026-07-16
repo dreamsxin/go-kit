@@ -178,6 +178,9 @@ func TestJSONErrorEncoder_Default500(t *testing.T) {
 	if body["error"] != "oops" {
 		t.Errorf("error body: got %q, want %q", body["error"], "oops")
 	}
+	if body["code"] != "internal_server_error" {
+		t.Errorf("error code: got %q, want internal_server_error", body["code"])
+	}
 }
 
 type extraStatusErr struct{ code int }
@@ -266,6 +269,11 @@ func TestNewStrictJSONServer_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d, want %d", w.Code, http.StatusBadRequest)
+	}
+	var body map[string]string
+	json.NewDecoder(w.Body).Decode(&body) //nolint:errcheck
+	if body["code"] != "bad_request.invalid_json" {
+		t.Errorf("code: got %q, want bad_request.invalid_json", body["code"])
 	}
 	if called {
 		t.Fatal("handler should not run for invalid strict JSON")
