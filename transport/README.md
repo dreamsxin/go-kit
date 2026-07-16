@@ -125,10 +125,10 @@ decoders carry HTTP 400 status metadata for `JSONErrorEncoder`. Existing
 `DecodeJSONRequest` callers keep their historical zero-option behavior for
 compatibility.
 
-`JSONErrorEncoder` keeps the historical `error` field and adds a stable
-machine-readable `code` field. Return `server.NewHTTPError` or implement
-`StatusCode() int`, `ErrorCode() string`, and `PublicMessage() string` on
-application errors when a route needs custom status, code, or public text.
+`JSONErrorEncoder` writes `code`, `message`, and optional `request_id` fields.
+Return `server.NewHTTPError` or implement `interfaces.StatusCoder`,
+`interfaces.ErrorCoder`, and `interfaces.PublicMessager` on application errors
+when a route needs custom status, code, or public text.
 
 ## HTTP Client
 

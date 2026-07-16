@@ -261,7 +261,7 @@ func TestSKILL_HTTPServer_JSONErrorEncoder(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("want 500, got %d", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), `"error"`) {
+	if !strings.Contains(rec.Body.String(), `"message"`) {
 		t.Errorf("want JSON error body, got: %s", rec.Body.String())
 	}
 }

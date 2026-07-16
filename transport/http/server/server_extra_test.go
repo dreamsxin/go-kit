@@ -175,8 +175,8 @@ func TestJSONErrorEncoder_Default500(t *testing.T) {
 	}
 	var body map[string]string
 	json.NewDecoder(w.Body).Decode(&body) //nolint:errcheck
-	if body["error"] != "oops" {
-		t.Errorf("error body: got %q, want %q", body["error"], "oops")
+	if body["message"] != "oops" {
+		t.Errorf("error message: got %q, want %q", body["message"], "oops")
 	}
 	if body["code"] != "internal_server_error" {
 		t.Errorf("error code: got %q, want internal_server_error", body["code"])
@@ -342,16 +342,22 @@ func TestDefaultErrorEncoder_StatusCoder(t *testing.T) {
 	}
 }
 
-// ── interfaces.StatusCoder / Headerer ────────────────────────────────────────
+// ── transport/http/interfaces ────────────────────────────────────────────────
 
 type myResp struct{}
 
 func (r myResp) StatusCode() int      { return http.StatusAccepted }
 func (r myResp) Headers() http.Header { h := http.Header{}; h.Set("X-ID", "42"); return h }
+func (r myResp) ErrorCode() string    { return "accepted" }
+func (r myResp) PublicMessage() string {
+	return "accepted"
+}
 
 func TestInterfaces_StatusCoderAndHeaderer(t *testing.T) {
 	var _ interfaces.StatusCoder = myResp{}
 	var _ interfaces.Headerer = myResp{}
+	var _ interfaces.ErrorCoder = myResp{}
+	var _ interfaces.PublicMessager = myResp{}
 
 	w := httptest.NewRecorder()
 	server.EncodeJSONResponse(context.Background(), w, myResp{}) //nolint:errcheck

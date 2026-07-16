@@ -13,3 +13,15 @@ type StatusCoder interface {
 type Headerer interface {
 	Headers() http.Header
 }
+
+// ErrorCoder may be implemented by an error value to set a stable
+// machine-readable application error code in JSON error responses.
+type ErrorCoder interface {
+	ErrorCode() string
+}
+
+// PublicMessager may be implemented by an error value to override the message
+// exposed to clients in JSON error responses.
+type PublicMessager interface {
+	PublicMessage() string
+}

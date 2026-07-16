@@ -15,7 +15,7 @@ import (
 // encoding/decoding for the given handler function.
 //
 // JSONErrorEncoder is used by default — errors are written as
-// {"error": "...", "code": "..."} with an appropriate HTTP status code.
+// {"code": "...", "message": "..."} with an appropriate HTTP status code.
 // Pass ServerErrorEncoder to override.
 //
 // Example:

@@ -206,8 +206,8 @@ func TestNewJSONServer_ErrorUsesJSONErrorEncoder(t *testing.T) {
 	}
 	var body map[string]string
 	json.NewDecoder(rec.Body).Decode(&body) //nolint:errcheck
-	if body["error"] == "" {
-		t.Error("want non-empty error field in JSON body")
+	if body["message"] == "" {
+		t.Error("want non-empty message field in JSON body")
 	}
 }
 
@@ -263,11 +263,14 @@ func TestJSONErrorEncoder_DefaultStatus(t *testing.T) {
 	}
 	var body map[string]string
 	json.NewDecoder(rec.Body).Decode(&body) //nolint:errcheck
-	if body["error"] != "boom" {
-		t.Errorf("want 'boom', got %q", body["error"])
+	if body["message"] != "boom" {
+		t.Errorf("want 'boom', got %q", body["message"])
 	}
 	if body["code"] != "internal_server_error" {
 		t.Errorf("want internal_server_error code, got %q", body["code"])
+	}
+	if _, ok := body["error"]; ok {
+		t.Error("legacy error field should not be emitted")
 	}
 }
 
@@ -294,8 +297,8 @@ func TestJSONErrorEncoder_HTTPErrorCodeAndMessage(t *testing.T) {
 	}
 	var body map[string]string
 	json.NewDecoder(rec.Body).Decode(&body) //nolint:errcheck
-	if body["error"] != "email already exists" {
-		t.Errorf("error: got %q", body["error"])
+	if body["message"] != "email already exists" {
+		t.Errorf("message: got %q", body["message"])
 	}
 	if body["code"] != "user.email_taken" {
 		t.Errorf("code: got %q", body["code"])
@@ -316,8 +319,8 @@ func TestJSONErrorEncoder_UsesWrappedHTTPError(t *testing.T) {
 	}
 	var body map[string]string
 	json.NewDecoder(rec.Body).Decode(&body) //nolint:errcheck
-	if body["error"] != "email already exists" {
-		t.Errorf("error: got %q", body["error"])
+	if body["message"] != "email already exists" {
+		t.Errorf("message: got %q", body["message"])
 	}
 	if body["code"] != "user.email_taken" {
 		t.Errorf("code: got %q", body["code"])

@@ -9,15 +9,13 @@ import (
 
 	"github.com/dreamsxin/go-kit/endpoint"
 	"github.com/dreamsxin/go-kit/transport"
+	"github.com/dreamsxin/go-kit/transport/http/interfaces"
 )
 
 // ErrorResponse is the default JSON shape emitted by JSONErrorEncoder.
-//
-// The error field is kept for compatibility with earlier go-kit releases.
-// The code field gives clients a stable machine-readable value.
 type ErrorResponse struct {
-	Error     string `json:"error"`
 	Code      string `json:"code"`
+	Message   string `json:"message"`
 	RequestID string `json:"request_id,omitempty"`
 }
 
@@ -94,11 +92,11 @@ func (e *HTTPError) Headers() http.Header {
 //
 //   - interfaces.StatusCoder  → uses that HTTP status code (default 500)
 //   - interfaces.Headerer     → merges those headers into the response
-//   - ErrorCode() string      → sets a stable machine-readable code
-//   - PublicMessage() string  → overrides the public message
+//   - interfaces.ErrorCoder   → sets a stable machine-readable code
+//   - interfaces.PublicMessager → overrides the public message
 //
-// The response body keeps the historical error field and adds code:
-// {"error": "<message>", "code": "<code>"}
+// The response body is:
+// {"code": "<code>", "message": "<message>"}
 //
 // Use it with ServerErrorEncoder:
 //
@@ -116,14 +114,9 @@ var JSONErrorEncoder transport.ErrorEncoder = func(ctx context.Context, err erro
 }
 
 func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
-	type statusCoder interface{ StatusCode() int }
-	type headerer interface{ Headers() http.Header }
-	type errorCoder interface{ ErrorCode() string }
-	type publicMessager interface{ PublicMessage() string }
-
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	var h headerer
+	var h interfaces.Headerer
 	if errors.As(err, &h) {
 		for k, vals := range h.Headers() {
 			for _, v := range vals {
@@ -133,7 +126,7 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 	}
 
 	code := http.StatusInternalServerError
-	var sc statusCoder
+	var sc interfaces.StatusCoder
 	if errors.As(err, &sc) {
 		code = sc.StatusCode()
 	}
@@ -142,21 +135,21 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 	if err != nil {
 		message = err.Error()
 	}
-	var pm publicMessager
+	var pm interfaces.PublicMessager
 	if errors.As(err, &pm) && pm.PublicMessage() != "" {
 		message = pm.PublicMessage()
 	}
 
 	errorCode := defaultErrorCode(code)
-	var ec errorCoder
+	var ec interfaces.ErrorCoder
 	if errors.As(err, &ec) && ec.ErrorCode() != "" {
 		errorCode = ec.ErrorCode()
 	}
 
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(ErrorResponse{
-		Error:     message,
 		Code:      errorCode,
+		Message:   message,
 		RequestID: endpoint.RequestIDFromContext(ctx),
 	})
 }

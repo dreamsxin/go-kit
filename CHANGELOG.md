@@ -25,7 +25,7 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 ### Added
 
 - **Strict JSON decoding** (`transport/http/server`, `kit`, `microgen`): added bounded body decoding, unknown-field rejection, trailing-data rejection, strict JSON handler constructors, and `JSONDecodeError` status mapping. `kit.HandleJSON` and generated HTTP routes now use strict JSON decoding by default.
-- **Structured JSON errors** (`transport/http/server`): `JSONErrorEncoder` now emits a stable `code` field while preserving the historical `error` field. Added `HTTPError`, `NewHTTPError`, and `WrapHTTPError` for custom status, error code, public message, and headers.
+- **Structured JSON errors** (`transport/http/server`): `JSONErrorEncoder` now emits `code`, `message`, and optional `request_id` fields. Added `HTTPError`, `NewHTTPError`, `WrapHTTPError`, `interfaces.ErrorCoder`, and `interfaces.PublicMessager` for custom status, error code, public message, and headers.
 - **Health checks** (`kit`): added `/livez` and `/readyz` plus `WithLivenessCheck` and `WithReadinessCheck`; `/health` remains compatible and combines configured checks.
 - **HTTP server configuration** (`kit`): added `WithHTTPServerConfig` for read/write/idle timeouts and maximum header size when using `Service.Start`.
 - **Asynchronous serve errors** (`kit`): added `Service.Errors()` so applications can react to HTTP or gRPC serving failures after startup.
