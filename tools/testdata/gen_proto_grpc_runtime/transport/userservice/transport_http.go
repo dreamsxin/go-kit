@@ -22,14 +22,16 @@ func NewHTTPHandler(endpoints genendpoint.UserServiceEndpoints) http.Handler {
 func RegisterHTTPRoutes(router *mux.Router, endpoints genendpoint.UserServiceEndpoints, prefix string) {
 
 	// GET /getuser
-	router.Handle(routePath(prefix, "/getuser"), server.NewJSONEndpoint[idl.GetUserRequest](
+	router.Handle(routePath(prefix, "/getuser"), server.NewStrictJSONEndpoint[idl.GetUserRequest](
 		endpoints.GetUserEndpoint,
+		server.DefaultMaxJSONBodyBytes,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	)).Methods("GET")
 
 	// POST /createuser
-	router.Handle(routePath(prefix, "/createuser"), server.NewJSONEndpoint[idl.CreateUserRequest](
+	router.Handle(routePath(prefix, "/createuser"), server.NewStrictJSONEndpoint[idl.CreateUserRequest](
 		endpoints.CreateUserEndpoint,
+		server.DefaultMaxJSONBodyBytes,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	)).Methods("POST")
 
@@ -37,13 +39,15 @@ func RegisterHTTPRoutes(router *mux.Router, endpoints genendpoint.UserServiceEnd
 
 func registerHTTPServeMuxRoutes(m *http.ServeMux, endpoints genendpoint.UserServiceEndpoints) {
 
-	m.Handle("GET /getuser", server.NewJSONEndpoint[idl.GetUserRequest](
+	m.Handle("GET /getuser", server.NewStrictJSONEndpoint[idl.GetUserRequest](
 		endpoints.GetUserEndpoint,
+		server.DefaultMaxJSONBodyBytes,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
-	m.Handle("POST /createuser", server.NewJSONEndpoint[idl.CreateUserRequest](
+	m.Handle("POST /createuser", server.NewStrictJSONEndpoint[idl.CreateUserRequest](
 		endpoints.CreateUserEndpoint,
+		server.DefaultMaxJSONBodyBytes,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
@@ -57,7 +61,7 @@ func routePath(prefix, route string) string {
 }
 
 
-// decodeGetUserRequest uses the default JSON decode path.
+// decodeGetUserRequest uses the generated strict JSON decode path.
 //
 // @Summary      GetUser retrieves a user by ID.
 // @Description  GetUser retrieves a user by ID.
@@ -71,8 +75,8 @@ func routePath(prefix, route string) string {
 // @Router       /getuser [get]
 func decodeGetUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.GetUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
+	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
+		return nil, server.JSONDecodeError{Err: err}
 	}
 	return req, nil
 }
@@ -81,7 +85,7 @@ func encodeGetUserResponse(ctx context.Context, w http.ResponseWriter, response 
 	return json.NewEncoder(w).Encode(response)
 }
 
-// decodeCreateUserRequest uses the default JSON decode path.
+// decodeCreateUserRequest uses the generated strict JSON decode path.
 //
 // @Summary      CreateUser creates a new user.
 // @Description  CreateUser creates a new user.
@@ -95,8 +99,8 @@ func encodeGetUserResponse(ctx context.Context, w http.ResponseWriter, response 
 // @Router       /createuser [post]
 func decodeCreateUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.CreateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
+	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
+		return nil, server.JSONDecodeError{Err: err}
 	}
 	return req, nil
 }

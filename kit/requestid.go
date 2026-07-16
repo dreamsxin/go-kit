@@ -16,7 +16,9 @@ func requestIDMiddleware() endpoint.Middleware {
 		return func(ctx context.Context, req any) (any, error) {
 			requestID := requestIDFromContextOrHeader(ctx)
 			ctx = endpoint.WithRequestID(ctx, requestID)
-			if rw, ok := req.(http.ResponseWriter); ok {
+			if rw := responseWriterFromContext(ctx); rw != nil {
+				rw.Header().Set(requestIDHeader, requestID)
+			} else if rw, ok := req.(http.ResponseWriter); ok {
 				rw.Header().Set(requestIDHeader, requestID)
 			}
 			return next(ctx, req)

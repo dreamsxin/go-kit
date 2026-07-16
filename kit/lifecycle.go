@@ -2,6 +2,7 @@ package kit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -9,6 +10,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"google.golang.org/grpc"
 )
 
 // Run starts the HTTP server (and gRPC server if enabled) and blocks until
@@ -39,28 +42,57 @@ func (s *Service) Start() error {
 	if err != nil {
 		return fmt.Errorf("http listen: %w", err)
 	}
-	s.srv = &http.Server{Addr: s.addr, Handler: s.mux}
+
+	var grpcLis net.Listener
+	var grpcServer *grpc.Server
+	if s.grpcAddr != "" {
+		grpcServer = s.GRPCServer()
+		grpcLis, err = net.Listen("tcp", s.grpcAddr)
+		if err != nil {
+			_ = httpLis.Close()
+			return fmt.Errorf("grpc listen: %w", err)
+		}
+	}
+
+	s.srv = &http.Server{
+		Addr:              s.addr,
+		Handler:           s.mux,
+		ReadHeaderTimeout: s.httpConfig.ReadHeaderTimeout,
+		ReadTimeout:       s.httpConfig.ReadTimeout,
+		WriteTimeout:      s.httpConfig.WriteTimeout,
+		IdleTimeout:       s.httpConfig.IdleTimeout,
+		MaxHeaderBytes:    s.httpConfig.MaxHeaderBytes,
+	}
 	go func() {
 		s.logger.Sugar().Infof("HTTP listening on %s", s.addr)
 		if err := s.srv.Serve(httpLis); err != nil && err != http.ErrServerClosed {
-			s.logger.Sugar().Errorf("HTTP serve: %v", err)
+			s.reportServeError(fmt.Errorf("http serve: %w", err))
 		}
 	}()
 
-	if s.grpcAddr != "" {
-		gs := s.GRPCServer()
-		lis, err := net.Listen("tcp", s.grpcAddr)
-		if err != nil {
-			return fmt.Errorf("grpc listen: %w", err)
-		}
+	if grpcLis != nil {
 		go func() {
 			s.logger.Sugar().Infof("gRPC listening on %s", s.grpcAddr)
-			if err := gs.Serve(lis); err != nil {
-				s.logger.Sugar().Errorf("gRPC serve: %v", err)
+			if err := grpcServer.Serve(grpcLis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+				s.reportServeError(fmt.Errorf("grpc serve: %w", err))
 			}
 		}()
 	}
 	return nil
+}
+
+// Errors reports asynchronous HTTP or gRPC serving failures after Start.
+// Listener bind failures are still returned directly from Start.
+func (s *Service) Errors() <-chan error {
+	return s.serveErrors
+}
+
+func (s *Service) reportServeError(err error) {
+	s.logger.Sugar().Error(err)
+	select {
+	case s.serveErrors <- err:
+	default:
+	}
 }
 
 // Shutdown gracefully stops the HTTP server and gRPC server if running.

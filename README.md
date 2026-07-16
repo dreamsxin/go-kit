@@ -273,9 +273,9 @@ type HelloResp struct {
 func main() {
 	svc := kit.New(":8080")
 
-	svc.Handle("/hello", kit.JSON[HelloReq](func(ctx context.Context, req HelloReq) (any, error) {
+	kit.HandleJSON[HelloReq](svc, "/hello", func(ctx context.Context, req HelloReq) (any, error) {
 		return HelloResp{Message: "Hello, " + req.Name + "!"}, nil
-	}))
+	})
 
 	svc.Run()
 }

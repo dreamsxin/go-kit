@@ -45,6 +45,18 @@ Current priority summary:
 2. `interaction`, `interaction/mcp`, and generated interaction adapters are now part of the stable scope
 3. prepare for v1.0 industrial release
 
+Recent runtime hardening candidate changes:
+
+- `transport/http/server.DecodeJSONBody` now provides opt-in bounded strict JSON decoding;
+- `transport/http/server.StrictJSONDecodeOptions` and `NewStrictJSONEndpoint` enable body limits, unknown-field rejection, trailing-data rejection, and HTTP 400 decode errors;
+- `kit.HandleJSON` gives the high-level kit path a direct function -> endpoint middleware -> JSON transport flow;
+- `microgen` generated HTTP routes now use strict JSON decoding by default;
+- `kit.WithHTTPServerConfig` applies HTTP read/write/idle timeouts and maximum header size to `Service.Start`;
+- `kit.Service.Errors` exposes asynchronous HTTP and gRPC serving failures to host applications;
+- `kit.Service.Start` binds both listeners before starting either server, avoiding a partially started service when gRPC binding fails;
+- the interaction generator schema test no longer depends on gofmt indentation;
+- these changes are currently unreleased and are used by RunnerGo through a local module replace; both repositories passed `go test ./...` and `go vet ./...` on 2026-07-16.
+
 ## AI Roadmap Status
 
 Current state:
@@ -506,6 +518,8 @@ If a new AI session resumes this work, the best low-friction start is:
 Recommended first task right now:
 
 - treat the current Viper-backed Consul path plus explicit config CLI flags as the first stable contract, then decide whether to broaden providers or only tighten validation/docs
+
+For the HTTP hardening slice, the next task is to review the API names against existing transport conventions and decide whether to publish a patch/minor release before upgrading downstream services.
 
 Specifically:
 

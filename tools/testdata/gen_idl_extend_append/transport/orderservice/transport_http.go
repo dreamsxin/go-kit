@@ -22,8 +22,9 @@ func NewHTTPHandler(endpoints genendpoint.OrderServiceEndpoints) http.Handler {
 func RegisterHTTPRoutes(router *mux.Router, endpoints genendpoint.OrderServiceEndpoints, prefix string) {
 
 	// POST /placeorder
-	router.Handle(routePath(prefix, "/placeorder"), server.NewJSONEndpoint[idl.PlaceOrderRequest](
+	router.Handle(routePath(prefix, "/placeorder"), server.NewStrictJSONEndpoint[idl.PlaceOrderRequest](
 		endpoints.PlaceOrderEndpoint,
+		server.DefaultMaxJSONBodyBytes,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	)).Methods("POST")
 
@@ -31,8 +32,9 @@ func RegisterHTTPRoutes(router *mux.Router, endpoints genendpoint.OrderServiceEn
 
 func registerHTTPServeMuxRoutes(m *http.ServeMux, endpoints genendpoint.OrderServiceEndpoints) {
 
-	m.Handle("POST /placeorder", server.NewJSONEndpoint[idl.PlaceOrderRequest](
+	m.Handle("POST /placeorder", server.NewStrictJSONEndpoint[idl.PlaceOrderRequest](
 		endpoints.PlaceOrderEndpoint,
+		server.DefaultMaxJSONBodyBytes,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 
@@ -46,7 +48,7 @@ func routePath(prefix, route string) string {
 }
 
 
-// decodePlaceOrderRequest uses the default JSON decode path.
+// decodePlaceOrderRequest uses the generated strict JSON decode path.
 //
 // @Summary      PlaceOrder
 // @Description  PlaceOrder microservice endpoint
@@ -60,8 +62,8 @@ func routePath(prefix, route string) string {
 // @Router       /placeorder [post]
 func decodePlaceOrderRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.PlaceOrderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
+	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
+		return nil, server.JSONDecodeError{Err: err}
 	}
 	return req, nil
 }

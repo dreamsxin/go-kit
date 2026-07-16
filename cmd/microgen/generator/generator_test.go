@@ -376,6 +376,9 @@ func TestGenerateFull_TransportHTTP_Contents(t *testing.T) {
 
 	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
 	mustContain(t, httpPath, "NewHTTPHandler")
+	mustContain(t, httpPath, "NewStrictJSONEndpoint")
+	mustContain(t, httpPath, "DefaultMaxJSONBodyBytes")
+	mustContain(t, httpPath, "JSONDecodeError")
 	mustContain(t, httpPath, "decodeCreateUserRequest")
 	mustContain(t, httpPath, "encodeCreateUserResponse")
 }

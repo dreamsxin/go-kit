@@ -66,8 +66,14 @@ Recommended entry points:
 - `server.NewServer`
 - `server.NewJSONServer`
 - `server.NewJSONEndpoint`
+- `server.NewStrictJSONServer`
+- `server.NewStrictJSONEndpoint`
 - `server.NewJSONServerWithMiddleware`
 - `server.DecodeJSONRequest`
+- `server.DecodeJSONRequestWithOptions`
+- `server.DecodeJSONBody`
+- `server.StrictJSONDecodeOptions`
+- `server.DefaultMaxJSONBodyBytes`
 - `server.EncodeJSONResponse`
 - `server.JSONErrorEncoder`
 
@@ -100,6 +106,22 @@ handler := server.NewJSONServer[HelloReq](
 
 http.Handle("/hello", handler)
 ```
+
+For public APIs, prefer the strict helpers:
+
+```go
+handler := server.NewStrictJSONEndpoint[HelloReq](
+    ep,
+    server.DefaultMaxJSONBodyBytes,
+    server.ServerErrorEncoder(server.JSONErrorEncoder),
+)
+```
+
+Strict decoding rejects unknown object fields, a second JSON value, and bodies
+that exceed the configured byte limit. Decode errors returned by JSON request
+decoders carry HTTP 400 status metadata for `JSONErrorEncoder`. Existing
+`DecodeJSONRequest` callers keep their historical zero-option behavior for
+compatibility.
 
 ## HTTP Client
 

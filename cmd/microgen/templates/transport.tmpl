@@ -26,8 +26,9 @@ func NewHTTPHandler(endpoints genendpoint.{{.Service.ServiceName}}Endpoints) htt
 func RegisterHTTPRoutes(router *mux.Router, endpoints genendpoint.{{.Service.ServiceName}}Endpoints, prefix string) {
 {{range .UnaryMethods}}
 	// {{.HTTPMethod}} {{.Route}}
-	router.Handle(routePath(prefix, "{{.Route}}"), server.NewJSONEndpoint[idl.{{.InputName}}](
+	router.Handle(routePath(prefix, "{{.Route}}"), server.NewStrictJSONEndpoint[idl.{{.InputName}}](
 		endpoints.{{.Name}}Endpoint,
+		server.DefaultMaxJSONBodyBytes,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	)).Methods("{{.HTTPMethod | upper}}")
 {{end}}
@@ -35,8 +36,9 @@ func RegisterHTTPRoutes(router *mux.Router, endpoints genendpoint.{{.Service.Ser
 
 func registerHTTPServeMuxRoutes(m *http.ServeMux, endpoints genendpoint.{{.Service.ServiceName}}Endpoints) {
 {{range .UnaryMethods}}
-	m.Handle("{{.HTTPMethod}} {{.Route}}", server.NewJSONEndpoint[idl.{{.InputName}}](
+	m.Handle("{{.HTTPMethod}} {{.Route}}", server.NewStrictJSONEndpoint[idl.{{.InputName}}](
 		endpoints.{{.Name}}Endpoint,
+		server.DefaultMaxJSONBodyBytes,
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	))
 {{end}}
@@ -50,7 +52,7 @@ func routePath(prefix, route string) string {
 }
 
 {{range .UnaryMethods}}
-// decode{{.Name}}Request uses the default JSON decode path.
+// decode{{.Name}}Request uses the generated strict JSON decode path.
 //
 // @Summary      {{.Summary}}
 // @Description  {{if .Description}}{{.Description}}{{else}}{{.Name}} microservice endpoint{{end}}
@@ -70,8 +72,8 @@ func routePath(prefix, route string) string {
 // @Router       {{$.RoutePrefix}}{{.Route}} [{{.HTTPMethod | lower}}]
 func decode{{.Name}}Request(_ context.Context, r *http.Request) (any, error) {
 	var req idl.{{.InputName}}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, err
+	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
+		return nil, server.JSONDecodeError{Err: err}
 	}
 	return req, nil
 }

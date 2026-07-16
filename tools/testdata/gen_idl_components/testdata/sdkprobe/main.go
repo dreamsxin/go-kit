@@ -19,4 +19,3 @@ package main
 		}
 		fmt.Println(err.Error())
 	}
-	

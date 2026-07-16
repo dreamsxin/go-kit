@@ -42,6 +42,60 @@ func TestDecodeJSONRequest_Invalid(t *testing.T) {
 	}
 }
 
+func TestDecodeJSONBody_RejectsUnknownFields(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"Alice","extra":true}`))
+	var got testReq
+	if err := server.DecodeJSONBody(r, &got, server.StrictJSONDecodeOptions(128)); err == nil {
+		t.Fatal("expected unknown field error")
+	}
+}
+
+func TestDecodeJSONBody_RejectsTrailingData(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"Alice"}{}`))
+	var got testReq
+	err := server.DecodeJSONBody(r, &got, server.StrictJSONDecodeOptions(128))
+	if !errors.Is(err, server.ErrJSONTrailingData) {
+		t.Fatalf("error: got %v, want %v", err, server.ErrJSONTrailingData)
+	}
+}
+
+func TestDecodeJSONBody_RejectsOversizedBody(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"Alice"}`))
+	var got testReq
+	err := server.DecodeJSONBody(r, &got, server.StrictJSONDecodeOptions(5))
+	if !errors.Is(err, server.ErrJSONBodyTooLarge) {
+		t.Fatalf("error: got %v, want %v", err, server.ErrJSONBodyTooLarge)
+	}
+}
+
+func TestDecodeJSONBody_AllowsWhitespaceAfterValue(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString("{\"name\":\"Alice\"} \n\t"))
+	var got testReq
+	if err := server.DecodeJSONBody(r, &got, server.StrictJSONDecodeOptions(128)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Name != "Alice" {
+		t.Fatalf("Name: got %q, want Alice", got.Name)
+	}
+}
+
+func TestDecodeJSONRequestWithOptions_RejectsUnknownFields(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"Alice","extra":true}`))
+	dec := server.DecodeJSONRequestWithOptions[testReq](server.StrictJSONDecodeOptions(128))
+	_, err := dec(context.Background(), r)
+	if err == nil {
+		t.Fatal("expected unknown field error")
+	}
+	type statusCoder interface{ StatusCode() int }
+	var sc statusCoder
+	if !errors.As(err, &sc) {
+		t.Fatalf("expected status-coded decode error, got %T", err)
+	}
+	if got := sc.StatusCode(); got != http.StatusBadRequest {
+		t.Fatalf("status code: got %d, want %d", got, http.StatusBadRequest)
+	}
+}
+
 func TestNopRequestDecoder(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	got, err := server.NopRequestDecoder(context.Background(), r)
@@ -197,6 +251,24 @@ func TestNewJSONServer_HandlerError(t *testing.T) {
 
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("status: got %d, want %d", w.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestNewStrictJSONServer_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
+	called := false
+	h := server.NewStrictJSONServer[testReq](func(_ context.Context, _ testReq) (any, error) {
+		called = true
+		return "ok", nil
+	}, 128)
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"x","extra":true}`))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d, want %d", w.Code, http.StatusBadRequest)
+	}
+	if called {
+		t.Fatal("handler should not run for invalid strict JSON")
 	}
 }
 

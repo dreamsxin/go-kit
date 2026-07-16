@@ -96,10 +96,9 @@ func TestGenerateFull_Interaction(t *testing.T) {
 	mustContain(t, interactionPath, "func (t CreateUserTool) Descriptor() interaction.ToolDescriptor")
 	mustContain(t, interactionPath, "func initInteractionRuntime(svc *generatedServices) *interaction.Runtime")
 	mustContain(t, interactionPath, `Name:        "CreateUser"`)
-	mustContain(t, interactionPath, `"username": map[string]interface{}{
-					"type": "string"`)
-	mustContain(t, interactionPath, `"email": map[string]interface{}{
-					"type": "string"`)
+	mustContain(t, interactionPath, `"username": map[string]interface{}{`)
+	mustContain(t, interactionPath, `"email": map[string]interface{}{`)
+	mustContain(t, interactionPath, `"type": "string"`)
 
 	guidePath := filepath.Join(outDir, ".ai", "PROJECT_GUIDE.md")
 	mustExist(t, guidePath)

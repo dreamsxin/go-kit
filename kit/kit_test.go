@@ -35,11 +35,11 @@ func helloHandler(_ context.Context, req helloReq) (any, error) {
 }
 
 // newSvc creates a Service with /hello registered and returns an httptest.Server.
-// This mirrors the README Quick Start pattern exactly.
+// This mirrors the recommended kit.HandleJSON pattern.
 func newSvc(t *testing.T, opts ...kit.Option) (*kit.Service, *httptest.Server) {
 	t.Helper()
 	svc := kit.New(":0", opts...)
-	svc.Handle("/hello", kit.JSON[helloReq](helloHandler))
+	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc) // Service implements http.Handler
 	t.Cleanup(ts.Close)
 	return svc, ts
@@ -60,9 +60,9 @@ func freeTCPAddr(t *testing.T) string {
 // TestReadme_QuickStart verifies the exact pattern shown in README.md works.
 func TestReadme_QuickStart(t *testing.T) {
 	svc := kit.New(":0")
-	svc.Handle("/hello", kit.JSON[helloReq](func(_ context.Context, req helloReq) (any, error) {
+	kit.HandleJSON[helloReq](svc, "/hello", func(_ context.Context, req helloReq) (any, error) {
 		return helloResp{Message: "Hello, " + req.Name + "!"}, nil
-	}))
+	})
 
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -97,7 +97,7 @@ func TestReadme_WithMiddleware(t *testing.T) {
 		kit.WithLogging(logger),
 		kit.WithMetrics(&metrics),
 	)
-	svc.Handle("/hello", kit.JSON[helloReq](helloHandler))
+	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -289,6 +289,113 @@ func TestService_HandleFunc(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+}
+
+// ── HandleJSON ───────────────────────────────────────────────────────────────
+
+func TestService_HandleJSON(t *testing.T) {
+	svc := kit.New(":0")
+	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
+	ts := httptest.NewServer(svc)
+	defer ts.Close()
+
+	body, _ := json.Marshal(helloReq{Name: "HandleJSON"})
+	resp, err := http.Post(ts.URL+"/hello", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+}
+
+func TestService_HandleJSON_AppliesEndpointMiddlewareToBusinessErrors(t *testing.T) {
+	var m endpoint.Metrics
+	svc := kit.New(":0", kit.WithMetrics(&m))
+	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
+	ts := httptest.NewServer(svc)
+	defer ts.Close()
+
+	body, _ := json.Marshal(helloReq{})
+	resp, err := http.Post(ts.URL+"/hello", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusInternalServerError)
+	}
+	snapshot := m.Snapshot()
+	if snapshot.RequestCount != 1 {
+		t.Errorf("RequestCount: got %d, want 1", snapshot.RequestCount)
+	}
+	if snapshot.SuccessCount != 0 {
+		t.Errorf("SuccessCount: got %d, want 0", snapshot.SuccessCount)
+	}
+	if snapshot.ErrorCount != 1 {
+		t.Errorf("ErrorCount: got %d, want 1", snapshot.ErrorCount)
+	}
+}
+
+func TestService_HandleJSON_UsesStrictDecode(t *testing.T) {
+	called := false
+	svc := kit.New(":0")
+	kit.HandleJSON[helloReq](svc, "/hello", func(_ context.Context, _ helloReq) (any, error) {
+		called = true
+		return helloResp{Message: "ok"}, nil
+	})
+	ts := httptest.NewServer(svc)
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/hello", "application/json", bytes.NewBufferString(`{"name":"x","extra":true}`))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+	if called {
+		t.Fatal("handler should not run for invalid strict JSON")
+	}
+}
+
+func TestService_HandleJSON_WithRequestID(t *testing.T) {
+	svc := kit.New(":0", kit.WithRequestID())
+	kit.HandleJSON[helloReq](svc, "/id", func(ctx context.Context, req helloReq) (any, error) {
+		return map[string]string{
+			"id":      endpoint.RequestIDFromContext(ctx),
+			"message": req.Name,
+		}, nil
+	})
+	ts := httptest.NewServer(svc)
+	defer ts.Close()
+
+	body, _ := json.Marshal(helloReq{Name: "rid"})
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/id", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-ID", "incoming-id")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	defer resp.Body.Close()
+	if got := resp.Header.Get("X-Request-ID"); got != "incoming-id" {
+		t.Fatalf("response header: got %q, want %q", got, "incoming-id")
+	}
+
+	var payload map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if got := payload["id"]; got != "incoming-id" {
+		t.Fatalf("request id in context: got %q, want %q", got, "incoming-id")
 	}
 }
 
@@ -513,6 +620,10 @@ func TestKitOptions_PanicOnInvalidConfiguration(t *testing.T) {
 			name: "grpc empty address",
 			run:  func() { kit.WithGRPC("") },
 		},
+		{
+			name: "json max body bytes negative",
+			run:  func() { kit.WithJSONMaxBodyBytes(-1) },
+		},
 	}
 
 	for _, tt := range tests {
@@ -617,20 +728,19 @@ func (s *userService) CreateUser(_ context.Context, req createUserReq) (createUs
 
 // TestThreeLayer_ServiceEndpointTransport verifies the full three-layer pattern:
 //   - Service: pure business logic, no framework dependency
-//   - Endpoint: kit.JSON wraps the service method as an http.Handler (transport)
-//     with automatic JSON decode/encode
-//   - Transport: svc.Handle registers the handler and applies middleware
+//   - Endpoint: kit.HandleJSON wraps the service method with middleware
+//   - Transport: JSON decoding/encoding is applied at the HTTP boundary
 func TestThreeLayer_ServiceEndpointTransport(t *testing.T) {
 	// Service layer — pure business logic
 	svc := &userService{}
 
-	// Endpoint + Transport layer — kit.JSON wraps the service method
-	// svc.Handle applies service-level middleware (metrics, timeout, etc.)
+	// Endpoint + Transport layer — kit.HandleJSON registers the service method
+	// and applies service-level middleware (metrics, timeout, etc.)
 	var m endpoint.Metrics
 	service := kit.New(":0", kit.WithMetrics(&m))
-	service.Handle("/users", kit.JSON[createUserReq](func(ctx context.Context, req createUserReq) (any, error) {
+	kit.HandleJSON[createUserReq](service, "/users", func(ctx context.Context, req createUserReq) (any, error) {
 		return svc.CreateUser(ctx, req)
-	}))
+	})
 
 	ts := httptest.NewServer(service)
 	defer ts.Close()

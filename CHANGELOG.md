@@ -8,9 +8,11 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 
 ### Fixed
 
+- **Interaction generator test portability** (`cmd/microgen/generator`): stopped binding schema assertions to gofmt indentation while preserving field and type checks.
 - **SSE notification race** (`interaction/mcp`): `TestE2E_ServerNotifications` could fail with `"no active SSE stream for session"` because the notification was sent before the GET handler goroutine registered its SSE writer. Test now retries until the writer is ready.
 - **`best_practice` sentinel error** (`examples/best_practice`): `errors.Is` never matched because `errors.New("name is required")` was called inline, creating a new pointer each time. Replaced with a package-level `var errNameRequired`.
 - **`Start()` silent failure** (`kit`): HTTP listen errors occurred inside a goroutine and called `log.Fatalf`, killing the process without returning to the caller. `Start()` now binds listeners synchronously via `net.Listen` and returns an `error`.
+- **Partial startup rollback** (`kit`): `Service.Start` now binds HTTP and gRPC listeners before starting either server and closes the HTTP listener when gRPC binding fails.
 - **Session leak in `callTool`** (`interaction/mcp`): Auto-created sessions were never closed. Added `defer EndSession` for sessions created implicitly during tool calls.
 - **`recover()` anti-pattern** (`interaction/mcp/sampling.go`): Replaced `defer recover()` concurrency guard with mutex-protected delete-before-send, eliminating the panic entirely.
 - **`context.Background()` in completion handler** (`interaction/mcp`): `handleCompletionComplete` now accepts and propagates `ctx` from the dispatch call instead of using `context.Background()`.
@@ -22,6 +24,9 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 
 ### Added
 
+- **Strict JSON decoding** (`transport/http/server`, `kit`, `microgen`): added bounded body decoding, unknown-field rejection, trailing-data rejection, strict JSON handler constructors, and `JSONDecodeError` status mapping. `kit.HandleJSON` and generated HTTP routes now use strict JSON decoding by default.
+- **HTTP server configuration** (`kit`): added `WithHTTPServerConfig` for read/write/idle timeouts and maximum header size when using `Service.Start`.
+- **Asynchronous serve errors** (`kit`): added `Service.Errors()` so applications can react to HTTP or gRPC serving failures after startup.
 - **`examples/kit_basic`**: New standalone runnable example demonstrating the high-level `kit.New` + `kit.JSON` + `svc.Handle` + `svc.Run` API — the fastest path from zero to a running service. Includes 5 tests.
 - **`ErrResourceExists`** sentinel error in `interaction` package for duplicate resource registration.
 - **Doc comments** for 4 exported symbols in `endpoint/endpoint_cache.go`: `EndpointCloser`, `NewEndpointCache`, `Update`, `Endpoints`.

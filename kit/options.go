@@ -11,7 +11,49 @@ import (
 	"github.com/dreamsxin/go-kit/endpoint/circuitbreaker"
 	"github.com/dreamsxin/go-kit/endpoint/ratelimit"
 	kitlog "github.com/dreamsxin/go-kit/log"
+	httpserver "github.com/dreamsxin/go-kit/transport/http/server"
 )
+
+// HTTPServerConfig controls the production HTTP server created by Start.
+// Zero values retain net/http defaults.
+type HTTPServerConfig struct {
+	ReadHeaderTimeout time.Duration
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
+	IdleTimeout       time.Duration
+	MaxHeaderBytes    int
+}
+
+// DefaultJSONMaxBodyBytes is the default strict JSON body limit used by
+// HandleJSON.
+const DefaultJSONMaxBodyBytes = httpserver.DefaultMaxJSONBodyBytes
+
+// WithHTTPServerConfig configures timeouts and header limits for the HTTP
+// server created by Service.Start.
+func WithHTTPServerConfig(config HTTPServerConfig) Option {
+	if config.ReadHeaderTimeout < 0 || config.ReadTimeout < 0 ||
+		config.WriteTimeout < 0 || config.IdleTimeout < 0 {
+		panic("kit: HTTP server durations cannot be negative")
+	}
+	if config.MaxHeaderBytes < 0 {
+		panic("kit: HTTP max header bytes cannot be negative")
+	}
+	return func(s *Service) {
+		s.httpConfig = config
+	}
+}
+
+// WithJSONMaxBodyBytes configures the strict JSON body limit used by
+// HandleJSON. A value <= 0 disables the size limit while keeping strict field
+// and trailing-data checks.
+func WithJSONMaxBodyBytes(maxBodyBytes int64) Option {
+	if maxBodyBytes < 0 {
+		panic("kit: JSON max body bytes cannot be negative")
+	}
+	return func(s *Service) {
+		s.jsonMaxBodyBytes = maxBodyBytes
+	}
+}
 
 // WithRateLimit adds a token-bucket rate limiter (rps = requests per second).
 func WithRateLimit(rps float64) Option {
@@ -79,6 +121,7 @@ func WithMetrics(m *endpoint.Metrics) Option {
 // The ID is taken from X-Request-ID if present, otherwise generated.
 func WithRequestID() Option {
 	return func(s *Service) {
+		s.requestID = true
 		s.middleware = append(s.middleware, requestIDMiddleware())
 	}
 }
