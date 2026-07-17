@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 
@@ -176,6 +178,33 @@ func (c *httpClient) do(ctx context.Context, method, path string, reqBody, respB
 	return nil
 }
 
+func buildGETPath(path string, reqBody interface{}) string {
+	b, _ := json.Marshal(reqBody)
+	var params map[string]interface{}
+	_ = json.Unmarshal(b, &params)
+	if len(params) == 0 {
+		return path
+	}
+
+	query := url.Values{}
+	for k, v := range params {
+		if v == nil {
+			continue
+		}
+		token := "{" + k + "}"
+		value := fmt.Sprint(v)
+		if strings.Contains(path, token) {
+			path = strings.ReplaceAll(path, token, url.PathEscape(value))
+			continue
+		}
+		query.Set(k, value)
+	}
+	if encoded := query.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	return path
+}
+
 
 func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	var resp idl.CreateUserResponse
@@ -185,34 +214,14 @@ func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) 
 
 func (c *httpClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
-	path := "/api/runtime/getuser"
-	b, _ := json.Marshal(req)
-	var params map[string]interface{}
-	json.Unmarshal(b, &params) //nolint:errcheck
-	if len(params) > 0 {
-		query := "?"
-		for k, v := range params {
-			query += fmt.Sprintf("%s=%v&", k, v)
-		}
-		path += query[:len(query)-1]
-	}
+	path := buildGETPath("/api/runtime/getuser", req)
 	err := c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }
 
 func (c *httpClient) ListUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error) {
 	var resp idl.ListUsersResponse
-	path := "/api/runtime/listusers"
-	b, _ := json.Marshal(req)
-	var params map[string]interface{}
-	json.Unmarshal(b, &params) //nolint:errcheck
-	if len(params) > 0 {
-		query := "?"
-		for k, v := range params {
-			query += fmt.Sprintf("%s=%v&", k, v)
-		}
-		path += query[:len(query)-1]
-	}
+	path := buildGETPath("/api/runtime/listusers", req)
 	err := c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }
@@ -231,51 +240,21 @@ func (c *httpClient) UpdateUser(ctx context.Context, req idl.UpdateUserRequest) 
 
 func (c *httpClient) FindByEmail(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
-	path := "/api/runtime/findbyemail"
-	b, _ := json.Marshal(req)
-	var params map[string]interface{}
-	json.Unmarshal(b, &params) //nolint:errcheck
-	if len(params) > 0 {
-		query := "?"
-		for k, v := range params {
-			query += fmt.Sprintf("%s=%v&", k, v)
-		}
-		path += query[:len(query)-1]
-	}
+	path := buildGETPath("/api/runtime/findbyemail", req)
 	err := c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }
 
 func (c *httpClient) SearchUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error) {
 	var resp idl.ListUsersResponse
-	path := "/api/runtime/searchusers"
-	b, _ := json.Marshal(req)
-	var params map[string]interface{}
-	json.Unmarshal(b, &params) //nolint:errcheck
-	if len(params) > 0 {
-		query := "?"
-		for k, v := range params {
-			query += fmt.Sprintf("%s=%v&", k, v)
-		}
-		path += query[:len(query)-1]
-	}
+	path := buildGETPath("/api/runtime/searchusers", req)
 	err := c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }
 
 func (c *httpClient) QueryStats(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
-	path := "/api/runtime/querystats"
-	b, _ := json.Marshal(req)
-	var params map[string]interface{}
-	json.Unmarshal(b, &params) //nolint:errcheck
-	if len(params) > 0 {
-		query := "?"
-		for k, v := range params {
-			query += fmt.Sprintf("%s=%v&", k, v)
-		}
-		path += query[:len(query)-1]
-	}
+	path := buildGETPath("/api/runtime/querystats", req)
 	err := c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }

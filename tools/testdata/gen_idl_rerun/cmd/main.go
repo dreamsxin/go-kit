@@ -32,6 +32,9 @@ import (
 
 	"github.com/gorilla/mux"
 	kitlog "github.com/dreamsxin/go-kit/log"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -63,6 +66,34 @@ func printAllRoutes(logger *kitlog.Logger, routes []generatedRouteEntry) {
 	}
 }
 
+func newConfiguredLogger(cfg config.LoggingConfig) (*kitlog.Logger, error) {
+	encoding := strings.ToLower(strings.TrimSpace(cfg.Format))
+	if encoding == "" {
+		encoding = "json"
+	}
+	if encoding != "json" && encoding != "console" {
+		return nil, fmt.Errorf("unsupported logging format %q", cfg.Format)
+	}
+
+	levelText := strings.ToLower(strings.TrimSpace(cfg.Level))
+	if levelText == "" {
+		levelText = "info"
+	}
+	var level zapcore.Level
+	if err := level.UnmarshalText([]byte(levelText)); err != nil {
+		return nil, fmt.Errorf("unsupported logging level %q: %w", cfg.Level, err)
+	}
+
+	zapConfig := zap.NewProductionConfig()
+	if encoding == "console" {
+		zapConfig = zap.NewDevelopmentConfig()
+	}
+	zapConfig.Encoding = encoding
+	zapConfig.Level = zap.NewAtomicLevelAt(level)
+	return zapConfig.Build()
+}
+
+
 func main() {
 	configPath := flag.String("config", "config/config.yaml", "path to config file")
 	flag.CommandLine.Parse(filterArgs(os.Args[1:], "-config"))
@@ -75,10 +106,16 @@ func main() {
 	var (
 		httpAddr = flag.String("http.addr", cfg.Server.HTTPAddr, "HTTP listen address")
 		dsn = flag.String("db.dsn", cfg.Database.DSN, "mysql DSN")
+		autoMigrate = flag.Bool("auto-migrate", cfg.Database.AutoMigrate, "run database AutoMigrate on startup")
 	)
 	flag.Parse()
+	cfg.Database.AutoMigrate = *autoMigrate
 
-	logger, _ := kitlog.NewDevelopment()
+
+	logger, err := newConfiguredLogger(cfg.Logging)
+	if err != nil {
+		panic("FATAL: create logger: " + err.Error())
+	}
 	defer logger.Sync() //nolint:errcheck
 	logger.Sugar().Infof("Config loaded from: %s", *configPath)
 
@@ -102,10 +139,14 @@ func main() {
 
 
 
-	if err := runtime.autoMigrate(db); err != nil {
-		logger.Sugar().Fatalf("FATAL: auto migrate failed: %v", err)
+	if cfg.Database.AutoMigrate {
+		if err := runtime.autoMigrate(db); err != nil {
+			logger.Sugar().Fatalf("FATAL: auto migrate failed: %v", err)
+		}
+		logger.Sugar().Info("DB migration done")
+	} else {
+		logger.Sugar().Info("DB migration skipped")
 	}
-	logger.Sugar().Info("DB migration done")
 
 
 	r := mux.NewRouter()

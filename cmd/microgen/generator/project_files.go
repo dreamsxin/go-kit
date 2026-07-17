@@ -2,6 +2,7 @@ package generator
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/dreamsxin/go-kit/cmd/microgen/ir"
@@ -140,6 +141,7 @@ func (g *Generator) generateReadme(ctx generationContext) error {
 		WithSkill:       g.config.WithSkill,
 		WithInteraction: g.config.WithInteraction,
 		WithConfig:      g.config.WithConfig,
+		WithDB:          g.config.WithDB,
 		ConfigMode:      g.config.ConfigMode,
 		RemoteProvider:  g.config.RemoteProvider,
 	}
@@ -211,9 +213,10 @@ func (g *Generator) generateGoModFile() error {
 	}
 
 	data := goModTemplateData{
-		ImportPath:  g.config.ImportPath,
-		WithConfig:  g.config.WithConfig,
-		RootRelPath: g.rootRelativePath(),
+		ImportPath:   g.config.ImportPath,
+		GoKitVersion: g.config.GoKitVersion,
+		WithConfig:   g.config.WithConfig,
+		RootRelPath:  g.rootRelativePath(),
 	}
 	return g.executeTemplate("go_mod.tmpl", g.layout.goMod(), data)
 }
@@ -241,11 +244,42 @@ func (g *Generator) serviceRoutes(project *ir.Project) []SvcRoute {
 }
 
 func (g *Generator) rootRelativePath() string {
-	if strings.Contains(g.outputDir, "testdata") {
-		return "../../../"
+	root := findGoKitModuleRoot(g.outputDir)
+	if root == "" {
+		return ""
 	}
-	if strings.Contains(g.outputDir, "examples") {
-		return "../../"
+	if !isPathInside(root, g.outputDir) {
+		return ""
 	}
-	return "../../"
+	rel, err := filepath.Rel(g.outputDir, root)
+	if err != nil || rel == "." {
+		return ""
+	}
+	return filepath.ToSlash(rel)
+}
+
+func findGoKitModuleRoot(start string) string {
+	dir, err := filepath.Abs(start)
+	if err != nil {
+		return ""
+	}
+	for {
+		data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+		if err == nil && strings.Contains(string(data), "module github.com/dreamsxin/go-kit") {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
+func isPathInside(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel))
 }

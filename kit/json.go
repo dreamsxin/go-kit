@@ -19,7 +19,9 @@ func JSON[Req any](handler func(ctx context.Context, req Req) (any, error)) http
 //
 // It is the recommended high-level path for small services: Service
 // middleware wraps the business endpoint, then the HTTP transport decodes and
-// encodes JSON exactly once. JSON decoding is strict by default.
+// encodes JSON exactly once. This keeps the same service -> endpoint ->
+// transport boundary as generated projects while avoiding boilerplate. JSON
+// decoding is strict by default.
 func HandleJSON[Req any](
 	s *Service,
 	pattern string,
@@ -36,7 +38,8 @@ func HandleJSON[Req any](
 }
 
 // HandleJSONEndpoint registers an already-built endpoint.Endpoint as a strict
-// JSON route on a Service.
+// JSON route on a Service, preserving the normal endpoint middleware and HTTP
+// transport chain.
 func HandleJSONEndpoint[Req any](
 	s *Service,
 	pattern string,
@@ -49,7 +52,7 @@ func HandleJSONEndpoint[Req any](
 	if ep == nil {
 		panic("kit: JSON endpoint cannot be nil")
 	}
-	ep = s.applyEndpointMiddleware(ep)
+	ep = s.applyEndpointMiddleware(pattern, ep)
 	h := httpserver.NewStrictJSONEndpoint[Req](ep, s.jsonMaxBodyBytes, options...)
 	s.mux.Handle(pattern, s.withHTTPContext(h))
 }

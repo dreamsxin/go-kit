@@ -14,20 +14,21 @@ logging:
 database:
   driver: "mysql"
   dsn: "root:password@tcp(127.0.0.1:3306)/{svcname}?charset=utf8mb4&parseTime=True&loc=Local"
+  auto_migrate: false
   max_open_conns: 20
   max_idle_conns: 5
   conn_max_lifetime: "1h"
 
 middleware:
   circuit_breaker:
-    enabled: true
+    enabled: false
     failure_threshold: 5
     timeout: "60s"
   rate_limit:
     enabled: true
     requests_per_second: 100
   retry:
-    enabled: true
+    enabled: false
     max_attempts: 3
     backoff: "2s"
 

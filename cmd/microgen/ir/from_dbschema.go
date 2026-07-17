@@ -58,9 +58,6 @@ func dbTableToMessage(schema *dbschema.TableSchema) *Message {
 		HasGormTags: true,
 	}
 	for _, col := range schema.Columns {
-		if isGormAutoField(col.Name) {
-			continue
-		}
 		goType := dbColumnGoType(col)
 		msg.Fields = append(msg.Fields, &Field{
 			Name:        dbschema.SnakeToCamel(col.Name),
@@ -211,9 +208,6 @@ func dbCRUDMethods(modelName string) []*Method {
 func dbMessageFields(schema *dbschema.TableSchema) []*Field {
 	out := make([]*Field, 0, len(schema.Columns))
 	for _, col := range schema.Columns {
-		if isGormAutoField(col.Name) {
-			continue
-		}
 		goType := dbColumnGoType(col)
 		out = append(out, &Field{
 			Name:        dbschema.SnakeToCamel(col.Name),
@@ -300,15 +294,6 @@ func singularizeTable(s string) string {
 		return s[:len(s)-1]
 	default:
 		return s
-	}
-}
-
-func isGormAutoField(name string) bool {
-	switch strings.ToLower(name) {
-	case "created_at", "updated_at", "deleted_at":
-		return true
-	default:
-		return false
 	}
 }
 

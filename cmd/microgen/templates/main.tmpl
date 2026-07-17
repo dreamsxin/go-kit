@@ -32,6 +32,9 @@ import (
 
 	"github.com/gorilla/mux"
 	kitlog "github.com/dreamsxin/go-kit/log"
+{{if .WithConfig}}	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+{{end}}
 {{if .WithGRPC}}	"google.golang.org/grpc"
 	"net"
 {{end}}
@@ -71,6 +74,34 @@ func printAllRoutes(logger *kitlog.Logger, routes []generatedRouteEntry) {
 	}
 }
 
+{{if .WithConfig}}func newConfiguredLogger(cfg config.LoggingConfig) (*kitlog.Logger, error) {
+	encoding := strings.ToLower(strings.TrimSpace(cfg.Format))
+	if encoding == "" {
+		encoding = "json"
+	}
+	if encoding != "json" && encoding != "console" {
+		return nil, fmt.Errorf("unsupported logging format %q", cfg.Format)
+	}
+
+	levelText := strings.ToLower(strings.TrimSpace(cfg.Level))
+	if levelText == "" {
+		levelText = "info"
+	}
+	var level zapcore.Level
+	if err := level.UnmarshalText([]byte(levelText)); err != nil {
+		return nil, fmt.Errorf("unsupported logging level %q: %w", cfg.Level, err)
+	}
+
+	zapConfig := zap.NewProductionConfig()
+	if encoding == "console" {
+		zapConfig = zap.NewDevelopmentConfig()
+	}
+	zapConfig.Encoding = encoding
+	zapConfig.Level = zap.NewAtomicLevelAt(level)
+	return zapConfig.Build()
+}
+
+{{end}}
 func main() {
 {{if .WithConfig}}	configPath := flag.String("config", "config/config.yaml", "path to config file")
 	flag.CommandLine.Parse(filterArgs(os.Args[1:], "-config"))
@@ -84,16 +115,23 @@ func main() {
 		httpAddr = flag.String("http.addr", cfg.Server.HTTPAddr, "HTTP listen address")
 {{if .WithGRPC}}		grpcAddr = flag.String("grpc.addr", cfg.Server.GRPCAddr, "gRPC listen address")
 {{end}}{{if .WithDB}}		dsn = flag.String("db.dsn", cfg.Database.DSN, "{{.DBDriver}} DSN")
+		autoMigrate = flag.Bool("auto-migrate", cfg.Database.AutoMigrate, "run database AutoMigrate on startup")
 {{end}}	)
 	flag.Parse()
+{{if .WithDB}}	cfg.Database.AutoMigrate = *autoMigrate
+{{end}}
 
-	logger, _ := kitlog.NewDevelopment()
+	logger, err := newConfiguredLogger(cfg.Logging)
+	if err != nil {
+		panic("FATAL: create logger: " + err.Error())
+	}
 	defer logger.Sync() //nolint:errcheck
 	logger.Sugar().Infof("Config loaded from: %s", *configPath)
 {{else}}	var (
 		httpAddr = flag.String("http.addr", ":8080", "HTTP listen address")
 {{if .WithGRPC}}		grpcAddr = flag.String("grpc.addr", ":8081", "gRPC listen address")
 {{end}}{{if .WithDB}}		dsn = flag.String("db.dsn", "{{.DBDefaultDSN}}", "{{.DBDriver}} DSN")
+		autoMigrate = flag.Bool("auto-migrate", false, "run database AutoMigrate on startup")
 {{end}}	)
 	flag.Parse()
 
@@ -127,10 +165,14 @@ func main() {
 {{if .WithInteraction}}	interactionRuntime := initInteractionRuntime(&generated)
 {{end}}
 
-{{if .WithDB}}	if err := runtime.autoMigrate(db); err != nil {
-		logger.Sugar().Fatalf("FATAL: auto migrate failed: %v", err)
+{{if .WithDB}}	if {{if .WithConfig}}cfg.Database.AutoMigrate{{else}}*autoMigrate{{end}} {
+		if err := runtime.autoMigrate(db); err != nil {
+			logger.Sugar().Fatalf("FATAL: auto migrate failed: %v", err)
+		}
+		logger.Sugar().Info("DB migration done")
+	} else {
+		logger.Sugar().Info("DB migration skipped")
 	}
-	logger.Sugar().Info("DB migration done")
 {{end}}
 
 	r := mux.NewRouter()

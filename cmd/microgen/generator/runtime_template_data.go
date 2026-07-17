@@ -105,8 +105,11 @@ type sdkTemplateData struct {
 }
 
 type modelTemplateData struct {
-	Model      *modelView
-	ImportPath string
+	Model          *modelView
+	ImportPath     string
+	AddAuditFields bool
+	NeedsTime      bool
+	NeedsGorm      bool
 }
 
 type modelHooksTemplateData struct {

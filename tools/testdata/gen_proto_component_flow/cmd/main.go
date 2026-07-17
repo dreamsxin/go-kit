@@ -32,6 +32,9 @@ import (
 
 	"github.com/gorilla/mux"
 	kitlog "github.com/dreamsxin/go-kit/log"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"google.golang.org/grpc"
 	"net"
 
@@ -61,6 +64,34 @@ func printAllRoutes(logger *kitlog.Logger, routes []generatedRouteEntry) {
 	}
 }
 
+func newConfiguredLogger(cfg config.LoggingConfig) (*kitlog.Logger, error) {
+	encoding := strings.ToLower(strings.TrimSpace(cfg.Format))
+	if encoding == "" {
+		encoding = "json"
+	}
+	if encoding != "json" && encoding != "console" {
+		return nil, fmt.Errorf("unsupported logging format %q", cfg.Format)
+	}
+
+	levelText := strings.ToLower(strings.TrimSpace(cfg.Level))
+	if levelText == "" {
+		levelText = "info"
+	}
+	var level zapcore.Level
+	if err := level.UnmarshalText([]byte(levelText)); err != nil {
+		return nil, fmt.Errorf("unsupported logging level %q: %w", cfg.Level, err)
+	}
+
+	zapConfig := zap.NewProductionConfig()
+	if encoding == "console" {
+		zapConfig = zap.NewDevelopmentConfig()
+	}
+	zapConfig.Encoding = encoding
+	zapConfig.Level = zap.NewAtomicLevelAt(level)
+	return zapConfig.Build()
+}
+
+
 func main() {
 	configPath := flag.String("config", "config/config.yaml", "path to config file")
 	flag.CommandLine.Parse(filterArgs(os.Args[1:], "-config"))
@@ -76,7 +107,11 @@ func main() {
 	)
 	flag.Parse()
 
-	logger, _ := kitlog.NewDevelopment()
+
+	logger, err := newConfiguredLogger(cfg.Logging)
+	if err != nil {
+		panic("FATAL: create logger: " + err.Error())
+	}
 	defer logger.Sync() //nolint:errcheck
 	logger.Sugar().Infof("Config loaded from: %s", *configPath)
 

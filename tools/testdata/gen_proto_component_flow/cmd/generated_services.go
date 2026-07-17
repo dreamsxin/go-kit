@@ -27,6 +27,9 @@ func initGeneratedServices(logger *kitlog.Logger, cfg *config.Config) generatedS
 		CBTimeout:          cfg.Middleware.CircuitBreaker.Timeout,
 		RLEnabled:          cfg.Middleware.RateLimit.Enabled,
 		RLRps:              cfg.Middleware.RateLimit.RequestsPerSecond,
+		RetryEnabled:       cfg.Middleware.Retry.Enabled,
+		RetryMaxAttempts:   cfg.Middleware.Retry.MaxAttempts,
+		RetryBackoff:       cfg.Middleware.Retry.Backoff,
 		Timeout:            30 * time.Second,
 	})
 

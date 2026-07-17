@@ -3,7 +3,7 @@ module example.com/gen_proto_grpc_runtime
 go 1.25.8
 
 require (
-	github.com/dreamsxin/go-kit v0.0.0
+	github.com/dreamsxin/go-kit v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/sony/gobreaker v1.0.0
 	golang.org/x/time v0.15.0
@@ -22,4 +22,4 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect
 )
 
-replace github.com/dreamsxin/go-kit => ../../../
+replace github.com/dreamsxin/go-kit => ../../..

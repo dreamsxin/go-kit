@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +10,8 @@ import (
 	"github.com/dreamsxin/go-kit/endpoint"
 	"github.com/dreamsxin/go-kit/sd/interfaces"
 	"github.com/dreamsxin/go-kit/utils"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // RetryError is returned when all retry attempts are exhausted.
@@ -39,6 +42,9 @@ func (e RetryError) Error() string {
 // keepTrying=false stops the retry loop immediately.
 type RetryCallback func(n int, received error) (keepTrying bool, replacement error)
 
+// RetryableFunc classifies whether an error is safe and useful to retry.
+type RetryableFunc func(error) bool
+
 // Retry returns an Endpoint that retries up to max times within timeout,
 // selecting a new backend from b on each attempt.
 func Retry(max int, timeout time.Duration, b interfaces.Balancer) endpoint.Endpoint {
@@ -63,8 +69,15 @@ func alwaysRetry(int, error) (keepTrying bool, replacement error) {
 }
 
 func RetryWithCallback(timeout time.Duration, b interfaces.Balancer, cb RetryCallback) endpoint.Endpoint {
+	return RetryWithRetryable(timeout, b, cb, DefaultRetryable)
+}
+
+func RetryWithRetryable(timeout time.Duration, b interfaces.Balancer, cb RetryCallback, retryable RetryableFunc) endpoint.Endpoint {
 	if cb == nil {
 		cb = alwaysRetry
+	}
+	if retryable == nil {
+		retryable = DefaultRetryable
 	}
 	if b == nil {
 		panic("nil Balancer")
@@ -113,10 +126,62 @@ func RetryWithCallback(timeout time.Duration, b interfaces.Balancer, cb RetryCal
 					final.Final = err
 					return nil, final
 				}
-				time.Sleep(d)
+				if !retryable(err) {
+					final.Final = err
+					return nil, final
+				}
+				if err := sleepWithContext(newctx, d); err != nil {
+					return nil, err
+				}
 				d = utils.Exponential(d)
 				continue
 			}
 		}
+	}
+}
+
+// DefaultRetryable is the conservative default classifier used by Retry.
+// It avoids retrying local context cancellation, errors that explicitly opt out
+// via Retryable() bool, and gRPC statuses that usually represent caller or
+// authorization failures rather than a transient backend outage.
+func DefaultRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	var classified interface{ Retryable() bool }
+	if errors.As(err, &classified) {
+		return classified.Retryable()
+	}
+
+	if st, ok := status.FromError(err); ok {
+		switch st.Code() {
+		case codes.Canceled,
+			codes.InvalidArgument,
+			codes.NotFound,
+			codes.AlreadyExists,
+			codes.PermissionDenied,
+			codes.Unauthenticated,
+			codes.FailedPrecondition,
+			codes.OutOfRange,
+			codes.Unimplemented:
+			return false
+		}
+	}
+
+	return true
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }

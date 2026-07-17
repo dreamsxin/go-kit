@@ -3,11 +3,11 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/dreamsxin/go-kit/interaction"
@@ -16,6 +16,7 @@ import (
 const (
 	headerSessionID       = "Mcp-Session-Id"
 	headerProtocolVersion = "MCP-Protocol-Version"
+	defaultMaxPostBody    = 4 << 20
 )
 
 // StreamableHandler is a Streamable HTTP MCP transport that supports:
@@ -37,8 +38,9 @@ type StreamableHandler struct {
 	// When zero, defaults to SessionTTL/2 with a minimum of 30 seconds.
 	cleanupInterval time.Duration
 
-	// activePostStreams tracks the current POST-initiated SSE stream per session.
-	activePostStreams sync.Map // sessionID -> *sseWriter
+	// MaxPostBodyBytes caps Streamable HTTP POST payloads. When zero, a safe
+	// default is used.
+	MaxPostBodyBytes int64
 
 	cleanupCancel context.CancelFunc
 }
@@ -58,6 +60,12 @@ func NewStreamableHandler(runtime *interaction.Runtime) *StreamableHandler {
 // ServeHTTP dispatches an HTTP request to the appropriate handler based on
 // the HTTP method (POST, GET, DELETE).
 func (h *StreamableHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set(headerProtocolVersion, protocolVersion)
+	if err := validateProtocolVersion(r); err != nil {
+		writeHTTPError(w, http.StatusBadRequest, "unsupported_protocol_version", err.Error())
+		return
+	}
+
 	switch r.Method {
 	case http.MethodPost:
 		h.handlePost(w, r)
@@ -74,12 +82,18 @@ func (h *StreamableHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // ─── POST handler ────────────────────────────────────────────────────────────
 
 func (h *StreamableHandler) handlePost(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	body := http.MaxBytesReader(w, r.Body, h.maxPostBodyBytes())
+	defer body.Close()
 
 	// Read raw body first so we can extract response fields that the
 	// request struct does not model (result, error).
-	rawBody, err := io.ReadAll(r.Body)
+	rawBody, err := io.ReadAll(body)
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			writeHTTPError(w, http.StatusRequestEntityTooLarge, "request_too_large", fmt.Sprintf("request body exceeds %d bytes", h.maxPostBodyBytes()))
+			return
+		}
 		writeResponse(w, response{JSONRPC: jsonRPCVersion, Error: newError(-32700, "parse error", err.Error())})
 		return
 	}
@@ -150,6 +164,13 @@ func (h *StreamableHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *StreamableHandler) handleRequestSSE(w http.ResponseWriter, r *http.Request, sess *sseSession, req request) {
+	writerID, err := newSSEWriterID("post", sess.ID)
+	if err != nil {
+		resp := h.core.dispatch(r.Context(), req)
+		writeResponse(w, resp)
+		return
+	}
+
 	sw, err := newSSEWriter(w)
 	if err != nil {
 		resp := h.core.dispatch(r.Context(), req)
@@ -157,8 +178,8 @@ func (h *StreamableHandler) handleRequestSSE(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	h.activePostStreams.Store(sess.ID, sw)
-	defer h.activePostStreams.Delete(sess.ID)
+	sess.addPostWriter(writerID, sw)
+	defer sess.removePostWriter(writerID)
 
 	resp := h.core.dispatch(r.Context(), req)
 	respJSON, _ := json.Marshal(resp)
@@ -179,13 +200,18 @@ func (h *StreamableHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	writerID, err := newSSEWriterID("get", sessionID)
+	if err != nil {
+		writeHTTPError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
+
 	sw, err := newSSEWriter(w)
 	if err != nil {
 		writeHTTPError(w, http.StatusInternalServerError, "internal_error", err.Error())
 		return
 	}
 
-	writerID := "get-" + sessionID
 	sess.addGETWriter(writerID, sw)
 	defer sess.removeGETWriter(writerID)
 
@@ -241,16 +267,31 @@ func (h *StreamableHandler) deliverSamplingResponse(sess *sseSession, rawBody []
 // from the client during tool execution.
 func (h *StreamableHandler) SendSamplingRequest(ctx context.Context, sessionID string, req CreateMessageRequest) (CreateMessageResult, error) {
 	sendFn := func(data json.RawMessage) error {
-		if sw, ok := h.activePostStreams.Load(sessionID); ok {
-			return sw.(*sseWriter).writeEvent(data)
-		}
 		sess, ok := h.store.get(sessionID)
 		if !ok {
 			return fmt.Errorf("mcp: session %q not found", sessionID)
 		}
+		if delivered, err := sess.writeToPOST(data); delivered || err != nil {
+			return err
+		}
 		return sess.broadcastToGET(data)
 	}
 	return h.Sampler.CreateMessage(ctx, sessionID, req, sendFn)
+}
+
+func (h *StreamableHandler) maxPostBodyBytes() int64 {
+	if h.MaxPostBodyBytes > 0 {
+		return h.MaxPostBodyBytes
+	}
+	return defaultMaxPostBody
+}
+
+func validateProtocolVersion(r *http.Request) error {
+	version := strings.TrimSpace(r.Header.Get(headerProtocolVersion))
+	if version == "" || version == protocolVersion {
+		return nil
+	}
+	return fmt.Errorf("unsupported MCP protocol version %q; server supports %q", version, protocolVersion)
 }
 
 // StartCleanup begins a background goroutine that periodically expires idle

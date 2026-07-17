@@ -51,6 +51,8 @@ func TestGenerateProject_FromDBIR_GeneratesArtifactsFromExplicitIR(t *testing.T)
 	mustContain(t, filepath.Join(outDir, "transport", "useradminservice", "transport_http.go"), "ListUsers")
 	mustContain(t, filepath.Join(outDir, "README.md"), "UserAdminService")
 	mustContain(t, filepath.Join(outDir, "skill", "skill.go"), "DeleteUser")
+	mustNotContain(t, filepath.Join(outDir, "model", "generated_user.go"), "CreatedAt")
+	mustNotContain(t, filepath.Join(outDir, "model", "generated_user.go"), "gorm.DeletedAt")
 }
 
 func TestGenerateProject_FromDBIR_GeneratesModelArtifactsWithoutCompatParseResult(t *testing.T) {
@@ -62,6 +64,7 @@ func TestGenerateProject_FromDBIR_GeneratesModelArtifactsWithoutCompatParseResul
 				{Name: "id", DBType: "bigint", IsPrimary: true, IsAutoIncr: true},
 				{Name: "username", DBType: "varchar(64)", IsNullable: false, Comment: "login name"},
 				{Name: "email", DBType: "varchar(128)", IsNullable: false},
+				{Name: "created_at", DBType: "datetime", IsNullable: true},
 			},
 		},
 	}, "UserAdminService", "useradmin")
@@ -81,6 +84,9 @@ func TestGenerateProject_FromDBIR_GeneratesModelArtifactsWithoutCompatParseResul
 	mustExist(t, filepath.Join(outDir, "model", "generated_user.go"))
 	mustExist(t, filepath.Join(outDir, "repository", "generated_user_repository.go"))
 	mustContain(t, filepath.Join(outDir, "model", "generated_user.go"), `gorm:"column:username;not null;type:varchar(64)"`)
+	mustContain(t, filepath.Join(outDir, "model", "generated_user.go"), `CreatedAt *time.Time`)
+	mustContain(t, filepath.Join(outDir, "model", "generated_user.go"), `gorm:"column:created_at;type:datetime"`)
+	mustNotContain(t, filepath.Join(outDir, "model", "generated_user.go"), "gorm.DeletedAt")
 	mustContain(t, filepath.Join(outDir, "repository", "generated_user_repository.go"), "users.Create")
 }
 

@@ -64,7 +64,7 @@ func TestGenerateFull_DoesNotCopyProtoSourceAsIDLGo(t *testing.T) {
 	mustNotExist(t, filepath.Join(outDir, "idl.go"))
 }
 
-func TestGenerateFull_GoMod_UsesTestdataRelativeReplacePath(t *testing.T) {
+func TestGenerateFull_GoMod_DoesNotUseReplaceForExternalTestdataPath(t *testing.T) {
 	base := filepath.Join(t.TempDir(), "testdata", "gen")
 	if err := os.MkdirAll(base, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
@@ -82,7 +82,7 @@ func TestGenerateFull_GoMod_UsesTestdataRelativeReplacePath(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	mustContain(t, filepath.Join(base, "go.mod"), "replace github.com/dreamsxin/go-kit => ../../../")
+	mustNotContain(t, filepath.Join(base, "go.mod"), "replace github.com/dreamsxin/go-kit")
 }
 
 func TestGenerateFull_RoutePrefix_AlignedAcrossArtifacts(t *testing.T) {

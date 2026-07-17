@@ -116,13 +116,15 @@ func WithCircuitBreaker(consecutiveFailures uint32) Option {
 		panic("kit: circuit breaker threshold must be > 0")
 	}
 	return func(s *Service) {
-		cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
-			Name: "service",
-			ReadyToTrip: func(c gobreaker.Counts) bool {
-				return c.ConsecutiveFailures >= consecutiveFailures
-			},
+		s.routeMiddleware = append(s.routeMiddleware, func(route string) endpoint.Middleware {
+			cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
+				Name: route,
+				ReadyToTrip: func(c gobreaker.Counts) bool {
+					return c.ConsecutiveFailures >= consecutiveFailures
+				},
+			})
+			return circuitbreaker.Gobreaker(cb)
 		})
-		s.middleware = append(s.middleware, circuitbreaker.Gobreaker(cb))
 	}
 }
 

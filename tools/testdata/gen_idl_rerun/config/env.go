@@ -84,6 +84,9 @@ func ApplyEnv(cfg *Config) error {
 	readString("LOG_FORMAT", &cfg.Logging.Format)
 	readString("DB_DRIVER", &cfg.Database.Driver)
 	readString("DB_DSN", &cfg.Database.DSN)
+	if err := readBool("DB_AUTO_MIGRATE", &cfg.Database.AutoMigrate); err != nil {
+		return err
+	}
 	if err := readInt("DB_MAX_OPEN_CONNS", &cfg.Database.MaxOpenConns); err != nil {
 		return err
 	}

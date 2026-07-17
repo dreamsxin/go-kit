@@ -64,7 +64,9 @@ Generated config loads through `config.Load(path)`: defaults first, local YAML n
 - Local mode keeps remote config disabled and remains the default runnable path.
 - Hybrid mode enables remote config with local fallback when the remote provider is unavailable.
 - Remote mode enables strict remote loading and fails startup when remote config cannot be loaded.
-- Environment overrides use the `APP_` prefix, such as `APP_HTTP_ADDR`, `APP_LOG_LEVEL`, and `APP_REMOTE_ENABLED`.
+- Environment overrides use the `APP_` prefix, such as `APP_HTTP_ADDR`, `APP_LOG_LEVEL`, `APP_LOG_FORMAT`, `APP_REMOTE_ENABLED`, and `APP_DB_AUTO_MIGRATE`.
+- `logging.level` and `logging.format` are used by `cmd/main.go` when constructing the logger.
+- Inbound circuit breaker and retry are opt-in; retry only repeats errors that explicitly implement `Retryable() bool`.
 
 ## Quick Start
 

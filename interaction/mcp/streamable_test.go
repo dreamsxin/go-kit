@@ -73,6 +73,83 @@ func TestStreamableInitialize(t *testing.T) {
 	}
 }
 
+func TestStreamableRejectsUnsupportedProtocolHeader(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	req.Header.Set(headerProtocolVersion, "2024-11-05")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "unsupported_protocol_version") {
+		t.Fatalf("body = %s, want unsupported_protocol_version", rec.Body.String())
+	}
+}
+
+func TestStreamableAcceptsSupportedProtocolHeader(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	req.Header.Set(headerProtocolVersion, protocolVersion)
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if got := rec.Header().Get(headerProtocolVersion); got != protocolVersion {
+		t.Fatalf("%s = %q, want %q", headerProtocolVersion, got, protocolVersion)
+	}
+}
+
+func TestStreamableRejectsOversizedPostBody(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	h.MaxPostBodyBytes = 8
+	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize"}`))
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "request_too_large") {
+		t.Fatalf("body = %s, want request_too_large", rec.Body.String())
+	}
+}
+
+func TestStreamableGETAllowsMultipleConcurrentStreams(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	sid := initSession(t, h)
+
+	cancel1, done1 := startGETStream(t, h, sid)
+	cancel2, done2 := startGETStream(t, h, sid)
+	defer cancel1()
+	defer cancel2()
+
+	waitFor(t, func() bool {
+		sess, ok := h.store.get(sid)
+		if !ok {
+			return false
+		}
+		sess.mu.RLock()
+		defer sess.mu.RUnlock()
+		return len(sess.getWriters) == 2
+	})
+
+	cancel1()
+	cancel2()
+	<-done1
+	<-done2
+}
+
 func TestStreamableRequiresSession(t *testing.T) {
 	h := NewStreamableHandler(nil)
 	code, resp := streamPostJSON(t, h, "", "tools/list", nil)
@@ -411,4 +488,30 @@ func TestSessionTTL_ZeroDisablesExpiry(t *testing.T) {
 	if !ok {
 		t.Fatal("session should still exist when SessionTTL is zero")
 	}
+}
+
+func startGETStream(t *testing.T, h http.Handler, sessionID string) (context.CancelFunc, <-chan struct{}) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest(http.MethodGet, "/mcp", nil).WithContext(ctx)
+	req.Header.Set(headerSessionID, sessionID)
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		h.ServeHTTP(rec, req)
+		close(done)
+	}()
+	return cancel, done
+}
+
+func waitFor(t *testing.T, ok func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if ok() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("condition was not met before timeout")
 }

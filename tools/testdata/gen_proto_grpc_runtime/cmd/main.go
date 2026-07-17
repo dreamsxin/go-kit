@@ -31,6 +31,7 @@ import (
 
 	"github.com/gorilla/mux"
 	kitlog "github.com/dreamsxin/go-kit/log"
+
 	"google.golang.org/grpc"
 	"net"
 
@@ -57,6 +58,7 @@ func printAllRoutes(logger *kitlog.Logger, routes []generatedRouteEntry) {
 		logger.Sugar().Infof("  %-7s %s", route.Method, route.Path)
 	}
 }
+
 
 func main() {
 	var (

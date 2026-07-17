@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 
@@ -162,6 +164,33 @@ func (c *httpClient) do(ctx context.Context, method, path string, reqBody, respB
 	return nil
 }
 
+func buildGETPath(path string, reqBody interface{}) string {
+	b, _ := json.Marshal(reqBody)
+	var params map[string]interface{}
+	_ = json.Unmarshal(b, &params)
+	if len(params) == 0 {
+		return path
+	}
+
+	query := url.Values{}
+	for k, v := range params {
+		if v == nil {
+			continue
+		}
+		token := "{" + k + "}"
+		value := fmt.Sprint(v)
+		if strings.Contains(path, token) {
+			path = strings.ReplaceAll(path, token, url.PathEscape(value))
+			continue
+		}
+		query.Set(k, value)
+	}
+	if encoded := query.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	return path
+}
+
 
 func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	var resp idl.CreateUserResponse
@@ -171,17 +200,7 @@ func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) 
 
 func (c *httpClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
-	path := "/user/{id}"
-	b, _ := json.Marshal(req)
-	var params map[string]interface{}
-	json.Unmarshal(b, &params) //nolint:errcheck
-	if len(params) > 0 {
-		query := "?"
-		for k, v := range params {
-			query += fmt.Sprintf("%s=%v&", k, v)
-		}
-		path += query[:len(query)-1]
-	}
+	path := buildGETPath("/user/{id}", req)
 	err := c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }
@@ -200,17 +219,7 @@ func (c *httpClient) DeleteUser(ctx context.Context, req idl.DeleteUserRequest) 
 
 func (c *httpClient) ListUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error) {
 	var resp idl.ListUsersResponse
-	path := "/users"
-	b, _ := json.Marshal(req)
-	var params map[string]interface{}
-	json.Unmarshal(b, &params) //nolint:errcheck
-	if len(params) > 0 {
-		query := "?"
-		for k, v := range params {
-			query += fmt.Sprintf("%s=%v&", k, v)
-		}
-		path += query[:len(query)-1]
-	}
+	path := buildGETPath("/users", req)
 	err := c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }

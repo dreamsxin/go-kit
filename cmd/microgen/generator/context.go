@@ -38,6 +38,7 @@ type modelView struct {
 	Comment     string
 	Fields      []modelFieldView
 	HasGormTags bool
+	Source      string
 }
 
 type modelFieldView struct {
@@ -66,6 +67,9 @@ func newGenerationContext(project *ir.Project) generationContext {
 	}
 	if ctx.source == "" {
 		ctx.source = sourceTypeFromProject(ctx.project)
+	}
+	for _, model := range ctx.models {
+		model.Source = ctx.source
 	}
 
 	return ctx

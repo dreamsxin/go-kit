@@ -2,6 +2,7 @@ package userservice
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/dreamsxin/go-kit/endpoint"
@@ -33,15 +34,21 @@ type MiddlewareConfig struct {
 	CBTimeout          time.Duration
 	RLEnabled          bool
 	RLRps              float64
+	RetryEnabled       bool
+	RetryMaxAttempts   int
+	RetryBackoff       time.Duration
 	Timeout            time.Duration
 }
 
 var DefaultMiddlewareConfig = MiddlewareConfig{
-	CBEnabled:          true,
+	CBEnabled:          false,
 	CBFailureThreshold: 5,
 	CBTimeout:          60 * time.Second,
 	RLEnabled:          true,
 	RLRps:              100,
+	RetryEnabled:       false,
+	RetryMaxAttempts:   3,
+	RetryBackoff:       2 * time.Second,
 	Timeout:            30 * time.Second,
 }
 
@@ -306,14 +313,19 @@ func (e UserServiceEndpoints) PatchStatus(ctx context.Context, req idl.UpdateUse
 }
 
 
-// RetryMiddleware is intended for client-side endpoint usage.
-func RetryMiddleware(maxRetries int, backoff time.Duration) endpoint.Middleware {
+// RetryMiddleware retries only errors that explicitly implement
+// interface{ Retryable() bool } and return true. It is safe for server-side
+// endpoint chains because ordinary business errors are not retried.
+func RetryMiddleware(maxAttempts int, backoff time.Duration) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (response any, err error) {
-			for i := 0; i < maxRetries; i++ {
+			if maxAttempts <= 1 {
+				return next(ctx, request)
+			}
+			for i := 0; ; i++ {
 				response, err = next(ctx, request)
-				if err == nil {
-					return response, nil
+				if err == nil || !retryableEndpointError(err) || i+1 >= maxAttempts {
+					return response, err
 				}
 				select {
 				case <-ctx.Done():
@@ -321,7 +333,20 @@ func RetryMiddleware(maxRetries int, backoff time.Duration) endpoint.Middleware 
 				case <-time.After(backoff * time.Duration(i+1)):
 				}
 			}
-			return nil, err
 		}
 	}
+}
+
+func retryableEndpointError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var retryable interface{ Retryable() bool }
+	if errors.As(err, &retryable) {
+		return retryable.Retryable()
+	}
+	return false
 }

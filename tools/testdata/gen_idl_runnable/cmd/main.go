@@ -33,6 +33,7 @@ import (
 	kitlog "github.com/dreamsxin/go-kit/log"
 
 
+
 	"example.com/gen_idl_runnable/skill"
 )
 
@@ -55,6 +56,7 @@ func printAllRoutes(logger *kitlog.Logger, routes []generatedRouteEntry) {
 		logger.Sugar().Infof("  %-7s %s", route.Method, route.Path)
 	}
 }
+
 
 func main() {
 	var (

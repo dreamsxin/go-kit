@@ -15,6 +15,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -33,6 +34,7 @@ type Client struct {
 	before      []RequestFunc
 	after       []ResponseFunc
 	finalizer   []FinalizerFunc
+	replyType   reflect.Type
 }
 
 // NewClient constructs a gRPC client for a single RPC method.
@@ -54,6 +56,10 @@ func NewClient(
 	if cc == nil || enc == nil || dec == nil || grpcReply == nil {
 		panic("essential parameters cannot be nil")
 	}
+	replyType := reflect.TypeOf(grpcReply)
+	if replyType.Kind() != reflect.Pointer || reflect.ValueOf(grpcReply).IsNil() {
+		panic("grpcReply must be a non-nil pointer")
+	}
 	c := &Client{
 		client:    cc,
 		method:    fmt.Sprintf("/%s/%s", serviceName, method),
@@ -62,6 +68,7 @@ func NewClient(
 		grpcReply: grpcReply,
 		before:    []RequestFunc{},
 		after:     []ResponseFunc{},
+		replyType: replyType,
 	}
 	for _, option := range options {
 		option(c)
@@ -96,8 +103,9 @@ func (c Client) Endpoint() endpoint.Endpoint {
 		ctx = metadata.NewOutgoingContext(ctx, *md)
 
 		var header, trailer metadata.MD
+		grpcReply := reflect.New(c.replyType.Elem()).Interface()
 		if err = c.client.Invoke(
-			ctx, c.method, req, c.grpcReply, grpc.Header(&header),
+			ctx, c.method, req, grpcReply, grpc.Header(&header),
 			grpc.Trailer(&trailer),
 		); err != nil {
 			return nil, err
@@ -110,7 +118,7 @@ func (c Client) Endpoint() endpoint.Endpoint {
 			ctx = f(ctx, header, trailer)
 		}
 
-		response, err = c.dec(ctx, c.grpcReply)
+		response, err = c.dec(ctx, grpcReply)
 		if err != nil {
 			return nil, err
 		}

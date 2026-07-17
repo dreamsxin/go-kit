@@ -107,8 +107,11 @@ func TestTableToModel(t *testing.T) {
 	if model.Name != "UserProfile" {
 		t.Errorf("model.Name = %q, want UserProfile", model.Name)
 	}
-	if len(model.Fields) != 3 {
-		t.Errorf("len(fields) = %d, want 3", len(model.Fields))
+	if len(model.Fields) != 4 {
+		t.Errorf("len(fields) = %d, want 4", len(model.Fields))
+	}
+	if got := model.Fields[3].Name; got != "CreatedAt" {
+		t.Errorf("model.Fields[3].Name = %q, want CreatedAt", got)
 	}
 }
 

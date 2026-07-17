@@ -32,6 +32,7 @@ import (
 	"github.com/gorilla/mux"
 	kitlog "github.com/dreamsxin/go-kit/log"
 
+
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"example.com/gen_idl_extend_check/repository"
@@ -59,10 +60,12 @@ func printAllRoutes(logger *kitlog.Logger, routes []generatedRouteEntry) {
 	}
 }
 
+
 func main() {
 	var (
 		httpAddr = flag.String("http.addr", ":8080", "HTTP listen address")
 		dsn = flag.String("db.dsn", "root:password@tcp(127.0.0.1:3306)/{svcname}?charset=utf8mb4&parseTime=True&loc=Local", "mysql DSN")
+		autoMigrate = flag.Bool("auto-migrate", false, "run database AutoMigrate on startup")
 	)
 	flag.Parse()
 
@@ -89,10 +92,14 @@ func main() {
 
 
 
-	if err := runtime.autoMigrate(db); err != nil {
-		logger.Sugar().Fatalf("FATAL: auto migrate failed: %v", err)
+	if *autoMigrate {
+		if err := runtime.autoMigrate(db); err != nil {
+			logger.Sugar().Fatalf("FATAL: auto migrate failed: %v", err)
+		}
+		logger.Sugar().Info("DB migration done")
+	} else {
+		logger.Sugar().Info("DB migration skipped")
 	}
-	logger.Sugar().Info("DB migration done")
 
 
 	r := mux.NewRouter()

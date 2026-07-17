@@ -357,6 +357,9 @@ func TestGenerateFull_EndpointsFile_Contents(t *testing.T) {
 	mustContain(t, epPath, "UserServiceEndpoints")
 	mustContain(t, epPath, "MakeServerEndpoints")
 	mustContain(t, epPath, "MakeCreateUserEndpoint")
+	mustContain(t, epPath, "RetryEnabled:       false")
+	mustContain(t, epPath, "RetryMiddleware")
+	mustContain(t, epPath, "retryableEndpointError")
 }
 
 func TestGenerateFull_TransportHTTP_Contents(t *testing.T) {
@@ -376,9 +379,12 @@ func TestGenerateFull_TransportHTTP_Contents(t *testing.T) {
 
 	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
 	mustContain(t, httpPath, "NewHTTPHandler")
-	mustContain(t, httpPath, "NewStrictJSONEndpoint")
+	mustContain(t, httpPath, "server.NewServer")
 	mustContain(t, httpPath, "DefaultMaxJSONBodyBytes")
 	mustContain(t, httpPath, "JSONDecodeError")
+	mustContain(t, httpPath, "decodeQueryRequest")
+	mustContain(t, httpPath, "bad_request.invalid_query")
+	mustContain(t, httpPath, "queryDecodeError")
 	mustContain(t, httpPath, "server.ErrorResponse")
 	mustContain(t, httpPath, "decodeCreateUserRequest")
 	mustContain(t, httpPath, "encodeCreateUserResponse")
@@ -650,9 +656,31 @@ func TestGenerateFull_MainFile_WithDB(t *testing.T) {
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	mustContain(t, mainPath, "gorm.Open")
 	mustContain(t, mainPath, "db.dsn")
+	mustContain(t, mainPath, "auto-migrate")
+	mustContain(t, mainPath, "DB migration skipped")
 	mustContain(t, mainPath, "redactDSN(*dsn)")
 	mustContain(t, mainPath, "func redactDSN(dsn string) string")
 	mustNotContain(t, mainPath, `dsn=%s]", "mysql", *dsn`)
+}
+
+func TestGenerateFull_MainFile_WithConfigUsesLoggingConfig(t *testing.T) {
+	outDir := newTmpDir(t)
+	project := parseIDLProject(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		DBDriver:   "sqlite",
+		WithConfig: true,
+		WithDocs:   false,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	mainPath := filepath.Join(outDir, "cmd", "main.go")
+	mustContain(t, mainPath, "newConfiguredLogger(cfg.Logging)")
+	mustContain(t, mainPath, "zap.NewProductionConfig()")
 }
 
 // ─────────────────────────── go.mod 生成 ─────────────────────────────────
@@ -676,6 +704,8 @@ func TestGenerateFull_GoMod_Created(t *testing.T) {
 	mustExist(t, goModPath)
 	mustContain(t, goModPath, "module example.com/myproject")
 	mustContain(t, goModPath, "go 1.25.8")
+	mustContain(t, goModPath, "github.com/dreamsxin/go-kit v1.6.0")
+	mustNotContain(t, goModPath, "replace github.com/dreamsxin/go-kit")
 }
 
 func TestGenerateFull_GoMod_WithConfigIncludesViper(t *testing.T) {
@@ -874,6 +904,9 @@ func TestGenerateFull_ConfigYAML_HTTPOnly(t *testing.T) {
 	configPath := filepath.Join(outDir, "config", "config.yaml")
 	mustContain(t, configPath, "http_addr")
 	mustContain(t, configPath, "circuit_breaker")
+	mustContain(t, configPath, "retry:")
+	mustContain(t, configPath, "max_attempts: 3")
+	mustContain(t, configPath, "backoff: \"2s\"")
 	mustContain(t, configPath, "remote:")
 	mustContain(t, configPath, "fallback_to_local: true")
 	mustContain(t, configPath, `provider: ""`)
@@ -963,6 +996,7 @@ func TestGenerateFull_ConfigYAML_WithDB(t *testing.T) {
 	configPath := filepath.Join(outDir, "config", "config.yaml")
 	mustContain(t, configPath, "database:")
 	mustContain(t, configPath, `driver: "mysql"`)
+	mustContain(t, configPath, "auto_migrate: false")
 }
 
 // ─────────────────────────── config/config.go ─────────────────────────────────
@@ -1028,7 +1062,11 @@ func TestGenerateFull_ConfigCode_EnvOverrides(t *testing.T) {
 	mustContain(t, envPath, `readString("GRPC_ADDR"`)
 	mustContain(t, envPath, `readString("LOG_LEVEL"`)
 	mustContain(t, envPath, `readString("DB_DSN"`)
+	mustContain(t, envPath, `readBool("DB_AUTO_MIGRATE"`)
 	mustContain(t, envPath, `readString("SWAGGER_HOST"`)
+	mustContain(t, envPath, `readBool("RETRY_ENABLED"`)
+	mustContain(t, envPath, `readInt("RETRY_MAX_ATTEMPTS"`)
+	mustContain(t, envPath, `readDuration("RETRY_BACKOFF"`)
 	mustContain(t, envPath, `readBool("DEBUG_ROUTES_ENABLED"`)
 	mustContain(t, envPath, `readBool("REMOTE_ENABLED"`)
 	mustContain(t, envPath, `readString("REMOTE_PROVIDER"`)
@@ -1109,6 +1147,10 @@ func TestGenerateFull_ConfigCode_WithDB(t *testing.T) {
 
 	codePath := filepath.Join(outDir, "config", "config.go")
 	mustContain(t, codePath, "type DatabaseConfig struct")
+	mustContain(t, codePath, "AutoMigrate     bool")
+	mustContain(t, codePath, "AutoMigrate:     false")
+	mustContain(t, codePath, "Retry: RetryConfig")
+	mustContain(t, codePath, "MaxAttempts: 3")
 	mustContain(t, codePath, `"mysql"`) // Default() 中包�?Driver: "mysql"
 }
 

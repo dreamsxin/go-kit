@@ -13,43 +13,35 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
 }
 
-// Handle registers an http.Handler for the given pattern.
-// Service-level middleware is applied by wrapping the handler as an endpoint.
+// Handle registers a raw http.Handler for the given pattern.
+//
+// This is an escape hatch for HTTP integrations that do not model naturally as
+// framework endpoints, such as static files, third-party handlers, or custom
+// protocol endpoints.
+//
+// Endpoint middleware is intentionally not applied to plain HTTP handlers.
+// Use HandleJSON or HandleJSONEndpoint for application endpoints that should
+// use the service -> endpoint -> transport chain and endpoint middleware such
+// as timeout, logging, metrics, rate limiting, or circuit breaking.
 func (s *Service) Handle(pattern string, handler http.Handler) {
-	if len(s.middleware) == 0 {
-		s.mux.Handle(pattern, s.withHTTPContext(handler))
-		return
-	}
-
-	base := endpoint.Endpoint(func(ctx context.Context, req any) (any, error) {
-		rw := req.(http.ResponseWriter)
-		r := requestFromContext(ctx).WithContext(ctx)
-		handler.ServeHTTP(rw, r)
-		return nil, nil
-	})
-
-	ep := s.applyEndpointMiddleware(base)
-
-	s.mux.Handle(pattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := s.prepareHTTPContext(r.Context(), r, w)
-		if _, err := ep(ctx, w); err != nil {
-			http.Error(w, err.Error(), http.StatusServiceUnavailable)
-		}
-	}))
+	s.mux.Handle(pattern, s.withHTTPContext(handler))
 }
 
-// HandleFunc registers a plain http.HandlerFunc.
+// HandleFunc registers a raw http.HandlerFunc.
 func (s *Service) HandleFunc(pattern string, fn http.HandlerFunc) {
 	s.Handle(pattern, fn)
 }
 
-func (s *Service) applyEndpointMiddleware(base endpoint.Endpoint) endpoint.Endpoint {
-	if len(s.middleware) == 0 {
+func (s *Service) applyEndpointMiddleware(route string, base endpoint.Endpoint) endpoint.Endpoint {
+	if len(s.middleware) == 0 && len(s.routeMiddleware) == 0 {
 		return base
 	}
 	b := endpoint.NewBuilder(base)
 	for _, mw := range s.middleware {
 		b = b.Use(mw)
+	}
+	for _, build := range s.routeMiddleware {
+		b = b.Use(build(route))
 	}
 	return b.Build()
 }

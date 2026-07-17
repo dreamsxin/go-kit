@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 
@@ -152,6 +154,33 @@ func (c *httpClient) do(ctx context.Context, method, path string, reqBody, respB
 		}
 	}
 	return nil
+}
+
+func buildGETPath(path string, reqBody interface{}) string {
+	b, _ := json.Marshal(reqBody)
+	var params map[string]interface{}
+	_ = json.Unmarshal(b, &params)
+	if len(params) == 0 {
+		return path
+	}
+
+	query := url.Values{}
+	for k, v := range params {
+		if v == nil {
+			continue
+		}
+		token := "{" + k + "}"
+		value := fmt.Sprint(v)
+		if strings.Contains(path, token) {
+			path = strings.ReplaceAll(path, token, url.PathEscape(value))
+			continue
+		}
+		query.Set(k, value)
+	}
+	if encoded := query.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	return path
 }
 
 

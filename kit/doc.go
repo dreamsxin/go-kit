@@ -1,5 +1,11 @@
 // Package kit provides a high-level, zero-boilerplate API for rapid
-// prototyping and production microservices.
+// prototyping and small production services.
+//
+// Kit is a thin scaffold over the framework's normal service -> endpoint ->
+// transport shape. Prefer HandleJSON for concise handlers and
+// HandleJSONEndpoint when you already have an endpoint.Endpoint. Use
+// Service.Handle and Service.HandleFunc only for raw HTTP integrations such as
+// static files, third-party handlers, probes, or custom protocol endpoints.
 //
 // Quickstart:
 //

@@ -76,6 +76,7 @@ type readmeTemplateData struct {
 	WithSkill       bool
 	WithInteraction bool
 	WithConfig      bool
+	WithDB          bool
 	ConfigMode      string
 	RemoteProvider  string
 }
@@ -98,18 +99,19 @@ type interactionTemplateData struct {
 }
 
 type aiProjectGuideTemplateData struct {
-	Project        *ir.Project
-	ImportPath     string
-	WithConfig     bool
-	WithDB         bool
-	WithGRPC       bool
-	WithSwag       bool
-	WithSkill      bool
+	Project         *ir.Project
+	ImportPath      string
+	WithConfig      bool
+	WithDB          bool
+	WithGRPC        bool
+	WithSwag        bool
+	WithSkill       bool
 	WithInteraction bool
 }
 
 type goModTemplateData struct {
-	ImportPath  string
-	WithConfig  bool
-	RootRelPath string
+	ImportPath   string
+	GoKitVersion string
+	WithConfig   bool
+	RootRelPath  string
 }

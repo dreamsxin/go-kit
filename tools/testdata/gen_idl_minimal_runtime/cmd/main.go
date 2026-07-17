@@ -33,6 +33,7 @@ import (
 	kitlog "github.com/dreamsxin/go-kit/log"
 
 
+
 )
 
 func printBanner(logger *kitlog.Logger, httpAddr string, withSwag bool, withSkill bool) {
@@ -54,6 +55,7 @@ func printAllRoutes(logger *kitlog.Logger, routes []generatedRouteEntry) {
 		logger.Sugar().Infof("  %-7s %s", route.Method, route.Path)
 	}
 }
+
 
 func main() {
 	var (

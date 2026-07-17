@@ -65,12 +65,12 @@ func (h *StreamableHandler) ToolListChangedNotification(sessionID string) error 
 
 // sendNotification delivers a JSON-RPC notification to the client's active SSE stream.
 func (h *StreamableHandler) sendNotification(sessionID string, data json.RawMessage) error {
-	if sw, ok := h.activePostStreams.Load(sessionID); ok {
-		return sw.(*sseWriter).writeEvent(data)
-	}
 	sess, ok := h.store.get(sessionID)
 	if !ok {
 		return fmt.Errorf("mcp: session %q not found", sessionID)
+	}
+	if delivered, err := sess.writeToPOST(data); delivered || err != nil {
+		return err
 	}
 	return sess.broadcastToGET(data)
 }

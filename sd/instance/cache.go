@@ -26,18 +26,22 @@ func NewCache() *Cache {
 // to all registered subscribers.  Duplicate events (same instances + error)
 // are silently dropped.
 func (c *Cache) Update(event events.Event) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
+	event = copyEvent(event)
 	if event.Instances != nil {
 		sort.Strings(event.Instances)
 	}
+
+	c.mtx.Lock()
 	if eventsEqual(c.state, event) {
+		c.mtx.Unlock()
 		return
 	}
 
 	c.state = event
-	c.reg.broadcast(event)
+	subscribers := c.reg.subscribers()
+	c.mtx.Unlock()
+
+	broadcast(subscribers, event)
 }
 
 // State returns a copy of the most recently broadcast event.
@@ -56,10 +60,11 @@ func (c *Cache) Stop() {}
 // immediately so the subscriber starts with a consistent view.
 func (c *Cache) Register(ch chan<- events.Event) {
 	c.mtx.Lock()
-	defer c.mtx.Unlock()
 	c.reg.register(ch)
 	event := c.state
 	eventCopy := copyEvent(event)
+	c.mtx.Unlock()
+
 	// send current state immediately so the subscriber starts consistent
 	ch <- eventCopy
 }

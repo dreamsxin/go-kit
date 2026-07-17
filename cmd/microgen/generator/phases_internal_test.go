@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/dreamsxin/go-kit/cmd/microgen/ir"
@@ -34,9 +35,21 @@ func TestRootRelativePath(t *testing.T) {
 		outputDir string
 		want      string
 	}{
-		{name: "default", outputDir: "/tmp/project", want: "../../"},
-		{name: "examples", outputDir: "/tmp/examples/demo", want: "../../"},
-		{name: "testdata", outputDir: "/tmp/testdata/gen", want: "../../../"},
+		{name: "external", outputDir: t.TempDir(), want: ""},
+	}
+	if root := findGoKitModuleRoot("."); root != "" {
+		tests = append(tests,
+			struct {
+				name      string
+				outputDir string
+				want      string
+			}{name: "repo examples", outputDir: filepath.Join(root, "examples", "demo"), want: "../.."},
+			struct {
+				name      string
+				outputDir string
+				want      string
+			}{name: "repo tools testdata", outputDir: filepath.Join(root, "tools", "testdata", "gen"), want: "../../.."},
+		)
 	}
 
 	for _, tt := range tests {

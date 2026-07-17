@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
@@ -36,16 +38,24 @@ func New{{.Service.ServiceName}}HTTPClient(baseURL string) *{{.Service.ServiceNa
 	}
 }
 
-func (c *{{.Service.ServiceName}}HTTPClient) do(ctx context.Context, path string, req, resp interface{}) error {
-	body, err := json.Marshal(req)
-	if err != nil {
-		return fmt.Errorf("marshal: %w", err)
+func (c *{{.Service.ServiceName}}HTTPClient) do(ctx context.Context, method, path string, req, resp interface{}) error {
+	var body *bytes.Reader
+	if req != nil {
+		raw, err := json.Marshal(req)
+		if err != nil {
+			return fmt.Errorf("marshal: %w", err)
+		}
+		body = bytes.NewReader(raw)
+	} else {
+		body = bytes.NewReader(nil)
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+path, bytes.NewBuffer(body))
+	httpReq, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
 		return fmt.Errorf("new request: %w", err)
 	}
-	httpReq.Header.Set("Content-Type", "application/json")
+	if req != nil {
+		httpReq.Header.Set("Content-Type", "application/json")
+	}
 	r, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return fmt.Errorf("send: %w", err)
@@ -57,11 +67,41 @@ func (c *{{.Service.ServiceName}}HTTPClient) do(ctx context.Context, path string
 	return json.NewDecoder(r.Body).Decode(resp)
 }
 
+func buildGETPath(path string, req interface{}) string {
+	b, _ := json.Marshal(req)
+	var params map[string]interface{}
+	_ = json.Unmarshal(b, &params)
+	if len(params) == 0 {
+		return path
+	}
+	query := url.Values{}
+	for k, v := range params {
+		if v == nil {
+			continue
+		}
+		token := "{" + k + "}"
+		value := fmt.Sprint(v)
+		if strings.Contains(path, token) {
+			path = strings.ReplaceAll(path, token, url.PathEscape(value))
+			continue
+		}
+		query.Set(k, value)
+	}
+	if encoded := query.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	return path
+}
+
 {{range .UnaryMethods}}
 // {{.Name}} 通过 HTTP 调用 {{.Name}}
 func (c *{{$.Service.ServiceName}}HTTPClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
 	var resp idl.{{.OutputName}}
-	return resp, c.do(ctx, "{{$.RoutePrefix}}{{.Route}}", req, &resp)
+{{- if eq (.HTTPMethod | lower) "get"}}
+	return resp, c.do(ctx, "GET", buildGETPath("{{$.RoutePrefix}}{{.Route}}", req), nil, &resp)
+{{- else}}
+	return resp, c.do(ctx, "{{.HTTPMethod | upper}}", "{{$.RoutePrefix}}{{.Route}}", req, &resp)
+{{- end}}
 }
 {{end}}
 

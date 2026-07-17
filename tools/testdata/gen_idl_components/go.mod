@@ -3,13 +3,14 @@ module example.com/gen_idl_components
 go 1.25.8
 
 require (
-	github.com/dreamsxin/go-kit v0.0.0
+	github.com/dreamsxin/go-kit v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/sony/gobreaker v1.0.0
 	github.com/spf13/viper v1.21.0
 	github.com/spf13/viper/remote v1.21.0
 	github.com/swaggo/http-swagger v1.3.4
 	github.com/swaggo/swag v1.16.6
+	go.uber.org/zap v1.27.1
 	golang.org/x/time v0.15.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.31.1
@@ -84,7 +85,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.39.0 // indirect
 	go.opentelemetry.io/otel/trace v1.39.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
@@ -104,4 +104,4 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-replace github.com/dreamsxin/go-kit => ../../../
+replace github.com/dreamsxin/go-kit => ../../..

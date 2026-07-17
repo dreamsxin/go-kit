@@ -177,6 +177,8 @@ Proto streaming RPCs are supported for generated gRPC output when the contract u
 microgen -from-db -driver mysql -dsn "user:pass@tcp(localhost:3306)/dbname" -out . -import example.com/mysvc
 ```
 
+Database generation is read-only against the source database. Generated models mirror the discovered columns and do not add audit fields that are not present in the table. Generated services also skip GORM `AutoMigrate` by default; enable it explicitly with `database.auto_migrate: true`, `APP_DB_AUTO_MIGRATE=true`, or `-auto-migrate`.
+
 ## Config Modes
 
 Generated config loads in this order:
@@ -198,7 +200,9 @@ microgen -idl idl.go -out . -import example.com/mysvc -config-mode hybrid -remot
 microgen -idl idl.go -out . -import example.com/mysvc -config-mode remote -remote-provider consul
 ```
 
-Environment overrides use the `APP_` prefix, such as `APP_HTTP_ADDR`, `APP_LOG_LEVEL`, and `APP_REMOTE_ENABLED`.
+Environment overrides use the `APP_` prefix, such as `APP_HTTP_ADDR`, `APP_LOG_LEVEL`, `APP_LOG_FORMAT`, `APP_REMOTE_ENABLED`, and `APP_DB_AUTO_MIGRATE`.
+
+Generated `logging.level` and `logging.format` are used when constructing the service logger. Endpoint rate limiting is enabled by default; inbound circuit breaker and retry are opt-in (`middleware.circuit_breaker.enabled` and `middleware.retry.enabled`). Generated retry only retries errors that explicitly opt in with `Retryable() bool`, so ordinary business validation errors are not repeated.
 
 ## AI And MCP
 
@@ -249,7 +253,7 @@ Transport
   Protocol adapters: HTTP, gRPC, request decoding, response encoding.
 ```
 
-Use `microgen` for production services. Use the `kit` package for quick prototypes or tiny services.
+Use `microgen` for production services. Use the `kit` package for quick prototypes or tiny services. Both paths keep the same service -> endpoint -> transport shape: `kit.HandleJSON` is the concise route API, and `kit.HandleJSONEndpoint` attaches an existing `endpoint.Endpoint` to the HTTP transport.
 
 ## Tiny Prototype With `kit`
 
@@ -280,6 +284,8 @@ func main() {
 	svc.Run()
 }
 ```
+
+Endpoint middleware configured with `kit.WithTimeout`, `kit.WithMetrics`, `kit.WithLogging`, `kit.WithRateLimit`, or `kit.WithCircuitBreaker` applies to `kit.HandleJSON` and `kit.HandleJSONEndpoint`. Plain `svc.Handle` and `svc.HandleFunc` are raw HTTP escape hatches for static files, third-party handlers, probes, or custom protocol endpoints; they receive HTTP context/request ID injection but do not run endpoint middleware.
 
 `kit.New` exposes `/health`, `/livez`, and `/readyz` by default. Add dependency
 checks with `kit.WithLivenessCheck` or `kit.WithReadinessCheck` when the service

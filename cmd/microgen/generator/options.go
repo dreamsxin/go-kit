@@ -5,10 +5,15 @@ import (
 	"strings"
 )
 
+const defaultGoKitVersion = "v1.6.0"
+
 // Normalize returns options with derived defaults filled in.
 func (opt Options) Normalize() Options {
 	if opt.OutputDir == "" {
 		opt.OutputDir = "."
+	}
+	if opt.GoKitVersion == "" {
+		opt.GoKitVersion = defaultGoKitVersion
 	}
 	opt.ConfigMode = strings.TrimSpace(opt.ConfigMode)
 	opt.RemoteProvider = strings.TrimSpace(opt.RemoteProvider)

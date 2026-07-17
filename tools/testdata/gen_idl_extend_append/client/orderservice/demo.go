@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	idl "example.com/gen_idl_extend_append"
@@ -29,16 +31,24 @@ func NewOrderServiceHTTPClient(baseURL string) *OrderServiceHTTPClient {
 	}
 }
 
-func (c *OrderServiceHTTPClient) do(ctx context.Context, path string, req, resp interface{}) error {
-	body, err := json.Marshal(req)
-	if err != nil {
-		return fmt.Errorf("marshal: %w", err)
+func (c *OrderServiceHTTPClient) do(ctx context.Context, method, path string, req, resp interface{}) error {
+	var body *bytes.Reader
+	if req != nil {
+		raw, err := json.Marshal(req)
+		if err != nil {
+			return fmt.Errorf("marshal: %w", err)
+		}
+		body = bytes.NewReader(raw)
+	} else {
+		body = bytes.NewReader(nil)
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+path, bytes.NewBuffer(body))
+	httpReq, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
 		return fmt.Errorf("new request: %w", err)
 	}
-	httpReq.Header.Set("Content-Type", "application/json")
+	if req != nil {
+		httpReq.Header.Set("Content-Type", "application/json")
+	}
 	r, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return fmt.Errorf("send: %w", err)
@@ -50,11 +60,37 @@ func (c *OrderServiceHTTPClient) do(ctx context.Context, path string, req, resp 
 	return json.NewDecoder(r.Body).Decode(resp)
 }
 
+func buildGETPath(path string, req interface{}) string {
+	b, _ := json.Marshal(req)
+	var params map[string]interface{}
+	_ = json.Unmarshal(b, &params)
+	if len(params) == 0 {
+		return path
+	}
+	query := url.Values{}
+	for k, v := range params {
+		if v == nil {
+			continue
+		}
+		token := "{" + k + "}"
+		value := fmt.Sprint(v)
+		if strings.Contains(path, token) {
+			path = strings.ReplaceAll(path, token, url.PathEscape(value))
+			continue
+		}
+		query.Set(k, value)
+	}
+	if encoded := query.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	return path
+}
+
 
 // PlaceOrder 通过 HTTP 调用 PlaceOrder
 func (c *OrderServiceHTTPClient) PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (idl.PlaceOrderResponse, error) {
 	var resp idl.PlaceOrderResponse
-	return resp, c.do(ctx, "/placeorder", req, &resp)
+	return resp, c.do(ctx, "POST", "/placeorder", req, &resp)
 }
 
 

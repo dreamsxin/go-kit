@@ -40,6 +40,10 @@ type Options struct {
 	// InvalidateOnError, when > 0, causes the endpoint cache to be cleared
 	// after the given duration following a service-discovery error.
 	InvalidateOnError time.Duration
+
+	// Retryable classifies which endpoint errors should be retried.
+	// Nil uses executor.DefaultRetryable.
+	Retryable executor.RetryableFunc
 }
 
 // Option is a functional option for NewEndpoint.
@@ -59,6 +63,11 @@ func WithTimeout(d time.Duration) Option {
 // The cache is cleared once the given grace period has elapsed.
 func WithInvalidateOnError(d time.Duration) Option {
 	return func(o *Options) { o.InvalidateOnError = d }
+}
+
+// WithRetryable customizes retry error classification.
+func WithRetryable(fn executor.RetryableFunc) Option {
+	return func(o *Options) { o.Retryable = fn }
 }
 
 // NewEndpoint wires together an Instancer → Endpointer → RoundRobin balancer
@@ -89,9 +98,9 @@ func NewEndpoint(
 	lb := balancer.NewRoundRobin(ep)
 
 	if o.MaxRetries <= 0 {
-		return executor.RetryAlways(o.Timeout, lb)
+		return executor.RetryWithRetryable(o.Timeout, lb, nil, o.Retryable)
 	}
-	return executor.Retry(o.MaxRetries, o.Timeout, lb)
+	return executor.RetryWithRetryable(o.Timeout, lb, maxRetries(o.MaxRetries), o.Retryable)
 }
 
 // NewEndpointWithDefaults is identical to NewEndpoint but uses sensible
@@ -142,9 +151,15 @@ func NewEndpointCloser(
 
 	var e endpoint.Endpoint
 	if o.MaxRetries <= 0 {
-		e = executor.RetryAlways(o.Timeout, lb)
+		e = executor.RetryWithRetryable(o.Timeout, lb, nil, o.Retryable)
 	} else {
-		e = executor.Retry(o.MaxRetries, o.Timeout, lb)
+		e = executor.RetryWithRetryable(o.Timeout, lb, maxRetries(o.MaxRetries), o.Retryable)
 	}
 	return e, ep
+}
+
+func maxRetries(max int) executor.RetryCallback {
+	return func(n int, err error) (keepTrying bool, replacement error) {
+		return n < max, nil
+	}
 }

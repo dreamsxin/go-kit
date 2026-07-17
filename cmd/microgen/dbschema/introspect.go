@@ -450,17 +450,7 @@ func tableToModel(schema *TableSchema) *parser.Model {
 		HasGormTags: true,
 	}
 
-	// GORM 模板会自动追加 CreatedAt/UpdatedAt/DeletedAt，跳过这些列避免重复
-	gormAutoFields := map[string]bool{
-		"created_at": true,
-		"updated_at": true,
-		"deleted_at": true,
-	}
-
 	for _, col := range schema.Columns {
-		if gormAutoFields[strings.ToLower(col.Name)] {
-			continue
-		}
 		field := columnToField(col)
 		model.Fields = append(model.Fields, field)
 	}

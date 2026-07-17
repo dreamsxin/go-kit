@@ -438,6 +438,28 @@ func TestService_HandleFunc(t *testing.T) {
 	}
 }
 
+func TestService_HandleFunc_DoesNotApplyEndpointMiddleware(t *testing.T) {
+	var m endpoint.Metrics
+	svc := kit.New(":0", kit.WithMetrics(&m))
+	svc.HandleFunc("/plain", func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "plain failure", http.StatusInternalServerError)
+	})
+	ts := httptest.NewServer(svc)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/plain")
+	if err != nil {
+		t.Fatalf("GET /plain: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusInternalServerError)
+	}
+	if m.RequestCount != 0 {
+		t.Fatalf("endpoint metrics should not count plain HTTP handlers, got %d", m.RequestCount)
+	}
+}
+
 // ── HandleJSON ───────────────────────────────────────────────────────────────
 
 func TestService_HandleJSON(t *testing.T) {
@@ -588,14 +610,14 @@ func TestService_WithMetrics_TracksRequests(t *testing.T) {
 
 func TestService_WithTimeout_CancelsSlowHandler(t *testing.T) {
 	svc := kit.New(":0", kit.WithTimeout(20*time.Millisecond))
-	svc.Handle("/slow", kit.JSON[helloReq](func(ctx context.Context, _ helloReq) (any, error) {
+	kit.HandleJSON[helloReq](svc, "/slow", func(ctx context.Context, _ helloReq) (any, error) {
 		select {
 		case <-time.After(5 * time.Second):
 			return "done", nil
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
-	}))
+	})
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
 
@@ -648,7 +670,7 @@ func TestService_WithLogging_NilLogger_DoesNotPanic(t *testing.T) {
 // endpoint level is tested in endpoint/circuitbreaker package.
 func TestService_WithCircuitBreaker(t *testing.T) {
 	svc := kit.New(":0", kit.WithCircuitBreaker(2))
-	svc.Handle("/hello", kit.JSON[helloReq](helloHandler))
+	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
 
@@ -663,12 +685,41 @@ func TestService_WithCircuitBreaker(t *testing.T) {
 	}
 }
 
+func TestService_WithCircuitBreaker_IsPerJSONRoute(t *testing.T) {
+	svc := kit.New(":0", kit.WithCircuitBreaker(1))
+	kit.HandleJSON[helloReq](svc, "/bad", func(context.Context, helloReq) (any, error) {
+		return nil, errors.New("boom")
+	})
+	kit.HandleJSON[helloReq](svc, "/ok", helloHandler)
+	ts := httptest.NewServer(svc)
+	defer ts.Close()
+
+	body, _ := json.Marshal(helloReq{Name: "ok"})
+	resp, err := http.Post(ts.URL+"/bad", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST /bad: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		t.Fatalf("POST /bad status = %d, want failure", resp.StatusCode)
+	}
+
+	resp, err = http.Post(ts.URL+"/ok", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST /ok: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /ok status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+}
+
 // ── WithRateLimit ─────────────────────────────────────────────────────────────
 
 func TestService_WithRateLimit_AllowsAndRejects(t *testing.T) {
 	// burst=1 at near-zero rate: first call allowed, subsequent rejected
 	svc := kit.New(":0", kit.WithRateLimit(0.001))
-	svc.Handle("/hello", kit.JSON[helloReq](helloHandler))
+	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
 
@@ -690,7 +741,7 @@ func TestService_WithRateLimit_AllowsAndRejects(t *testing.T) {
 
 func TestService_WithRequestID(t *testing.T) {
 	svc := kit.New(":0", kit.WithRequestID())
-	svc.Handle("/hello", kit.JSON[helloReq](helloHandler))
+	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
 
@@ -710,12 +761,12 @@ func TestService_WithRequestID(t *testing.T) {
 
 func TestService_WithRequestID_PreservesIncomingHeader(t *testing.T) {
 	svc := kit.New(":0", kit.WithRequestID())
-	svc.Handle("/id", kit.JSON[helloReq](func(ctx context.Context, req helloReq) (any, error) {
+	kit.HandleJSON[helloReq](svc, "/id", func(ctx context.Context, req helloReq) (any, error) {
 		return map[string]string{
 			"id":      endpoint.RequestIDFromContext(ctx),
 			"message": req.Name,
 		}, nil
-	}))
+	})
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
 

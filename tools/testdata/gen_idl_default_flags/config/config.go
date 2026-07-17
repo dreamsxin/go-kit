@@ -34,6 +34,7 @@ type LoggingConfig struct {
 type DatabaseConfig struct {
 	Driver          string        `yaml:"driver" mapstructure:"driver"`
 	DSN             string        `yaml:"dsn" mapstructure:"dsn"`
+	AutoMigrate     bool          `yaml:"auto_migrate" mapstructure:"auto_migrate"`
 	MaxOpenConns    int           `yaml:"max_open_conns" mapstructure:"max_open_conns"`
 	MaxIdleConns    int           `yaml:"max_idle_conns" mapstructure:"max_idle_conns"`
 	ConnMaxLifetime time.Duration `yaml:"conn_max_lifetime" mapstructure:"conn_max_lifetime"`
@@ -100,13 +101,14 @@ func Default() *Config {
 		Database: DatabaseConfig{
 			Driver:          "mysql",
 			DSN:             "root:password@tcp(127.0.0.1:3306)/{svcname}?charset=utf8mb4&parseTime=True&loc=Local",
+			AutoMigrate:     false,
 			MaxOpenConns:    20,
 			MaxIdleConns:    5,
 			ConnMaxLifetime: time.Hour,
 		},
 		Middleware: MiddlewareConfig{
 			CircuitBreaker: CircuitBreakerConfig{
-				Enabled:          true,
+				Enabled:          false,
 				FailureThreshold: 5,
 				Timeout:          60 * time.Second,
 			},
@@ -115,7 +117,7 @@ func Default() *Config {
 				RequestsPerSecond: 100,
 			},
 			Retry: RetryConfig{
-				Enabled:     true,
+				Enabled:     false,
 				MaxAttempts: 3,
 				Backoff:     2 * time.Second,
 			},

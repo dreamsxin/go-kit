@@ -16,9 +16,17 @@ import (
 	"github.com/dreamsxin/go-kit/sd/events"
 	"github.com/dreamsxin/go-kit/sd/instance"
 	"github.com/dreamsxin/go-kit/sd/interfaces"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var nopLogger = kitlog.NewNopLogger()
+
+type permanentError struct {
+	error
+}
+
+func (permanentError) Retryable() bool { return false }
 
 func newBalancer(t *testing.T, factory endpoint.Factory) interfaces.Balancer {
 	t.Helper()
@@ -88,6 +96,27 @@ func TestRetry_ExceedsMax(t *testing.T) {
 	}
 }
 
+func TestRetry_DoesNotRetryNonRetryableError(t *testing.T) {
+	attempts := 0
+	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
+			attempts++
+			return nil, permanentError{errors.New("validation failed")}
+		})
+		return ep, io.NopCloser(nil), nil
+	})
+	lb := newBalancer(t, f)
+	ep := executor.Retry(5, time.Second, lb)
+
+	_, err := ep(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts = %d, want 1", attempts)
+	}
+}
+
 func TestRetry_ContextCancelled(t *testing.T) {
 	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(ctx context.Context, _ any) (any, error) {
@@ -104,6 +133,42 @@ func TestRetry_ContextCancelled(t *testing.T) {
 	_, err := ep(ctx, nil)
 	if err == nil {
 		t.Error("expected error from context cancellation")
+	}
+}
+
+func TestRetry_BackoffStopsOnContextCancel(t *testing.T) {
+	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
+			return nil, errors.New("transient")
+		})
+		return ep, io.NopCloser(nil), nil
+	})
+	lb := newBalancer(t, f)
+
+	var cancel context.CancelFunc
+	ep := executor.RetryWithCallback(time.Second, lb, func(n int, _ error) (bool, error) {
+		if n == 1 {
+			cancel()
+		}
+		return true, nil
+	})
+
+	ctx, cancelFn := context.WithCancel(context.Background())
+	cancel = cancelFn
+	start := time.Now()
+	_, err := ep(ctx, nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	if elapsed := time.Since(start); elapsed > 100*time.Millisecond {
+		t.Fatalf("retry returned after %v, want prompt cancellation", elapsed)
+	}
+}
+
+func TestDefaultRetryable_GRPCInvalidArgumentIsPermanent(t *testing.T) {
+	err := status.Error(codes.InvalidArgument, "bad request")
+	if executor.DefaultRetryable(err) {
+		t.Fatal("InvalidArgument should not be retryable")
 	}
 }
 

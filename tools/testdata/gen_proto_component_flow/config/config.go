@@ -91,7 +91,7 @@ func Default() *Config {
 		},
 		Middleware: MiddlewareConfig{
 			CircuitBreaker: CircuitBreakerConfig{
-				Enabled:          true,
+				Enabled:          false,
 				FailureThreshold: 5,
 				Timeout:          60 * time.Second,
 			},
@@ -100,7 +100,7 @@ func Default() *Config {
 				RequestsPerSecond: 100,
 			},
 			Retry: RetryConfig{
-				Enabled:     true,
+				Enabled:     false,
 				MaxAttempts: 3,
 				Backoff:     2 * time.Second,
 			},

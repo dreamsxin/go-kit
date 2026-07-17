@@ -2,6 +2,7 @@ package gen
 
 import (
 	"context"
+	"time"
 )
 
 // ─────────────────────────── GORM Models ───────────────────────────
@@ -11,6 +12,7 @@ type User struct {
 	ID int `json:"id" gorm:"column:id;primaryKey;autoIncrement;type:INTEGER"`
 	Username string `json:"username" gorm:"column:username;not null;type:TEXT"`
 	Email string `json:"email" gorm:"column:email;not null;type:TEXT"`
+	CreatedAt *time.Time `json:"created_at" gorm:"column:created_at;type:DATETIME"`
 }
 
 // ─────────────────────────── DTOs ───────────────────────────
@@ -20,12 +22,14 @@ type UserItem struct {
 	ID int `json:"id"`
 	Username string `json:"username"`
 	Email string `json:"email"`
+	CreatedAt *time.Time `json:"created_at"`
 }
 
 // CreateUserRequest 创建请求
 type CreateUserRequest struct {
 	Username string `json:"username"`
 	Email string `json:"email"`
+	CreatedAt *time.Time `json:"created_at"`
 }
 
 // CreateUserResponse 创建响应
@@ -50,6 +54,7 @@ type UpdateUserRequest struct {
 	ID uint `json:"id"`
 	Username *string `json:"username,omitempty"`
 	Email *string `json:"email,omitempty"`
+	CreatedAt *time.Time `json:"created_at,omitempty"`
 }
 
 // UpdateUserResponse 更新响应

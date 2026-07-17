@@ -17,6 +17,7 @@ type Service struct {
 	addr             string
 	mux              *http.ServeMux
 	middleware       []endpoint.Middleware
+	routeMiddleware  []func(route string) endpoint.Middleware
 	logger           *kitlog.Logger
 	metrics          *endpoint.Metrics
 	httpConfig       HTTPServerConfig

@@ -15,6 +15,7 @@ type Options struct {
 	TemplateFS           fs.FS
 	OutputDir            string
 	ImportPath           string
+	GoKitVersion         string
 	ServiceName          string
 	Protocols            []string
 	WithConfig           bool

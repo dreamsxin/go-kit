@@ -40,6 +40,21 @@ func TestCache_UpdateSetsState(t *testing.T) {
 	}
 }
 
+func TestCache_UpdateDoesNotMutateInputInstances(t *testing.T) {
+	c := instance.NewCache()
+	instances := []string{"b:80", "a:80"}
+
+	c.Update(events.Event{Instances: instances})
+
+	if instances[0] != "b:80" || instances[1] != "a:80" {
+		t.Fatalf("Update mutated input slice: %v", instances)
+	}
+	state := c.State()
+	if state.Instances[0] != "a:80" || state.Instances[1] != "b:80" {
+		t.Fatalf("state instances = %v, want sorted copy", state.Instances)
+	}
+}
+
 func TestCache_UpdateDeduplicates(t *testing.T) {
 	c := instance.NewCache()
 	ch := make(chan events.Event, 4)
@@ -113,6 +128,24 @@ func TestCache_DeregisterStopsEvents(t *testing.T) {
 	_, ok := drain(ch, 50*time.Millisecond)
 	if ok {
 		t.Error("deregistered channel should not receive events")
+	}
+}
+
+func TestCache_UpdateDoesNotBlockOnSlowSubscriber(t *testing.T) {
+	c := instance.NewCache()
+	ch := make(chan events.Event, 1)
+	c.Register(ch)
+
+	done := make(chan struct{})
+	go func() {
+		c.Update(events.Event{Instances: []string{"new:80"}})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Update blocked on a slow subscriber")
 	}
 }
 

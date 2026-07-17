@@ -3,7 +3,7 @@ module example.com/gen_idl_extend_check
 go 1.25.8
 
 require (
-	github.com/dreamsxin/go-kit v0.0.0
+	github.com/dreamsxin/go-kit v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/sony/gobreaker v1.0.0
 	golang.org/x/time v0.11.0
@@ -11,5 +11,5 @@ require (
 )
 
 
-replace github.com/dreamsxin/go-kit => ../../../
+replace github.com/dreamsxin/go-kit => ../../..
 

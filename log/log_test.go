@@ -17,6 +17,25 @@ func TestNewDevelopment_ReturnsLogger(t *testing.T) {
 	logger.Sugar().Info("test log message")
 }
 
+func TestNew_UsesLevelAndFormat(t *testing.T) {
+	logger, err := kitlog.New("debug", "console")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if logger == nil {
+		t.Fatal("expected non-nil logger")
+	}
+}
+
+func TestNew_RejectsInvalidConfig(t *testing.T) {
+	if _, err := kitlog.New("info", "xml"); err == nil {
+		t.Fatal("expected invalid format error")
+	}
+	if _, err := kitlog.New("verbose", "json"); err == nil {
+		t.Fatal("expected invalid level error")
+	}
+}
+
 func TestNewNopLogger_DoesNotPanic(t *testing.T) {
 	logger := kitlog.NewNopLogger()
 	if logger == nil {

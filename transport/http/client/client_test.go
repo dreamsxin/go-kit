@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,6 +55,43 @@ func TestNewJSONClient_InvalidURL(t *testing.T) {
 	_, err := httpclient.NewJSONClient[echoResp](http.MethodPost, "://bad-url")
 	if err == nil {
 		t.Error("expected error for invalid URL")
+	}
+}
+
+func TestNewJSONClient_Non2xxReturnsStatusError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"boom"}`)) //nolint:errcheck
+	}))
+	defer srv.Close()
+
+	ep, err := httpclient.NewJSONClient[echoResp](http.MethodPost, srv.URL)
+	if err != nil {
+		t.Fatalf("NewJSONClient: %v", err)
+	}
+	_, err = ep(context.Background(), echoReq{Message: "fail"})
+	if err == nil {
+		t.Fatal("expected non-2xx error")
+	}
+	var statusErr *httpclient.HTTPStatusError
+	if !errors.As(err, &statusErr) {
+		t.Fatalf("error = %T %v, want HTTPStatusError", err, err)
+	}
+	if statusErr.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", statusErr.StatusCode)
+	}
+	if !strings.Contains(string(statusErr.Body), "boom") {
+		t.Fatalf("body = %q, want boom", string(statusErr.Body))
+	}
+}
+
+func TestHTTPStatusError_Retryable(t *testing.T) {
+	if (&httpclient.HTTPStatusError{StatusCode: http.StatusBadRequest}).Retryable() {
+		t.Fatal("400 should not be retryable")
+	}
+	if !(&httpclient.HTTPStatusError{StatusCode: http.StatusInternalServerError}).Retryable() {
+		t.Fatal("500 should be retryable")
 	}
 }
 
