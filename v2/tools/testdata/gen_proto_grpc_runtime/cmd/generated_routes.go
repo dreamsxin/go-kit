@@ -3,8 +3,8 @@ package main
 
 import (
 	userserviceTransport "example.com/gen_proto_grpc_runtime/transport/userservice"
-	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
+	"net/http"
 )
 
 func (g generatedServices) generatedRuntime() generatedRuntime {
@@ -13,8 +13,8 @@ func (g generatedServices) generatedRuntime() generatedRuntime {
 			{Method: "GET", Path: "/getuser", Handler: "GetUser"},
 			{Method: "POST", Path: "/createuser", Handler: "CreateUser"},
 		},
-		httpRegistrars: []func(*mux.Router){
-			func(router *mux.Router) {
+		httpRegistrars: []func(*http.ServeMux){
+			func(router *http.ServeMux) {
 				userserviceTransport.RegisterHTTPRoutes(router, g.userserviceEndpoints, "")
 			},
 		},

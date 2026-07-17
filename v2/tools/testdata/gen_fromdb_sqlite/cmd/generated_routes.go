@@ -3,7 +3,7 @@ package main
 
 import (
 	catalogserviceTransport "example.com/gen_fromdb_sqlite/transport/catalogservice"
-	"github.com/gorilla/mux"
+	"net/http"
 )
 
 func (g generatedServices) generatedRuntime() generatedRuntime {
@@ -15,8 +15,8 @@ func (g generatedServices) generatedRuntime() generatedRuntime {
 			{Method: "DELETE", Path: "/user/{id}", Handler: "DeleteUser"},
 			{Method: "GET", Path: "/users", Handler: "ListUsers"},
 		},
-		httpRegistrars: []func(*mux.Router){
-			func(router *mux.Router) {
+		httpRegistrars: []func(*http.ServeMux){
+			func(router *http.ServeMux) {
 				catalogserviceTransport.RegisterHTTPRoutes(router, g.catalogserviceEndpoints, "")
 			},
 		},

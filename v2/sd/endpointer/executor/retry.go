@@ -45,20 +45,13 @@ type RetryCallback func(n int, received error) (keepTrying bool, replacement err
 // RetryableFunc classifies whether an error is safe and useful to retry.
 type RetryableFunc func(error) bool
 
-// Retry returns an Endpoint that retries up to max times within timeout,
+// Retry returns an Endpoint that attempts a call up to maxAttempts times within timeout,
 // selecting a new backend from b on each attempt.
-func Retry(max int, timeout time.Duration, b interfaces.Balancer) endpoint.Endpoint {
-	return RetryWithCallback(timeout, b, maxRetries(max))
+func Retry(maxAttempts int, timeout time.Duration, b interfaces.Balancer) endpoint.Endpoint {
+	return RetryWithCallback(timeout, b, attemptLimit(maxAttempts))
 }
 
-// RetryAlways returns an Endpoint that retries indefinitely until timeout
-// is reached or the call succeeds.
-func RetryAlways(timeout time.Duration, b interfaces.Balancer) endpoint.Endpoint {
-	return RetryWithCallback(timeout, b, alwaysRetry)
-}
-
-// 最大重试次数判断
-func maxRetries(max int) RetryCallback {
+func attemptLimit(max int) RetryCallback {
 	return func(n int, err error) (keepTrying bool, replacement error) {
 		return n < max, nil
 	}
@@ -141,9 +134,8 @@ func RetryWithRetryable(timeout time.Duration, b interfaces.Balancer, cb RetryCa
 }
 
 // DefaultRetryable is the conservative default classifier used by Retry.
-// It avoids retrying local context cancellation, errors that explicitly opt out
-// via Retryable() bool, and gRPC statuses that usually represent caller or
-// authorization failures rather than a transient backend outage.
+// Unknown errors are permanent unless they explicitly implement Retryable or
+// match a known transient discovery or gRPC condition.
 func DefaultRetryable(err error) bool {
 	if err == nil {
 		return false
@@ -156,23 +148,20 @@ func DefaultRetryable(err error) bool {
 	if errors.As(err, &classified) {
 		return classified.Retryable()
 	}
+	if errors.Is(err, interfaces.ErrNoEndpoints) {
+		return true
+	}
 
 	if st, ok := status.FromError(err); ok {
 		switch st.Code() {
-		case codes.Canceled,
-			codes.InvalidArgument,
-			codes.NotFound,
-			codes.AlreadyExists,
-			codes.PermissionDenied,
-			codes.Unauthenticated,
-			codes.FailedPrecondition,
-			codes.OutOfRange,
-			codes.Unimplemented:
+		case codes.Unavailable, codes.ResourceExhausted, codes.Aborted:
+			return true
+		default:
 			return false
 		}
 	}
 
-	return true
+	return false
 }
 
 func sleepWithContext(ctx context.Context, d time.Duration) error {

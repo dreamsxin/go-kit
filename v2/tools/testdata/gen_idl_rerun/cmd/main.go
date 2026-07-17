@@ -31,7 +31,6 @@ import (
 	"time"
 
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
-	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -141,22 +140,16 @@ func main() {
 		logger.Sugar().Info("DB migration skipped")
 	}
 
-	r := mux.NewRouter()
-	r.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			start := time.Now()
-			next.ServeHTTP(w, req)
-			logger.Sugar().Infof("[HTTP] %s %s %v", req.Method, req.URL.Path, time.Since(start))
-		})
-	})
-
-	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	r := http.NewServeMux()
+	healthHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, `{"status":"ok","service":"UserService"}`)
-	}).Methods("GET", "HEAD")
+	}
+	r.HandleFunc("GET /health", healthHandler)
+	r.HandleFunc("HEAD /health", healthHandler)
 
-	r.HandleFunc("/skill", skill.Handler).Methods("GET")
+	r.HandleFunc("GET /skill", skill.Handler)
 
 	{
 		swaggerHost := cfg.Server.SwaggerHost
@@ -172,7 +165,7 @@ func main() {
 		}
 		docs.SwaggerInfo.Host = swaggerHost
 	}
-	r.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
+	r.Handle("GET /swagger/", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
 		httpSwagger.DeepLinking(true),
 		httpSwagger.DocExpansion("list"),
@@ -182,10 +175,10 @@ func main() {
 	customRoutes := registerCustomRoutes(r)
 
 	if cfg.Debug.RoutesEnabled {
-		r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
+		r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, true, true))
-		}).Methods("GET")
+		})
 	}
 
 	allRoutes := generatedRouteEntries(runtime, customRoutes, true, true)
@@ -194,8 +187,12 @@ func main() {
 	}
 
 	httpServer := &http.Server{
-		Addr:         *httpAddr,
-		Handler:      r,
+		Addr: *httpAddr,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			start := time.Now()
+			r.ServeHTTP(w, req)
+			logger.Sugar().Infof("[HTTP] %s %s %v", req.Method, req.URL.Path, time.Since(start))
+		}),
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  60 * time.Second,

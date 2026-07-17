@@ -40,12 +40,13 @@ type endpointCustomChainTemplateData struct {
 }
 
 type httpTransportTemplateData struct {
-	Service      *serviceView
-	IRService    *ir.Service
-	UnaryMethods []*ir.Method
-	ImportPath   string
-	RoutePrefix  string
-	Source       string
+	Service       *serviceView
+	IRService     *ir.Service
+	UnaryMethods  []*ir.Method
+	HasGETMethods bool
+	ImportPath    string
+	RoutePrefix   string
+	Source        string
 }
 
 type grpcTransportTemplateData struct {

@@ -15,6 +15,7 @@ root.
 - Deterministic formatting and text normalization for generated output.
 - External generated-project smoke coverage using `go mod tidy` and
   `go test ./...`.
+- Shared HTTP path/query codec for generated transports, clients, and SDKs.
 
 ### Changed
 
@@ -27,6 +28,12 @@ root.
   publishes later updates without closing consumer channels.
 - In-memory interaction providers copy mutable resources, blobs, templates,
   prompts, and render arguments.
+- Generated HTTP servers use the standard library `http.ServeMux`; generated GET
+  clients and servers share one tagged query contract and do not send JSON bodies.
+- HTTP JSON client timeout construction is explicit through
+  `NewJSONClientWithTimeout`.
+- Service-discovery retry defaults to one attempt and only retries explicitly
+  classified transient errors when additional attempts are configured.
 - v2 documentation is task-oriented and no longer duplicates v1 release history,
   temporary roadmaps, or session snapshots.
 
@@ -44,3 +51,5 @@ root.
 - v1 compatibility claims and v1.0/v1.6 release planning from v2 documentation.
 - Duplicate architecture, generator design, project snapshot, roadmap, stability,
   observability, security, and maintainer documents.
+- Duplicate HandyBreaker and built-in Hystrix implementations; Gobreaker is the
+  single circuit-breaker adapter in core.

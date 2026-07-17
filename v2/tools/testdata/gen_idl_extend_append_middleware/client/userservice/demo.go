@@ -8,11 +8,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	idl "example.com/gen_idl_extend_append_middleware"
+	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 )
 
 // ─────────────────────────── HTTP Client ───────────────────────────
@@ -60,30 +59,8 @@ func (c *UserServiceHTTPClient) do(ctx context.Context, method, path string, req
 	return json.NewDecoder(r.Body).Decode(resp)
 }
 
-func buildGETPath(path string, req interface{}) string {
-	b, _ := json.Marshal(req)
-	var params map[string]interface{}
-	_ = json.Unmarshal(b, &params)
-	if len(params) == 0 {
-		return path
-	}
-	query := url.Values{}
-	for k, v := range params {
-		if v == nil {
-			continue
-		}
-		token := "{" + k + "}"
-		value := fmt.Sprint(v)
-		if strings.Contains(path, token) {
-			path = strings.ReplaceAll(path, token, url.PathEscape(value))
-			continue
-		}
-		query.Set(k, value)
-	}
-	if encoded := query.Encode(); encoded != "" {
-		path += "?" + encoded
-	}
-	return path
+func buildGETPath(path string, req interface{}) (string, error) {
+	return transporthttp.EncodePathAndQuery(path, req)
 }
 
 // CreateUser 通过 HTTP 调用 CreateUser
@@ -95,13 +72,21 @@ func (c *UserServiceHTTPClient) CreateUser(ctx context.Context, req idl.CreateUs
 // GetUser 通过 HTTP 调用 GetUser
 func (c *UserServiceHTTPClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
-	return resp, c.do(ctx, "GET", buildGETPath("/getuser", req), nil, &resp)
+	path, err := buildGETPath("/getuser", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	return resp, c.do(ctx, "GET", path, nil, &resp)
 }
 
 // ListUsers 通过 HTTP 调用 ListUsers
 func (c *UserServiceHTTPClient) ListUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error) {
 	var resp idl.ListUsersResponse
-	return resp, c.do(ctx, "GET", buildGETPath("/listusers", req), nil, &resp)
+	path, err := buildGETPath("/listusers", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	return resp, c.do(ctx, "GET", path, nil, &resp)
 }
 
 // DeleteUser 通过 HTTP 调用 DeleteUser
@@ -119,19 +104,31 @@ func (c *UserServiceHTTPClient) UpdateUser(ctx context.Context, req idl.UpdateUs
 // FindByEmail 通过 HTTP 调用 FindByEmail
 func (c *UserServiceHTTPClient) FindByEmail(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
-	return resp, c.do(ctx, "GET", buildGETPath("/findbyemail", req), nil, &resp)
+	path, err := buildGETPath("/findbyemail", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	return resp, c.do(ctx, "GET", path, nil, &resp)
 }
 
 // SearchUsers 通过 HTTP 调用 SearchUsers
 func (c *UserServiceHTTPClient) SearchUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error) {
 	var resp idl.ListUsersResponse
-	return resp, c.do(ctx, "GET", buildGETPath("/searchusers", req), nil, &resp)
+	path, err := buildGETPath("/searchusers", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	return resp, c.do(ctx, "GET", path, nil, &resp)
 }
 
 // QueryStats 通过 HTTP 调用 QueryStats
 func (c *UserServiceHTTPClient) QueryStats(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
-	return resp, c.do(ctx, "GET", buildGETPath("/querystats", req), nil, &resp)
+	path, err := buildGETPath("/querystats", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	return resp, c.do(ctx, "GET", path, nil, &resp)
 }
 
 // RemoveExpired 通过 HTTP 调用 RemoveExpired

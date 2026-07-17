@@ -188,8 +188,8 @@ explicit migration decision.
 - Handle errors from `kit.New`, `Service.Run`, and `Service.GRPCServer`.
 - Keep process signal handling in `main`.
 - Do not retry writes without idempotency and explicit error classification.
-- `NewJSONClientWithRetry` currently adds timeout, not retries; use `sd` for
-  retrying discovered calls.
+- `NewJSONClientWithTimeout` adds timeout, not retries; use `sd` for retrying
+  discovered calls.
 - Use bounded JSON bodies and strict decoding for public endpoints.
 - Do not add IAM, outbox, jobs, object storage, secret management, or a complete
   transaction platform to framework core.

@@ -4,7 +4,6 @@ go 1.25.8
 
 require (
 	github.com/dreamsxin/go-kit/v2 v2.0.0
-	github.com/gorilla/mux v1.8.1
 	github.com/sony/gobreaker v1.0.0
 	github.com/spf13/viper v1.21.0
 	github.com/spf13/viper/remote v1.21.0
@@ -71,7 +70,6 @@ require (
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/streadway/handy v0.0.0-20200128134331-0f66f006fb2e // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/swaggo/files v0.0.0-20220610200504-28940afbdbfe // indirect
 	go.etcd.io/etcd/api/v3 v3.6.4 // indirect

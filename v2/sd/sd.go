@@ -8,7 +8,7 @@
 //	defer instancer.Stop()
 //
 //	ep := sd.NewEndpoint(instancer, factory, logger,
-//	    sd.WithMaxRetries(3),
+//	    sd.WithMaxAttempts(3),
 //	    sd.WithTimeout(500*time.Millisecond),
 //	    sd.WithInvalidateOnError(5*time.Second),
 //	)
@@ -29,9 +29,8 @@ import (
 
 // Options controls the behaviour of NewEndpoint.
 type Options struct {
-	// MaxRetries is the maximum number of retry attempts (default 3).
-	// Set to 0 for unlimited retries within Timeout.
-	MaxRetries int
+	// MaxAttempts is the total number of call attempts (default 1).
+	MaxAttempts int
 
 	// Timeout is the total time budget for one call including all retries
 	// (default 500ms).
@@ -49,9 +48,10 @@ type Options struct {
 // Option is a functional option for NewEndpoint.
 type Option func(*Options)
 
-// WithMaxRetries sets the maximum retry count.  0 means retry until Timeout.
-func WithMaxRetries(n int) Option {
-	return func(o *Options) { o.MaxRetries = n }
+// WithMaxAttempts sets the total number of call attempts. Values below 1 are
+// normalized to one attempt.
+func WithMaxAttempts(n int) Option {
+	return func(o *Options) { o.MaxAttempts = n }
 }
 
 // WithTimeout sets the total call timeout (including retries).
@@ -74,7 +74,8 @@ func WithRetryable(fn executor.RetryableFunc) Option {
 // → Retry executor and returns a single endpoint.Endpoint ready to call.
 //
 // The returned endpoint automatically distributes requests across healthy
-// instances and retries on transient failures.
+// instances and can retry classified transient failures when MaxAttempts is
+// greater than one.
 func NewEndpoint(
 	src interfaces.Instancer,
 	factory endpoint.Factory,
@@ -82,8 +83,8 @@ func NewEndpoint(
 	opts ...Option,
 ) endpoint.Endpoint {
 	o := Options{
-		MaxRetries: 3,
-		Timeout:    500 * time.Millisecond,
+		MaxAttempts: 1,
+		Timeout:     500 * time.Millisecond,
 	}
 	for _, opt := range opts {
 		opt(&o)
@@ -97,15 +98,15 @@ func NewEndpoint(
 	ep := endpointer.NewEndpointer(src, factory, logger, epOpts...)
 	lb := balancer.NewRoundRobin(ep)
 
-	if o.MaxRetries <= 0 {
-		return executor.RetryWithRetryable(o.Timeout, lb, nil, o.Retryable)
+	if o.MaxAttempts < 1 {
+		o.MaxAttempts = 1
 	}
-	return executor.RetryWithRetryable(o.Timeout, lb, maxRetries(o.MaxRetries), o.Retryable)
+	return executor.RetryWithRetryable(o.Timeout, lb, attemptLimit(o.MaxAttempts), o.Retryable)
 }
 
 // NewEndpointWithDefaults is identical to NewEndpoint but uses sensible
 // production defaults without requiring any options:
-//   - MaxRetries: 3
+//   - MaxAttempts: 1
 //   - Timeout:    500ms
 //   - InvalidateOnError: 5s
 //
@@ -116,7 +117,7 @@ func NewEndpointWithDefaults(
 	logger *kitlog.Logger,
 ) endpoint.Endpoint {
 	return NewEndpoint(src, factory, logger,
-		WithMaxRetries(3),
+		WithMaxAttempts(1),
 		WithTimeout(500*time.Millisecond),
 		WithInvalidateOnError(5*time.Second),
 	)
@@ -134,8 +135,8 @@ func NewEndpointCloser(
 	opts ...Option,
 ) (endpoint.Endpoint, io.Closer) {
 	o := Options{
-		MaxRetries: 3,
-		Timeout:    500 * time.Millisecond,
+		MaxAttempts: 1,
+		Timeout:     500 * time.Millisecond,
 	}
 	for _, opt := range opts {
 		opt(&o)
@@ -149,16 +150,14 @@ func NewEndpointCloser(
 	ep := endpointer.NewEndpointer(src, factory, logger, epOpts...)
 	lb := balancer.NewRoundRobin(ep)
 
-	var e endpoint.Endpoint
-	if o.MaxRetries <= 0 {
-		e = executor.RetryWithRetryable(o.Timeout, lb, nil, o.Retryable)
-	} else {
-		e = executor.RetryWithRetryable(o.Timeout, lb, maxRetries(o.MaxRetries), o.Retryable)
+	if o.MaxAttempts < 1 {
+		o.MaxAttempts = 1
 	}
+	e := executor.RetryWithRetryable(o.Timeout, lb, attemptLimit(o.MaxAttempts), o.Retryable)
 	return e, ep
 }
 
-func maxRetries(max int) executor.RetryCallback {
+func attemptLimit(max int) executor.RetryCallback {
 	return func(n int, err error) (keepTrying bool, replacement error) {
 		return n < max, nil
 	}

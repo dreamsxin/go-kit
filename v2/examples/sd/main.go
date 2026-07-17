@@ -4,7 +4,7 @@
 //   - sd/instance.Cache        — in-memory Instancer for testing
 //   - sd/endpointer            — wires Instancer → EndpointCache
 //   - sd/endpointer/balancer   — lock-free RoundRobin
-//   - sd/endpointer/executor   — Retry, RetryAlways, RetryWithCallback
+//   - sd/endpointer/executor   — Retry, RetryWithCallback
 //   - sd.NewEndpoint           — one-liner that wires everything together
 //   - endpoint.InvalidateOnError — cache invalidation on SD errors
 //
@@ -30,6 +30,12 @@ import (
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
 	"github.com/dreamsxin/go-kit/v2/sd/interfaces"
 )
+
+type transientError struct {
+	error
+}
+
+func (transientError) Retryable() bool { return true }
 
 // ── Factory helper ────────────────────────────────────────────────────────────
 
@@ -88,7 +94,7 @@ func demo2_Retry(logger *kitlog.Logger) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			attempts++
 			if attempts < 3 {
-				return nil, fmt.Errorf("attempt %d failed", attempts)
+				return nil, transientError{fmt.Errorf("attempt %d failed", attempts)}
 			}
 			return fmt.Sprintf("success on attempt %d", attempts), nil
 		})
@@ -120,7 +126,7 @@ func demo3_RetryWithCallback(logger *kitlog.Logger) {
 			callCount++
 			switch callCount {
 			case 1:
-				return nil, errors.New("transient error")
+				return nil, transientError{errors.New("transient error")}
 			case 2:
 				return nil, sentinelErr // non-retryable
 			default:
@@ -162,7 +168,7 @@ func demo4_NewEndpoint(logger *kitlog.Logger) {
 	time.Sleep(10 * time.Millisecond)
 
 	ep := sd.NewEndpoint(cache, factory, logger,
-		sd.WithMaxRetries(3),
+		sd.WithMaxAttempts(3),
 		sd.WithTimeout(500*time.Millisecond),
 	)
 

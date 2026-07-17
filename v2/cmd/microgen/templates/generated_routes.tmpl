@@ -2,7 +2,7 @@
 package main
 
 import (
-	"github.com/gorilla/mux"
+	"net/http"
 {{- if .WithGRPC}}
 {{- range .SvcRoutes}}
 	{{.Service.PackageName}}Transport "{{$.ImportPath}}/transport/{{.Service.PackageName}}"
@@ -24,9 +24,9 @@ func (g generatedServices) generatedRuntime() generatedRuntime {
 			{Method: "{{.HTTPMethod | upper}}", Path: "{{$svc.FullPrefix}}{{.Route}}", Handler: "{{.Name}}"},
 {{- end}}{{end}}
 		},
-		httpRegistrars: []func(*mux.Router){
+		httpRegistrars: []func(*http.ServeMux){
 {{- range .UnarySvcRoutes}}
-			func(router *mux.Router) {
+			func(router *http.ServeMux) {
 				{{.Service.PackageName}}Transport.RegisterHTTPRoutes(router, g.{{.Service.PackageName}}Endpoints, "{{.FullPrefix}}")
 			},
 {{- end}}

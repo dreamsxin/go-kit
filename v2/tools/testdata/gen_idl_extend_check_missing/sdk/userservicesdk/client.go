@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
+
+	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 
 	idl "example.com/gen_idl_extend_check_missing"
 )
@@ -172,31 +172,8 @@ func (c *httpClient) do(ctx context.Context, method, path string, reqBody, respB
 	return nil
 }
 
-func buildGETPath(path string, reqBody interface{}) string {
-	b, _ := json.Marshal(reqBody)
-	var params map[string]interface{}
-	_ = json.Unmarshal(b, &params)
-	if len(params) == 0 {
-		return path
-	}
-
-	query := url.Values{}
-	for k, v := range params {
-		if v == nil {
-			continue
-		}
-		token := "{" + k + "}"
-		value := fmt.Sprint(v)
-		if strings.Contains(path, token) {
-			path = strings.ReplaceAll(path, token, url.PathEscape(value))
-			continue
-		}
-		query.Set(k, value)
-	}
-	if encoded := query.Encode(); encoded != "" {
-		path += "?" + encoded
-	}
-	return path
+func buildGETPath(path string, reqBody interface{}) (string, error) {
+	return transporthttp.EncodePathAndQuery(path, reqBody)
 }
 
 func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
@@ -207,15 +184,21 @@ func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) 
 
 func (c *httpClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
-	path := buildGETPath("/getuser", req)
-	err := c.do(ctx, "GET", path, nil, &resp)
+	path, err := buildGETPath("/getuser", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	err = c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }
 
 func (c *httpClient) ListUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error) {
 	var resp idl.ListUsersResponse
-	path := buildGETPath("/listusers", req)
-	err := c.do(ctx, "GET", path, nil, &resp)
+	path, err := buildGETPath("/listusers", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	err = c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }
 
@@ -233,22 +216,31 @@ func (c *httpClient) UpdateUser(ctx context.Context, req idl.UpdateUserRequest) 
 
 func (c *httpClient) FindByEmail(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
-	path := buildGETPath("/findbyemail", req)
-	err := c.do(ctx, "GET", path, nil, &resp)
+	path, err := buildGETPath("/findbyemail", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	err = c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }
 
 func (c *httpClient) SearchUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error) {
 	var resp idl.ListUsersResponse
-	path := buildGETPath("/searchusers", req)
-	err := c.do(ctx, "GET", path, nil, &resp)
+	path, err := buildGETPath("/searchusers", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	err = c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }
 
 func (c *httpClient) QueryStats(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
-	path := buildGETPath("/querystats", req)
-	err := c.do(ctx, "GET", path, nil, &resp)
+	path, err := buildGETPath("/querystats", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	err = c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }
 

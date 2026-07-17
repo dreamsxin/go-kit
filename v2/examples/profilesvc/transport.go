@@ -11,8 +11,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/gorilla/mux"
-
 	"github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/transport"
 	httptransportserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
@@ -27,7 +25,7 @@ var (
 // MakeHTTPHandler mounts all of the service endpoints into an http.Handler.
 // Useful in a profilesvc server.
 func MakeHTTPHandler(s Service, logger *log.Logger) http.Handler {
-	r := mux.NewRouter()
+	r := http.NewServeMux()
 	e := MakeServerEndpoints(s)
 	options := []httptransportserver.ServerOption{
 		httptransportserver.ServerErrorHandler(transport.NewLogErrorHandler(logger)),
@@ -39,19 +37,19 @@ func MakeHTTPHandler(s Service, logger *log.Logger) http.Handler {
 	// PUT     /profiles/:id                       post updated profile information about the profile
 	// PATCH   /profiles/:id                       partial updated profile information
 
-	r.Methods("POST").Path("/profiles/").Handler(httptransportserver.NewServer(
+	r.Handle("POST /profiles/", httptransportserver.NewServer(
 		e.PostProfileEndpoint,
 		decodePostProfileRequest,
 		encodeResponse,
 		options...,
 	))
-	r.Methods("GET").Path("/profiles/{id}").Handler(httptransportserver.NewServer(
+	r.Handle("GET /profiles/{id}", httptransportserver.NewServer(
 		e.GetProfileEndpoint,
 		decodeGetProfileRequest,
 		encodeResponse,
 		options...,
 	))
-	r.Methods("PUT").Path("/profiles/{id}").Handler(httptransportserver.NewServer(
+	r.Handle("PUT /profiles/{id}", httptransportserver.NewServer(
 		e.PutProfileEndpoint,
 		decodePutProfileRequest,
 		encodeResponse,
@@ -69,18 +67,16 @@ func decodePostProfileRequest(_ context.Context, r *http.Request) (request inter
 }
 
 func decodeGetProfileRequest(_ context.Context, r *http.Request) (request interface{}, err error) {
-	vars := mux.Vars(r)
-	id, ok := vars["id"]
-	if !ok {
+	id := r.PathValue("id")
+	if id == "" {
 		return nil, ErrBadRouting
 	}
 	return getProfileRequest{ID: id}, nil
 }
 
 func decodePutProfileRequest(_ context.Context, r *http.Request) (request interface{}, err error) {
-	vars := mux.Vars(r)
-	id, ok := vars["id"]
-	if !ok {
+	id := r.PathValue("id")
+	if id == "" {
 		return nil, ErrBadRouting
 	}
 	var profile Profile

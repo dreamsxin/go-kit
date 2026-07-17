@@ -3,7 +3,7 @@ package main
 
 import (
 	userserviceTransport "example.com/gen_idl_default_flags/transport/userservice"
-	"github.com/gorilla/mux"
+	"net/http"
 )
 
 func (g generatedServices) generatedRuntime() generatedRuntime {
@@ -22,8 +22,8 @@ func (g generatedServices) generatedRuntime() generatedRuntime {
 			{Method: "PUT", Path: "/modifyemail", Handler: "ModifyEmail"},
 			{Method: "PUT", Path: "/patchstatus", Handler: "PatchStatus"},
 		},
-		httpRegistrars: []func(*mux.Router){
-			func(router *mux.Router) {
+		httpRegistrars: []func(*http.ServeMux){
+			func(router *http.ServeMux) {
 				userserviceTransport.RegisterHTTPRoutes(router, g.userserviceEndpoints, "")
 			},
 		},

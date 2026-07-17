@@ -1,5 +1,5 @@
 // Package client provides a profilesvc client backed by Consul service
-// discovery, round-robin load balancing, and automatic retry.
+// discovery and round-robin load balancing.
 package client
 
 import (
@@ -27,19 +27,18 @@ func New(consulAddr string, logger *log.Logger) (profilesvc.Service, error) {
 		consulService = "profilesvc"
 		passingOnly   = true
 	)
-	sdclient  := consul.NewClient(apiclient)
+	sdclient := consul.NewClient(apiclient)
 	instancer := consul.NewInstancer(sdclient, logger, consulService, passingOnly,
 		consul.TagsInstancerOptions([]string{"prod"}))
 
 	sdOpts := []sd.Option{
-		sd.WithMaxRetries(3),
 		sd.WithTimeout(500 * time.Millisecond),
 	}
 
 	return profilesvc.Endpoints{
 		PostProfileEndpoint: sd.NewEndpoint(instancer, factoryFor(profilesvc.MakePostProfileEndpoint), logger, sdOpts...),
-		GetProfileEndpoint:  sd.NewEndpoint(instancer, factoryFor(profilesvc.MakeGetProfileEndpoint),  logger, sdOpts...),
-		PutProfileEndpoint:  sd.NewEndpoint(instancer, factoryFor(profilesvc.MakePutProfileEndpoint),  logger, sdOpts...),
+		GetProfileEndpoint:  sd.NewEndpoint(instancer, factoryFor(profilesvc.MakeGetProfileEndpoint), logger, sdOpts...),
+		PutProfileEndpoint:  sd.NewEndpoint(instancer, factoryFor(profilesvc.MakePutProfileEndpoint), logger, sdOpts...),
 	}, nil
 }
 

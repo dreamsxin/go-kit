@@ -99,7 +99,7 @@ func TestRetry_SucceedsAfterFailures(t *testing.T) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			attempts++
 			if attempts < 3 {
-				return nil, fmt.Errorf("attempt %d failed", attempts)
+				return nil, transientError{fmt.Errorf("attempt %d failed", attempts)}
 			}
 			return "success", nil
 		})
@@ -126,7 +126,7 @@ func TestRetry_SucceedsAfterFailures(t *testing.T) {
 func TestRetry_ExceedsMaxAttempts(t *testing.T) {
 	alwaysFail := endpoint.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
-			return nil, errors.New("always fails")
+			return nil, transientError{errors.New("always fails")}
 		})
 		return ep, io.NopCloser(nil), nil
 	})
@@ -153,7 +153,7 @@ func TestRetryWithCallback_StopsOnNonRetryable(t *testing.T) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			callCount++
 			if callCount == 1 {
-				return nil, errors.New("transient")
+				return nil, transientError{errors.New("transient")}
 			}
 			return nil, sentinel
 		})
@@ -197,7 +197,7 @@ func TestNewEndpoint_RoundRobins(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	ep := sd.NewEndpoint(cache, factory, nopLogger,
-		sd.WithMaxRetries(3),
+		sd.WithMaxAttempts(3),
 		sd.WithTimeout(500*time.Millisecond),
 	)
 

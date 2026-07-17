@@ -23,14 +23,18 @@ import (
 	"github.com/dreamsxin/go-kit/v2/sd"
 	"github.com/dreamsxin/go-kit/v2/sd/events"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
-	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 	httpclient "github.com/dreamsxin/go-kit/v2/transport/http/client"
+	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
 // ── SKILL.md: 30-Second Service ──────────────────────────────────────────────
 
-type helloReq  struct{ Name string `json:"name"` }
-type helloResp struct{ Message string `json:"message"` }
+type helloReq struct {
+	Name string `json:"name"`
+}
+type helloResp struct {
+	Message string `json:"message"`
+}
 
 func TestSKILL_30SecondService(t *testing.T) {
 	handler := httpserver.NewJSONServer[helloReq](
@@ -55,8 +59,12 @@ func TestSKILL_30SecondService(t *testing.T) {
 
 // ── SKILL.md: Production Service Pattern ─────────────────────────────────────
 
-type createUserReq  struct{ Name string `json:"name"` }
-type createUserResp struct{ ID uint `json:"id"` }
+type createUserReq struct {
+	Name string `json:"name"`
+}
+type createUserResp struct {
+	ID uint `json:"id"`
+}
 
 func createUserLogic(_ context.Context, req createUserReq) (createUserResp, error) {
 	if req.Name == "" {
@@ -102,7 +110,7 @@ func TestSKILL_ProductionServicePattern(t *testing.T) {
 
 // ── SKILL.md: Key APIs — endpoint ────────────────────────────────────────────
 
-type myReq  struct{ V int }
+type myReq struct{ V int }
 type myResp struct{ V int }
 
 func TestSKILL_EndpointAPI_Untyped(t *testing.T) {
@@ -149,7 +157,7 @@ func TestSKILL_EndpointAPI_Builder(t *testing.T) {
 	ep := endpoint.NewBuilder(base).
 		WithMetrics(&metrics).
 		WithErrorHandling("op").
-		WithTimeout(5 * time.Second).
+		WithTimeout(5*time.Second).
 		WithTracing().
 		WithBackpressure(200).
 		WithLogging(logger, "op").
@@ -168,8 +176,12 @@ func TestSKILL_EndpointAPI_Builder(t *testing.T) {
 // ── SKILL.md: transport/http/server ──────────────────────────────────────────
 
 func TestSKILL_HTTPServer_NewJSONServer(t *testing.T) {
-	type req  struct{ Name string `json:"name"` }
-	type resp struct{ Msg  string `json:"msg"`  }
+	type req struct {
+		Name string `json:"name"`
+	}
+	type resp struct {
+		Msg string `json:"msg"`
+	}
 
 	handler := httpserver.NewJSONServer[req](func(_ context.Context, r req) (any, error) {
 		return resp{Msg: "hi " + r.Name}, nil
@@ -189,7 +201,9 @@ func TestSKILL_HTTPServer_NewJSONServer(t *testing.T) {
 }
 
 func TestSKILL_HTTPServer_NewJSONServerWithMiddleware(t *testing.T) {
-	type req  struct{ V int `json:"v"` }
+	type req struct {
+		V int `json:"v"`
+	}
 
 	var mwCalled bool
 	handler := httpserver.NewJSONServerWithMiddleware[req](
@@ -242,9 +256,15 @@ func TestSKILL_HTTPServer_Hooks(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}")))
 
-	if !beforeCalled   { t.Error("ServerBefore not called") }
-	if !afterCalled    { t.Error("ServerAfter not called") }
-	if !finalizerCalled { t.Error("ServerFinalizer not called") }
+	if !beforeCalled {
+		t.Error("ServerBefore not called")
+	}
+	if !afterCalled {
+		t.Error("ServerAfter not called")
+	}
+	if !finalizerCalled {
+		t.Error("ServerFinalizer not called")
+	}
 }
 
 func TestSKILL_HTTPServer_JSONErrorEncoder(t *testing.T) {
@@ -269,7 +289,9 @@ func TestSKILL_HTTPServer_JSONErrorEncoder(t *testing.T) {
 // ── SKILL.md: transport/http/client ──────────────────────────────────────────
 
 func TestSKILL_HTTPClient_NewJSONClient(t *testing.T) {
-	type respType struct{ Echo string `json:"echo"` }
+	type respType struct {
+		Echo string `json:"echo"`
+	}
 
 	// Start an echo server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -355,7 +377,7 @@ func TestSKILL_SD_CustomSettings(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	ep := sd.NewEndpoint(cache, factory, logger,
-		sd.WithMaxRetries(3),
+		sd.WithMaxAttempts(3),
 		sd.WithTimeout(500*time.Millisecond),
 		sd.WithInvalidateOnError(5*time.Second),
 	)
@@ -381,30 +403,6 @@ func TestSKILL_Log_Nop(t *testing.T) {
 	logger.Sugar().Infof("this should not panic")
 }
 
-// ── SKILL.md: Hystrix (built-in) ─────────────────────────────────────────────
-
-func TestSKILL_Hystrix_ConfigureAndUse(t *testing.T) {
-	circuitbreaker.HystrixConfigureCommand("skill-test", circuitbreaker.HystrixConfig{
-		Timeout:                time.Second,
-		MaxConcurrentRequests:  100,
-		RequestVolumeThreshold: 20,
-		SleepWindow:            5 * time.Second,
-		ErrorPercentThreshold:  50,
-	})
-
-	ep := circuitbreaker.Hystrix("skill-test")(func(_ context.Context, _ any) (any, error) {
-		return "ok", nil
-	})
-
-	resp, err := ep(context.Background(), nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if resp != "ok" {
-		t.Errorf("want 'ok', got %v", resp)
-	}
-}
-
 // ── SKILL.md: Testing Patterns ───────────────────────────────────────────────
 
 func TestSKILL_TestingPatterns_UnitEndpoint(t *testing.T) {
@@ -421,8 +419,8 @@ func TestSKILL_TestingPatterns_UnitEndpoint(t *testing.T) {
 }
 
 func TestSKILL_TestingPatterns_TypedEndpoint(t *testing.T) {
-	type Req  struct{ Name string }
-	type Resp struct{ Msg  string }
+	type Req struct{ Name string }
+	type Resp struct{ Msg string }
 
 	ep := endpoint.TypedEndpoint[Req, Resp](func(_ context.Context, req Req) (Resp, error) {
 		return Resp{Msg: "hello " + req.Name}, nil
@@ -437,8 +435,12 @@ func TestSKILL_TestingPatterns_TypedEndpoint(t *testing.T) {
 }
 
 func TestSKILL_TestingPatterns_HTTPHandler(t *testing.T) {
-	type Req  struct{ Name string `json:"name"` }
-	type Resp struct{ Msg  string `json:"msg"`  }
+	type Req struct {
+		Name string `json:"name"`
+	}
+	type Resp struct {
+		Msg string `json:"msg"`
+	}
 
 	handler := httpserver.NewJSONServer[Req](func(_ context.Context, req Req) (any, error) {
 		return Resp{Msg: "hi " + req.Name}, nil

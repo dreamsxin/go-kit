@@ -16,7 +16,7 @@ cache := instance.NewCache()
 cache.Update(events.Event{Instances: []string{"host1:8080", "host2:8080"}})
 
 ep := sd.NewEndpoint(cache, factory, logger,
-    sd.WithMaxRetries(3),
+    sd.WithMaxAttempts(3),
     sd.WithTimeout(500*time.Millisecond),
 )
 resp, err := ep(ctx, request)
@@ -31,7 +31,7 @@ instancer := consul.NewInstancer(consulClient, logger, "my-service", true)
 defer instancer.Stop()
 
 ep := sd.NewEndpoint(instancer, factory, logger,
-    sd.WithMaxRetries(3),
+    sd.WithMaxAttempts(3),
     sd.WithTimeout(500*time.Millisecond),
     sd.WithInvalidateOnError(5*time.Second),
 )
@@ -41,7 +41,7 @@ ep := sd.NewEndpoint(instancer, factory, logger,
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `WithMaxRetries(n)` | 3 | Max retry attempts; 0 = retry until timeout |
+| `WithMaxAttempts(n)` | 1 | Total attempts; values below 1 become 1 |
 | `WithTimeout(d)` | 500ms | Total budget including all retries |
 | `WithInvalidateOnError(d)` | disabled | Clear cache after SD error grace period |
 
@@ -66,9 +66,6 @@ call := executor.Retry(3, 500*time.Millisecond, lb)
 // Fixed max attempts
 executor.Retry(3, time.Second, lb)
 
-// Unlimited within timeout
-executor.RetryAlways(2*time.Second, lb)
-
 // Production calls should provide an explicit retry classifier.
 executor.RetryWithRetryable(time.Second, lb,
     func(n int, err error) (keepTrying bool, replacement error) {
@@ -81,9 +78,10 @@ executor.RetryWithRetryable(time.Second, lb,
 )
 ```
 
-The default classifier retries unknown errors after excluding cancellation,
-caller/auth gRPC statuses, and explicit `Retryable() == false` errors. Use a
-domain-specific classifier when write safety or business error semantics matter.
+The default classifier retries explicit `Retryable() == true` errors,
+no-endpoint discovery errors, and known transient gRPC statuses. Unknown errors
+are permanent. Use a domain-specific classifier when write safety or business
+error semantics matter.
 
 ## Consul registration
 

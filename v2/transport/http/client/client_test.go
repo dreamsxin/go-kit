@@ -86,6 +86,38 @@ func TestNewJSONClient_Non2xxReturnsStatusError(t *testing.T) {
 	}
 }
 
+func TestNewJSONClient_GETEncodesQueryWithoutBody(t *testing.T) {
+	type getRequest struct {
+		ID    string   `json:"id"`
+		Limit int      `form:"limit"`
+		Tags  []string `json:"tag"`
+	}
+	var bodyBytes int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		bodyBytes = r.ContentLength
+		if r.URL.EscapedPath() != "/users/a%2Fb" {
+			t.Errorf("path = %q", r.URL.EscapedPath())
+		}
+		if r.URL.Query().Get("limit") != "2" || len(r.URL.Query()["tag"]) != 2 {
+			t.Errorf("query = %v", r.URL.Query())
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"echo":"ok"}`)) //nolint:errcheck
+	}))
+	defer srv.Close()
+
+	ep, err := httpclient.NewJSONClient[echoResp](http.MethodGet, srv.URL+"/users/{id}")
+	if err != nil {
+		t.Fatalf("NewJSONClient: %v", err)
+	}
+	if _, err := ep(context.Background(), getRequest{ID: "a/b", Limit: 2, Tags: []string{"one", "two"}}); err != nil {
+		t.Fatalf("call: %v", err)
+	}
+	if bodyBytes != 0 {
+		t.Fatalf("ContentLength = %d, want 0", bodyBytes)
+	}
+}
+
 func TestHTTPStatusError_Retryable(t *testing.T) {
 	if (&httpclient.HTTPStatusError{StatusCode: http.StatusBadRequest}).Retryable() {
 		t.Fatal("400 should not be retryable")
@@ -95,15 +127,15 @@ func TestHTTPStatusError_Retryable(t *testing.T) {
 	}
 }
 
-// ── NewJSONClientWithRetry ────────────────────────────────────────────────────
+// ── NewJSONClientWithTimeout ──────────────────────────────────────────────────
 
-func TestNewJSONClientWithRetry_Success(t *testing.T) {
+func TestNewJSONClientWithTimeout_Success(t *testing.T) {
 	srv := newEchoServer(t)
 	defer srv.Close()
 
-	ep, err := httpclient.NewJSONClientWithRetry[echoResp](http.MethodPost, srv.URL, 2*time.Second)
+	ep, err := httpclient.NewJSONClientWithTimeout[echoResp](http.MethodPost, srv.URL, 2*time.Second)
 	if err != nil {
-		t.Fatalf("NewJSONClientWithRetry: %v", err)
+		t.Fatalf("NewJSONClientWithTimeout: %v", err)
 	}
 	resp, err := ep(context.Background(), echoReq{Message: "retry"})
 	if err != nil {
@@ -114,16 +146,16 @@ func TestNewJSONClientWithRetry_Success(t *testing.T) {
 	}
 }
 
-func TestNewJSONClientWithRetry_Timeout(t *testing.T) {
+func TestNewJSONClientWithTimeout_Timeout(t *testing.T) {
 	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(5 * time.Second)
 		w.Write([]byte(`{}`)) //nolint:errcheck
 	}))
 	defer slow.Close()
 
-	ep, err := httpclient.NewJSONClientWithRetry[echoResp](http.MethodPost, slow.URL, 20*time.Millisecond)
+	ep, err := httpclient.NewJSONClientWithTimeout[echoResp](http.MethodPost, slow.URL, 20*time.Millisecond)
 	if err != nil {
-		t.Fatalf("NewJSONClientWithRetry: %v", err)
+		t.Fatalf("NewJSONClientWithTimeout: %v", err)
 	}
 	_, err = ep(context.Background(), echoReq{Message: "slow"})
 	if err == nil {

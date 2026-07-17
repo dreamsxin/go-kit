@@ -113,6 +113,15 @@ apply endpoint middleware. Code that previously expected endpoint metrics,
 logging, timeout, rate limit, or circuit breaking around a raw handler must move
 to an endpoint-backed registration path.
 
+Generated HTTP routes now use Go's `http.ServeMux` method patterns. Custom route
+hooks receive `*http.ServeMux`, and GET requests use `form` tags (falling back to
+`json` tags and field names) for both client encoding and server decoding.
+
+`NewJSONClientWithRetry` was removed because it never retried. Use
+`NewJSONClientWithTimeout` for an HTTP client deadline and apply an explicit,
+operation-aware retry policy outside the transport when the call is safe to
+repeat.
+
 ## Service Discovery
 
 The v2 `Instancer` registration contract returns the initial snapshot
@@ -126,6 +135,17 @@ Deregister(chan events.Event)
 Custom instancers must return an immutable current event and publish later
 updates through the registered buffered channel. Do not close subscriber channels
 from the producer.
+
+Retry counts are now expressed as total attempts: replace `WithMaxRetries(n)`
+with `WithMaxAttempts(n)`. The default is one attempt, and unknown errors are not
+retryable. Mark transient application errors with `Retryable() bool` when retrying
+them is safe.
+
+## Circuit Breakers
+
+v2 keeps one endpoint circuit-breaker adapter: `circuitbreaker.Gobreaker`.
+HandyBreaker and the built-in Hystrix implementation were removed to avoid three
+overlapping state machines with different timeout and error semantics.
 
 ## Generated Configuration
 

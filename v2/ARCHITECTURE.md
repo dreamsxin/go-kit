@@ -127,8 +127,7 @@ them that way.
   handlers.
 - Transport clients treat non-success protocol status as errors.
 - Retry is opt-in. Production callers should provide an explicit retryable error
-  classification; the built-in default remains compatibility-oriented for
-  unknown errors.
+  classification; the built-in default treats unknown errors as permanent.
 - Write operations are not retried merely because an error occurred.
 - Backoff waits honor context cancellation.
 

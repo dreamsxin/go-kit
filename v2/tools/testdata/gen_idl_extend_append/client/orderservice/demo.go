@@ -8,11 +8,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	idl "example.com/gen_idl_extend_append"
+	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 )
 
 // ─────────────────────────── HTTP Client ───────────────────────────
@@ -60,30 +59,8 @@ func (c *OrderServiceHTTPClient) do(ctx context.Context, method, path string, re
 	return json.NewDecoder(r.Body).Decode(resp)
 }
 
-func buildGETPath(path string, req interface{}) string {
-	b, _ := json.Marshal(req)
-	var params map[string]interface{}
-	_ = json.Unmarshal(b, &params)
-	if len(params) == 0 {
-		return path
-	}
-	query := url.Values{}
-	for k, v := range params {
-		if v == nil {
-			continue
-		}
-		token := "{" + k + "}"
-		value := fmt.Sprint(v)
-		if strings.Contains(path, token) {
-			path = strings.ReplaceAll(path, token, url.PathEscape(value))
-			continue
-		}
-		query.Set(k, value)
-	}
-	if encoded := query.Encode(); encoded != "" {
-		path += "?" + encoded
-	}
-	return path
+func buildGETPath(path string, req interface{}) (string, error) {
+	return transporthttp.EncodePathAndQuery(path, req)
 }
 
 // PlaceOrder 通过 HTTP 调用 PlaceOrder

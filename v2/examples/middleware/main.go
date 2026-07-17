@@ -7,7 +7,6 @@
 //   - endpoint.MetricsMiddleware
 //   - endpoint.ErrorHandlingMiddleware
 //   - circuitbreaker.Gobreaker   (sony/gobreaker)
-//   - circuitbreaker.HandyBreaker (streadway/handy)
 //   - ratelimit.NewErroringLimiter  — reject immediately when over limit
 //   - ratelimit.NewDelayingLimiter  — wait for a token (respects ctx deadline)
 //
@@ -23,7 +22,6 @@ import (
 	"time"
 
 	"github.com/sony/gobreaker"
-	handybreaker "github.com/streadway/handy/breaker"
 	"golang.org/x/time/rate"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
@@ -116,8 +114,8 @@ func main() {
 		Use(endpoint.TimeoutMiddleware(2 * time.Second)).
 		Build()
 
-	call(ep, divReq{10, 2})  // success
-	call(ep, divReq{5, 0})   // Failer (not an endpoint error)
+	call(ep, divReq{10, 2}) // success
+	call(ep, divReq{5, 0})  // Failer (not an endpoint error)
 	fmt.Printf("  metrics: requests=%d success=%d errors=%d\n",
 		m.RequestCount, m.SuccessCount, m.ErrorCount)
 
@@ -183,16 +181,8 @@ func main() {
 		fmt.Printf("  call %d: %v\n", i+1, err)
 	}
 
-	// ── 7. HandyBreaker ───────────────────────────────────────────────────────
-	fmt.Println("\n=== 7. circuitbreaker.HandyBreaker ===")
-	hb := circuitbreaker.HandyBreaker(handybreaker.NewBreaker(0.5))
-	for i := 0; i < 4; i++ {
-		_, err := hb(alwaysFail)(context.Background(), nil)
-		fmt.Printf("  call %d: %v\n", i+1, err)
-	}
-
-	// ── 8. ErroringLimiter ────────────────────────────────────────────────────
-	fmt.Println("\n=== 8. ratelimit.NewErroringLimiter ===")
+	// ── 7. ErroringLimiter ────────────────────────────────────────────────────
+	fmt.Println("\n=== 7. ratelimit.NewErroringLimiter ===")
 	// burst=2: first 2 succeed, then rejected immediately
 	lim := rate.NewLimiter(0, 2)
 	errLimEp := ratelimit.NewErroringLimiter(lim)(endpoint.Nop)
@@ -205,8 +195,8 @@ func main() {
 		}
 	}
 
-	// ── 9. DelayingLimiter ────────────────────────────────────────────────────
-	fmt.Println("\n=== 9. ratelimit.NewDelayingLimiter ===")
+	// ── 8. DelayingLimiter ────────────────────────────────────────────────────
+	fmt.Println("\n=== 8. ratelimit.NewDelayingLimiter ===")
 	// 1 token/second: first call instant, second must wait
 	delayLim := rate.NewLimiter(rate.Every(time.Second), 1)
 	delayEp := ratelimit.NewDelayingLimiter(delayLim)(endpoint.Nop)

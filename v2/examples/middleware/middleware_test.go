@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/sony/gobreaker"
-	handybreaker "github.com/streadway/handy/breaker"
 	"golang.org/x/time/rate"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
@@ -147,19 +146,6 @@ func TestGobreaker_OpensAfterFailures(t *testing.T) {
 	_, err := ep(context.Background(), nil)
 	if err == nil {
 		t.Error("expected circuit breaker open error")
-	}
-}
-
-func TestHandyBreaker(t *testing.T) {
-	hb := circuitbreaker.HandyBreaker(handybreaker.NewBreaker(0.5))
-	alwaysFail := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
-		return nil, errors.New("fail")
-	})
-	ep := hb(alwaysFail)
-	_, err := ep(context.Background(), nil)
-	// first call may fail with backend error or breaker error — either is non-nil
-	if err == nil {
-		t.Error("expected error from always-failing endpoint")
 	}
 }
 

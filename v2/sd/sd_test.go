@@ -20,6 +20,12 @@ import (
 	"github.com/dreamsxin/go-kit/v2/sd/interfaces"
 )
 
+type retryableTestError struct {
+	error
+}
+
+func (retryableTestError) Retryable() bool { return true }
+
 // ─────────────────────────── mock Instancer ───────────────────────────
 
 // mockInstancer is a simple in-process Instancer driven by a channel.
@@ -235,7 +241,7 @@ func (c *countingBalancer) Endpoint() (endpoint.Endpoint, error) {
 	if c.calls >= c.threshold {
 		return endpoint.Nop, nil
 	}
-	return nil, errors.New("not yet")
+	return nil, retryableTestError{errors.New("not yet")}
 }
 
 func TestRetry_SuccessFirstTry(t *testing.T) {
@@ -265,8 +271,8 @@ func TestRetry_SuccessAfterRetries(t *testing.T) {
 	}
 }
 
-func TestRetry_ExhaustsMaxRetries(t *testing.T) {
-	fail := errors.New("always fail")
+func TestRetry_ExhaustsMaxAttempts(t *testing.T) {
+	fail := retryableTestError{errors.New("always fail")}
 	b := errorBalancer{err: fail}
 	ep := executor.Retry(3, time.Second, b)
 	_, err := ep(context.Background(), nil)
@@ -304,7 +310,7 @@ func TestRetry_RetryWithCallback(t *testing.T) {
 	b := fixedBalancer{ep: func(ctx context.Context, req interface{}) (interface{}, error) {
 		callCount++
 		if callCount < 3 {
-			return nil, errors.New("not ready")
+			return nil, retryableTestError{errors.New("not ready")}
 		}
 		return "done", nil
 	}}

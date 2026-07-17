@@ -75,7 +75,12 @@ func NewJSONClient[Resp any](method, rawURL string, options ...ClientOption) (en
 		}
 		return resp, nil
 	}
-	return NewClient(method, tgt, EncodeJSONRequest, dec, options...).Endpoint(), nil
+	encoder := EncodeJSONRequest
+	switch strings.ToUpper(method) {
+	case http.MethodGet, http.MethodHead:
+		encoder = EncodeQueryRequest
+	}
+	return NewClient(method, tgt, encoder, dec, options...).Endpoint(), nil
 }
 
 func newHTTPStatusError(r *http.Response) error {
@@ -88,21 +93,21 @@ func newHTTPStatusError(r *http.Response) error {
 	}
 }
 
-// NewJSONClientWithRetry creates a JSON client endpoint wrapped with a
-// context timeout.  It is a convenience shorthand for:
+// NewJSONClientWithTimeout creates a JSON client endpoint wrapped with a
+// context timeout. It is a convenience shorthand for:
 //
 //	ep, _ := NewJSONClient[Resp](method, rawURL, options...)
 //	ep = endpoint.NewBuilder(ep).WithTimeout(timeout).Build()
 //
-// For full retry-with-balancer support, use sd.NewEndpoint instead.
+// For retry with service discovery, use sd.NewEndpoint instead.
 //
 // Example:
 //
-//	ep, err := client.NewJSONClientWithRetry[UserResp](
+//	ep, err := client.NewJSONClientWithTimeout[UserResp](
 //	    http.MethodGet, "http://localhost:8080/users/1",
 //	    2*time.Second,
 //	)
-func NewJSONClientWithRetry[Resp any](
+func NewJSONClientWithTimeout[Resp any](
 	method, rawURL string,
 	timeout time.Duration,
 	options ...ClientOption,

@@ -160,7 +160,7 @@ func validateProjectLayout(root string) error {
 func readModulePath(goModPath string) (string, error) {
 	f, err := os.Open(goModPath)
 	if err != nil {
-	if os.IsNotExist(err) {
+		if os.IsNotExist(err) {
 			return "", fmt.Errorf("unsupported existing project layout: missing go.mod; extend mode expects a microgen-generated project root")
 		}
 		return "", err

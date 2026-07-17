@@ -28,6 +28,12 @@ type permanentError struct {
 
 func (permanentError) Retryable() bool { return false }
 
+type transientError struct {
+	error
+}
+
+func (transientError) Retryable() bool { return true }
+
 func newBalancer(t *testing.T, factory endpoint.Factory) interfaces.Balancer {
 	t.Helper()
 	cache := instance.NewCache()
@@ -62,7 +68,7 @@ func TestRetry_SucceedsAfterFailures(t *testing.T) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			attempts++
 			if attempts < 3 {
-				return nil, fmt.Errorf("attempt %d failed", attempts)
+				return nil, transientError{fmt.Errorf("attempt %d failed", attempts)}
 			}
 			return "success", nil
 		})
@@ -83,7 +89,7 @@ func TestRetry_SucceedsAfterFailures(t *testing.T) {
 func TestRetry_ExceedsMax(t *testing.T) {
 	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
-			return nil, errors.New("always fails")
+			return nil, transientError{errors.New("always fails")}
 		})
 		return ep, io.NopCloser(nil), nil
 	})
@@ -121,7 +127,7 @@ func TestRetry_ContextCancelled(t *testing.T) {
 	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(ctx context.Context, _ any) (any, error) {
 			time.Sleep(50 * time.Millisecond)
-			return nil, errors.New("slow fail")
+			return nil, transientError{errors.New("slow fail")}
 		})
 		return ep, io.NopCloser(nil), nil
 	})
@@ -139,7 +145,7 @@ func TestRetry_ContextCancelled(t *testing.T) {
 func TestRetry_BackoffStopsOnContextCancel(t *testing.T) {
 	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
-			return nil, errors.New("transient")
+			return nil, transientError{errors.New("transient")}
 		})
 		return ep, io.NopCloser(nil), nil
 	})
@@ -172,23 +178,22 @@ func TestDefaultRetryable_GRPCInvalidArgumentIsPermanent(t *testing.T) {
 	}
 }
 
-// ── RetryAlways ───────────────────────────────────────────────────────────────
+func TestDefaultRetryable_UnknownErrorIsPermanent(t *testing.T) {
+	if executor.DefaultRetryable(errors.New("business failure")) {
+		t.Fatal("unknown errors should not be retryable")
+	}
+}
 
-func TestRetryAlways_StopsOnContextCancel(t *testing.T) {
-	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
-		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
-			return nil, errors.New("fail")
-		})
-		return ep, io.NopCloser(nil), nil
-	})
-	lb := newBalancer(t, f)
-	ep := executor.RetryAlways(time.Second, lb)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-	_, err := ep(ctx, nil)
-	if err == nil {
-		t.Error("expected error when context expires")
+func TestDefaultRetryable_KnownTransientErrors(t *testing.T) {
+	for _, err := range []error{
+		transientError{errors.New("temporary")},
+		interfaces.ErrNoEndpoints,
+		status.Error(codes.Unavailable, "unavailable"),
+		status.Error(codes.ResourceExhausted, "busy"),
+	} {
+		if !executor.DefaultRetryable(err) {
+			t.Fatalf("%v should be retryable", err)
+		}
 	}
 }
 

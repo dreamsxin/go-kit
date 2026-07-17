@@ -45,7 +45,7 @@ func TestNewEndpoint_RoundRobin(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	ep := sd.NewEndpoint(cache, endpoint.Factory(nopFactory), nopLogger(),
-		sd.WithMaxRetries(1),
+		sd.WithMaxAttempts(1),
 		sd.WithTimeout(time.Second),
 	)
 
@@ -68,7 +68,7 @@ func TestNewEndpoint_WithOptions(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	ep := sd.NewEndpoint(cache, endpoint.Factory(nopFactory), nopLogger(),
-		sd.WithMaxRetries(2),
+		sd.WithMaxAttempts(2),
 		sd.WithTimeout(500*time.Millisecond),
 		sd.WithInvalidateOnError(5*time.Second),
 	)
@@ -98,16 +98,15 @@ func TestNewEndpointWithDefaults(t *testing.T) {
 	}
 }
 
-// ── WithMaxRetries(0) = unlimited ─────────────────────────────────────────────
+// ── Invalid attempt count normalization ───────────────────────────────────────
 
-func TestNewEndpoint_UnlimitedRetries(t *testing.T) {
+func TestNewEndpoint_NormalizesInvalidMaxAttempts(t *testing.T) {
 	cache := instance.NewCache()
 	cache.Update(events.Event{Instances: []string{"svc:80"}})
 	time.Sleep(10 * time.Millisecond)
 
-	// MaxRetries=0 → RetryAlways (until timeout)
 	ep := sd.NewEndpoint(cache, endpoint.Factory(nopFactory), nopLogger(),
-		sd.WithMaxRetries(0),
+		sd.WithMaxAttempts(0),
 		sd.WithTimeout(200*time.Millisecond),
 	)
 	resp, err := ep(context.Background(), nil)

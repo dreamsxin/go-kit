@@ -139,12 +139,12 @@ Recommended entry points:
 
 - `client.NewClient`
 - `client.NewJSONClient`
-- `client.NewJSONClientWithRetry`
+- `client.NewJSONClientWithTimeout`
 - `client.EncodeJSONRequest`
 
-Despite its historical name, `NewJSONClientWithRetry` currently adds a context
-timeout and does not perform retries. Use `sd.NewEndpoint` with an explicit
-retry classifier for retrying discovered calls.
+`NewJSONClient` encodes GET/HEAD requests as path/query parameters and keeps the
+request body empty. `NewJSONClientWithTimeout` adds a context timeout; use
+`sd.NewEndpoint` with an explicit retry classifier when retries are required.
 
 Primary extension points:
 

@@ -8,11 +8,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	idl "example.com/gen_fromdb_sqlite"
+	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 )
 
 // ─────────────────────────── HTTP Client ───────────────────────────
@@ -60,30 +59,8 @@ func (c *CatalogServiceHTTPClient) do(ctx context.Context, method, path string, 
 	return json.NewDecoder(r.Body).Decode(resp)
 }
 
-func buildGETPath(path string, req interface{}) string {
-	b, _ := json.Marshal(req)
-	var params map[string]interface{}
-	_ = json.Unmarshal(b, &params)
-	if len(params) == 0 {
-		return path
-	}
-	query := url.Values{}
-	for k, v := range params {
-		if v == nil {
-			continue
-		}
-		token := "{" + k + "}"
-		value := fmt.Sprint(v)
-		if strings.Contains(path, token) {
-			path = strings.ReplaceAll(path, token, url.PathEscape(value))
-			continue
-		}
-		query.Set(k, value)
-	}
-	if encoded := query.Encode(); encoded != "" {
-		path += "?" + encoded
-	}
-	return path
+func buildGETPath(path string, req interface{}) (string, error) {
+	return transporthttp.EncodePathAndQuery(path, req)
 }
 
 // CreateUser 通过 HTTP 调用 CreateUser
@@ -95,7 +72,11 @@ func (c *CatalogServiceHTTPClient) CreateUser(ctx context.Context, req idl.Creat
 // GetUser 通过 HTTP 调用 GetUser
 func (c *CatalogServiceHTTPClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
-	return resp, c.do(ctx, "GET", buildGETPath("/user/{id}", req), nil, &resp)
+	path, err := buildGETPath("/user/{id}", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	return resp, c.do(ctx, "GET", path, nil, &resp)
 }
 
 // UpdateUser 通过 HTTP 调用 UpdateUser
@@ -113,7 +94,11 @@ func (c *CatalogServiceHTTPClient) DeleteUser(ctx context.Context, req idl.Delet
 // ListUsers 通过 HTTP 调用 ListUsers
 func (c *CatalogServiceHTTPClient) ListUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error) {
 	var resp idl.ListUsersResponse
-	return resp, c.do(ctx, "GET", buildGETPath("/users", req), nil, &resp)
+	path, err := buildGETPath("/users", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	return resp, c.do(ctx, "GET", path, nil, &resp)
 }
 
 // ─────────────────────────── 通用接口 ───────────────────────────

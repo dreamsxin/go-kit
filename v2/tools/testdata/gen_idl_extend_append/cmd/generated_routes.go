@@ -4,7 +4,7 @@ package main
 import (
 	orderserviceTransport "example.com/gen_idl_extend_append/transport/orderservice"
 	userserviceTransport "example.com/gen_idl_extend_append/transport/userservice"
-	"github.com/gorilla/mux"
+	"net/http"
 )
 
 func (g generatedServices) generatedRuntime() generatedRuntime {
@@ -24,11 +24,11 @@ func (g generatedServices) generatedRuntime() generatedRuntime {
 			{Method: "PUT", Path: "/patchstatus", Handler: "PatchStatus"},
 			{Method: "POST", Path: "/placeorder", Handler: "PlaceOrder"},
 		},
-		httpRegistrars: []func(*mux.Router){
-			func(router *mux.Router) {
+		httpRegistrars: []func(*http.ServeMux){
+			func(router *http.ServeMux) {
 				userserviceTransport.RegisterHTTPRoutes(router, g.userserviceEndpoints, "")
 			},
-			func(router *mux.Router) {
+			func(router *http.ServeMux) {
 				orderserviceTransport.RegisterHTTPRoutes(router, g.orderserviceEndpoints, "")
 			},
 		},

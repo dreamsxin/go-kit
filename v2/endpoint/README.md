@@ -164,9 +164,7 @@ Logging note:
 Specialized middleware packages:
 
 - `endpoint/circuitbreaker`
-  - Gobreaker
-  - HandyBreaker
-  - Hystrix integration
+  - `Gobreaker`
 - `endpoint/ratelimit`
   - `NewErroringLimiter`
   - `NewDelayingLimiter`

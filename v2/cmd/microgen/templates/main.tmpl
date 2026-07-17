@@ -30,7 +30,6 @@ import (
 {{end}}	"syscall"
 	"time"
 
-	"github.com/gorilla/mux"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
 {{if .WithConfig}}	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -175,25 +174,21 @@ func main() {
 	}
 {{end}}
 
-	r := mux.NewRouter()
-	r.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			start := time.Now()
-			next.ServeHTTP(w, req)
-			logger.Sugar().Infof("[HTTP] %s %s %v", req.Method, req.URL.Path, time.Since(start))
-		})
-	})
-
-	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	r := http.NewServeMux()
+	healthHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, `{"status":"ok","service":"{{range .Project.Services}}{{.Name}}{{end}}"}`)
-	}).Methods("GET", "HEAD")
+	}
+	r.HandleFunc("GET /health", healthHandler)
+	r.HandleFunc("HEAD /health", healthHandler)
 
-{{if .WithSkill}}	r.HandleFunc("/skill", skill.Handler).Methods("GET")
+{{if .WithSkill}}	r.HandleFunc("GET /skill", skill.Handler)
 {{end}}
 {{if .WithInteraction}}	mcpHandler := mcp.NewStreamableHandler(interactionRuntime)
-	r.Handle("/mcp", mcpHandler)
+	r.Handle("GET /mcp", mcpHandler)
+	r.Handle("POST /mcp", mcpHandler)
+	r.Handle("DELETE /mcp", mcpHandler)
 {{end}}
 
 {{if .WithSwag}}{{if .WithConfig}}	{
@@ -210,21 +205,21 @@ func main() {
 		}
 		docs.SwaggerInfo.Host = swaggerHost
 	}
-{{end}}	r.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
+{{end}}	r.Handle("GET /swagger/", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
 		httpSwagger.DeepLinking(true),
 		httpSwagger.DocExpansion("list"),
-	))
+))
 {{end}}
 
 	runtime.registerRoutes(r)
 	customRoutes := registerCustomRoutes(r)
 
 {{if .WithConfig}}	if cfg.Debug.RoutesEnabled {
-{{end}}	r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
+{{end}}	r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, {{if .WithSwag}}true{{else}}false{{end}}, {{if .WithSkill}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}}))
-	}).Methods("GET")
+	})
 {{if .WithConfig}}	}
 {{end}}
 
@@ -237,7 +232,11 @@ func main() {
 
 	httpServer := &http.Server{
 		Addr:         *httpAddr,
-		Handler:      r,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			start := time.Now()
+			r.ServeHTTP(w, req)
+			logger.Sugar().Infof("[HTTP] %s %s %v", req.Method, req.URL.Path, time.Since(start))
+		}),
 {{if .WithConfig}}		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 {{else}}		ReadTimeout:  15 * time.Second,

@@ -65,13 +65,15 @@ func (g *Generator) generateEndpointCustomChainFile(service *serviceView) error 
 }
 
 func (g *Generator) generateHTTPTransportFile(service *serviceView, irService *ir.Service, source string) error {
+	methods := unaryMethods(irService)
 	data := httpTransportTemplateData{
-		Service:      service,
-		IRService:    irService,
-		UnaryMethods: unaryMethods(irService),
-		ImportPath:   g.config.ImportPath,
-		RoutePrefix:  routePrefix(g.config.RoutePrefix, service.ServiceName),
-		Source:       source,
+		Service:       service,
+		IRService:     irService,
+		UnaryMethods:  methods,
+		HasGETMethods: hasHTTPMethod(methods, "GET"),
+		ImportPath:    g.config.ImportPath,
+		RoutePrefix:   routePrefix(g.config.RoutePrefix, service.ServiceName),
+		Source:        source,
 	}
 	return g.executeTemplate("transport.tmpl", g.layout.httpTransportFile(service.ServiceName), data)
 }

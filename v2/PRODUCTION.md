@@ -49,8 +49,8 @@ session duration.
 Always set a client timeout or request deadline. JSON clients return
 `HTTPStatusError` for non-2xx responses and bound the captured error body.
 
-The historical name `NewJSONClientWithRetry` currently adds a timeout only. Use
-`sd.NewEndpoint` and an explicit retry policy when retries are actually required.
+`NewJSONClientWithTimeout` adds a per-call context timeout. Use `sd.NewEndpoint`
+and an explicit retry policy when retries are actually required.
 
 Retry only operations whose idempotency and error classification are known.
 Unknown business errors should not be assumed transient.
@@ -68,10 +68,10 @@ Unknown business errors should not be assumed transient.
 Discovery subscribers receive immutable snapshots. Consumers should use buffered
 update channels and must deregister or close their endpointer during shutdown.
 
-The built-in default retry classifier excludes cancellation, caller/auth errors,
-and errors that implement `Retryable() bool` with a false result. Unknown errors
-remain retryable for compatibility, so production callers should prefer
-`RetryWithRetryable` with a domain-specific classifier.
+The built-in default retry classifier retries only explicit
+`Retryable() == true` errors, no-endpoint discovery errors, and known transient
+gRPC statuses. Unknown errors are permanent. Production callers should still
+prefer `RetryWithRetryable` with a domain-specific classifier.
 
 Backoff and calls honor context cancellation. The total timeout must cover all
 attempts and waits, not each attempt independently.

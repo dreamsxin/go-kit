@@ -10,7 +10,7 @@ A guided tour of the go-kit framework, from simplest to most complete.
 | `basic/` | Middleware chain execution order | `go test ./examples/basic/...` |
 | `quickstart/` | Minimal HTTP service with Builder + NewJSONServer | `go run ./examples/quickstart` |
 | `best_practice/` | Production patterns: metrics, circuit breaker, rate limit, graceful shutdown | `go run ./examples/best_practice` |
-| `middleware/` | Every endpoint middleware: Chain, Builder, Failer, Timeout, Gobreaker, HandyBreaker, ErroringLimiter, DelayingLimiter | `go run ./examples/middleware` |
+| `middleware/` | Endpoint middleware: Chain, Builder, Failer, Timeout, Gobreaker, ErroringLimiter, DelayingLimiter | `go run ./examples/middleware` |
 | `httpclient/` | HTTP client: NewJSONClient, ClientBefore/After/Finalizer, SetClient | `go run ./examples/httpclient` |
 | `interaction_policy/` | AI interaction runtime: MCP-style tool calls with authorization and audit hooks | `go test ./examples/interaction_policy/...` |
 | `mcp_basic/` | Minimal MCP server: single tool, `NewRuntime()`, `mcp.ListenAndServe` | `go run ./examples/mcp_basic` |
@@ -86,7 +86,7 @@ mux.Handle("/hello", server.NewJSONServer[helloRequest](
 ```go
 // Consul → Endpointer → RoundRobin → Retry, all wired automatically
 ep := sd.NewEndpoint(instancer, factory, logger,
-    sd.WithMaxRetries(3),
+    sd.WithMaxAttempts(3),
     sd.WithTimeout(500*time.Millisecond),
 )
 ```

@@ -23,9 +23,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
+
+	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 
 	svcTransport "example.com/gen_proto_grpc_runtime/transport/userservice"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
@@ -174,37 +174,17 @@ func (c *httpClient) do(ctx context.Context, method, path string, reqBody, respB
 	return nil
 }
 
-func buildGETPath(path string, reqBody interface{}) string {
-	b, _ := json.Marshal(reqBody)
-	var params map[string]interface{}
-	_ = json.Unmarshal(b, &params)
-	if len(params) == 0 {
-		return path
-	}
-
-	query := url.Values{}
-	for k, v := range params {
-		if v == nil {
-			continue
-		}
-		token := "{" + k + "}"
-		value := fmt.Sprint(v)
-		if strings.Contains(path, token) {
-			path = strings.ReplaceAll(path, token, url.PathEscape(value))
-			continue
-		}
-		query.Set(k, value)
-	}
-	if encoded := query.Encode(); encoded != "" {
-		path += "?" + encoded
-	}
-	return path
+func buildGETPath(path string, reqBody interface{}) (string, error) {
+	return transporthttp.EncodePathAndQuery(path, reqBody)
 }
 
 func (c *httpClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
-	path := buildGETPath("/getuser", req)
-	err := c.do(ctx, "GET", path, nil, &resp)
+	path, err := buildGETPath("/getuser", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	err = c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }
 

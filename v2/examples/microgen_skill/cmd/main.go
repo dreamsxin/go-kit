@@ -30,17 +30,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dreamsxin/go-kit/v2/examples/microgen_skill/service"
 	greeterEndpoint "github.com/dreamsxin/go-kit/v2/examples/microgen_skill/endpoint"
+	"github.com/dreamsxin/go-kit/v2/examples/microgen_skill/service"
 	greeterTransport "github.com/dreamsxin/go-kit/v2/examples/microgen_skill/transport"
-	"github.com/gorilla/mux"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"google.golang.org/grpc"
 	"net"
 
-
-	"github.com/dreamsxin/go-kit/v2/examples/microgen_skill/skill"
 	"github.com/dreamsxin/go-kit/v2/examples/microgen_skill/config"
+	"github.com/dreamsxin/go-kit/v2/examples/microgen_skill/skill"
 )
 
 func printBanner(logger *kitlog.Logger, httpAddr string, grpcAddr string, withSwag bool, withSkill bool) {
@@ -104,12 +102,8 @@ func main() {
 	defer logger.Sync() //nolint:errcheck
 	logger.Sugar().Infof("Config loaded from: %s", *configPath)
 
-
-
-
 	// ─── 初始化服务 ───
 	greeterSvc := service.NewService(nil)
-
 
 	// ─── 初始化端点（配置驱动中间件）───
 	greeterEndpoints := greeterEndpoint.MakeServerEndpointsWithConfig(greeterSvc, logger, greeterEndpoint.MiddlewareConfig{
@@ -121,56 +115,47 @@ func main() {
 		Timeout:            30 * time.Second,
 	})
 
-
 	// ─── 构建路由 ───
-	r := mux.NewRouter()
-
-	// 请求日志中间件
-	r.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			start := time.Now()
-			next.ServeHTTP(w, req)
-			logger.Sugar().Infof("[HTTP] %s %s %v", req.Method, req.URL.Path, time.Since(start))
-		})
-	})
+	r := http.NewServeMux()
 
 	// 健康检查（无鉴权）
-	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	healthHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, `{"status":"ok","service":"Greeter"}`)
-	}).Methods("GET", "HEAD")
-
+	}
+	r.HandleFunc("GET /health", healthHandler)
+	r.HandleFunc("HEAD /health", healthHandler)
 
 	// AI Skill definition (for AI agents)
-	r.HandleFunc("/skill", skill.Handler).Methods("GET")
-
-
-
+	r.HandleFunc("GET /skill", skill.Handler)
 
 	// /debug/routes — 聚合所有服务路由，方便调试
 	if cfg.Debug.RoutesEnabled {
-	r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
-		type routeInfo struct {
-			Method  string `json:"method"`
-			Path    string `json:"path"`
-			Handler string `json:"handler"`
-		}
-		var all []routeInfo
-		all = append(all, routeInfo{"GET", "/health", "health"})
-		all = append(all, routeInfo{"GET", "/debug/routes", "debug"})
-		all = append(all, routeInfo{"POST", "/sayhello", "SayHello"})
-		all = append(all, routeInfo{"GET", "/getstatus", "GetStatus"})
-		all = append(all, routeInfo{"GET", "/skill", "skill"})
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(all)
-	}).Methods("GET")
+		r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
+			type routeInfo struct {
+				Method  string `json:"method"`
+				Path    string `json:"path"`
+				Handler string `json:"handler"`
+			}
+			var all []routeInfo
+			all = append(all, routeInfo{"GET", "/health", "health"})
+			all = append(all, routeInfo{"GET", "/debug/routes", "debug"})
+			all = append(all, routeInfo{"POST", "/sayhello", "SayHello"})
+			all = append(all, routeInfo{"GET", "/getstatus", "GetStatus"})
+			all = append(all, routeInfo{"GET", "/skill", "skill"})
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			json.NewEncoder(w).Encode(all)
+		})
 	}
 
-	r.PathPrefix("").Handler(
-		http.StripPrefix("", greeterTransport.NewHTTPHandler(greeterEndpoints)),
-	)
+	greeterTransport.RegisterHTTPRoutes(r, greeterEndpoints, "")
 
+	loggedHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		start := time.Now()
+		r.ServeHTTP(w, req)
+		logger.Sugar().Infof("[HTTP] %s %s %v", req.Method, req.URL.Path, time.Since(start))
+	})
 
 	if cfg.Debug.PrintRoutes {
 		printAllRoutes(logger)
@@ -178,7 +163,7 @@ func main() {
 
 	httpServer := &http.Server{
 		Addr:         *httpAddr,
-		Handler:      r,
+		Handler:      loggedHandler,
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  60 * time.Second,
@@ -189,7 +174,6 @@ func main() {
 			logger.Sugar().Fatalf("FATAL: HTTP server: %v", err)
 		}
 	}()
-
 
 	// ─── gRPC 服务 ───
 	lis, err := net.Listen("tcp", *grpcAddr)
@@ -204,7 +188,6 @@ func main() {
 			logger.Sugar().Fatalf("FATAL: gRPC server: %v", err)
 		}
 	}()
-
 
 	printBanner(logger, *httpAddr, *grpcAddr, false, true)
 

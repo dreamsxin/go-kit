@@ -1,12 +1,9 @@
 package main
 
-	import (
-		"net/http"
-		"github.com/gorilla/mux"
-	)
+	import "net/http"
 
-	func registerCustomRoutes(r *mux.Router) []generatedRouteEntry {
-		r.HandleFunc("/custom/ping", func(w http.ResponseWriter, _ *http.Request) {
+	func registerCustomRoutes(r *http.ServeMux) []generatedRouteEntry {
+		r.HandleFunc("GET /custom/ping", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(204)
 		})
 		return []generatedRouteEntry{

@@ -2,7 +2,7 @@
 package main
 
 import (
-	"github.com/gorilla/mux"
+	"net/http"
 )
 
 type generatedRouteEntry struct {
@@ -13,10 +13,10 @@ type generatedRouteEntry struct {
 
 type generatedRuntime struct {
 	routeEntries   []generatedRouteEntry
-	httpRegistrars []func(*mux.Router)
+	httpRegistrars []func(*http.ServeMux)
 }
 
-func (rt generatedRuntime) registerRoutes(r *mux.Router) {
+func (rt generatedRuntime) registerRoutes(r *http.ServeMux) {
 	for _, register := range rt.httpRegistrars {
 		register(r)
 	}

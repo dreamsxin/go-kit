@@ -8,12 +8,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	idl "example.com/gen_proto_grpc_runtime/pb"
 	genTransport "example.com/gen_proto_grpc_runtime/transport/userservice"
+	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -63,36 +62,18 @@ func (c *UserServiceHTTPClient) do(ctx context.Context, method, path string, req
 	return json.NewDecoder(r.Body).Decode(resp)
 }
 
-func buildGETPath(path string, req interface{}) string {
-	b, _ := json.Marshal(req)
-	var params map[string]interface{}
-	_ = json.Unmarshal(b, &params)
-	if len(params) == 0 {
-		return path
-	}
-	query := url.Values{}
-	for k, v := range params {
-		if v == nil {
-			continue
-		}
-		token := "{" + k + "}"
-		value := fmt.Sprint(v)
-		if strings.Contains(path, token) {
-			path = strings.ReplaceAll(path, token, url.PathEscape(value))
-			continue
-		}
-		query.Set(k, value)
-	}
-	if encoded := query.Encode(); encoded != "" {
-		path += "?" + encoded
-	}
-	return path
+func buildGETPath(path string, req interface{}) (string, error) {
+	return transporthttp.EncodePathAndQuery(path, req)
 }
 
 // GetUser 通过 HTTP 调用 GetUser
 func (c *UserServiceHTTPClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
-	return resp, c.do(ctx, "GET", buildGETPath("/getuser", req), nil, &resp)
+	path, err := buildGETPath("/getuser", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode GET query: %w", err)
+	}
+	return resp, c.do(ctx, "GET", path, nil, &resp)
 }
 
 // CreateUser 通过 HTTP 调用 CreateUser
