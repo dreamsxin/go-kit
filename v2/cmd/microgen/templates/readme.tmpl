@@ -4,6 +4,7 @@ Generated with `go-kit microgen`.
 
 ## Project Map
 
+- `.microgen/manifest.json` is the versioned project identity and generator-owned artifact contract.
 - `idl.go` is the generated source contract snapshot when the project was generated from Go IDL.
 - `pb/` contains generated proto contracts when gRPC/proto output is enabled.
 - `service/<name>/service.go` is the primary user-owned business logic file.
@@ -11,7 +12,7 @@ Generated with `go-kit microgen`.
 - `cmd/custom_routes.go` is the user-owned custom HTTP route hook file.
 - `cmd/generated_*.go`, `endpoint/<name>/generated_chain.go`, `model/generated_*.go`, `repository/generated_*.go`, `sdk/`, `client/`, `skill/`, and `docs/` are generator-owned outputs.
 
-For existing projects, prefer `microgen extend -check -out .` before changing generated seams.
+For existing projects, run `microgen extend -check -out .` before changing generated seams. It validates the manifest against the filesystem, and extend refuses mutations while drift is present.
 
 ## Capability Contract
 
@@ -51,7 +52,7 @@ microgen extend -idl full_combined.go -out . -append-model Product
 microgen extend -idl full_combined.go -out . -append-middleware tracing,error-handling,metrics
 ```
 
-Extend mode updates new generated files plus generator-owned aggregation seams. Keep business logic in user-owned files such as `service/<name>/service.go`, `endpoint/<name>/custom_chain.go`, and `cmd/custom_routes.go`.
+Extend mode updates new generated files plus generator-owned aggregation seams, then commits `.microgen/manifest.json` last. Keep business logic in user-owned files such as `service/<name>/service.go`, `endpoint/<name>/custom_chain.go`, and `cmd/custom_routes.go`.
 
 ## Agent Workflow
 

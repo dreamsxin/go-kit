@@ -186,6 +186,10 @@ func TestPrintExtendCheckReport(t *testing.T) {
 	printExtendCheckReport(&out, &generator.ExistingProject{
 		Root:       "D:/work/demo",
 		ModulePath: "example.com/demo",
+		Manifest: &generator.ProjectManifest{
+			SchemaVersion: generator.ProjectManifestSchemaVersion,
+			Source:        "go",
+		},
 		Services: []generator.ExistingService{
 			{Name: "UserService", PackageName: "userservice"},
 		},
@@ -216,6 +220,8 @@ func TestPrintExtendCheckReport(t *testing.T) {
 		"Summary:",
 		"- Module: example.com/demo",
 		"- Overall status: ready",
+		"- Manifest: .microgen/manifest.json (microgen.project.v2)",
+		"- Manifest status: valid",
 		"- Generated middleware: tracing",
 		"Compatibility Seams:",
 		"- Generated services seam: cmd/generated_services.go",
@@ -242,6 +248,10 @@ func TestPrintExtendCheckReport_ShowsMissingSeamsPerAppendPath(t *testing.T) {
 	printExtendCheckReport(&out, &generator.ExistingProject{
 		Root:       "D:/work/legacy",
 		ModulePath: "example.com/legacy",
+		Manifest: &generator.ProjectManifest{
+			SchemaVersion: generator.ProjectManifestSchemaVersion,
+			Source:        "go",
+		},
 		Services: []generator.ExistingService{
 			{Name: "UserService", PackageName: "userservice"},
 		},
@@ -256,7 +266,7 @@ func TestPrintExtendCheckReport_ShowsMissingSeamsPerAppendPath(t *testing.T) {
 
 	report := out.String()
 	for _, want := range []string{
-		"- Overall status: needs compatibility seams",
+		"- Overall status: needs attention",
 		"- append-service: needs compatibility seams (missing: cmd/generated_services.go, cmd/generated_routes.go)",
 		"- append-model: needs compatibility seams (missing: cmd/generated_services.go, cmd/generated_runtime.go, service/userservice/generated_repos.go)",
 		"- append-middleware: needs compatibility seams (missing: cmd/generated_routes.go, endpoint/userservice/generated_chain.go)",
@@ -273,6 +283,7 @@ func TestPrintExtendCheckReport_ShowsMissingSeamsPerAppendPath(t *testing.T) {
 
 func TestExtendCheckExitCode(t *testing.T) {
 	ready := &generator.ExistingProject{
+		Manifest: &generator.ProjectManifest{SchemaVersion: generator.ProjectManifestSchemaVersion},
 		Services: []generator.ExistingService{{Name: "UserService", PackageName: "userservice"}},
 		AggregationPoints: generator.AggregationPoints{
 			GeneratedServices: "cmd/generated_services.go",
@@ -291,6 +302,7 @@ func TestExtendCheckExitCode(t *testing.T) {
 	}
 
 	notReady := &generator.ExistingProject{
+		Manifest: &generator.ProjectManifest{SchemaVersion: generator.ProjectManifestSchemaVersion},
 		Services: []generator.ExistingService{{Name: "UserService", PackageName: "userservice"}},
 		Features: generator.ExistingProjectFeatures{
 			WithModel: true,
@@ -299,5 +311,13 @@ func TestExtendCheckExitCode(t *testing.T) {
 	}
 	if code := extendCheckExitCode(notReady); code != 2 {
 		t.Fatalf("extendCheckExitCode(notReady) = %d, want 2", code)
+	}
+
+	drifted := &generator.ExistingProject{
+		Manifest:      &generator.ProjectManifest{SchemaVersion: generator.ProjectManifestSchemaVersion},
+		ManifestDrift: []string{"manifest artifact is missing: docs/schema.json"},
+	}
+	if code := extendCheckExitCode(drifted); code != 2 {
+		t.Fatalf("extendCheckExitCode(drifted) = %d, want 2", code)
 	}
 }

@@ -33,6 +33,9 @@ func (opt Options) Normalize() Options {
 
 // Validate checks generation options shared by CLI and direct generator callers.
 func (opt Options) Validate() error {
+	if opt.WithDB && opt.DBDriver == "" {
+		return fmt.Errorf("database generation requires a db driver")
+	}
 	if opt.DBDriver != "" {
 		if _, ok := supportedDrivers[opt.DBDriver]; !ok {
 			return fmt.Errorf("unsupported db driver: %s", opt.DBDriver)

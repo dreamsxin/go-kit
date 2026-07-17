@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "microgen.project.v2",
+  "modulePath": "example.com/gen_proto_component_flow",
+  "source": "proto",
+  "capabilities": {
+    "config": true,
+    "docs": true,
+    "tests": false,
+    "model": false,
+    "grpc": true,
+    "database": false,
+    "openapi": false,
+    "skill": true,
+    "interaction": false,
+    "configMode": "file"
+  },
+  "services": [
+    "UserService"
+  ],
+  "models": [],
+  "generatedMiddlewares": [],
+  "artifacts": [
+    ".microgen/manifest.json",
+    "client/userservice/demo.go",
+    "cmd/generated_routes.go",
+    "cmd/generated_runtime.go",
+    "cmd/generated_services.go",
+    "config/config.go",
+    "config/env.go",
+    "config/loader.go",
+    "config/local.go",
+    "config/remote.go",
+    "endpoint/userservice/generated_chain.go",
+    "pb/userservice/userservice.proto",
+    "sdk/userservicesdk/client.go",
+    "skill/skill.go"
+  ]
+}

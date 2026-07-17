@@ -162,6 +162,10 @@ func (g *Generator) generateFinalProjectArtifacts(ctx generationContext) error {
 		}
 	}
 
+	if err := g.generateProjectManifest(ctx); err != nil {
+		return fmt.Errorf("generate project manifest failed: %w", err)
+	}
+
 	return nil
 }
 

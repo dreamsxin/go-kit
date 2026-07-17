@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "microgen.project.v2",
+  "modulePath": "example.com/gen_idl_extend_append",
+  "source": "go",
+  "capabilities": {
+    "config": false,
+    "docs": false,
+    "tests": false,
+    "model": false,
+    "grpc": false,
+    "database": false,
+    "openapi": false,
+    "skill": true,
+    "interaction": false
+  },
+  "services": [
+    "OrderService",
+    "UserService"
+  ],
+  "models": [],
+  "generatedMiddlewares": [],
+  "artifacts": [
+    ".microgen/manifest.json",
+    "client/orderservice/demo.go",
+    "client/userservice/demo.go",
+    "cmd/generated_routes.go",
+    "cmd/generated_runtime.go",
+    "cmd/generated_services.go",
+    "endpoint/orderservice/generated_chain.go",
+    "endpoint/userservice/generated_chain.go",
+    "idl.go",
+    "sdk/orderservicesdk/client.go",
+    "sdk/userservicesdk/client.go",
+    "skill/skill.go"
+  ]
+}

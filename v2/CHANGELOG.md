@@ -24,6 +24,8 @@ root.
   with strict compiler settings and external type-check coverage.
 - Shared non-GET path parameter encoding and decoding for generated transports,
   clients, and SDKs.
+- Versioned `.microgen/manifest.json` project identity with source, capability,
+  route, service, model, middleware, and generator-owned artifact metadata.
 
 ### Changed
 
@@ -50,6 +52,8 @@ root.
   required dependencies and timing options before starting background work.
 - v2 documentation is task-oriented and no longer duplicates v1 release history,
   temporary roadmaps, or session snapshots.
+- Extend scanning uses the project manifest as its primary capability source and
+  reports filesystem or ownership drift before mutation.
 
 ### Fixed
 
@@ -65,6 +69,8 @@ root.
 - Generated Go files fail generation before a malformed partial file is written.
 - Append-service and append-model refresh OpenAPI, JSON Schema, and TypeScript
   client artifacts instead of leaving generated contracts stale.
+- Service, model, and middleware append operations refresh the project manifest
+  last and reject projects with unresolved manifest drift.
 
 ### Removed
 

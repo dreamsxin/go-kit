@@ -33,6 +33,8 @@ func (l projectLayout) configLocal() string    { return filepath.Join(l.root, "c
 func (l projectLayout) configEnv() string      { return filepath.Join(l.root, "config", "env.go") }
 func (l projectLayout) configRemote() string   { return filepath.Join(l.root, "config", "remote.go") }
 func (l projectLayout) configLoader() string   { return filepath.Join(l.root, "config", "loader.go") }
+func (l projectLayout) manifestDir() string    { return filepath.Join(l.root, ".microgen") }
+func (l projectLayout) manifestFile() string   { return filepath.Join(l.manifestDir(), "manifest.json") }
 func (l projectLayout) readme() string         { return filepath.Join(l.root, "README.md") }
 func (l projectLayout) docsDir() string        { return filepath.Join(l.root, "docs") }
 func (l projectLayout) docsEmbed() string      { return filepath.Join(l.docsDir(), "docs.go") }
@@ -129,6 +131,7 @@ func (l projectLayout) sdkFile(serviceName string) string {
 func (l projectLayout) requiredDirs(services []*serviceView, opts Options) []string {
 	dirs := []string{
 		filepath.Join(l.root, "cmd"),
+		l.manifestDir(),
 	}
 
 	for _, svc := range services {

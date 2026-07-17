@@ -95,6 +95,7 @@ go run ./cmd
 检查生成服务：
 
 ```bash
+cat .microgen/manifest.json
 curl http://localhost:8080/health
 curl http://localhost:8080/debug/routes
 curl http://localhost:8080/openapi.json
@@ -134,12 +135,16 @@ Swagger UI 5 静态资源嵌入生成二进制，不依赖 CDN。它只是
 
 不要手动修改：
 
+- `.microgen/manifest.json`
 - `cmd/generated_*.go`
 - `endpoint/<service>/generated_chain.go`
 - `model/generated_*.go` 和 `repository/generated_*.go`
 - 生成的 `client/`、`sdk/`、`skill/`、`pb/` 和 `docs/` 资源
 
-扩展已有生成项目之前先执行 `microgen extend -check -out .`。
+版本化 manifest 会记录生成源、模块路径、能力、路由前缀、服务、模型、生成
+middleware 和生成器归属文件。扩展项目之前先执行
+`microgen extend -check -out .`；它会报告文件漂移，漂移未处理前 extend 会拒绝
+写入。
 
 ## 使用 `kit`
 

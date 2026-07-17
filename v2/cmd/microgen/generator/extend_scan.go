@@ -50,6 +50,8 @@ type ExistingProject struct {
 	Root              string
 	ModulePath        string
 	IDLPath           string
+	Manifest          *ProjectManifest
+	ManifestDrift     []string
 	Services          []ExistingService
 	Models            []ExistingModel
 	AggregationPoints AggregationPoints
@@ -60,12 +62,17 @@ type ExistingProject struct {
 
 type ExistingProjectFeatures struct {
 	WithConfig           bool
+	WithDocs             bool
 	WithTests            bool
 	WithModel            bool
 	WithGRPC             bool
 	WithDB               bool
 	WithOpenAPI          bool
 	WithSkill            bool
+	WithInteraction      bool
+	ConfigMode           string
+	RemoteProvider       string
+	DBDriver             string
 	RoutePrefix          string
 	GeneratedMiddlewares []string
 }
@@ -88,14 +95,21 @@ func ScanExistingProject(root string) (*ExistingProject, error) {
 		return nil, err
 	}
 
+	layout := newProjectLayout(absRoot)
+	manifest, err := readProjectManifest(layout.manifestFile(), modulePath)
+	if err != nil {
+		return nil, err
+	}
+
 	project := &ExistingProject{
 		Root:       absRoot,
 		ModulePath: modulePath,
 		IDLPath:    filepath.Join(absRoot, "idl.go"),
+		Manifest:   manifest,
 		Ownership:  map[string]FileOwnership{},
 	}
 
-	if err := validateProjectLayout(absRoot); err != nil {
+	if err := validateProjectLayout(absRoot, manifest != nil); err != nil {
 		return nil, err
 	}
 
@@ -122,15 +136,23 @@ func ScanExistingProject(root string) (*ExistingProject, error) {
 	}
 
 	project.AggregationPoints = detectAggregationPoints(absRoot, project.Ownership)
-	project.Services = detectExistingServices(absRoot)
-	project.Models = detectExistingModels(absRoot)
-	project.Features = detectProjectFeatures(absRoot, project)
+	if manifest != nil {
+		project.Services = existingServicesFromManifest(absRoot, manifest.Services)
+		project.Models = existingModelsFromManifest(absRoot, manifest.Models)
+		project.Features = projectFeaturesFromManifest(*manifest)
+		project.ManifestDrift = detectManifestDrift(project)
+	} else {
+		project.Services = detectExistingServices(absRoot)
+		project.Models = detectExistingModels(absRoot)
+		project.Features = detectProjectFeatures(absRoot, project)
+		project.ManifestDrift = []string{".microgen/manifest.json is missing; regenerate the project with the current microgen before extending it"}
+	}
 	project.Warnings = detectWarnings(project)
 
 	return project, nil
 }
 
-func validateProjectLayout(root string) error {
+func validateProjectLayout(root string, hasManifest bool) error {
 	required := []string{
 		filepath.Join(root, "go.mod"),
 		filepath.Join(root, "cmd"),
@@ -151,7 +173,7 @@ func validateProjectLayout(root string) error {
 			break
 		}
 	}
-	if !hasGeneratedArea {
+	if !hasGeneratedArea && !hasManifest {
 		return fmt.Errorf("unsupported existing project layout: expected at least one of service/, endpoint/, or transport/; extend mode currently supports only generated microgen project layouts")
 	}
 	return nil
@@ -198,6 +220,12 @@ func classifyOwnership(root, rel string) FileOwnership {
 	}
 
 	switch {
+	case rel == ".microgen/manifest.json":
+		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated project identity manifest"}
+	case rel == "cmd/generated_interaction.go":
+		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated interaction runtime wiring"}
+	case strings.HasPrefix(rel, ".ai/"):
+		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated AI project metadata"}
 	case strings.HasPrefix(rel, "sdk/"):
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated sdk output"}
 	case strings.HasPrefix(rel, "client/"):
@@ -206,8 +234,10 @@ func classifyOwnership(root, rel string) FileOwnership {
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated skill output"}
 	case rel == "docs/docs.go" || rel == "docs/openapi.json" || rel == "docs/schema.json":
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated API contract output"}
-	case rel == "config/config.go":
+	case rel == "config/config.go" || rel == "config/local.go" || rel == "config/env.go" || rel == "config/remote.go" || rel == "config/loader.go":
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated config schema"}
+	case strings.HasPrefix(rel, "test/") && strings.HasSuffix(rel, "_test.go"):
+		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated service test scaffold"}
 	case strings.HasPrefix(rel, "model/generated_"):
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated model schema output"}
 	case strings.HasPrefix(rel, "repository/generated_"):
@@ -345,6 +375,39 @@ func detectExistingModels(root string) []ExistingModel {
 	return models
 }
 
+func existingServicesFromManifest(root string, names []string) []ExistingService {
+	services := make([]ExistingService, 0, len(names))
+	for _, name := range names {
+		pkg := strings.ToLower(name)
+		services = append(services, ExistingService{
+			Name:              name,
+			PackageName:       pkg,
+			ServiceFile:       filepath.Join(root, "service", pkg, "service.go"),
+			EndpointFile:      filepath.Join(root, "endpoint", pkg, "endpoints.go"),
+			HTTPTransportFile: filepath.Join(root, "transport", pkg, "transport_http.go"),
+			GRPCTransportFile: filepath.Join(root, "transport", pkg, "transport_grpc.go"),
+		})
+	}
+	sort.Slice(services, func(i, j int) bool {
+		return services[i].PackageName < services[j].PackageName
+	})
+	return services
+}
+
+func existingModelsFromManifest(root string, names []string) []ExistingModel {
+	models := make([]ExistingModel, 0, len(names))
+	for _, name := range names {
+		models = append(models, ExistingModel{
+			Name: name,
+			File: filepath.Join(root, "model", "generated_"+strings.ToLower(name)+".go"),
+		})
+	}
+	sort.Slice(models, func(i, j int) bool {
+		return models[i].File < models[j].File
+	})
+	return models
+}
+
 func detectTypeName(path string, pattern *regexp.Regexp) string {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -381,14 +444,102 @@ func detectWarnings(project *ExistingProject) []string {
 	return warnings
 }
 
+func projectFeaturesFromManifest(manifest ProjectManifest) ExistingProjectFeatures {
+	capabilities := manifest.Capabilities
+	return ExistingProjectFeatures{
+		WithConfig:           capabilities.Config,
+		WithDocs:             capabilities.Docs,
+		WithTests:            capabilities.Tests,
+		WithModel:            capabilities.Model,
+		WithGRPC:             capabilities.GRPC,
+		WithDB:               capabilities.Database,
+		WithOpenAPI:          capabilities.OpenAPI,
+		WithSkill:            capabilities.Skill,
+		WithInteraction:      capabilities.Interaction,
+		ConfigMode:           capabilities.ConfigMode,
+		RemoteProvider:       capabilities.RemoteProvider,
+		DBDriver:             capabilities.DatabaseDriver,
+		RoutePrefix:          manifest.RoutePrefix,
+		GeneratedMiddlewares: append([]string(nil), manifest.GeneratedMiddlewares...),
+	}
+}
+
+func detectManifestDrift(project *ExistingProject) []string {
+	if project == nil || project.Manifest == nil {
+		return nil
+	}
+
+	declared := make(map[string]struct{}, len(project.Manifest.Artifacts))
+	var drift []string
+	for _, rel := range project.Manifest.Artifacts {
+		declared[rel] = struct{}{}
+		if !fileExists(filepath.Join(project.Root, filepath.FromSlash(rel))) {
+			drift = append(drift, "manifest artifact is missing: "+rel)
+			continue
+		}
+		ownership, ok := project.Ownership[rel]
+		if !ok || (ownership.Tier != OwnershipGeneratorRebuildable && ownership.Tier != OwnershipGeneratorAggregation) {
+			drift = append(drift, "manifest artifact is not classified as generator-owned: "+rel)
+		}
+	}
+	for rel, ownership := range project.Ownership {
+		if ownership.Tier != OwnershipGeneratorRebuildable && ownership.Tier != OwnershipGeneratorAggregation {
+			continue
+		}
+		if _, ok := declared[rel]; !ok {
+			drift = append(drift, "generator-owned artifact is not declared by manifest: "+rel)
+		}
+	}
+
+	for _, service := range project.Services {
+		if !fileExists(service.ServiceFile) {
+			drift = append(drift, "manifest service scaffold is missing: service/"+service.PackageName+"/service.go")
+			continue
+		}
+		if !fileDeclaresType(service.ServiceFile, typeInterfacePattern, service.Name) {
+			drift = append(drift, fmt.Sprintf("manifest service %s is not declared in service/%s/service.go", service.Name, service.PackageName))
+		}
+	}
+	for _, model := range project.Models {
+		if !fileExists(model.File) {
+			continue
+		}
+		if !fileDeclaresType(model.File, typeStructPattern, model.Name) {
+			rel, _ := filepath.Rel(project.Root, model.File)
+			drift = append(drift, fmt.Sprintf("manifest model %s does not match generated type in %s", model.Name, filepath.ToSlash(rel)))
+		}
+	}
+
+	sort.Strings(drift)
+	return drift
+}
+
+func fileDeclaresType(filePath string, pattern *regexp.Regexp, expected string) bool {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return false
+	}
+	for _, match := range pattern.FindAllSubmatch(data, -1) {
+		if len(match) == 2 && string(match[1]) == expected {
+			return true
+		}
+	}
+	return false
+}
+
 func detectProjectFeatures(root string, project *ExistingProject) ExistingProjectFeatures {
 	features := ExistingProjectFeatures{
-		WithConfig:  fileExists(filepath.Join(root, "config", "config.go")),
-		WithTests:   dirExists(filepath.Join(root, "test")),
-		WithModel:   hasGeneratedModelFiles(filepath.Join(root, "model")) || hasAnyMatch(filepath.Join(root, "repository"), "generated_"),
-		WithGRPC:    hasAnyMatch(filepath.Join(root, "transport"), "transport_grpc.go") || dirExists(filepath.Join(root, "pb")),
-		WithOpenAPI: fileExists(filepath.Join(root, "docs", "docs.go")),
-		WithSkill:   fileExists(filepath.Join(root, "skill", "skill.go")),
+		WithConfig:      fileExists(filepath.Join(root, "config", "config.go")),
+		WithDocs:        fileExists(filepath.Join(root, "README.md")),
+		WithTests:       dirExists(filepath.Join(root, "test")),
+		WithModel:       hasGeneratedModelFiles(filepath.Join(root, "model")) || hasAnyMatch(filepath.Join(root, "repository"), "generated_"),
+		WithGRPC:        hasAnyMatch(filepath.Join(root, "transport"), "transport_grpc.go") || dirExists(filepath.Join(root, "pb")),
+		WithOpenAPI:     fileExists(filepath.Join(root, "docs", "docs.go")),
+		WithSkill:       fileExists(filepath.Join(root, "skill", "skill.go")),
+		WithInteraction: fileExists(filepath.Join(root, "cmd", "generated_interaction.go")),
+	}
+	if features.WithConfig {
+		features.ConfigMode = "file"
 	}
 	features.WithDB = fileContains(filepath.Join(root, "cmd", "main.go"), "repository.NewDB(")
 	features.RoutePrefix = detectRoutePrefix(project.AggregationPoints.GeneratedRoutes)

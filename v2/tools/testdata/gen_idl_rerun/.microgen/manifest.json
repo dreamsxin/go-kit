@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "microgen.project.v2",
+  "modulePath": "example.com/gen_idl_rerun",
+  "source": "go",
+  "capabilities": {
+    "config": true,
+    "docs": true,
+    "tests": false,
+    "model": true,
+    "grpc": false,
+    "database": true,
+    "openapi": true,
+    "skill": true,
+    "interaction": false,
+    "configMode": "file",
+    "databaseDriver": "mysql"
+  },
+  "services": [
+    "UserService"
+  ],
+  "models": [
+    "User"
+  ],
+  "generatedMiddlewares": [],
+  "artifacts": [
+    ".microgen/manifest.json",
+    "client/userservice/demo.go",
+    "cmd/generated_routes.go",
+    "cmd/generated_runtime.go",
+    "cmd/generated_services.go",
+    "config/config.go",
+    "config/env.go",
+    "config/loader.go",
+    "config/local.go",
+    "config/remote.go",
+    "docs/docs.go",
+    "docs/openapi.json",
+    "docs/schema.json",
+    "endpoint/userservice/generated_chain.go",
+    "idl.go",
+    "model/generated_user.go",
+    "repository/generated_base.go",
+    "repository/generated_user_repository.go",
+    "sdk/typescript/README.md",
+    "sdk/typescript/client.ts",
+    "sdk/typescript/tsconfig.json",
+    "sdk/userservicesdk/client.go",
+    "service/userservice/generated_repos.go",
+    "skill/skill.go"
+  ]
+}

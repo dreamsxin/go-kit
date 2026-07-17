@@ -14,7 +14,6 @@ const response = await client.userService.createUser({
   "username": "username",
   "email": "email",
 });
-
 ```
 
 Use the service clients exposed by `APIClient` and pass an `AbortSignal` or

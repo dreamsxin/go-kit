@@ -24,6 +24,9 @@ func ApplyAppendService(templateFS fs.FS, root string, source *ir.Project, opts 
 	if err != nil {
 		return nil, err
 	}
+	if err := validateExistingManifestForMutation(existing); err != nil {
+		return nil, err
+	}
 	if source == nil {
 		return nil, fmt.Errorf("source project is required")
 	}
@@ -66,10 +69,8 @@ func ApplyAppendService(templateFS fs.FS, root string, source *ir.Project, opts 
 			return nil, err
 		}
 	}
-	for _, file := range plan.UpdatedFiles {
-		if err := copyPlannedFile(existing.Root, tempDir, file.Path); err != nil {
-			return nil, err
-		}
+	if err := copyPlannedUpdates(existing.Root, tempDir, plan.UpdatedFiles); err != nil {
+		return nil, err
 	}
 
 	return &ExtendResult{Plan: plan}, nil
@@ -81,6 +82,9 @@ func ApplyAppendService(templateFS fs.FS, root string, source *ir.Project, opts 
 func ApplyAppendModel(templateFS fs.FS, root string, source *ir.Project, opts ExtendOptions, idlSourcePath string) (*ExtendResult, error) {
 	existing, err := ScanExistingProject(root)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateExistingManifestForMutation(existing); err != nil {
 		return nil, err
 	}
 	if source == nil {
@@ -128,10 +132,8 @@ func ApplyAppendModel(templateFS fs.FS, root string, source *ir.Project, opts Ex
 			return nil, err
 		}
 	}
-	for _, file := range plan.UpdatedFiles {
-		if err := copyPlannedFile(existing.Root, tempDir, file.Path); err != nil {
-			return nil, err
-		}
+	if err := copyPlannedUpdates(existing.Root, tempDir, plan.UpdatedFiles); err != nil {
+		return nil, err
 	}
 
 	return &ExtendResult{Plan: plan}, nil
@@ -142,6 +144,9 @@ func ApplyAppendModel(templateFS fs.FS, root string, source *ir.Project, opts Ex
 func ApplyAppendMiddleware(templateFS fs.FS, root string, source *ir.Project, opts ExtendOptions, idlSourcePath string) (*ExtendResult, error) {
 	existing, err := ScanExistingProject(root)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateExistingManifestForMutation(existing); err != nil {
 		return nil, err
 	}
 	if source == nil {
@@ -182,12 +187,20 @@ func ApplyAppendMiddleware(templateFS fs.FS, root string, source *ir.Project, op
 		return nil, err
 	}
 
-	for _, file := range plan.UpdatedFiles {
-		if err := copyPlannedFile(existing.Root, tempDir, file.Path); err != nil {
-			return nil, err
-		}
+	if err := copyPlannedUpdates(existing.Root, tempDir, plan.UpdatedFiles); err != nil {
+		return nil, err
 	}
 	return &ExtendResult{Plan: plan}, nil
+}
+
+func validateExistingManifestForMutation(existing *ExistingProject) error {
+	if existing == nil || existing.Manifest == nil {
+		return fmt.Errorf("extend requires .microgen/manifest.json; regenerate the project with the current microgen before applying changes")
+	}
+	if len(existing.ManifestDrift) > 0 {
+		return fmt.Errorf("extend refused because the project manifest has drift: %s", strings.Join(existing.ManifestDrift, "; "))
+	}
+	return nil
 }
 
 func optionsFromExistingProject(existing *ExistingProject) Options {
@@ -199,13 +212,17 @@ func optionsFromExistingProject(existing *ExistingProject) Options {
 		ImportPath:           existing.ModulePath,
 		Protocols:            protocols,
 		WithConfig:           existing.Features.WithConfig,
-		WithDocs:             fileExists(filepath.Join(existing.Root, "README.md")),
+		ConfigMode:           existing.Features.ConfigMode,
+		RemoteProvider:       existing.Features.RemoteProvider,
+		WithDocs:             existing.Features.WithDocs,
 		WithTests:            existing.Features.WithTests,
 		WithModel:            existing.Features.WithModel,
 		WithGRPC:             existing.Features.WithGRPC,
 		WithDB:               existing.Features.WithDB,
+		DBDriver:             existing.Features.DBDriver,
 		WithOpenAPI:          existing.Features.WithOpenAPI,
 		WithSkill:            existing.Features.WithSkill,
+		WithInteraction:      existing.Features.WithInteraction,
 		RoutePrefix:          existing.Features.RoutePrefix,
 		GeneratedMiddlewares: append([]string(nil), existing.Features.GeneratedMiddlewares...),
 	}
@@ -257,4 +274,23 @@ func copyPlannedFile(root, tempDir, targetPath string) error {
 		return err
 	}
 	return os.WriteFile(targetPath, data, 0o644)
+}
+
+func copyPlannedUpdates(root, tempDir string, updates []PlannedUpdate) error {
+	manifestPath := newProjectLayout(root).manifestFile()
+	var manifestTarget string
+	for i := range updates {
+		file := updates[i]
+		if filepath.Clean(file.Path) == filepath.Clean(manifestPath) {
+			manifestTarget = file.Path
+			continue
+		}
+		if err := copyPlannedFile(root, tempDir, file.Path); err != nil {
+			return err
+		}
+	}
+	if manifestTarget != "" {
+		return copyPlannedFile(root, tempDir, manifestTarget)
+	}
+	return nil
 }

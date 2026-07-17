@@ -37,6 +37,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 
 		// Verify key files were generated
 		mustExistFile(t, filepath.Join(outDir, "go.mod"))
+		mustExistFile(t, filepath.Join(outDir, ".microgen", "manifest.json"))
 		mustExistFile(t, filepath.Join(outDir, "idl.go"))
 		mustExistFile(t, filepath.Join(outDir, "service", "userservice", "service.go"))
 		mustExistFile(t, filepath.Join(outDir, "endpoint", "userservice", "endpoints.go"))
@@ -53,6 +54,8 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		mustExistFile(t, filepath.Join(outDir, "cmd", "main.go"))
 		mustExistFile(t, filepath.Join(outDir, "cmd", "custom_routes.go"))
 		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/idl/userservice")
+		mustContainFile(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"schemaVersion": "microgen.project.v2"`)
+		mustContainFile(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"routePrefix": "/api/idl"`)
 		mustContainFile(t, filepath.Join(outDir, "client", "userservice", "demo.go"), "/api/idl/userservice")
 		mustContainFile(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"), "/api/idl/userservice")
 		mustContainFile(t, filepath.Join(outDir, "docs", "openapi.json"), `"openapi": "3.1.0"`)

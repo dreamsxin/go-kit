@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "microgen.project.v2",
+  "modulePath": "example.com/gen_fromdb_sqlite",
+  "source": "db",
+  "capabilities": {
+    "config": false,
+    "docs": false,
+    "tests": false,
+    "model": true,
+    "grpc": false,
+    "database": false,
+    "openapi": false,
+    "skill": false,
+    "interaction": false
+  },
+  "services": [
+    "CatalogService"
+  ],
+  "models": [
+    "User"
+  ],
+  "generatedMiddlewares": [],
+  "artifacts": [
+    ".microgen/manifest.json",
+    "client/catalogservice/demo.go",
+    "cmd/generated_routes.go",
+    "cmd/generated_runtime.go",
+    "cmd/generated_services.go",
+    "endpoint/catalogservice/generated_chain.go",
+    "idl.go",
+    "model/generated_user.go",
+    "repository/generated_base.go",
+    "repository/generated_user_repository.go",
+    "sdk/catalogservicesdk/client.go",
+    "service/catalogservice/generated_repos.go"
+  ]
+}

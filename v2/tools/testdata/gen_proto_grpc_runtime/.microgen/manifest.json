@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "microgen.project.v2",
+  "modulePath": "example.com/gen_proto_grpc_runtime",
+  "source": "proto",
+  "capabilities": {
+    "config": false,
+    "docs": false,
+    "tests": false,
+    "model": false,
+    "grpc": true,
+    "database": false,
+    "openapi": false,
+    "skill": false,
+    "interaction": false
+  },
+  "services": [
+    "UserService"
+  ],
+  "models": [],
+  "generatedMiddlewares": [],
+  "artifacts": [
+    ".microgen/manifest.json",
+    "client/userservice/demo.go",
+    "cmd/generated_routes.go",
+    "cmd/generated_runtime.go",
+    "cmd/generated_services.go",
+    "endpoint/userservice/generated_chain.go",
+    "pb/userservice/userservice.proto",
+    "sdk/userservicesdk/client.go"
+  ]
+}

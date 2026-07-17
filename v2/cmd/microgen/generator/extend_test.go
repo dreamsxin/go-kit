@@ -350,6 +350,7 @@ func TestBuildAppendServicePlan_ProducesDeterministicPlan(t *testing.T) {
 
 	updatePaths := collectPlannedUpdatePaths(plan.UpdatedFiles)
 	for _, want := range []string{
+		filepath.Join(outDir, ".microgen", "manifest.json"),
 		filepath.Join(outDir, "idl.go"),
 		filepath.Join(outDir, "cmd", "generated_routes.go"),
 		filepath.Join(outDir, "cmd", "generated_runtime.go"),
@@ -434,6 +435,7 @@ func TestBuildAppendModelPlan_ProducesDeterministicPlan(t *testing.T) {
 
 	updatePaths := collectPlannedUpdatePaths(plan.UpdatedFiles)
 	for _, want := range []string{
+		filepath.Join(outDir, ".microgen", "manifest.json"),
 		filepath.Join(outDir, "idl.go"),
 		filepath.Join(outDir, "service", "userservice", "generated_repos.go"),
 	} {
@@ -560,6 +562,7 @@ func TestApplyAppendModel_WritesNewFilesAndPreservesExistingHooks(t *testing.T) 
 	mustContain(t, filepath.Join(outDir, "idl.go"), "type Product struct")
 	mustContain(t, filepath.Join(outDir, "docs", "schema.json"), `"Product"`)
 	mustContain(t, filepath.Join(outDir, "sdk", "typescript", "client.ts"), "export interface Product")
+	mustContain(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"Product"`)
 	mustContain(t, hooksPath, customMarker)
 }
 
@@ -626,6 +629,9 @@ func TestApplyAppendMiddleware_WritesGeneratedChainAndPreservesCustomChain(t *te
 	mustContain(t, generatedChainPath, "endpoint.TracingMiddleware()")
 	mustContain(t, generatedChainPath, "endpoint.ErrorHandlingMiddleware(name)")
 	mustContain(t, generatedChainPath, "endpoint.MetricsMiddleware(generatedMetrics(name))")
+	mustContain(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"tracing"`)
+	mustContain(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"error-handling"`)
+	mustContain(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"metrics"`)
 	mustContain(t, customChainPath, customMarker)
 }
 
@@ -785,6 +791,7 @@ type OrderService interface {
 	mustContain(t, filepath.Join(outDir, "docs", "openapi.json"), "OrderService_PlaceOrder")
 	mustContain(t, filepath.Join(outDir, "docs", "schema.json"), `"PlaceOrderRequest"`)
 	mustContain(t, filepath.Join(outDir, "sdk", "typescript", "client.ts"), "export class OrderServiceClient")
+	mustContain(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"OrderService"`)
 	mustContain(t, filepath.Join(outDir, "idl.go"), "type OrderService interface")
 	mustContain(t, servicePath, customMarker)
 }

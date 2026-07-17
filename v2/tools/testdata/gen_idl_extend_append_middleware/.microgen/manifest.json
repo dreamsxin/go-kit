@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "microgen.project.v2",
+  "modulePath": "example.com/gen_idl_extend_append_middleware",
+  "source": "go",
+  "capabilities": {
+    "config": false,
+    "docs": false,
+    "tests": false,
+    "model": false,
+    "grpc": false,
+    "database": false,
+    "openapi": false,
+    "skill": true,
+    "interaction": false
+  },
+  "services": [
+    "UserService"
+  ],
+  "models": [],
+  "generatedMiddlewares": [
+    "tracing",
+    "error-handling",
+    "metrics"
+  ],
+  "artifacts": [
+    ".microgen/manifest.json",
+    "client/userservice/demo.go",
+    "cmd/generated_routes.go",
+    "cmd/generated_runtime.go",
+    "cmd/generated_services.go",
+    "endpoint/userservice/generated_chain.go",
+    "idl.go",
+    "sdk/userservicesdk/client.go",
+    "skill/skill.go"
+  ]
+}

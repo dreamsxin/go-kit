@@ -338,7 +338,18 @@ func printExtendCheckReport(w io.Writer, existing *generator.ExistingProject) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Summary:")
 	fmt.Fprintf(w, "- Module: %s\n", existing.ModulePath)
-	fmt.Fprintf(w, "- Overall status: %s\n", readinessLabel(overallReady))
+	fmt.Fprintf(w, "- Overall status: %s\n", overallReadinessLabel(overallReady))
+	if existing.Manifest != nil {
+		fmt.Fprintf(w, "- Manifest: .microgen/manifest.json (%s)\n", existing.Manifest.SchemaVersion)
+		fmt.Fprintf(w, "- Source: %s\n", existing.Manifest.Source)
+	} else {
+		fmt.Fprintln(w, "- Manifest: missing")
+	}
+	if len(existing.ManifestDrift) == 0 && existing.Manifest != nil {
+		fmt.Fprintln(w, "- Manifest status: valid")
+	} else {
+		fmt.Fprintln(w, "- Manifest status: drift detected")
+	}
 	fmt.Fprintf(w, "- Services: %d\n", len(existing.Services))
 	fmt.Fprintf(w, "- Models: %d\n", len(existing.Models))
 	if len(existing.Features.GeneratedMiddlewares) > 0 {
@@ -381,6 +392,14 @@ func printExtendCheckReport(w io.Writer, existing *generator.ExistingProject) {
 	printAppendPathRecommendation(w, existing, "append-model", appendModelMissing)
 	printAppendPathRecommendation(w, existing, "append-middleware", appendMiddlewareMissing)
 
+	if len(existing.ManifestDrift) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Manifest Drift:")
+		for _, item := range existing.ManifestDrift {
+			fmt.Fprintf(w, "- %s\n", item)
+		}
+	}
+
 	if len(existing.Warnings) > 0 {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "Warnings:")
@@ -388,6 +407,13 @@ func printExtendCheckReport(w io.Writer, existing *generator.ExistingProject) {
 			fmt.Fprintf(w, "- %s\n", warning)
 		}
 	}
+}
+
+func overallReadinessLabel(ok bool) string {
+	if ok {
+		return "ready"
+	}
+	return "needs attention"
 }
 
 func readinessLabel(ok bool) string {
@@ -446,10 +472,10 @@ func appendPathRemediation(existing *generator.ExistingProject, name string, mis
 }
 
 func appendServiceMissingSeams(existing *generator.ExistingProject) []string {
-	var missing []string
 	if existing == nil {
 		return []string{"project scan data"}
 	}
+	missing := manifestCompatibilitySeams(existing)
 	if existing.AggregationPoints.GeneratedServices == "" {
 		missing = append(missing, "cmd/generated_services.go")
 	}
@@ -463,7 +489,7 @@ func appendModelMissingSeams(existing *generator.ExistingProject) []string {
 	if existing == nil {
 		return []string{"project scan data"}
 	}
-	var missing []string
+	missing := manifestCompatibilitySeams(existing)
 	if !existing.Features.WithModel {
 		return []string{"generated model/repository output"}
 	}
@@ -489,7 +515,7 @@ func appendMiddlewareMissingSeams(existing *generator.ExistingProject) []string 
 	if existing == nil {
 		return []string{"project scan data"}
 	}
-	var missing []string
+	missing := manifestCompatibilitySeams(existing)
 	if existing.AggregationPoints.GeneratedRoutes == "" {
 		missing = append(missing, "cmd/generated_routes.go")
 	}
@@ -503,8 +529,21 @@ func appendMiddlewareMissingSeams(existing *generator.ExistingProject) []string 
 	return missing
 }
 
+func manifestCompatibilitySeams(existing *generator.ExistingProject) []string {
+	if existing == nil || existing.Manifest == nil {
+		return []string{".microgen/manifest.json"}
+	}
+	if len(existing.ManifestDrift) > 0 {
+		return []string{"manifest drift"}
+	}
+	return nil
+}
+
 func extendCheckExitCode(existing *generator.ExistingProject) int {
 	if existing == nil {
+		return 2
+	}
+	if existing.Manifest == nil || len(existing.ManifestDrift) > 0 {
 		return 2
 	}
 	if len(appendServiceMissingSeams(existing)) > 0 {

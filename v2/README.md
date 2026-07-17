@@ -98,6 +98,7 @@ go run ./cmd
 Inspect the generated service:
 
 ```bash
+cat .microgen/manifest.json
 curl http://localhost:8080/health
 curl http://localhost:8080/debug/routes
 curl http://localhost:8080/openapi.json
@@ -139,13 +140,16 @@ Edit:
 
 Do not hand-edit:
 
+- `.microgen/manifest.json`
 - `cmd/generated_*.go`
 - `endpoint/<service>/generated_chain.go`
 - `model/generated_*.go` and `repository/generated_*.go`
 - generated `client/`, `sdk/`, `skill/`, `pb/`, and `docs/` assets
 
-Run `microgen extend -check -out .` before extending an existing generated
-project.
+The versioned manifest records the source mode, module path, capabilities,
+route prefix, services, models, generated middleware, and generator-owned
+artifacts. Run `microgen extend -check -out .` before extending a project; it
+reports filesystem drift and extend refuses mutations until drift is resolved.
 
 ## Build With `kit`
 

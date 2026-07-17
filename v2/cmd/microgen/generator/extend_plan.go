@@ -111,6 +111,7 @@ func BuildAppendServicePlan(existing *ExistingProject, project *ir.Project, opts
 			},
 		},
 		UpdatedFiles: []PlannedUpdate{
+			projectManifestUpdate(layout),
 			{
 				Path:      filepath.Join(existing.Root, "idl.go"),
 				Ownership: OwnershipGeneratorRebuildable,
@@ -245,6 +246,7 @@ func BuildAppendModelPlan(existing *ExistingProject, project *ir.Project, opts O
 			},
 		},
 		UpdatedFiles: []PlannedUpdate{
+			projectManifestUpdate(layout),
 			{
 				Path:      filepath.Join(existing.Root, "idl.go"),
 				Ownership: OwnershipGeneratorRebuildable,
@@ -324,6 +326,14 @@ func generatedContractUpdates(layout projectLayout) []PlannedUpdate {
 	}
 }
 
+func projectManifestUpdate(layout projectLayout) PlannedUpdate {
+	return PlannedUpdate{
+		Path:      layout.manifestFile(),
+		Ownership: OwnershipGeneratorRebuildable,
+		Reason:    "refresh generated project identity manifest",
+	}
+}
+
 // BuildAppendMiddlewarePlan validates an append-middleware request and reports
 // which generated chain files would be refreshed.
 func BuildAppendMiddlewarePlan(existing *ExistingProject, project *ir.Project, opts Options, extend ExtendOptions) (*ArtifactPlan, error) {
@@ -384,6 +394,7 @@ func BuildAppendMiddlewarePlan(existing *ExistingProject, project *ir.Project, o
 
 	plan := &ArtifactPlan{
 		UpdatedFiles: []PlannedUpdate{
+			projectManifestUpdate(layout),
 			{
 				Path:      filepath.Join(existing.Root, "idl.go"),
 				Ownership: OwnershipGeneratorRebuildable,

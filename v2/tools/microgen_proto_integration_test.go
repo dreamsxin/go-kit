@@ -36,6 +36,7 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 		}
 
 		mustExistFile(t, filepath.Join(outDir, "go.mod"))
+		mustExistFile(t, filepath.Join(outDir, ".microgen", "manifest.json"))
 		mustExistFile(t, filepath.Join(outDir, "service", "userservice", "service.go"))
 		mustExistFile(t, filepath.Join(outDir, "endpoint", "userservice", "endpoints.go"))
 		mustExistFile(t, filepath.Join(outDir, "transport", "userservice", "transport_http.go"))
@@ -53,6 +54,7 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 		mustContainFile(t, filepath.Join(outDir, "README.md"), "protoc --go_out=. --go-grpc_out=.")
 		mustContainFile(t, filepath.Join(outDir, "README.md"), "pb/userservice/userservice.proto")
 		mustContainFile(t, filepath.Join(outDir, "README.md"), "Review the generated proto contract before generating stubs")
+		mustContainFile(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"source": "proto"`)
 		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/proto/userservice")
 		mustContainFile(t, filepath.Join(outDir, "docs", "openapi.json"), "/api/proto/userservice")
 		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/proto/userservice")

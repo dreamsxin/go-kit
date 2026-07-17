@@ -26,20 +26,20 @@ durable product milestones, not session notes or release history.
   Schema 2020-12, TypeScript Fetch clients, and AI discovery metadata.
 - Incremental service/model/middleware extension with user-file preservation.
 
-## Milestone 1: Generated Project Identity / 生成项目身份
+## Milestone 1 (Complete): Generated Project Identity / 生成项目身份
 
 Goal: replace feature inference as the primary source of truth for generated
 projects.
 
-- Generate a versioned `.microgen/manifest.json`.
-- Record source mode, module path, enabled capabilities, route prefix, services,
-  models, middleware, and generator-owned artifacts.
-- Make `microgen extend -check` validate the manifest against the filesystem and
-  report actionable drift.
-- Refresh the manifest during full generation and every extend operation.
+- A versioned `.microgen/manifest.json` is generated.
+- It records source mode, module path, enabled capabilities, route prefix,
+  services, models, middleware, and generator-owned artifacts.
+- `microgen extend -check` validates the manifest against the filesystem and
+  reports actionable drift.
+- Full generation and every extend operation refresh the manifest.
 
-Done when a generated project can explain what it contains without scanning Go
-source for configuration clues.
+Completed: generated projects now explain their configuration and ownership
+without scanning Go source for configuration clues.
 
 ## Milestone 2: Contract Quality / 契约质量
 

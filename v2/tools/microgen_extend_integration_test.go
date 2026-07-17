@@ -380,10 +380,11 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 		if exitErr.ExitCode() != 2 {
 			t.Fatalf("extend-check missing-seam exit code = %d, want 2\n%s", exitErr.ExitCode(), missingOut)
 		}
-		if !strings.Contains(string(missingOut), "- Overall status: needs compatibility seams") {
+		if !strings.Contains(string(missingOut), "- Overall status: needs attention") {
 			t.Fatalf("missing-seam extend-check output missing overall status:\n%s", missingOut)
 		}
-		if !strings.Contains(string(missingOut), "missing: cmd/generated_routes.go") {
+		if !strings.Contains(string(missingOut), "Manifest Drift:") ||
+			!strings.Contains(string(missingOut), "manifest artifact is missing: cmd/generated_routes.go") {
 			t.Fatalf("missing-seam extend-check output missing seam guidance:\n%s", missingOut)
 		}
 		if !strings.Contains(string(missingOut), "restore generated route and middleware seams before using `-append-middleware`") {

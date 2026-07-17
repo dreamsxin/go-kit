@@ -21,6 +21,7 @@ User-owned (safe to edit):
 
 Generator-owned (do not hand-edit; use `microgen extend`):
 
+- `.microgen/manifest.json`
 - `cmd/generated_*.go`
 - `endpoint/<name>/generated_chain.go`
 - `model/generated_*.go`
@@ -69,10 +70,11 @@ Generator-owned (do not hand-edit; use `microgen extend`):
 
 ## Common Modifications
 
-1. **Add business logic** → edit `service/<name>/service.go`
-2. **Add endpoint middleware** → edit `endpoint/<name>/custom_chain.go`
-3. **Add a new service or model** → run `microgen extend -check -out .` first, then use `-append-service` or `-append-model`
-4. **Change AI tool behavior** → the tools are auto-registered from endpoints; change the underlying service logic instead
+1. **Inspect project capabilities or generated ownership** → read `.microgen/manifest.json`
+2. **Add business logic** → edit `service/<name>/service.go`
+3. **Add endpoint middleware** → edit `endpoint/<name>/custom_chain.go`
+4. **Add a new service or model** → run `microgen extend -check -out .` first, then use `-append-service` or `-append-model`
+5. **Change AI tool behavior** → the tools are auto-registered from endpoints; change the underlying service logic instead
 
 ## Validation Commands
 

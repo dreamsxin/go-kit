@@ -130,6 +130,17 @@ func TestNew_DefaultDriver(t *testing.T) {
 	}
 }
 
+func TestNew_WithDBRequiresDriver(t *testing.T) {
+	_, err := generator.New(generator.Options{
+		TemplateFS: testTemplateFS,
+		OutputDir:  t.TempDir(),
+		WithDB:     true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "requires a db driver") {
+		t.Fatalf("New error = %v, want missing db driver error", err)
+	}
+}
+
 func TestNew_UnsupportedDriver(t *testing.T) {
 	_, err := generator.New(generator.Options{
 		TemplateFS: testTemplateFS,

@@ -86,6 +86,26 @@ columns; startup migration is disabled by default.
 
 Use `microgen -h` as the authoritative option list.
 
+## Generated Project Manifest
+
+Every full generation writes `.microgen/manifest.json` with schema version
+`microgen.project.v2`. It is the primary identity and regeneration contract for
+the generated project and records:
+
+- source mode and Go module path;
+- enabled capabilities plus config mode, remote provider, and database driver;
+- route prefix, services, generated models, and generated middleware order;
+- the normalized relative paths of all generator-owned artifacts.
+
+Do not hand-edit the manifest. Full generation refreshes it after all other
+artifacts are written. Service, model, and middleware extend operations refresh
+it last, so a partial write cannot claim a completed generation.
+
+`microgen extend -check -out .` validates the manifest schema and module path,
+checks declared artifacts against the filesystem and ownership rules, and
+reports missing, undeclared, or type-mismatched output. Extend mutations are
+rejected while the manifest is missing or drift is present.
+
 ## API And Schema Contracts
 
 Enable contract output with `-openapi`. The generated API contract is OpenAPI
@@ -249,8 +269,9 @@ microgen extend \
 
 Extend mode updates new files and generator-owned aggregation files. Appending a
 service or model also refreshes OpenAPI, JSON Schema, and the TypeScript SDK when
-contract output is enabled. It refuses projects that do not expose the required
-ownership seams.
+contract output is enabled. Every append operation refreshes
+`.microgen/manifest.json`. It refuses projects with manifest drift or without
+the required ownership seams.
 
 ## File Ownership
 
@@ -263,6 +284,7 @@ ownership seams.
 
 ### Generator-owned
 
+- `.microgen/manifest.json`
 - `cmd/generated_*.go`
 - `endpoint/<service>/generated_chain.go`
 - `model/generated_*.go`

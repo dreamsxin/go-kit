@@ -21,6 +21,7 @@ func TestProjectLayoutRequiredDirs(t *testing.T) {
 
 	want := []string{
 		filepath.Join("out", "cmd"),
+		filepath.Join("out", ".microgen"),
 		filepath.Join("out", "service", "userservice"),
 		filepath.Join("out", "endpoint", "userservice"),
 		filepath.Join("out", "transport", "userservice"),
@@ -47,6 +48,9 @@ func TestProjectLayoutArtifactPaths(t *testing.T) {
 
 	if got, want := layout.docsEmbed(), filepath.Join("out", "docs", "docs.go"); got != want {
 		t.Fatalf("docsEmbed() = %q, want %q", got, want)
+	}
+	if got, want := layout.manifestFile(), filepath.Join("out", ".microgen", "manifest.json"); got != want {
+		t.Fatalf("manifestFile() = %q, want %q", got, want)
 	}
 	if got, want := layout.openAPIFile(), filepath.Join("out", "docs", "openapi.json"); got != want {
 		t.Fatalf("openAPIFile() = %q, want %q", got, want)

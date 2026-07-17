@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "microgen.project.v2",
+  "modulePath": "example.com/gen_idl_custom_routes",
+  "source": "go",
+  "capabilities": {
+    "config": false,
+    "docs": false,
+    "tests": false,
+    "model": false,
+    "grpc": false,
+    "database": false,
+    "openapi": false,
+    "skill": false,
+    "interaction": false
+  },
+  "services": [
+    "UserService"
+  ],
+  "models": [],
+  "generatedMiddlewares": [],
+  "artifacts": [
+    ".microgen/manifest.json",
+    "client/userservice/demo.go",
+    "cmd/generated_routes.go",
+    "cmd/generated_runtime.go",
+    "cmd/generated_services.go",
+    "endpoint/userservice/generated_chain.go",
+    "idl.go",
+    "sdk/userservicesdk/client.go"
+  ]
+}
