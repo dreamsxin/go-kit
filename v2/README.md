@@ -262,6 +262,7 @@ Generator changes must also prove that a generated project can run
 - [DOCS_INDEX.md](DOCS_INDEX.md): documentation map
 - [MICROGEN.md](MICROGEN.md): generator usage and generated ownership
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries and extension model
+- [ROADMAP.md](ROADMAP.md): authoritative v2 implementation sequence
 - [PRODUCTION.md](PRODUCTION.md): runtime, security, and observability guidance
 - [MIGRATION.md](MIGRATION.md): v1 to v2 migration
 - [MAINTAINING.md](MAINTAINING.md): repository workflow and validation

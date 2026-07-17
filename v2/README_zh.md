@@ -250,6 +250,7 @@ go test -race ./kit ./interaction ./sd/... ./cmd/microgen/generator
 - [DOCS_INDEX.md](DOCS_INDEX.md)：文档导航
 - [MICROGEN.md](MICROGEN.md)：生成器使用与生成文件归属
 - [ARCHITECTURE.md](ARCHITECTURE.md)：包边界和扩展模型
+- [ROADMAP.md](ROADMAP.md)：v2 唯一实施路线图
 - [PRODUCTION.md](PRODUCTION.md)：运行、安全和可观测性指导
 - [MIGRATION.md](MIGRATION.md)：从 v1 迁移到 v2
 - [MAINTAINING.md](MAINTAINING.md)：仓库维护和验证流程

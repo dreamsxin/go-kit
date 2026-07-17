@@ -1,7 +1,8 @@
 # Maintainer Guide
 
 This guide defines the normal workflow for changing go-kit v2. Keep durable
-rules here; use issues or pull requests for temporary plans and progress notes.
+rules here, durable milestone order in [ROADMAP.md](ROADMAP.md), and temporary
+plans or progress notes in issues and pull requests.
 
 ## Before Editing
 
@@ -73,13 +74,14 @@ The maintained top-level set is intentionally small:
 - `MICROGEN.md`: generator behavior and ownership;
 - `ARCHITECTURE.md`: package boundaries;
 - `PRODUCTION.md`: deployment guidance;
+- `ROADMAP.md`: authoritative implementation sequence and milestone acceptance;
 - `MAINTAINING.md`: contributor workflow;
 - `MIGRATION.md`: v1 to v2 changes;
 - `RELEASE.md` and `CHANGELOG.md`: release policy and history.
 
-Update the authoritative document instead of adding a roadmap, project snapshot,
-design draft, or duplicate index. Temporary planning belongs in an issue or pull
-request.
+Update the authoritative document instead of adding a second roadmap, project
+snapshot, design draft, or duplicate index. Temporary planning belongs in an
+issue or pull request.
 
 Documentation examples must compile against the current v2 API. Links must be
 relative and must resolve on a case-sensitive filesystem.
