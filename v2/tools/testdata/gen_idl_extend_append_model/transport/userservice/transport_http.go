@@ -214,21 +214,13 @@ func routePath(prefix, route string) string {
 }
 
 // decodeCreateUserRequest uses the generated method-aware decode path.
-//
-// @Summary      CreateUser creates a new user.
-// @Description  CreateUser creates a new user.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  body      idl.CreateUserRequest  true  "CreateUser request"
-// @Success      200      {object}  idl.CreateUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /createuser [post]
 func decodeCreateUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.CreateUserRequest
 	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
 		return nil, server.JSONDecodeError{Err: err}
+	}
+	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+		return nil, err
 	}
 	return req, nil
 }
@@ -238,17 +230,6 @@ func encodeCreateUserResponse(ctx context.Context, w http.ResponseWriter, respon
 }
 
 // decodeGetUserRequest uses the generated method-aware decode path.
-//
-// @Summary      GetUser retrieves a user by ID.
-// @Description  GetUser retrieves a user by ID.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  query     idl.GetUserRequest  true  "GetUser request"
-// @Success      200      {object}  idl.GetUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /getuser [get]
 func decodeGetUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.GetUserRequest
 	if err := transporthttp.DecodeQueryRequest(r, &req); err != nil {
@@ -262,17 +243,6 @@ func encodeGetUserResponse(ctx context.Context, w http.ResponseWriter, response 
 }
 
 // decodeListUsersRequest uses the generated method-aware decode path.
-//
-// @Summary      ListUsers lists all users.
-// @Description  ListUsers lists all users.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  query     idl.ListUsersRequest  true  "ListUsers request"
-// @Success      200      {object}  idl.ListUsersResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /listusers [get]
 func decodeListUsersRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.ListUsersRequest
 	if err := transporthttp.DecodeQueryRequest(r, &req); err != nil {
@@ -286,21 +256,13 @@ func encodeListUsersResponse(ctx context.Context, w http.ResponseWriter, respons
 }
 
 // decodeDeleteUserRequest uses the generated method-aware decode path.
-//
-// @Summary      DeleteUser removes a user.
-// @Description  DeleteUser removes a user.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  body      idl.DeleteUserRequest  true  "DeleteUser request"
-// @Success      200      {object}  idl.DeleteUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /deleteuser [delete]
 func decodeDeleteUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.DeleteUserRequest
 	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
 		return nil, server.JSONDecodeError{Err: err}
+	}
+	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+		return nil, err
 	}
 	return req, nil
 }
@@ -310,21 +272,13 @@ func encodeDeleteUserResponse(ctx context.Context, w http.ResponseWriter, respon
 }
 
 // decodeUpdateUserRequest uses the generated method-aware decode path.
-//
-// @Summary      UpdateUser modifies a user.
-// @Description  UpdateUser modifies a user.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  body      idl.UpdateUserRequest  true  "UpdateUser request"
-// @Success      200      {object}  idl.UpdateUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /updateuser [put]
 func decodeUpdateUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.UpdateUserRequest
 	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
 		return nil, server.JSONDecodeError{Err: err}
+	}
+	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+		return nil, err
 	}
 	return req, nil
 }
@@ -334,17 +288,6 @@ func encodeUpdateUserResponse(ctx context.Context, w http.ResponseWriter, respon
 }
 
 // decodeFindByEmailRequest uses the generated method-aware decode path.
-//
-// @Summary      FindByEmail finds users by email prefix.
-// @Description  FindByEmail finds users by email prefix.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  query     idl.GetUserRequest  true  "FindByEmail request"
-// @Success      200      {object}  idl.GetUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /findbyemail [get]
 func decodeFindByEmailRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.GetUserRequest
 	if err := transporthttp.DecodeQueryRequest(r, &req); err != nil {
@@ -358,17 +301,6 @@ func encodeFindByEmailResponse(ctx context.Context, w http.ResponseWriter, respo
 }
 
 // decodeSearchUsersRequest uses the generated method-aware decode path.
-//
-// @Summary      SearchUsers searches users.
-// @Description  SearchUsers searches users.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  query     idl.ListUsersRequest  true  "SearchUsers request"
-// @Success      200      {object}  idl.ListUsersResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /searchusers [get]
 func decodeSearchUsersRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.ListUsersRequest
 	if err := transporthttp.DecodeQueryRequest(r, &req); err != nil {
@@ -382,17 +314,6 @@ func encodeSearchUsersResponse(ctx context.Context, w http.ResponseWriter, respo
 }
 
 // decodeQueryStatsRequest uses the generated method-aware decode path.
-//
-// @Summary      QueryStats returns statistics.
-// @Description  QueryStats returns statistics.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  query     idl.GetUserRequest  true  "QueryStats request"
-// @Success      200      {object}  idl.GetUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /querystats [get]
 func decodeQueryStatsRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.GetUserRequest
 	if err := transporthttp.DecodeQueryRequest(r, &req); err != nil {
@@ -406,21 +327,13 @@ func encodeQueryStatsResponse(ctx context.Context, w http.ResponseWriter, respon
 }
 
 // decodeRemoveExpiredRequest uses the generated method-aware decode path.
-//
-// @Summary      RemoveExpired removes expired users.
-// @Description  RemoveExpired removes expired users.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  body      idl.DeleteUserRequest  true  "RemoveExpired request"
-// @Success      200      {object}  idl.DeleteUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /removeexpired [delete]
 func decodeRemoveExpiredRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.DeleteUserRequest
 	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
 		return nil, server.JSONDecodeError{Err: err}
+	}
+	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+		return nil, err
 	}
 	return req, nil
 }
@@ -430,21 +343,13 @@ func encodeRemoveExpiredResponse(ctx context.Context, w http.ResponseWriter, res
 }
 
 // decodeEditProfileRequest uses the generated method-aware decode path.
-//
-// @Summary      EditProfile edits profile.
-// @Description  EditProfile edits profile.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  body      idl.UpdateUserRequest  true  "EditProfile request"
-// @Success      200      {object}  idl.UpdateUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /editprofile [put]
 func decodeEditProfileRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.UpdateUserRequest
 	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
 		return nil, server.JSONDecodeError{Err: err}
+	}
+	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+		return nil, err
 	}
 	return req, nil
 }
@@ -454,21 +359,13 @@ func encodeEditProfileResponse(ctx context.Context, w http.ResponseWriter, respo
 }
 
 // decodeModifyEmailRequest uses the generated method-aware decode path.
-//
-// @Summary      ModifyEmail modifies email.
-// @Description  ModifyEmail modifies email.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  body      idl.UpdateUserRequest  true  "ModifyEmail request"
-// @Success      200      {object}  idl.UpdateUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /modifyemail [put]
 func decodeModifyEmailRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.UpdateUserRequest
 	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
 		return nil, server.JSONDecodeError{Err: err}
+	}
+	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+		return nil, err
 	}
 	return req, nil
 }
@@ -478,21 +375,13 @@ func encodeModifyEmailResponse(ctx context.Context, w http.ResponseWriter, respo
 }
 
 // decodePatchStatusRequest uses the generated method-aware decode path.
-//
-// @Summary      PatchStatus patches status.
-// @Description  PatchStatus patches status.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  body      idl.UpdateUserRequest  true  "PatchStatus request"
-// @Success      200      {object}  idl.UpdateUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /patchstatus [put]
 func decodePatchStatusRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.UpdateUserRequest
 	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
 		return nil, server.JSONDecodeError{Err: err}
+	}
+	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+		return nil, err
 	}
 	return req, nil
 }

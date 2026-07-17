@@ -82,6 +82,7 @@ microgen \
   -idl idl.go \
   -out hello-svc \
   -import example.com/hello-svc \
+  -openapi \
   -config=false \
   -model=false \
   -db=false
@@ -96,8 +97,13 @@ go run ./cmd
 ```bash
 curl http://localhost:8080/health
 curl http://localhost:8080/debug/routes
+curl http://localhost:8080/openapi.json
 curl http://localhost:8080/skill
 ```
+
+启用 `-openapi` 后，`microgen` 会从路由、客户端、SDK 和 skill 元数据共用的统一
+IR 直接生成 OpenAPI 3.1。Swagger UI 位于 `/swagger/`，它只是
+`/openapi.json` 的查看器，不是第二份契约来源。
 
 刚生成的业务方法会返回未实现错误。业务逻辑写在
 `service/helloservice/service.go`。
@@ -121,7 +127,7 @@ curl http://localhost:8080/skill
 - `cmd/generated_*.go`
 - `endpoint/<service>/generated_chain.go`
 - `model/generated_*.go` 和 `repository/generated_*.go`
-- 生成的 `client/`、`sdk/`、`skill/` 和 `pb/` 资源
+- 生成的 `client/`、`sdk/`、`skill/`、`pb/` 和 `docs/` 资源
 
 扩展已有生成项目之前先执行 `microgen extend -check -out .`。
 

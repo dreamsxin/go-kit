@@ -64,7 +64,7 @@ type ExistingProjectFeatures struct {
 	WithModel            bool
 	WithGRPC             bool
 	WithDB               bool
-	WithSwag             bool
+	WithOpenAPI          bool
 	WithSkill            bool
 	RoutePrefix          string
 	GeneratedMiddlewares []string
@@ -383,12 +383,12 @@ func detectWarnings(project *ExistingProject) []string {
 
 func detectProjectFeatures(root string, project *ExistingProject) ExistingProjectFeatures {
 	features := ExistingProjectFeatures{
-		WithConfig: fileExists(filepath.Join(root, "config", "config.go")),
-		WithTests:  dirExists(filepath.Join(root, "test")),
-		WithModel:  hasGeneratedModelFiles(filepath.Join(root, "model")) || hasAnyMatch(filepath.Join(root, "repository"), "generated_"),
-		WithGRPC:   hasAnyMatch(filepath.Join(root, "transport"), "transport_grpc.go") || dirExists(filepath.Join(root, "pb")),
-		WithSwag:   fileExists(filepath.Join(root, "docs", "docs.go")),
-		WithSkill:  fileExists(filepath.Join(root, "skill", "skill.go")),
+		WithConfig:  fileExists(filepath.Join(root, "config", "config.go")),
+		WithTests:   dirExists(filepath.Join(root, "test")),
+		WithModel:   hasGeneratedModelFiles(filepath.Join(root, "model")) || hasAnyMatch(filepath.Join(root, "repository"), "generated_"),
+		WithGRPC:    hasAnyMatch(filepath.Join(root, "transport"), "transport_grpc.go") || dirExists(filepath.Join(root, "pb")),
+		WithOpenAPI: fileExists(filepath.Join(root, "docs", "docs.go")),
+		WithSkill:   fileExists(filepath.Join(root, "skill", "skill.go")),
 	}
 	features.WithDB = fileContains(filepath.Join(root, "cmd", "main.go"), "repository.NewDB(")
 	features.RoutePrefix = detectRoutePrefix(project.AggregationPoints.GeneratedRoutes)

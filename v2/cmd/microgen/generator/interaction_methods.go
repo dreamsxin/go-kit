@@ -1,10 +1,6 @@
 package generator
 
-import (
-	"strings"
-
-	"github.com/dreamsxin/go-kit/v2/cmd/microgen/ir"
-)
+import "github.com/dreamsxin/go-kit/v2/cmd/microgen/ir"
 
 func unaryMethods(service *ir.Service) []*ir.Method {
 	if service == nil {
@@ -12,6 +8,9 @@ func unaryMethods(service *ir.Service) []*ir.Method {
 	}
 	out := make([]*ir.Method, 0, len(service.Methods))
 	for _, method := range service.Methods {
+		if method == nil {
+			continue
+		}
 		if method.Kind == "" || method.Kind == ir.MethodKindUnary {
 			out = append(out, method)
 		}
@@ -25,6 +24,9 @@ func serverStreamMethods(service *ir.Service) []*ir.Method {
 	}
 	out := make([]*ir.Method, 0, len(service.Methods))
 	for _, method := range service.Methods {
+		if method == nil {
+			continue
+		}
 		if method.Kind == ir.MethodKindServerStream {
 			out = append(out, method)
 		}
@@ -38,6 +40,9 @@ func clientStreamMethods(service *ir.Service) []*ir.Method {
 	}
 	out := make([]*ir.Method, 0, len(service.Methods))
 	for _, method := range service.Methods {
+		if method == nil {
+			continue
+		}
 		if method.Kind == ir.MethodKindClientStream {
 			out = append(out, method)
 		}
@@ -51,6 +56,9 @@ func bidiStreamMethods(service *ir.Service) []*ir.Method {
 	}
 	out := make([]*ir.Method, 0, len(service.Methods))
 	for _, method := range service.Methods {
+		if method == nil {
+			continue
+		}
 		if method.Kind == ir.MethodKindBidirectional {
 			out = append(out, method)
 		}
@@ -62,15 +70,6 @@ func hasStreamingMethods(service *ir.Service) bool {
 	return len(serverStreamMethods(service)) > 0 ||
 		len(clientStreamMethods(service)) > 0 ||
 		len(bidiStreamMethods(service)) > 0
-}
-
-func hasHTTPMethod(methods []*ir.Method, want string) bool {
-	for _, method := range methods {
-		if method != nil && strings.EqualFold(method.HTTPMethod, want) {
-			return true
-		}
-	}
-	return false
 }
 
 func unaryServiceRoutes(routes []SvcRoute) []SvcRoute {

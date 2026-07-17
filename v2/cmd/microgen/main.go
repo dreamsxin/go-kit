@@ -32,27 +32,27 @@ type config struct {
 	dbTables  []string
 	addTables []string
 
-	outputDir      string
-	ImportPath     string
-	protocols      []string
-	withConfig     bool
-	configMode     string
-	remoteProvider string
-	withDocs       bool
-	withTests      bool
-	withModel      bool
-	withGRPC       bool
-	withDB         bool
-	dbDriver       string
-	withSwag        bool
+	outputDir       string
+	ImportPath      string
+	protocols       []string
+	withConfig      bool
+	configMode      string
+	remoteProvider  string
+	withDocs        bool
+	withTests       bool
+	withModel       bool
+	withGRPC        bool
+	withDB          bool
+	dbDriver        string
+	withOpenAPI     bool
 	withSkill       bool
 	withInteraction bool
 	serviceName     string
 	routePrefix     string
-	checkOnly      bool
-	appendSvc      string
-	appendModel    string
-	appendMW       []string
+	checkOnly       bool
+	appendSvc       string
+	appendModel     string
+	appendMW        []string
 }
 
 func parseFlags() config {
@@ -95,7 +95,7 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 	withModel := fs.Bool("model", true, "Generate model")
 	withDB := fs.Bool("db", true, "Include DB init in main")
 	driver := fs.String("driver", "mysql", "Database driver")
-	withSwag := fs.Bool("swag", false, "Generate swagger")
+	withOpenAPI := fs.Bool("openapi", false, "Generate OpenAPI 3.1 documentation and Swagger UI")
 	withSkill := fs.Bool("skill", true, "Generate AI skill support")
 	withInteraction := fs.Bool("interaction", false, "Generate AI interaction runtime and MCP endpoint")
 	serviceName := fs.String("service", "", "Service name")
@@ -116,33 +116,33 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 	}
 
 	return config{
-		idlPath:        *idlPath,
-		fromDB:         *fromDB,
-		dbDSN:          *dsn,
-		dbName:         *dbName,
-		dbTables:       splitComma(*tables),
-		addTables:      splitComma(*addTables),
-		outputDir:      *outputDir,
-		ImportPath:     *importPath,
-		protocols:      protos,
-		withConfig:     *withConfig,
-		configMode:     strings.TrimSpace(*configMode),
-		remoteProvider: strings.TrimSpace(*remoteProvider),
-		withDocs:       *withDocs,
-		withTests:      *withTests,
-		withModel:      *withModel,
-		withGRPC:       hasGRPC,
-		withDB:         *withDB,
-		dbDriver:       *driver,
-		withSwag:        *withSwag,
+		idlPath:         *idlPath,
+		fromDB:          *fromDB,
+		dbDSN:           *dsn,
+		dbName:          *dbName,
+		dbTables:        splitComma(*tables),
+		addTables:       splitComma(*addTables),
+		outputDir:       *outputDir,
+		ImportPath:      *importPath,
+		protocols:       protos,
+		withConfig:      *withConfig,
+		configMode:      strings.TrimSpace(*configMode),
+		remoteProvider:  strings.TrimSpace(*remoteProvider),
+		withDocs:        *withDocs,
+		withTests:       *withTests,
+		withModel:       *withModel,
+		withGRPC:        hasGRPC,
+		withDB:          *withDB,
+		dbDriver:        *driver,
+		withOpenAPI:     *withOpenAPI,
 		withSkill:       *withSkill,
 		withInteraction: *withInteraction,
 		serviceName:     *serviceName,
 		routePrefix:     *routePrefix,
-		checkOnly:      *checkOnly,
-		appendSvc:      *appendSvc,
-		appendModel:    *appendModel,
-		appendMW:       splitComma(*appendMiddleware),
+		checkOnly:       *checkOnly,
+		appendSvc:       *appendSvc,
+		appendModel:     *appendModel,
+		appendMW:        splitComma(*appendMiddleware),
 	}
 }
 
@@ -212,21 +212,21 @@ func main() {
 
 func (c config) generatorOptions(idlPath, serviceName string) generator.Options {
 	return generator.Options{
-		TemplateFS:     &templateFS,
-		OutputDir:      c.outputDir,
-		ImportPath:     c.ImportPath,
-		ServiceName:    serviceName,
-		Protocols:      c.protocols,
-		WithConfig:     c.withConfig,
-		ConfigMode:     c.configMode,
-		RemoteProvider: c.remoteProvider,
-		WithDocs:       c.withDocs,
-		WithTests:      c.withTests,
-		WithModel:      c.withModel,
-		WithGRPC:       c.withGRPC,
-		WithDB:         c.withDB,
-		DBDriver:       c.dbDriver,
-		WithSwag:        c.withSwag,
+		TemplateFS:      &templateFS,
+		OutputDir:       c.outputDir,
+		ImportPath:      c.ImportPath,
+		ServiceName:     serviceName,
+		Protocols:       c.protocols,
+		WithConfig:      c.withConfig,
+		ConfigMode:      c.configMode,
+		RemoteProvider:  c.remoteProvider,
+		WithDocs:        c.withDocs,
+		WithTests:       c.withTests,
+		WithModel:       c.withModel,
+		WithGRPC:        c.withGRPC,
+		WithDB:          c.withDB,
+		DBDriver:        c.dbDriver,
+		WithOpenAPI:     c.withOpenAPI,
 		WithSkill:       c.withSkill,
 		WithInteraction: c.withInteraction,
 		IDLSrcPath:      idlPath,

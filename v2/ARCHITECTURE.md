@@ -101,8 +101,10 @@ points decide when to terminate.
 
 ### `cmd/microgen`
 
-`microgen` is a build-time tool. Parsers produce a common IR and templates render
-projects from that IR. Runtime packages must not depend on generator internals.
+`microgen` is a build-time tool. Parsers produce a common IR that drives HTTP
+routes, transports, clients, SDKs, OpenAPI 3.1 schemas, and AI discovery assets.
+Templates render projects from that IR. Runtime packages must not depend on
+generator internals.
 
 See [MICROGEN.md](MICROGEN.md) for source modes and generated-file ownership.
 

@@ -162,9 +162,17 @@ func buildGETPath(path string, reqBody interface{}) (string, error) {
 	return transporthttp.EncodePathAndQuery(path, reqBody)
 }
 
+func buildRequestPath(path string, reqBody interface{}) (string, error) {
+	return transporthttp.EncodePath(path, reqBody)
+}
+
 func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	var resp idl.CreateUserResponse
-	err := c.do(ctx, "POST", "/user", req, &resp)
+	path, err := buildRequestPath("/user", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	err = c.do(ctx, "POST", path, req, &resp)
 	return resp, err
 }
 
@@ -180,13 +188,21 @@ func (c *httpClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.G
 
 func (c *httpClient) UpdateUser(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
 	var resp idl.UpdateUserResponse
-	err := c.do(ctx, "PUT", "/user/{id}", req, &resp)
+	path, err := buildRequestPath("/user/{id}", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	err = c.do(ctx, "PUT", path, req, &resp)
 	return resp, err
 }
 
 func (c *httpClient) DeleteUser(ctx context.Context, req idl.DeleteUserRequest) (idl.DeleteUserResponse, error) {
 	var resp idl.DeleteUserResponse
-	err := c.do(ctx, "DELETE", "/user/{id}", req, &resp)
+	path, err := buildRequestPath("/user/{id}", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	err = c.do(ctx, "DELETE", path, req, &resp)
 	return resp, err
 }
 

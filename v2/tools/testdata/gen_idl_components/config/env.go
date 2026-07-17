@@ -78,7 +78,6 @@ func ApplyEnv(cfg *Config) error {
 	if err := readDuration("GRACEFUL_SHUTDOWN_TIMEOUT", &cfg.Server.GracefulShutdownTimeout); err != nil {
 		return err
 	}
-	readString("SWAGGER_HOST", &cfg.Server.SwaggerHost)
 
 	readString("LOG_LEVEL", &cfg.Logging.Level)
 	readString("LOG_FORMAT", &cfg.Logging.Format)

@@ -67,13 +67,12 @@ func (g *Generator) generateEndpointCustomChainFile(service *serviceView) error 
 func (g *Generator) generateHTTPTransportFile(service *serviceView, irService *ir.Service, source string) error {
 	methods := unaryMethods(irService)
 	data := httpTransportTemplateData{
-		Service:       service,
-		IRService:     irService,
-		UnaryMethods:  methods,
-		HasGETMethods: hasHTTPMethod(methods, "GET"),
-		ImportPath:    g.config.ImportPath,
-		RoutePrefix:   routePrefix(g.config.RoutePrefix, service.ServiceName),
-		Source:        source,
+		Service:      service,
+		IRService:    irService,
+		UnaryMethods: methods,
+		ImportPath:   g.config.ImportPath,
+		RoutePrefix:  routePrefix(g.config.RoutePrefix, service.ServiceName),
+		Source:       source,
 	}
 	return g.executeTemplate("transport.tmpl", g.layout.httpTransportFile(service.ServiceName), data)
 }
@@ -146,7 +145,7 @@ func (g *Generator) generateClientDemo(service *serviceView, irService *ir.Servi
 		BidiStreamMethods:   bidiStreamMethods(irService),
 		ImportPath:          g.config.ImportPath,
 		WithGRPC:            g.config.WithGRPC,
-		RoutePrefix:         g.config.RoutePrefix,
+		RoutePrefix:         routePrefix(g.config.RoutePrefix, service.ServiceName),
 		Source:              source,
 	}
 	return g.executeTemplate("client.tmpl", g.layout.clientDemoFile(service.ServiceName), data)
@@ -163,7 +162,7 @@ func (g *Generator) generateSDKFile(service *serviceView, irService *ir.Service,
 		ImportPath:          g.config.ImportPath,
 		WithGRPC:            g.config.WithGRPC,
 		Source:              source,
-		RoutePrefix:         g.config.RoutePrefix,
+		RoutePrefix:         routePrefix(g.config.RoutePrefix, service.ServiceName),
 	}
 	if err := os.MkdirAll(g.layout.sdkDir(service.ServiceName), 0o755); err != nil {
 		return err

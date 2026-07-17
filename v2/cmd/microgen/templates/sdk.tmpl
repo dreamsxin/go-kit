@@ -211,6 +211,10 @@ func buildGETPath(path string, reqBody interface{}) (string, error) {
 	return transporthttp.EncodePathAndQuery(path, reqBody)
 }
 
+func buildRequestPath(path string, reqBody interface{}) (string, error) {
+	return transporthttp.EncodePath(path, reqBody)
+}
+
 {{range .UnaryMethods}}
 func (c *httpClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
 	var resp idl.{{.OutputName}}
@@ -221,7 +225,11 @@ func (c *httpClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl
 	}
 	err = c.do(ctx, "GET", path, nil, &resp)
 {{- else}}
-	err := c.do(ctx, "{{.HTTPMethod | upper}}", "{{$.RoutePrefix}}{{.Route}}", req, &resp)
+	path, err := buildRequestPath("{{$.RoutePrefix}}{{.Route}}", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	err = c.do(ctx, "{{.HTTPMethod | upper}}", path, req, &resp)
 {{- end}}
 	return resp, err
 }

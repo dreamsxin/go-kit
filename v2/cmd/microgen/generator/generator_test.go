@@ -292,17 +292,17 @@ func TestGenerateFull_DirectoryStructure_WithDocs(t *testing.T) {
 	mustExist(t, filepath.Join(outDir, "README.md"))
 }
 
-func TestGenerateFull_DirectoryStructure_WithSwag(t *testing.T) {
+func TestGenerateFull_DirectoryStructure_WithOpenAPI(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithConfig: false,
-		WithDocs:   false,
-		WithSwag:   true,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithConfig:  false,
+		WithDocs:    false,
+		WithOpenAPI: true,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -386,7 +386,7 @@ func TestGenerateFull_TransportHTTP_Contents(t *testing.T) {
 	mustContain(t, httpPath, "*http.ServeMux")
 	mustNotContain(t, httpPath, "github.com/gorilla/mux")
 	mustNotContain(t, httpPath, "reflect.Value")
-	mustContain(t, httpPath, "server.ErrorResponse")
+	mustContain(t, httpPath, "server.JSONErrorEncoder")
 	mustContain(t, httpPath, "decodeCreateUserRequest")
 	mustContain(t, httpPath, "encodeCreateUserResponse")
 }
@@ -1046,14 +1046,14 @@ func TestGenerateFull_ConfigCode_EnvOverrides(t *testing.T) {
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		Protocols:  []string{"http", "grpc"},
-		DBDriver:   "mysql",
-		WithDB:     true,
-		WithSwag:   true,
-		WithConfig: true,
-		WithDocs:   false,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		Protocols:   []string{"http", "grpc"},
+		DBDriver:    "mysql",
+		WithDB:      true,
+		WithOpenAPI: true,
+		WithConfig:  true,
+		WithDocs:    false,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -1067,7 +1067,7 @@ func TestGenerateFull_ConfigCode_EnvOverrides(t *testing.T) {
 	mustContain(t, envPath, `readString("LOG_LEVEL"`)
 	mustContain(t, envPath, `readString("DB_DSN"`)
 	mustContain(t, envPath, `readBool("DB_AUTO_MIGRATE"`)
-	mustContain(t, envPath, `readString("SWAGGER_HOST"`)
+	mustNotContain(t, envPath, `readString("SWAGGER_HOST"`)
 	mustContain(t, envPath, `readBool("RETRY_ENABLED"`)
 	mustContain(t, envPath, `readInt("RETRY_MAX_ATTEMPTS"`)
 	mustContain(t, envPath, `readDuration("RETRY_BACKOFF"`)
@@ -1191,17 +1191,17 @@ func TestGenerateFull_ConfigCode_NotGeneratedWhenWithConfigFalse(t *testing.T) {
 
 // ─────────────────────────── docs/docs.go ─────────────────────────────────
 
-func TestGenerateFull_DocsStub_Contents(t *testing.T) {
+func TestGenerateFull_OpenAPIEmbed_Contents(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithSwag:   true,
-		WithConfig: false,
-		WithDocs:   false,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithOpenAPI: true,
+		WithConfig:  false,
+		WithDocs:    false,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -1209,8 +1209,9 @@ func TestGenerateFull_DocsStub_Contents(t *testing.T) {
 
 	docsPath := filepath.Join(outDir, "docs", "docs.go")
 	mustContain(t, docsPath, "package docs")
-	mustContain(t, docsPath, "SwaggerInfo")
-	mustContain(t, docsPath, "swag.Register")
+	mustContain(t, docsPath, "go:embed openapi.json")
+	mustContain(t, docsPath, "func Handler")
+	mustContain(t, filepath.Join(outDir, "docs", "openapi.json"), `"openapi": "3.1.0"`)
 }
 
 // ─────────────────────────── README.md 内容 ─────────────────────────────
@@ -1238,7 +1239,7 @@ func TestGenerateFull_Readme_Contents(t *testing.T) {
 	mustContain(t, readmePath, "cmd/generated_*.go")
 	mustContain(t, readmePath, "microgen extend -check -out .")
 	mustContain(t, readmePath, "## Capability Contract")
-	mustContain(t, readmePath, "The same contract drives HTTP routes, gRPC/proto assets, generated clients, SDKs, README endpoint listings, and AI tool metadata.")
+	mustContain(t, readmePath, "The same contract drives HTTP routes, gRPC/proto assets, generated clients, SDKs, OpenAPI schemas, README endpoint listings, and AI tool metadata.")
 	mustContain(t, readmePath, "microgen.skill.v1")
 	mustContain(t, readmePath, "`/skill?format=mcp` is discovery output, not a tool execution endpoint.")
 	mustContain(t, readmePath, "interaction.NewRuntime")
@@ -1502,23 +1503,20 @@ func TestGenerateFull_PackageNameLowercased(t *testing.T) {
 	}
 }
 
-// ─────────────────────────── Swagger / swag 文档 ─────────────────────────────
+// ─────────────────────────── OpenAPI contract ────────────────────────────────
 
-// TestGenerateFull_Swag_DocsStub_FullContent 验证 docs/docs.go 的完整内容：
-// - package 声明
-// - SwaggerInfo 变量（含 BasePath、Title、Version�?// - swag.Register 调用
-// - docTemplate 包含 swagger 2.0 结构
-func TestGenerateFull_Swag_DocsStub_FullContent(t *testing.T) {
+// The generated embed wrapper and OpenAPI document are one owned contract.
+func TestGenerateFull_OpenAPI_FullContent(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithSwag:   true,
-		WithConfig: false,
-		WithDocs:   false,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithOpenAPI: true,
+		WithConfig:  false,
+		WithDocs:    false,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -1526,35 +1524,33 @@ func TestGenerateFull_Swag_DocsStub_FullContent(t *testing.T) {
 
 	docsPath := filepath.Join(outDir, "docs", "docs.go")
 	mustExist(t, docsPath)
+	openAPIPath := filepath.Join(outDir, "docs", "openapi.json")
+	mustExist(t, openAPIPath)
+	mustContain(t, docsPath, "package docs")
 
-	// 结构性内�?	mustContain(t, docsPath, "package docs")
-	mustContain(t, docsPath, "SwaggerInfo")
-	mustContain(t, docsPath, "swag.Register")
-	mustContain(t, docsPath, `"swagger": "2.0"`)
+	mustContain(t, docsPath, "go:embed openapi.json")
+	mustContain(t, docsPath, "func Handler")
+	mustContain(t, openAPIPath, `"openapi": "3.1.0"`)
 
-	// SwaggerInfo 字段
-	mustContain(t, docsPath, `Version:`)
-	mustContain(t, docsPath, `BasePath:`)
-	mustContain(t, docsPath, `Title:`)
+	mustContain(t, openAPIPath, `"jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema"`)
+	mustContain(t, openAPIPath, `"components"`)
+	mustContain(t, openAPIPath, `"schemas"`)
 
-	// init() 注册
-	mustContain(t, docsPath, "func init()")
+	mustNotContain(t, docsPath, "swag.Register")
 }
 
-// TestGenerateFull_Swag_TransportAnnotations 验证 transport_http.go 中的 swag 注释�?// - @Summary、@Description、@Tags
-// - @Param（GET �?query，POST �?body�?// - @Success、@Failure
-// - @Router（含正确�?HTTP 方法�?
-func TestGenerateFull_Swag_TransportAnnotations(t *testing.T) {
+// The transport contains runtime adapters only; OpenAPI owns the description.
+func TestGenerateFull_OpenAPI_IsNotDuplicatedInTransport(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithSwag:   true,
-		WithConfig: false,
-		WithDocs:   false,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithOpenAPI: true,
+		WithConfig:  false,
+		WithDocs:    false,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -1562,42 +1558,31 @@ func TestGenerateFull_Swag_TransportAnnotations(t *testing.T) {
 
 	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
 
-	// 每个方法都应�?swag 注释
-	mustContain(t, httpPath, "// @Summary")
-	mustContain(t, httpPath, "// @Tags")
-	mustContain(t, httpPath, "// @Accept       json")
-	mustContain(t, httpPath, "// @Produce      json")
-	mustContain(t, httpPath, "// @Success      200")
-	mustContain(t, httpPath, "// @Failure      400")
-	mustContain(t, httpPath, "// @Failure      500")
-	mustContain(t, httpPath, "// @Failure      400      {object}  server.ErrorResponse")
-	mustContain(t, httpPath, "// @Failure      500      {object}  server.ErrorResponse")
+	mustNotContain(t, httpPath, "// @Summary")
+	mustNotContain(t, httpPath, "// @Router")
 
-	// POST 方法�?body 参数
-	mustContain(t, httpPath, `// @Param        request  body`)
+	openAPIPath := filepath.Join(outDir, "docs", "openapi.json")
+	mustContain(t, openAPIPath, `"requestBody"`)
 
-	// GET 方法�?query 参数（ListUsers、GetUser 等）
-	mustContain(t, httpPath, `// @Param        request  query`)
+	mustContain(t, openAPIPath, `"parameters"`)
 
-	// @Router 注释包含路由路径�?HTTP 方法
-	mustContain(t, httpPath, "// @Router")
-	mustContain(t, httpPath, "[post]")
-	mustContain(t, httpPath, "[get]")
+	mustContain(t, openAPIPath, `"post"`)
+	mustContain(t, openAPIPath, `"get"`)
+	mustContain(t, openAPIPath, `"$ref": "#/components/schemas/ErrorResponse"`)
 }
 
-// TestGenerateFull_Swag_RouterAnnotations_Methods 验证各方法的 @Router 注释
-// 包含正确�?HTTP 方法标记�?
-func TestGenerateFull_Swag_RouterAnnotations_Methods(t *testing.T) {
+// Operations are generated from IR methods, including their HTTP verbs.
+func TestGenerateFull_OpenAPI_ContainsMethodOperations(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithSwag:   true,
-		WithConfig: false,
-		WithDocs:   false,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithOpenAPI: true,
+		WithConfig:  false,
+		WithDocs:    false,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -1605,54 +1590,29 @@ func TestGenerateFull_Swag_RouterAnnotations_Methods(t *testing.T) {
 
 	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
 	content := readFile(t, httpPath)
-
-	// CreateUser �?POST
-	if !strings.Contains(content, "// @Router") {
-		t.Error("transport_http.go should contain @Router annotations")
+	if strings.Contains(content, "// @Router") {
+		t.Error("transport_http.go should not duplicate the OpenAPI route contract")
 	}
 
-	// 验证 CreateUser �?@Router 包含 [post]
-	lines := strings.Split(content, "\n")
-	routerLines := []string{}
-	for _, l := range lines {
-		if strings.Contains(l, "// @Router") {
-			routerLines = append(routerLines, strings.TrimSpace(l))
-		}
-	}
-	if len(routerLines) == 0 {
-		t.Fatal("no @Router annotations found")
-	}
-
-	// 至少有一�?[post] 和一�?[get]
-	hasPost, hasGet := false, false
-	for _, l := range routerLines {
-		if strings.Contains(l, "[post]") {
-			hasPost = true
-		}
-		if strings.Contains(l, "[get]") {
-			hasGet = true
-		}
-	}
-	if !hasPost {
-		t.Errorf("expected at least one [post] @Router, got: %v", routerLines)
-	}
-	if !hasGet {
-		t.Errorf("expected at least one [get] @Router, got: %v", routerLines)
-	}
+	openAPIPath := filepath.Join(outDir, "docs", "openapi.json")
+	mustContain(t, openAPIPath, `"operationId": "UserService_CreateUser"`)
+	mustContain(t, openAPIPath, `"operationId": "UserService_GetUser"`)
+	mustContain(t, openAPIPath, `"post"`)
+	mustContain(t, openAPIPath, `"get"`)
 }
 
-// TestGenerateFull_Swag_MainFile_SwaggerRoute 验证 main.go 包含 Swagger UI 路由�?
-func TestGenerateFull_Swag_MainFile_SwaggerRoute(t *testing.T) {
+// The generated runtime serves the contract and configures Swagger UI as a viewer.
+func TestGenerateFull_OpenAPI_MainRoutes(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithSwag:   true,
-		WithConfig: false,
-		WithDocs:   false,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithOpenAPI: true,
+		WithConfig:  false,
+		WithDocs:    false,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -1661,90 +1621,91 @@ func TestGenerateFull_Swag_MainFile_SwaggerRoute(t *testing.T) {
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	mustContain(t, mainPath, "/swagger/")
 	mustContain(t, mainPath, "httpSwagger")
-	mustContain(t, mainPath, "swagger/doc.json")
+	mustContain(t, mainPath, "/openapi.json")
+	mustContain(t, mainPath, "docs.Handler")
+	mustNotContain(t, mainPath, "swagger/doc.json")
 }
 
-// TestGenerateFull_Swag_MainFile_SwaggerAnnotations 验证 main.go 顶部�?swag 全局注释�?
-func TestGenerateFull_Swag_MainFile_SwaggerAnnotations(t *testing.T) {
+// main.go does not carry a second annotation-based API contract.
+func TestGenerateFull_OpenAPI_MainHasNoAnnotationContract(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithSwag:   true,
-		WithConfig: false,
-		WithDocs:   false,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithOpenAPI: true,
+		WithConfig:  false,
+		WithDocs:    false,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
-	mustContain(t, mainPath, "// @title")
-	mustContain(t, mainPath, "// @version")
-	mustContain(t, mainPath, "// @host")
-	mustContain(t, mainPath, "// @BasePath")
+	mustNotContain(t, mainPath, "// @title")
+	mustNotContain(t, mainPath, "// @version")
+	mustNotContain(t, mainPath, "// @host")
+	mustNotContain(t, mainPath, "// @BasePath")
 }
 
-// TestGenerateFull_Swag_ConfigYAML_SwaggerHost 验证 config.yaml 包含 swagger_host 字段�?
-func TestGenerateFull_Swag_ConfigYAML_SwaggerHost(t *testing.T) {
+// Relative OpenAPI URLs do not require a generated host setting.
+func TestGenerateFull_OpenAPI_ConfigYAMLHasNoHost(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithSwag:   true,
-		WithConfig: true,
-		WithDocs:   false,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithOpenAPI: true,
+		WithConfig:  true,
+		WithDocs:    false,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	configPath := filepath.Join(outDir, "config", "config.yaml")
-	mustContain(t, configPath, "swagger_host")
+	mustNotContain(t, configPath, "swagger_host")
 }
 
-// TestGenerateFull_Swag_ConfigCode_SwaggerHost 验证 config.go 包含 SwaggerHost 字段�?
-func TestGenerateFull_Swag_ConfigCode_SwaggerHost(t *testing.T) {
+// Generated config code has no host override for OpenAPI.
+func TestGenerateFull_OpenAPI_ConfigCodeHasNoHost(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithSwag:   true,
-		WithConfig: true,
-		WithDocs:   false,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithOpenAPI: true,
+		WithConfig:  true,
+		WithDocs:    false,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
 	codePath := filepath.Join(outDir, "config", "config.go")
-	mustContain(t, codePath, "SwaggerHost")
+	mustNotContain(t, codePath, "SwaggerHost")
 }
 
-// TestGenerateFull_Swag_DocsStub_NotOverwrittenBySecondRun 验证�?// �?docs.go 已存在且不是 stub（不�?"paths": {}），第二次生成不会覆盖它�?
-func TestGenerateFull_Swag_DocsStub_NotOverwrittenBySecondRun(t *testing.T) {
+// Reruns refresh generator-owned documentation instead of preserving stale output.
+func TestGenerateFull_OpenAPI_RerunRefreshesGeneratedDocs(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
 	opts := generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithSwag:   true,
-		WithConfig: false,
-		WithDocs:   false,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithOpenAPI: true,
+		WithConfig:  false,
+		WithDocs:    false,
 	}
 
-	// First generation run.
 	gen := mustNewGenerator(t, opts)
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("first GenerateIR: %v", err)
@@ -1753,11 +1714,7 @@ func TestGenerateFull_Swag_DocsStub_NotOverwrittenBySecondRun(t *testing.T) {
 	docsPath := filepath.Join(outDir, "docs", "docs.go")
 	realDocs := `package docs
 
-// This is a real swag-generated file.
-var SwaggerInfo = &swag.Spec{
-    Version: "2.0",
-    Title:   "Real Docs",
-}
+// Real Docs is stale generated output.
 `
 	if err := os.WriteFile(docsPath, []byte(realDocs), 0o644); err != nil {
 		t.Fatalf("write real docs: %v", err)
@@ -1769,24 +1726,25 @@ var SwaggerInfo = &swag.Spec{
 	}
 
 	content := readFile(t, docsPath)
-	if !strings.Contains(content, "Real Docs") {
-		t.Error("real docs.go should not be overwritten by second generation")
+	if strings.Contains(content, "Real Docs") {
+		t.Error("generated docs.go should be refreshed by second generation")
 	}
+	mustContain(t, docsPath, "go:embed openapi.json")
+	mustContain(t, filepath.Join(outDir, "docs", "openapi.json"), `"openapi": "3.1.0"`)
 }
 
-// TestGenerateFull_Swag_MultiService_AllAnnotated 验证多服�?IDL 时，
-// 每个服务�?transport_http.go 都包�?swag 注释�?
-func TestGenerateFull_Swag_MultiService_AllAnnotated(t *testing.T) {
+// Multi-service projects emit every unary operation into one OpenAPI document.
+func TestGenerateFull_OpenAPI_MultiServiceOperations(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "multi.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/multi",
-		DBDriver:   "sqlite",
-		WithSwag:   true,
-		WithConfig: false,
-		WithDocs:   false,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/multi",
+		DBDriver:    "sqlite",
+		WithOpenAPI: true,
+		WithConfig:  false,
+		WithDocs:    false,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -1795,14 +1753,16 @@ func TestGenerateFull_Swag_MultiService_AllAnnotated(t *testing.T) {
 	for _, svcPkg := range []string{"orderservice", "productservice"} {
 		httpPath := filepath.Join(outDir, "transport", svcPkg, "transport_http.go")
 		mustExist(t, httpPath)
-		mustContain(t, httpPath, "// @Summary")
-		mustContain(t, httpPath, "// @Router")
+		mustNotContain(t, httpPath, "// @Summary")
+		mustNotContain(t, httpPath, "// @Router")
 	}
+	openAPIPath := filepath.Join(outDir, "docs", "openapi.json")
+	mustContain(t, openAPIPath, `"operationId": "OrderService_PlaceOrder"`)
+	mustContain(t, openAPIPath, `"operationId": "ProductService_IncrStock"`)
 }
 
-// TestGenerateFull_Swag_RoutePrefix_InAnnotations 验证使用 -prefix 时，
-// @Router 注释包含正确的前缀路径�?
-func TestGenerateFull_Swag_RoutePrefix_InAnnotations(t *testing.T) {
+// OpenAPI paths use the same configured service prefix as runtime routes.
+func TestGenerateFull_OpenAPI_RoutePrefix(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1810,7 +1770,7 @@ func TestGenerateFull_Swag_RoutePrefix_InAnnotations(t *testing.T) {
 		OutputDir:   outDir,
 		ImportPath:  "example.com/basic",
 		DBDriver:    "sqlite",
-		WithSwag:    true,
+		WithOpenAPI: true,
 		WithConfig:  false,
 		WithDocs:    false,
 		RoutePrefix: "/api/v1",
@@ -1819,35 +1779,34 @@ func TestGenerateFull_Swag_RoutePrefix_InAnnotations(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
-	mustContain(t, httpPath, "/api/v1/userservice")
+	openAPIPath := filepath.Join(outDir, "docs", "openapi.json")
+	mustContain(t, openAPIPath, `"/api/v1/userservice`)
 }
 
-// TestGenerateFull_Swag_WithoutSwag_NoAnnotations 验证不启�?-swag 时，
-// transport_http.go 不包�?swag 注释（避免误导）�?// 注意：当前模板始终生�?swag 注释，此测试验证现有行为�?
-func TestGenerateFull_Swag_WithoutSwag_DocsNotGenerated(t *testing.T) {
+// Disabling OpenAPI output leaves no docs files or runtime documentation routes.
+func TestGenerateFull_OpenAPI_DisabledDoesNotGenerateDocs(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithSwag:   false,
-		WithConfig: false,
-		WithDocs:   false,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithOpenAPI: false,
+		WithConfig:  false,
+		WithDocs:    false,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	// docs/ 目录不应存在
 	mustNotExist(t, filepath.Join(outDir, "docs", "docs.go"))
+	mustNotExist(t, filepath.Join(outDir, "docs", "openapi.json"))
 
-	// main.go 不应包含 swagger 路由
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	content := readFile(t, mainPath)
 	if strings.Contains(content, "httpSwagger") {
-		t.Error("main.go should not contain httpSwagger when WithSwag=false")
+		t.Error("main.go should not contain httpSwagger when WithOpenAPI=false")
 	}
+	mustNotContain(t, mainPath, `r.HandleFunc("GET /openapi.json"`)
 }

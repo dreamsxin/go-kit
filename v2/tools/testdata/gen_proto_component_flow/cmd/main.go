@@ -1,21 +1,3 @@
-// @title          UserService API
-// @version        1.0
-// @description    UserService handles user operations.
-// @termsOfService http://swagger.io/terms/
-//
-// @contact.name   API Support
-// @contact.url    http://example.com/support
-// @contact.email  support@example.com
-//
-// @license.name   MIT
-// @license.url    https://opensource.org/licenses/MIT
-//
-// @host           localhost:8080
-// @BasePath       /
-//
-// @securityDefinitions.apikey  BearerAuth
-// @in                          header
-// @name                        Authorization
 package main
 
 import (
@@ -41,12 +23,13 @@ import (
 	"example.com/gen_proto_component_flow/skill"
 )
 
-func printBanner(logger *kitlog.Logger, httpAddr string, grpcAddr string, withSwag bool, withSkill bool) {
+func printBanner(logger *kitlog.Logger, httpAddr string, grpcAddr string, withOpenAPI bool, withSkill bool) {
 	logger.Sugar().Info("------------------------------------------------------------")
 	logger.Sugar().Infof(" Service: UserService ")
 	logger.Sugar().Infof(" HTTP: http://localhost%s", httpAddr)
-	if withSwag {
-		logger.Sugar().Infof(" Swagger: http://localhost%s/swagger/index.html", httpAddr)
+	if withOpenAPI {
+		logger.Sugar().Infof(" OpenAPI: http://localhost%s/openapi.json", httpAddr)
+		logger.Sugar().Infof(" API UI: http://localhost%s/swagger/index.html", httpAddr)
 	}
 	if withSkill {
 		logger.Sugar().Infof(" Skill: http://localhost%s/skill", httpAddr)

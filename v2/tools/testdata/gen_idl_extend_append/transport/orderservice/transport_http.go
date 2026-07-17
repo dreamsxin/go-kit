@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	idl "example.com/gen_idl_extend_append"
 	genendpoint "example.com/gen_idl_extend_append/endpoint/orderservice"
+	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 	"github.com/dreamsxin/go-kit/v2/transport/http/server"
 	"net/http"
 )
@@ -48,21 +49,13 @@ func routePath(prefix, route string) string {
 }
 
 // decodePlaceOrderRequest uses the generated method-aware decode path.
-//
-// @Summary      PlaceOrder
-// @Description  PlaceOrder microservice endpoint
-// @Tags         OrderService
-// @Accept       json
-// @Produce      json
-// @Param        request  body      idl.PlaceOrderRequest  true  "PlaceOrder request"
-// @Success      200      {object}  idl.PlaceOrderResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /placeorder [post]
 func decodePlaceOrderRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.PlaceOrderRequest
 	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
 		return nil, server.JSONDecodeError{Err: err}
+	}
+	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+		return nil, err
 	}
 	return req, nil
 }

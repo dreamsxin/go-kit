@@ -9,13 +9,17 @@ Generated with `go-kit microgen`.
 - `service/<name>/service.go` is the primary user-owned business logic file.
 - `endpoint/<name>/custom_chain.go` is the user-owned middleware hook file.
 - `cmd/custom_routes.go` is the user-owned custom HTTP route hook file.
-- `cmd/generated_*.go`, `endpoint/<name>/generated_chain.go`, `model/generated_*.go`, `repository/generated_*.go`, `sdk/`, `client/`, and `skill/` are generator-owned outputs.
+- `cmd/generated_*.go`, `endpoint/<name>/generated_chain.go`, `model/generated_*.go`, `repository/generated_*.go`, `sdk/`, `client/`, `skill/`, and `docs/` are generator-owned outputs.
 
 For existing projects, prefer `microgen extend -check -out .` before changing generated seams.
 
 ## Capability Contract
 
-The service capability contract starts from the input definition and is normalized by `microgen` before output is written. The same contract drives HTTP routes, gRPC/proto assets, generated clients, SDKs, README endpoint listings, and AI tool metadata.
+The service capability contract starts from the input definition and is normalized by `microgen` before output is written. The same contract drives HTTP routes, gRPC/proto assets, generated clients, SDKs, OpenAPI schemas, README endpoint listings, and AI tool metadata.
+
+{{- if .WithOpenAPI }}
+`docs/openapi.json` is the generated OpenAPI 3.1 contract. The running service exposes it at `GET /openapi.json` and serves Swagger UI at `GET /swagger/`. Both files under `docs/` are refreshed by generation and extend mode; do not hand-edit them.
+{{- end }}
 
 When `skill/` is generated, `/skill` exposes OpenAI-style tools and `/skill?format=mcp` exposes MCP-style tool descriptors from that same contract. The response also includes metadata with schema version `microgen.skill.v1`, source, services, and supported formats.
 
@@ -54,7 +58,7 @@ Extend mode updates new generated files plus generator-owned aggregation seams. 
 Use this loop when an AI agent or maintainer changes the generated project:
 
 1. Read this README and inspect the source contract snapshot before editing.
-2. Check `GET /debug/routes` and, when enabled, `GET /skill` or `GET /skill?format=mcp` to see the generated route and tool discovery surface.
+2. Check `GET /debug/routes` and, when enabled, `GET /openapi.json`, `GET /skill`, or `GET /skill?format=mcp` to see the generated route and discovery surface.
 3. Put business behavior in user-owned files; do not hand-edit generator-owned files.
 4. For new services, models, or middleware, run `microgen extend -check -out .` before an append command.
 {{- if .WithInteraction }}

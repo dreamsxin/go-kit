@@ -16,7 +16,7 @@ type mainTemplateData struct {
 	DBDefaultDSN    string
 	WithConfig      bool
 	WithGRPC        bool
-	WithSwag        bool
+	WithOpenAPI     bool
 	WithSkill       bool
 	WithInteraction bool
 }
@@ -26,7 +26,7 @@ type generatedRuntimeTemplateData struct {
 	GormModels      []*modelView
 	WithDB          bool
 	WithGRPC        bool
-	WithSwag        bool
+	WithOpenAPI     bool
 	WithSkill       bool
 	WithInteraction bool
 	SvcRoutes       []SvcRoute
@@ -62,7 +62,6 @@ type configTemplateData struct {
 	DBDefaultDSN          string
 	DBConfigDSN           string
 	WithGRPC              bool
-	WithSwag              bool
 	WithDB                bool
 	ConfigMode            string
 	RemoteProvider        string
@@ -73,18 +72,13 @@ type configTemplateData struct {
 type readmeTemplateData struct {
 	Project         *ir.Project
 	IsProtoInput    bool
+	WithOpenAPI     bool
 	WithSkill       bool
 	WithInteraction bool
 	WithConfig      bool
 	WithDB          bool
 	ConfigMode      string
 	RemoteProvider  string
-}
-
-type docsTemplateData struct {
-	Services   []*serviceView
-	LeftDelim  string
-	RightDelim string
 }
 
 type skillTemplateData struct {
@@ -104,7 +98,7 @@ type aiProjectGuideTemplateData struct {
 	WithConfig      bool
 	WithDB          bool
 	WithGRPC        bool
-	WithSwag        bool
+	WithOpenAPI     bool
 	WithSkill       bool
 	WithInteraction bool
 }

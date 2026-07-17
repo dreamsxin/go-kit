@@ -441,47 +441,6 @@ func TestModel_SliceAndMapFields(t *testing.T) {
 	t.Error("HelperStruct not found")
 }
 
-// ─────────────────────────── SwagType 映射 ───────────────────────────
-
-func TestModel_SwagTypes(t *testing.T) {
-	result, err := parser.ParseFull(testdataPath("basic.go"))
-	if err != nil {
-		t.Fatalf("ParseFull: %v", err)
-	}
-	var userModel *parser.Model
-	for _, m := range result.Models {
-		if m.Name == "User" {
-			userModel = m
-			break
-		}
-	}
-	if userModel == nil {
-		t.Fatal("User model not found")
-	}
-
-	wantSwagTypes := map[string]string{
-		"ID":       "integer",
-		"Username": "string",
-		"Age":      "integer",
-		"Score":    "number",
-		"Active":   "boolean",
-	}
-	fieldMap := make(map[string]parser.ModelField)
-	for _, f := range userModel.Fields {
-		fieldMap[f.Name] = f
-	}
-	for name, wantST := range wantSwagTypes {
-		f, ok := fieldMap[name]
-		if !ok {
-			t.Errorf("field %q not found", name)
-			continue
-		}
-		if f.SwagType != wantST {
-			t.Errorf("field %s: SwagType want %q, got %q", name, wantST, f.SwagType)
-		}
-	}
-}
-
 // ─────────────────────────── JSONTag 解析 ───────────────────────────
 
 func TestModel_JSONTag(t *testing.T) {

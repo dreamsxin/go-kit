@@ -176,6 +176,18 @@ values instead of relying on zero values.
 Database `AutoMigrate` is disabled by default. Enable it explicitly only when
 startup schema mutation is intended.
 
+## Generated API Documentation
+
+v2 generates OpenAPI 3.1 directly from the normalized `microgen` IR. Generated
+HTTP transport files no longer carry swag annotations, and `swagger_host` /
+`APP_SWAGGER_HOST` have been removed. Replace integrations that read
+`/swagger/doc.json` with `/openapi.json`; Swagger UI remains available at
+`/swagger/` when generation uses `-openapi`. The v1 `-swag` flag is not retained.
+
+Both `docs/docs.go` and `docs/openapi.json` are generator-owned and refreshed on
+generation or extend. Keep custom descriptions in the source contract rather
+than editing generated documentation.
+
 ## Generated Projects
 
 Regenerate into a new directory and compare ownership boundaries before replacing

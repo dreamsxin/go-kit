@@ -86,6 +86,11 @@ Go interface:
 microgen -idl idl.go -out . -import example.com/service
 ```
 
+Add `-openapi` to generate `docs/openapi.json`, expose `GET /openapi.json`, and
+serve Swagger UI at `GET /swagger/`. OpenAPI 3.1 is generated from the same IR as
+routes, clients, SDKs, and skill metadata; do not add transport annotations by
+hand.
+
 Protobuf with HTTP and gRPC:
 
 ```bash
@@ -144,9 +149,9 @@ Do not hand-edit:
 
 - `cmd/generated_*.go`
 - `endpoint/<service>/generated_chain.go`
+- generated `client/`, `sdk/`, `skill/`, `pb/`, and `docs/` assets
 - `model/generated_*.go`
 - `repository/generated_*.go`
-- generated `client/`, `sdk/`, `skill/`, and `pb/` files
 
 Before extending a generated project:
 

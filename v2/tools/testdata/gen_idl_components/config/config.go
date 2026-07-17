@@ -25,7 +25,6 @@ type ServerConfig struct {
 	ReadTimeout             time.Duration `yaml:"read_timeout" mapstructure:"read_timeout"`
 	WriteTimeout            time.Duration `yaml:"write_timeout" mapstructure:"write_timeout"`
 	GracefulShutdownTimeout time.Duration `yaml:"graceful_shutdown_timeout" mapstructure:"graceful_shutdown_timeout"`
-	SwaggerHost             string        `yaml:"swagger_host" mapstructure:"swagger_host"`
 }
 
 // LoggingConfig holds logger settings.

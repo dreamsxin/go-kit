@@ -63,10 +63,18 @@ func buildGETPath(path string, req interface{}) (string, error) {
 	return transporthttp.EncodePathAndQuery(path, req)
 }
 
+func buildRequestPath(path string, req interface{}) (string, error) {
+	return transporthttp.EncodePath(path, req)
+}
+
 // CreateUser 通过 HTTP 调用 CreateUser
 func (c *CatalogServiceHTTPClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	var resp idl.CreateUserResponse
-	return resp, c.do(ctx, "POST", "/user", req, &resp)
+	path, err := buildRequestPath("/user", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	return resp, c.do(ctx, "POST", path, req, &resp)
 }
 
 // GetUser 通过 HTTP 调用 GetUser
@@ -82,13 +90,21 @@ func (c *CatalogServiceHTTPClient) GetUser(ctx context.Context, req idl.GetUserR
 // UpdateUser 通过 HTTP 调用 UpdateUser
 func (c *CatalogServiceHTTPClient) UpdateUser(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
 	var resp idl.UpdateUserResponse
-	return resp, c.do(ctx, "PUT", "/user/{id}", req, &resp)
+	path, err := buildRequestPath("/user/{id}", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	return resp, c.do(ctx, "PUT", path, req, &resp)
 }
 
 // DeleteUser 通过 HTTP 调用 DeleteUser
 func (c *CatalogServiceHTTPClient) DeleteUser(ctx context.Context, req idl.DeleteUserRequest) (idl.DeleteUserResponse, error) {
 	var resp idl.DeleteUserResponse
-	return resp, c.do(ctx, "DELETE", "/user/{id}", req, &resp)
+	path, err := buildRequestPath("/user/{id}", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	return resp, c.do(ctx, "DELETE", path, req, &resp)
 }
 
 // ListUsers 通过 HTTP 调用 ListUsers

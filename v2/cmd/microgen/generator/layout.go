@@ -35,7 +35,8 @@ func (l projectLayout) configRemote() string   { return filepath.Join(l.root, "c
 func (l projectLayout) configLoader() string   { return filepath.Join(l.root, "config", "loader.go") }
 func (l projectLayout) readme() string         { return filepath.Join(l.root, "README.md") }
 func (l projectLayout) docsDir() string        { return filepath.Join(l.root, "docs") }
-func (l projectLayout) docsStub() string       { return filepath.Join(l.docsDir(), "docs.go") }
+func (l projectLayout) docsEmbed() string      { return filepath.Join(l.docsDir(), "docs.go") }
+func (l projectLayout) openAPIFile() string    { return filepath.Join(l.docsDir(), "openapi.json") }
 func (l projectLayout) skillFile() string      { return filepath.Join(l.root, "skill", "skill.go") }
 func (l projectLayout) aiDir() string          { return filepath.Join(l.root, ".ai") }
 func (l projectLayout) aiProjectGuide() string { return filepath.Join(l.aiDir(), "PROJECT_GUIDE.md") }

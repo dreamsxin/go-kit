@@ -6,10 +6,10 @@ import "strings"
 type MethodKind string
 
 const (
-	MethodKindUnary            MethodKind = "unary"
-	MethodKindServerStream     MethodKind = "server_stream"
-	MethodKindClientStream     MethodKind = "client_stream"
-	MethodKindBidirectional    MethodKind = "bidi_stream"
+	MethodKindUnary         MethodKind = "unary"
+	MethodKindServerStream  MethodKind = "server_stream"
+	MethodKindClientStream  MethodKind = "client_stream"
+	MethodKindBidirectional MethodKind = "bidi_stream"
 )
 
 // Project is the source-agnostic intermediate representation used by microgen.
@@ -96,7 +96,6 @@ type Field struct {
 	IsPrimary   bool
 	IsAutoIncr  bool
 	IsUnique    bool
-	SwagType    string
 	Example     string
 }
 

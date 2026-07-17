@@ -174,7 +174,9 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 			t.Fatalf("microgen idl prefixed runtime failed: %v\n%s", err, out)
 		}
 
-		mustContainFile(t, filepath.Join(outDir, "transport", "userservice", "transport_http.go"), "/api/runtime/userservice")
+		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/runtime/userservice")
+		mustContainFile(t, filepath.Join(outDir, "client", "userservice", "demo.go"), "/api/runtime/userservice")
+		mustContainFile(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"), "/api/runtime/userservice")
 		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/runtime/userservice")
 
 		binName := "microgen_prefixed_bin"
@@ -227,7 +229,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 			"-docs=false",
 			"-model=false",
 			"-db=false",
-			"-swag",
+			"-openapi",
 			"-skill",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {

@@ -38,7 +38,6 @@ func FromParseResult(result *parser.ParseResult) *Project {
 				IsPrimary:   field.IsPrimary,
 				IsAutoIncr:  field.IsAutoIncr,
 				IsUnique:    field.IsUnique,
-				SwagType:    field.SwagType,
 				Example:     field.Example,
 			})
 		}

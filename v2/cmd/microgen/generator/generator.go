@@ -30,7 +30,7 @@ type Options struct {
 	WithGRPC             bool
 	WithDB               bool
 	DBDriver             string
-	WithSwag             bool
+	WithOpenAPI          bool
 	WithSkill            bool
 	WithInteraction      bool
 	IDLSrcPath           string

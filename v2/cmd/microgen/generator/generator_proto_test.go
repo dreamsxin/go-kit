@@ -303,7 +303,7 @@ func TestGenerateFull_WithTests_Contents(t *testing.T) {
 
 // ── RoutePrefix ───────────────────────────────────────────────────────────────
 
-func TestGenerateFull_RoutePrefix_InTransport(t *testing.T) {
+func TestGenerateFull_RoutePrefix_InGeneratedRoutes(t *testing.T) {
 	outDir := t.TempDir()
 	project := parseIDLProject(t, "basic.go")
 
@@ -319,8 +319,8 @@ func TestGenerateFull_RoutePrefix_InTransport(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
-	mustContain(t, httpPath, "/api/v1/userservice")
+	routesPath := filepath.Join(outDir, "cmd", "generated_routes.go")
+	mustContain(t, routesPath, "/api/v1/userservice")
 }
 
 func TestGenerateFull_RoutePrefix_WithLeadingSlash(t *testing.T) {
@@ -339,8 +339,8 @@ func TestGenerateFull_RoutePrefix_WithLeadingSlash(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	httpPath := filepath.Join(outDir, "transport", "userservice", "transport_http.go")
-	mustContain(t, httpPath, "/v2/userservice")
+	routesPath := filepath.Join(outDir, "cmd", "generated_routes.go")
+	mustContain(t, routesPath, "/v2/userservice")
 }
 
 // ── SDK 内容 ──────────────────────────────────────────────────────────────────

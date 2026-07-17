@@ -176,9 +176,17 @@ func buildGETPath(path string, reqBody interface{}) (string, error) {
 	return transporthttp.EncodePathAndQuery(path, reqBody)
 }
 
+func buildRequestPath(path string, reqBody interface{}) (string, error) {
+	return transporthttp.EncodePath(path, reqBody)
+}
+
 func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	var resp idl.CreateUserResponse
-	err := c.do(ctx, "POST", "/createuser", req, &resp)
+	path, err := buildRequestPath("/createuser", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	err = c.do(ctx, "POST", path, req, &resp)
 	return resp, err
 }
 
@@ -204,13 +212,21 @@ func (c *httpClient) ListUsers(ctx context.Context, req idl.ListUsersRequest) (i
 
 func (c *httpClient) DeleteUser(ctx context.Context, req idl.DeleteUserRequest) (idl.DeleteUserResponse, error) {
 	var resp idl.DeleteUserResponse
-	err := c.do(ctx, "DELETE", "/deleteuser", req, &resp)
+	path, err := buildRequestPath("/deleteuser", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	err = c.do(ctx, "DELETE", path, req, &resp)
 	return resp, err
 }
 
 func (c *httpClient) UpdateUser(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
 	var resp idl.UpdateUserResponse
-	err := c.do(ctx, "PUT", "/updateuser", req, &resp)
+	path, err := buildRequestPath("/updateuser", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	err = c.do(ctx, "PUT", path, req, &resp)
 	return resp, err
 }
 
@@ -246,25 +262,41 @@ func (c *httpClient) QueryStats(ctx context.Context, req idl.GetUserRequest) (id
 
 func (c *httpClient) RemoveExpired(ctx context.Context, req idl.DeleteUserRequest) (idl.DeleteUserResponse, error) {
 	var resp idl.DeleteUserResponse
-	err := c.do(ctx, "DELETE", "/removeexpired", req, &resp)
+	path, err := buildRequestPath("/removeexpired", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	err = c.do(ctx, "DELETE", path, req, &resp)
 	return resp, err
 }
 
 func (c *httpClient) EditProfile(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
 	var resp idl.UpdateUserResponse
-	err := c.do(ctx, "PUT", "/editprofile", req, &resp)
+	path, err := buildRequestPath("/editprofile", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	err = c.do(ctx, "PUT", path, req, &resp)
 	return resp, err
 }
 
 func (c *httpClient) ModifyEmail(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
 	var resp idl.UpdateUserResponse
-	err := c.do(ctx, "PUT", "/modifyemail", req, &resp)
+	path, err := buildRequestPath("/modifyemail", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	err = c.do(ctx, "PUT", path, req, &resp)
 	return resp, err
 }
 
 func (c *httpClient) PatchStatus(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
 	var resp idl.UpdateUserResponse
-	err := c.do(ctx, "PUT", "/patchstatus", req, &resp)
+	path, err := buildRequestPath("/patchstatus", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	err = c.do(ctx, "PUT", path, req, &resp)
 	return resp, err
 }
 

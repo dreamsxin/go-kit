@@ -85,6 +85,7 @@ microgen \
   -idl idl.go \
   -out hello-svc \
   -import example.com/hello-svc \
+  -openapi \
   -config=false \
   -model=false \
   -db=false
@@ -99,8 +100,13 @@ Inspect the generated service:
 ```bash
 curl http://localhost:8080/health
 curl http://localhost:8080/debug/routes
+curl http://localhost:8080/openapi.json
 curl http://localhost:8080/skill
 ```
+
+With `-openapi`, `microgen` emits OpenAPI 3.1 directly from the same normalized IR
+used by routes, clients, SDKs, and skill metadata. Swagger UI is available at
+`/swagger/`; it is a viewer for `/openapi.json`, not a second contract source.
 
 The generated business method initially returns a not-implemented error. Add
 business behavior in `service/helloservice/service.go`.
@@ -125,7 +131,7 @@ Do not hand-edit:
 - `cmd/generated_*.go`
 - `endpoint/<service>/generated_chain.go`
 - `model/generated_*.go` and `repository/generated_*.go`
-- generated `client/`, `sdk/`, `skill/`, and `pb/` assets
+- generated `client/`, `sdk/`, `skill/`, `pb/`, and `docs/` assets
 
 Run `microgen extend -check -out .` before extending an existing generated
 project.

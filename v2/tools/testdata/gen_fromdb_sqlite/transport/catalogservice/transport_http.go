@@ -109,21 +109,13 @@ func routePath(prefix, route string) string {
 }
 
 // decodeCreateUserRequest uses the generated method-aware decode path.
-//
-// @Summary      Create User
-// @Description  Create User
-// @Tags         CatalogService
-// @Accept       json
-// @Produce      json
-// @Param        request  body      idl.CreateUserRequest  true  "CreateUser request"
-// @Success      200      {object}  idl.CreateUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /user [post]
 func decodeCreateUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.CreateUserRequest
 	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
 		return nil, server.JSONDecodeError{Err: err}
+	}
+	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+		return nil, err
 	}
 	return req, nil
 }
@@ -133,17 +125,6 @@ func encodeCreateUserResponse(ctx context.Context, w http.ResponseWriter, respon
 }
 
 // decodeGetUserRequest uses the generated method-aware decode path.
-//
-// @Summary      Get User
-// @Description  Get User details
-// @Tags         CatalogService
-// @Accept       json
-// @Produce      json
-// @Param        request  query     idl.GetUserRequest  true  "GetUser request"
-// @Success      200      {object}  idl.GetUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /user/{id} [get]
 func decodeGetUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.GetUserRequest
 	if err := transporthttp.DecodeQueryRequest(r, &req); err != nil {
@@ -157,21 +138,13 @@ func encodeGetUserResponse(ctx context.Context, w http.ResponseWriter, response 
 }
 
 // decodeUpdateUserRequest uses the generated method-aware decode path.
-//
-// @Summary      Update User
-// @Description  Update User
-// @Tags         CatalogService
-// @Accept       json
-// @Produce      json
-// @Param        request  body      idl.UpdateUserRequest  true  "UpdateUser request"
-// @Success      200      {object}  idl.UpdateUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /user/{id} [put]
 func decodeUpdateUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.UpdateUserRequest
 	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
 		return nil, server.JSONDecodeError{Err: err}
+	}
+	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+		return nil, err
 	}
 	return req, nil
 }
@@ -181,21 +154,13 @@ func encodeUpdateUserResponse(ctx context.Context, w http.ResponseWriter, respon
 }
 
 // decodeDeleteUserRequest uses the generated method-aware decode path.
-//
-// @Summary      Delete User
-// @Description  Delete User
-// @Tags         CatalogService
-// @Accept       json
-// @Produce      json
-// @Param        request  body      idl.DeleteUserRequest  true  "DeleteUser request"
-// @Success      200      {object}  idl.DeleteUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /user/{id} [delete]
 func decodeDeleteUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.DeleteUserRequest
 	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
 		return nil, server.JSONDecodeError{Err: err}
+	}
+	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+		return nil, err
 	}
 	return req, nil
 }
@@ -205,17 +170,6 @@ func encodeDeleteUserResponse(ctx context.Context, w http.ResponseWriter, respon
 }
 
 // decodeListUsersRequest uses the generated method-aware decode path.
-//
-// @Summary      List Users
-// @Description  List Users
-// @Tags         CatalogService
-// @Accept       json
-// @Produce      json
-// @Param        request  query     idl.ListUsersRequest  true  "ListUsers request"
-// @Success      200      {object}  idl.ListUsersResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /users [get]
 func decodeListUsersRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.ListUsersRequest
 	if err := transporthttp.DecodeQueryRequest(r, &req); err != nil {

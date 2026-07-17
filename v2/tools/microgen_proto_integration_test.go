@@ -28,7 +28,7 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 			"-import", "example.com/gen_proto_integration",
 			"-protocols", "http,grpc",
 			"-prefix", "/api/proto",
-			"-swag",
+			"-openapi",
 			"-skill",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
@@ -53,7 +53,8 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 		mustContainFile(t, filepath.Join(outDir, "README.md"), "protoc --go_out=. --go-grpc_out=.")
 		mustContainFile(t, filepath.Join(outDir, "README.md"), "pb/userservice/userservice.proto")
 		mustContainFile(t, filepath.Join(outDir, "README.md"), "Review the generated proto contract before generating stubs")
-		mustContainFile(t, filepath.Join(outDir, "transport", "userservice", "transport_http.go"), "/api/proto/userservice")
+		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/proto/userservice")
+		mustContainFile(t, filepath.Join(outDir, "docs", "openapi.json"), "/api/proto/userservice")
 		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/proto/userservice")
 
 		// Build check for the generated code

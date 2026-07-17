@@ -64,17 +64,6 @@ func routePath(prefix, route string) string {
 }
 
 // decodeGetUserRequest uses the generated method-aware decode path.
-//
-// @Summary      GetUser retrieves a user by ID.
-// @Description  GetUser retrieves a user by ID.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  query     idl.GetUserRequest  true  "GetUser request"
-// @Success      200      {object}  idl.GetUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /getuser [get]
 func decodeGetUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.GetUserRequest
 	if err := transporthttp.DecodeQueryRequest(r, &req); err != nil {
@@ -88,21 +77,13 @@ func encodeGetUserResponse(ctx context.Context, w http.ResponseWriter, response 
 }
 
 // decodeCreateUserRequest uses the generated method-aware decode path.
-//
-// @Summary      CreateUser creates a new user.
-// @Description  CreateUser creates a new user.
-// @Tags         UserService
-// @Accept       json
-// @Produce      json
-// @Param        request  body      idl.CreateUserRequest  true  "CreateUser request"
-// @Success      200      {object}  idl.CreateUserResponse
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       /createuser [post]
 func decodeCreateUserRequest(_ context.Context, r *http.Request) (any, error) {
 	var req idl.CreateUserRequest
 	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
 		return nil, server.JSONDecodeError{Err: err}
+	}
+	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+		return nil, err
 	}
 	return req, nil
 }

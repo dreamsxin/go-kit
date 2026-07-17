@@ -24,7 +24,7 @@ func (g *Generator) generateMainFileFull(ctx generationContext) error {
 		DBDefaultDSN:    dbMeta.DefaultDSN,
 		WithConfig:      g.config.WithConfig,
 		WithGRPC:        g.config.WithGRPC,
-		WithSwag:        g.config.WithSwag,
+		WithOpenAPI:     g.config.WithOpenAPI,
 		WithSkill:       g.config.WithSkill,
 		WithInteraction: g.config.WithInteraction,
 	}
@@ -37,7 +37,7 @@ func (g *Generator) generateGeneratedRuntimeFile(ctx generationContext) error {
 		GormModels:      ctx.models,
 		WithDB:          g.config.WithDB,
 		WithGRPC:        g.config.WithGRPC,
-		WithSwag:        g.config.WithSwag,
+		WithOpenAPI:     g.config.WithOpenAPI,
 		WithSkill:       g.config.WithSkill,
 		WithInteraction: g.config.WithInteraction,
 		SvcRoutes:       g.serviceRoutes(ctx.project),
@@ -91,7 +91,6 @@ func (g *Generator) generateConfigFile(services []*serviceView) error {
 		DBDefaultDSN:          dbMeta.DefaultDSN,
 		DBConfigDSN:           dbMeta.ConfigDSN,
 		WithGRPC:              g.config.WithGRPC,
-		WithSwag:              g.config.WithSwag,
 		WithDB:                g.config.WithDB,
 		ConfigMode:            g.config.ConfigMode,
 		RemoteProvider:        g.config.RemoteProvider,
@@ -107,7 +106,6 @@ func (g *Generator) generateConfigCodeFile(services []*serviceView) error {
 		Services:              services,
 		WithDB:                g.config.WithDB,
 		WithGRPC:              g.config.WithGRPC,
-		WithSwag:              g.config.WithSwag,
 		DBDriver:              g.config.DBDriver,
 		DBDefaultDSN:          dbMeta.DefaultDSN,
 		DBConfigDSN:           dbMeta.ConfigDSN,
@@ -138,6 +136,7 @@ func (g *Generator) generateReadme(ctx generationContext) error {
 	data := readmeTemplateData{
 		Project:         ctx.project,
 		IsProtoInput:    strings.EqualFold(ctx.source, "proto") || strings.HasSuffix(g.config.IDLSrcPath, ".proto"),
+		WithOpenAPI:     g.config.WithOpenAPI,
 		WithSkill:       g.config.WithSkill,
 		WithInteraction: g.config.WithInteraction,
 		WithConfig:      g.config.WithConfig,
@@ -146,22 +145,6 @@ func (g *Generator) generateReadme(ctx generationContext) error {
 		RemoteProvider:  g.config.RemoteProvider,
 	}
 	return g.executeTemplate("readme.tmpl", g.layout.readme(), data)
-}
-
-func (g *Generator) generateDocsStub(services []*serviceView) error {
-	if err := os.MkdirAll(g.layout.docsDir(), 0o755); err != nil {
-		return err
-	}
-	path := g.layout.docsStub()
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	}
-	data := docsTemplateData{
-		Services:   services,
-		LeftDelim:  "{{",
-		RightDelim: "}}",
-	}
-	return g.executeTemplate("docs.tmpl", path, data)
 }
 
 func (g *Generator) generateSkillFile(ctx generationContext) error {
@@ -188,7 +171,7 @@ func (g *Generator) generateAIProjectGuide(ctx generationContext) error {
 		WithConfig:      g.config.WithConfig,
 		WithDB:          g.config.WithDB,
 		WithGRPC:        g.config.WithGRPC,
-		WithSwag:        g.config.WithSwag,
+		WithOpenAPI:     g.config.WithOpenAPI,
 		WithSkill:       g.config.WithSkill,
 		WithInteraction: g.config.WithInteraction,
 	}

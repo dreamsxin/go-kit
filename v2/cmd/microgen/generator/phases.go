@@ -138,9 +138,9 @@ func (g *Generator) generateFinalProjectArtifacts(ctx generationContext) error {
 		}
 	}
 
-	if g.config.WithSwag {
-		if err := g.generateDocsStub(ctx.services); err != nil {
-			return fmt.Errorf("generate docs stub failed: %w", err)
+	if g.config.WithOpenAPI {
+		if err := g.generateOpenAPI(ctx); err != nil {
+			return fmt.Errorf("generate OpenAPI failed: %w", err)
 		}
 	}
 

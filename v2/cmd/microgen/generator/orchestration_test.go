@@ -102,21 +102,22 @@ func TestGenerateFull_RoutePrefix_AlignedAcrossArtifacts(t *testing.T) {
 	}
 
 	expectedPrefix := "/api/v2/userservice"
-	mustContain(t, filepath.Join(outDir, "transport", "userservice", "transport_http.go"), expectedPrefix)
 	mustContain(t, filepath.Join(outDir, "cmd", "generated_routes.go"), expectedPrefix)
+	mustContain(t, filepath.Join(outDir, "client", "userservice", "demo.go"), expectedPrefix)
+	mustContain(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"), expectedPrefix)
 }
 
-func TestGenerateFull_WithSwag_GeneratesDocsStubAtConventionalPath(t *testing.T) {
+func TestGenerateFull_WithOpenAPI_GeneratesContractAtConventionalPath(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithSwag:   true,
-		WithDocs:   false,
-		WithConfig: false,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithOpenAPI: true,
+		WithDocs:    false,
+		WithConfig:  false,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -169,7 +170,7 @@ func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testin
 		WithDocs:    true,
 		WithTests:   true,
 		WithModel:   true,
-		WithSwag:    true,
+		WithOpenAPI: true,
 		WithSkill:   true,
 	})
 	if err := gen.GenerateIR(project); err != nil {
@@ -203,8 +204,9 @@ func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testin
 	mustExist(t, filepath.Join(outDir, "skill", "skill.go"))
 
 	expectedPrefix := "/api/v3/userservice"
-	mustContain(t, filepath.Join(outDir, "transport", "userservice", "transport_http.go"), expectedPrefix)
 	mustContain(t, filepath.Join(outDir, "cmd", "generated_routes.go"), expectedPrefix)
 	mustContain(t, filepath.Join(outDir, "docs", "docs.go"), "package docs")
+	mustContain(t, filepath.Join(outDir, "docs", "openapi.json"), `"openapi": "3.1.0"`)
+	mustContain(t, filepath.Join(outDir, "docs", "openapi.json"), expectedPrefix)
 	mustContain(t, filepath.Join(outDir, "skill", "skill.go"), "CreateUser")
 }

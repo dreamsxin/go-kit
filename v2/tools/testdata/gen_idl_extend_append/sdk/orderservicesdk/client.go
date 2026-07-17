@@ -154,9 +154,17 @@ func buildGETPath(path string, reqBody interface{}) (string, error) {
 	return transporthttp.EncodePathAndQuery(path, reqBody)
 }
 
+func buildRequestPath(path string, reqBody interface{}) (string, error) {
+	return transporthttp.EncodePath(path, reqBody)
+}
+
 func (c *httpClient) PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (idl.PlaceOrderResponse, error) {
 	var resp idl.PlaceOrderResponse
-	err := c.do(ctx, "POST", "/placeorder", req, &resp)
+	path, err := buildRequestPath("/placeorder", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	err = c.do(ctx, "POST", path, req, &resp)
 	return resp, err
 }
 

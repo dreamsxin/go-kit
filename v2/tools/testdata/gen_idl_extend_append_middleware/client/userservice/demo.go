@@ -63,10 +63,18 @@ func buildGETPath(path string, req interface{}) (string, error) {
 	return transporthttp.EncodePathAndQuery(path, req)
 }
 
+func buildRequestPath(path string, req interface{}) (string, error) {
+	return transporthttp.EncodePath(path, req)
+}
+
 // CreateUser 通过 HTTP 调用 CreateUser
 func (c *UserServiceHTTPClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	var resp idl.CreateUserResponse
-	return resp, c.do(ctx, "POST", "/createuser", req, &resp)
+	path, err := buildRequestPath("/createuser", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	return resp, c.do(ctx, "POST", path, req, &resp)
 }
 
 // GetUser 通过 HTTP 调用 GetUser
@@ -92,13 +100,21 @@ func (c *UserServiceHTTPClient) ListUsers(ctx context.Context, req idl.ListUsers
 // DeleteUser 通过 HTTP 调用 DeleteUser
 func (c *UserServiceHTTPClient) DeleteUser(ctx context.Context, req idl.DeleteUserRequest) (idl.DeleteUserResponse, error) {
 	var resp idl.DeleteUserResponse
-	return resp, c.do(ctx, "DELETE", "/deleteuser", req, &resp)
+	path, err := buildRequestPath("/deleteuser", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	return resp, c.do(ctx, "DELETE", path, req, &resp)
 }
 
 // UpdateUser 通过 HTTP 调用 UpdateUser
 func (c *UserServiceHTTPClient) UpdateUser(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
 	var resp idl.UpdateUserResponse
-	return resp, c.do(ctx, "PUT", "/updateuser", req, &resp)
+	path, err := buildRequestPath("/updateuser", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	return resp, c.do(ctx, "PUT", path, req, &resp)
 }
 
 // FindByEmail 通过 HTTP 调用 FindByEmail
@@ -134,25 +150,41 @@ func (c *UserServiceHTTPClient) QueryStats(ctx context.Context, req idl.GetUserR
 // RemoveExpired 通过 HTTP 调用 RemoveExpired
 func (c *UserServiceHTTPClient) RemoveExpired(ctx context.Context, req idl.DeleteUserRequest) (idl.DeleteUserResponse, error) {
 	var resp idl.DeleteUserResponse
-	return resp, c.do(ctx, "DELETE", "/removeexpired", req, &resp)
+	path, err := buildRequestPath("/removeexpired", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	return resp, c.do(ctx, "DELETE", path, req, &resp)
 }
 
 // EditProfile 通过 HTTP 调用 EditProfile
 func (c *UserServiceHTTPClient) EditProfile(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
 	var resp idl.UpdateUserResponse
-	return resp, c.do(ctx, "PUT", "/editprofile", req, &resp)
+	path, err := buildRequestPath("/editprofile", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	return resp, c.do(ctx, "PUT", path, req, &resp)
 }
 
 // ModifyEmail 通过 HTTP 调用 ModifyEmail
 func (c *UserServiceHTTPClient) ModifyEmail(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
 	var resp idl.UpdateUserResponse
-	return resp, c.do(ctx, "PUT", "/modifyemail", req, &resp)
+	path, err := buildRequestPath("/modifyemail", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	return resp, c.do(ctx, "PUT", path, req, &resp)
 }
 
 // PatchStatus 通过 HTTP 调用 PatchStatus
 func (c *UserServiceHTTPClient) PatchStatus(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
 	var resp idl.UpdateUserResponse
-	return resp, c.do(ctx, "PUT", "/patchstatus", req, &resp)
+	path, err := buildRequestPath("/patchstatus", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	return resp, c.do(ctx, "PUT", path, req, &resp)
 }
 
 // ─────────────────────────── 通用接口 ───────────────────────────

@@ -1,21 +1,3 @@
-// @title          Greeter API
-// @version        1.0
-// @description    Greeter service provides greeting messages.
-// @termsOfService http://swagger.io/terms/
-//
-// @contact.name   API Support
-// @contact.url    http://example.com/support
-// @contact.email  support@example.com
-//
-// @license.name   MIT
-// @license.url    https://opensource.org/licenses/MIT
-//
-// @host           localhost:8080
-// @BasePath       /
-//
-// @securityDefinitions.apikey  BearerAuth
-// @in                          header
-// @name                        Authorization
 package main
 
 import (
@@ -41,15 +23,11 @@ import (
 	"github.com/dreamsxin/go-kit/v2/examples/microgen_skill/skill"
 )
 
-func printBanner(logger *kitlog.Logger, httpAddr string, grpcAddr string, withSwag bool, withSkill bool) {
+func printBanner(logger *kitlog.Logger, httpAddr string, grpcAddr string, withSkill bool) {
 	logger.Sugar().Info("╔══════════════════════════════════════════╗")
 	logger.Sugar().Infof("║  %-40s  ║", "Greeter Service")
 	logger.Sugar().Info("╠══════════════════════════════════════════╣")
 	logger.Sugar().Infof("║  HTTP  → http://localhost%s%-*s║", httpAddr, 23-len(httpAddr), "")
-	if withSwag {
-		swaggerURL := fmt.Sprintf("http://localhost%s/swagger/index.html", httpAddr)
-		logger.Sugar().Infof("║  Swagger → %-30s  ║", swaggerURL)
-	}
 	if withSkill {
 		skillURL := fmt.Sprintf("http://localhost%s/skill", httpAddr)
 		logger.Sugar().Infof("║  Skill → %-30s    ║", skillURL)
@@ -189,7 +167,7 @@ func main() {
 		}
 	}()
 
-	printBanner(logger, *httpAddr, *grpcAddr, false, true)
+	printBanner(logger, *httpAddr, *grpcAddr, true)
 
 	// ─── 优雅关闭 ───
 	quit := make(chan os.Signal, 1)

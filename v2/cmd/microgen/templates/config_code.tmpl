@@ -38,9 +38,6 @@ type ServerConfig struct {
 	ReadTimeout             time.Duration `yaml:"read_timeout" mapstructure:"read_timeout"`
 	WriteTimeout            time.Duration `yaml:"write_timeout" mapstructure:"write_timeout"`
 	GracefulShutdownTimeout time.Duration `yaml:"graceful_shutdown_timeout" mapstructure:"graceful_shutdown_timeout"`
-{{- if .WithSwag}}
-	SwaggerHost             string        `yaml:"swagger_host" mapstructure:"swagger_host"`
-{{- end}}
 }
 
 // LoggingConfig holds logger settings.
@@ -352,9 +349,6 @@ func ApplyEnv(cfg *Config) error {
 	if err := readDuration("GRACEFUL_SHUTDOWN_TIMEOUT", &cfg.Server.GracefulShutdownTimeout); err != nil {
 		return err
 	}
-{{- if .WithSwag}}
-	readString("SWAGGER_HOST", &cfg.Server.SwaggerHost)
-{{- end}}
 
 	readString("LOG_LEVEL", &cfg.Logging.Level)
 	readString("LOG_FORMAT", &cfg.Logging.Format)

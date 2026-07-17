@@ -204,7 +204,7 @@ func optionsFromExistingProject(existing *ExistingProject) Options {
 		WithModel:            existing.Features.WithModel,
 		WithGRPC:             existing.Features.WithGRPC,
 		WithDB:               existing.Features.WithDB,
-		WithSwag:             existing.Features.WithSwag,
+		WithOpenAPI:          existing.Features.WithOpenAPI,
 		WithSkill:            existing.Features.WithSkill,
 		RoutePrefix:          existing.Features.RoutePrefix,
 		GeneratedMiddlewares: append([]string(nil), existing.Features.GeneratedMiddlewares...),

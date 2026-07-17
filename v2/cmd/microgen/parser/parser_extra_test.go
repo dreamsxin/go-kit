@@ -7,39 +7,6 @@ import (
 	"github.com/dreamsxin/go-kit/v2/cmd/microgen/parser"
 )
 
-// ── GoTypeToSwagType ──────────────────────────────────────────────────────────
-
-func TestGoTypeToSwagType(t *testing.T) {
-	cases := []struct{ in, want string }{
-		{"int", "integer"},
-		{"int8", "integer"},
-		{"int16", "integer"},
-		{"int32", "integer"},
-		{"int64", "integer"},
-		{"uint", "integer"},
-		{"uint8", "integer"},
-		{"uint32", "integer"},
-		{"uint64", "integer"},
-		{"float32", "number"},
-		{"float64", "number"},
-		{"bool", "boolean"},
-		{"string", "string"},
-		{"*string", "string"},
-		{"*int", "integer"},
-		{"[]string", "array"},
-		{"[]int", "array"},
-		{"map[string]string", "object"},
-		{"SomeStruct", "object"},
-		{"*SomeStruct", "object"},
-	}
-	for _, c := range cases {
-		got := parser.GoTypeToSwagType(c.in)
-		if got != c.want {
-			t.Errorf("GoTypeToSwagType(%q) = %q, want %q", c.in, got, c.want)
-		}
-	}
-}
-
 // ── ToSnakeCase 扩展 ──────────────────────────────────────────────────────────
 
 func TestToSnakeCase_Extended(t *testing.T) {
@@ -95,6 +62,9 @@ func TestModelField_Example_NonEmpty(t *testing.T) {
 			for _, f := range m.Fields {
 				if f.Example == "" {
 					t.Errorf("field %s: Example should not be empty", f.Name)
+				}
+				if f.Name == "Username" && f.Example != `"username"` {
+					t.Errorf("Username example = %q, want JSON field name", f.Example)
 				}
 			}
 			return

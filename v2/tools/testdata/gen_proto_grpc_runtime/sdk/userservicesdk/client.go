@@ -178,6 +178,10 @@ func buildGETPath(path string, reqBody interface{}) (string, error) {
 	return transporthttp.EncodePathAndQuery(path, reqBody)
 }
 
+func buildRequestPath(path string, reqBody interface{}) (string, error) {
+	return transporthttp.EncodePath(path, reqBody)
+}
+
 func (c *httpClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
 	path, err := buildGETPath("/getuser", req)
@@ -190,7 +194,11 @@ func (c *httpClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.G
 
 func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	var resp idl.CreateUserResponse
-	err := c.do(ctx, "POST", "/createuser", req, &resp)
+	path, err := buildRequestPath("/createuser", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	err = c.do(ctx, "POST", path, req, &resp)
 	return resp, err
 }
 

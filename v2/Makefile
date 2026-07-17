@@ -64,7 +64,7 @@ gen: install-microgen
 		-model \
 		-db \
 		-driver $(DB_DRIVER) \
-		-swag
+		-openapi
 	@echo ">>> Done. Next steps:"
 	@echo "    cd $(OUT) && go mod tidy"
 	@echo "    go run ./cmd -http.addr :8080"
@@ -89,9 +89,9 @@ gen-grpc: install-microgen
 		-model \
 		-db \
 		-driver $(DB_DRIVER) \
-		-swag
+		-openapi
 
-## gen-full: generate HTTP + gRPC + model + swag + tests
+## gen-full: generate HTTP + gRPC + model + OpenAPI + tests
 gen-full: install-microgen
 	@echo ">>> Generating full service from $(IDL) -> $(OUT)"
 	@$(MICROGEN) \
@@ -102,7 +102,7 @@ gen-full: install-microgen
 		-model \
 		-db \
 		-driver $(DB_DRIVER) \
-		-swag \
+		-openapi \
 		-tests
 
 ## gen-from-db: generate RESTful service from an existing database
@@ -116,7 +116,7 @@ gen-from-db: install-microgen
 		-service $(SERVICE) \
 		-out     $(OUT) \
 		-import  $(IMPORT) \
-		-swag
+		-openapi
 	@echo ">>> Done. Next steps:"
 	@echo "    cd $(OUT) && go mod tidy"
 	@echo "    go run ./cmd"

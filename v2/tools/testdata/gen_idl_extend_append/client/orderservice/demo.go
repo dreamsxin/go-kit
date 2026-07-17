@@ -63,10 +63,18 @@ func buildGETPath(path string, req interface{}) (string, error) {
 	return transporthttp.EncodePathAndQuery(path, req)
 }
 
+func buildRequestPath(path string, req interface{}) (string, error) {
+	return transporthttp.EncodePath(path, req)
+}
+
 // PlaceOrder 通过 HTTP 调用 PlaceOrder
 func (c *OrderServiceHTTPClient) PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (idl.PlaceOrderResponse, error) {
 	var resp idl.PlaceOrderResponse
-	return resp, c.do(ctx, "POST", "/placeorder", req, &resp)
+	path, err := buildRequestPath("/placeorder", req)
+	if err != nil {
+		return resp, fmt.Errorf("encode request path: %w", err)
+	}
+	return resp, c.do(ctx, "POST", path, req, &resp)
 }
 
 // ─────────────────────────── 通用接口 ───────────────────────────

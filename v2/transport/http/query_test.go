@@ -82,6 +82,27 @@ func TestEncodePathAndQueryRejectsMissingPathParameter(t *testing.T) {
 	}
 }
 
+func TestEncodePathOnlyReplacesPlaceholders(t *testing.T) {
+	got, err := transporthttp.EncodePath("/users/{id}?existing=yes", queryRequest{
+		ID:     "a/b",
+		Limit:  25,
+		Active: true,
+	})
+	if err != nil {
+		t.Fatalf("EncodePath: %v", err)
+	}
+	if got != "/users/a%2Fb?existing=yes" {
+		t.Fatalf("encoded URL = %q", got)
+	}
+}
+
+func TestEncodePathRejectsMissingPathParameter(t *testing.T) {
+	_, err := transporthttp.EncodePath("/users/{id}", queryRequest{})
+	if err == nil || !strings.Contains(err.Error(), "empty path parameter") {
+		t.Fatalf("error = %v, want empty path parameter", err)
+	}
+}
+
 func TestDecodeQueryRequest(t *testing.T) {
 	r := httptest.NewRequest("GET", "/users/path-id?id=query-id&limit=10&active=true&tag=one&tag=two&since=2026-07-17&timeout=2s", nil)
 	r.SetPathValue("id", "path-id")
@@ -113,5 +134,17 @@ func TestDecodeQueryRequestReportsFieldError(t *testing.T) {
 	}
 	if queryErr.Field != "Limit" || queryErr.StatusCode() != 400 {
 		t.Fatalf("QueryError = %#v", queryErr)
+	}
+}
+
+func TestDecodePathRequestOverridesBodyWithoutReadingQuery(t *testing.T) {
+	r := httptest.NewRequest("PUT", "/users/path-id?id=query-id&limit=10", nil)
+	r.SetPathValue("id", "path-id")
+	target := queryRequest{ID: "body-id", Limit: 5}
+	if err := transporthttp.DecodePathRequest(r, &target); err != nil {
+		t.Fatalf("DecodePathRequest: %v", err)
+	}
+	if target.ID != "path-id" || target.Limit != 5 {
+		t.Fatalf("decoded request = %#v", target)
 	}
 }

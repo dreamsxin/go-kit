@@ -67,12 +67,16 @@ func TestParseConfig_ConfigModeAndRemoteProvider(t *testing.T) {
 		"-idl", "service.go",
 		"-config-mode", "hybrid",
 		"-remote-provider", "consul",
+		"-openapi",
 	})
 	if cfg.configMode != "hybrid" {
 		t.Fatalf("configMode = %q, want hybrid", cfg.configMode)
 	}
 	if cfg.remoteProvider != "consul" {
 		t.Fatalf("remoteProvider = %q, want consul", cfg.remoteProvider)
+	}
+	if !cfg.withOpenAPI {
+		t.Fatal("withOpenAPI = false, want true")
 	}
 }
 

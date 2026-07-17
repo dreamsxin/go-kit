@@ -28,7 +28,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 			"-out", outDir,
 			"-import", "example.com/gen_idl_integration",
 			"-prefix", "/api/idl",
-			"-swag",
+			"-openapi",
 			"-skill",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
@@ -44,11 +44,14 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		mustExistFile(t, filepath.Join(outDir, "client", "userservice", "demo.go"))
 		mustExistFile(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"))
 		mustExistFile(t, filepath.Join(outDir, "docs", "docs.go"))
+		mustExistFile(t, filepath.Join(outDir, "docs", "openapi.json"))
 		mustExistFile(t, filepath.Join(outDir, "skill", "skill.go"))
 		mustExistFile(t, filepath.Join(outDir, "cmd", "main.go"))
 		mustExistFile(t, filepath.Join(outDir, "cmd", "custom_routes.go"))
-		mustContainFile(t, filepath.Join(outDir, "transport", "userservice", "transport_http.go"), "/api/idl/userservice")
 		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/idl/userservice")
+		mustContainFile(t, filepath.Join(outDir, "client", "userservice", "demo.go"), "/api/idl/userservice")
+		mustContainFile(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"), "/api/idl/userservice")
+		mustContainFile(t, filepath.Join(outDir, "docs", "openapi.json"), `"openapi": "3.1.0"`)
 
 		// Verify generated service package compiles (it only depends on go-kit itself)
 		buildCmd := exec.Command("go", "build", "-mod=mod", "./service/...")
@@ -59,7 +62,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("IDL_Rerun_PreservesCustomizedGoModAndDocs", func(t *testing.T) {
+	t.Run("IDL_Rerun_RefreshesGeneratedDocsAndPreservesCustomFiles", func(t *testing.T) {
 		outDir := filepath.Join(cwd, "testdata", "gen_idl_rerun")
 		os.RemoveAll(outDir)
 
@@ -69,7 +72,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 				"-idl", idlFile,
 				"-out", outDir,
 				"-import", "example.com/gen_idl_rerun",
-				"-swag",
+				"-openapi",
 			)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("microgen idl rerun failed: %v\n%s", err, out)
@@ -89,13 +92,12 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 			t.Fatalf("write go.mod: %v", err)
 		}
 
-		realDocs := `package docs
+		staleDocs := `package docs
 
-	// Real Docs should survive reruns.
-	var SwaggerInfo = struct{}{}
+	// Stale generated docs should be refreshed on reruns.
 	`
-		if err := os.WriteFile(docsPath, []byte(strings.TrimSpace(realDocs)+"\n"), 0o644); err != nil {
-			t.Fatalf("write docs.go: %v", err)
+		if err := os.WriteFile(docsPath, []byte(strings.TrimSpace(staleDocs)+"\n"), 0o644); err != nil {
+			t.Fatalf("write stale docs.go: %v", err)
 		}
 
 		customRoutes := `package main
@@ -136,7 +138,8 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		run()
 
 		mustContainFile(t, goModPath, "require example.com/custom v0.0.0")
-		mustContainFile(t, docsPath, "Real Docs should survive reruns.")
+		mustContainFile(t, docsPath, "go:embed openapi.json")
+		mustContainFile(t, filepath.Join(outDir, "docs", "openapi.json"), `"openapi": "3.1.0"`)
 		mustContainFile(t, customRoutesPath, "/custom/ping")
 		mustContainFile(t, customChainPath, "applyCustomMiddleware")
 	})

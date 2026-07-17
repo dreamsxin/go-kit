@@ -29,15 +29,18 @@ func (rt generatedRuntime) registerGRPCServices(server *grpc.Server) {
 	}
 }
 
-func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEntry, withSwag bool, withSkill bool) []generatedRouteEntry {
+func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEntry, withOpenAPI bool, withSkill bool) []generatedRouteEntry {
 	routes := []generatedRouteEntry{
 		{Method: "GET", Path: "/health", Handler: "health"},
 		{Method: "GET", Path: "/debug/routes", Handler: "debug"},
 	}
 	routes = append(routes, rt.routeEntries...)
 	routes = append(routes, customRoutes...)
-	if withSwag {
-		routes = append(routes, generatedRouteEntry{Method: "GET", Path: "/swagger/", Handler: "swagger-ui"})
+	if withOpenAPI {
+		routes = append(routes,
+			generatedRouteEntry{Method: "GET", Path: "/openapi.json", Handler: "openapi"},
+			generatedRouteEntry{Method: "GET", Path: "/swagger/", Handler: "swagger-ui"},
+		)
 	}
 	if withSkill {
 		routes = append(routes, generatedRouteEntry{Method: "GET", Path: "/skill", Handler: "skill"})

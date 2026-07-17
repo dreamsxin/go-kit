@@ -16,6 +16,10 @@ root.
 - External generated-project smoke coverage using `go mod tidy` and
   `go test ./...`.
 - Shared HTTP path/query codec for generated transports, clients, and SDKs.
+- OpenAPI 3.1 generation with JSON Schema 2020-12 components directly from the
+  common `microgen` IR.
+- Shared non-GET path parameter encoding and decoding for generated transports,
+  clients, and SDKs.
 
 ### Changed
 
@@ -30,6 +34,8 @@ root.
   prompts, and render arguments.
 - Generated HTTP servers use the standard library `http.ServeMux`; generated GET
   clients and servers share one tagged query contract and do not send JSON bodies.
+- Generated Go clients and SDKs use the same complete HTTP paths as server route
+  registration and OpenAPI output.
 - HTTP JSON client timeout construction is explicit through
   `NewJSONClientWithTimeout`.
 - Service-discovery retry defaults to one attempt and only retries explicitly
@@ -61,3 +67,5 @@ root.
   single circuit-breaker adapter in core.
 - Redundant `sd.NewEndpointCloser`; lifecycle ownership is part of every
   `sd.NewEndpoint` construction.
+- Swagger 2.0 annotation output, `swagger_host`, and `APP_SWAGGER_HOST`; Swagger
+  UI now reads the generated `/openapi.json` contract.

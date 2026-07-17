@@ -30,7 +30,7 @@ microgen -idl idl.go -out ./service -import example.com/service
 
 The input contains service interfaces and request/response types. `microgen`
 copies the contract into the generated project and maps methods into the common
-IR used by HTTP, clients, SDKs, generated docs, and skill metadata.
+IR used by HTTP, clients, SDKs, OpenAPI 3.1, and skill metadata.
 
 ### Protobuf
 
@@ -81,9 +81,27 @@ columns; startup migration is disabled by default.
 | `-tests` | Generate project tests |
 | `-skill` | Generate AI discovery metadata, default `true` |
 | `-interaction` | Generate interaction runtime and `/mcp` endpoint |
-| `-swag` | Generate Swagger assets |
+| `-openapi` | Generate OpenAPI 3.1, `/openapi.json`, and Swagger UI |
 
 Use `microgen -h` as the authoritative option list.
+
+## OpenAPI Contract
+
+Enable contract output with `-openapi`. The generated contract is OpenAPI 3.1;
+Swagger UI is only the bundled viewer.
+
+`microgen` writes:
+
+- `docs/openapi.json`: paths, operations, request/response schemas, and
+  `components.schemas` generated directly from the common IR;
+- `docs/docs.go`: an embed wrapper that serves the generated JSON;
+- `GET /openapi.json`: the runtime contract endpoint;
+- `GET /swagger/`: Swagger UI configured to read `/openapi.json`.
+
+HTTP transport files do not contain duplicated annotation contracts. The
+generated document uses relative URLs, so generated configuration has no
+`swagger_host` setting. Generation and extend mode refresh both files under
+`docs/`; treat them as generator-owned.
 
 ## Minimal And Full Generation
 
@@ -236,7 +254,7 @@ projects that do not expose the required ownership seams.
 - `endpoint/<service>/generated_chain.go`
 - `model/generated_*.go`
 - `repository/generated_*.go`
-- generated clients, SDKs, skill metadata, and protobuf assets
+- generated clients, SDKs, skill metadata, OpenAPI assets, and protobuf assets
 
 Do not rely on templates or packages under `cmd/microgen` as runtime extension
 APIs.

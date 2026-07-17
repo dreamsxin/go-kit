@@ -490,7 +490,6 @@ func columnToField(col ColumnInfo) parser.ModelField {
 		IsAutoIncr: col.IsAutoIncr,
 		IsNotNull:  !col.IsNullable,
 		IsUnique:   col.IsUnique,
-		SwagType:   parser.GoTypeToSwagType(goType),
 	}
 }
 

@@ -45,8 +45,11 @@ func TestProjectLayoutRequiredDirs(t *testing.T) {
 func TestProjectLayoutArtifactPaths(t *testing.T) {
 	layout := newProjectLayout("out")
 
-	if got, want := layout.docsStub(), filepath.Join("out", "docs", "docs.go"); got != want {
-		t.Fatalf("docsStub() = %q, want %q", got, want)
+	if got, want := layout.docsEmbed(), filepath.Join("out", "docs", "docs.go"); got != want {
+		t.Fatalf("docsEmbed() = %q, want %q", got, want)
+	}
+	if got, want := layout.openAPIFile(), filepath.Join("out", "docs", "openapi.json"); got != want {
+		t.Fatalf("openAPIFile() = %q, want %q", got, want)
 	}
 	if got, want := layout.idlCopy(), filepath.Join("out", "idl.go"); got != want {
 		t.Fatalf("idlCopy() = %q, want %q", got, want)

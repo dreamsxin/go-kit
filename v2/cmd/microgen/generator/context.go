@@ -51,7 +51,6 @@ type modelFieldView struct {
 	IsAutoIncr bool
 	IsNotNull  bool
 	IsUnique   bool
-	SwagType   string
 	Example    string
 }
 
@@ -142,7 +141,6 @@ func modelsFromProject(project *ir.Project) []*modelView {
 				IsAutoIncr: field.IsAutoIncr,
 				IsNotNull:  field.Required,
 				IsUnique:   field.IsUnique,
-				SwagType:   field.SwagType,
 				Example:    field.Example,
 			})
 		}

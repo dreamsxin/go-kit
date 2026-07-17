@@ -44,6 +44,10 @@ Streaming protocols require different timeout choices. MCP SSE responses are
 long-lived, so the HTTP write timeout must be `0` or longer than the supported
 session duration.
 
+When generated OpenAPI support is enabled, `/openapi.json` and `/swagger/` expose
+the service contract. Keep them public only when that is an intentional product
+decision; otherwise restrict or disable them at the deployment boundary.
+
 ## HTTP Clients
 
 Always set a client timeout or request deadline. JSON clients return

@@ -7,7 +7,7 @@ import (
 {{- end}}
 	"net/http"
 
-{{- if .HasGETMethods}}
+{{- if .UnaryMethods}}
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 {{- end}}
 {{- if .UnaryMethods}}
@@ -57,23 +57,6 @@ func routePath(prefix, route string) string {
 
 {{range .UnaryMethods}}
 // decode{{.Name}}Request uses the generated method-aware decode path.
-//
-// @Summary      {{.Summary}}
-// @Description  {{if .Description}}{{.Description}}{{else}}{{.Name}} microservice endpoint{{end}}
-// @Tags         {{$.Service.ServiceName}}
-{{- if eq (.HTTPMethod | lower) "get"}}
-// @Accept       json
-// @Produce      json
-// @Param        request  query     idl.{{.InputName}}  true  "{{.Name}} request"
-{{- else}}
-// @Accept       json
-// @Produce      json
-// @Param        request  body      idl.{{.InputName}}  true  "{{.Name}} request"
-{{- end}}
-// @Success      200      {object}  idl.{{.OutputName}}
-// @Failure      400      {object}  server.ErrorResponse
-// @Failure      500      {object}  server.ErrorResponse
-// @Router       {{$.RoutePrefix}}{{.Route}} [{{.HTTPMethod | lower}}]
 func decode{{.Name}}Request(_ context.Context, r *http.Request) (any, error) {
 	var req idl.{{.InputName}}
 {{- if eq (.HTTPMethod | lower) "get"}}
@@ -83,6 +66,9 @@ func decode{{.Name}}Request(_ context.Context, r *http.Request) (any, error) {
 {{- else}}
 	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
 		return nil, server.JSONDecodeError{Err: err}
+	}
+	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+		return nil, err
 	}
 {{- end}}
 	return req, nil

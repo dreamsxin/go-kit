@@ -82,9 +82,57 @@ func EncodePathAndQuery(path string, request any) (string, error) {
 	return u.String(), nil
 }
 
+// EncodePath replaces path placeholders from request fields without adding
+// the remaining fields to the query string.
+func EncodePath(path string, request any) (string, error) {
+	if request == nil {
+		return path, nil
+	}
+	u, err := url.Parse(path)
+	if err != nil {
+		return "", fmt.Errorf("parse request path: %w", err)
+	}
+	value, ok := indirectQueryValue(reflect.ValueOf(request))
+	if !ok {
+		return path, nil
+	}
+	if value.Kind() != reflect.Struct {
+		return "", fmt.Errorf("encode request path: expected struct, got %s", value.Type())
+	}
+
+	rawPath := u.Path
+	if err := encodePathStruct(value, &rawPath); err != nil {
+		return "", err
+	}
+	if strings.ContainsAny(rawPath, "{}") {
+		return "", fmt.Errorf("encode request path: unresolved path parameter in %q", rawPath)
+	}
+	escapedPath := escapedQueryPath(rawPath)
+	decodedPath, err := url.PathUnescape(escapedPath)
+	if err != nil {
+		return "", fmt.Errorf("decode encoded request path: %w", err)
+	}
+	u.Path = decodedPath
+	u.RawPath = escapedPath
+	return u.String(), nil
+}
+
 // DecodeQueryRequest decodes path and query parameters into a struct pointer.
 // Path parameters take precedence over query parameters with the same name.
 func DecodeQueryRequest(r *nethttp.Request, target any) error {
+	if r == nil {
+		return &QueryError{Err: fmt.Errorf("nil HTTP request")}
+	}
+	return decodeRequestParameters(r, target, r.URL.Query())
+}
+
+// DecodePathRequest decodes path parameters into a struct pointer. It is
+// intended to run after body decoding so URL values take precedence.
+func DecodePathRequest(r *nethttp.Request, target any) error {
+	return decodeRequestParameters(r, target, nil)
+}
+
+func decodeRequestParameters(r *nethttp.Request, target any, query url.Values) error {
 	if r == nil {
 		return &QueryError{Err: fmt.Errorf("nil HTTP request")}
 	}
@@ -96,7 +144,7 @@ func DecodeQueryRequest(r *nethttp.Request, target any) error {
 	if elem.Kind() != reflect.Struct {
 		return &QueryError{Err: fmt.Errorf("target must point to a struct")}
 	}
-	return decodeQueryStruct(r, elem, r.URL.Query())
+	return decodeQueryStruct(r, elem, query)
 }
 
 func encodeQueryStruct(value reflect.Value, path *string, query url.Values) error {
@@ -138,6 +186,50 @@ func encodeQueryStruct(value reflect.Value, path *string, query url.Values) erro
 		}
 	}
 	return nil
+}
+
+func encodePathStruct(value reflect.Value, path *string) error {
+	valueType := value.Type()
+	for i := 0; i < value.NumField(); i++ {
+		fieldInfo := valueType.Field(i)
+		field := value.Field(i)
+		if fieldInfo.PkgPath != "" {
+			continue
+		}
+		spec := queryFieldSpecFor(fieldInfo)
+		if spec.skip {
+			continue
+		}
+		if fieldInfo.Anonymous {
+			if embedded, ok := indirectQueryValue(field); ok && embedded.Kind() == reflect.Struct {
+				if err := encodePathStruct(embedded, path); err != nil {
+					return err
+				}
+				continue
+			}
+		}
+		if !pathContainsQueryName(*path, spec.names) {
+			continue
+		}
+		values, err := encodeQueryValues(field)
+		if err != nil {
+			return fmt.Errorf("encode path field %s: %w", fieldInfo.Name, err)
+		}
+		if len(values) == 0 || values[len(values)-1] == "" {
+			return fmt.Errorf("encode request path: empty path parameter %s", spec.name)
+		}
+		replacePathValue(path, spec.names, values)
+	}
+	return nil
+}
+
+func pathContainsQueryName(path string, names []string) bool {
+	for _, name := range names {
+		if strings.Contains(path, "{"+name+"}") {
+			return true
+		}
+	}
+	return false
 }
 
 func decodeQueryStruct(r *nethttp.Request, target reflect.Value, query url.Values) error {

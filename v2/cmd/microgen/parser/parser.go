@@ -17,8 +17,8 @@ type Service struct {
 	ServiceName string
 	PackageName string
 	Methods     []Method
-	Title       string // swag @title（默认 = ServiceName + " API"）
-	Description string // swag @description（取接口注释）
+	Title       string // API 标题（默认 = ServiceName + " API"）
+	Description string // API 描述（取接口注释）
 }
 
 // Method 服务方法
@@ -27,10 +27,10 @@ type Method struct {
 	Input         string
 	Output        string
 	Doc           string // 方法注释（原始文本）
-	Summary       string // swag @Summary（取 Doc 第一行）
-	Tags          string // swag @Tags（默认 = ServiceName）
-	HTTPMethod    string // swag @Router 方法（默认 POST）
-	Route         string // swag @Router 路径（默认 /{lower(Name)}）
+	Summary       string // OpenAPI operation summary（取 Doc 第一行）
+	Tags          string // API tags（默认 = ServiceName）
+	HTTPMethod    string // HTTP/OpenAPI 方法（默认 POST）
+	Route         string // HTTP/OpenAPI 路径（默认 /{lower(Name)}）
 	StreamsInput  bool   // true for proto client-streaming or bidirectional-streaming RPCs
 	StreamsOutput bool   // true for proto server-streaming or bidirectional-streaming RPCs
 }
@@ -46,8 +46,7 @@ type ModelField struct {
 	IsAutoIncr bool   // 是否自增
 	IsNotNull  bool   // 是否非空
 	IsUnique   bool   // 是否唯一索引
-	SwagType   string // swag 类型（integer/string/number/boolean/array/object）
-	Example    string // swag 示例值
+	Example    string // schema 示例值
 }
 
 // Model 从 IDL 解析出的 gorm Model 定义
@@ -273,8 +272,6 @@ func parseModel(ts *ast.TypeSpec, st *ast.StructType) *Model {
 		// 字段类型
 		typeName, _ := getTypeName(field.Type)
 		mf.Type = typeName
-		mf.SwagType = GoTypeToSwagType(typeName)
-		mf.Example = swagExample(typeName, mf.JSONTag)
 
 		// 行注释
 		if field.Comment != nil {
@@ -302,6 +299,7 @@ func parseModel(ts *ast.TypeSpec, st *ast.StructType) *Model {
 				// gorm:"column:xxx" → 不影响 Model.TableName，只是字段级
 			}
 		}
+		mf.Example = schemaExample(typeName, mf.JSONTag)
 
 		model.Fields = append(model.Fields, mf)
 	}
@@ -381,33 +379,8 @@ func ToSnakeCase(s string) string {
 	return res.String()
 }
 
-// GoTypeToSwagType 将 Go 类型映射为 swaggo 类型字符串
-func GoTypeToSwagType(goType string) string {
-	// 去掉指针前缀
-	t := strings.TrimPrefix(goType, "*")
-	switch t {
-	case "int", "int8", "int16", "int32", "int64",
-		"uint", "uint8", "uint16", "uint32", "uint64":
-		return "integer"
-	case "float32", "float64":
-		return "number"
-	case "bool":
-		return "boolean"
-	case "string":
-		return "string"
-	default:
-		if strings.HasPrefix(t, "[]") {
-			return "array"
-		}
-		if strings.HasPrefix(t, "map[") {
-			return "object"
-		}
-		return "object"
-	}
-}
-
-// swagExample 返回字段的 swag 示例值（用于注释可读性，非强制）
-func swagExample(goType, jsonTag string) string {
+// schemaExample returns a readable schema example for a parsed field.
+func schemaExample(goType, jsonTag string) string {
 	// 用 json tag 的首段作为字段名提示
 	name := strings.Split(jsonTag, ",")[0]
 	t := strings.TrimPrefix(goType, "*")
