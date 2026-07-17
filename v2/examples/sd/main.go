@@ -58,6 +58,7 @@ func demo1_RoundRobin(logger *kitlog.Logger) {
 
 	cache := instance.NewCache()
 	ep := endpointer.NewEndpointer(cache, factory, logger)
+	defer ep.Close() //nolint:errcheck
 	lb := balancer.NewRoundRobin(ep)
 
 	// No instances yet
@@ -106,6 +107,7 @@ func demo2_Retry(logger *kitlog.Logger) {
 	time.Sleep(10 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, flakyFactory, logger)
+	defer ep.Close() //nolint:errcheck
 	lb := balancer.NewRoundRobin(ep)
 	retryEp := executor.Retry(5, time.Second, lb)
 
@@ -141,6 +143,7 @@ func demo3_RetryWithCallback(logger *kitlog.Logger) {
 	time.Sleep(10 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, flakyFactory, logger)
+	defer ep.Close() //nolint:errcheck
 	lb := balancer.NewRoundRobin(ep)
 
 	retryEp := executor.RetryWithCallback(time.Second, lb,
@@ -167,10 +170,15 @@ func demo4_NewEndpoint(logger *kitlog.Logger) {
 	cache.Update(events.Event{Instances: []string{"svc1:80", "svc2:80", "svc3:80"}})
 	time.Sleep(10 * time.Millisecond)
 
-	ep := sd.NewEndpoint(cache, factory, logger,
+	ep, closer, err := sd.NewEndpoint(cache, factory, logger,
 		sd.WithMaxAttempts(3),
 		sd.WithTimeout(500*time.Millisecond),
 	)
+	if err != nil {
+		fmt.Printf("  construct endpoint: %v\n", err)
+		return
+	}
+	defer closer.Close() //nolint:errcheck
 
 	fmt.Println("  5 calls via sd.NewEndpoint:")
 	for i := 0; i < 5; i++ {
@@ -191,6 +199,7 @@ func demo5_InvalidateOnError(logger *kitlog.Logger) {
 	ep := endpointer.NewEndpointer(cache, factory, logger,
 		endpoint.InvalidateOnError(50*time.Millisecond),
 	)
+	defer ep.Close() //nolint:errcheck
 	lb := balancer.NewRoundRobin(ep)
 
 	// Healthy call

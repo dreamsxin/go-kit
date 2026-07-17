@@ -15,10 +15,14 @@ import (
 cache := instance.NewCache()
 cache.Update(events.Event{Instances: []string{"host1:8080", "host2:8080"}})
 
-ep := sd.NewEndpoint(cache, factory, logger,
+ep, closer, err := sd.NewEndpoint(cache, factory, logger,
     sd.WithMaxAttempts(3),
     sd.WithTimeout(500*time.Millisecond),
 )
+if err != nil {
+    return err
+}
+defer closer.Close()
 resp, err := ep(ctx, request)
 ```
 
@@ -28,22 +32,30 @@ resp, err := ep(ctx, request)
 import "github.com/dreamsxin/go-kit/v2/sd/consul"
 
 instancer := consul.NewInstancer(consulClient, logger, "my-service", true)
-defer instancer.Stop()
 
-ep := sd.NewEndpoint(instancer, factory, logger,
+ep, closer, err := sd.NewEndpoint(instancer, factory, logger,
     sd.WithMaxAttempts(3),
     sd.WithTimeout(500*time.Millisecond),
     sd.WithInvalidateOnError(5*time.Second),
 )
+if err != nil {
+    instancer.Stop()
+    return err
+}
+defer instancer.Stop()
+defer closer.Close() // runs first: deregister and close endpoint connections
 ```
 
 ## Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `WithMaxAttempts(n)` | 1 | Total attempts; values below 1 become 1 |
-| `WithTimeout(d)` | 500ms | Total budget including all retries |
+| `WithMaxAttempts(n)` | 1 | Total attempts; must be at least 1 |
+| `WithTimeout(d)` | 500ms | Positive total budget including all retries |
 | `WithInvalidateOnError(d)` | disabled | Clear cache after SD error grace period |
+
+Invalid options and nil required dependencies return an error before any
+background goroutine starts.
 
 ## Architecture
 
@@ -56,6 +68,7 @@ Each layer is independently usable:
 ```go
 // Manual assembly (full control)
 ep   := endpointer.NewEndpointer(instancer, factory, logger)
+defer ep.Close()
 lb   := balancer.NewRoundRobin(ep)
 call := executor.Retry(3, 500*time.Millisecond, lb)
 ```
@@ -82,6 +95,10 @@ The default classifier retries explicit `Retryable() == true` errors,
 no-endpoint discovery errors, and known transient gRPC statuses. Unknown errors
 are permanent. Use a domain-specific classifier when write safety or business
 error semantics matter.
+
+`Endpointer.Close` waits for its update loop and closes all resources returned
+by the endpoint factory. Treat the closer as part of the constructor contract,
+not as an optional cleanup hook.
 
 ## Consul registration
 

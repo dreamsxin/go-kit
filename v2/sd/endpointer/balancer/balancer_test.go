@@ -25,6 +25,7 @@ func newEndpointer(t *testing.T, addrs ...string) endpointer.Endpointer {
 	t.Helper()
 	cache := instance.NewCache()
 	ep := endpointer.NewEndpointer(cache, endpoint.Factory(echoFactory), nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
 	if len(addrs) > 0 {
 		cache.Update(events.Event{Instances: addrs})
 		time.Sleep(20 * time.Millisecond)

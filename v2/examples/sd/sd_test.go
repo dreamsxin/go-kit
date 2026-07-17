@@ -40,6 +40,7 @@ func TestInstanceFactory_ReturnsAddr(t *testing.T) {
 func TestRoundRobin_NoInstances(t *testing.T) {
 	cache := instance.NewCache()
 	ep := endpointer.NewEndpointer(cache, factory, nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
 	lb := balancer.NewRoundRobin(ep)
 
 	_, err := lb.Endpoint()
@@ -51,6 +52,7 @@ func TestRoundRobin_NoInstances(t *testing.T) {
 func TestRoundRobin_DistributesLoad(t *testing.T) {
 	cache := instance.NewCache()
 	ep := endpointer.NewEndpointer(cache, factory, nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
 	lb := balancer.NewRoundRobin(ep)
 
 	cache.Update(events.Event{Instances: []string{"A:80", "B:80"}})
@@ -73,6 +75,7 @@ func TestRoundRobin_DistributesLoad(t *testing.T) {
 func TestRoundRobin_RemoveInstance(t *testing.T) {
 	cache := instance.NewCache()
 	ep := endpointer.NewEndpointer(cache, factory, nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
 	lb := balancer.NewRoundRobin(ep)
 
 	cache.Update(events.Event{Instances: []string{"A:80", "B:80"}})
@@ -111,6 +114,7 @@ func TestRetry_SucceedsAfterFailures(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, flakyFactory, nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
 	lb := balancer.NewRoundRobin(ep)
 	retryEp := executor.Retry(5, time.Second, lb)
 
@@ -136,6 +140,7 @@ func TestRetry_ExceedsMaxAttempts(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, alwaysFail, nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
 	lb := balancer.NewRoundRobin(ep)
 	retryEp := executor.Retry(3, time.Second, lb)
 
@@ -165,6 +170,7 @@ func TestRetryWithCallback_StopsOnNonRetryable(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, flakyFactory, nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
 	lb := balancer.NewRoundRobin(ep)
 
 	retryEp := executor.RetryWithCallback(time.Second, lb,
@@ -196,10 +202,14 @@ func TestNewEndpoint_RoundRobins(t *testing.T) {
 	cache.Update(events.Event{Instances: []string{"svc1:80", "svc2:80", "svc3:80"}})
 	time.Sleep(20 * time.Millisecond)
 
-	ep := sd.NewEndpoint(cache, factory, nopLogger,
+	ep, closer, err := sd.NewEndpoint(cache, factory, nopLogger,
 		sd.WithMaxAttempts(3),
 		sd.WithTimeout(500*time.Millisecond),
 	)
+	if err != nil {
+		t.Fatalf("NewEndpoint: %v", err)
+	}
+	t.Cleanup(func() { _ = closer.Close() })
 
 	seen := map[string]bool{}
 	for i := 0; i < 6; i++ {
@@ -222,6 +232,7 @@ func TestInvalidateOnError_ClearsCache(t *testing.T) {
 	ep := endpointer.NewEndpointer(cache, factory, nopLogger,
 		endpoint.InvalidateOnError(50*time.Millisecond),
 	)
+	t.Cleanup(func() { _ = ep.Close() })
 	lb := balancer.NewRoundRobin(ep)
 
 	// healthy

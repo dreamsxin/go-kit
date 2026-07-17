@@ -82,6 +82,8 @@ a business operation is safe to retry.
 `sd` converts discovered instances into endpoint sets and executes calls through
 balancers and optional retry strategies. Updates are snapshots, not mutable
 caller-owned slices. Cancellation must interrupt both calls and retry backoff.
+Constructors return explicit closers for subscription goroutines and
+factory-created client connections.
 
 ### `interaction`
 
@@ -147,6 +149,10 @@ main creates signal context
 
 Startup errors must be synchronous when possible. A service instance cannot be
 started twice or restarted after shutdown.
+
+Resource-owning constructors return a closer. Shutdown proceeds from consumers
+to providers: close endpoint/endpointer resources before stopping their
+Instancer, then close transports and process-level dependencies.
 
 ## Extension Rules
 

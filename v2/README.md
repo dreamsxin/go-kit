@@ -207,6 +207,10 @@ HTTP integrations.
 | `log` | Framework logging adapter |
 | `cmd/microgen` | Contract-driven project generator |
 
+Service-discovery constructors return both a callable endpoint and an owned
+closer. Handle the construction error and close the endpoint resources before
+stopping the underlying instancer.
+
 See [ARCHITECTURE.md](ARCHITECTURE.md) for ownership boundaries and extension
 rules. The framework intentionally excludes business platforms such as IAM,
 outbox workflows, job platforms, object storage, secret platforms, and complete

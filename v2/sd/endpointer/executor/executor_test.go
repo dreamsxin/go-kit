@@ -40,6 +40,7 @@ func newBalancer(t *testing.T, factory endpoint.Factory) interfaces.Balancer {
 	cache.Update(events.Event{Instances: []string{"svc:80"}})
 	time.Sleep(20 * time.Millisecond)
 	ep := endpointer.NewEndpointer(cache, factory, nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
 	return balancer.NewRoundRobin(ep)
 }
 

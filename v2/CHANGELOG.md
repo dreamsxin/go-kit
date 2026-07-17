@@ -34,6 +34,8 @@ root.
   `NewJSONClientWithTimeout`.
 - Service-discovery retry defaults to one attempt and only retries explicitly
   classified transient errors when additional attempts are configured.
+- Service-discovery endpoint constructors return an owned closer and validate
+  required dependencies and timing options before starting background work.
 - v2 documentation is task-oriented and no longer duplicates v1 release history,
   temporary roadmaps, or session snapshots.
 
@@ -42,6 +44,10 @@ root.
 - Prompt render callbacks no longer run while the provider lock is held.
 - Consul retry waits respond to shutdown and repeated `Stop` calls are safe.
 - Endpointer shutdown no longer races with producer sends on a closed channel.
+- Endpointer shutdown waits for its update loop and releases every client
+  resource still owned by the endpoint cache.
+- Endpoint caches no longer sort caller slices in place or expose their internal
+  endpoint slice to callers.
 - Generated environment values remain the highest-priority config source after
   remote loading.
 - Generated Go files fail generation before a malformed partial file is written.
@@ -53,3 +59,5 @@ root.
   observability, security, and maintainer documents.
 - Duplicate HandyBreaker and built-in Hystrix implementations; Gobreaker is the
   single circuit-breaker adapter in core.
+- Redundant `sd.NewEndpointCloser`; lifecycle ownership is part of every
+  `sd.NewEndpoint` construction.

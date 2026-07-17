@@ -34,6 +34,7 @@ func NewEndpointer(src interfaces.Instancer, f endpoint.Factory, logger *log.Log
 	}
 	initial := src.Register(se.ch)
 	se.cache.Update(initial)
+	se.receiveWG.Add(1)
 	go se.receive()
 	return se
 }
@@ -44,12 +45,18 @@ type DefaultEndpointer struct {
 	ch        chan events.Event
 	done      chan struct{}
 	closeOnce sync.Once
+	receiveWG sync.WaitGroup
+	closeErr  error
 }
 
 func (de *DefaultEndpointer) receive() {
+	defer de.receiveWG.Done()
 	for {
 		select {
-		case event := <-de.ch:
+		case event, ok := <-de.ch:
+			if !ok {
+				return
+			}
 			de.cache.Update(event)
 		case <-de.done:
 			return
@@ -61,8 +68,10 @@ func (de *DefaultEndpointer) Close() error {
 	de.closeOnce.Do(func() {
 		de.instancer.Deregister(de.ch)
 		close(de.done)
+		de.receiveWG.Wait()
+		de.closeErr = de.cache.Close()
 	})
-	return nil
+	return de.closeErr
 }
 
 func (de *DefaultEndpointer) Endpoints() ([]endpoint.Endpoint, error) {

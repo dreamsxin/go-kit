@@ -201,6 +201,9 @@ HTTP 集成。
 | `log` | 框架日志适配 |
 | `cmd/microgen` | 契约驱动的项目生成器 |
 
+服务发现构造函数会同时返回可调用 endpoint 和资源 closer。调用方必须处理构造
+错误，并在停止底层 instancer 之前关闭 endpoint 资源。
+
 包边界和扩展规则见 [ARCHITECTURE.md](ARCHITECTURE.md)。框架核心明确不包含
 IAM、Outbox、任务平台、对象存储、Secret 平台和完整事务框架等业务平台能力。
 

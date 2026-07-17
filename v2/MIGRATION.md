@@ -141,6 +141,20 @@ with `WithMaxAttempts(n)`. The default is one attempt, and unknown errors are no
 retryable. Mark transient application errors with `Retryable() bool` when retrying
 them is safe.
 
+`sd.NewEndpoint` and `sd.NewEndpointWithDefaults` now return
+`(endpoint.Endpoint, io.Closer, error)`. The former `NewEndpointCloser` duplicate
+was removed. Handle validation errors and close the returned resource before
+stopping the Instancer:
+
+```go
+call, closer, err := sd.NewEndpoint(instancer, factory, logger)
+if err != nil {
+    return err
+}
+defer instancer.Stop()
+defer closer.Close()
+```
+
 ## Circuit Breakers
 
 v2 keeps one endpoint circuit-breaker adapter: `circuitbreaker.Gobreaker`.

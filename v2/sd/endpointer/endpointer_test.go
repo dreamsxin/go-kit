@@ -26,6 +26,7 @@ var echoFactory = endpoint.Factory(func(addr string) (endpoint.Endpoint, io.Clos
 func TestNewEndpointer_NoInstances(t *testing.T) {
 	cache := instance.NewCache()
 	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
 
 	eps, err := ep.Endpoints()
 	if err != nil {
@@ -39,6 +40,7 @@ func TestNewEndpointer_NoInstances(t *testing.T) {
 func TestNewEndpointer_ReceivesInstances(t *testing.T) {
 	cache := instance.NewCache()
 	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
 
 	cache.Update(events.Event{Instances: []string{"a:80", "b:80"}})
 	time.Sleep(20 * time.Millisecond)
@@ -55,6 +57,7 @@ func TestNewEndpointer_ReceivesInstances(t *testing.T) {
 func TestNewEndpointer_UpdateInstances(t *testing.T) {
 	cache := instance.NewCache()
 	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
 
 	cache.Update(events.Event{Instances: []string{"a:80", "b:80", "c:80"}})
 	time.Sleep(20 * time.Millisecond)
@@ -82,6 +85,7 @@ func TestNewEndpointer_FactoryError_SkipsInstance(t *testing.T) {
 
 	cache := instance.NewCache()
 	ep := endpointer.NewEndpointer(cache, failFactory, nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
 
 	cache.Update(events.Event{Instances: []string{"good:80", "bad:80"}})
 	time.Sleep(20 * time.Millisecond)
@@ -101,6 +105,7 @@ func TestNewEndpointer_WithInvalidateOnError(t *testing.T) {
 	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger,
 		endpoint.InvalidateOnError(50*time.Millisecond),
 	)
+	t.Cleanup(func() { _ = ep.Close() })
 
 	cache.Update(events.Event{Instances: []string{"svc:80"}})
 	time.Sleep(20 * time.Millisecond)
@@ -153,4 +158,33 @@ func TestDefaultEndpointer_CloseIsIdempotentAndSafeDuringUpdate(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("updates blocked while endpointer was closing")
 	}
+	if _, err := ep.Endpoints(); !errors.Is(err, endpoint.ErrEndpointCacheClosed) {
+		t.Fatalf("Endpoints after Close error = %v, want ErrEndpointCacheClosed", err)
+	}
 }
+
+func TestDefaultEndpointer_CloseReleasesEndpointResources(t *testing.T) {
+	cache := instance.NewCache()
+	cache.Update(events.Event{Instances: []string{"svc:80"}})
+	closed := make(chan struct{})
+	factory := endpoint.Factory(func(string) (endpoint.Endpoint, io.Closer, error) {
+		return endpoint.Nop, closerFunc(func() error {
+			close(closed)
+			return nil
+		}), nil
+	})
+	ep := endpointer.NewEndpointer(cache, factory, nopLogger)
+
+	if err := ep.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("factory resource was not closed")
+	}
+}
+
+type closerFunc func() error
+
+func (f closerFunc) Close() error { return f() }

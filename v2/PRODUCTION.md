@@ -67,6 +67,9 @@ Unknown business errors should not be assumed transient.
 
 Discovery subscribers receive immutable snapshots. Consumers should use buffered
 update channels and must deregister or close their endpointer during shutdown.
+`sd.NewEndpoint` returns `(endpoint, closer, error)`; treat the closer as owned
+runtime state. Close it before stopping the Instancer so subscriptions are
+removed and factory-created client connections are released.
 
 The built-in default retry classifier retries only explicit
 `Retryable() == true` errors, no-endpoint discovery errors, and known transient
@@ -75,6 +78,9 @@ prefer `RetryWithRetryable` with a domain-specific classifier.
 
 Backoff and calls honor context cancellation. The total timeout must cover all
 attempts and waits, not each attempt independently.
+
+Invalid attempt counts, non-positive timeouts, negative invalidation durations,
+and nil required dependencies fail synchronously before an Endpointer starts.
 
 ## Configuration And Secrets
 

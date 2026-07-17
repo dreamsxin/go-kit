@@ -23,6 +23,12 @@ type RetryError struct {
 }
 
 func (e RetryError) Error() string {
+	if len(e.RawErrors) == 0 {
+		if e.Final != nil {
+			return e.Final.Error()
+		}
+		return "retry failed without an error"
+	}
 	var suffix string
 	if len(e.RawErrors) > 1 {
 		a := make([]string, len(e.RawErrors)-1)
@@ -35,6 +41,17 @@ func (e RetryError) Error() string {
 		return fmt.Sprintf("%v%s", e.RawErrors[len(e.RawErrors)-1], suffix)
 	}
 	return fmt.Sprintf("%v%s", e.Final, suffix)
+}
+
+// Unwrap exposes the final failure for errors.Is and errors.As.
+func (e RetryError) Unwrap() error {
+	if e.Final != nil {
+		return e.Final
+	}
+	if len(e.RawErrors) > 0 {
+		return e.RawErrors[len(e.RawErrors)-1]
+	}
+	return nil
 }
 
 // RetryCallback is called after each failed attempt.  It returns whether the

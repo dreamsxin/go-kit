@@ -85,10 +85,12 @@ mux.Handle("/hello", server.NewJSONServer[helloRequest](
 
 ```go
 // Consul → Endpointer → RoundRobin → Retry, all wired automatically
-ep := sd.NewEndpoint(instancer, factory, logger,
+ep, closer, err := sd.NewEndpoint(instancer, factory, logger,
     sd.WithMaxAttempts(3),
     sd.WithTimeout(500*time.Millisecond),
 )
+if err != nil { return err }
+defer closer.Close()
 ```
 
 ## Run All Example Tests

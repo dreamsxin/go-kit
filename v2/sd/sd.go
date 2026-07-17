@@ -7,16 +7,20 @@
 //	instancer := consul.NewInstancer(consulClient, logger, "my-service", true)
 //	defer instancer.Stop()
 //
-//	ep := sd.NewEndpoint(instancer, factory, logger,
+//	ep, closer, err := sd.NewEndpoint(instancer, factory, logger,
 //	    sd.WithMaxAttempts(3),
 //	    sd.WithTimeout(500*time.Millisecond),
 //	    sd.WithInvalidateOnError(5*time.Second),
 //	)
+//	if err != nil { return err }
+//	defer closer.Close()
 //	resp, err := ep(ctx, request)
 package sd
 
 import (
+	"fmt"
 	"io"
+	"reflect"
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
@@ -48,8 +52,7 @@ type Options struct {
 // Option is a functional option for NewEndpoint.
 type Option func(*Options)
 
-// WithMaxAttempts sets the total number of call attempts. Values below 1 are
-// normalized to one attempt.
+// WithMaxAttempts sets the total number of call attempts. It must be at least 1.
 func WithMaxAttempts(n int) Option {
 	return func(o *Options) { o.MaxAttempts = n }
 }
@@ -70,24 +73,27 @@ func WithRetryable(fn executor.RetryableFunc) Option {
 	return func(o *Options) { o.Retryable = fn }
 }
 
-// NewEndpoint wires together an Instancer → Endpointer → RoundRobin balancer
-// → Retry executor and returns a single endpoint.Endpoint ready to call.
-//
-// The returned endpoint automatically distributes requests across healthy
-// instances and can retry classified transient failures when MaxAttempts is
-// greater than one.
+// NewEndpoint wires together an Instancer, Endpointer, RoundRobin balancer, and
+// Retry executor. The returned closer owns the background Endpointer and every
+// endpoint resource created by factory. Close it before stopping the Instancer.
 func NewEndpoint(
 	src interfaces.Instancer,
 	factory endpoint.Factory,
 	logger *kitlog.Logger,
 	opts ...Option,
-) endpoint.Endpoint {
+) (endpoint.Endpoint, io.Closer, error) {
 	o := Options{
 		MaxAttempts: 1,
 		Timeout:     500 * time.Millisecond,
 	}
-	for _, opt := range opts {
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, nil, fmt.Errorf("sd: option %d is nil", i)
+		}
 		opt(&o)
+	}
+	if err := validateEndpointConfig(src, factory, logger, o); err != nil {
+		return nil, nil, err
 	}
 
 	var epOpts []endpoint.EndpointerOption
@@ -98,10 +104,8 @@ func NewEndpoint(
 	ep := endpointer.NewEndpointer(src, factory, logger, epOpts...)
 	lb := balancer.NewRoundRobin(ep)
 
-	if o.MaxAttempts < 1 {
-		o.MaxAttempts = 1
-	}
-	return executor.RetryWithRetryable(o.Timeout, lb, attemptLimit(o.MaxAttempts), o.Retryable)
+	call := executor.RetryWithRetryable(o.Timeout, lb, attemptLimit(o.MaxAttempts), o.Retryable)
+	return call, ep, nil
 }
 
 // NewEndpointWithDefaults is identical to NewEndpoint but uses sensible
@@ -115,7 +119,7 @@ func NewEndpointWithDefaults(
 	src interfaces.Instancer,
 	factory endpoint.Factory,
 	logger *kitlog.Logger,
-) endpoint.Endpoint {
+) (endpoint.Endpoint, io.Closer, error) {
 	return NewEndpoint(src, factory, logger,
 		WithMaxAttempts(1),
 		WithTimeout(500*time.Millisecond),
@@ -123,38 +127,36 @@ func NewEndpointWithDefaults(
 	)
 }
 
-// NewEndpointCloser is like NewEndpoint but also returns an io.Closer that
-// must be called to stop the background goroutine started by the Endpointer.
-//
-//	ep, closer := sd.NewEndpointCloser(instancer, factory, logger)
-//	defer closer.Close()
-func NewEndpointCloser(
-	src interfaces.Instancer,
-	factory endpoint.Factory,
-	logger *kitlog.Logger,
-	opts ...Option,
-) (endpoint.Endpoint, io.Closer) {
-	o := Options{
-		MaxAttempts: 1,
-		Timeout:     500 * time.Millisecond,
+func validateEndpointConfig(src interfaces.Instancer, factory endpoint.Factory, logger *kitlog.Logger, o Options) error {
+	switch {
+	case isNil(src):
+		return fmt.Errorf("sd: instancer is nil")
+	case factory == nil:
+		return fmt.Errorf("sd: endpoint factory is nil")
+	case logger == nil:
+		return fmt.Errorf("sd: logger is nil")
+	case o.MaxAttempts < 1:
+		return fmt.Errorf("sd: max attempts must be at least 1")
+	case o.Timeout <= 0:
+		return fmt.Errorf("sd: timeout must be greater than zero")
+	case o.InvalidateOnError < 0:
+		return fmt.Errorf("sd: invalidate-on-error duration cannot be negative")
+	default:
+		return nil
 	}
-	for _, opt := range opts {
-		opt(&o)
-	}
+}
 
-	var epOpts []endpoint.EndpointerOption
-	if o.InvalidateOnError > 0 {
-		epOpts = append(epOpts, endpoint.InvalidateOnError(o.InvalidateOnError))
+func isNil(value any) bool {
+	if value == nil {
+		return true
 	}
-
-	ep := endpointer.NewEndpointer(src, factory, logger, epOpts...)
-	lb := balancer.NewRoundRobin(ep)
-
-	if o.MaxAttempts < 1 {
-		o.MaxAttempts = 1
+	rv := reflect.ValueOf(value)
+	switch rv.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return rv.IsNil()
+	default:
+		return false
 	}
-	e := executor.RetryWithRetryable(o.Timeout, lb, attemptLimit(o.MaxAttempts), o.Retryable)
-	return e, ep
 }
 
 func attemptLimit(max int) executor.RetryCallback {

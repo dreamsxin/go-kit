@@ -412,10 +412,11 @@ func main() {
 func writeProtoGRPCE2EProbe(t *testing.T, outDir, probeDirName, importPath, grpcAddr string) string {
 	t.Helper()
 
-	probeDir := filepath.Join(outDir, "testdata", probeDirName)
-	if err := os.MkdirAll(probeDir, 0o755); err != nil {
+	probeDir, err := os.MkdirTemp(outDir, "."+probeDirName+"-")
+	if err != nil {
 		t.Fatalf("mkdir %s: %v", probeDirName, err)
 	}
+	t.Cleanup(func() { _ = os.RemoveAll(probeDir) })
 
 	probePath := filepath.Join(probeDir, "main.go")
 	probe := `package main
@@ -462,7 +463,11 @@ func main() {
 	if err := os.WriteFile(probePath, []byte(probe), 0o644); err != nil {
 		t.Fatalf("write %s: %v", probeDirName, err)
 	}
-	return "./testdata/" + probeDirName
+	rel, err := filepath.Rel(outDir, probeDir)
+	if err != nil {
+		t.Fatalf("relative probe path: %v", err)
+	}
+	return "./" + filepath.ToSlash(rel)
 }
 
 func writeProtoStreamingSDKProbe(t *testing.T, outDir, probeDirName, importPath string) string {

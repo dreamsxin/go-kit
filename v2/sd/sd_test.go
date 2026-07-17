@@ -95,6 +95,7 @@ func newLogger(t *testing.T) *kitlog.Logger {
 func TestEndpointer_EmptyInitially(t *testing.T) {
 	inst := &mockInstancer{}
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
+	t.Cleanup(func() { _ = ep.Close() })
 	endpoints, err := ep.Endpoints()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -107,6 +108,7 @@ func TestEndpointer_EmptyInitially(t *testing.T) {
 func TestEndpointer_ReceivesInstances(t *testing.T) {
 	inst := &mockInstancer{}
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
+	t.Cleanup(func() { _ = ep.Close() })
 
 	inst.Broadcast(events.Event{Instances: []string{"host1:80", "host2:80"}})
 	time.Sleep(20 * time.Millisecond) // let the goroutine process
@@ -123,6 +125,7 @@ func TestEndpointer_ReceivesInstances(t *testing.T) {
 func TestEndpointer_UpdateInstances(t *testing.T) {
 	inst := &mockInstancer{}
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
+	t.Cleanup(func() { _ = ep.Close() })
 
 	inst.Broadcast(events.Event{Instances: []string{"a:80", "b:80", "c:80"}})
 	time.Sleep(20 * time.Millisecond)
@@ -143,6 +146,7 @@ func TestEndpointer_FactoryError(t *testing.T) {
 	}
 	inst := &mockInstancer{}
 	ep := endpointer.NewEndpointer(inst, badFactory, newLogger(t))
+	t.Cleanup(func() { _ = ep.Close() })
 
 	inst.Broadcast(events.Event{Instances: []string{"bad:80"}})
 	time.Sleep(20 * time.Millisecond)
@@ -161,6 +165,7 @@ func TestEndpointer_FactoryError(t *testing.T) {
 func TestRoundRobin_NoEndpoints(t *testing.T) {
 	inst := &mockInstancer{}
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
+	t.Cleanup(func() { _ = ep.Close() })
 	rr := balancer.NewRoundRobin(ep)
 
 	_, err := rr.Endpoint()
@@ -172,6 +177,7 @@ func TestRoundRobin_NoEndpoints(t *testing.T) {
 func TestRoundRobin_SingleEndpoint(t *testing.T) {
 	inst := &mockInstancer{}
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
+	t.Cleanup(func() { _ = ep.Close() })
 
 	inst.Broadcast(events.Event{Instances: []string{"only:80"}})
 	time.Sleep(20 * time.Millisecond)
@@ -193,6 +199,7 @@ func TestRoundRobin_Distributes(t *testing.T) {
 	instances := []string{"svc1:80", "svc2:80", "svc3:80"}
 	inst := &mockInstancer{}
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
+	t.Cleanup(func() { _ = ep.Close() })
 
 	inst.Broadcast(events.Event{Instances: instances})
 	time.Sleep(20 * time.Millisecond)

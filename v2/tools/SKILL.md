@@ -190,6 +190,8 @@ explicit migration decision.
 - Do not retry writes without idempotency and explicit error classification.
 - `NewJSONClientWithTimeout` adds timeout, not retries; use `sd` for retrying
   discovered calls.
+- Handle all three `sd.NewEndpoint` results and close its resource before
+  stopping the Instancer.
 - Use bounded JSON bodies and strict decoding for public endpoints.
 - Do not add IAM, outbox, jobs, object storage, secret management, or a complete
   transaction platform to framework core.

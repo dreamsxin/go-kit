@@ -356,7 +356,11 @@ func TestSKILL_SD_InMemory(t *testing.T) {
 	cache.Update(events.Event{Instances: []string{"host1:8080", "host2:8080"}})
 	time.Sleep(10 * time.Millisecond)
 
-	ep := sd.NewEndpointWithDefaults(cache, factory, logger)
+	ep, closer, err := sd.NewEndpointWithDefaults(cache, factory, logger)
+	if err != nil {
+		t.Fatalf("NewEndpointWithDefaults: %v", err)
+	}
+	t.Cleanup(func() { _ = closer.Close() })
 	resp, err := ep(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -376,12 +380,16 @@ func TestSKILL_SD_CustomSettings(t *testing.T) {
 	cache.Update(events.Event{Instances: []string{"svc:80"}})
 	time.Sleep(10 * time.Millisecond)
 
-	ep := sd.NewEndpoint(cache, factory, logger,
+	ep, closer, err := sd.NewEndpoint(cache, factory, logger,
 		sd.WithMaxAttempts(3),
 		sd.WithTimeout(500*time.Millisecond),
 		sd.WithInvalidateOnError(5*time.Second),
 	)
-	_, err := ep(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("NewEndpoint: %v", err)
+	}
+	t.Cleanup(func() { _ = closer.Close() })
+	_, err = ep(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -465,8 +473,12 @@ func TestSKILL_TestingPatterns_InMemorySD(t *testing.T) {
 		return endpoint.Nop, io.NopCloser(nil), nil
 	})
 
-	ep := sd.NewEndpoint(cache, factory, kitlog.NewNopLogger())
-	_, err := ep(context.Background(), nil)
+	ep, closer, err := sd.NewEndpoint(cache, factory, kitlog.NewNopLogger())
+	if err != nil {
+		t.Fatalf("NewEndpoint: %v", err)
+	}
+	t.Cleanup(func() { _ = closer.Close() })
+	_, err = ep(context.Background(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

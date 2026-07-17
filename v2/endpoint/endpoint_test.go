@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dreamsxin/go-kit/v2/sd/events"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"github.com/dreamsxin/go-kit/v2/sd/events"
 )
 
 // ─────────────────────────── Nop ───────────────────────────
@@ -284,6 +284,11 @@ func TestEndpointCache_UpdateAndEndpoints(t *testing.T) {
 	if len(endpoints) != 2 {
 		t.Fatalf("expected 2 endpoints, got %d", len(endpoints))
 	}
+	endpoints[0] = nil
+	again, err := cache.Endpoints()
+	if err != nil || again[0] == nil {
+		t.Fatalf("Endpoints exposed internal slice: endpoints=%v err=%v", again, err)
+	}
 }
 
 func TestEndpointCache_UpdateRemovesOld(t *testing.T) {
@@ -333,6 +338,18 @@ func TestEndpointCache_SameInstanceReused(t *testing.T) {
 
 	if factoryCallCount != 1 {
 		t.Errorf("factory should only be called once for same instance, got %d", factoryCallCount)
+	}
+}
+
+func TestEndpointCache_UpdateDoesNotMutateInstances(t *testing.T) {
+	instances := []string{"b:80", "a:80"}
+	cache := NewEndpointCache(func(string) (Endpoint, io.Closer, error) {
+		return Nop, nil, nil
+	}, kitlog.NewNopLogger(), EndpointerOptions{})
+
+	cache.Update(events.Event{Instances: instances})
+	if instances[0] != "b:80" || instances[1] != "a:80" {
+		t.Fatalf("Update mutated caller instances: %v", instances)
 	}
 }
 
@@ -406,6 +423,47 @@ func TestEndpointCache_EmptyUpdate(t *testing.T) {
 		t.Errorf("expected 0 endpoints after empty update, got %d", len(endpoints))
 	}
 }
+
+func TestEndpointCache_CloseReleasesResourcesAndRejectsUpdates(t *testing.T) {
+	logger := kitlog.NewNopLogger()
+	closeErr := errors.New("close failed")
+	closed := 0
+	factoryCalls := 0
+	factory := func(string) (Endpoint, io.Closer, error) {
+		factoryCalls++
+		return Nop, closerFunc(func() error {
+			closed++
+			if closed == 1 {
+				return closeErr
+			}
+			return nil
+		}), nil
+	}
+
+	cache := NewEndpointCache(factory, logger, EndpointerOptions{})
+	cache.Update(events.Event{Instances: []string{"a:80", "b:80"}})
+	if err := cache.Close(); !errors.Is(err, closeErr) {
+		t.Fatalf("Close error = %v, want joined close error", err)
+	}
+	if closed != 2 {
+		t.Fatalf("closed resources = %d, want 2", closed)
+	}
+	if err := cache.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+	if _, err := cache.Endpoints(); !errors.Is(err, ErrEndpointCacheClosed) {
+		t.Fatalf("Endpoints error = %v, want ErrEndpointCacheClosed", err)
+	}
+
+	cache.Update(events.Event{Instances: []string{"c:80"}})
+	if factoryCalls != 2 {
+		t.Fatalf("factory called after Close: %d calls", factoryCalls)
+	}
+}
+
+type closerFunc func() error
+
+func (f closerFunc) Close() error { return f() }
 
 // ─────────────────────────── LoggingMiddleware ───────────────────────────
 
