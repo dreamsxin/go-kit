@@ -4,17 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-	"net/http"
 
-	"github.com/gorilla/mux"
-	"github.com/dreamsxin/go-kit/v2/transport/http/server"
 	idl "example.com/gen_fromdb_sqlite"
 	genendpoint "example.com/gen_fromdb_sqlite/endpoint/catalogservice"
+	"github.com/dreamsxin/go-kit/v2/transport/http/server"
+	"github.com/gorilla/mux"
 )
 
 // NewHTTPHandler returns the generated HTTP handler set.
@@ -114,7 +114,6 @@ func routePath(prefix, route string) string {
 	}
 	return prefix + route
 }
-
 
 var (
 	queryTimeType     = reflect.TypeOf(time.Time{})
@@ -298,8 +297,6 @@ func indirectValue(v reflect.Value) reflect.Value {
 	}
 	return v
 }
-
-
 
 // decodeCreateUserRequest uses the generated method-aware decode path.
 //

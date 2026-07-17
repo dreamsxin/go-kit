@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 // --- MemoryResourceProvider ---
@@ -190,6 +191,34 @@ func TestMemoryResourceProvider_ListResources_MetadataCloned(t *testing.T) {
 	}
 }
 
+func TestMemoryResourceProvider_RegisterClonesMutableInput(t *testing.T) {
+	p := NewMemoryResourceProvider()
+	metadata := map[string]string{"owner": "original"}
+	blob := []byte("original")
+	contents := []ResourceContent{{URI: "file:///test", Blob: blob}}
+	if err := p.Register(Resource{URI: "file:///test", Name: "test", Metadata: metadata}, contents); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	metadata["owner"] = "mutated"
+	blob[0] = 'X'
+	contents[0].URI = "mutated"
+
+	resources, _ := p.ListResources(context.Background())
+	if resources[0].Metadata["owner"] != "original" {
+		t.Fatal("Register should clone resource metadata")
+	}
+	got, _ := p.ReadResource(context.Background(), "file:///test")
+	if got[0].URI != "file:///test" || string(got[0].Blob) != "original" {
+		t.Fatalf("Register should clone resource content, got %#v", got[0])
+	}
+	got[0].Blob[0] = 'Y'
+	again, _ := p.ReadResource(context.Background(), "file:///test")
+	if string(again[0].Blob) != "original" {
+		t.Fatal("ReadResource should deep-clone blobs")
+	}
+}
+
 // --- MemoryPromptProvider ---
 
 func TestMemoryPromptProvider_CompleteArgument_ExistingPrompt(t *testing.T) {
@@ -336,5 +365,59 @@ func TestMemoryPromptProvider_GetPrompt_CancelledContext(t *testing.T) {
 	_, err := p.GetPrompt(ctx, "test", nil)
 	if err == nil {
 		t.Fatal("expected error with cancelled context")
+	}
+}
+
+func TestMemoryPromptProvider_ClonesPromptAndRenderArguments(t *testing.T) {
+	p := NewMemoryPromptProvider()
+	prompt := Prompt{Name: "test", Arguments: []PromptArgument{{Name: "value"}}}
+	if err := p.Register(prompt, func(args map[string]string) (PromptResult, error) {
+		args["value"] = "mutated by render"
+		return PromptResult{}, nil
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	prompt.Arguments[0].Name = "mutated"
+
+	prompts, _ := p.ListPrompts(context.Background())
+	if prompts[0].Arguments[0].Name != "value" {
+		t.Fatal("Register should clone prompt arguments")
+	}
+	prompts[0].Arguments[0].Name = "mutated again"
+	again, _ := p.ListPrompts(context.Background())
+	if again[0].Arguments[0].Name != "value" {
+		t.Fatal("ListPrompts should return cloned prompt arguments")
+	}
+
+	args := map[string]string{"value": "original"}
+	if _, err := p.GetPrompt(context.Background(), "test", args); err != nil {
+		t.Fatalf("GetPrompt: %v", err)
+	}
+	if args["value"] != "original" {
+		t.Fatal("GetPrompt should isolate caller arguments from render callbacks")
+	}
+}
+
+func TestMemoryPromptProvider_RenderRunsOutsideLock(t *testing.T) {
+	p := NewMemoryPromptProvider()
+	if err := p.Register(Prompt{Name: "test"}, func(map[string]string) (PromptResult, error) {
+		_, err := p.ListPrompts(context.Background())
+		return PromptResult{}, err
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := p.GetPrompt(context.Background(), "test", nil)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("GetPrompt: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("render callback deadlocked while re-entering provider")
 	}
 }

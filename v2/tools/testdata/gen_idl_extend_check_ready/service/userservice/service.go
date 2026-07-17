@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	idl "example.com/gen_idl_extend_check_ready"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 // UserService defines the business contract.
@@ -47,18 +47,14 @@ type UserService interface {
 
 	// PatchStatus - PatchStatus patches status.
 	PatchStatus(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error)
-
-
-
-
 }
 
 // ServiceConfig controls generated service behavior.
 type ServiceConfig struct {
-	LogLevel      string        `json:"log_level"`
-	Timeout       time.Duration `json:"timeout"`
-	EnableLogging bool          `json:"enable_logging"`
-	EnableMetrics bool          `json:"enable_metrics"`
+	LogLevel      string         `json:"log_level"`
+	Timeout       time.Duration  `json:"timeout"`
+	EnableLogging bool           `json:"enable_logging"`
+	EnableMetrics bool           `json:"enable_metrics"`
 	Logger        *kitlog.Logger `json:"-"`
 }
 
@@ -67,7 +63,6 @@ var defaultConfig = &ServiceConfig{
 	Timeout:       30 * time.Second,
 	EnableLogging: true,
 }
-
 
 // NewService creates a service without repository dependencies.
 func NewService(cfg *ServiceConfig) UserService {
@@ -103,13 +98,11 @@ func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) UserService {
 	return svc
 }
 
-
 type serviceImpl struct {
 	config *ServiceConfig
 	logger *kitlog.Logger
 	repos  GeneratedRepos
 }
-
 
 func (s *serviceImpl) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	_ = req
@@ -171,10 +164,6 @@ func (s *serviceImpl) PatchStatus(ctx context.Context, req idl.UpdateUserRequest
 	return idl.UpdateUserResponse{}, errors.New("PatchStatus: not implemented")
 }
 
-
-
-
-
 type ServiceMiddleware func(UserService) UserService
 
 func LoggingMiddleware(logger *kitlog.Logger) ServiceMiddleware {
@@ -187,7 +176,6 @@ type loggingMiddleware struct {
 	next   UserService
 	logger *kitlog.Logger
 }
-
 
 func (m *loggingMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRequest) (resp idl.CreateUserResponse, err error) {
 	start := time.Now()
@@ -333,10 +321,6 @@ func (m *loggingMiddleware) PatchStatus(ctx context.Context, req idl.UpdateUserR
 	return m.next.PatchStatus(ctx, req)
 }
 
-
-
-
-
 func MetricsMiddleware() ServiceMiddleware {
 	return func(next UserService) UserService {
 		return &metricsMiddleware{next: next}
@@ -346,7 +330,6 @@ func MetricsMiddleware() ServiceMiddleware {
 type metricsMiddleware struct {
 	next UserService
 }
-
 
 func (m *metricsMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	return m.next.CreateUser(ctx, req)

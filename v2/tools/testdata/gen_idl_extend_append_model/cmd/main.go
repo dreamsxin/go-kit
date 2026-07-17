@@ -29,10 +29,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/mux"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
-
-
+	"github.com/gorilla/mux"
 
 	"example.com/gen_idl_extend_append_model/skill"
 )
@@ -57,7 +55,6 @@ func printAllRoutes(logger *kitlog.Logger, routes []generatedRouteEntry) {
 	}
 }
 
-
 func main() {
 	var (
 		httpAddr = flag.String("http.addr", ":8080", "HTTP listen address")
@@ -67,15 +64,8 @@ func main() {
 	logger, _ := kitlog.NewDevelopment()
 	defer logger.Sync() //nolint:errcheck
 
-
-
-
 	generated := initGeneratedServices(logger)
 	runtime := generated.generatedRuntime()
-
-
-
-
 
 	r := mux.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
@@ -94,10 +84,6 @@ func main() {
 
 	r.HandleFunc("/skill", skill.Handler).Methods("GET")
 
-
-
-
-
 	runtime.registerRoutes(r)
 	customRoutes := registerCustomRoutes(r)
 
@@ -106,10 +92,8 @@ func main() {
 		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, false, true))
 	}).Methods("GET")
 
-
 	allRoutes := generatedRouteEntries(runtime, customRoutes, false, true)
 	printAllRoutes(logger, allRoutes)
-
 
 	httpServer := &http.Server{
 		Addr:         *httpAddr,
@@ -124,8 +108,6 @@ func main() {
 			logger.Sugar().Fatalf("FATAL: HTTP server: %v", err)
 		}
 	}()
-
-
 
 	printBanner(logger, *httpAddr, false, true)
 

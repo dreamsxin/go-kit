@@ -38,8 +38,8 @@ func (p *MemoryResourceProvider) Register(res Resource, content []ResourceConten
 	if _, exists := p.resources[res.URI]; exists {
 		return ErrResourceExists
 	}
-	p.resources[res.URI] = res
-	p.contents[res.URI] = content
+	p.resources[res.URI] = cloneResource(res)
+	p.contents[res.URI] = cloneResourceContents(content)
 	return nil
 }
 
@@ -47,7 +47,7 @@ func (p *MemoryResourceProvider) Register(res Resource, content []ResourceConten
 func (p *MemoryResourceProvider) SetTemplates(templates []ResourceTemplate) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.templates = append([]ResourceTemplate(nil), templates...)
+	p.templates = cloneResourceTemplates(templates)
 }
 
 // RegisterText is a convenience method for registering a plain-text resource
@@ -95,9 +95,7 @@ func (p *MemoryResourceProvider) ReadResource(ctx context.Context, uri string) (
 	if !ok {
 		return nil, ErrResourceNotFound
 	}
-	out := make([]ResourceContent, len(content))
-	copy(out, content)
-	return out, nil
+	return cloneResourceContents(content), nil
 }
 
 // ListResourceTemplates returns all registered resource URI templates.
@@ -123,8 +121,8 @@ type MemoryPromptProvider struct {
 }
 
 type memoryPromptEntry struct {
-	prompt  Prompt
-	render  func(args map[string]string) (PromptResult, error)
+	prompt Prompt
+	render func(args map[string]string) (PromptResult, error)
 }
 
 // NewMemoryPromptProvider returns an in-memory PromptProvider suitable for
@@ -145,7 +143,7 @@ func (p *MemoryPromptProvider) Register(prompt Prompt, render func(args map[stri
 	if _, exists := p.prompts[prompt.Name]; exists {
 		return ErrPromptExists
 	}
-	p.prompts[prompt.Name] = memoryPromptEntry{prompt: prompt, render: render}
+	p.prompts[prompt.Name] = memoryPromptEntry{prompt: clonePrompt(prompt), render: render}
 	return nil
 }
 
@@ -165,7 +163,7 @@ func (p *MemoryPromptProvider) ListPrompts(ctx context.Context) ([]Prompt, error
 
 	out := make([]Prompt, 0, len(names))
 	for _, name := range names {
-		out = append(out, p.prompts[name].prompt)
+		out = append(out, clonePrompt(p.prompts[name].prompt))
 	}
 	return out, nil
 }
@@ -177,16 +175,15 @@ func (p *MemoryPromptProvider) GetPrompt(ctx context.Context, name string, args 
 		return PromptResult{}, err
 	}
 	p.mu.RLock()
-	defer p.mu.RUnlock()
-
 	entry, ok := p.prompts[name]
+	p.mu.RUnlock()
 	if !ok {
 		return PromptResult{}, ErrPromptNotFound
 	}
 	if entry.render == nil {
 		return PromptResult{}, fmt.Errorf("interaction: prompt %q has no render function", name)
 	}
-	return entry.render(args)
+	return entry.render(cloneStringMap(args))
 }
 
 // CompleteArgument provides basic prefix-match completions for registered
@@ -203,8 +200,42 @@ func (p *MemoryPromptProvider) CompleteArgument(ctx context.Context, promptName,
 	if !ok {
 		return CompletionResult{}, ErrPromptNotFound
 	}
-	_ = argName   // reserved for per-argument completer hooks
+	_ = argName      // reserved for per-argument completer hooks
 	_ = partialValue // default implementation returns no suggestions
 	_ = entry
 	return CompletionResult{Values: []string{}, Total: 0, HasMore: false}, nil
+}
+
+func cloneResource(resource Resource) Resource {
+	resource.Metadata = cloneStringMap(resource.Metadata)
+	return resource
+}
+
+func cloneResourceContents(contents []ResourceContent) []ResourceContent {
+	if contents == nil {
+		return nil
+	}
+	out := make([]ResourceContent, len(contents))
+	for i, content := range contents {
+		content.Blob = append([]byte(nil), content.Blob...)
+		out[i] = content
+	}
+	return out
+}
+
+func cloneResourceTemplates(templates []ResourceTemplate) []ResourceTemplate {
+	if templates == nil {
+		return nil
+	}
+	out := make([]ResourceTemplate, len(templates))
+	for i, template := range templates {
+		template.Metadata = cloneStringMap(template.Metadata)
+		out[i] = template
+	}
+	return out
+}
+
+func clonePrompt(prompt Prompt) Prompt {
+	prompt.Arguments = append([]PromptArgument(nil), prompt.Arguments...)
+	return prompt
 }

@@ -142,6 +142,10 @@ Recommended entry points:
 - `client.NewJSONClientWithRetry`
 - `client.EncodeJSONRequest`
 
+Despite its historical name, `NewJSONClientWithRetry` currently adds a context
+timeout and does not perform retries. Use `sd.NewEndpoint` with an explicit
+retry classifier for retrying discovered calls.
+
 Primary extension points:
 
 - `ClientBefore`
@@ -255,17 +259,12 @@ These are framework anti-patterns because they weaken separation between protoco
 
 ## Stability Notes
 
-The transport layer has two different maturity levels:
-
-- `transport/http/server` and `transport/http/client` are part of the stable public surface.
-- `transport/grpc/server` and `transport/grpc/client` are public but still more evolvable.
-
-Do not depend on undocumented internal execution details such as exact writer interception or internal request lifecycle structure.
+Transport packages are public v2 APIs but may change before v2.0.0. Do not
+depend on undocumented internal execution details such as exact writer
+interception or internal request lifecycle structure.
 
 ## Related Docs
 
 - [README.md](../README.md)
-- [FRAMEWORK_BOUNDARIES.md](../FRAMEWORK_BOUNDARIES.md)
-- [STABILITY.md](../STABILITY.md)
-- [PACKAGE_SURFACES.md](../PACKAGE_SURFACES.md)
-- [ANTI_PATTERNS.md](../ANTI_PATTERNS.md)
+- [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [PRODUCTION.md](../PRODUCTION.md)

@@ -5,17 +5,16 @@ import (
 	"errors"
 	"time"
 
-	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	idl "example.com/gen_proto_grpc_runtime/pb"
 	svc "example.com/gen_proto_grpc_runtime/service/userservice"
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 // UserServiceEndpoints groups the generated endpoints.
 type UserServiceEndpoints struct {
-	GetUserEndpoint endpoint.Endpoint
+	GetUserEndpoint    endpoint.Endpoint
 	CreateUserEndpoint endpoint.Endpoint
-
 }
 
 type MiddlewareConfig struct {
@@ -56,11 +55,10 @@ func MakeServerEndpointsWithConfig(
 		return applyCustomMiddleware(ep, logger, cfg, name)
 	}
 	return UserServiceEndpoints{
-		GetUserEndpoint: build(MakeGetUserEndpoint(s), "GetUser"),
+		GetUserEndpoint:    build(MakeGetUserEndpoint(s), "GetUser"),
 		CreateUserEndpoint: build(MakeCreateUserEndpoint(s), "CreateUser"),
 	}
 }
-
 
 func MakeGetUserEndpoint(s svc.UserService) endpoint.Endpoint {
 	return func(ctx context.Context, request any) (any, error) {
@@ -84,8 +82,6 @@ func MakeCreateUserEndpoint(s svc.UserService) endpoint.Endpoint {
 	}
 }
 
-
-
 func (e UserServiceEndpoints) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	resp, err := e.GetUserEndpoint(ctx, req)
 	if err != nil {
@@ -101,7 +97,6 @@ func (e UserServiceEndpoints) CreateUser(ctx context.Context, req idl.CreateUser
 	}
 	return resp.(idl.CreateUserResponse), nil
 }
-
 
 // RetryMiddleware retries only errors that explicitly implement
 // interface{ Retryable() bool } and return true. It is safe for server-side

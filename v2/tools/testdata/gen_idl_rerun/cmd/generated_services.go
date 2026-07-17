@@ -2,12 +2,12 @@
 package main
 
 import (
+	"example.com/gen_idl_rerun/config"
+	userserviceEndpoint "example.com/gen_idl_rerun/endpoint/userservice"
+	"example.com/gen_idl_rerun/repository"
+	userserviceSvc "example.com/gen_idl_rerun/service/userservice"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"time"
-	"example.com/gen_idl_rerun/config"
-	"example.com/gen_idl_rerun/repository"
-	userserviceEndpoint "example.com/gen_idl_rerun/endpoint/userservice"
-	userserviceSvc "example.com/gen_idl_rerun/service/userservice"
 )
 
 type generatedServices struct {

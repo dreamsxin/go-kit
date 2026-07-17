@@ -2,8 +2,8 @@
 package main
 
 import (
-	"github.com/gorilla/mux"
 	userserviceTransport "example.com/gen_idl_rerun/transport/userservice"
+	"github.com/gorilla/mux"
 )
 
 func (g generatedServices) generatedRuntime() generatedRuntime {

@@ -86,20 +86,17 @@ func buildGETPath(path string, req interface{}) string {
 	return path
 }
 
-
 // PlaceOrder 通过 HTTP 调用 PlaceOrder
 func (c *OrderServiceHTTPClient) PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (idl.PlaceOrderResponse, error) {
 	var resp idl.PlaceOrderResponse
 	return resp, c.do(ctx, "POST", "/placeorder", req, &resp)
 }
 
-
 // ─────────────────────────── 通用接口 ───────────────────────────
 
 // OrderServiceClient 统一客户端接口（HTTP 和 gRPC 均实现该接口）
 type OrderServiceClient interface {
 	PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (idl.PlaceOrderResponse, error)
-
 }
 
 // ─────────────────────────── Demo logic ───────────────────────────

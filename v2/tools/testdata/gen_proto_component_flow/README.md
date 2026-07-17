@@ -53,11 +53,11 @@ Use this loop when an AI agent or maintainer changes the generated project:
 3. Put business behavior in user-owned files; do not hand-edit generator-owned files.
 4. For new services, models, or middleware, run `microgen extend -check -out .` before an append command.
 5. Use `interaction` runtime hooks for executable AI sessions instead of turning generated `skill/` metadata into business logic.
-6. Run the smallest relevant validation first, usually `go test ./...`, then start the service with `go run ./cmd/main.go`.
+6. Run the smallest relevant validation first, usually `go test ./...`, then start the service with `go run ./cmd`.
 
 ## Configuration
 
-Generated config loads through `config.Load(path)`: defaults first, local YAML next, environment overrides after that, and remote config last when enabled.
+Generated config loads through `config.Load(path)`: defaults first, local YAML next, optional remote config after that, final environment overrides last, then `Config.Validate()` before runtime wiring. Environment variables are also applied once before remote loading so they can configure the remote provider connection.
 
 - Current generated config mode: `file`
 - Current remote provider: `none`
@@ -78,7 +78,7 @@ Generated config loads through `config.Load(path)`: defaults first, local YAML n
 protoc --go_out=. --go-grpc_out=. pb/userservice/userservice.proto
 
 # Start the service
-go run ./cmd/main.go
+go run ./cmd
 
 ```
 
@@ -98,7 +98,7 @@ Runtime inspection:
 
 - `pb/userservice/userservice.proto` is generated from the current service contract and should be reviewed before running `protoc`.
 - If any unsupported shape still falls back to `TODO`, complete those message fields before generating stubs.
-- gRPC streaming generation is a stable surface. Generated streaming SDK callbacks are synchronous: a slow `send` callback applies backpressure to local message delivery, and applications should use context deadlines/cancellation plus their own bounded queues for long-running work.
+- Generated streaming SDK callbacks are synchronous: a slow `send` callback applies backpressure to local message delivery. Applications should use context deadlines/cancellation plus their own bounded queues for long-running work.
 
 
 

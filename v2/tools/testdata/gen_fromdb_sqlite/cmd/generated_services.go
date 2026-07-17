@@ -2,9 +2,9 @@
 package main
 
 import (
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	catalogserviceEndpoint "example.com/gen_fromdb_sqlite/endpoint/catalogservice"
 	catalogserviceSvc "example.com/gen_fromdb_sqlite/service/catalogservice"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 type generatedServices struct {

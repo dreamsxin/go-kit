@@ -2,8 +2,8 @@
 package main
 
 import (
-	"github.com/gorilla/mux"
 	catalogserviceTransport "example.com/gen_fromdb_sqlite/transport/catalogservice"
+	"github.com/gorilla/mux"
 )
 
 func (g generatedServices) generatedRuntime() generatedRuntime {

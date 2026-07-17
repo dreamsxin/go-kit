@@ -307,13 +307,14 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 	import (
 		"context"
 		"fmt"
+		"os"
 
 		idl "example.com/gen_idl_components"
 		userservicesdk "example.com/gen_idl_components/sdk/userservicesdk"
 	)
 
 	func main() {
-		client := userservicesdk.New("` + baseURL + `")
+		client := userservicesdk.New(os.Getenv("SDK_BASE_URL"))
 		_, err := client.CreateUser(context.Background(), idl.CreateUserRequest{
 			Username: "sdk-user",
 			Email:    "sdk@example.com",
@@ -324,12 +325,13 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		fmt.Println(err.Error())
 	}
 	`
-		if err := os.WriteFile(sdkProbePath, []byte(sdkProbe), 0o644); err != nil {
+		if err := os.WriteFile(sdkProbePath, []byte(strings.TrimSpace(sdkProbe)+"\n"), 0o644); err != nil {
 			t.Fatalf("write sdk probe: %v", err)
 		}
 
 		sdkCmd := exec.Command("go", "run", "-mod=mod", "./testdata/sdkprobe")
 		sdkCmd.Dir = outDir
+		sdkCmd.Env = append(os.Environ(), "SDK_BASE_URL="+baseURL)
 		sdkOut := runCommand(t, sdkCmd)
 		if !strings.Contains(sdkOut, "server returned 500") {
 			t.Fatalf("sdk probe output did not surface http api error:\n%s", sdkOut)

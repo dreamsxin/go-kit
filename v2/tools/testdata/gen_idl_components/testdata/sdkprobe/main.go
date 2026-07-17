@@ -3,13 +3,14 @@ package main
 	import (
 		"context"
 		"fmt"
+		"os"
 
 		idl "example.com/gen_idl_components"
 		userservicesdk "example.com/gen_idl_components/sdk/userservicesdk"
 	)
 
 	func main() {
-		client := userservicesdk.New("http://127.0.0.1:52118")
+		client := userservicesdk.New(os.Getenv("SDK_BASE_URL"))
 		_, err := client.CreateUser(context.Background(), idl.CreateUserRequest{
 			Username: "sdk-user",
 			Email:    "sdk@example.com",

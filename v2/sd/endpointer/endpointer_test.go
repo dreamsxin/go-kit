@@ -128,3 +128,29 @@ func TestNewEndpointer_WithInvalidateOnError(t *testing.T) {
 		t.Error("expected cache to be invalidated after grace period")
 	}
 }
+
+func TestDefaultEndpointer_CloseIsIdempotentAndSafeDuringUpdate(t *testing.T) {
+	cache := instance.NewCache()
+	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
+
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 100; i++ {
+			cache.Update(events.Event{Instances: []string{"svc:80"}})
+			cache.Update(events.Event{Instances: []string{"svc2:80"}})
+		}
+		close(done)
+	}()
+
+	if err := ep.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := ep.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("updates blocked while endpointer was closing")
+	}
+}

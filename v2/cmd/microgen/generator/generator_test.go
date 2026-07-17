@@ -1028,6 +1028,7 @@ func TestGenerateFull_ConfigCode_Generated(t *testing.T) {
 	mustExist(t, loaderPath)
 	mustContain(t, codePath, "type Config struct")
 	mustContain(t, codePath, "func Default()")
+	mustContain(t, codePath, "func (cfg *Config) Validate() error")
 	mustContain(t, codePath, `yaml:"server"`)
 	mustContain(t, codePath, "type RemoteConfig struct")
 	mustContain(t, codePath, `yaml:"remote"`)
@@ -1035,6 +1036,8 @@ func TestGenerateFull_ConfigCode_Generated(t *testing.T) {
 	mustContain(t, envPath, "func ApplyEnv(cfg *Config) error")
 	mustContain(t, remotePath, "func LoadRemote(cfg *Config) (*Config, error)")
 	mustContain(t, loaderPath, "func Load(path string)")
+	mustContain(t, loaderPath, "cfg, err = LoadRemote(cfg)")
+	mustContain(t, loaderPath, "if err := cfg.Validate(); err != nil")
 }
 
 func TestGenerateFull_ConfigCode_EnvOverrides(t *testing.T) {
@@ -1228,7 +1231,7 @@ func TestGenerateFull_Readme_Contents(t *testing.T) {
 
 	readmePath := filepath.Join(outDir, "README.md")
 	mustContain(t, readmePath, "UserService")
-	mustContain(t, readmePath, "go run ./cmd/main.go")
+	mustContain(t, readmePath, "go run ./cmd")
 	mustContain(t, readmePath, "## Project Map")
 	mustContain(t, readmePath, "service/<name>/service.go")
 	mustContain(t, readmePath, "cmd/generated_*.go")
@@ -1343,10 +1346,10 @@ message CreateUserResponse {}
 	mustContain(t, readmePath, "pb/userservice/userservice.proto")
 	mustContain(t, readmePath, "Review the generated proto contract before generating stubs")
 	mustContain(t, readmePath, "generated from the current service contract and should be reviewed before running `protoc`")
-	mustContain(t, readmePath, "gRPC streaming generation is a stable surface")
+	mustContain(t, readmePath, "Generated streaming SDK callbacks are synchronous")
 	mustContain(t, readmePath, "slow `send` callback applies backpressure to local message delivery")
 	mustContain(t, readmePath, "context deadlines/cancellation")
-	mustContain(t, readmePath, "go run ./cmd/main.go")
+	mustContain(t, readmePath, "go run ./cmd")
 }
 
 // ─────────────────────────── 多服�?IDL ─────────────────────────────────

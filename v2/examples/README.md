@@ -6,7 +6,7 @@ A guided tour of the go-kit framework, from simplest to most complete.
 
 | Directory | What it shows | Run |
 |-----------|--------------|-----|
-| `kit_basic/` | High-level kit API: `kit.New` + `kit.JSON` + `svc.Run` — 5-minute quickstart | `go run ./examples/kit_basic` |
+| `kit_basic/` | High-level kit API: `kit.New` + `kit.HandleJSON` + `svc.Run` | `go run ./examples/kit_basic` |
 | `basic/` | Middleware chain execution order | `go test ./examples/basic/...` |
 | `quickstart/` | Minimal HTTP service with Builder + NewJSONServer | `go run ./examples/quickstart` |
 | `best_practice/` | Production patterns: metrics, circuit breaker, rate limit, graceful shutdown | `go run ./examples/best_practice` |

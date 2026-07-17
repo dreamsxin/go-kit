@@ -2,11 +2,11 @@
 package main
 
 import (
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
-	"time"
 	"example.com/gen_idl_components/config"
 	userserviceEndpoint "example.com/gen_idl_components/endpoint/userservice"
 	userserviceSvc "example.com/gen_idl_components/service/userservice"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"time"
 )
 
 type generatedServices struct {

@@ -67,7 +67,7 @@ gen: install-microgen
 		-swag
 	@echo ">>> Done. Next steps:"
 	@echo "    cd $(OUT) && go mod tidy"
-	@echo "    go run ./cmd/main.go -http.addr :8080"
+	@echo "    go run ./cmd -http.addr :8080"
 
 ## gen-http: generate HTTP-only service
 gen-http: install-microgen
@@ -119,13 +119,13 @@ gen-from-db: install-microgen
 		-swag
 	@echo ">>> Done. Next steps:"
 	@echo "    cd $(OUT) && go mod tidy"
-	@echo "    go run ./cmd/main.go"
+	@echo "    go run ./cmd"
 
 ## run-demo: run the generated service from OUT
 run-demo:
 	@go run ./tools/makeguard dir-exists "$(OUT)" "output directory '$(OUT)' not found. Run 'make gen' first."
 	@echo ">>> Starting demo service on $(HTTP_PORT)..."
-	@cd $(OUT) && go run ./cmd/main.go -http.addr $(HTTP_PORT)
+	@cd $(OUT) && go run ./cmd -http.addr $(HTTP_PORT)
 
 ## swag-demo: regenerate Swagger docs for the generated service in OUT
 swag-demo:

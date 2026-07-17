@@ -2,8 +2,8 @@
 package main
 
 import (
-	"github.com/gorilla/mux"
 	userserviceTransport "example.com/gen_proto_grpc_runtime/transport/userservice"
+	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 )
 

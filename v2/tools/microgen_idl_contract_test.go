@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -93,7 +94,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 	// Real Docs should survive reruns.
 	var SwaggerInfo = struct{}{}
 	`
-		if err := os.WriteFile(docsPath, []byte(realDocs), 0o644); err != nil {
+		if err := os.WriteFile(docsPath, []byte(strings.TrimSpace(realDocs)+"\n"), 0o644); err != nil {
 			t.Fatalf("write docs.go: %v", err)
 		}
 
@@ -113,7 +114,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		}
 	}
 	`
-		if err := os.WriteFile(customRoutesPath, []byte(customRoutes), 0o644); err != nil {
+		if err := os.WriteFile(customRoutesPath, []byte(strings.TrimSpace(customRoutes)+"\n"), 0o644); err != nil {
 			t.Fatalf("write custom_routes.go: %v", err)
 		}
 
@@ -131,7 +132,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		return ep
 	}
 	`
-		if err := os.WriteFile(customChainPath, []byte(customChain), 0o644); err != nil {
+		if err := os.WriteFile(customChainPath, []byte(strings.TrimSpace(customChain)+"\n"), 0o644); err != nil {
 			t.Fatalf("write custom_chain.go: %v", err)
 		}
 
@@ -180,7 +181,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		}
 	}
 	`
-		if err := os.WriteFile(customRoutesPath, []byte(customRoutes), 0o644); err != nil {
+		if err := os.WriteFile(customRoutesPath, []byte(strings.TrimSpace(customRoutes)+"\n"), 0o644); err != nil {
 			t.Fatalf("write custom_routes.go: %v", err)
 		}
 

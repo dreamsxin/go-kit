@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-
 	idl "example.com/gen_idl_custom_routes"
 )
 
@@ -56,10 +55,7 @@ type Client interface {
 	ModifyEmail(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error)
 	// PatchStatus - PatchStatus patches status.
 	PatchStatus(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error)
-
 }
-
-
 
 // ─────────────────────────── HTTP Constructor ────────────────────────────────
 
@@ -111,8 +107,6 @@ func New(baseURL string, opts ...Option) Client {
 }
 
 // ─────────────────────────── gRPC Constructor ────────────────────────────────
-
-
 
 // ─────────────────────────── HTTP implementation ──────────────────────────────
 
@@ -205,7 +199,6 @@ func buildGETPath(path string, reqBody interface{}) string {
 	return path
 }
 
-
 func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	var resp idl.CreateUserResponse
 	err := c.do(ctx, "POST", "/createuser", req, &resp)
@@ -282,6 +275,5 @@ func (c *httpClient) PatchStatus(ctx context.Context, req idl.UpdateUserRequest)
 	err := c.do(ctx, "PUT", "/patchstatus", req, &resp)
 	return resp, err
 }
-
 
 // ─────────────────────────── gRPC implementation ──────────────────────────────

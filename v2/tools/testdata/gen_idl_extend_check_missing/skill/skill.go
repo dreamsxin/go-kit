@@ -7,8 +7,8 @@ import (
 
 // OpenAI Tool format
 type OpenAITool struct {
-	Type     string           `json:"type"`
-	Function OpenAIFunction   `json:"function"`
+	Type     string         `json:"type"`
+	Function OpenAIFunction `json:"function"`
 }
 
 type OpenAIFunction struct {
@@ -53,11 +53,11 @@ func getOpenAITools() []OpenAITool {
 					"type": "object",
 					"properties": map[string]interface{}{
 						"username": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "",
 						},
 						"email": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "",
 						},
 					},
@@ -77,7 +77,7 @@ func getOpenAITools() []OpenAITool {
 					"type": "object",
 					"properties": map[string]interface{}{
 						"id": map[string]interface{}{
-							"type": "integer",
+							"type":        "integer",
 							"description": "",
 						},
 					},
@@ -96,11 +96,11 @@ func getOpenAITools() []OpenAITool {
 					"type": "object",
 					"properties": map[string]interface{}{
 						"page": map[string]interface{}{
-							"type": "integer",
+							"type":        "integer",
 							"description": "",
 						},
 						"keyword": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "",
 						},
 					},
@@ -120,7 +120,7 @@ func getOpenAITools() []OpenAITool {
 					"type": "object",
 					"properties": map[string]interface{}{
 						"id": map[string]interface{}{
-							"type": "integer",
+							"type":        "integer",
 							"description": "",
 						},
 					},
@@ -139,11 +139,11 @@ func getOpenAITools() []OpenAITool {
 					"type": "object",
 					"properties": map[string]interface{}{
 						"id": map[string]interface{}{
-							"type": "integer",
+							"type":        "integer",
 							"description": "",
 						},
 						"username": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "",
 						},
 					},
@@ -163,7 +163,7 @@ func getOpenAITools() []OpenAITool {
 					"type": "object",
 					"properties": map[string]interface{}{
 						"id": map[string]interface{}{
-							"type": "integer",
+							"type":        "integer",
 							"description": "",
 						},
 					},
@@ -182,11 +182,11 @@ func getOpenAITools() []OpenAITool {
 					"type": "object",
 					"properties": map[string]interface{}{
 						"page": map[string]interface{}{
-							"type": "integer",
+							"type":        "integer",
 							"description": "",
 						},
 						"keyword": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "",
 						},
 					},
@@ -206,7 +206,7 @@ func getOpenAITools() []OpenAITool {
 					"type": "object",
 					"properties": map[string]interface{}{
 						"id": map[string]interface{}{
-							"type": "integer",
+							"type":        "integer",
 							"description": "",
 						},
 					},
@@ -225,7 +225,7 @@ func getOpenAITools() []OpenAITool {
 					"type": "object",
 					"properties": map[string]interface{}{
 						"id": map[string]interface{}{
-							"type": "integer",
+							"type":        "integer",
 							"description": "",
 						},
 					},
@@ -244,11 +244,11 @@ func getOpenAITools() []OpenAITool {
 					"type": "object",
 					"properties": map[string]interface{}{
 						"id": map[string]interface{}{
-							"type": "integer",
+							"type":        "integer",
 							"description": "",
 						},
 						"username": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "",
 						},
 					},
@@ -268,11 +268,11 @@ func getOpenAITools() []OpenAITool {
 					"type": "object",
 					"properties": map[string]interface{}{
 						"id": map[string]interface{}{
-							"type": "integer",
+							"type":        "integer",
 							"description": "",
 						},
 						"username": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "",
 						},
 					},
@@ -292,11 +292,11 @@ func getOpenAITools() []OpenAITool {
 					"type": "object",
 					"properties": map[string]interface{}{
 						"id": map[string]interface{}{
-							"type": "integer",
+							"type":        "integer",
 							"description": "",
 						},
 						"username": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "",
 						},
 					},
@@ -319,11 +319,11 @@ func getMCPTools() []MCPTool {
 				"type": "object",
 				"properties": map[string]interface{}{
 					"username": map[string]interface{}{
-						"type": "string",
+						"type":        "string",
 						"description": "",
 					},
 					"email": map[string]interface{}{
-						"type": "string",
+						"type":        "string",
 						"description": "",
 					},
 				},
@@ -340,7 +340,7 @@ func getMCPTools() []MCPTool {
 				"type": "object",
 				"properties": map[string]interface{}{
 					"id": map[string]interface{}{
-						"type": "integer",
+						"type":        "integer",
 						"description": "",
 					},
 				},
@@ -356,11 +356,11 @@ func getMCPTools() []MCPTool {
 				"type": "object",
 				"properties": map[string]interface{}{
 					"page": map[string]interface{}{
-						"type": "integer",
+						"type":        "integer",
 						"description": "",
 					},
 					"keyword": map[string]interface{}{
-						"type": "string",
+						"type":        "string",
 						"description": "",
 					},
 				},
@@ -377,7 +377,7 @@ func getMCPTools() []MCPTool {
 				"type": "object",
 				"properties": map[string]interface{}{
 					"id": map[string]interface{}{
-						"type": "integer",
+						"type":        "integer",
 						"description": "",
 					},
 				},
@@ -393,11 +393,11 @@ func getMCPTools() []MCPTool {
 				"type": "object",
 				"properties": map[string]interface{}{
 					"id": map[string]interface{}{
-						"type": "integer",
+						"type":        "integer",
 						"description": "",
 					},
 					"username": map[string]interface{}{
-						"type": "string",
+						"type":        "string",
 						"description": "",
 					},
 				},
@@ -414,7 +414,7 @@ func getMCPTools() []MCPTool {
 				"type": "object",
 				"properties": map[string]interface{}{
 					"id": map[string]interface{}{
-						"type": "integer",
+						"type":        "integer",
 						"description": "",
 					},
 				},
@@ -430,11 +430,11 @@ func getMCPTools() []MCPTool {
 				"type": "object",
 				"properties": map[string]interface{}{
 					"page": map[string]interface{}{
-						"type": "integer",
+						"type":        "integer",
 						"description": "",
 					},
 					"keyword": map[string]interface{}{
-						"type": "string",
+						"type":        "string",
 						"description": "",
 					},
 				},
@@ -451,7 +451,7 @@ func getMCPTools() []MCPTool {
 				"type": "object",
 				"properties": map[string]interface{}{
 					"id": map[string]interface{}{
-						"type": "integer",
+						"type":        "integer",
 						"description": "",
 					},
 				},
@@ -467,7 +467,7 @@ func getMCPTools() []MCPTool {
 				"type": "object",
 				"properties": map[string]interface{}{
 					"id": map[string]interface{}{
-						"type": "integer",
+						"type":        "integer",
 						"description": "",
 					},
 				},
@@ -483,11 +483,11 @@ func getMCPTools() []MCPTool {
 				"type": "object",
 				"properties": map[string]interface{}{
 					"id": map[string]interface{}{
-						"type": "integer",
+						"type":        "integer",
 						"description": "",
 					},
 					"username": map[string]interface{}{
-						"type": "string",
+						"type":        "string",
 						"description": "",
 					},
 				},
@@ -504,11 +504,11 @@ func getMCPTools() []MCPTool {
 				"type": "object",
 				"properties": map[string]interface{}{
 					"id": map[string]interface{}{
-						"type": "integer",
+						"type":        "integer",
 						"description": "",
 					},
 					"username": map[string]interface{}{
-						"type": "string",
+						"type":        "string",
 						"description": "",
 					},
 				},
@@ -525,11 +525,11 @@ func getMCPTools() []MCPTool {
 				"type": "object",
 				"properties": map[string]interface{}{
 					"id": map[string]interface{}{
-						"type": "integer",
+						"type":        "integer",
 						"description": "",
 					},
 					"username": map[string]interface{}{
-						"type": "string",
+						"type":        "string",
 						"description": "",
 					},
 				},

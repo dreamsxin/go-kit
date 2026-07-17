@@ -166,6 +166,96 @@ func Default() *Config {
 	}
 }
 
+// Validate checks the final merged configuration before runtime wiring starts.
+func (cfg *Config) Validate() error {
+	if cfg == nil {
+		return fmt.Errorf("config: nil config")
+	}
+	if strings.TrimSpace(cfg.Server.HTTPAddr) == "" {
+		return fmt.Errorf("config: server.http_addr is required")
+	}
+{{- if .WithGRPC}}
+	if strings.TrimSpace(cfg.Server.GRPCAddr) == "" {
+		return fmt.Errorf("config: server.grpc_addr is required")
+	}
+{{- end}}
+	if cfg.Server.ReadTimeout < 0 {
+		return fmt.Errorf("config: server.read_timeout cannot be negative")
+	}
+	if cfg.Server.WriteTimeout < 0 {
+		return fmt.Errorf("config: server.write_timeout cannot be negative")
+	}
+	if cfg.Server.GracefulShutdownTimeout <= 0 {
+		return fmt.Errorf("config: server.graceful_shutdown_timeout must be > 0")
+	}
+
+	switch strings.ToLower(strings.TrimSpace(cfg.Logging.Level)) {
+	case "debug", "info", "warn", "error", "dpanic", "panic", "fatal":
+	default:
+		return fmt.Errorf("config: unsupported logging.level %q", cfg.Logging.Level)
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.Logging.Format)) {
+	case "json", "console":
+	default:
+		return fmt.Errorf("config: unsupported logging.format %q", cfg.Logging.Format)
+	}
+
+{{- if .WithDB}}
+	if strings.TrimSpace(cfg.Database.Driver) == "" {
+		return fmt.Errorf("config: database.driver is required")
+	}
+	if strings.TrimSpace(cfg.Database.DSN) == "" {
+		return fmt.Errorf("config: database.dsn is required")
+	}
+	if cfg.Database.MaxOpenConns < 0 || cfg.Database.MaxIdleConns < 0 {
+		return fmt.Errorf("config: database connection limits cannot be negative")
+	}
+	if cfg.Database.MaxOpenConns > 0 && cfg.Database.MaxIdleConns > cfg.Database.MaxOpenConns {
+		return fmt.Errorf("config: database.max_idle_conns cannot exceed max_open_conns")
+	}
+	if cfg.Database.ConnMaxLifetime < 0 {
+		return fmt.Errorf("config: database.conn_max_lifetime cannot be negative")
+	}
+{{- end}}
+
+	if cfg.Middleware.CircuitBreaker.Enabled {
+		if cfg.Middleware.CircuitBreaker.FailureThreshold <= 0 {
+			return fmt.Errorf("config: middleware.circuit_breaker.failure_threshold must be > 0")
+		}
+		if cfg.Middleware.CircuitBreaker.Timeout <= 0 {
+			return fmt.Errorf("config: middleware.circuit_breaker.timeout must be > 0")
+		}
+	}
+	if cfg.Middleware.RateLimit.Enabled && cfg.Middleware.RateLimit.RequestsPerSecond <= 0 {
+		return fmt.Errorf("config: middleware.rate_limit.requests_per_second must be > 0")
+	}
+	if cfg.Middleware.Retry.Enabled {
+		if cfg.Middleware.Retry.MaxAttempts < 2 {
+			return fmt.Errorf("config: middleware.retry.max_attempts must be >= 2")
+		}
+		if cfg.Middleware.Retry.Backoff < 0 {
+			return fmt.Errorf("config: middleware.retry.backoff cannot be negative")
+		}
+	}
+
+	if cfg.Remote.Enabled {
+		provider := strings.ToLower(strings.TrimSpace(cfg.Remote.Provider))
+		if provider != "consul" {
+			return fmt.Errorf("config: unsupported remote.provider %q", cfg.Remote.Provider)
+		}
+		if strings.TrimSpace(cfg.Remote.Endpoint) == "" {
+			return fmt.Errorf("config: remote.endpoint is required")
+		}
+		if strings.TrimSpace(cfg.Remote.DataID) == "" {
+			return fmt.Errorf("config: remote.data_id is required")
+		}
+		if cfg.Remote.Timeout <= 0 {
+			return fmt.Errorf("config: remote.timeout must be > 0")
+		}
+	}
+	return nil
+}
+
 const envPrefix = "APP_"
 
 // LoadLocal loads config from a YAML file on top of the generated defaults.
@@ -399,8 +489,8 @@ func loadRemoteFromConsul(cfg *Config) (*Config, error) {
 	return &merged, nil
 }
 
-// Load preserves the generated public contract:
-// defaults -> local YAML -> env overrides -> remote seam.
+// Load resolves defaults -> local YAML -> remote -> final env overrides, then
+// validates the complete runtime configuration.
 func Load(path string) (*Config, error) {
 	cfg, err := LoadLocal(path)
 	if err != nil {
@@ -409,5 +499,15 @@ func Load(path string) (*Config, error) {
 	if err := ApplyEnv(cfg); err != nil {
 		return nil, err
 	}
-	return LoadRemote(cfg)
+	cfg, err = LoadRemote(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := ApplyEnv(cfg); err != nil {
+		return nil, err
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }

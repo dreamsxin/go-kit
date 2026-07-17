@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-
 	idl "example.com/gen_idl_extend_append"
 )
 
@@ -34,10 +33,7 @@ import (
 type Client interface {
 	// PlaceOrder
 	PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (idl.PlaceOrderResponse, error)
-
 }
-
-
 
 // ─────────────────────────── HTTP Constructor ────────────────────────────────
 
@@ -89,8 +85,6 @@ func New(baseURL string, opts ...Option) Client {
 }
 
 // ─────────────────────────── gRPC Constructor ────────────────────────────────
-
-
 
 // ─────────────────────────── HTTP implementation ──────────────────────────────
 
@@ -183,12 +177,10 @@ func buildGETPath(path string, reqBody interface{}) string {
 	return path
 }
 
-
 func (c *httpClient) PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (idl.PlaceOrderResponse, error) {
 	var resp idl.PlaceOrderResponse
 	err := c.do(ctx, "POST", "/placeorder", req, &resp)
 	return resp, err
 }
-
 
 // ─────────────────────────── gRPC implementation ──────────────────────────────

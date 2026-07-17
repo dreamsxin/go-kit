@@ -2,14 +2,13 @@
 // zero to a running HTTP microservice.
 //
 // Unlike the quickstart example (which constructs the HTTP server manually),
-// this example uses kit.New + kit.JSON + svc.Run to handle server lifecycle,
-// middleware, and graceful shutdown automatically.
+// this example uses kit.New + kit.HandleJSON + svc.Run to handle server
+// lifecycle, middleware, and graceful shutdown automatically.
 //
 // Concepts shown:
-//   - kit.New creates a Service with built-in /health endpoint
-//   - kit.JSON wraps a typed handler with automatic JSON decode/encode
-//   - svc.Handle registers the handler with service-level middleware
-//   - svc.Run starts the server and blocks until SIGINT/SIGTERM
+//   - kit.New validates configuration and creates a Service with /health
+//   - kit.HandleJSON wraps a typed handler with endpoint middleware and JSON transport
+//   - svc.Run follows the caller-owned context lifecycle
 //
 // Run:
 //
@@ -28,6 +27,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/kit"
@@ -61,17 +64,21 @@ func main() {
 	// kit.New creates a Service with sensible defaults. Options add
 	// cross-cutting concerns (rate limiting, request IDs, timeouts) as
 	// service-level middleware applied to every registered handler.
-	svc := kit.New(*httpAddr,
+	svc, err := kit.New(*httpAddr,
 		kit.WithRequestID(),
 		kit.WithTimeout(5*time.Second),
 	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// kit.JSON produces an http.Handler that decodes the JSON request body
-	// into GreetRequest, calls the business logic, and encodes the response
-	// as JSON — no manual decoding or content-type handling needed.
-	svc.Handle("/greet", kit.JSON(greet))
+	// HandleJSON preserves the normal service -> endpoint -> transport path, so
+	// configured endpoint middleware and strict JSON decoding both apply.
+	kit.HandleJSON[GreetRequest](svc, "/greet", greet)
 
-	// svc.Run starts the HTTP server and blocks until SIGINT or SIGTERM,
-	// then performs a graceful shutdown.
-	svc.Run()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := svc.Run(ctx); err != nil {
+		log.Fatal(err)
+	}
 }

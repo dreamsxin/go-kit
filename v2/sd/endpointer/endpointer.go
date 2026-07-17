@@ -2,6 +2,7 @@ package endpointer
 
 import (
 	"io"
+	"sync"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/log"
@@ -28,10 +29,12 @@ func NewEndpointer(src interfaces.Instancer, f endpoint.Factory, logger *log.Log
 	se := &DefaultEndpointer{
 		cache:     endpoint.NewEndpointCache(f, logger, opts),
 		instancer: src,
-		ch:        make(chan events.Event),
+		ch:        make(chan events.Event, 1),
+		done:      make(chan struct{}),
 	}
+	initial := src.Register(se.ch)
+	se.cache.Update(initial)
 	go se.receive()
-	src.Register(se.ch)
 	return se
 }
 
@@ -39,17 +42,26 @@ type DefaultEndpointer struct {
 	cache     *endpoint.EndpointCache
 	instancer interfaces.Instancer
 	ch        chan events.Event
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 func (de *DefaultEndpointer) receive() {
-	for event := range de.ch {
-		de.cache.Update(event)
+	for {
+		select {
+		case event := <-de.ch:
+			de.cache.Update(event)
+		case <-de.done:
+			return
+		}
 	}
 }
 
 func (de *DefaultEndpointer) Close() error {
-	de.instancer.Deregister(de.ch)
-	close(de.ch)
+	de.closeOnce.Do(func() {
+		de.instancer.Deregister(de.ch)
+		close(de.done)
+	})
 	return nil
 }
 

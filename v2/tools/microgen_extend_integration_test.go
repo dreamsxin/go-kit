@@ -65,7 +65,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	}
 	`
 		fullIDLPath := filepath.Join(t.TempDir(), "combined_extend.go")
-		if err := os.WriteFile(fullIDLPath, []byte(fullIDL), 0o644); err != nil {
+		if err := os.WriteFile(fullIDLPath, []byte(strings.TrimSpace(fullIDL)+"\n"), 0o644); err != nil {
 			t.Fatalf("WriteFile(%q): %v", fullIDLPath, err)
 		}
 
@@ -152,7 +152,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	}
 	`
 		fullIDLPath := filepath.Join(t.TempDir(), "combined_model_extend.go")
-		if err := os.WriteFile(fullIDLPath, []byte(fullIDL), 0o644); err != nil {
+		if err := os.WriteFile(fullIDLPath, []byte(strings.TrimSpace(fullIDL)+"\n"), 0o644); err != nil {
 			t.Fatalf("WriteFile(%q): %v", fullIDLPath, err)
 		}
 

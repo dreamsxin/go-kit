@@ -2,12 +2,12 @@ package userservice
 
 import (
 	"context"
+	genendpoint "example.com/gen_proto_component_flow/endpoint/userservice"
+	idl "example.com/gen_proto_component_flow/pb"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	grpcclient "github.com/dreamsxin/go-kit/v2/transport/grpc/client"
 	grpcserver "github.com/dreamsxin/go-kit/v2/transport/grpc/server"
 	"google.golang.org/grpc"
-	idl "example.com/gen_proto_component_flow/pb"
-	genendpoint "example.com/gen_proto_component_flow/endpoint/userservice"
 )
 
 type streamService interface {
@@ -16,11 +16,10 @@ type streamService interface {
 // grpcServer implements the generated gRPC server contract.
 type grpcServer struct {
 	idl.UnimplementedUserServiceServer
-	stream streamService
-	getuser grpcserver.Handler
+	stream     streamService
+	getuser    grpcserver.Handler
 	createuser grpcserver.Handler
 }
-
 
 func (s *grpcServer) GetUser(ctx context.Context, req *idl.GetUserRequest) (*idl.GetUserResponse, error) {
 	_, resp, err := s.getuser.ServeGRPC(ctx, req)
@@ -37,11 +36,6 @@ func (s *grpcServer) CreateUser(ctx context.Context, req *idl.CreateUserRequest)
 	}
 	return resp.(*idl.CreateUserResponse), nil
 }
-
-
-
-
-
 
 func NewGRPCServer(service streamService, endpoints genendpoint.UserServiceEndpoints) *grpcServer {
 	return &grpcServer{
@@ -62,7 +56,6 @@ func NewGRPCServer(service streamService, endpoints genendpoint.UserServiceEndpo
 func RegisterGRPCServer(s *grpc.Server, service streamService, endpoints genendpoint.UserServiceEndpoints) {
 	idl.RegisterUserServiceServer(s, NewGRPCServer(service, endpoints))
 }
-
 
 func NewGRPCGetUserClient(conn *grpc.ClientConn, options ...grpcclient.ClientOption) endpoint.Endpoint {
 	return grpcclient.NewClient(
@@ -87,11 +80,6 @@ func NewGRPCCreateUserClient(conn *grpc.ClientConn, options ...grpcclient.Client
 		options...,
 	).Endpoint()
 }
-
-
-
-
-
 
 func decodeGRPCGetUserRequest(_ context.Context, grpcReq any) (any, error) {
 	req := grpcReq.(*idl.GetUserRequest)

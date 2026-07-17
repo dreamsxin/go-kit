@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	idl "example.com/gen_fromdb_sqlite"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 // CatalogService defines the business contract.
@@ -26,18 +26,14 @@ type CatalogService interface {
 
 	// ListUsers - List Users
 	ListUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error)
-
-
-
-
 }
 
 // ServiceConfig controls generated service behavior.
 type ServiceConfig struct {
-	LogLevel      string        `json:"log_level"`
-	Timeout       time.Duration `json:"timeout"`
-	EnableLogging bool          `json:"enable_logging"`
-	EnableMetrics bool          `json:"enable_metrics"`
+	LogLevel      string         `json:"log_level"`
+	Timeout       time.Duration  `json:"timeout"`
+	EnableLogging bool           `json:"enable_logging"`
+	EnableMetrics bool           `json:"enable_metrics"`
 	Logger        *kitlog.Logger `json:"-"`
 }
 
@@ -46,7 +42,6 @@ var defaultConfig = &ServiceConfig{
 	Timeout:       30 * time.Second,
 	EnableLogging: true,
 }
-
 
 // NewService creates a service without repository dependencies.
 func NewService(cfg *ServiceConfig) CatalogService {
@@ -82,13 +77,11 @@ func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) CatalogService {
 	return svc
 }
 
-
 type serviceImpl struct {
 	config *ServiceConfig
 	logger *kitlog.Logger
 	repos  GeneratedRepos
 }
-
 
 func (s *serviceImpl) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	_ = req
@@ -115,10 +108,6 @@ func (s *serviceImpl) ListUsers(ctx context.Context, req idl.ListUsersRequest) (
 	return idl.ListUsersResponse{}, errors.New("ListUsers: not implemented")
 }
 
-
-
-
-
 type ServiceMiddleware func(CatalogService) CatalogService
 
 func LoggingMiddleware(logger *kitlog.Logger) ServiceMiddleware {
@@ -131,7 +120,6 @@ type loggingMiddleware struct {
 	next   CatalogService
 	logger *kitlog.Logger
 }
-
 
 func (m *loggingMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRequest) (resp idl.CreateUserResponse, err error) {
 	start := time.Now()
@@ -193,10 +181,6 @@ func (m *loggingMiddleware) ListUsers(ctx context.Context, req idl.ListUsersRequ
 	return m.next.ListUsers(ctx, req)
 }
 
-
-
-
-
 func MetricsMiddleware() ServiceMiddleware {
 	return func(next CatalogService) CatalogService {
 		return &metricsMiddleware{next: next}
@@ -206,7 +190,6 @@ func MetricsMiddleware() ServiceMiddleware {
 type metricsMiddleware struct {
 	next CatalogService
 }
-
 
 func (m *metricsMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	return m.next.CreateUser(ctx, req)

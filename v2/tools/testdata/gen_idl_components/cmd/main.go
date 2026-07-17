@@ -30,17 +30,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/mux"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-
-
-	httpSwagger "github.com/swaggo/http-swagger"
+	"example.com/gen_idl_components/config"
 	docs "example.com/gen_idl_components/docs"
 	"example.com/gen_idl_components/skill"
-	"example.com/gen_idl_components/config"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 func printBanner(logger *kitlog.Logger, httpAddr string, withSwag bool, withSkill bool) {
@@ -90,7 +88,6 @@ func newConfiguredLogger(cfg config.LoggingConfig) (*kitlog.Logger, error) {
 	return zapConfig.Build()
 }
 
-
 func main() {
 	configPath := flag.String("config", "config/config.yaml", "path to config file")
 	flag.CommandLine.Parse(filterArgs(os.Args[1:], "-config"))
@@ -105,7 +102,6 @@ func main() {
 	)
 	flag.Parse()
 
-
 	logger, err := newConfiguredLogger(cfg.Logging)
 	if err != nil {
 		panic("FATAL: create logger: " + err.Error())
@@ -113,15 +109,8 @@ func main() {
 	defer logger.Sync() //nolint:errcheck
 	logger.Sugar().Infof("Config loaded from: %s", *configPath)
 
-
-
-
 	generated := initGeneratedServices(logger, cfg)
 	runtime := generated.generatedRuntime()
-
-
-
-
 
 	r := mux.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
@@ -139,8 +128,6 @@ func main() {
 	}).Methods("GET", "HEAD")
 
 	r.HandleFunc("/skill", skill.Handler).Methods("GET")
-
-
 
 	{
 		swaggerHost := cfg.Server.SwaggerHost
@@ -162,23 +149,20 @@ func main() {
 		httpSwagger.DocExpansion("list"),
 	))
 
-
 	runtime.registerRoutes(r)
 	customRoutes := registerCustomRoutes(r)
 
 	if cfg.Debug.RoutesEnabled {
-	r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, true, true))
-	}).Methods("GET")
+		r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, true, true))
+		}).Methods("GET")
 	}
-
 
 	allRoutes := generatedRouteEntries(runtime, customRoutes, true, true)
 	if cfg.Debug.PrintRoutes {
 		printAllRoutes(logger, allRoutes)
 	}
-
 
 	httpServer := &http.Server{
 		Addr:         *httpAddr,
@@ -193,8 +177,6 @@ func main() {
 			logger.Sugar().Fatalf("FATAL: HTTP server: %v", err)
 		}
 	}()
-
-
 
 	printBanner(logger, *httpAddr, true, true)
 

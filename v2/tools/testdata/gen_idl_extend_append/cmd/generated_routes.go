@@ -2,9 +2,9 @@
 package main
 
 import (
-	"github.com/gorilla/mux"
-	userserviceTransport "example.com/gen_idl_extend_append/transport/userservice"
 	orderserviceTransport "example.com/gen_idl_extend_append/transport/orderservice"
+	userserviceTransport "example.com/gen_idl_extend_append/transport/userservice"
+	"github.com/gorilla/mux"
 )
 
 func (g generatedServices) generatedRuntime() generatedRuntime {

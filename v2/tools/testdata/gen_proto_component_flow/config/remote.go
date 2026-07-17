@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	_ "github.com/spf13/viper/remote"
 	"github.com/spf13/viper"
+	_ "github.com/spf13/viper/remote"
 )
 
 // LoadRemote optionally loads remote config on top of the local/env-resolved

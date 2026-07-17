@@ -2,16 +2,16 @@
 package main
 
 import (
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
-	userserviceEndpoint "example.com/gen_idl_extend_append/endpoint/userservice"
-	userserviceSvc "example.com/gen_idl_extend_append/service/userservice"
 	orderserviceEndpoint "example.com/gen_idl_extend_append/endpoint/orderservice"
+	userserviceEndpoint "example.com/gen_idl_extend_append/endpoint/userservice"
 	orderserviceSvc "example.com/gen_idl_extend_append/service/orderservice"
+	userserviceSvc "example.com/gen_idl_extend_append/service/userservice"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 type generatedServices struct {
-	userserviceSvc       userserviceSvc.UserService
-	userserviceEndpoints userserviceEndpoint.UserServiceEndpoints
+	userserviceSvc        userserviceSvc.UserService
+	userserviceEndpoints  userserviceEndpoint.UserServiceEndpoints
 	orderserviceSvc       orderserviceSvc.OrderService
 	orderserviceEndpoints orderserviceEndpoint.OrderServiceEndpoints
 }

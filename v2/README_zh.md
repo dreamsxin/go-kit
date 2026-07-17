@@ -1,64 +1,58 @@
-# go-kit - Go 微服务框架
+# go-kit v2
 
-[![Go Version](https://img.shields.io/badge/go-1.25+-blue.svg)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/go-1.25.8+-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
 [English](README.md) | 简体中文
 
-`go-kit` 是一个围绕稳定分层构建的 Go 微服务框架：
+`go-kit/v2` 是一个组件化 Go 服务框架，所有入口遵循同一条请求链路：
 
 ```text
 Service -> Endpoint -> Transport
 ```
 
-你只需要定义一次服务契约，`microgen` 就可以生成可运行项目，包括 HTTP 路由、可选 gRPC、配置、客户端、SDK、生成文档，以及 AI 工具发现元数据。
+可以只选取需要的包，也可以用 `microgen` 从 Go 接口、Protobuf 契约或数据库
+结构生成完整的可运行服务。
 
-## 开发状态
+## 当前状态
 
-当前版本线：
+v2 是独立 Go module：
 
 ```text
-v2.0.0 Development
+github.com/dreamsxin/go-kit/v2
 ```
 
-此目录是独立的 Go 主版本模块 `github.com/dreamsxin/go-kit/v2`。在 v2
-发布契约冻结前，允许在这里进行破坏性 API 和生成输出调整；仓库根目录继续作为
-v1 稳定模块。
+v2 正在开发中。在 v2.0.0 发布契约冻结前，允许破坏性 API 和生成输出调整；
+仓库根目录仍然是 v1 module。
 
-继承的能力基线：
+需要 Go 1.25.8 或更高版本。
 
-- 核心 `service -> endpoint -> transport` 运行时分层
-- 已文档化的 `kit`、`endpoint`、HTTP transport、服务发现、日志和 `microgen` CLI 行为
-- 生成的 unary HTTP/gRPC 项目
-- 生成配置、extend 模式、客户端、SDK 和 AI skill 元数据
-- 支持的 server-stream、client-stream、bidirectional-stream Proto gRPC 生成输出
-- `interaction` 和 `interaction/mcp` — AI interaction runtime，包含 session、event、tool、resource、prompt、hook 和完整 MCP 2025-06-18 Streamable HTTP 传输
-- 生成的 interaction adapters
+## 选择入口
 
-目录中复制的发布与稳定性文档描述的是 v1 基线，后续会随 v2 契约收口而更新。
+| 目标 | 使用方式 |
+| --- | --- |
+| 生成完整服务项目 | `microgen` |
+| 用最少装配构建小型服务 | `kit` |
+| 只集成部分框架能力 | `endpoint`、`transport`、`sd`、`interaction` |
 
-## 快速开始：本地生成服务
+`kit` 是基于同一套 endpoint 和 transport 组件的简洁脚手架，不是另一套架构。
+原生 `http.Handler` 注册仅作为静态文件、第三方 handler、探针和自定义协议的
+逃生口。
 
-如果你想创建一个新服务，并让人或 AI 编程助手继续开发，推荐走这条路径。
+## 生成服务
 
-### 1. 安装 `microgen`
+在当前仓库开发 v2 时安装 `microgen`：
 
 ```bash
-# 在仓库根目录进行 v2 开发时：
-go install ./v2/cmd/microgen
+# 在仓库根目录执行。
+go -C v2 install ./cmd/microgen
+```
 
-# 发布 v2.0.0 标签后：
+v2.0.0 发布后：
+
+```bash
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v2.0.0
 ```
-
-### 2. 创建项目
-
-```bash
-mkdir hello-svc
-cd hello-svc
-```
-
-### 3. 定义服务契约
 
 创建 `idl.go`：
 
@@ -76,257 +70,172 @@ type HelloResponse struct {
 }
 
 type HelloService interface {
-	// SayHello returns a greeting.
-	SayHello(ctx context.Context, req HelloRequest) (HelloResponse, error)
+	SayHello(context.Context, HelloRequest) (HelloResponse, error)
 }
 ```
 
-### 4. 生成并运行
+生成最小 HTTP 服务：
 
 ```bash
-microgen -idl idl.go -out . -import example.com/hello-svc -config=false -model=false -db=false
+mkdir hello-svc
+microgen \
+  -idl idl.go \
+  -out hello-svc \
+  -import example.com/hello-svc \
+  -config=false \
+  -model=false \
+  -db=false
+
+cd hello-svc
 go mod tidy
-go run ./cmd/main.go
+go run ./cmd
 ```
 
-### 5. 检查服务
+检查生成服务：
 
 ```bash
 curl http://localhost:8080/health
 curl http://localhost:8080/debug/routes
 curl http://localhost:8080/skill
-curl "http://localhost:8080/skill?format=mcp"
 ```
 
-刚生成的业务方法会返回脚手架的 `not implemented` 错误。真实业务逻辑写在：
+刚生成的业务方法会返回未实现错误。业务逻辑写在
+`service/helloservice/service.go`。
 
-```text
-service/helloservice/service.go
-```
+生成配置、gRPC、数据库反向生成、interaction/MCP 和 extend 模式详见
+[MICROGEN.md](MICROGEN.md)。
 
-## AI Agent 工作流
+## 生成文件归属
 
-生成项目后，优先把这些文件和运行时信息交给 AI 编程助手：
+生成项目明确区分用户维护文件和 `microgen` 管理文件。
 
-- 生成项目里的 `README.md`
-- `idl.go`，从 Go IDL 生成时的服务契约快照
-- `service/<name>/service.go`，业务逻辑文件
-- `GET /debug/routes`，实时路由表
-- `GET /skill?format=mcp`，AI 工具发现视图
+可以修改：
 
-推荐提示词：
+- `service/<service>/service.go`
+- `endpoint/<service>/custom_chain.go`
+- `cmd/custom_routes.go`
+- `config/config.yaml`
 
-```text
-先阅读 README.md 和 idl.go。业务逻辑只写在 service/<name>/service.go。
-不要手动修改 cmd/generated_*.go、endpoint/*/generated_chain.go、skill/ 等生成器管理文件。
-使用 /debug/routes 和 /skill?format=mcp 理解生成的服务能力。
-```
-
-`/skill?format=mcp` 是发现元数据，不是工具执行端点。可执行 AI session 应使用 `interaction` runtime 和 `interaction/mcp` adapter。
-
-## 应该改哪里
-
-生成项目会区分用户拥有的文件和生成器拥有的文件。
-
-可以改：
-
-- `service/<svc>/service.go`：业务逻辑
-- `endpoint/<svc>/custom_chain.go`：自定义 endpoint 中间件
-- `cmd/custom_routes.go`：自定义 HTTP 路由
-- `config/config.yaml`：本地配置
-
-不要手动改：
+不要手动修改：
 
 - `cmd/generated_*.go`
-- `endpoint/<svc>/generated_chain.go`
-- `model/generated_*.go`
-- `repository/generated_*.go`
-- `client/`、`sdk/`、`skill/`、生成的 `pb/` 资源
+- `endpoint/<service>/generated_chain.go`
+- `model/generated_*.go` 和 `repository/generated_*.go`
+- 生成的 `client/`、`sdk/`、`skill/` 和 `pb/` 资源
 
-## 扩展已有生成项目
+扩展已有生成项目之前先执行 `microgen extend -check -out .`。
 
-先运行只读兼容性检查：
+## 使用 `kit`
 
-```bash
-microgen extend -check -out .
-```
-
-然后基于完整合并后的 Go IDL 契约追加一个能力：
-
-```bash
-microgen extend -idl full_combined.go -out . -append-service OrderService
-microgen extend -idl full_combined.go -out . -append-model Product
-microgen extend -idl full_combined.go -out . -append-middleware tracing,error-handling,metrics
-```
-
-extend 模式只更新新文件和生成器拥有的聚合接缝，设计目标是保留用户写的实现文件。
-
-## 常见生成模式
-
-### 从 Go IDL 生成
-
-```bash
-microgen -idl idl.go -out . -import example.com/mysvc
-```
-
-### 从 Protobuf 生成
-
-```bash
-microgen -idl service.proto -out . -import example.com/mysvc -protocols http,grpc
-```
-
-Proto 项目需要先检查 `pb/` 下生成的 proto 资源，运行 `protoc` 后再启动服务。
-
-当 Proto 契约使用支持的 server-stream、client-stream 或 bidirectional-stream 形状时，生成的 gRPC 输出支持流式 RPC。
-
-### 从数据库生成
-
-```bash
-microgen -from-db -driver mysql -dsn "user:pass@tcp(localhost:3306)/dbname" -out . -import example.com/mysvc
-```
-
-数据库生成对源数据库是只读的。生成的 model 会反映真实表字段，不会凭空添加表里不存在的审计字段。生成服务启动时也默认跳过 GORM `AutoMigrate`；需要迁移时必须显式设置 `database.auto_migrate: true`、`APP_DB_AUTO_MIGRATE=true` 或启动参数 `-auto-migrate`。
-
-## 配置模式
-
-生成配置按下面顺序加载：
-
-```text
-默认值 -> 本地 YAML -> 环境变量 -> 可选远程配置
-```
-
-生成时选择模式：
-
-```bash
-# 本地文件 + 环境变量
-microgen -idl idl.go -out . -import example.com/mysvc -config-mode file
-
-# 本地文件 + 环境变量 + 远程配置，远程失败时回退本地
-microgen -idl idl.go -out . -import example.com/mysvc -config-mode hybrid -remote-provider consul
-
-# 远程优先，远程加载失败则启动失败
-microgen -idl idl.go -out . -import example.com/mysvc -config-mode remote -remote-provider consul
-```
-
-环境变量使用 `APP_` 前缀，例如 `APP_HTTP_ADDR`、`APP_LOG_LEVEL`、`APP_LOG_FORMAT`、`APP_REMOTE_ENABLED`、`APP_DB_AUTO_MIGRATE`。
-
-生成的 `logging.level` 和 `logging.format` 会用于创建服务 logger。endpoint 限流默认开启；入站熔断和 retry 默认关闭，需要通过 `middleware.circuit_breaker.enabled` 和 `middleware.retry.enabled` 显式开启。生成的 retry 只重试显式实现 `Retryable() bool` 并返回 true 的错误，普通业务校验错误不会被重复执行。
-
-## AI 与 MCP
-
-启用 skill 生成后，生成服务会暴露 AI 可读的工具定义。默认会启用。
-
-- OpenAI 风格工具描述：`GET /skill`
-- MCP 风格工具描述：`GET /skill?format=mcp`
-
-响应包含元数据：
-
-- `schemaVersion`，当前是 `microgen.skill.v1`
-- `source`，当前是 `microgen-ir`
-- `services`
-- `formats`
-
-可执行 AI session 和 tool-call loop 使用 interaction runtime：
-
-- `interaction.NewRuntime`：session、event、tool、resource、prompt 和 hook
-- `interaction.AuthorizationHook` 与 `interaction.AuditHook`：策略和审计
-- `interaction/mcp.NewHandler`：Streamable HTTP MCP 传输（`NewStreamableHandler` 的别名，支持 POST/GET/DELETE + SSE）
-
-MCP 端点实现协议版本 2025-06-18，支持 tools、resources、prompts、completions、logging、sampling 和服务器发起的 notifications。
-
-详见 [interaction/README.md](interaction/README.md)、[examples/interaction_policy](examples/interaction_policy) 和 [examples/mcp_full](examples/mcp_full)。
-
-## 生产指导
-
-生产采用前建议阅读：
-
-- [RELEASE.md](RELEASE.md)：发布范围和验证
-- [STABILITY.md](STABILITY.md)：stable、semi-stable、internal 表面
-- [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)：生成输出兼容性
-- [OBSERVABILITY.md](OBSERVABILITY.md)：tracing、metrics、logging、request correlation 和 OpenTelemetry 集成
-- [SECURITY_HARDENING.md](SECURITY_HARDENING.md)：认证、授权、请求限制、审计、密钥和生成项目安全加固
-
-## 架构
-
-框架保持清晰职责边界：
-
-```text
-Service
-  纯业务逻辑，不依赖 HTTP 或 gRPC。
-
-Endpoint
-  运行时策略：中间件、日志、指标、限流、熔断。
-
-Transport
-  协议适配：HTTP、gRPC、请求解码、响应编码。
-```
-
-生产服务推荐使用 `microgen`。小型原型或极简服务可以直接使用 `kit` 包。两条路径保持同一套 service -> endpoint -> transport 形态：`kit.HandleJSON` 是简洁路由入口，`kit.HandleJSONEndpoint` 用于把已有 `endpoint.Endpoint` 接到 HTTP transport。
-
-## 使用 `kit` 写一个极简原型
+`kit` 是保留 endpoint middleware 和严格 HTTP transport 行为的最短使用路径：
 
 ```go
 package main
 
 import (
 	"context"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/dreamsxin/go-kit/v2/kit"
 )
 
-type HelloReq struct {
+type HelloRequest struct {
 	Name string `json:"name"`
 }
 
-type HelloResp struct {
+type HelloResponse struct {
 	Message string `json:"message"`
 }
 
 func main() {
-	svc := kit.New(":8080")
+	svc, err := kit.New(":8080",
+		kit.WithRequestID(),
+		kit.WithTimeout(5*time.Second),
+		kit.WithRateLimit(100),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	kit.HandleJSON[HelloReq](svc, "/hello", func(ctx context.Context, req HelloReq) (any, error) {
-		return HelloResp{Message: "Hello, " + req.Name + "!"}, nil
+	kit.HandleJSON[HelloRequest](svc, "/hello", func(
+		ctx context.Context,
+		req HelloRequest,
+	) (any, error) {
+		return HelloResponse{Message: "Hello, " + req.Name}, nil
 	})
 
-	svc.Run()
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stop()
+	if err := svc.Run(ctx); err != nil {
+		log.Fatal(err)
+	}
 }
 ```
 
-通过 `kit.WithTimeout`、`kit.WithMetrics`、`kit.WithLogging`、`kit.WithRateLimit` 或 `kit.WithCircuitBreaker` 配置的 endpoint 中间件会应用在 `kit.HandleJSON` 和 `kit.HandleJSONEndpoint` 上。普通 `svc.Handle` 和 `svc.HandleFunc` 是原生 HTTP 逃生口，适合静态文件、第三方 handler、探针或自定义协议端点；它们会得到 HTTP context/request ID 注入，但不会运行 endpoint 中间件。
+`kit.New` 会校验 Option 并返回错误。`Service.Run` 跟随调用方提供的 context；
+系统信号监听应放在 `main` 中。
 
-`kit.New` 默认暴露 `/health`、`/livez` 和 `/readyz`。需要进程或就绪探针之外的依赖检查时，可以添加 `kit.WithLivenessCheck` 或 `kit.WithReadinessCheck`。
+需要 endpoint middleware 的业务路由使用 `kit.HandleJSON` 或
+`kit.HandleJSONEndpoint`。`Service.Handle` 和 `Service.HandleFunc` 仅用于原生
+HTTP 集成。
 
-## 生成项目结构
+## 组件
+
+| 包 | 职责 |
+| --- | --- |
+| `kit` | 小型服务装配和生命周期 |
+| `endpoint` | 与 transport 无关的 endpoint 和 middleware 组合 |
+| `transport/http` | HTTP server/client adapter |
+| `transport/grpc` | gRPC server/client adapter |
+| `sd` | 服务发现、endpoint 更新、负载均衡和重试执行 |
+| `interaction` | tool、resource、prompt、session 和策略 hook |
+| `interaction/mcp` | MCP Streamable HTTP adapter |
+| `log` | 框架日志适配 |
+| `cmd/microgen` | 契约驱动的项目生成器 |
+
+包边界和扩展规则见 [ARCHITECTURE.md](ARCHITECTURE.md)。框架核心明确不包含
+IAM、Outbox、任务平台、对象存储、Secret 平台和完整事务框架等业务平台能力。
+
+## 配置
+
+生成配置按以下顺序解析：
 
 ```text
-.
-|-- cmd/main.go
-|-- cmd/generated_*.go
-|-- cmd/custom_routes.go
-|-- config/
-|-- service/<svc>/
-|-- endpoint/<svc>/
-|-- transport/<svc>/
-|-- client/<svc>/
-|-- sdk/<svc>sdk/
-|-- model/
-|-- repository/
-|-- pb/
-|-- docs/
-|-- skill/
-`-- idl.go
+默认值 -> 本地 YAML -> 可选远程配置 -> 最终环境变量覆盖 -> 配置校验
 ```
 
-## 修改本仓库本身
+环境变量使用 `APP_` 前缀。最终配置无效时会在运行时装配前失败。从数据库生成
+只读取源结构，生成服务默认不会执行 `AutoMigrate`，除非显式开启。
 
-如果你要修改框架本身，而不是把它作为依赖使用：
+## 验证修改
 
-- 从 [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md) 开始。
-- 用 [DOCS_INDEX.md](DOCS_INDEX.md) 查看文档地图。
-- 阅读 [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md) 了解当前状态。
-- 使用 [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md) 选择验证命令。
+```bash
+cd v2
+go test ./...
+go test -race ./kit ./interaction ./sd/... ./cmd/microgen/generator
+```
+
+修改生成器后，还必须验证在仓库外生成的项目可以执行 `go mod tidy` 和
+`go test ./...`。
+
+## 文档
+
+- [DOCS_INDEX.md](DOCS_INDEX.md)：文档导航
+- [MICROGEN.md](MICROGEN.md)：生成器使用与生成文件归属
+- [ARCHITECTURE.md](ARCHITECTURE.md)：包边界和扩展模型
+- [PRODUCTION.md](PRODUCTION.md)：运行、安全和可观测性指导
+- [MIGRATION.md](MIGRATION.md)：从 v1 迁移到 v2
+- [MAINTAINING.md](MAINTAINING.md)：仓库维护和验证流程
+- [examples/](examples/README.md)：可运行示例
 
 ## License
 
-[MIT](LICENSE.txt)
+MIT，见 [LICENSE.txt](LICENSE.txt)。

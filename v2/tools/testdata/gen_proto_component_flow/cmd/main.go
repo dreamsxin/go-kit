@@ -30,17 +30,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/mux"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"google.golang.org/grpc"
 	"net"
 
-
-	"example.com/gen_proto_component_flow/skill"
 	"example.com/gen_proto_component_flow/config"
+	"example.com/gen_proto_component_flow/skill"
 )
 
 func printBanner(logger *kitlog.Logger, httpAddr string, grpcAddr string, withSwag bool, withSkill bool) {
@@ -91,7 +90,6 @@ func newConfiguredLogger(cfg config.LoggingConfig) (*kitlog.Logger, error) {
 	return zapConfig.Build()
 }
 
-
 func main() {
 	configPath := flag.String("config", "config/config.yaml", "path to config file")
 	flag.CommandLine.Parse(filterArgs(os.Args[1:], "-config"))
@@ -107,7 +105,6 @@ func main() {
 	)
 	flag.Parse()
 
-
 	logger, err := newConfiguredLogger(cfg.Logging)
 	if err != nil {
 		panic("FATAL: create logger: " + err.Error())
@@ -115,15 +112,8 @@ func main() {
 	defer logger.Sync() //nolint:errcheck
 	logger.Sugar().Infof("Config loaded from: %s", *configPath)
 
-
-
-
 	generated := initGeneratedServices(logger, cfg)
 	runtime := generated.generatedRuntime()
-
-
-
-
 
 	r := mux.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
@@ -142,26 +132,20 @@ func main() {
 
 	r.HandleFunc("/skill", skill.Handler).Methods("GET")
 
-
-
-
-
 	runtime.registerRoutes(r)
 	customRoutes := registerCustomRoutes(r)
 
 	if cfg.Debug.RoutesEnabled {
-	r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, false, true))
-	}).Methods("GET")
+		r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, false, true))
+		}).Methods("GET")
 	}
-
 
 	allRoutes := generatedRouteEntries(runtime, customRoutes, false, true)
 	if cfg.Debug.PrintRoutes {
 		printAllRoutes(logger, allRoutes)
 	}
-
 
 	httpServer := &http.Server{
 		Addr:         *httpAddr,
@@ -188,7 +172,6 @@ func main() {
 			logger.Sugar().Fatalf("FATAL: gRPC server: %v", err)
 		}
 	}()
-
 
 	printBanner(logger, *httpAddr, *grpcAddr, false, true)
 

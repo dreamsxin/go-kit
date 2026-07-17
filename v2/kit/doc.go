@@ -9,17 +9,20 @@
 //
 // Quickstart:
 //
-//	func main() {
-//	    svc := kit.New(":8080")
+//	func run(ctx context.Context) error {
+//	    svc, err := kit.New(":8080")
+//	    if err != nil {
+//	        return err
+//	    }
 //	    kit.HandleJSON[HelloReq](svc, "/hello", func(ctx context.Context, req HelloReq) (any, error) {
 //	        return HelloResp{Message: "Hello, " + req.Name}, nil
 //	    })
-//	    svc.Run()
+//	    return svc.Run(ctx)
 //	}
 //
 // With middleware:
 //
-//	svc := kit.New(":8080",
+//	svc, err := kit.New(":8080",
 //	    kit.WithRateLimit(100),
 //	    kit.WithCircuitBreaker(5),
 //	    kit.WithTimeout(5*time.Second),

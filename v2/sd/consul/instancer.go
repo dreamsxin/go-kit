@@ -3,6 +3,7 @@ package consul
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	consul "github.com/hashicorp/consul/api"
@@ -26,6 +27,7 @@ type Instancer struct {
 	tags        []string
 	passingOnly bool // 只返回正常的实例
 	quitc       chan struct{}
+	stopOnce    sync.Once
 }
 
 type InstancerOption func(*Instancer)
@@ -63,7 +65,7 @@ func NewInstancer(client Client, logger *log.Logger, service string, passingOnly
 
 // Stop terminates the instancer.
 func (s *Instancer) Stop() {
-	close(s.quitc)
+	s.stopOnce.Do(func() { close(s.quitc) })
 }
 
 func (s *Instancer) loop(lastIndex uint64) {
@@ -81,17 +83,23 @@ func (s *Instancer) loop(lastIndex uint64) {
 			return // stopped via quitc
 		case err != nil:
 			s.logger.Sugar().Debugln("loop", err, d.Seconds())
-			time.Sleep(d)
+			if !waitForRetry(d, s.quitc) {
+				return
+			}
 			d = utils.Exponential(d)
 			s.cache.Update(events.Event{Err: err})
 		case index == defaultIndex:
 			s.logger.Sugar().Debugln("loop", "index is not sane", d.Seconds())
-			time.Sleep(d)
+			if !waitForRetry(d, s.quitc) {
+				return
+			}
 			d = utils.Exponential(d)
 		case index < lastIndex:
 			s.logger.Sugar().Debugln("loop", "index is less than previous; resetting to default", d.Seconds())
 			lastIndex = defaultIndex
-			time.Sleep(d)
+			if !waitForRetry(d, s.quitc) {
+				return
+			}
 			d = utils.Exponential(d)
 		default:
 			s.logger.Sugar().Debugln("loop", "default", "index", index)
@@ -99,6 +107,17 @@ func (s *Instancer) loop(lastIndex uint64) {
 			s.cache.Update(events.Event{Instances: instances})
 			d = 10 * time.Millisecond
 		}
+	}
+}
+
+func waitForRetry(delay time.Duration, stop <-chan struct{}) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return true
+	case <-stop:
+		return false
 	}
 }
 
@@ -152,12 +171,12 @@ func (s *Instancer) getInstances(lastIndex uint64, interruptc chan struct{}) ([]
 }
 
 // Register implements Instancer.
-func (s *Instancer) Register(ch chan<- events.Event) {
-	s.cache.Register(ch)
+func (s *Instancer) Register(ch chan events.Event) events.Event {
+	return s.cache.Register(ch)
 }
 
 // Deregister implements Instancer.
-func (s *Instancer) Deregister(ch chan<- events.Event) {
+func (s *Instancer) Deregister(ch chan events.Event) {
 	s.cache.Deregister(ch)
 }
 

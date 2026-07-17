@@ -5,27 +5,26 @@ import (
 	"errors"
 	"time"
 
-	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	idl "example.com/gen_idl_extend_append_model"
 	svc "example.com/gen_idl_extend_append_model/service/userservice"
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 // UserServiceEndpoints groups the generated endpoints.
 type UserServiceEndpoints struct {
-	CreateUserEndpoint endpoint.Endpoint
-	GetUserEndpoint endpoint.Endpoint
-	ListUsersEndpoint endpoint.Endpoint
-	DeleteUserEndpoint endpoint.Endpoint
-	UpdateUserEndpoint endpoint.Endpoint
-	FindByEmailEndpoint endpoint.Endpoint
-	SearchUsersEndpoint endpoint.Endpoint
-	QueryStatsEndpoint endpoint.Endpoint
+	CreateUserEndpoint    endpoint.Endpoint
+	GetUserEndpoint       endpoint.Endpoint
+	ListUsersEndpoint     endpoint.Endpoint
+	DeleteUserEndpoint    endpoint.Endpoint
+	UpdateUserEndpoint    endpoint.Endpoint
+	FindByEmailEndpoint   endpoint.Endpoint
+	SearchUsersEndpoint   endpoint.Endpoint
+	QueryStatsEndpoint    endpoint.Endpoint
 	RemoveExpiredEndpoint endpoint.Endpoint
-	EditProfileEndpoint endpoint.Endpoint
-	ModifyEmailEndpoint endpoint.Endpoint
-	PatchStatusEndpoint endpoint.Endpoint
-
+	EditProfileEndpoint   endpoint.Endpoint
+	ModifyEmailEndpoint   endpoint.Endpoint
+	PatchStatusEndpoint   endpoint.Endpoint
 }
 
 type MiddlewareConfig struct {
@@ -66,21 +65,20 @@ func MakeServerEndpointsWithConfig(
 		return applyCustomMiddleware(ep, logger, cfg, name)
 	}
 	return UserServiceEndpoints{
-		CreateUserEndpoint: build(MakeCreateUserEndpoint(s), "CreateUser"),
-		GetUserEndpoint: build(MakeGetUserEndpoint(s), "GetUser"),
-		ListUsersEndpoint: build(MakeListUsersEndpoint(s), "ListUsers"),
-		DeleteUserEndpoint: build(MakeDeleteUserEndpoint(s), "DeleteUser"),
-		UpdateUserEndpoint: build(MakeUpdateUserEndpoint(s), "UpdateUser"),
-		FindByEmailEndpoint: build(MakeFindByEmailEndpoint(s), "FindByEmail"),
-		SearchUsersEndpoint: build(MakeSearchUsersEndpoint(s), "SearchUsers"),
-		QueryStatsEndpoint: build(MakeQueryStatsEndpoint(s), "QueryStats"),
+		CreateUserEndpoint:    build(MakeCreateUserEndpoint(s), "CreateUser"),
+		GetUserEndpoint:       build(MakeGetUserEndpoint(s), "GetUser"),
+		ListUsersEndpoint:     build(MakeListUsersEndpoint(s), "ListUsers"),
+		DeleteUserEndpoint:    build(MakeDeleteUserEndpoint(s), "DeleteUser"),
+		UpdateUserEndpoint:    build(MakeUpdateUserEndpoint(s), "UpdateUser"),
+		FindByEmailEndpoint:   build(MakeFindByEmailEndpoint(s), "FindByEmail"),
+		SearchUsersEndpoint:   build(MakeSearchUsersEndpoint(s), "SearchUsers"),
+		QueryStatsEndpoint:    build(MakeQueryStatsEndpoint(s), "QueryStats"),
 		RemoveExpiredEndpoint: build(MakeRemoveExpiredEndpoint(s), "RemoveExpired"),
-		EditProfileEndpoint: build(MakeEditProfileEndpoint(s), "EditProfile"),
-		ModifyEmailEndpoint: build(MakeModifyEmailEndpoint(s), "ModifyEmail"),
-		PatchStatusEndpoint: build(MakePatchStatusEndpoint(s), "PatchStatus"),
+		EditProfileEndpoint:   build(MakeEditProfileEndpoint(s), "EditProfile"),
+		ModifyEmailEndpoint:   build(MakeModifyEmailEndpoint(s), "ModifyEmail"),
+		PatchStatusEndpoint:   build(MakePatchStatusEndpoint(s), "PatchStatus"),
 	}
 }
-
 
 func MakeCreateUserEndpoint(s svc.UserService) endpoint.Endpoint {
 	return func(ctx context.Context, request any) (any, error) {
@@ -214,8 +212,6 @@ func MakePatchStatusEndpoint(s svc.UserService) endpoint.Endpoint {
 	}
 }
 
-
-
 func (e UserServiceEndpoints) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	resp, err := e.CreateUserEndpoint(ctx, req)
 	if err != nil {
@@ -311,7 +307,6 @@ func (e UserServiceEndpoints) PatchStatus(ctx context.Context, req idl.UpdateUse
 	}
 	return resp.(idl.UpdateUserResponse), nil
 }
-
 
 // RetryMiddleware retries only errors that explicitly implement
 // interface{ Retryable() bool } and return true. It is safe for server-side

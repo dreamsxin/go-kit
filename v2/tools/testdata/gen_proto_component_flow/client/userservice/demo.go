@@ -89,7 +89,6 @@ func buildGETPath(path string, req interface{}) string {
 	return path
 }
 
-
 // GetUser 通过 HTTP 调用 GetUser
 func (c *UserServiceHTTPClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
@@ -106,10 +105,9 @@ func (c *UserServiceHTTPClient) CreateUser(ctx context.Context, req idl.CreateUs
 
 // UserServiceGRPCClient gRPC 客户端
 type UserServiceGRPCClient struct {
-	conn *grpc.ClientConn
-	getuser func(ctx context.Context, request interface{}) (interface{}, error)
+	conn       *grpc.ClientConn
+	getuser    func(ctx context.Context, request interface{}) (interface{}, error)
 	createuser func(ctx context.Context, request interface{}) (interface{}, error)
-
 }
 
 // NewUserServiceGRPCClient 创建 gRPC 客户端，addr 格式如 "localhost:8081"
@@ -124,10 +122,9 @@ func NewUserServiceGRPCClient(addr string, opts ...grpc.DialOption) (*UserServic
 		return nil, fmt.Errorf("grpc dial %s: %w", addr, err)
 	}
 	return &UserServiceGRPCClient{
-		conn: conn,
-		getuser: genTransport.NewGRPCGetUserClient(conn),
+		conn:       conn,
+		getuser:    genTransport.NewGRPCGetUserClient(conn),
 		createuser: genTransport.NewGRPCCreateUserClient(conn),
-
 	}, nil
 }
 
@@ -135,7 +132,6 @@ func NewUserServiceGRPCClient(addr string, opts ...grpc.DialOption) (*UserServic
 func (c *UserServiceGRPCClient) Close() error {
 	return c.conn.Close()
 }
-
 
 // GetUser 通过 gRPC 调用 GetUser
 func (c *UserServiceGRPCClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
@@ -155,14 +151,12 @@ func (c *UserServiceGRPCClient) CreateUser(ctx context.Context, req idl.CreateUs
 	return resp.(idl.CreateUserResponse), nil
 }
 
-
 // ─────────────────────────── 通用接口 ───────────────────────────
 
 // UserServiceClient 统一客户端接口（HTTP 和 gRPC 均实现该接口）
 type UserServiceClient interface {
 	GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error)
 	CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error)
-
 }
 
 // ─────────────────────────── Demo logic ───────────────────────────

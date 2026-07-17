@@ -25,16 +25,17 @@ import (
 // mockInstancer is a simple in-process Instancer driven by a channel.
 type mockInstancer struct {
 	mu          sync.Mutex
-	subscribers []chan<- events.Event
+	subscribers []chan events.Event
 }
 
-func (m *mockInstancer) Register(ch chan<- events.Event) {
+func (m *mockInstancer) Register(ch chan events.Event) events.Event {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.subscribers = append(m.subscribers, ch)
+	return events.Event{}
 }
 
-func (m *mockInstancer) Deregister(ch chan<- events.Event) {
+func (m *mockInstancer) Deregister(ch chan events.Event) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	subs := m.subscribers[:0]

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	idl "example.com/gen_proto_component_flow/pb"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 // UserService defines the business contract.
@@ -17,18 +17,14 @@ type UserService interface {
 
 	// CreateUser - CreateUser creates a new user.
 	CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error)
-
-
-
-
 }
 
 // ServiceConfig controls generated service behavior.
 type ServiceConfig struct {
-	LogLevel      string        `json:"log_level"`
-	Timeout       time.Duration `json:"timeout"`
-	EnableLogging bool          `json:"enable_logging"`
-	EnableMetrics bool          `json:"enable_metrics"`
+	LogLevel      string         `json:"log_level"`
+	Timeout       time.Duration  `json:"timeout"`
+	EnableLogging bool           `json:"enable_logging"`
+	EnableMetrics bool           `json:"enable_metrics"`
 	Logger        *kitlog.Logger `json:"-"`
 }
 
@@ -37,7 +33,6 @@ var defaultConfig = &ServiceConfig{
 	Timeout:       30 * time.Second,
 	EnableLogging: true,
 }
-
 
 // NewService creates a service instance.
 func NewService(cfg *ServiceConfig) UserService {
@@ -67,12 +62,10 @@ func newServiceImpl(cfg *ServiceConfig) UserService {
 	return svc
 }
 
-
 type serviceImpl struct {
 	config *ServiceConfig
 	logger *kitlog.Logger
 }
-
 
 func (s *serviceImpl) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	_ = req
@@ -83,10 +76,6 @@ func (s *serviceImpl) CreateUser(ctx context.Context, req idl.CreateUserRequest)
 	_ = req
 	return idl.CreateUserResponse{}, errors.New("CreateUser: not implemented")
 }
-
-
-
-
 
 type ServiceMiddleware func(UserService) UserService
 
@@ -100,7 +89,6 @@ type loggingMiddleware struct {
 	next   UserService
 	logger *kitlog.Logger
 }
-
 
 func (m *loggingMiddleware) GetUser(ctx context.Context, req idl.GetUserRequest) (resp idl.GetUserResponse, err error) {
 	start := time.Now()
@@ -126,10 +114,6 @@ func (m *loggingMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRe
 	return m.next.CreateUser(ctx, req)
 }
 
-
-
-
-
 func MetricsMiddleware() ServiceMiddleware {
 	return func(next UserService) UserService {
 		return &metricsMiddleware{next: next}
@@ -139,7 +123,6 @@ func MetricsMiddleware() ServiceMiddleware {
 type metricsMiddleware struct {
 	next UserService
 }
-
 
 func (m *metricsMiddleware) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	return m.next.GetUser(ctx, req)

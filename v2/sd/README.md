@@ -69,16 +69,21 @@ executor.Retry(3, time.Second, lb)
 // Unlimited within timeout
 executor.RetryAlways(2*time.Second, lb)
 
-// Custom callback — stop on non-retryable errors
-executor.RetryWithCallback(time.Second, lb,
+// Production calls should provide an explicit retry classifier.
+executor.RetryWithRetryable(time.Second, lb,
     func(n int, err error) (keepTrying bool, replacement error) {
-        if errors.Is(err, ErrInvalidArgument) {
-            return false, err   // stop immediately
-        }
-        return n < 5, nil       // retry up to 5 times
+        return n < 5, nil
     },
+	func(err error) bool {
+		var retryable interface{ Retryable() bool }
+		return errors.As(err, &retryable) && retryable.Retryable()
+	},
 )
 ```
+
+The default classifier retries unknown errors after excluding cancellation,
+caller/auth gRPC statuses, and explicit `Retryable() == false` errors. Use a
+domain-specific classifier when write safety or business error semantics matter.
 
 ## Consul registration
 

@@ -5,16 +5,15 @@ import (
 	"errors"
 	"time"
 
-	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	idl "example.com/gen_idl_extend_append"
 	svc "example.com/gen_idl_extend_append/service/orderservice"
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 // OrderServiceEndpoints groups the generated endpoints.
 type OrderServiceEndpoints struct {
 	PlaceOrderEndpoint endpoint.Endpoint
-
 }
 
 type MiddlewareConfig struct {
@@ -59,7 +58,6 @@ func MakeServerEndpointsWithConfig(
 	}
 }
 
-
 func MakePlaceOrderEndpoint(s svc.OrderService) endpoint.Endpoint {
 	return func(ctx context.Context, request any) (any, error) {
 		req := request.(idl.PlaceOrderRequest)
@@ -71,8 +69,6 @@ func MakePlaceOrderEndpoint(s svc.OrderService) endpoint.Endpoint {
 	}
 }
 
-
-
 func (e OrderServiceEndpoints) PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (idl.PlaceOrderResponse, error) {
 	resp, err := e.PlaceOrderEndpoint(ctx, req)
 	if err != nil {
@@ -80,7 +76,6 @@ func (e OrderServiceEndpoints) PlaceOrder(ctx context.Context, req idl.PlaceOrde
 	}
 	return resp.(idl.PlaceOrderResponse), nil
 }
-
 
 // RetryMiddleware retries only errors that explicitly implement
 // interface{ Retryable() bool } and return true. It is safe for server-side

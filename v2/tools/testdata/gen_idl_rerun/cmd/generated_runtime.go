@@ -2,9 +2,9 @@
 package main
 
 import (
+	"example.com/gen_idl_rerun/model"
 	"github.com/gorilla/mux"
 	"gorm.io/gorm"
-	"example.com/gen_idl_rerun/model"
 )
 
 type generatedRouteEntry struct {
@@ -14,7 +14,7 @@ type generatedRouteEntry struct {
 }
 
 type generatedRuntime struct {
-	routeEntries []generatedRouteEntry
+	routeEntries   []generatedRouteEntry
 	httpRegistrars []func(*mux.Router)
 }
 

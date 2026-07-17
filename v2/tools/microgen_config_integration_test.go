@@ -85,6 +85,18 @@ func TestMicrogenConfigIntegration(t *testing.T) {
 			t.Fatalf("expected remote config to override log level, got:\n%s", successOut)
 		}
 
+		envProbe := exec.Command("go", "run", "-mod=mod", probePkg, "./config/remote-success.yaml")
+		envProbe.Dir = outDir
+		envProbe.Env = append(os.Environ(),
+			"GOPROXY=https://proxy.golang.org,direct",
+			"APP_HTTP_ADDR=:29090",
+			"APP_LOG_LEVEL=error",
+		)
+		envOut := runCommand(t, envProbe)
+		if !strings.Contains(envOut, ":29090") || !strings.Contains(envOut, "error") {
+			t.Fatalf("expected env to override remote config, got:\n%s", envOut)
+		}
+
 		fallbackAddr := freeTCPAddr(t)
 		fallbackConfig := fmt.Sprintf(strings.Join([]string{
 			"server:",

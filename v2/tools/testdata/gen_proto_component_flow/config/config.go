@@ -4,12 +4,16 @@
 // config.go defines the generated config model and default values.
 package config
 
-import "time"
+import (
+	"fmt"
+	"strings"
+	"time"
+)
 
 // Config groups all generated config sections.
 type Config struct {
-	Server    ServerConfig     `yaml:"server" mapstructure:"server"`
-	Logging   LoggingConfig    `yaml:"logging" mapstructure:"logging"`
+	Server     ServerConfig     `yaml:"server" mapstructure:"server"`
+	Logging    LoggingConfig    `yaml:"logging" mapstructure:"logging"`
 	Middleware MiddlewareConfig `yaml:"middleware" mapstructure:"middleware"`
 	Debug      DebugConfig      `yaml:"debug" mapstructure:"debug"`
 	Remote     RemoteConfig     `yaml:"remote" mapstructure:"remote"`
@@ -120,6 +124,76 @@ func Default() *Config {
 			FallbackToLocal: true,
 		},
 	}
+}
+
+// Validate checks the final merged configuration before runtime wiring starts.
+func (cfg *Config) Validate() error {
+	if cfg == nil {
+		return fmt.Errorf("config: nil config")
+	}
+	if strings.TrimSpace(cfg.Server.HTTPAddr) == "" {
+		return fmt.Errorf("config: server.http_addr is required")
+	}
+	if strings.TrimSpace(cfg.Server.GRPCAddr) == "" {
+		return fmt.Errorf("config: server.grpc_addr is required")
+	}
+	if cfg.Server.ReadTimeout < 0 {
+		return fmt.Errorf("config: server.read_timeout cannot be negative")
+	}
+	if cfg.Server.WriteTimeout < 0 {
+		return fmt.Errorf("config: server.write_timeout cannot be negative")
+	}
+	if cfg.Server.GracefulShutdownTimeout <= 0 {
+		return fmt.Errorf("config: server.graceful_shutdown_timeout must be > 0")
+	}
+
+	switch strings.ToLower(strings.TrimSpace(cfg.Logging.Level)) {
+	case "debug", "info", "warn", "error", "dpanic", "panic", "fatal":
+	default:
+		return fmt.Errorf("config: unsupported logging.level %q", cfg.Logging.Level)
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.Logging.Format)) {
+	case "json", "console":
+	default:
+		return fmt.Errorf("config: unsupported logging.format %q", cfg.Logging.Format)
+	}
+
+	if cfg.Middleware.CircuitBreaker.Enabled {
+		if cfg.Middleware.CircuitBreaker.FailureThreshold <= 0 {
+			return fmt.Errorf("config: middleware.circuit_breaker.failure_threshold must be > 0")
+		}
+		if cfg.Middleware.CircuitBreaker.Timeout <= 0 {
+			return fmt.Errorf("config: middleware.circuit_breaker.timeout must be > 0")
+		}
+	}
+	if cfg.Middleware.RateLimit.Enabled && cfg.Middleware.RateLimit.RequestsPerSecond <= 0 {
+		return fmt.Errorf("config: middleware.rate_limit.requests_per_second must be > 0")
+	}
+	if cfg.Middleware.Retry.Enabled {
+		if cfg.Middleware.Retry.MaxAttempts < 2 {
+			return fmt.Errorf("config: middleware.retry.max_attempts must be >= 2")
+		}
+		if cfg.Middleware.Retry.Backoff < 0 {
+			return fmt.Errorf("config: middleware.retry.backoff cannot be negative")
+		}
+	}
+
+	if cfg.Remote.Enabled {
+		provider := strings.ToLower(strings.TrimSpace(cfg.Remote.Provider))
+		if provider != "consul" {
+			return fmt.Errorf("config: unsupported remote.provider %q", cfg.Remote.Provider)
+		}
+		if strings.TrimSpace(cfg.Remote.Endpoint) == "" {
+			return fmt.Errorf("config: remote.endpoint is required")
+		}
+		if strings.TrimSpace(cfg.Remote.DataID) == "" {
+			return fmt.Errorf("config: remote.data_id is required")
+		}
+		if cfg.Remote.Timeout <= 0 {
+			return fmt.Errorf("config: remote.timeout must be > 0")
+		}
+	}
+	return nil
 }
 
 const envPrefix = "APP_"

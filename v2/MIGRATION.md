@@ -1,60 +1,180 @@
-# Migration Guide
+# Migrating From v1 To v2
 
-Purpose:
-- Track compatibility-sensitive changes and provide upgrade guidance as the framework moves toward v1.0.
+v2 is a new Go major-version module and does not preserve v1 source
+compatibility. Migrate one service at a time and review generated output instead
+of mechanically replacing every import in a repository.
 
-## Current Status
+## Module Path
 
-There is no v1.0 compatibility promise yet. The current release posture is at `v1.6.0 Stable`.
+Change framework imports from:
 
-`v1.6.0` stabilizes the documented core runtime and `microgen` generated-output behavior, and now includes `interaction`, `interaction/mcp`, and generated interaction adapters in the stable scope.
+```go
+github.com/dreamsxin/go-kit/...
+```
 
-For now, treat these as compatibility-sensitive:
+to:
 
-- documented runtime package APIs
-- documented `microgen` CLI flags
-- generated project layout described in README and compatibility docs
-- generated config behavior
-- generated skill/MCP metadata behavior
-- extend-mode behavior for generated projects
+```go
+github.com/dreamsxin/go-kit/v2/...
+```
 
-## Upgrade Rules Before v1.0
+Then run:
 
-When upgrading between pre-v1 releases:
+```bash
+go mod tidy
+go test ./...
+```
 
-1. Read `CHANGELOG.md`.
-2. Read this file for any manual migration notes.
-3. Regenerate a disposable project with the new `microgen` and compare generated layout before applying the change to a maintained project.
-4. Run the generated project tests plus the smallest relevant framework validation loop.
+Do not add a local `replace` for v2 unless you are intentionally developing the
+framework and application together.
 
-## Known Migration Areas
+## `kit` Construction
 
-### Generated Interaction Protocols
+v1:
 
-Generated Proto gRPC streaming is part of the `v1.6.0` generated-output contract for supported Proto stream shapes.
+```go
+svc := kit.New(":8080", options...)
+```
 
-AI interaction adapters are now stable surfaces.
+v2:
 
-Expected migration risk:
+```go
+svc, err := kit.New(":8080", options...)
+if err != nil {
+	return err
+}
+```
 
-- AI interaction adapters may change before v1.0
-- AI interaction session/event envelope may change before v1.0
+Options validate during construction and return errors instead of panicking.
+`kit.MustNew` remains available for tests and small examples.
 
-Migration guidance is documented in CHANGELOG.md.
+## `kit` Lifecycle
 
-### Generated Project Ownership
+v1 owned process signals inside the framework:
 
-Generated projects distinguish user-owned files from generator-owned files.
+```go
+svc.Run()
+```
 
-Do not hand-edit generator-owned files such as:
+v2 requires a caller-owned context and returns startup, serve, and shutdown
+errors:
 
-- `cmd/generated_*.go`
-- `endpoint/<svc>/generated_chain.go`
-- `model/generated_*.go`
-- `repository/generated_*.go`
-- `client/`
-- `sdk/`
-- `skill/`
-- generated `pb/` files
+```go
+ctx, stop := signal.NotifyContext(
+	context.Background(),
+	os.Interrupt,
+	syscall.SIGTERM,
+)
+defer stop()
 
-Use `microgen extend -check -out <project>` before applying extend operations to an existing generated project.
+if err := svc.Run(ctx); err != nil {
+	return err
+}
+```
+
+Use `kit.WithShutdownTimeout` to configure the graceful-shutdown deadline.
+Service instances cannot be restarted after shutdown.
+
+## gRPC Registration
+
+v1:
+
+```go
+grpcServer := svc.GRPCServer()
+```
+
+v2:
+
+```go
+grpcServer, err := svc.GRPCServer()
+if err != nil {
+	return err
+}
+```
+
+`WithGRPC` must be configured before requesting the server.
+
+## HTTP Route Registration
+
+Business JSON routes should use:
+
+```go
+kit.HandleJSON[Request](svc, "/route", handler)
+```
+
+or:
+
+```go
+kit.HandleJSONEndpoint[Request](svc, "/route", ep)
+```
+
+`Service.Handle` and `Service.HandleFunc` are raw HTTP escape hatches and do not
+apply endpoint middleware. Code that previously expected endpoint metrics,
+logging, timeout, rate limit, or circuit breaking around a raw handler must move
+to an endpoint-backed registration path.
+
+## Service Discovery
+
+The v2 `Instancer` registration contract returns the initial snapshot
+synchronously:
+
+```go
+Register(chan events.Event) events.Event
+Deregister(chan events.Event)
+```
+
+Custom instancers must return an immutable current event and publish later
+updates through the registered buffered channel. Do not close subscriber channels
+from the producer.
+
+## Generated Configuration
+
+v2 generated config uses this precedence:
+
+```text
+defaults -> local YAML -> optional remote config -> final environment overrides -> validation
+```
+
+`Config.Validate()` runs before runtime wiring. Existing deployments should
+verify address, timeout, logging, database, middleware, and remote-provider
+values instead of relying on zero values.
+
+Database `AutoMigrate` is disabled by default. Enable it explicitly only when
+startup schema mutation is intended.
+
+## Generated Projects
+
+Regenerate into a new directory and compare ownership boundaries before replacing
+an existing v1 project:
+
+```bash
+microgen -idl idl.go -out ./v2-preview -import example.com/service
+cd v2-preview
+go mod tidy
+go test ./...
+```
+
+Do not overwrite user-owned service implementations with generated files. For a
+v2-generated project, use `microgen extend -check -out .` before extend mode.
+
+## Interaction And MCP
+
+Re-test MCP clients against the generated v2 endpoint. Configure HTTP write
+timeouts for long-lived SSE responses, keep request-body limits enabled, and
+validate the negotiated protocol version.
+
+In-memory resource and prompt providers now copy mutable inputs and no longer
+invoke prompt render callbacks while holding provider locks. Code that depended
+on mutating registered slices or maps must update through provider APIs instead.
+
+## Migration Checklist
+
+- Update module imports to `/v2`.
+- Handle `kit.New`, `Run`, and `GRPCServer` errors.
+- Move signal handling to `main`.
+- Register business routes through endpoint-backed APIs.
+- Update custom service-discovery implementations.
+- Review generated config precedence and validation.
+- Confirm `AutoMigrate` policy.
+- Run package tests and race tests.
+- Exercise shutdown and long-lived MCP responses.

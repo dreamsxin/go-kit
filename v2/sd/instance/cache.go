@@ -56,21 +56,22 @@ func (c *Cache) State() events.Event {
 // 预留
 func (c *Cache) Stop() {}
 
-// Register subscribes ch to future events.  The current state is sent
-// immediately so the subscriber starts with a consistent view.
-func (c *Cache) Register(ch chan<- events.Event) {
+// Register subscribes ch to future events and synchronously returns the current
+// state so callers can initialize before processing asynchronous updates.
+func (c *Cache) Register(ch chan events.Event) events.Event {
+	if ch == nil {
+		return c.State()
+	}
 	c.mtx.Lock()
 	c.reg.register(ch)
 	event := c.state
 	eventCopy := copyEvent(event)
 	c.mtx.Unlock()
-
-	// send current state immediately so the subscriber starts consistent
-	ch <- eventCopy
+	return eventCopy
 }
 
 // Deregister removes ch from the subscriber list.
-func (c *Cache) Deregister(ch chan<- events.Event) {
+func (c *Cache) Deregister(ch chan events.Event) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	c.reg.deregister(ch)

@@ -2,7 +2,10 @@ package kit
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc"
@@ -32,14 +35,25 @@ type Service struct {
 	grpcAddr   string
 	grpcServer *grpc.Server
 	grpcOpts   []grpc.ServerOption
+
+	lifecycleMu     sync.Mutex
+	started         bool
+	stopped         bool
+	shutdownTimeout time.Duration
 }
 
 // Option configures a Service.
-type Option func(*Service)
+type Option func(*Service) error
 
 // New creates a Service listening on addr (for example ":8080").
-func New(addr string, opts ...Option) *Service {
-	logger, _ := kitlog.NewDevelopment()
+func New(addr string, opts ...Option) (*Service, error) {
+	if strings.TrimSpace(addr) == "" {
+		return nil, fmt.Errorf("kit: HTTP address cannot be empty")
+	}
+	logger, err := kitlog.NewDevelopment()
+	if err != nil {
+		return nil, fmt.Errorf("kit: create default logger: %w", err)
+	}
 	s := &Service{
 		addr:             addr,
 		mux:              http.NewServeMux(),
@@ -47,11 +61,27 @@ func New(addr string, opts ...Option) *Service {
 		jsonMaxBodyBytes: DefaultJSONMaxBodyBytes,
 		healthTimeout:    DefaultHealthCheckTimeout,
 		serveErrors:      make(chan error, 2),
+		shutdownTimeout:  DefaultShutdownTimeout,
 	}
-	for _, o := range opts {
-		o(s)
+	for i, option := range opts {
+		if option == nil {
+			return nil, fmt.Errorf("kit: option %d is nil", i)
+		}
+		if err := option(s); err != nil {
+			return nil, fmt.Errorf("kit: apply option %d: %w", i, err)
+		}
 	}
 	s.registerHealthEndpoints()
+	return s, nil
+}
+
+// MustNew creates a Service and panics if its configuration is invalid.
+// It is intended for tests and small examples; production startup should use New.
+func MustNew(addr string, opts ...Option) *Service {
+	s, err := New(addr, opts...)
+	if err != nil {
+		panic(err)
+	}
 	return s
 }
 

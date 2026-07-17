@@ -30,20 +30,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/mux"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-
+	"example.com/gen_idl_rerun/repository"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"example.com/gen_idl_rerun/repository"
 
-	httpSwagger "github.com/swaggo/http-swagger"
+	"example.com/gen_idl_rerun/config"
 	docs "example.com/gen_idl_rerun/docs"
 	"example.com/gen_idl_rerun/skill"
-	"example.com/gen_idl_rerun/config"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 func printBanner(logger *kitlog.Logger, httpAddr string, withSwag bool, withSkill bool) {
@@ -93,7 +92,6 @@ func newConfiguredLogger(cfg config.LoggingConfig) (*kitlog.Logger, error) {
 	return zapConfig.Build()
 }
 
-
 func main() {
 	configPath := flag.String("config", "config/config.yaml", "path to config file")
 	flag.CommandLine.Parse(filterArgs(os.Args[1:], "-config"))
@@ -104,13 +102,12 @@ func main() {
 	}
 
 	var (
-		httpAddr = flag.String("http.addr", cfg.Server.HTTPAddr, "HTTP listen address")
-		dsn = flag.String("db.dsn", cfg.Database.DSN, "mysql DSN")
+		httpAddr    = flag.String("http.addr", cfg.Server.HTTPAddr, "HTTP listen address")
+		dsn         = flag.String("db.dsn", cfg.Database.DSN, "mysql DSN")
 		autoMigrate = flag.Bool("auto-migrate", cfg.Database.AutoMigrate, "run database AutoMigrate on startup")
 	)
 	flag.Parse()
 	cfg.Database.AutoMigrate = *autoMigrate
-
 
 	logger, err := newConfiguredLogger(cfg.Logging)
 	if err != nil {
@@ -118,7 +115,6 @@ func main() {
 	}
 	defer logger.Sync() //nolint:errcheck
 	logger.Sugar().Infof("Config loaded from: %s", *configPath)
-
 
 	db, err := gorm.Open(mysql.Open(*dsn), &gorm.Config{})
 	if err != nil {
@@ -133,11 +129,8 @@ func main() {
 
 	repoDB := repository.NewDB(db)
 
-
 	generated := initGeneratedServices(logger, cfg, repoDB)
 	runtime := generated.generatedRuntime()
-
-
 
 	if cfg.Database.AutoMigrate {
 		if err := runtime.autoMigrate(db); err != nil {
@@ -147,7 +140,6 @@ func main() {
 	} else {
 		logger.Sugar().Info("DB migration skipped")
 	}
-
 
 	r := mux.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
@@ -165,8 +157,6 @@ func main() {
 	}).Methods("GET", "HEAD")
 
 	r.HandleFunc("/skill", skill.Handler).Methods("GET")
-
-
 
 	{
 		swaggerHost := cfg.Server.SwaggerHost
@@ -188,23 +178,20 @@ func main() {
 		httpSwagger.DocExpansion("list"),
 	))
 
-
 	runtime.registerRoutes(r)
 	customRoutes := registerCustomRoutes(r)
 
 	if cfg.Debug.RoutesEnabled {
-	r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, true, true))
-	}).Methods("GET")
+		r.HandleFunc("/debug/routes", func(w http.ResponseWriter, req *http.Request) {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, true, true))
+		}).Methods("GET")
 	}
-
 
 	allRoutes := generatedRouteEntries(runtime, customRoutes, true, true)
 	if cfg.Debug.PrintRoutes {
 		printAllRoutes(logger, allRoutes)
 	}
-
 
 	httpServer := &http.Server{
 		Addr:         *httpAddr,
@@ -219,8 +206,6 @@ func main() {
 			logger.Sugar().Fatalf("FATAL: HTTP server: %v", err)
 		}
 	}()
-
-
 
 	printBanner(logger, *httpAddr, true, true)
 

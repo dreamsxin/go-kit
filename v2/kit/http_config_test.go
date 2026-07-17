@@ -1,6 +1,7 @@
 package kit
 
 import (
+	"context"
 	"errors"
 	"net"
 	"testing"
@@ -15,7 +16,7 @@ func TestWithHTTPServerConfig(t *testing.T) {
 		IdleTimeout:       30 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}
-	svc := New(":0", WithHTTPServerConfig(want))
+	svc := MustNew(":0", WithHTTPServerConfig(want))
 	if svc.httpConfig != want {
 		t.Fatalf("http config: got %#v, want %#v", svc.httpConfig, want)
 	}
@@ -31,18 +32,24 @@ func TestWithHTTPServerConfigRejectsNegativeValues(t *testing.T) {
 	}
 	for _, config := range tests {
 		t.Run("invalid", func(t *testing.T) {
-			defer func() {
-				if recover() == nil {
-					t.Fatal("expected panic")
-				}
-			}()
-			WithHTTPServerConfig(config)
+			if _, err := New(":0", WithHTTPServerConfig(config)); err == nil {
+				t.Fatal("expected invalid HTTP server config error")
+			}
 		})
 	}
 }
 
+func TestNewRejectsInvalidBaseConfiguration(t *testing.T) {
+	if _, err := New(""); err == nil {
+		t.Fatal("expected empty HTTP address error")
+	}
+	if _, err := New(":0", nil); err == nil {
+		t.Fatal("expected nil option error")
+	}
+}
+
 func TestServiceErrors(t *testing.T) {
-	svc := New(":0")
+	svc := MustNew(":0")
 	want := errors.New("serve failed")
 	svc.reportServeError(want)
 	select {
@@ -62,11 +69,67 @@ func TestStartClosesHTTPListenerWhenGRPCBindFails(t *testing.T) {
 	}
 	defer occupied.Close()
 
-	svc := New(":0", WithGRPC(occupied.Addr().String()))
+	svc := MustNew(":0", WithGRPC(occupied.Addr().String()))
 	if err := svc.Start(); err == nil {
 		t.Fatal("expected gRPC bind error")
 	}
 	if svc.srv != nil {
 		t.Fatal("HTTP server should not start when gRPC bind fails")
+	}
+}
+
+func TestRunStopsOnContextCancellation(t *testing.T) {
+	svc := MustNew(":0", WithShutdownTimeout(time.Second))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := svc.Run(ctx); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+}
+
+func TestRunReturnsAsynchronousServeError(t *testing.T) {
+	svc := MustNew(":0", WithShutdownTimeout(time.Second))
+	want := errors.New("serve failed")
+	done := make(chan error, 1)
+	go func() { done <- svc.Run(context.Background()) }()
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		svc.lifecycleMu.Lock()
+		started := svc.started
+		svc.lifecycleMu.Unlock()
+		if started {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("service did not start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	svc.reportServeError(want)
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, want) {
+			t.Fatalf("Run error: got %v, want %v", err, want)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not stop after serve error")
+	}
+}
+
+func TestServiceCannotStartTwiceOrRestart(t *testing.T) {
+	svc := MustNew(":0")
+	if err := svc.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if err := svc.Start(); err == nil {
+		t.Fatal("expected second Start to fail")
+	}
+	if err := svc.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown: %v", err)
+	}
+	if err := svc.Start(); err == nil {
+		t.Fatal("expected restart after Shutdown to fail")
 	}
 }

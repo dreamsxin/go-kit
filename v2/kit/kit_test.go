@@ -38,7 +38,7 @@ func helloHandler(_ context.Context, req helloReq) (any, error) {
 // This mirrors the recommended kit.HandleJSON pattern.
 func newSvc(t *testing.T, opts ...kit.Option) (*kit.Service, *httptest.Server) {
 	t.Helper()
-	svc := kit.New(":0", opts...)
+	svc := kit.MustNew(":0", opts...)
 	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc) // Service implements http.Handler
 	t.Cleanup(ts.Close)
@@ -59,7 +59,7 @@ func freeTCPAddr(t *testing.T) string {
 
 // TestReadme_QuickStart verifies the exact pattern shown in README.md works.
 func TestReadme_QuickStart(t *testing.T) {
-	svc := kit.New(":0")
+	svc := kit.MustNew(":0")
 	kit.HandleJSON[helloReq](svc, "/hello", func(_ context.Context, req helloReq) (any, error) {
 		return helloResp{Message: "Hello, " + req.Name + "!"}, nil
 	})
@@ -89,7 +89,7 @@ func TestReadme_WithMiddleware(t *testing.T) {
 	logger := kitlog.NewNopLogger()
 	var metrics endpoint.Metrics
 
-	svc := kit.New(":0",
+	svc := kit.MustNew(":0",
 		kit.WithRateLimit(100),
 		kit.WithCircuitBreaker(5),
 		kit.WithTimeout(5*time.Second),
@@ -120,8 +120,12 @@ func TestReadme_WithMiddleware(t *testing.T) {
 func TestReadme_WithGRPC_LiveRPC(t *testing.T) {
 	grpcAddr := freeTCPAddr(t)
 
-	svc := kit.New(":0", kit.WithGRPC(grpcAddr))
-	testpb.RegisterTestServer(svc.GRPCServer(), testgrpc.NewBinding(testgrpc.NewService()))
+	svc := kit.MustNew(":0", kit.WithGRPC(grpcAddr))
+	grpcServer, err := svc.GRPCServer()
+	if err != nil {
+		t.Fatalf("GRPCServer: %v", err)
+	}
+	testpb.RegisterTestServer(grpcServer, testgrpc.NewBinding(testgrpc.NewService()))
 
 	if err := svc.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -158,7 +162,7 @@ func TestReadme_WithGRPC_LiveRPC(t *testing.T) {
 // ── Service implements http.Handler ──────────────────────────────────────────
 
 func TestService_ImplementsHTTPHandler(t *testing.T) {
-	svc := kit.New(":0")
+	svc := kit.MustNew(":0")
 	var _ http.Handler = svc // compile-time check
 }
 
@@ -404,7 +408,7 @@ func TestKitJSON_MultipleRequests(t *testing.T) {
 // ── Handle / HandleFunc ───────────────────────────────────────────────────────
 
 func TestService_Handle(t *testing.T) {
-	svc := kit.New(":0")
+	svc := kit.MustNew(":0")
 	svc.Handle("/hello", kit.JSON[helloReq](helloHandler))
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -421,7 +425,7 @@ func TestService_Handle(t *testing.T) {
 }
 
 func TestService_HandleFunc(t *testing.T) {
-	svc := kit.New(":0")
+	svc := kit.MustNew(":0")
 	svc.HandleFunc("/ping", func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("pong")) //nolint:errcheck
 	})
@@ -440,7 +444,7 @@ func TestService_HandleFunc(t *testing.T) {
 
 func TestService_HandleFunc_DoesNotApplyEndpointMiddleware(t *testing.T) {
 	var m endpoint.Metrics
-	svc := kit.New(":0", kit.WithMetrics(&m))
+	svc := kit.MustNew(":0", kit.WithMetrics(&m))
 	svc.HandleFunc("/plain", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "plain failure", http.StatusInternalServerError)
 	})
@@ -463,7 +467,7 @@ func TestService_HandleFunc_DoesNotApplyEndpointMiddleware(t *testing.T) {
 // ── HandleJSON ───────────────────────────────────────────────────────────────
 
 func TestService_HandleJSON(t *testing.T) {
-	svc := kit.New(":0")
+	svc := kit.MustNew(":0")
 	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -481,7 +485,7 @@ func TestService_HandleJSON(t *testing.T) {
 
 func TestService_HandleJSON_AppliesEndpointMiddlewareToBusinessErrors(t *testing.T) {
 	var m endpoint.Metrics
-	svc := kit.New(":0", kit.WithMetrics(&m))
+	svc := kit.MustNew(":0", kit.WithMetrics(&m))
 	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -509,7 +513,7 @@ func TestService_HandleJSON_AppliesEndpointMiddlewareToBusinessErrors(t *testing
 
 func TestService_HandleJSON_UsesStrictDecode(t *testing.T) {
 	called := false
-	svc := kit.New(":0")
+	svc := kit.MustNew(":0")
 	kit.HandleJSON[helloReq](svc, "/hello", func(_ context.Context, _ helloReq) (any, error) {
 		called = true
 		return helloResp{Message: "ok"}, nil
@@ -531,7 +535,7 @@ func TestService_HandleJSON_UsesStrictDecode(t *testing.T) {
 }
 
 func TestService_HandleJSON_WithRequestID(t *testing.T) {
-	svc := kit.New(":0", kit.WithRequestID())
+	svc := kit.MustNew(":0", kit.WithRequestID())
 	kit.HandleJSON[helloReq](svc, "/id", func(ctx context.Context, req helloReq) (any, error) {
 		return map[string]string{
 			"id":      endpoint.RequestIDFromContext(ctx),
@@ -570,7 +574,7 @@ func TestService_HandleJSON_WithRequestID(t *testing.T) {
 // ── Start / Shutdown ──────────────────────────────────────────────────────────
 
 func TestService_StartShutdown(t *testing.T) {
-	svc := kit.New(":0")
+	svc := kit.MustNew(":0")
 	if err := svc.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -582,7 +586,7 @@ func TestService_StartShutdown(t *testing.T) {
 }
 
 func TestService_ShutdownWithoutStart(t *testing.T) {
-	svc := kit.New(":0")
+	svc := kit.MustNew(":0")
 	if err := svc.Shutdown(context.Background()); err != nil {
 		t.Errorf("Shutdown without Start: %v", err)
 	}
@@ -609,7 +613,7 @@ func TestService_WithMetrics_TracksRequests(t *testing.T) {
 // ── WithTimeout ───────────────────────────────────────────────────────────────
 
 func TestService_WithTimeout_CancelsSlowHandler(t *testing.T) {
-	svc := kit.New(":0", kit.WithTimeout(20*time.Millisecond))
+	svc := kit.MustNew(":0", kit.WithTimeout(20*time.Millisecond))
 	kit.HandleJSON[helloReq](svc, "/slow", func(ctx context.Context, _ helloReq) (any, error) {
 		select {
 		case <-time.After(5 * time.Second):
@@ -669,7 +673,7 @@ func TestService_WithLogging_NilLogger_DoesNotPanic(t *testing.T) {
 // accepted and the service starts correctly. Circuit breaker behavior at the
 // endpoint level is tested in endpoint/circuitbreaker package.
 func TestService_WithCircuitBreaker(t *testing.T) {
-	svc := kit.New(":0", kit.WithCircuitBreaker(2))
+	svc := kit.MustNew(":0", kit.WithCircuitBreaker(2))
 	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -686,7 +690,7 @@ func TestService_WithCircuitBreaker(t *testing.T) {
 }
 
 func TestService_WithCircuitBreaker_IsPerJSONRoute(t *testing.T) {
-	svc := kit.New(":0", kit.WithCircuitBreaker(1))
+	svc := kit.MustNew(":0", kit.WithCircuitBreaker(1))
 	kit.HandleJSON[helloReq](svc, "/bad", func(context.Context, helloReq) (any, error) {
 		return nil, errors.New("boom")
 	})
@@ -718,7 +722,7 @@ func TestService_WithCircuitBreaker_IsPerJSONRoute(t *testing.T) {
 
 func TestService_WithRateLimit_AllowsAndRejects(t *testing.T) {
 	// burst=1 at near-zero rate: first call allowed, subsequent rejected
-	svc := kit.New(":0", kit.WithRateLimit(0.001))
+	svc := kit.MustNew(":0", kit.WithRateLimit(0.001))
 	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -740,7 +744,7 @@ func TestService_WithRateLimit_AllowsAndRejects(t *testing.T) {
 // ── WithRequestID ─────────────────────────────────────────────────────────────
 
 func TestService_WithRequestID(t *testing.T) {
-	svc := kit.New(":0", kit.WithRequestID())
+	svc := kit.MustNew(":0", kit.WithRequestID())
 	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -760,7 +764,7 @@ func TestService_WithRequestID(t *testing.T) {
 }
 
 func TestService_WithRequestID_PreservesIncomingHeader(t *testing.T) {
-	svc := kit.New(":0", kit.WithRequestID())
+	svc := kit.MustNew(":0", kit.WithRequestID())
 	kit.HandleJSON[helloReq](svc, "/id", func(ctx context.Context, req helloReq) (any, error) {
 		return map[string]string{
 			"id":      endpoint.RequestIDFromContext(ctx),
@@ -796,89 +800,94 @@ func TestService_WithRequestID_PreservesIncomingHeader(t *testing.T) {
 	}
 }
 
-func TestKitOptions_PanicOnInvalidConfiguration(t *testing.T) {
+func TestKitOptions_ReturnErrorsForInvalidConfiguration(t *testing.T) {
 	tests := []struct {
-		name string
-		run  func()
+		name   string
+		option kit.Option
 	}{
 		{
-			name: "rate limit <= 0",
-			run:  func() { kit.WithRateLimit(0) },
+			name:   "rate limit <= 0",
+			option: kit.WithRateLimit(0),
 		},
 		{
-			name: "timeout <= 0",
-			run:  func() { kit.WithTimeout(0) },
+			name:   "timeout <= 0",
+			option: kit.WithTimeout(0),
 		},
 		{
-			name: "circuit breaker threshold zero",
-			run:  func() { kit.WithCircuitBreaker(0) },
+			name:   "circuit breaker threshold zero",
+			option: kit.WithCircuitBreaker(0),
 		},
 		{
-			name: "grpc empty address",
-			run:  func() { kit.WithGRPC("") },
+			name:   "grpc empty address",
+			option: kit.WithGRPC(""),
 		},
 		{
-			name: "json max body bytes negative",
-			run:  func() { kit.WithJSONMaxBodyBytes(-1) },
+			name:   "json max body bytes negative",
+			option: kit.WithJSONMaxBodyBytes(-1),
 		},
 		{
-			name: "readiness check empty name",
-			run:  func() { kit.WithReadinessCheck("", kit.Healthy) },
+			name:   "readiness check empty name",
+			option: kit.WithReadinessCheck("", kit.Healthy),
 		},
 		{
-			name: "readiness check nil",
-			run:  func() { kit.WithReadinessCheck("db", nil) },
+			name:   "readiness check nil",
+			option: kit.WithReadinessCheck("db", nil),
 		},
 		{
-			name: "liveness check empty name",
-			run:  func() { kit.WithLivenessCheck("", kit.Healthy) },
+			name:   "liveness check empty name",
+			option: kit.WithLivenessCheck("", kit.Healthy),
 		},
 		{
-			name: "liveness check nil",
-			run:  func() { kit.WithLivenessCheck("process", nil) },
+			name:   "liveness check nil",
+			option: kit.WithLivenessCheck("process", nil),
 		},
 		{
-			name: "metrics nil",
-			run:  func() { kit.WithMetrics(nil) },
+			name:   "metrics nil",
+			option: kit.WithMetrics(nil),
+		},
+		{
+			name:   "shutdown timeout <= 0",
+			option: kit.WithShutdownTimeout(0),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer func() {
-				if recover() == nil {
-					t.Fatal("expected panic for invalid option configuration")
-				}
-			}()
-			tt.run()
+			if _, err := kit.New(":0", tt.option); err == nil {
+				t.Fatal("expected invalid option error")
+			}
 		})
 	}
 }
 
 // ── gRPC support ──────────────────────────────────────────────────────────────
 
-// TestService_WithGRPC_PanicsWithoutOption verifies GRPCServer() panics when
-// WithGRPC was not set.
-func TestService_WithGRPC_PanicsWithoutOption(t *testing.T) {
-	svc := kit.New(":0")
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("expected panic when calling GRPCServer() without WithGRPC option")
-		}
-	}()
-	svc.GRPCServer()
+// TestService_WithGRPC_ErrorsWithoutOption verifies GRPCServer reports missing
+// configuration explicitly.
+func TestService_WithGRPC_ErrorsWithoutOption(t *testing.T) {
+	svc := kit.MustNew(":0")
+	if _, err := svc.GRPCServer(); err == nil {
+		t.Fatal("expected GRPCServer error without WithGRPC")
+	}
 }
 
 // TestService_WithGRPC_ReturnsServer verifies GRPCServer() returns a non-nil
 // *grpc.Server when WithGRPC is set.
 func TestService_WithGRPC_ReturnsServer(t *testing.T) {
-	svc := kit.New(":0", kit.WithGRPC(":0"))
-	gs := svc.GRPCServer()
+	svc := kit.MustNew(":0", kit.WithGRPC(":0"))
+	gs, err := svc.GRPCServer()
+	if err != nil {
+		t.Fatalf("GRPCServer: %v", err)
+	}
 	if gs == nil {
 		t.Fatal("GRPCServer() returned nil")
 	}
 	// calling again returns the same instance
-	if svc.GRPCServer() != gs {
+	again, err := svc.GRPCServer()
+	if err != nil {
+		t.Fatalf("GRPCServer second call: %v", err)
+	}
+	if again != gs {
 		t.Error("GRPCServer() should return the same instance on repeated calls")
 	}
 }
@@ -886,7 +895,7 @@ func TestService_WithGRPC_ReturnsServer(t *testing.T) {
 // TestService_WithGRPC_StartShutdown verifies the gRPC server starts and
 // shuts down cleanly alongside the HTTP server.
 func TestService_WithGRPC_StartShutdown(t *testing.T) {
-	svc := kit.New(":0", kit.WithGRPC(":0"))
+	svc := kit.MustNew(":0", kit.WithGRPC(":0"))
 	// register nothing — just verify lifecycle
 	if err := svc.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -902,7 +911,7 @@ func TestService_WithGRPC_StartShutdown(t *testing.T) {
 // TestService_WithGRPC_HTTPStillWorks verifies HTTP continues to work when
 // gRPC is also enabled.
 func TestService_WithGRPC_HTTPStillWorks(t *testing.T) {
-	svc := kit.New(":0", kit.WithGRPC(":0"))
+	svc := kit.MustNew(":0", kit.WithGRPC(":0"))
 	svc.Handle("/hello", kit.JSON[helloReq](helloHandler))
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -954,7 +963,7 @@ func TestThreeLayer_ServiceEndpointTransport(t *testing.T) {
 	// Endpoint + Transport layer — kit.HandleJSON registers the service method
 	// and applies service-level middleware (metrics, timeout, etc.)
 	var m endpoint.Metrics
-	service := kit.New(":0", kit.WithMetrics(&m))
+	service := kit.MustNew(":0", kit.WithMetrics(&m))
 	kit.HandleJSON[createUserReq](service, "/users", func(ctx context.Context, req createUserReq) (any, error) {
 		return svc.CreateUser(ctx, req)
 	})

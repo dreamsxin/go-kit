@@ -2,12 +2,12 @@
 package main
 
 import (
+	"example.com/gen_idl_default_flags/config"
+	userserviceEndpoint "example.com/gen_idl_default_flags/endpoint/userservice"
+	"example.com/gen_idl_default_flags/repository"
+	userserviceSvc "example.com/gen_idl_default_flags/service/userservice"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"time"
-	"example.com/gen_idl_default_flags/config"
-	"example.com/gen_idl_default_flags/repository"
-	userserviceEndpoint "example.com/gen_idl_default_flags/endpoint/userservice"
-	userserviceSvc "example.com/gen_idl_default_flags/service/userservice"
 )
 
 type generatedServices struct {

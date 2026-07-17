@@ -16,5 +16,4 @@ require (
 
 replace github.com/dreamsxin/go-kit/v2 => ../../..
 
-
 require example.com/custom v0.0.0

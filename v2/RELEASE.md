@@ -1,156 +1,81 @@
-# Release Policy
+# v2 Release Policy
 
-Purpose:
-- Define how this framework moves from beta-quality internal adoption toward an industrial v1.0 release.
+## Current Position
 
-## Current Release Position
-
-`go-kit` is preparing for:
+v2 is under active development in the independent module:
 
 ```text
-v1.6.0 Stable
+github.com/dreamsxin/go-kit/v2
 ```
 
-Stable in this release means:
+Until v2.0.0 is tagged, exported APIs, CLI flags, and generated layouts may
+change without compatibility shims. Changes must still be tested and documented.
+v1 release history remains in the repository root and is not duplicated here.
 
-- the core `service -> endpoint -> transport` runtime layering is the supported product contract
-- documented `kit`, `endpoint`, HTTP transport, service discovery, logging, and `microgen` CLI behavior are compatibility-sensitive
-- generated unary HTTP/gRPC projects, config loading, extend mode, AI skill metadata, and Proto gRPC streaming generation are covered by release validation
+## Versioning
 
-All surfaces including interaction, interaction/mcp, and generated interaction adapters are now part of the stable scope.
+v2 follows semantic versioning after v2.0.0:
 
-## Version Targets
+- patch: compatible fixes and documentation corrections;
+- minor: backward-compatible public capabilities;
+- major: incompatible runtime API, module, CLI, configuration, or generated
+  ownership changes.
 
-### v0.8 Beta
+The compatibility contract includes:
 
-Scope:
+- exported runtime APIs;
+- module and package paths;
+- documented `microgen` flags;
+- generated user-owned file locations;
+- documented generated configuration keys and precedence;
+- protocol behavior documented as stable.
 
-- unary HTTP and unary gRPC runtime support
-- `microgen` generation from Go IDL, Proto, and DB schema
-- generated README, SDK, client, config, and AI skill metadata
-- extend mode for generated projects
-- integration coverage for generated project build/run paths
+Templates and packages under `cmd/microgen` are internal implementation details,
+but their generated public behavior is a product surface.
 
-Release posture:
+## v2.0.0 Entry Criteria
 
-- suitable for internal production trials where the owning team accepts framework evolution
-- not yet a long-term compatibility promise
-
-### v0.9 AI Interaction
-
-Scope:
-
-- IR support for interaction method kinds
-- gRPC server-stream, client-stream, and bidirectional-stream generation, implemented through generated server adapters, transport client helpers, SDK streaming clients, and success-path integration tests
-- AI interaction runtime for sessions, events, tool calls, cancellation, and audit hooks
-- generated examples and integration tests for streaming flows
-
-Release posture:
-
-- APIs are stable
-- documented in standard release docs and generated README output
-
-### v1.0 Industrial
-
-Scope:
-
-- stable API and generated-output compatibility contract
-- release notes and migration notes for every compatibility-affecting change
-- production security hooks for authn/authz, request limits, and generated project hardening
-- OpenTelemetry tracing and metrics guidance
-- streaming and AI interaction lifecycle tests
-- CI matrix covering supported Go versions and required toolchains
-
-Release posture:
-
-- stable public framework release
-- breaking changes require a documented migration path
-
-### v1.5.0 Stable
-
-Scope:
-
-- stable core runtime and documented `microgen` generation behavior
-- generated Proto gRPC streaming support promoted from preview candidate to stable generated-output behavior for supported Proto stream shapes
-- AI interaction runtime and generated interaction adapters are promoted to stable scope
-
-Release posture:
-
-- suitable for stable adoption of the documented core framework and generator surfaces
-- all packages follow standard changelog and migration practices
-
-### v1.6.0 Stable
-
-Scope:
-
-- all v1.5.0 stable scope preserved
-- `interaction` and `interaction/mcp` promoted from preview to stable: full MCP 2025-06-18 protocol with Streamable HTTP transport, sampling, notifications, completions, logging, resources, and prompts
-- generated interaction adapters promoted to stable scope
-- unified `ToolFunc` with optional `Description`/`Schema`, `NewRuntime()` builder pattern, `NewHandler` alias for `NewStreamableHandler`
-- session TTL with background cleanup, error propagation in list handlers, race condition fix in sampling
-
-Release posture:
-
-- all surfaces are now stable and compatibility-sensitive
-- breaking changes require documented migration paths
-
-## v1.5.0 Stable Checklist
-
-- [x] Stable scope includes interaction and interaction/mcp surfaces
-- [x] Stable package surfaces are documented in [STABILITY.md](STABILITY.md)
-- [x] Generated output compatibility expectations are documented in [MICROGEN_COMPATIBILITY.md](MICROGEN_COMPATIBILITY.md)
-- [x] `CHANGELOG.md` distinguishes stable and preview changes
-- [x] gRPC streaming support is documented and integration-tested for success, errors, cancellation, backpressure, and slow-consumer behavior
-- [x] AI interaction runtime has package tests, MCP endpoint tests, policy hook tests, and an example
-- [x] Final release validation passes on the release commit
-- [x] `CHANGELOG.md` has a `v1.5.0` section with date and stable/preview split
-- [ ] Annotated `v1.5.0` tag points at the release commit
-
-## v1.6.0 Stable Checklist
-
-- [x] All preview surfaces promoted to stable in STABILITY.md
-- [x] CHANGELOG.md has v1.6.0 section with date and breaking changes
-- [x] Breaking changes documented in MIGRATION.md
-- [x] `make verify` passes
-- [ ] Annotated `v1.6.0` tag points at the release commit
-
-## v1.0 Checklist
-
-- [ ] Public API freeze for stable packages in `STABILITY.md`
-- [ ] Generated output compatibility freeze for documented `microgen` defaults
-- [ ] `CHANGELOG.md` maintained for user-visible changes
-- [ ] `MIGRATION.md` documents breaking or compatibility-sensitive moves
-- [ ] gRPC streaming support documented and integration-tested for success, errors, cancellation, and slow-consumer behavior
-- [ ] AI interaction runtime documented and integration-tested
-- [x] Auth, limits, and audit hooks documented for generated services
-- [x] OpenTelemetry tracing/metrics guidance documented
-- [ ] Release validation command set documented and repeatable
+- `kit`, endpoint, HTTP/gRPC transport, service discovery, and interaction
+  lifecycles have explicit error and cancellation contracts.
+- Generated projects use the `/v2` module and build outside the framework
+  repository.
+- Go IDL, Protobuf, database, config, extend, and interaction generation paths
+  have deterministic integration tests.
+- Generated configuration validates before runtime wiring.
+- Database introspection is read-only and startup migration is opt-in.
+- HTTP/MCP limits, protocol checks, streaming timeouts, and concurrency behavior
+  are covered by tests.
+- README quick starts and migration examples compile against the release API.
+- `go test ./...` and the targeted race suite pass on a clean checkout.
+- `CHANGELOG.md` contains only v2 history and has no unresolved release blockers.
 
 ## Release Validation
 
-Minimum release candidate loop:
+Run from `v2`:
 
 ```bash
-go test ./cmd/microgen/... -count=1
-go test ./tools/... -run "Test(Microgen|ReadmeQuickStartSmoke)" -count=1 -v
-go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils -count=1
-go test ./tools/... -run TestSKILL -count=1 -v
-go test ./interaction/... ./examples/interaction_policy/... -count=1
-git diff --check
+go test ./...
+go test -race ./kit ./interaction ./sd/... ./cmd/microgen/generator
+go vet ./...
 ```
 
-For `v1.6.0`, this loop is the required release validation.
+Generate external smoke projects for each affected source mode and run:
 
-Current open release gaps before `v1.6.0`:
+```bash
+go mod tidy
+go test ./...
+```
 
-- Create an annotated `v1.6.0` tag.
-- `interaction` and `interaction/mcp` are now part of the stable scope.
+Also verify:
 
-Latest validation result for `v1.5.0`:
+- repeat generation produces no second-run diff;
+- `git diff --check` passes;
+- documentation links resolve;
+- no temporary generated files remain;
+- the tag is created from the commit containing `v2/go.mod`.
 
-- `go test ./cmd/microgen/... -count=1`: passed
-- `go test ./tools/... -run "Test(Microgen|ReadmeQuickStartSmoke)" -count=1 -v`: passed
-- `go test ./kit ./endpoint ./transport/... ./sd/... ./log ./utils -count=1`: passed
-- `go test ./tools/... -run TestSKILL -count=1 -v`: passed
-- `go test ./interaction/... ./examples/interaction_policy/... -count=1`: passed
-- `git diff --check`: passed
+## Release Notes
+
+Release notes should describe user-visible behavior, migration actions, and known
+limitations. Internal refactor details belong in commits or pull requests unless
+they explain an observable change.

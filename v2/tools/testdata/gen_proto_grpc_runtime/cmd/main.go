@@ -29,13 +29,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/mux"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"github.com/gorilla/mux"
 
 	"google.golang.org/grpc"
 	"net"
-
-
 )
 
 func printBanner(logger *kitlog.Logger, httpAddr string, grpcAddr string, withSwag bool, withSkill bool) {
@@ -59,7 +57,6 @@ func printAllRoutes(logger *kitlog.Logger, routes []generatedRouteEntry) {
 	}
 }
 
-
 func main() {
 	var (
 		httpAddr = flag.String("http.addr", ":8080", "HTTP listen address")
@@ -70,15 +67,8 @@ func main() {
 	logger, _ := kitlog.NewDevelopment()
 	defer logger.Sync() //nolint:errcheck
 
-
-
-
 	generated := initGeneratedServices(logger)
 	runtime := generated.generatedRuntime()
-
-
-
-
 
 	r := mux.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
@@ -95,11 +85,6 @@ func main() {
 		fmt.Fprintln(w, `{"status":"ok","service":"UserService"}`)
 	}).Methods("GET", "HEAD")
 
-
-
-
-
-
 	runtime.registerRoutes(r)
 	customRoutes := registerCustomRoutes(r)
 
@@ -108,10 +93,8 @@ func main() {
 		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, false, false))
 	}).Methods("GET")
 
-
 	allRoutes := generatedRouteEntries(runtime, customRoutes, false, false)
 	printAllRoutes(logger, allRoutes)
-
 
 	httpServer := &http.Server{
 		Addr:         *httpAddr,
@@ -138,7 +121,6 @@ func main() {
 			logger.Sugar().Fatalf("FATAL: gRPC server: %v", err)
 		}
 	}()
-
 
 	printBanner(logger, *httpAddr, *grpcAddr, false, false)
 

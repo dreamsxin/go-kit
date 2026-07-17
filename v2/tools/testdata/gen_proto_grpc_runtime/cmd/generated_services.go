@@ -2,9 +2,9 @@
 package main
 
 import (
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	userserviceEndpoint "example.com/gen_proto_grpc_runtime/endpoint/userservice"
 	userserviceSvc "example.com/gen_proto_grpc_runtime/service/userservice"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 type generatedServices struct {

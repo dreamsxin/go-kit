@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-
 	idl "example.com/gen_fromdb_sqlite"
 )
 
@@ -42,10 +41,7 @@ type Client interface {
 	DeleteUser(ctx context.Context, req idl.DeleteUserRequest) (idl.DeleteUserResponse, error)
 	// ListUsers - List Users
 	ListUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error)
-
 }
-
-
 
 // ─────────────────────────── HTTP Constructor ────────────────────────────────
 
@@ -97,8 +93,6 @@ func New(baseURL string, opts ...Option) Client {
 }
 
 // ─────────────────────────── gRPC Constructor ────────────────────────────────
-
-
 
 // ─────────────────────────── HTTP implementation ──────────────────────────────
 
@@ -191,7 +185,6 @@ func buildGETPath(path string, reqBody interface{}) string {
 	return path
 }
 
-
 func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	var resp idl.CreateUserResponse
 	err := c.do(ctx, "POST", "/user", req, &resp)
@@ -223,6 +216,5 @@ func (c *httpClient) ListUsers(ctx context.Context, req idl.ListUsersRequest) (i
 	err := c.do(ctx, "GET", path, nil, &resp)
 	return resp, err
 }
-
 
 // ─────────────────────────── gRPC implementation ──────────────────────────────

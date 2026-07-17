@@ -1,6 +1,9 @@
 package generator
 
 import (
+	"bytes"
+	"fmt"
+	"go/format"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -98,12 +101,38 @@ func (g *Generator) createDirStructure(services []*serviceView) error {
 }
 
 func (g *Generator) executeTemplate(templateName, filePath string, data any) error {
-	f, err := os.Create(filePath)
-	if err != nil {
-		return err
+	var rendered bytes.Buffer
+	if err := g.templates.ExecuteTemplate(&rendered, templateName, data); err != nil {
+		return fmt.Errorf("render %s: %w", templateName, err)
 	}
-	defer f.Close()
-	return g.templates.ExecuteTemplate(f, templateName, data)
+
+	content := rendered.Bytes()
+	if filepath.Ext(filePath) == ".go" {
+		formatted, err := format.Source(content)
+		if err != nil {
+			return fmt.Errorf("format generated Go file %s: %w", filePath, err)
+		}
+		content = formatted
+	} else {
+		content = normalizeGeneratedText(content)
+	}
+	if err := os.WriteFile(filePath, content, 0o644); err != nil {
+		return fmt.Errorf("write generated file %s: %w", filePath, err)
+	}
+	return nil
+}
+
+func normalizeGeneratedText(content []byte) []byte {
+	text := strings.ReplaceAll(string(content), "\r\n", "\n")
+	lines := strings.Split(text, "\n")
+	for i := range lines {
+		lines[i] = strings.TrimRight(lines[i], " \t")
+	}
+	text = strings.TrimRight(strings.Join(lines, "\n"), "\n")
+	if text == "" {
+		return nil
+	}
+	return []byte(text + "\n")
 }
 
 func toSnakeCase(s string) string {

@@ -2,9 +2,9 @@
 package main
 
 import (
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	userserviceEndpoint "example.com/gen_idl_extend_append_middleware/endpoint/userservice"
 	userserviceSvc "example.com/gen_idl_extend_append_middleware/service/userservice"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 type generatedServices struct {

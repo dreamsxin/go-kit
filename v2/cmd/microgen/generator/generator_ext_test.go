@@ -98,7 +98,8 @@ func TestGenerateFull_Interaction(t *testing.T) {
 	mustContain(t, interactionPath, `Name:        "CreateUser"`)
 	mustContain(t, interactionPath, `"username": map[string]interface{}{`)
 	mustContain(t, interactionPath, `"email": map[string]interface{}{`)
-	mustContain(t, interactionPath, `"type": "string"`)
+	mustContain(t, interactionPath, `"type":`)
+	mustContain(t, interactionPath, `"string"`)
 
 	guidePath := filepath.Join(outDir, ".ai", "PROJECT_GUIDE.md")
 	mustExist(t, guidePath)

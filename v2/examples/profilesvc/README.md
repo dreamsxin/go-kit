@@ -1,38 +1,37 @@
 # profilesvc
 
-This example demonstrates how to use Go kit to implement a REST-y HTTP service.
-It leverages the excellent [gorilla mux package](https://github.com/gorilla/mux) for routing.
+A complete REST-style example showing service, endpoint, middleware, HTTP
+transport, and a service-discovery-aware client.
 
-Run the example with the optional port address for the service:
+## Run
 
-```bash
-$ go run ./cmd/profilesvc/main.go -http.addr :8080
-ts=2018-05-01T16:13:12.849086255Z caller=main.go:47 transport=HTTP addr=:8080
-```
-
-Create a Profile:
+From the v2 module:
 
 ```bash
-$ curl -d '{"id":"1234","Name":"Go Kit"}' -H "Content-Type: application/json" -X POST http://localhost:8080/profiles/
-{}
+go run ./examples/profilesvc/cmd/profilesvc -http.addr=:8080
 ```
 
-Get the profile you just created
+Create and read a profile:
 
 ```bash
-$ curl localhost:8080/profiles/1234
-{"profile":{"id":"1234","name":"Go Kit"}}
+curl -X POST http://localhost:8080/profiles/ \
+  -H "Content-Type: application/json" \
+  -d '{"id":"1234","name":"Go Kit"}'
+
+curl http://localhost:8080/profiles/1234
 ```
 
-## 目录结构
+## Layout
 
-```plainText
-examples/profilesvc/
-├── README.md          # 使用说明文档
-├── client/client.go   # 服务客户端实现（含服务发现与负载均衡）
-├── cmd/profilesvc/main.go  # 服务启动入口
-├── service.go         # 业务逻辑定义（Profile CRUD接口）
-├── endpoints.go       # 端点封装（服务与传输层桥接）
-├── transport.go       # HTTP传输层实现
-└── middlewares.go     # 中间件（日志）
+```text
+profilesvc/
+|-- service.go              business interface and implementation
+|-- endpoints.go            endpoint adapters
+|-- middlewares.go          service middleware
+|-- transport.go            HTTP transport
+|-- client/client.go        discovery-aware client
+`-- cmd/profilesvc/main.go  process assembly
 ```
+
+This example demonstrates manual component assembly. For a new generated
+service, start with `microgen`; for a smaller assembly, see `examples/kit_basic`.

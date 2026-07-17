@@ -27,10 +27,9 @@ import (
 	"strings"
 	"time"
 
-
-	"google.golang.org/grpc"
-	"github.com/dreamsxin/go-kit/v2/endpoint"
 	svcTransport "example.com/gen_proto_component_flow/transport/userservice"
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"google.golang.org/grpc"
 
 	idl "example.com/gen_proto_component_flow/pb"
 )
@@ -45,12 +44,7 @@ type Client interface {
 	GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error)
 	// CreateUser - CreateUser creates a new user.
 	CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error)
-
 }
-
-
-
-
 
 // ─────────────────────────── HTTP Constructor ────────────────────────────────
 
@@ -103,21 +97,18 @@ func New(baseURL string, opts ...Option) Client {
 
 // ─────────────────────────── gRPC Constructor ────────────────────────────────
 
-
 // NewGRPC creates a UserService gRPC client.
 func NewGRPC(conn *grpc.ClientConn) Client {
 	return newGRPCClient(conn)
 }
 
-
 func newGRPCClient(conn *grpc.ClientConn) *grpcClient {
 	return &grpcClient{
-		getuser: svcTransport.NewGRPCGetUserClient(conn),
+		getuser:    svcTransport.NewGRPCGetUserClient(conn),
 		createuser: svcTransport.NewGRPCCreateUserClient(conn),
-		client: idl.NewUserServiceClient(conn),
+		client:     idl.NewUserServiceClient(conn),
 	}
 }
-
 
 // ─────────────────────────── HTTP implementation ──────────────────────────────
 
@@ -210,7 +201,6 @@ func buildGETPath(path string, reqBody interface{}) string {
 	return path
 }
 
-
 func (c *httpClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	var resp idl.GetUserResponse
 	path := buildGETPath("/getuser", req)
@@ -224,16 +214,13 @@ func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) 
 	return resp, err
 }
 
-
 // ─────────────────────────── gRPC implementation ──────────────────────────────
 
-
 type grpcClient struct {
-	getuser endpoint.Endpoint
+	getuser    endpoint.Endpoint
 	createuser endpoint.Endpoint
-	client idl.UserServiceClient
+	client     idl.UserServiceClient
 }
-
 
 func (c *grpcClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
 	resp, err := c.getuser(ctx, req)

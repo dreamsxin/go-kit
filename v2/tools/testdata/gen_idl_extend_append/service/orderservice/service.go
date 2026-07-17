@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	idl "example.com/gen_idl_extend_append"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 // OrderService defines the business contract.
@@ -14,18 +14,14 @@ type OrderService interface {
 
 	// PlaceOrder
 	PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (idl.PlaceOrderResponse, error)
-
-
-
-
 }
 
 // ServiceConfig controls generated service behavior.
 type ServiceConfig struct {
-	LogLevel      string        `json:"log_level"`
-	Timeout       time.Duration `json:"timeout"`
-	EnableLogging bool          `json:"enable_logging"`
-	EnableMetrics bool          `json:"enable_metrics"`
+	LogLevel      string         `json:"log_level"`
+	Timeout       time.Duration  `json:"timeout"`
+	EnableLogging bool           `json:"enable_logging"`
+	EnableMetrics bool           `json:"enable_metrics"`
 	Logger        *kitlog.Logger `json:"-"`
 }
 
@@ -34,7 +30,6 @@ var defaultConfig = &ServiceConfig{
 	Timeout:       30 * time.Second,
 	EnableLogging: true,
 }
-
 
 // NewService creates a service instance.
 func NewService(cfg *ServiceConfig) OrderService {
@@ -64,21 +59,15 @@ func newServiceImpl(cfg *ServiceConfig) OrderService {
 	return svc
 }
 
-
 type serviceImpl struct {
 	config *ServiceConfig
 	logger *kitlog.Logger
 }
 
-
 func (s *serviceImpl) PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (idl.PlaceOrderResponse, error) {
 	_ = req
 	return idl.PlaceOrderResponse{}, errors.New("PlaceOrder: not implemented")
 }
-
-
-
-
 
 type ServiceMiddleware func(OrderService) OrderService
 
@@ -93,7 +82,6 @@ type loggingMiddleware struct {
 	logger *kitlog.Logger
 }
 
-
 func (m *loggingMiddleware) PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (resp idl.PlaceOrderResponse, err error) {
 	start := time.Now()
 	defer func() {
@@ -106,10 +94,6 @@ func (m *loggingMiddleware) PlaceOrder(ctx context.Context, req idl.PlaceOrderRe
 	return m.next.PlaceOrder(ctx, req)
 }
 
-
-
-
-
 func MetricsMiddleware() ServiceMiddleware {
 	return func(next OrderService) OrderService {
 		return &metricsMiddleware{next: next}
@@ -119,7 +103,6 @@ func MetricsMiddleware() ServiceMiddleware {
 type metricsMiddleware struct {
 	next OrderService
 }
-
 
 func (m *metricsMiddleware) PlaceOrder(ctx context.Context, req idl.PlaceOrderRequest) (idl.PlaceOrderResponse, error) {
 	return m.next.PlaceOrder(ctx, req)

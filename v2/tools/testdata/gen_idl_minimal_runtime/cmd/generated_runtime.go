@@ -12,7 +12,7 @@ type generatedRouteEntry struct {
 }
 
 type generatedRuntime struct {
-	routeEntries []generatedRouteEntry
+	routeEntries   []generatedRouteEntry
 	httpRegistrars []func(*mux.Router)
 }
 

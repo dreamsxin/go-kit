@@ -86,7 +86,6 @@ func buildGETPath(path string, req interface{}) string {
 	return path
 }
 
-
 // CreateUser 通过 HTTP 调用 CreateUser
 func (c *CatalogServiceHTTPClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	var resp idl.CreateUserResponse
@@ -117,7 +116,6 @@ func (c *CatalogServiceHTTPClient) ListUsers(ctx context.Context, req idl.ListUs
 	return resp, c.do(ctx, "GET", buildGETPath("/users", req), nil, &resp)
 }
 
-
 // ─────────────────────────── 通用接口 ───────────────────────────
 
 // CatalogServiceClient 统一客户端接口（HTTP 和 gRPC 均实现该接口）
@@ -127,7 +125,6 @@ type CatalogServiceClient interface {
 	UpdateUser(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error)
 	DeleteUser(ctx context.Context, req idl.DeleteUserRequest) (idl.DeleteUserResponse, error)
 	ListUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error)
-
 }
 
 // ─────────────────────────── Demo logic ───────────────────────────

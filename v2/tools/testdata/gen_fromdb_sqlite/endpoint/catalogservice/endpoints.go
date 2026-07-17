@@ -5,20 +5,19 @@ import (
 	"errors"
 	"time"
 
-	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	idl "example.com/gen_fromdb_sqlite"
 	svc "example.com/gen_fromdb_sqlite/service/catalogservice"
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 // CatalogServiceEndpoints groups the generated endpoints.
 type CatalogServiceEndpoints struct {
 	CreateUserEndpoint endpoint.Endpoint
-	GetUserEndpoint endpoint.Endpoint
+	GetUserEndpoint    endpoint.Endpoint
 	UpdateUserEndpoint endpoint.Endpoint
 	DeleteUserEndpoint endpoint.Endpoint
-	ListUsersEndpoint endpoint.Endpoint
-
+	ListUsersEndpoint  endpoint.Endpoint
 }
 
 type MiddlewareConfig struct {
@@ -60,13 +59,12 @@ func MakeServerEndpointsWithConfig(
 	}
 	return CatalogServiceEndpoints{
 		CreateUserEndpoint: build(MakeCreateUserEndpoint(s), "CreateUser"),
-		GetUserEndpoint: build(MakeGetUserEndpoint(s), "GetUser"),
+		GetUserEndpoint:    build(MakeGetUserEndpoint(s), "GetUser"),
 		UpdateUserEndpoint: build(MakeUpdateUserEndpoint(s), "UpdateUser"),
 		DeleteUserEndpoint: build(MakeDeleteUserEndpoint(s), "DeleteUser"),
-		ListUsersEndpoint: build(MakeListUsersEndpoint(s), "ListUsers"),
+		ListUsersEndpoint:  build(MakeListUsersEndpoint(s), "ListUsers"),
 	}
 }
-
 
 func MakeCreateUserEndpoint(s svc.CatalogService) endpoint.Endpoint {
 	return func(ctx context.Context, request any) (any, error) {
@@ -123,8 +121,6 @@ func MakeListUsersEndpoint(s svc.CatalogService) endpoint.Endpoint {
 	}
 }
 
-
-
 func (e CatalogServiceEndpoints) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	resp, err := e.CreateUserEndpoint(ctx, req)
 	if err != nil {
@@ -164,7 +160,6 @@ func (e CatalogServiceEndpoints) ListUsers(ctx context.Context, req idl.ListUser
 	}
 	return resp.(idl.ListUsersResponse), nil
 }
-
 
 // RetryMiddleware retries only errors that explicitly implement
 // interface{ Retryable() bool } and return true. It is safe for server-side

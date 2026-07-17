@@ -59,7 +59,6 @@ func TestCache_UpdateDeduplicates(t *testing.T) {
 	c := instance.NewCache()
 	ch := make(chan events.Event, 4)
 	c.Register(ch)
-	drain(ch, 50*time.Millisecond) // consume initial empty event
 
 	ev := events.Event{Instances: []string{"x:80"}}
 	c.Update(ev)
@@ -84,7 +83,6 @@ func TestCache_UpdateErrorEvent(t *testing.T) {
 	c := instance.NewCache()
 	ch := make(chan events.Event, 2)
 	c.Register(ch)
-	drain(ch, 50*time.Millisecond)
 
 	sentinel := errors.New("sd error")
 	c.Update(events.Event{Err: sentinel})
@@ -105,14 +103,26 @@ func TestCache_RegisterReceivesCurrentState(t *testing.T) {
 	c.Update(events.Event{Instances: []string{"h:80"}})
 
 	ch := make(chan events.Event, 1)
-	c.Register(ch)
-
-	got, ok := drain(ch, 100*time.Millisecond)
-	if !ok {
-		t.Fatal("Register should immediately send current state")
-	}
+	got := c.Register(ch)
 	if len(got.Instances) != 1 || got.Instances[0] != "h:80" {
 		t.Errorf("unexpected state: %+v", got)
+	}
+}
+
+func TestCache_RegisterDoesNotBlockOnUnbufferedSubscriber(t *testing.T) {
+	c := instance.NewCache()
+	c.Update(events.Event{Instances: []string{"h:80"}})
+	ch := make(chan events.Event)
+	done := make(chan struct{})
+	go func() {
+		_ = c.Register(ch)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Register blocked on an unbuffered subscriber")
 	}
 }
 
@@ -120,7 +130,6 @@ func TestCache_DeregisterStopsEvents(t *testing.T) {
 	c := instance.NewCache()
 	ch := make(chan events.Event, 4)
 	c.Register(ch)
-	drain(ch, 50*time.Millisecond)
 
 	c.Deregister(ch)
 	c.Update(events.Event{Instances: []string{"new:80"}})

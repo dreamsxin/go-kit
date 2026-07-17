@@ -213,16 +213,16 @@ Avoid:
 
 ## Stability Notes
 
-`endpoint` core is part of the stable framework surface.
-
-That includes:
+`endpoint` is a public v2 package, but its exported API may change before
+v2.0.0. The intended long-term surface includes:
 
 - `Endpoint`
 - `Middleware`
 - builder-style composition
 - the framework's central middleware model
 
-More specialized subpackages such as `endpoint/circuitbreaker` and `endpoint/ratelimit` are public and supported, but still somewhat more evolvable.
+Specialized subpackages such as `endpoint/circuitbreaker` and
+`endpoint/ratelimit` remain independently selectable components.
 
 ## Best Practices
 
@@ -235,7 +235,5 @@ More specialized subpackages such as `endpoint/circuitbreaker` and `endpoint/rat
 ## Related Docs
 
 - [README.md](../README.md)
-- [FRAMEWORK_BOUNDARIES.md](../FRAMEWORK_BOUNDARIES.md)
-- [STABILITY.md](../STABILITY.md)
-- [PACKAGE_SURFACES.md](../PACKAGE_SURFACES.md)
-- [ANTI_PATTERNS.md](../ANTI_PATTERNS.md)
+- [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [PRODUCTION.md](../PRODUCTION.md)
