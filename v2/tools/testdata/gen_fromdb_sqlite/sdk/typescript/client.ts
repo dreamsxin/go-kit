@@ -107,7 +107,7 @@ export interface CreateUserRequest {
 }
 
 export interface CreateUserResponse {
-  "user"?: User;
+  "data"?: User;
   "error"?: string;
 }
 
@@ -125,29 +125,33 @@ export interface GetUserRequest {
 }
 
 export interface GetUserResponse {
-  "user"?: User;
+  "data"?: User;
   "error"?: string;
 }
 
 export interface ListUsersRequest {
   "page": number;
   "page_size": number;
+  "keyword"?: string;
 }
 
 export interface ListUsersResponse {
-  "users"?: Array<User>;
+  "data": Array<User>;
   "total": number;
+  "page": number;
+  "page_size": number;
+  "error"?: string;
 }
 
 export interface UpdateUserRequest {
   "id": number;
-  "username": string;
-  "email": string;
+  "username"?: string;
+  "email"?: string;
   "created_at"?: string;
 }
 
 export interface UpdateUserResponse {
-  "user"?: User;
+  "data"?: User;
   "error"?: string;
 }
 
@@ -193,6 +197,7 @@ export class CatalogServiceClient extends BaseClient {
     const query = new URLSearchParams();
     appendQueryValue(query, "page", request["page"], false);
     appendQueryValue(query, "page_size", request["page_size"], false);
+    appendQueryValue(query, "keyword", request["keyword"], false);
     const encodedQuery = query.toString();
     if (encodedQuery !== "") {
       path += (path.includes("?") ? "&" : "?") + encodedQuery;

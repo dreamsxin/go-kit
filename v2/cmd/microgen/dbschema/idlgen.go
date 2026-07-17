@@ -124,7 +124,11 @@ func writeDTOs(sb *strings.Builder, m *parser.Model) {
 		if f.IsPrimary || f.IsAutoIncr {
 			continue
 		}
-		sb.WriteString(fmt.Sprintf("\t%s %s `json:\"%s\"`\n", f.Name, f.Type, f.JSONTag))
+		jsonTag := f.JSONTag
+		if !f.IsNotNull && !strings.Contains(jsonTag, ",omitempty") {
+			jsonTag += ",omitempty"
+		}
+		sb.WriteString(fmt.Sprintf("\t%s %s `json:\"%s\"`\n", f.Name, f.Type, jsonTag))
 	}
 	sb.WriteString("}\n\n")
 

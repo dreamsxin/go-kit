@@ -153,9 +153,9 @@ func buildTypeScriptMethod(method *ir.Method, messages map[string]*ir.Message, m
 		HasBody:      httpMethod != "GET" && inputName != "",
 	}
 
-	input := method.Input
-	if input == nil && inputName != "" {
-		input = messages[inputName]
+	input := messages[inputName]
+	if input == nil {
+		input = method.Input
 	}
 	if input == nil {
 		return view

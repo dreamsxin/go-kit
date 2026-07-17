@@ -263,6 +263,13 @@
               "type": "integer",
               "format": "int64"
             }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -324,11 +331,11 @@
       "CreateUserResponse": {
         "type": "object",
         "properties": {
+          "data": {
+            "$ref": "#/components/schemas/User"
+          },
           "error": {
             "type": "string"
-          },
-          "user": {
-            "$ref": "#/components/schemas/User"
           }
         }
       },
@@ -391,17 +398,20 @@
       "GetUserResponse": {
         "type": "object",
         "properties": {
+          "data": {
+            "$ref": "#/components/schemas/User"
+          },
           "error": {
             "type": "string"
-          },
-          "user": {
-            "$ref": "#/components/schemas/User"
           }
         }
       },
       "ListUsersRequest": {
         "type": "object",
         "properties": {
+          "keyword": {
+            "type": "string"
+          },
           "page": {
             "type": "integer",
             "format": "int64"
@@ -419,18 +429,32 @@
       "ListUsersResponse": {
         "type": "object",
         "properties": {
-          "total": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "users": {
+          "data": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/User"
             }
+          },
+          "error": {
+            "type": "string"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
           }
         },
         "required": [
+          "data",
+          "page",
+          "page_size",
           "total"
         ]
       },
@@ -453,19 +477,17 @@
           }
         },
         "required": [
-          "email",
-          "id",
-          "username"
+          "id"
         ]
       },
       "UpdateUserResponse": {
         "type": "object",
         "properties": {
+          "data": {
+            "$ref": "#/components/schemas/User"
+          },
           "error": {
             "type": "string"
-          },
-          "user": {
-            "$ref": "#/components/schemas/User"
           }
         }
       },

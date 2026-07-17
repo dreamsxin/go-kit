@@ -61,6 +61,9 @@ func TestWriteIDL_BasicSchema(t *testing.T) {
 	if !strings.Contains(s, "type ListUsersRequest struct") {
 		t.Error("should contain ListUsersRequest")
 	}
+	if !strings.Contains(s, "Score *float32 `json:\"score,omitempty\"`") {
+		t.Error("nullable create fields should preserve optional JSON body semantics")
+	}
 
 	// Service interface
 	if !strings.Contains(s, "type ShopService interface") {

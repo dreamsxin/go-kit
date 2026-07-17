@@ -253,7 +253,9 @@ go test -race ./kit ./interaction ./sd/... ./cmd/microgen/generator
 修改生成器后，还必须验证在仓库外生成的项目可以执行 `go mod tidy` 和
 `go test ./...`。
 
-发布前契约校验需要 Node.js 和 `npx`：
+发布前契约校验需要 Node.js 和 `npx`。该流程会验证 OpenAPI/JSON Schema、
+固定版本 TypeScript 编译、Go/TypeScript SDK HTTP 行为一致性，以及生成契约
+确定性快照：
 
 ```bash
 make verify-release

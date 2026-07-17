@@ -59,6 +59,7 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 		mustContainFile(t, filepath.Join(outDir, "docs", "openapi.json"), "/api/proto/userservice")
 		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/proto/userservice")
 		validateGeneratedContracts(t, outDir)
+		assertGeneratedContractSnapshot(t, "proto", outDir)
 
 		// Build check for the generated code
 		buildCmd := exec.Command("go", "build", "./...")

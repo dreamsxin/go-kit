@@ -57,6 +57,7 @@ func TestMicrogenFromDBIntegration(t *testing.T) {
 		mustContainFile(t, filepath.Join(outDir, "transport", "catalogservice", "transport_http.go"), "/user")
 		mustContainFile(t, filepath.Join(outDir, "transport", "catalogservice", "transport_http.go"), "/users")
 		validateGeneratedContracts(t, outDir)
+		assertGeneratedContractSnapshot(t, "db", outDir)
 
 		buildTargets := []string{
 			"./cmd",

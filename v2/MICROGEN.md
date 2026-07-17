@@ -136,8 +136,10 @@ generated document uses relative URLs, so generated configuration has no
 UTF-8 without BOM. Streaming RPCs remain on the generated Go gRPC SDK.
 
 Repository contract verification parses every generated OpenAPI 3.1 document,
-compiles every JSON Schema 2020-12 definition, and type-checks generated clients
-with the pinned compiler. Run from `v2`:
+compiles every JSON Schema 2020-12 definition, type-checks generated clients
+with the pinned compiler, compares Go and TypeScript SDK HTTP behavior, and
+checks reviewed contract snapshots for Go IDL, Protobuf, and database sources.
+Run from `v2`:
 
 ```bash
 make test-contracts
@@ -145,6 +147,17 @@ make test-contracts
 
 The TypeScript step requires Node.js and `npx`; generated services do not gain a
 Node.js runtime dependency.
+
+When an intentional public contract change updates generated artifacts, review
+the diff and refresh only the affected snapshots:
+
+```bash
+go test ./tools -run "TestMicrogen(IDLContractIntegration|ProtoIntegration|FromDBIntegration)" \
+  -count=1 -args -update-contract-snapshots
+```
+
+The generated Go SDK returns an exported `APIError` for non-2xx responses, with
+`StatusCode` and `Body` fields matching the TypeScript SDK error contract.
 
 ## Minimal And Full Generation
 

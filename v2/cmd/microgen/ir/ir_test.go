@@ -229,6 +229,21 @@ func TestFromTableSchemas(t *testing.T) {
 	if !createUser.Input.Fields[0].Required {
 		t.Fatal("expected username to be required")
 	}
+	if createUser.Output.Fields[0].JSONName != "data" {
+		t.Fatalf("create response data field = %q, want data", createUser.Output.Fields[0].JSONName)
+	}
+
+	updateUser := svc.Methods[2]
+	if updateUser.Input.Fields[1].Required || updateUser.Input.Fields[1].GoType != "*string" {
+		t.Fatalf("update username field = %#v, want optional *string", updateUser.Input.Fields[1])
+	}
+	listUsers := svc.Methods[4]
+	if len(listUsers.Input.Fields) != 3 || listUsers.Input.Fields[2].JSONName != "keyword" {
+		t.Fatalf("list request fields = %#v, want optional keyword", listUsers.Input.Fields)
+	}
+	if len(listUsers.Output.Fields) != 5 || listUsers.Output.Fields[0].JSONName != "data" || listUsers.Output.Fields[3].JSONName != "page_size" {
+		t.Fatalf("list response fields = %#v, want data/total/page/page_size/error", listUsers.Output.Fields)
+	}
 
 	var userModel *ir.Message
 	for _, msg := range project.Messages {

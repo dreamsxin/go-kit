@@ -20,6 +20,7 @@ func TestBuildOpenAPIDocument(t *testing.T) {
 	createRequest := &ir.Message{Name: "CreateUserRequest", Fields: []*ir.Field{
 		{Name: "User", JSONName: "user", GoType: "*User", SchemaType: "object", Required: true},
 	}}
+	methodGetRequest := &ir.Message{Name: getRequest.Name, Fields: getRequest.Fields[:1]}
 	project := &ir.Project{
 		PackageName: "accounts",
 		Messages:    []*ir.Message{getRequest, user, createRequest},
@@ -28,9 +29,9 @@ func TestBuildOpenAPIDocument(t *testing.T) {
 			Title:       "Users API",
 			Description: "User operations",
 			Methods: []*ir.Method{
-				{Name: "GetUser", Summary: "Get user", Kind: ir.MethodKindUnary, HTTPMethod: "GET", Route: "/users/{id}", InputName: getRequest.Name, OutputName: user.Name, Input: getRequest, Output: user},
+				{Name: "GetUser", Summary: "Get user", Kind: ir.MethodKindUnary, HTTPMethod: "GET", Route: "/users/{id}", InputName: getRequest.Name, OutputName: user.Name, Input: methodGetRequest, Output: user},
 				{Name: "CreateUser", Kind: ir.MethodKindUnary, HTTPMethod: "POST", Route: "/users", InputName: createRequest.Name, OutputName: user.Name, Input: createRequest, Output: user},
-				{Name: "DeleteUser", Kind: ir.MethodKindUnary, HTTPMethod: "DELETE", Route: "/users/{id}", InputName: getRequest.Name, OutputName: user.Name, Input: getRequest, Output: user},
+				{Name: "DeleteUser", Kind: ir.MethodKindUnary, HTTPMethod: "DELETE", Route: "/users/{id}", InputName: getRequest.Name, OutputName: user.Name, Input: methodGetRequest, Output: user},
 				{Name: "WatchUsers", Kind: ir.MethodKindServerStream, HTTPMethod: "GET", Route: "/users/watch", InputName: getRequest.Name, OutputName: user.Name, Input: getRequest, Output: user},
 			},
 		}},

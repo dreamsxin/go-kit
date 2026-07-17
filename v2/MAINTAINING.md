@@ -48,10 +48,12 @@ the generated project is verified.
 1. Change parser/IR/generator/template code at the owning layer.
 2. Add unit assertions for the generated contract.
 3. Regenerate tracked fixtures through their tests.
-4. Run the same generation test twice and verify the second run has no diff.
-5. Generate into a temporary directory outside the module.
-6. Run `go mod tidy` and `go test ./...` in that project.
-7. Update [MICROGEN.md](MICROGEN.md) and the generated README template when
+4. Review and explicitly refresh contract snapshots when the public artifact
+   bytes change.
+5. Run the same generation test twice and verify the second run has no diff.
+6. Generate into a temporary directory outside the module.
+7. Run `go mod tidy` and `go test ./...` in that project.
+8. Update [MICROGEN.md](MICROGEN.md) and the generated README template when
    user workflow changes.
 
 Commands:
@@ -62,6 +64,13 @@ go test ./cmd/microgen/...
 go test ./tools -count=1
 make test-contracts
 go test ./...
+```
+
+Intentional contract changes refresh snapshots with:
+
+```bash
+go test ./tools -run "TestMicrogen(IDLContractIntegration|ProtoIntegration|FromDBIntegration)" \
+  -count=1 -args -update-contract-snapshots
 ```
 
 Generated Go must pass `go/format`. Generated non-Go text must have deterministic

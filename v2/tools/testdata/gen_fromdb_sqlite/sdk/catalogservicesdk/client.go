@@ -104,13 +104,14 @@ type httpClient struct {
 	hooks   []func(*http.Request)
 }
 
-// apiError is returned when the server responds with a non-2xx status.
-type apiError struct {
+// APIError is returned when the server responds with a non-2xx status.
+// StatusCode and Body preserve the transport error contract for callers.
+type APIError struct {
 	StatusCode int
 	Body       string
 }
 
-func (e *apiError) Error() string {
+func (e *APIError) Error() string {
 	return fmt.Sprintf("catalogservicesdk: server returned %d: %s", e.StatusCode, e.Body)
 }
 
@@ -147,7 +148,7 @@ func (c *httpClient) do(ctx context.Context, method, path string, reqBody, respB
 
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return &apiError{StatusCode: resp.StatusCode, Body: string(raw)}
+		return &APIError{StatusCode: resp.StatusCode, Body: string(raw)}
 	}
 
 	if respBody != nil {

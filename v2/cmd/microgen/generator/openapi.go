@@ -147,7 +147,7 @@ func buildOpenAPIDocument(project *ir.Project, basePrefix string) openAPIDocumen
 			if item == nil {
 				item = openAPIPath{}
 			}
-			item[verb] = openAPIOperationFor(service, method, path, messageNames)
+			item[verb] = openAPIOperationFor(service, method, path, messages, messageNames)
 			doc.Paths[path] = item
 		}
 	}
@@ -155,9 +155,13 @@ func buildOpenAPIDocument(project *ir.Project, basePrefix string) openAPIDocumen
 	return doc
 }
 
-func openAPIOperationFor(service *ir.Service, method *ir.Method, path string, messageNames map[string]struct{}) openAPIOperation {
+func openAPIOperationFor(service *ir.Service, method *ir.Method, path string, messages map[string]*ir.Message, messageNames map[string]struct{}) openAPIOperation {
 	inputName := openAPIMessageName(method.InputName, method.Input)
 	outputName := openAPIMessageName(method.OutputName, method.Output)
+	input := messages[inputName]
+	if input == nil {
+		input = method.Input
+	}
 	tags := append([]string(nil), method.Tags...)
 	if len(tags) == 0 {
 		tags = []string{service.Name}
@@ -174,9 +178,9 @@ func openAPIOperationFor(service *ir.Service, method *ir.Method, path string, me
 		},
 	}
 	if strings.EqualFold(method.HTTPMethod, "GET") {
-		operation.Parameters = openAPIQueryParameters(method.Input, path, messageNames)
+		operation.Parameters = openAPIQueryParameters(input, path, messageNames)
 	} else if inputName != "" {
-		operation.Parameters = openAPIPathParameters(method.Input, path, messageNames)
+		operation.Parameters = openAPIPathParameters(input, path, messageNames)
 		operation.RequestBody = &openAPIRequestBody{
 			Required: true,
 			Content: map[string]openAPIMedia{
@@ -407,10 +411,14 @@ func collectOpenAPIMessages(project *ir.Project) map[string]*ir.Message {
 				continue
 			}
 			if method.Input != nil && method.Input.Name != "" {
-				messages[method.Input.Name] = method.Input
+				if _, ok := messages[method.Input.Name]; !ok {
+					messages[method.Input.Name] = method.Input
+				}
 			}
 			if method.Output != nil && method.Output.Name != "" {
-				messages[method.Output.Name] = method.Output
+				if _, ok := messages[method.Output.Name]; !ok {
+					messages[method.Output.Name] = method.Output
+				}
 			}
 			if method.InputName != "" {
 				if _, ok := messages[method.InputName]; !ok {

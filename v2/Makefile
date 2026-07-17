@@ -43,6 +43,8 @@ test-contracts:
 		./tools/testdata/gen_idl_integration/sdk/typescript/tsconfig.json \
 		./tools/testdata/gen_proto_integration/sdk/typescript/tsconfig.json \
 		./tools/testdata/gen_fromdb_sqlite/sdk/typescript/tsconfig.json
+	@echo ">>> Comparing generated Go and TypeScript SDK HTTP behavior..."
+	@go test -v ./tools -run TestGeneratedSDKBehaviorContract -count=1
 
 test-docs:
 	@echo ">>> Running docs and skill verification..."

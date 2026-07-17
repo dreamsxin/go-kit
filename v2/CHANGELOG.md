@@ -30,6 +30,10 @@ root.
   Protobuf, and database generation integration paths.
 - A release contract check that type-checks generated SDKs with a pinned
   TypeScript compiler.
+- Shared executable HTTP behavior coverage for generated Go and TypeScript SDKs,
+  including path, query, body, headers, and non-2xx errors.
+- Reviewed deterministic contract snapshots for Go IDL, Protobuf, and database
+  generation paths.
 
 ### Changed
 
@@ -58,6 +62,8 @@ root.
   temporary roadmaps, or session snapshots.
 - Extend scanning uses the project manifest as its primary capability source and
   reports filesystem or ownership drift before mutation.
+- Generated Go SDKs expose `APIError` with stable status-code and response-body
+  fields, aligned with the TypeScript SDK error contract.
 
 ### Fixed
 
@@ -75,6 +81,8 @@ root.
   client artifacts instead of leaving generated contracts stale.
 - Service, model, and middleware append operations refresh the project manifest
   last and reject projects with unresolved manifest drift.
+- Database-derived contract IR now matches generated Go IDL for optional create
+  fields, update fields, list query parameters, and response JSON shapes.
 
 ### Removed
 

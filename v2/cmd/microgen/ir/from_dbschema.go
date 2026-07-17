@@ -89,7 +89,7 @@ func dbCRUDMessages(schema *dbschema.TableSchema, modelName string) []*Message {
 		{
 			Name: "Create" + modelName + "Response",
 			Fields: []*Field{
-				{Name: modelName, JSONName: strings.ToLower(modelName), GoType: "*" + modelName, SchemaType: "object"},
+				{Name: "Data", JSONName: "data", GoType: "*" + modelName, SchemaType: "object"},
 				{Name: "Error", JSONName: "error", GoType: "string", SchemaType: "string"},
 			},
 		},
@@ -100,18 +100,18 @@ func dbCRUDMessages(schema *dbschema.TableSchema, modelName string) []*Message {
 		{
 			Name: "Get" + modelName + "Response",
 			Fields: []*Field{
-				{Name: modelName, JSONName: strings.ToLower(modelName), GoType: "*" + modelName, SchemaType: "object"},
+				{Name: "Data", JSONName: "data", GoType: "*" + modelName, SchemaType: "object"},
 				{Name: "Error", JSONName: "error", GoType: "string", SchemaType: "string"},
 			},
 		},
 		{
 			Name:   "Update" + modelName + "Request",
-			Fields: cloneFields(append(fallbackPrimaryFields(pkFields), filterCreateFields(nonPKFields)...)),
+			Fields: append(cloneFields(fallbackPrimaryFields(pkFields)), optionalUpdateFields(filterCreateFields(nonPKFields))...),
 		},
 		{
 			Name: "Update" + modelName + "Response",
 			Fields: []*Field{
-				{Name: modelName, JSONName: strings.ToLower(modelName), GoType: "*" + modelName, SchemaType: "object"},
+				{Name: "Data", JSONName: "data", GoType: "*" + modelName, SchemaType: "object"},
 				{Name: "Error", JSONName: "error", GoType: "string", SchemaType: "string"},
 			},
 		},
@@ -131,13 +131,17 @@ func dbCRUDMessages(schema *dbschema.TableSchema, modelName string) []*Message {
 			Fields: []*Field{
 				{Name: "Page", JSONName: "page", GoType: "int", SchemaType: "integer", Required: true},
 				{Name: "PageSize", JSONName: "page_size", GoType: "int", SchemaType: "integer", Required: true},
+				{Name: "Keyword", JSONName: "keyword", GoType: "string", SchemaType: "string"},
 			},
 		},
 		{
 			Name: "List" + plural + "Response",
 			Fields: []*Field{
-				{Name: plural, JSONName: strings.ToLower(plural), GoType: "[]*" + modelName, SchemaType: "array"},
+				{Name: "Data", JSONName: "data", GoType: "[]" + modelName, SchemaType: "array", Required: true},
 				{Name: "Total", JSONName: "total", GoType: "int", SchemaType: "integer", Required: true},
+				{Name: "Page", JSONName: "page", GoType: "int", SchemaType: "integer", Required: true},
+				{Name: "PageSize", JSONName: "page_size", GoType: "int", SchemaType: "integer", Required: true},
+				{Name: "Error", JSONName: "error", GoType: "string", SchemaType: "string"},
 			},
 		},
 	}
@@ -268,6 +272,17 @@ func cloneFields(fields []*Field) []*Field {
 	for _, field := range fields {
 		copied := *field
 		out = append(out, &copied)
+	}
+	return out
+}
+
+func optionalUpdateFields(fields []*Field) []*Field {
+	out := cloneFields(fields)
+	for _, field := range out {
+		if !strings.HasPrefix(field.GoType, "*") {
+			field.GoType = "*" + field.GoType
+		}
+		field.Required = false
 	}
 	return out
 }

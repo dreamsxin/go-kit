@@ -58,8 +58,9 @@ make verify-release
 ```
 
 The release target includes the normal Go validation plus generated OpenAPI
-3.1 parsing, JSON Schema 2020-12 compilation, and TypeScript SDK type-checks for
-Go IDL, Protobuf, and database source modes.
+3.1 parsing, JSON Schema 2020-12 compilation, TypeScript SDK type-checks,
+cross-SDK HTTP behavior checks, and deterministic contract snapshots for Go
+IDL, Protobuf, and database source modes.
 
 The equivalent focused Go commands are:
 
@@ -79,6 +80,8 @@ go test ./...
 Also verify:
 
 - `make test-contracts` passes with the pinned TypeScript compiler;
+- Go and TypeScript SDKs match the shared path/query/body/error fixture;
+- contract snapshot changes have been reviewed and refreshed explicitly;
 - repeat generation produces no second-run diff;
 - `git diff --check` passes;
 - documentation links resolve;

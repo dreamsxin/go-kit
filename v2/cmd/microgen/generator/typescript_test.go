@@ -18,6 +18,7 @@ func TestBuildTypeScriptSDKData(t *testing.T) {
 	response := &ir.Message{Name: "GetUserResponse", Fields: []*ir.Field{
 		{Name: "User", JSONName: "user", GoType: "*User", SchemaType: "object"},
 	}}
+	methodRequest := &ir.Message{Name: request.Name, Fields: request.Fields[:1]}
 	project := &ir.Project{
 		Messages: []*ir.Message{user, request, response},
 		Services: []*ir.Service{{
@@ -29,7 +30,7 @@ func TestBuildTypeScriptSDKData(t *testing.T) {
 					Route:      "/users/{id}",
 					InputName:  request.Name,
 					OutputName: response.Name,
-					Input:      request,
+					Input:      methodRequest,
 					Output:     response,
 				},
 				{
@@ -38,7 +39,7 @@ func TestBuildTypeScriptSDKData(t *testing.T) {
 					Route:      "/users/{id}",
 					InputName:  request.Name,
 					OutputName: response.Name,
-					Input:      request,
+					Input:      methodRequest,
 					Output:     response,
 				},
 			},

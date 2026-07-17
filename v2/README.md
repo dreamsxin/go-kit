@@ -264,7 +264,9 @@ go test -race ./kit ./interaction ./sd/... ./cmd/microgen/generator
 Generator changes must also prove that a generated project can run
 `go mod tidy` and `go test ./...` outside this repository.
 
-For release contract validation, with Node.js and `npx` available:
+For release contract validation, with Node.js and `npx` available, run the
+OpenAPI/JSON Schema validators, pinned TypeScript compiler, cross-SDK HTTP
+behavior contract, and deterministic generated-contract snapshots:
 
 ```bash
 make verify-release
