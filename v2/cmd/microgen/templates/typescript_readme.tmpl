@@ -20,10 +20,10 @@ Use the service clients exposed by `APIClient` and pass an `AbortSignal` or
 per-request headers through the optional second argument. Non-2xx responses
 throw `APIError` with the HTTP status and response body.
 
-Type-check the generated source in a project with TypeScript 5 or later:
+Type-check the generated source with the release-pinned compiler:
 
 ```bash
-npx --package typescript tsc -p sdk/typescript/tsconfig.json
+npx --yes --package typescript@{{.CompilerVersion}} tsc -p sdk/typescript/tsconfig.json
 ```
 
 The source SDK covers unary HTTP operations. Use the generated Go gRPC SDK for

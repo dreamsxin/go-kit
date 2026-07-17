@@ -60,6 +60,7 @@ Commands:
 cd v2
 go test ./cmd/microgen/...
 go test ./tools -count=1
+make test-contracts
 go test ./...
 ```
 

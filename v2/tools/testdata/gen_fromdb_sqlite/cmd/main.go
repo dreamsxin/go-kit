@@ -12,6 +12,9 @@ import (
 	"time"
 
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
+
+	docs "example.com/gen_fromdb_sqlite/docs"
+	swaggerUI "github.com/swaggest/swgui/v5"
 )
 
 func printBanner(logger *kitlog.Logger, httpAddr string, withOpenAPI bool, withSkill bool) {
@@ -57,15 +60,19 @@ func main() {
 	r.HandleFunc("GET /health", healthHandler)
 	r.HandleFunc("HEAD /health", healthHandler)
 
+	r.HandleFunc("GET /openapi.json", docs.Handler)
+	r.HandleFunc("GET /schema.json", docs.SchemaHandler)
+	r.Handle("GET /swagger/", swaggerUI.New("CatalogService API", "/openapi.json", "/swagger/"))
+
 	runtime.registerRoutes(r)
 	customRoutes := registerCustomRoutes(r)
 
 	r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, false, false))
+		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, true, false))
 	})
 
-	allRoutes := generatedRouteEntries(runtime, customRoutes, false, false)
+	allRoutes := generatedRouteEntries(runtime, customRoutes, true, false)
 	printAllRoutes(logger, allRoutes)
 
 	httpServer := &http.Server{
@@ -86,7 +93,7 @@ func main() {
 		}
 	}()
 
-	printBanner(logger, *httpAddr, false, false)
+	printBanner(logger, *httpAddr, true, false)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

@@ -122,7 +122,8 @@ TypeScript source SDK is generated without runtime dependencies.
 - `docs/docs.go`: an embed wrapper that serves both generated contracts;
 - `sdk/typescript/client.ts`: typed unary HTTP clients, message interfaces,
   request cancellation, headers, and non-2xx errors;
-- `sdk/typescript/tsconfig.json`: strict TypeScript 5 compiler settings;
+- `sdk/typescript/tsconfig.json`: strict TypeScript compiler settings, checked
+  with the release-pinned version documented in the generated SDK README;
 - `sdk/typescript/README.md`: generated usage and type-check instructions;
 - `GET /openapi.json`: the runtime contract endpoint;
 - `GET /schema.json`: the runtime JSON Schema endpoint;
@@ -133,6 +134,17 @@ generated document uses relative URLs, so generated configuration has no
 `swagger_host` setting. Generation and extend mode refresh both files under
 `docs/` and `sdk/typescript/`; treat them as generator-owned. Generated text is
 UTF-8 without BOM. Streaming RPCs remain on the generated Go gRPC SDK.
+
+Repository contract verification parses every generated OpenAPI 3.1 document,
+compiles every JSON Schema 2020-12 definition, and type-checks generated clients
+with the pinned compiler. Run from `v2`:
+
+```bash
+make test-contracts
+```
+
+The TypeScript step requires Node.js and `npx`; generated services do not gain a
+Node.js runtime dependency.
 
 ## Minimal And Full Generation
 

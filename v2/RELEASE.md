@@ -51,7 +51,17 @@ but their generated public behavior is a product surface.
 
 ## Release Validation
 
-Run from `v2`:
+Install Node.js with `npx`, then run from `v2`:
+
+```bash
+make verify-release
+```
+
+The release target includes the normal Go validation plus generated OpenAPI
+3.1 parsing, JSON Schema 2020-12 compilation, and TypeScript SDK type-checks for
+Go IDL, Protobuf, and database source modes.
+
+The equivalent focused Go commands are:
 
 ```bash
 go test ./...
@@ -68,6 +78,7 @@ go test ./...
 
 Also verify:
 
+- `make test-contracts` passes with the pinned TypeScript compiler;
 - repeat generation produces no second-run diff;
 - `git diff --check` passes;
 - documentation links resolve;

@@ -113,8 +113,11 @@ Swagger UI 5 静态资源嵌入生成二进制，不依赖 CDN。它只是
 仓库文本文件和生成 JSON 统一使用无 BOM 的 UTF-8。仓库编码测试会在发布前拒绝
 无效 UTF-8 和 Unicode 替换字符。
 
-可使用 `npx --package typescript tsc -p sdk/typescript/tsconfig.json`
-检查生成的 TypeScript 源码。
+使用发布流程固定的编译器检查生成的 TypeScript 源码：
+
+```bash
+npx --yes --package typescript@7.0.2 tsc -p sdk/typescript/tsconfig.json
+```
 
 刚生成的业务方法会返回未实现错误。业务逻辑写在
 `service/helloservice/service.go`。
@@ -249,6 +252,12 @@ go test -race ./kit ./interaction ./sd/... ./cmd/microgen/generator
 
 修改生成器后，还必须验证在仓库外生成的项目可以执行 `go mod tidy` 和
 `go test ./...`。
+
+发布前契约校验需要 Node.js 和 `npx`：
+
+```bash
+make verify-release
+```
 
 ## 文档
 

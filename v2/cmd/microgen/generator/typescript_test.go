@@ -46,6 +46,9 @@ func TestBuildTypeScriptSDKData(t *testing.T) {
 	}
 
 	data := buildTypeScriptSDKData(project, "/api/v1")
+	if data.CompilerVersion != TypeScriptCompilerVersion {
+		t.Fatalf("compiler version = %q, want %q", data.CompilerVersion, TypeScriptCompilerVersion)
+	}
 	if len(data.Services) != 1 || data.Services[0].PropertyName != "userService" {
 		t.Fatalf("services = %#v", data.Services)
 	}

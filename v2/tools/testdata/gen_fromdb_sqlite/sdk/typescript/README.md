@@ -10,9 +10,9 @@ The client uses the standard Fetch API and has no runtime dependencies.
 import { APIClient } from "./client";
 
 const client = new APIClient("http://localhost:8080");
-const response = await client.userService.createUser({
-  "username": "username",
-  "email": "email",
+const response = await client.catalogService.createUser({
+  "username": "value",
+  "email": "value",
 });
 ```
 

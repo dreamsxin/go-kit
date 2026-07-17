@@ -117,8 +117,11 @@ the generated binary, so it does not depend on a CDN. It is a viewer for
 Repository text files and generated JSON are UTF-8 without BOM. The repository
 encoding test rejects invalid UTF-8 and replacement characters before release.
 
-Type-check the generated TypeScript source with
-`npx --package typescript tsc -p sdk/typescript/tsconfig.json`.
+Type-check the generated TypeScript source with the release-pinned compiler:
+
+```bash
+npx --yes --package typescript@7.0.2 tsc -p sdk/typescript/tsconfig.json
+```
 
 The generated business method initially returns a not-implemented error. Add
 business behavior in `service/helloservice/service.go`.
@@ -260,6 +263,12 @@ go test -race ./kit ./interaction ./sd/... ./cmd/microgen/generator
 
 Generator changes must also prove that a generated project can run
 `go mod tidy` and `go test ./...` outside this repository.
+
+For release contract validation, with Node.js and `npx` available:
+
+```bash
+make verify-release
+```
 
 ## Documentation
 

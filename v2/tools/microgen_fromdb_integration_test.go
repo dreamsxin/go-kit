@@ -36,6 +36,7 @@ func TestMicrogenFromDBIntegration(t *testing.T) {
 			"-docs=false",
 			"-db=false",
 			"-skill=false",
+			"-openapi",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("microgen from-db sqlite failed: %v\n%s", err, out)
@@ -48,10 +49,14 @@ func TestMicrogenFromDBIntegration(t *testing.T) {
 		mustExistFile(t, filepath.Join(outDir, "endpoint", "catalogservice", "endpoints.go"))
 		mustExistFile(t, filepath.Join(outDir, "transport", "catalogservice", "transport_http.go"))
 		mustExistFile(t, filepath.Join(outDir, "model", "generated_user.go"))
+		mustExistFile(t, filepath.Join(outDir, "docs", "openapi.json"))
+		mustExistFile(t, filepath.Join(outDir, "docs", "schema.json"))
+		mustExistFile(t, filepath.Join(outDir, "sdk", "typescript", "tsconfig.json"))
 		mustContainFile(t, filepath.Join(outDir, "idl.go"), "type CreateUserRequest struct")
 		mustContainFile(t, filepath.Join(outDir, "idl.go"), "type ListUsersRequest struct")
 		mustContainFile(t, filepath.Join(outDir, "transport", "catalogservice", "transport_http.go"), "/user")
 		mustContainFile(t, filepath.Join(outDir, "transport", "catalogservice", "transport_http.go"), "/users")
+		validateGeneratedContracts(t, outDir)
 
 		buildTargets := []string{
 			"./cmd",

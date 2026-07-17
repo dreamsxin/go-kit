@@ -9,7 +9,7 @@
     "model": true,
     "grpc": false,
     "database": false,
-    "openapi": false,
+    "openapi": true,
     "skill": false,
     "interaction": false
   },
@@ -26,12 +26,18 @@
     "cmd/generated_routes.go",
     "cmd/generated_runtime.go",
     "cmd/generated_services.go",
+    "docs/docs.go",
+    "docs/openapi.json",
+    "docs/schema.json",
     "endpoint/catalogservice/generated_chain.go",
     "idl.go",
     "model/generated_user.go",
     "repository/generated_base.go",
     "repository/generated_user_repository.go",
     "sdk/catalogservicesdk/client.go",
+    "sdk/typescript/README.md",
+    "sdk/typescript/client.ts",
+    "sdk/typescript/tsconfig.json",
     "service/catalogservice/generated_repos.go"
   ]
 }

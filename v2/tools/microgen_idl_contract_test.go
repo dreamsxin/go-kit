@@ -62,6 +62,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		mustContainFile(t, filepath.Join(outDir, "docs", "schema.json"), `"$schema": "https://json-schema.org/draft/2020-12/schema"`)
 		mustContainFile(t, filepath.Join(outDir, "sdk", "typescript", "client.ts"), "/api/idl/userservice")
 		mustContainFile(t, filepath.Join(outDir, "sdk", "typescript", "client.ts"), "export class UserServiceClient")
+		validateGeneratedContracts(t, outDir)
 
 		// Verify generated service package compiles (it only depends on go-kit itself)
 		buildCmd := exec.Command("go", "build", "-mod=mod", "./service/...")

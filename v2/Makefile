@@ -6,7 +6,8 @@
         swag \
         coverage \
         deps tools \
-        test-runtime test-microgen test-docs test-examples verify
+        test-runtime test-microgen test-contracts test-docs test-examples \
+        verify verify-release
 
 # Default variables, overridable from the command line.
 IDL         ?= ./examples/usersvc/idl.go
@@ -34,6 +35,15 @@ test-microgen:
 	@echo ">>> Running microgen integration tests..."
 	@go test -v ./tools/... -run "Test(Microgen|ReadmeQuickStartSmoke)"
 
+test-contracts:
+	@echo ">>> Generating and validating OpenAPI, JSON Schema, and TypeScript contracts..."
+	@cd ./tools/contractcheck && go test ./...
+	@go test -v ./tools -run "TestMicrogen(IDLContractIntegration|ProtoIntegration|FromDBIntegration)" -count=1
+	@go run ./tools/typecheck \
+		./tools/testdata/gen_idl_integration/sdk/typescript/tsconfig.json \
+		./tools/testdata/gen_proto_integration/sdk/typescript/tsconfig.json \
+		./tools/testdata/gen_fromdb_sqlite/sdk/typescript/tsconfig.json
+
 test-docs:
 	@echo ">>> Running docs and skill verification..."
 	@go test -v ./tools/... -run TestSKILL
@@ -46,6 +56,10 @@ test-examples:
 
 verify: build test-runtime test-microgen test-docs test-examples
 	@echo ">>> Verification pass completed."
+
+verify-release: verify
+	@$(MAKE) test-contracts
+	@echo ">>> Release verification pass completed."
 
 ## install-microgen: build and install microgen into GOPATH/bin
 install-microgen:
@@ -201,9 +215,11 @@ help:
 	@echo "  make test          Run full test suite with race detector"
 	@echo "  make test-runtime  Run focused runtime/framework tests"
 	@echo "  make test-microgen Run generator tests and integration coverage"
+	@echo "  make test-contracts Validate generated contracts and TypeScript SDKs"
 	@echo "  make test-docs     Verify docs-backed snippets and SKILL.md"
 	@echo "  make test-examples Run example tests and smoke tests"
 	@echo "  make verify        Run recommended pre-merge validation pass"
+	@echo "  make verify-release Run the full release validation pass"
 	@echo "  make coverage      Generate coverage report"
 	@echo "  make lint          Run golangci-lint"
 	@echo ""

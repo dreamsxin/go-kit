@@ -41,10 +41,13 @@ projects.
 Completed: generated projects now explain their configuration and ownership
 without scanning Go source for configuration clues.
 
-## Milestone 2: Contract Quality / 契约质量
+## Milestone 2 (In Progress): Contract Quality / 契约质量
 
-- Validate generated OpenAPI and JSON Schema documents in integration tests.
-- Type-check generated TypeScript clients in the release workflow.
+- Generated OpenAPI 3.1 documents are parsed into a v3 model and generated JSON
+  Schema 2020-12 bundles are compiled in integration tests for Go IDL,
+  Protobuf, and database sources.
+- The release workflow type-checks generated TypeScript clients with a pinned
+  compiler version.
 - Keep Go and TypeScript path, query, body, and error behavior aligned through
   shared contract tests.
 - Add deterministic contract snapshots for Go IDL, Protobuf, and database

@@ -10,9 +10,14 @@ import (
 	"github.com/dreamsxin/go-kit/v2/cmd/microgen/ir"
 )
 
+// TypeScriptCompilerVersion is the compiler version used by generated SDK
+// documentation and the release contract check.
+const TypeScriptCompilerVersion = "7.0.2"
+
 type typeScriptSDKData struct {
-	Messages []typeScriptMessage
-	Services []typeScriptService
+	CompilerVersion string
+	Messages        []typeScriptMessage
+	Services        []typeScriptService
 }
 
 type typeScriptMessage struct {
@@ -82,8 +87,9 @@ func buildTypeScriptSDKData(project *ir.Project, basePrefix string) typeScriptSD
 	messages := collectOpenAPIMessages(project)
 	messageNames := contractMessageNames(messages)
 	data := typeScriptSDKData{
-		Messages: make([]typeScriptMessage, 0, len(messages)),
-		Services: make([]typeScriptService, 0, len(project.Services)),
+		CompilerVersion: TypeScriptCompilerVersion,
+		Messages:        make([]typeScriptMessage, 0, len(messages)),
+		Services:        make([]typeScriptService, 0, len(project.Services)),
 	}
 
 	for _, message := range messages {

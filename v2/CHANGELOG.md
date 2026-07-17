@@ -26,6 +26,10 @@ root.
   clients, and SDKs.
 - Versioned `.microgen/manifest.json` project identity with source, capability,
   route, service, model, middleware, and generator-owned artifact metadata.
+- OpenAPI 3.1 parser validation and JSON Schema 2020-12 compilation for Go IDL,
+  Protobuf, and database generation integration paths.
+- A release contract check that type-checks generated SDKs with a pinned
+  TypeScript compiler.
 
 ### Changed
 
