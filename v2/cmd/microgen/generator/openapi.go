@@ -13,12 +13,11 @@ import (
 const openAPIVersion = "3.1.0"
 
 type openAPIDocument struct {
-	OpenAPI           string                 `json:"openapi"`
-	JSONSchemaDialect string                 `json:"jsonSchemaDialect"`
-	Info              openAPIInfo            `json:"info"`
-	Tags              []openAPITag           `json:"tags,omitempty"`
-	Paths             map[string]openAPIPath `json:"paths"`
-	Components        openAPIComponents      `json:"components"`
+	OpenAPI    string                 `json:"openapi"`
+	Info       openAPIInfo            `json:"info"`
+	Tags       []openAPITag           `json:"tags,omitempty"`
+	Paths      map[string]openAPIPath `json:"paths"`
+	Components openAPIComponents      `json:"components"`
 }
 
 type openAPIInfo struct {
@@ -127,8 +126,7 @@ func buildOpenAPIDocument(project *ir.Project, basePrefix string) openAPIDocumen
 	}
 
 	doc := openAPIDocument{
-		OpenAPI:           openAPIVersion,
-		JSONSchemaDialect: "https://json-schema.org/draft/2020-12/schema",
+		OpenAPI: openAPIVersion,
 		Info: openAPIInfo{
 			Title:       openAPITitle(project),
 			Description: openAPIDescription(project),

@@ -1,14 +1,14 @@
 {
   "openapi": "3.1.0",
-  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "UserService API",
-    "description": "UserService service API",
+    "description": "UserService manages users.",
     "version": "1.0.0"
   },
   "tags": [
     {
-      "name": "UserService"
+      "name": "UserService",
+      "description": "UserService manages users."
     }
   ],
   "paths": {
@@ -845,6 +845,7 @@
       },
       "User": {
         "type": "object",
+        "description": "User is a simple DTO.",
         "properties": {
           "active": {
             "type": "boolean",

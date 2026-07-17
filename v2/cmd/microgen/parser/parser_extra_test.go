@@ -72,6 +72,28 @@ func TestModelField_Example_NonEmpty(t *testing.T) {
 	}
 }
 
+func TestParseFull_UsesLeadingDocumentation(t *testing.T) {
+	result, err := parser.ParseFull(testdataPath("basic.go"))
+	if err != nil {
+		t.Fatalf("ParseFull: %v", err)
+	}
+	if len(result.Services) == 0 {
+		t.Fatal("no services parsed")
+	}
+	if result.Services[0].Description != "UserService manages users." {
+		t.Fatalf("service description = %q", result.Services[0].Description)
+	}
+	for _, model := range result.Models {
+		if model.Name == "User" {
+			if model.Comment != "User is a simple DTO." {
+				t.Fatalf("model comment = %q", model.Comment)
+			}
+			return
+		}
+	}
+	t.Fatal("User model not found")
+}
+
 // ── ParseProto HTTP method inference ─────────────────────────────────────────
 
 func TestParseProto_HTTPMethodInference(t *testing.T) {

@@ -19,7 +19,7 @@ import (
 	"example.com/gen_idl_components/config"
 	docs "example.com/gen_idl_components/docs"
 	"example.com/gen_idl_components/skill"
-	httpSwagger "github.com/swaggo/http-swagger"
+	swaggerUI "github.com/swaggest/swgui/v5"
 )
 
 func printBanner(logger *kitlog.Logger, httpAddr string, withOpenAPI bool, withSkill bool) {
@@ -106,11 +106,7 @@ func main() {
 	r.HandleFunc("GET /skill", skill.Handler)
 
 	r.HandleFunc("GET /openapi.json", docs.Handler)
-	r.Handle("GET /swagger/", httpSwagger.Handler(
-		httpSwagger.URL("/openapi.json"),
-		httpSwagger.DeepLinking(true),
-		httpSwagger.DocExpansion("list"),
-	))
+	r.Handle("GET /swagger/", swaggerUI.New("UserService API", "/openapi.json", "/swagger/"))
 
 	runtime.registerRoutes(r)
 	customRoutes := registerCustomRoutes(r)

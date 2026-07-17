@@ -199,6 +199,7 @@ func (g *Generator) generateGoModFile() error {
 		ImportPath:   g.config.ImportPath,
 		GoKitVersion: g.config.GoKitVersion,
 		WithConfig:   g.config.WithConfig,
+		WithOpenAPI:  g.config.WithOpenAPI,
 		RootRelPath:  g.rootRelativePath(),
 	}
 	return g.executeTemplate("go_mod.tmpl", g.layout.goMod(), data)

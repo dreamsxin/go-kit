@@ -107,5 +107,6 @@ type goModTemplateData struct {
 	ImportPath   string
 	GoKitVersion string
 	WithConfig   bool
+	WithOpenAPI  bool
 	RootRelPath  string
 }

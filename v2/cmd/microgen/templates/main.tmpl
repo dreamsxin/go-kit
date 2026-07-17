@@ -23,7 +23,7 @@ import (
 	"gorm.io/gorm"
 	"{{$.ImportPath}}/repository"
 {{end}}
-{{if .WithOpenAPI}}	httpSwagger "github.com/swaggo/http-swagger"
+{{if .WithOpenAPI}}	swaggerUI "github.com/swaggest/swgui/v5"
 	docs "{{$.ImportPath}}/docs"
 {{end}}{{if .WithSkill}}	"{{$.ImportPath}}/skill"
 {{end}}{{if .WithInteraction}}	"github.com/dreamsxin/go-kit/v2/interaction/mcp"
@@ -174,11 +174,7 @@ func main() {
 {{end}}
 
 {{if .WithOpenAPI}}	r.HandleFunc("GET /openapi.json", docs.Handler)
-	r.Handle("GET /swagger/", httpSwagger.Handler(
-		httpSwagger.URL("/openapi.json"),
-		httpSwagger.DeepLinking(true),
-		httpSwagger.DocExpansion("list"),
-))
+	r.Handle("GET /swagger/", swaggerUI.New("{{range .Project.Services}}{{.Name}} {{end}}API", "/openapi.json", "/swagger/"))
 {{end}}
 
 	runtime.registerRoutes(r)

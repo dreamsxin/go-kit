@@ -47,13 +47,13 @@ func parseIDLContentProject(t *testing.T, content string) *ir.Project {
 	return ir.FromParseResult(parseIDLContent(t, content))
 }
 
-// newTmpDir 返回临时目录，测试结束自动清理�?
+// newTmpDir 返回临时目录，测试结束后自动清理。
 func newTmpDir(t *testing.T) string {
 	t.Helper()
 	return t.TempDir()
 }
 
-// mustExist 断言路径存在�?
+// mustExist 断言路径存在。
 func mustExist(t *testing.T, path string) {
 	t.Helper()
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -61,7 +61,7 @@ func mustExist(t *testing.T, path string) {
 	}
 }
 
-// mustNotExist 断言路径不存在�?
+// mustNotExist 断言路径不存在。
 func mustNotExist(t *testing.T, path string) {
 	t.Helper()
 	if _, err := os.Stat(path); err == nil {
@@ -69,7 +69,7 @@ func mustNotExist(t *testing.T, path string) {
 	}
 }
 
-// readFile 读取文件内容，失败时 Fatal�?
+// readFile 读取文件内容，失败时调用 Fatal。
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)
@@ -79,7 +79,7 @@ func readFile(t *testing.T, path string) string {
 	return string(b)
 }
 
-// mustContain 断言文件内容包含指定子串�?
+// mustContain 断言文件内容包含指定子串。
 func mustContain(t *testing.T, path, substr string) {
 	t.Helper()
 	content := readFile(t, path)
@@ -103,10 +103,10 @@ func minLen(a, b int) int {
 	return b
 }
 
-// mustNewGenerator 创建 Generator，失败时 Fatal�?
+// mustNewGenerator 创建 Generator，失败时调用 Fatal。
 func mustNewGenerator(t *testing.T, opts generator.Options) *generator.Generator {
 	t.Helper()
-	// 未指�?TemplateFS 时使用测试全局 FS
+	// 未指定 TemplateFS 时使用测试全局 FS。
 	if opts.TemplateFS == nil {
 		opts.TemplateFS = testTemplateFS
 	}
@@ -206,7 +206,7 @@ func TestGenerateFull_DirectoryStructure_HTTP(t *testing.T) {
 	mustExist(t, filepath.Join(outDir, "transport", svcPkg, "transport_http.go"))
 	mustExist(t, filepath.Join(outDir, "client", svcPkg, "demo.go"))
 
-	// HTTP only �?不应生成 gRPC 相关
+	// 仅启用 HTTP 时，不应生成 gRPC 相关文件。
 	mustNotExist(t, filepath.Join(outDir, "pb"))
 	mustNotExist(t, filepath.Join(outDir, "transport", svcPkg, "transport_grpc.go"))
 }
@@ -784,7 +784,7 @@ func TestNew_RemoteModeRequiresProvider(t *testing.T) {
 }
 
 // TestGenerateFull_GoMod_ModuleUpdatedWhenMismatch 验证：go.mod 已存在但 module 名与 -import 不符时，
-// generator 只更�?module 行，其余内容（go 版本、require 块等）保持不变�?
+// generator 只更新 module 行，其余内容（go 版本、require 块等）保持不变。
 func TestGenerateFull_GoMod_ModuleUpdatedWhenMismatch(t *testing.T) {
 	outDir := newTmpDir(t)
 
@@ -805,10 +805,12 @@ func TestGenerateFull_GoMod_ModuleUpdatedWhenMismatch(t *testing.T) {
 	goModPath := filepath.Join(outDir, "go.mod")
 	// module 行应已被更新
 	mustContain(t, goModPath, "module example.com/new")
-	// go 版本行应保留（其余内容未丢失�?	mustContain(t, goModPath, "go 1.22")
+	// go 版本行应保留，其他内容不应丢失。
+	mustContain(t, goModPath, "go 1.22")
 }
 
-// TestGenerateFull_GoMod_SkippedWhenModuleMatches 验证：go.mod 已存在且 module 名与 -import 一致时�?// 整个文件内容不被改动（用户的自定�?require 等不丢失）�?
+// TestGenerateFull_GoMod_SkippedWhenModuleMatches 验证 go.mod 的 module 与 -import
+// 一致时，不修改文件内容，也不丢失用户自定义的 require。
 func TestGenerateFull_GoMod_SkippedWhenModuleMatches(t *testing.T) {
 	outDir := newTmpDir(t)
 
@@ -1155,7 +1157,7 @@ func TestGenerateFull_ConfigCode_WithDB(t *testing.T) {
 	mustContain(t, codePath, "AutoMigrate:     false")
 	mustContain(t, codePath, "Retry: RetryConfig")
 	mustContain(t, codePath, "MaxAttempts: 3")
-	mustContain(t, codePath, `"mysql"`) // Default() 中包�?Driver: "mysql"
+	mustContain(t, codePath, `"mysql"`) // Default() 中包含 Driver: "mysql"。
 }
 
 func TestGenerateFull_ConfigCode_NotGeneratedWhenWithConfigFalse(t *testing.T) {
@@ -1354,7 +1356,7 @@ message CreateUserResponse {}
 	mustContain(t, readmePath, "go run ./cmd")
 }
 
-// ─────────────────────────── 多服�?IDL ─────────────────────────────────
+// ─────────────────────────── 多服务 IDL ─────────────────────────────────
 
 func TestGenerateFull_Readme_MultiServiceEndpoints(t *testing.T) {
 	outDir := newTmpDir(t)
@@ -1431,10 +1433,10 @@ func TestGenerateFull_NoServiceIDL_ModelStillGenerated(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	// �?service �?service/endpoint 目录可能存在（createDirStructure 总是创建），
-	// 但不会有具体�?service/xxx/service.go 文件
+	// 没有 service 时 service/endpoint 目录可能存在（createDirStructure 总是创建），
+	// 但不会生成具体的 service/xxx/service.go 文件。
 	mustNotExist(t, filepath.Join(outDir, "service", "product", "service.go"))
-	// model �?gorm tag �?生成 model
+	// model 有 gorm tag 时生成 model。
 	mustExist(t, filepath.Join(outDir, "model", "generated_onlymodel.go"))
 }
 
@@ -1495,7 +1497,8 @@ func TestGenerateFull_PackageNameLowercased(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	// 服务�?UserService �?package �?userservice（全小写�?	mustExist(t, filepath.Join(outDir, "service", "userservice", "service.go"))
+	// 服务名 UserService 对应全小写 package userservice。
+	mustExist(t, filepath.Join(outDir, "service", "userservice", "service.go"))
 
 	content := readFile(t, filepath.Join(outDir, "service", "userservice", "service.go"))
 	if !strings.Contains(content, "package userservice") {
@@ -1532,7 +1535,7 @@ func TestGenerateFull_OpenAPI_FullContent(t *testing.T) {
 	mustContain(t, docsPath, "func Handler")
 	mustContain(t, openAPIPath, `"openapi": "3.1.0"`)
 
-	mustContain(t, openAPIPath, `"jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema"`)
+	mustNotContain(t, openAPIPath, `"jsonSchemaDialect"`)
 	mustContain(t, openAPIPath, `"components"`)
 	mustContain(t, openAPIPath, `"schemas"`)
 
@@ -1620,10 +1623,12 @@ func TestGenerateFull_OpenAPI_MainRoutes(t *testing.T) {
 
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	mustContain(t, mainPath, "/swagger/")
-	mustContain(t, mainPath, "httpSwagger")
+	mustContain(t, mainPath, `swaggerUI "github.com/swaggest/swgui/v5"`)
+	mustContain(t, mainPath, `swaggerUI.New("UserService API", "/openapi.json", "/swagger/")`)
 	mustContain(t, mainPath, "/openapi.json")
 	mustContain(t, mainPath, "docs.Handler")
 	mustNotContain(t, mainPath, "swagger/doc.json")
+	mustContain(t, filepath.Join(outDir, "go.mod"), "github.com/swaggest/swgui v1.8.9")
 }
 
 // main.go does not carry a second annotation-based API contract.
@@ -1805,8 +1810,8 @@ func TestGenerateFull_OpenAPI_DisabledDoesNotGenerateDocs(t *testing.T) {
 
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	content := readFile(t, mainPath)
-	if strings.Contains(content, "httpSwagger") {
-		t.Error("main.go should not contain httpSwagger when WithOpenAPI=false")
+	if strings.Contains(content, "swaggerUI") {
+		t.Error("main.go should not contain swaggerUI when WithOpenAPI=false")
 	}
 	mustNotContain(t, mainPath, `r.HandleFunc("GET /openapi.json"`)
 }

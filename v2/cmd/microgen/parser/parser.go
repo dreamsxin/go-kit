@@ -103,33 +103,36 @@ func ParseFull(idlPath string) (*ParseResult, error) {
 		Source:      SourceGo,
 	}
 
-	ast.Inspect(file, func(n ast.Node) bool {
-		ts, ok := n.(*ast.TypeSpec)
-		if !ok {
-			return true
+	for _, declaration := range file.Decls {
+		genDecl, ok := declaration.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.TYPE {
+			continue
 		}
+		for _, spec := range genDecl.Specs {
+			ts, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+			declarationDoc := ts.Doc
+			if declarationDoc == nil && len(genDecl.Specs) == 1 {
+				declarationDoc = genDecl.Doc
+			}
 
-		switch t := ts.Type.(type) {
-		case *ast.InterfaceType:
-			// 解析服务接口
-			svc := parseService(ts, t)
-			result.Services = append(result.Services, svc)
-
-		case *ast.StructType:
-			// 解析结构体 → 可能是 gorm model
-			model := parseModel(ts, t)
-			result.Models = append(result.Models, model)
+			switch typeNode := ts.Type.(type) {
+			case *ast.InterfaceType:
+				result.Services = append(result.Services, parseService(ts, typeNode, declarationDoc))
+			case *ast.StructType:
+				result.Models = append(result.Models, parseModel(ts, typeNode, declarationDoc))
+			}
 		}
-
-		return true
-	})
+	}
 
 	return result, nil
 }
 
 // ─────────────────────────── 接口解析 ───────────────────────────
 
-func parseService(ts *ast.TypeSpec, iface *ast.InterfaceType) *Service {
+func parseService(ts *ast.TypeSpec, iface *ast.InterfaceType, declarationDoc *ast.CommentGroup) *Service {
 	svc := &Service{
 		ServiceName: ts.Name.Name,
 		PackageName: strings.ToLower(ts.Name.Name),
@@ -137,9 +140,7 @@ func parseService(ts *ast.TypeSpec, iface *ast.InterfaceType) *Service {
 
 	// 接口注释 → Title / Description
 	svc.Title = ts.Name.Name + " API"
-	if ts.Comment != nil {
-		svc.Description = strings.TrimSpace(ts.Comment.Text())
-	}
+	svc.Description = commentText(declarationDoc, ts.Comment)
 
 	for _, m := range iface.Methods.List {
 		method, err := parseMethod(m, svc.ServiceName)
@@ -163,8 +164,7 @@ func parseMethod(field *ast.Field, serviceName string) (Method, error) {
 	}
 
 	// 注释 → Doc & Summary
-	if field.Doc != nil {
-		raw := strings.TrimSpace(field.Doc.Text())
+	if raw := commentText(field.Doc, field.Comment); raw != "" {
 		method.Doc = raw
 		// Summary 取第一行（去掉可能的方法名前缀）
 		firstLine := strings.SplitN(raw, "\n", 2)[0]
@@ -249,15 +249,13 @@ func validateMethodSignature(funcType *ast.FuncType) error {
 
 // ─────────────────────────── 结构体/Model 解析 ───────────────────────────
 
-func parseModel(ts *ast.TypeSpec, st *ast.StructType) *Model {
+func parseModel(ts *ast.TypeSpec, st *ast.StructType, declarationDoc *ast.CommentGroup) *Model {
 	model := &Model{
 		Name:      ts.Name.Name,
 		TableName: ToSnakeCase(ts.Name.Name),
 	}
 
-	if ts.Comment != nil {
-		model.Comment = strings.TrimSpace(ts.Comment.Text())
-	}
+	model.Comment = commentText(declarationDoc, ts.Comment)
 
 	for _, field := range st.Fields.List {
 		if len(field.Names) == 0 {
@@ -274,9 +272,7 @@ func parseModel(ts *ast.TypeSpec, st *ast.StructType) *Model {
 		mf.Type = typeName
 
 		// 行注释
-		if field.Comment != nil {
-			mf.Comment = strings.TrimSpace(field.Comment.Text())
-		}
+		mf.Comment = commentText(field.Doc, field.Comment)
 
 		// 解析 tag
 		if field.Tag != nil {
@@ -316,6 +312,18 @@ func isContextType(expr ast.Expr) bool {
 	}
 	ident, ok := selExpr.X.(*ast.Ident)
 	return ok && ident.Name == "context" && selExpr.Sel.Name == "Context"
+}
+
+func commentText(groups ...*ast.CommentGroup) string {
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		if text := strings.TrimSpace(group.Text()); text != "" {
+			return text
+		}
+	}
+	return ""
 }
 
 func isErrorType(expr ast.Expr) bool {
