@@ -204,8 +204,8 @@ func classifyOwnership(root, rel string) FileOwnership {
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated demo client output"}
 	case strings.HasPrefix(rel, "skill/"):
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated skill output"}
-	case rel == "docs/docs.go":
-		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated docs stub"}
+	case rel == "docs/docs.go" || rel == "docs/openapi.json" || rel == "docs/schema.json":
+		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated API contract output"}
 	case rel == "config/config.go":
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated config schema"}
 	case strings.HasPrefix(rel, "model/generated_"):

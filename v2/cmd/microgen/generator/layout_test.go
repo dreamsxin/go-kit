@@ -54,6 +54,15 @@ func TestProjectLayoutArtifactPaths(t *testing.T) {
 	if got, want := layout.jsonSchemaFile(), filepath.Join("out", "docs", "schema.json"); got != want {
 		t.Fatalf("jsonSchemaFile() = %q, want %q", got, want)
 	}
+	if got, want := layout.typeScriptClientFile(), filepath.Join("out", "sdk", "typescript", "client.ts"); got != want {
+		t.Fatalf("typeScriptClientFile() = %q, want %q", got, want)
+	}
+	if got, want := layout.typeScriptReadme(), filepath.Join("out", "sdk", "typescript", "README.md"); got != want {
+		t.Fatalf("typeScriptReadme() = %q, want %q", got, want)
+	}
+	if got, want := layout.typeScriptConfig(), filepath.Join("out", "sdk", "typescript", "tsconfig.json"); got != want {
+		t.Fatalf("typeScriptConfig() = %q, want %q", got, want)
+	}
 	if got, want := layout.idlCopy(), filepath.Join("out", "idl.go"); got != want {
 		t.Fatalf("idlCopy() = %q, want %q", got, want)
 	}

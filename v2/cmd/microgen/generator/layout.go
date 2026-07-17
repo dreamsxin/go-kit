@@ -39,6 +39,18 @@ func (l projectLayout) docsEmbed() string      { return filepath.Join(l.docsDir(
 func (l projectLayout) openAPIFile() string    { return filepath.Join(l.docsDir(), "openapi.json") }
 func (l projectLayout) jsonSchemaFile() string { return filepath.Join(l.docsDir(), "schema.json") }
 func (l projectLayout) skillFile() string      { return filepath.Join(l.root, "skill", "skill.go") }
+func (l projectLayout) typeScriptSDKDir() string {
+	return filepath.Join(l.root, "sdk", "typescript")
+}
+func (l projectLayout) typeScriptClientFile() string {
+	return filepath.Join(l.typeScriptSDKDir(), "client.ts")
+}
+func (l projectLayout) typeScriptReadme() string {
+	return filepath.Join(l.typeScriptSDKDir(), "README.md")
+}
+func (l projectLayout) typeScriptConfig() string {
+	return filepath.Join(l.typeScriptSDKDir(), "tsconfig.json")
+}
 func (l projectLayout) aiDir() string          { return filepath.Join(l.root, ".ai") }
 func (l projectLayout) aiProjectGuide() string { return filepath.Join(l.aiDir(), "PROJECT_GUIDE.md") }
 func (l projectLayout) cmdGeneratedInteraction() string {
@@ -140,6 +152,9 @@ func (l projectLayout) requiredDirs(services []*serviceView, opts Options) []str
 	}
 	if opts.WithSkill {
 		dirs = append(dirs, filepath.Join(l.root, "skill"))
+	}
+	if opts.WithOpenAPI {
+		dirs = append(dirs, l.typeScriptSDKDir())
 	}
 	if opts.WithInteraction {
 		dirs = append(dirs, l.aiDir())

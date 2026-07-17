@@ -142,6 +142,9 @@ func (g *Generator) generateFinalProjectArtifacts(ctx generationContext) error {
 		if err := g.generateContracts(ctx); err != nil {
 			return fmt.Errorf("generate API contracts failed: %w", err)
 		}
+		if err := g.generateTypeScriptSDK(ctx.project); err != nil {
+			return fmt.Errorf("generate TypeScript SDK failed: %w", err)
+		}
 	}
 
 	if g.config.WithSkill {

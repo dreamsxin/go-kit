@@ -20,6 +20,8 @@ root.
 - Shared HTTP path/query codec for generated transports, clients, and SDKs.
 - OpenAPI 3.1 generation and a standalone JSON Schema 2020-12 bundle directly
   from the common `microgen` IR.
+- Zero-runtime-dependency TypeScript Fetch clients generated from the same IR,
+  with strict compiler settings and external type-check coverage.
 - Shared non-GET path parameter encoding and decoding for generated transports,
   clients, and SDKs.
 
@@ -61,6 +63,8 @@ root.
 - Generated environment values remain the highest-priority config source after
   remote loading.
 - Generated Go files fail generation before a malformed partial file is written.
+- Append-service and append-model refresh OpenAPI, JSON Schema, and TypeScript
+  client artifacts instead of leaving generated contracts stale.
 
 ### Removed
 

@@ -158,6 +158,9 @@ func BuildAppendServicePlan(existing *ExistingProject, project *ir.Project, opts
 			Reason:    "refresh generated skill output to include appended service",
 		})
 	}
+	if opts.WithOpenAPI {
+		plan.UpdatedFiles = append(plan.UpdatedFiles, generatedContractUpdates(layout)...)
+	}
 	if existing.AggregationPoints.GeneratedRuntime != "" {
 		plan.UpdatedFiles = append(plan.UpdatedFiles, PlannedUpdate{
 			Path:      existing.AggregationPoints.GeneratedRuntime,
@@ -273,6 +276,9 @@ func BuildAppendModelPlan(existing *ExistingProject, project *ir.Project, opts O
 			Reason:    "refresh generated service repository dependency seam",
 		})
 	}
+	if opts.WithOpenAPI {
+		plan.UpdatedFiles = append(plan.UpdatedFiles, generatedContractUpdates(layout)...)
+	}
 
 	slices.SortFunc(plan.NewFiles, func(a, b PlannedFile) int {
 		return strings.Compare(a.Path, b.Path)
@@ -281,6 +287,41 @@ func BuildAppendModelPlan(existing *ExistingProject, project *ir.Project, opts O
 		return strings.Compare(a.Path, b.Path)
 	})
 	return plan, nil
+}
+
+func generatedContractUpdates(layout projectLayout) []PlannedUpdate {
+	return []PlannedUpdate{
+		{
+			Path:      layout.docsEmbed(),
+			Ownership: OwnershipGeneratorRebuildable,
+			Reason:    "refresh generated contract embed wrapper",
+		},
+		{
+			Path:      layout.openAPIFile(),
+			Ownership: OwnershipGeneratorRebuildable,
+			Reason:    "refresh generated OpenAPI contract",
+		},
+		{
+			Path:      layout.jsonSchemaFile(),
+			Ownership: OwnershipGeneratorRebuildable,
+			Reason:    "refresh generated JSON Schema contract",
+		},
+		{
+			Path:      layout.typeScriptClientFile(),
+			Ownership: OwnershipGeneratorRebuildable,
+			Reason:    "refresh generated TypeScript client contract",
+		},
+		{
+			Path:      layout.typeScriptReadme(),
+			Ownership: OwnershipGeneratorRebuildable,
+			Reason:    "refresh generated TypeScript SDK usage",
+		},
+		{
+			Path:      layout.typeScriptConfig(),
+			Ownership: OwnershipGeneratorRebuildable,
+			Reason:    "refresh generated TypeScript SDK compiler settings",
+		},
+	}
 }
 
 // BuildAppendMiddlewarePlan validates an append-middleware request and reports

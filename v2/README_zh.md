@@ -104,12 +104,16 @@ curl http://localhost:8080/skill
 
 启用 `-openapi` 后，`microgen` 会从路由、客户端、SDK 和 skill 元数据共用的统一
 IR 直接生成 OpenAPI 3.1，并在 `docs/schema.json` 和 `GET /schema.json`
-提供独立 JSON Schema 2020-12 bundle。Swagger UI 位于 `/swagger/`，其
+提供独立 JSON Schema 2020-12 bundle，同时在 `sdk/typescript/` 生成零运行时
+依赖的 Fetch client。Swagger UI 位于 `/swagger/`，其
 Swagger UI 5 静态资源嵌入生成二进制，不依赖 CDN。它只是
 `/openapi.json` 的查看器，不是第二份契约来源。
 
 仓库文本文件和生成 JSON 统一使用无 BOM 的 UTF-8。仓库编码测试会在发布前拒绝
 无效 UTF-8 和 Unicode 替换字符。
+
+可使用 `npx --package typescript tsc -p sdk/typescript/tsconfig.json`
+检查生成的 TypeScript 源码。
 
 刚生成的业务方法会返回未实现错误。业务逻辑写在
 `service/helloservice/service.go`。

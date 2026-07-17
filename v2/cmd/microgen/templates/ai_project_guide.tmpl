@@ -30,6 +30,7 @@ Generator-owned (do not hand-edit; use `microgen extend`):
 - `docs/docs.go`
 - `docs/openapi.json`
 - `docs/schema.json`
+- `sdk/typescript/`
 {{- end }}
 - `.ai/PROJECT_GUIDE.md`
 {{- if .WithInteraction }}
@@ -61,6 +62,7 @@ Generator-owned (do not hand-edit; use `microgen extend`):
 - `GET /openapi.json` — generated OpenAPI 3.1 contract
 - `GET /schema.json` — generated JSON Schema 2020-12 bundle
 - `GET /swagger/` — embedded Swagger UI 5 backed by the generated contract
+- `sdk/typescript/client.ts` — generated Fetch-based unary HTTP client
 {{- end }}
 - `GET /debug/routes` — runtime route inspection
 - `GET /health` — health check

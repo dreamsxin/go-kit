@@ -16,7 +16,7 @@ For existing projects, prefer `microgen extend -check -out .` before changing ge
 ## Capability Contract
 
 The service capability contract starts from the input definition and is normalized by `microgen` before output is written. The same contract drives HTTP routes, gRPC/proto assets, generated clients, SDKs, OpenAPI and JSON Schema output, README endpoint listings, and AI tool metadata.
-`docs/openapi.json` is the generated OpenAPI 3.1 contract and `docs/schema.json` is the reusable JSON Schema 2020-12 bundle. The running service exposes them at `GET /openapi.json` and `GET /schema.json`, and serves embedded Swagger UI 5 at `GET /swagger/`. Files under `docs/` are refreshed by generation and extend mode; do not hand-edit them.
+`docs/openapi.json` is the generated OpenAPI 3.1 contract and `docs/schema.json` is the reusable JSON Schema 2020-12 bundle. The running service exposes them at `GET /openapi.json` and `GET /schema.json`, and serves embedded Swagger UI 5 at `GET /swagger/`. `sdk/typescript/` contains the generated Fetch-based unary HTTP client. Files under `docs/` and `sdk/typescript/` are refreshed by generation and extend mode; do not hand-edit them.
 
 When `skill/` is generated, `/skill` exposes OpenAI-style tools and `/skill?format=mcp` exposes MCP-style tool descriptors from that same contract. The response also includes metadata with schema version `microgen.skill.v1`, source, services, and supported formats.
 `/skill?format=mcp` is discovery output, not a tool execution endpoint. If this project needs AI-facing sessions, tool-call execution, authorization, audit records, or an MCP-style JSON-RPC endpoint, build that runtime surface with the framework `interaction` package:

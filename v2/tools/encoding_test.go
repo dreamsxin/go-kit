@@ -60,7 +60,7 @@ func repositoryTextFile(path string) bool {
 		return true
 	}
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".go", ".json", ".md", ".mod", ".proto", ".ps1", ".sh", ".sum", ".tmpl", ".toml", ".txt", ".yaml", ".yml":
+	case ".go", ".json", ".md", ".mod", ".proto", ".ps1", ".sh", ".sum", ".tmpl", ".toml", ".ts", ".txt", ".yaml", ".yml":
 		return true
 	default:
 		return false

@@ -14,12 +14,13 @@ func TestScanExistingProject_DetectsServicesOwnershipAndWarnings(t *testing.T) {
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithConfig: true,
-		WithDocs:   false,
-		WithSkill:  true,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithConfig:  true,
+		WithDocs:    false,
+		WithSkill:   true,
+		WithOpenAPI: true,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -47,6 +48,11 @@ func TestScanExistingProject_DetectsServicesOwnershipAndWarnings(t *testing.T) {
 	sdkOwn := existing.Ownership["sdk/userservicesdk/client.go"]
 	if sdkOwn.Tier != generator.OwnershipGeneratorRebuildable {
 		t.Fatalf("sdk ownership tier = %q, want %q", sdkOwn.Tier, generator.OwnershipGeneratorRebuildable)
+	}
+	for _, rel := range []string{"docs/openapi.json", "docs/schema.json", "sdk/typescript/client.ts"} {
+		if own := existing.Ownership[rel]; own.Tier != generator.OwnershipGeneratorRebuildable {
+			t.Fatalf("%s ownership tier = %q, want %q", rel, own.Tier, generator.OwnershipGeneratorRebuildable)
+		}
 	}
 	mainOwn := existing.Ownership["cmd/main.go"]
 	if mainOwn.Tier != generator.OwnershipUserProtected {
@@ -361,12 +367,13 @@ func TestBuildAppendModelPlan_RejectsDuplicateModel(t *testing.T) {
 	project := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithDocs:   false,
-		WithConfig: false,
-		WithModel:  true,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithDocs:    false,
+		WithConfig:  false,
+		WithModel:   true,
+		WithOpenAPI: true,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -516,12 +523,13 @@ func TestApplyAppendModel_WritesNewFilesAndPreservesExistingHooks(t *testing.T) 
 	base := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithDocs:   false,
-		WithConfig: false,
-		WithModel:  true,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithDocs:    false,
+		WithConfig:  false,
+		WithModel:   true,
+		WithOpenAPI: true,
 	})
 	if err := gen.GenerateIR(base); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -550,6 +558,8 @@ func TestApplyAppendModel_WritesNewFilesAndPreservesExistingHooks(t *testing.T) 
 	mustExist(t, filepath.Join(outDir, "repository", "generated_product_repository.go"))
 	mustContain(t, filepath.Join(outDir, "service", "userservice", "generated_repos.go"), "ProductRepo *repository.ProductRepository")
 	mustContain(t, filepath.Join(outDir, "idl.go"), "type Product struct")
+	mustContain(t, filepath.Join(outDir, "docs", "schema.json"), `"Product"`)
+	mustContain(t, filepath.Join(outDir, "sdk", "typescript", "client.ts"), "export interface Product")
 	mustContain(t, hooksPath, customMarker)
 }
 
@@ -697,12 +707,13 @@ func TestApplyAppendService_WritesNewFilesAndPreservesExistingService(t *testing
 	base := parseIDLProject(t, "basic.go")
 
 	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithDocs:   false,
-		WithConfig: false,
-		WithSkill:  true,
+		OutputDir:   outDir,
+		ImportPath:  "example.com/basic",
+		DBDriver:    "sqlite",
+		WithDocs:    false,
+		WithConfig:  false,
+		WithSkill:   true,
+		WithOpenAPI: true,
 	})
 	if err := gen.GenerateIR(base); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -771,6 +782,9 @@ type OrderService interface {
 	mustContain(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/placeorder")
 	mustContain(t, filepath.Join(outDir, "cmd", "generated_services.go"), "orderserviceSvc")
 	mustContain(t, filepath.Join(outDir, "skill", "skill.go"), "PlaceOrder")
+	mustContain(t, filepath.Join(outDir, "docs", "openapi.json"), "OrderService_PlaceOrder")
+	mustContain(t, filepath.Join(outDir, "docs", "schema.json"), `"PlaceOrderRequest"`)
+	mustContain(t, filepath.Join(outDir, "sdk", "typescript", "client.ts"), "export class OrderServiceClient")
 	mustContain(t, filepath.Join(outDir, "idl.go"), "type OrderService interface")
 	mustContain(t, servicePath, customMarker)
 }

@@ -311,6 +311,9 @@ func TestGenerateFull_DirectoryStructure_WithOpenAPI(t *testing.T) {
 	mustExist(t, filepath.Join(outDir, "docs", "docs.go"))
 	mustExist(t, filepath.Join(outDir, "docs", "openapi.json"))
 	mustExist(t, filepath.Join(outDir, "docs", "schema.json"))
+	mustExist(t, filepath.Join(outDir, "sdk", "typescript", "client.ts"))
+	mustExist(t, filepath.Join(outDir, "sdk", "typescript", "README.md"))
+	mustExist(t, filepath.Join(outDir, "sdk", "typescript", "tsconfig.json"))
 }
 
 // ─────────────────────────── 生成文件内容验证 ─────────────────────────────
@@ -1645,6 +1648,11 @@ func TestGenerateFull_OpenAPI_MainRoutes(t *testing.T) {
 	mustContain(t, mainPath, "docs.SchemaHandler")
 	mustNotContain(t, mainPath, "swagger/doc.json")
 	mustContain(t, filepath.Join(outDir, "go.mod"), "github.com/swaggest/swgui v1.8.9")
+	typeScriptPath := filepath.Join(outDir, "sdk", "typescript", "client.ts")
+	mustContain(t, typeScriptPath, "export class APIClient")
+	mustContain(t, typeScriptPath, "export class UserServiceClient")
+	mustContain(t, typeScriptPath, `let path = "/getuser"`)
+	mustContain(t, typeScriptPath, "appendQueryValue")
 }
 
 // main.go does not carry a second annotation-based API contract.
@@ -1824,6 +1832,7 @@ func TestGenerateFull_OpenAPI_DisabledDoesNotGenerateDocs(t *testing.T) {
 	mustNotExist(t, filepath.Join(outDir, "docs", "docs.go"))
 	mustNotExist(t, filepath.Join(outDir, "docs", "openapi.json"))
 	mustNotExist(t, filepath.Join(outDir, "docs", "schema.json"))
+	mustNotExist(t, filepath.Join(outDir, "sdk", "typescript", "client.ts"))
 
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	content := readFile(t, mainPath)

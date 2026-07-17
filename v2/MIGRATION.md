@@ -190,6 +190,9 @@ Embedded Swagger UI 5 remains available at `/swagger/` when generation uses
 and refreshed on generation or extend. Keep custom descriptions in the source
 contract rather than editing generated documentation.
 
+The generated Fetch-based TypeScript source SDK lives under `sdk/typescript/`.
+It covers unary HTTP methods; streaming RPCs remain on the Go gRPC SDK.
+
 ## Generated Projects
 
 Regenerate into a new directory and compare ownership boundaries before replacing

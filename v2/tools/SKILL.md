@@ -88,9 +88,10 @@ microgen -idl idl.go -out . -import example.com/service
 
 Add `-openapi` to generate `docs/openapi.json` and `docs/schema.json`, expose
 `GET /openapi.json` and `GET /schema.json`, and serve embedded Swagger UI 5 at
-`GET /swagger/`. OpenAPI 3.1 and JSON Schema 2020-12 are generated from the same
-IR as routes, clients, SDKs, and skill metadata; do not add transport annotations
-by hand.
+`GET /swagger/`. This also generates the Fetch-based TypeScript source SDK under
+`sdk/typescript/`. OpenAPI 3.1, JSON Schema 2020-12, and TypeScript types are
+generated from the same IR as routes, clients, SDKs, and skill metadata; do not
+add transport annotations by hand.
 
 Protobuf with HTTP and gRPC:
 
