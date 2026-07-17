@@ -1,0 +1,241 @@
+package {{.Service.ServiceName | lower}}
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
+)
+
+// {{.Service.ServiceName}} defines the business contract.
+type {{.Service.ServiceName}} interface {
+{{range .UnaryMethods}}
+	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	{{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error)
+{{end}}
+{{range .ServerStreamMethods}}
+	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	{{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error
+{{end}}
+{{range .ClientStreamMethods}}
+	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (idl.{{.OutputName}}, error)
+{{end}}
+{{range .BidiStreamMethods}}
+	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error
+{{end}}
+}
+
+// ServiceConfig controls generated service behavior.
+type ServiceConfig struct {
+	LogLevel      string        `json:"log_level"`
+	Timeout       time.Duration `json:"timeout"`
+	EnableLogging bool          `json:"enable_logging"`
+	EnableMetrics bool          `json:"enable_metrics"`
+	Logger        *kitlog.Logger `json:"-"`
+}
+
+var defaultConfig = &ServiceConfig{
+	LogLevel:      "info",
+	Timeout:       30 * time.Second,
+	EnableLogging: true,
+}
+
+{{if .WithModel}}
+// NewService creates a service without repository dependencies.
+func NewService(cfg *ServiceConfig) {{.Service.ServiceName}} {
+	return NewServiceWithRepo(cfg, GeneratedRepos{})
+}
+
+// NewServiceWithRepo creates a service with repository dependencies.
+func NewServiceWithRepo(cfg *ServiceConfig, repos GeneratedRepos) {{.Service.ServiceName}} {
+	if cfg == nil {
+		cfg = defaultConfig
+	}
+	return newServiceImpl(cfg, repos)
+}
+
+func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) {{.Service.ServiceName}} {
+	logger := cfg.Logger
+	if logger == nil {
+		logger = kitlog.NewNopLogger()
+	}
+	var svc {{.Service.ServiceName}} = &serviceImpl{
+		config: cfg,
+		logger: logger,
+		repos:  repos,
+	}
+
+	if cfg.EnableLogging {
+		svc = LoggingMiddleware(logger)(svc)
+	}
+	if cfg.EnableMetrics {
+		svc = MetricsMiddleware()(svc)
+	}
+
+	return svc
+}
+{{else}}
+// NewService creates a service instance.
+func NewService(cfg *ServiceConfig) {{.Service.ServiceName}} {
+	if cfg == nil {
+		cfg = defaultConfig
+	}
+	return newServiceImpl(cfg)
+}
+
+func newServiceImpl(cfg *ServiceConfig) {{.Service.ServiceName}} {
+	logger := cfg.Logger
+	if logger == nil {
+		logger = kitlog.NewNopLogger()
+	}
+	var svc {{.Service.ServiceName}} = &serviceImpl{
+		config: cfg,
+		logger: logger,
+	}
+
+	if cfg.EnableLogging {
+		svc = LoggingMiddleware(logger)(svc)
+	}
+	if cfg.EnableMetrics {
+		svc = MetricsMiddleware()(svc)
+	}
+
+	return svc
+}
+{{end}}
+
+type serviceImpl struct {
+	config *ServiceConfig
+	logger *kitlog.Logger
+{{- if .WithModel}}
+	repos  GeneratedRepos
+{{- end}}
+}
+
+{{range .UnaryMethods}}
+func (s *serviceImpl) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
+	_ = req
+	return idl.{{.OutputName}}{}, errors.New("{{.Name}}: not implemented")
+}
+{{end}}
+{{range .ServerStreamMethods}}
+func (s *serviceImpl) {{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error {
+	_ = req
+	_ = send
+	return errors.New("{{.Name}}: not implemented")
+}
+{{end}}
+{{range .ClientStreamMethods}}
+func (s *serviceImpl) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (idl.{{.OutputName}}, error) {
+	_ = recv
+	return idl.{{.OutputName}}{}, errors.New("{{.Name}}: not implemented")
+}
+{{end}}
+{{range .BidiStreamMethods}}
+func (s *serviceImpl) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error {
+	_ = recv
+	_ = send
+	return errors.New("{{.Name}}: not implemented")
+}
+{{end}}
+
+type ServiceMiddleware func({{.Service.ServiceName}}) {{.Service.ServiceName}}
+
+func LoggingMiddleware(logger *kitlog.Logger) ServiceMiddleware {
+	return func(next {{.Service.ServiceName}}) {{.Service.ServiceName}} {
+		return &loggingMiddleware{next: next, logger: logger}
+	}
+}
+
+type loggingMiddleware struct {
+	next   {{.Service.ServiceName}}
+	logger *kitlog.Logger
+}
+
+{{range .UnaryMethods}}
+func (m *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (resp idl.{{.OutputName}}, err error) {
+	start := time.Now()
+	defer func() {
+		if err != nil {
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
+		} else {
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
+		}
+	}()
+	return m.next.{{.Name}}(ctx, req)
+}
+{{end}}
+{{range .ServerStreamMethods}}
+func (m *loggingMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) (err error) {
+	start := time.Now()
+	defer func() {
+		if err != nil {
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
+		} else {
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
+		}
+	}()
+	return m.next.{{.Name}}(ctx, req, send)
+}
+{{end}}
+{{range .ClientStreamMethods}}
+func (m *loggingMiddleware) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (resp idl.{{.OutputName}}, err error) {
+	start := time.Now()
+	defer func() {
+		if err != nil {
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
+		} else {
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
+		}
+	}()
+	return m.next.{{.Name}}(ctx, recv)
+}
+{{end}}
+{{range .BidiStreamMethods}}
+func (m *loggingMiddleware) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) (err error) {
+	start := time.Now()
+	defer func() {
+		if err != nil {
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} err=%v elapsed=%v", err, time.Since(start))
+		} else {
+			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
+		}
+	}()
+	return m.next.{{.Name}}(ctx, recv, send)
+}
+{{end}}
+
+func MetricsMiddleware() ServiceMiddleware {
+	return func(next {{.Service.ServiceName}}) {{.Service.ServiceName}} {
+		return &metricsMiddleware{next: next}
+	}
+}
+
+type metricsMiddleware struct {
+	next {{.Service.ServiceName}}
+}
+
+{{range .UnaryMethods}}
+func (m *metricsMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
+	return m.next.{{.Name}}(ctx, req)
+}
+{{end}}
+{{range .ServerStreamMethods}}
+func (m *metricsMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error {
+	return m.next.{{.Name}}(ctx, req, send)
+}
+{{end}}
+{{range .ClientStreamMethods}}
+func (m *metricsMiddleware) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (idl.{{.OutputName}}, error) {
+	return m.next.{{.Name}}(ctx, recv)
+}
+{{end}}
+{{range .BidiStreamMethods}}
+func (m *metricsMiddleware) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error {
+	return m.next.{{.Name}}(ctx, recv, send)
+}
+{{end}}

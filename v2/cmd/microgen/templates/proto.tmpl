@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package {{.Service.PackageName}};
+
+option go_package = "./pb";
+
+{{if .NeedsTimestamp}}import "google/protobuf/timestamp.proto";
+{{end}}
+{{if .NeedsDuration}}import "google/protobuf/duration.proto";
+{{end}}
+
+
+// {{.Service.ServiceName}} gRPC 服务定义
+service {{.Service.ServiceName}} {
+{{range .IRService.Methods}}  // {{.Description}}
+  rpc {{.Name}} ({{if .StreamsInput}}stream {{end}}{{.InputName}}) returns ({{if .StreamsOutput}}stream {{end}}{{.OutputName}});
+{{end}}}
+
+{{range .Messages}}
+// {{.Name}}{{if .Comment}} {{.Comment}}{{end}}
+message {{.Name}} {
+{{- if .Placeholder}}
+  // TODO: fill in the message fields for {{.Name}}.
+{{- else}}
+{{- range .Fields}}
+{{- if .Comment}}  // {{.Comment}}
+{{- end}}
+{{- if .IsMap}}
+  map<{{.KeyType}}, {{.ValueType}}> {{.Name}} = {{.Number}};
+{{- else}}
+  {{if .Repeated}}repeated {{else if .Optional}}optional {{end}}{{.Type}} {{.Name}} = {{.Number}};
+{{- end}}
+{{- end}}
+{{- end}}
+}
+
+{{end}}

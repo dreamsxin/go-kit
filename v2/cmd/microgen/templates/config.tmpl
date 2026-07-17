@@ -1,0 +1,55 @@
+# Generated config values for the service.
+# Unspecified fields inherit the defaults returned by config.Default().
+server:
+  http_addr: ":8080"
+{{- if .WithGRPC}}
+  grpc_addr: ":8081"
+{{- end}}
+  read_timeout: "15s"
+  write_timeout: "15s"
+  graceful_shutdown_timeout: "30s"
+{{- if .WithSwag}}
+  swagger_host: ""
+{{- end}}
+
+logging:
+  level: "info"
+  format: "json"
+
+{{- if .WithDB}}
+
+database:
+  driver: "{{.DBDriver}}"
+  dsn: "{{.DBConfigDSN}}"
+  auto_migrate: false
+  max_open_conns: 20
+  max_idle_conns: 5
+  conn_max_lifetime: "1h"
+{{- end}}
+
+middleware:
+  circuit_breaker:
+    enabled: false
+    failure_threshold: 5
+    timeout: "60s"
+  rate_limit:
+    enabled: true
+    requests_per_second: 100
+  retry:
+    enabled: false
+    max_attempts: 3
+    backoff: "2s"
+
+debug:
+  routes_enabled: true
+  print_routes: true
+
+remote:
+  enabled: {{if .RemoteEnabledDefault}}true{{else}}false{{end}}
+  provider: "{{.RemoteProvider}}"
+  endpoint: ""
+  namespace: ""
+  group: ""
+  data_id: ""
+  timeout: "5s"
+  fallback_to_local: {{if .RemoteFallbackDefault}}true{{else}}false{{end}}

@@ -21,6 +21,9 @@ Service -> Endpoint -> Transport
 v1.6.0 Stable
 ```
 
+允许破坏性调整的开发线位于 [`v2/`](v2/)，它是独立 Go 模块
+`github.com/dreamsxin/go-kit/v2`。根目录模块继续作为 v1 稳定线维护。
+
 稳定范围：
 
 - 核心 `service -> endpoint -> transport` 运行时分层

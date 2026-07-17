@@ -1,0 +1,126 @@
+package {{.Service.ServiceName | lower}}
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+	kitlog "github.com/dreamsxin/go-kit/v2/log"
+{{- if .UnaryMethods}}
+	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
+{{- end}}
+	svc "{{.ImportPath}}/service/{{.Service.ServiceName | lower}}"
+)
+
+// {{.Service.ServiceName}}Endpoints groups the generated endpoints.
+type {{.Service.ServiceName}}Endpoints struct {
+{{range .UnaryMethods}}	{{.Name}}Endpoint endpoint.Endpoint
+{{end}}
+}
+
+type MiddlewareConfig struct {
+	CBEnabled          bool
+	CBFailureThreshold uint32
+	CBTimeout          time.Duration
+	RLEnabled          bool
+	RLRps              float64
+	RetryEnabled       bool
+	RetryMaxAttempts   int
+	RetryBackoff       time.Duration
+	Timeout            time.Duration
+}
+
+var DefaultMiddlewareConfig = MiddlewareConfig{
+	CBEnabled:          false,
+	CBFailureThreshold: 5,
+	CBTimeout:          60 * time.Second,
+	RLEnabled:          true,
+	RLRps:              100,
+	RetryEnabled:       false,
+	RetryMaxAttempts:   3,
+	RetryBackoff:       2 * time.Second,
+	Timeout:            30 * time.Second,
+}
+
+func MakeServerEndpoints(s svc.{{.Service.ServiceName}}, logger *kitlog.Logger) {{.Service.ServiceName}}Endpoints {
+	return MakeServerEndpointsWithConfig(s, logger, DefaultMiddlewareConfig)
+}
+
+func MakeServerEndpointsWithConfig(
+	s svc.{{.Service.ServiceName}},
+	logger *kitlog.Logger,
+	cfg MiddlewareConfig,
+) {{.Service.ServiceName}}Endpoints {
+{{- if .UnaryMethods}}
+	build := func(ep endpoint.Endpoint, name string) endpoint.Endpoint {
+		ep = applyGeneratedMiddleware(ep, logger, cfg, name)
+		return applyCustomMiddleware(ep, logger, cfg, name)
+	}
+
+{{- end}}
+	return {{.Service.ServiceName}}Endpoints{
+{{range .UnaryMethods}}		{{.Name}}Endpoint: build(Make{{.Name}}Endpoint(s), "{{.Name}}"),
+{{end}}	}
+}
+
+{{range .UnaryMethods}}
+func Make{{.Name}}Endpoint(s svc.{{$.Service.ServiceName}}) endpoint.Endpoint {
+	return func(ctx context.Context, request any) (any, error) {
+		req := request.(idl.{{.InputName}})
+		resp, err := s.{{.Name}}(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		return resp, nil
+	}
+}
+{{end}}
+
+{{range .UnaryMethods}}
+func (e {{$.Service.ServiceName}}Endpoints) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
+	resp, err := e.{{.Name}}Endpoint(ctx, req)
+	if err != nil {
+		return idl.{{.OutputName}}{}, err
+	}
+	return resp.(idl.{{.OutputName}}), nil
+}
+{{end}}
+
+// RetryMiddleware retries only errors that explicitly implement
+// interface{ Retryable() bool } and return true. It is safe for server-side
+// endpoint chains because ordinary business errors are not retried.
+func RetryMiddleware(maxAttempts int, backoff time.Duration) endpoint.Middleware {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request any) (response any, err error) {
+			if maxAttempts <= 1 {
+				return next(ctx, request)
+			}
+			for i := 0; ; i++ {
+				response, err = next(ctx, request)
+				if err == nil || !retryableEndpointError(err) || i+1 >= maxAttempts {
+					return response, err
+				}
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(backoff * time.Duration(i+1)):
+				}
+			}
+		}
+	}
+}
+
+func retryableEndpointError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var retryable interface{ Retryable() bool }
+	if errors.As(err, &retryable) {
+		return retryable.Retryable()
+	}
+	return false
+}

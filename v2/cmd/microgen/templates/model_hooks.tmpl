@@ -1,0 +1,15 @@
+package model
+
+import "gorm.io/gorm"
+
+// BeforeCreate runs before inserting {{.Name}}.
+func (m *{{.Name}}) BeforeCreate(tx *gorm.DB) (err error) {
+	// TODO: Add create-time model hooks here.
+	return nil
+}
+
+// BeforeUpdate runs before updating {{.Name}}.
+func (m *{{.Name}}) BeforeUpdate(tx *gorm.DB) (err error) {
+	// TODO: Add update-time model hooks here.
+	return nil
+}

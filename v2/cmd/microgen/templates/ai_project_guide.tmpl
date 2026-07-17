@@ -1,0 +1,70 @@
+# AI Agent Project Guide
+
+This file is generated for AI agents and coding assistants working on this project.
+
+## Project Overview
+
+{{- range .Project.Services }}
+- Service: **{{ .Name }}** — {{ .Description }}
+{{- end }}
+
+## File Ownership
+
+User-owned (safe to edit):
+
+- `service/<name>/service.go` — business logic
+- `endpoint/<name>/custom_chain.go` — custom middleware hooks
+- `cmd/custom_routes.go` — custom HTTP routes
+{{- if .WithConfig }}
+- `config/config.yaml` — local configuration
+{{- end }}
+
+Generator-owned (do not hand-edit; use `microgen extend`):
+
+- `cmd/generated_*.go`
+- `endpoint/<name>/generated_chain.go`
+- `model/generated_*.go`
+- `repository/generated_*.go`
+- `skill/skill.go`
+- `.ai/PROJECT_GUIDE.md`
+{{- if .WithInteraction }}
+- `cmd/generated_interaction.go`
+{{- end }}
+
+## AI-Facing Endpoints
+
+{{- if .WithInteraction }}
+- `POST /mcp` — MCP JSON-RPC endpoint (protocol version 2025-06-18)
+  - `initialize` — capability negotiation and server info
+  - `ping` — liveness check
+  - `tools/list` / `tools/call` — discover and invoke service methods
+  - `resources/list` / `resources/read` — read server-exposed data artifacts
+  - `resources/templates/list` — discover parameterised resource URI patterns
+  - `prompts/list` / `prompts/get` — list and render reusable prompt templates
+  - `completion/complete` — auto-complete prompt argument values
+  - `logging/setLevel` — adjust server log verbosity
+  - `notifications/initialized` — complete the MCP handshake (notification, no response)
+  - Supports Streamable HTTP transport: GET for SSE streams, DELETE for session termination
+  - Supports MCP Sampling: server can request LLM completions from connected clients
+  - Server-initiated notifications: tools/list_changed, prompts/list_changed, resources/list_changed, resources/updated, message, progress
+{{- end }}
+{{- if .WithSkill }}
+- `GET /skill` — OpenAI-style tool discovery
+- `GET /skill?format=mcp` — MCP-style tool discovery (schema only)
+{{- end }}
+- `GET /debug/routes` — runtime route inspection
+- `GET /health` — health check
+
+## Common Modifications
+
+1. **Add business logic** → edit `service/<name>/service.go`
+2. **Add endpoint middleware** → edit `endpoint/<name>/custom_chain.go`
+3. **Add a new service or model** → run `microgen extend -check -out .` first, then use `-append-service` or `-append-model`
+4. **Change AI tool behavior** → the tools are auto-registered from endpoints; change the underlying service logic instead
+
+## Validation Commands
+
+```bash
+go test ./...
+go run ./cmd/main.go
+```

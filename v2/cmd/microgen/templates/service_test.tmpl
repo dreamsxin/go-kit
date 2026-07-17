@@ -1,0 +1,108 @@
+package test
+
+import (
+	"context"
+	"testing"
+
+	"{{.ImportPath}}/service/{{.Service.PackageName}}"
+	idl "{{.ImportPath}}"
+)
+
+func Test{{.Service.ServiceName}}(t *testing.T) {
+	svc := {{.Service.PackageName}}.NewService(nil)
+	ctx := context.Background()
+
+{{range .UnaryMethods}}
+	t.Run("{{.Name}}", func(t *testing.T) {
+		req := idl.{{.InputName}}{}
+		_, err := svc.{{.Name}}(ctx, req)
+		if err != nil {
+			t.Errorf("{{.Name}} failed: %v", err)
+		}
+	})
+{{end}}
+{{range .ServerStreamMethods}}
+	t.Run("{{.Name}}", func(t *testing.T) {
+		req := idl.{{.InputName}}{}
+		err := svc.{{.Name}}(ctx, req, func(idl.{{.OutputName}}) error { return nil })
+		if err != nil {
+			t.Errorf("{{.Name}} failed: %v", err)
+		}
+	})
+{{end}}
+{{range .ClientStreamMethods}}
+	t.Run("{{.Name}}", func(t *testing.T) {
+		_, err := svc.{{.Name}}(ctx, func() (idl.{{.InputName}}, error) {
+			return idl.{{.InputName}}{}, context.Canceled
+		})
+		if err != nil {
+			t.Errorf("{{.Name}} failed: %v", err)
+		}
+	})
+{{end}}
+{{range .BidiStreamMethods}}
+	t.Run("{{.Name}}", func(t *testing.T) {
+		err := svc.{{.Name}}(ctx, func() (idl.{{.InputName}}, error) {
+			return idl.{{.InputName}}{}, context.Canceled
+		}, func(idl.{{.OutputName}}) error { return nil })
+		if err != nil {
+			t.Errorf("{{.Name}} failed: %v", err)
+		}
+	})
+{{end}}
+}
+
+func Test{{.Service.ServiceName}}Middleware(t *testing.T) {
+	ctx := context.Background()
+
+{{range .UnaryMethods}}
+	t.Run("{{.Name}}WithLogging", func(t *testing.T) {
+		svc := {{$.Service.PackageName}}.NewService(nil)
+		loggingSvc := {{$.Service.PackageName}}.LoggingMiddleware(nil)(svc)
+
+		req := idl.{{.InputName}}{}
+		_, err := loggingSvc.{{.Name}}(ctx, req)
+		if err != nil {
+			t.Errorf("{{.Name}} with logging failed: %v", err)
+		}
+	})
+{{end}}
+{{range .ServerStreamMethods}}
+	t.Run("{{.Name}}WithLogging", func(t *testing.T) {
+		svc := {{$.Service.PackageName}}.NewService(nil)
+		loggingSvc := {{$.Service.PackageName}}.LoggingMiddleware(nil)(svc)
+
+		req := idl.{{.InputName}}{}
+		err := loggingSvc.{{.Name}}(ctx, req, func(idl.{{.OutputName}}) error { return nil })
+		if err != nil {
+			t.Errorf("{{.Name}} with logging failed: %v", err)
+		}
+	})
+{{end}}
+{{range .ClientStreamMethods}}
+	t.Run("{{.Name}}WithLogging", func(t *testing.T) {
+		svc := {{$.Service.PackageName}}.NewService(nil)
+		loggingSvc := {{$.Service.PackageName}}.LoggingMiddleware(nil)(svc)
+
+		_, err := loggingSvc.{{.Name}}(ctx, func() (idl.{{.InputName}}, error) {
+			return idl.{{.InputName}}{}, context.Canceled
+		})
+		if err != nil {
+			t.Errorf("{{.Name}} with logging failed: %v", err)
+		}
+	})
+{{end}}
+{{range .BidiStreamMethods}}
+	t.Run("{{.Name}}WithLogging", func(t *testing.T) {
+		svc := {{$.Service.PackageName}}.NewService(nil)
+		loggingSvc := {{$.Service.PackageName}}.LoggingMiddleware(nil)(svc)
+
+		err := loggingSvc.{{.Name}}(ctx, func() (idl.{{.InputName}}, error) {
+			return idl.{{.InputName}}{}, context.Canceled
+		}, func(idl.{{.OutputName}}) error { return nil })
+		if err != nil {
+			t.Errorf("{{.Name}} with logging failed: %v", err)
+		}
+	})
+{{end}}
+}

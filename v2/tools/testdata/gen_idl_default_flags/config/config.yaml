@@ -1,0 +1,46 @@
+# Generated config values for the service.
+# Unspecified fields inherit the defaults returned by config.Default().
+server:
+  http_addr: ":8080"
+  read_timeout: "15s"
+  write_timeout: "15s"
+  graceful_shutdown_timeout: "30s"
+
+logging:
+  level: "info"
+  format: "json"
+
+database:
+  driver: "mysql"
+  dsn: "root:password@tcp(127.0.0.1:3306)/{svcname}?charset=utf8mb4&parseTime=True&loc=Local"
+  auto_migrate: false
+  max_open_conns: 20
+  max_idle_conns: 5
+  conn_max_lifetime: "1h"
+
+middleware:
+  circuit_breaker:
+    enabled: false
+    failure_threshold: 5
+    timeout: "60s"
+  rate_limit:
+    enabled: true
+    requests_per_second: 100
+  retry:
+    enabled: false
+    max_attempts: 3
+    backoff: "2s"
+
+debug:
+  routes_enabled: true
+  print_routes: true
+
+remote:
+  enabled: false
+  provider: ""
+  endpoint: ""
+  namespace: ""
+  group: ""
+  data_id: ""
+  timeout: "5s"
+  fallback_to_local: true

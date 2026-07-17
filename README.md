@@ -21,6 +21,10 @@ Current release:
 v1.6.0 Stable
 ```
 
+The breaking-change development line lives in [`v2/`](v2/) as the independent
+Go module `github.com/dreamsxin/go-kit/v2`. The root module remains the v1 stable
+line.
+
 Stable scope:
 
 - core `service -> endpoint -> transport` runtime layering

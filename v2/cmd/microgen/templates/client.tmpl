@@ -1,0 +1,211 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
+{{- if .WithGRPC}}
+{{- if .UnaryMethods}}
+	genTransport "{{.ImportPath}}/transport/{{.Service.ServiceName | lower}}"
+{{- end}}
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+{{- end}}
+)
+
+// ─────────────────────────── HTTP Client ───────────────────────────
+
+// {{.Service.ServiceName}}HTTPClient {{.Service.ServiceName}} HTTP 客户端
+type {{.Service.ServiceName}}HTTPClient struct {
+	baseURL    string
+	httpClient *http.Client
+}
+
+// New{{.Service.ServiceName}}HTTPClient 创建 HTTP 客户端，baseURL 如 "http://localhost:8080"
+func New{{.Service.ServiceName}}HTTPClient(baseURL string) *{{.Service.ServiceName}}HTTPClient {
+	return &{{.Service.ServiceName}}HTTPClient{
+		baseURL:    baseURL,
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
+func (c *{{.Service.ServiceName}}HTTPClient) do(ctx context.Context, method, path string, req, resp interface{}) error {
+	var body *bytes.Reader
+	if req != nil {
+		raw, err := json.Marshal(req)
+		if err != nil {
+			return fmt.Errorf("marshal: %w", err)
+		}
+		body = bytes.NewReader(raw)
+	} else {
+		body = bytes.NewReader(nil)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
+	if err != nil {
+		return fmt.Errorf("new request: %w", err)
+	}
+	if req != nil {
+		httpReq.Header.Set("Content-Type", "application/json")
+	}
+	r, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("send: %w", err)
+	}
+	defer r.Body.Close()
+	if r.StatusCode != http.StatusOK {
+		return fmt.Errorf("status %d", r.StatusCode)
+	}
+	return json.NewDecoder(r.Body).Decode(resp)
+}
+
+func buildGETPath(path string, req interface{}) string {
+	b, _ := json.Marshal(req)
+	var params map[string]interface{}
+	_ = json.Unmarshal(b, &params)
+	if len(params) == 0 {
+		return path
+	}
+	query := url.Values{}
+	for k, v := range params {
+		if v == nil {
+			continue
+		}
+		token := "{" + k + "}"
+		value := fmt.Sprint(v)
+		if strings.Contains(path, token) {
+			path = strings.ReplaceAll(path, token, url.PathEscape(value))
+			continue
+		}
+		query.Set(k, value)
+	}
+	if encoded := query.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	return path
+}
+
+{{range .UnaryMethods}}
+// {{.Name}} 通过 HTTP 调用 {{.Name}}
+func (c *{{$.Service.ServiceName}}HTTPClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
+	var resp idl.{{.OutputName}}
+{{- if eq (.HTTPMethod | lower) "get"}}
+	return resp, c.do(ctx, "GET", buildGETPath("{{$.RoutePrefix}}{{.Route}}", req), nil, &resp)
+{{- else}}
+	return resp, c.do(ctx, "{{.HTTPMethod | upper}}", "{{$.RoutePrefix}}{{.Route}}", req, &resp)
+{{- end}}
+}
+{{end}}
+
+{{- if .WithGRPC}}
+// ─────────────────────────── gRPC Client ───────────────────────────
+
+// {{.Service.ServiceName}}GRPCClient gRPC 客户端
+type {{.Service.ServiceName}}GRPCClient struct {
+	conn *grpc.ClientConn
+{{range .UnaryMethods}}	{{.Name | lower}} func(ctx context.Context, request interface{}) (interface{}, error)
+{{end}}
+}
+
+// New{{.Service.ServiceName}}GRPCClient 创建 gRPC 客户端，addr 格式如 "localhost:8081"
+func New{{.Service.ServiceName}}GRPCClient(addr string, opts ...grpc.DialOption) (*{{.Service.ServiceName}}GRPCClient, error) {
+	if len(opts) == 0 {
+		opts = []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		}
+	}
+	conn, err := grpc.NewClient(addr, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("grpc dial %s: %w", addr, err)
+	}
+	return &{{.Service.ServiceName}}GRPCClient{
+		conn: conn,
+{{range .UnaryMethods}}		{{.Name | lower}}: genTransport.NewGRPC{{.Name}}Client(conn),
+{{end}}
+	}, nil
+}
+
+// Close 关闭 gRPC 连接
+func (c *{{.Service.ServiceName}}GRPCClient) Close() error {
+	return c.conn.Close()
+}
+
+{{range .UnaryMethods}}
+// {{.Name}} 通过 gRPC 调用 {{.Name}}
+func (c *{{$.Service.ServiceName}}GRPCClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
+	resp, err := c.{{.Name | lower}}(ctx, req)
+	if err != nil {
+		return idl.{{.OutputName}}{}, err
+	}
+	return resp.(idl.{{.OutputName}}), nil
+}
+{{end}}
+{{- end}}
+
+// ─────────────────────────── 通用接口 ───────────────────────────
+
+// {{.Service.ServiceName}}Client 统一客户端接口（HTTP 和 gRPC 均实现该接口）
+type {{.Service.ServiceName}}Client interface {
+{{range .UnaryMethods}}	{{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error)
+{{end}}
+}
+
+// ─────────────────────────── Demo logic ───────────────────────────
+
+func runDemo(client {{.Service.ServiceName}}Client, logger *log.Logger) {
+	ctx := context.Background()
+{{range .UnaryMethods}}
+	logger.Println(">>> {{.Name}}")
+	{{.Name | lower}}Resp, err := client.{{.Name}}(ctx, idl.{{.InputName}}{})
+	if err != nil {
+		logger.Printf("    FAIL: %v", err)
+	} else {
+		logger.Printf("    OK  : %+v", {{.Name | lower}}Resp)
+	}
+{{end}}
+}
+
+// ─────────────────────────── main ───────────────────────────
+
+func main() {
+	var (
+{{- if .WithGRPC}}
+		mode     = flag.String("mode", "grpc", "client mode: http or grpc")
+		grpcAddr = flag.String("grpc.addr", "localhost:8081", "gRPC server address (mode=grpc)")
+{{- else}}
+		mode     = flag.String("mode", "http", "client mode: http")
+{{- end}}
+		httpAddr = flag.String("http.addr", "http://localhost:8080", "HTTP server address (mode=http)")
+	)
+	flag.Parse()
+
+	logger := log.New(log.Writer(), "[demo] ", log.LstdFlags)
+
+	switch *mode {
+{{- if .WithGRPC}}
+	case "grpc":
+		logger.Printf("=== {{.Service.ServiceName}} gRPC Client Demo  addr=%s ===", *grpcAddr)
+		client, err := New{{.Service.ServiceName}}GRPCClient(*grpcAddr)
+		if err != nil {
+			logger.Fatalf("FATAL: dial grpc: %v", err)
+		}
+		defer client.Close()
+		runDemo(client, logger)
+{{- end}}
+	case "http":
+		logger.Printf("=== {{.Service.ServiceName}} HTTP Client Demo  addr=%s ===", *httpAddr)
+		runDemo(New{{.Service.ServiceName}}HTTPClient(*httpAddr), logger)
+	default:
+		logger.Fatalf("unknown mode %q{{if .WithGRPC}}, use -mode=grpc or -mode=http{{else}}, use -mode=http{{end}}", *mode)
+	}
+
+	logger.Println("=== Demo completed ===")
+}

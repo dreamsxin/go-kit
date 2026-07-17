@@ -1,0 +1,143 @@
+package {{.Service.ServiceName | lower}}
+
+import (
+{{- if or .UnaryMethods .ServerStreamMethods .ClientStreamMethods .BidiStreamMethods}}
+	"context"
+{{- end}}
+
+{{- if .UnaryMethods}}
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+	grpcclient "github.com/dreamsxin/go-kit/v2/transport/grpc/client"
+	grpcserver "github.com/dreamsxin/go-kit/v2/transport/grpc/server"
+{{- end}}
+	"google.golang.org/grpc"
+	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
+	genendpoint "{{.ImportPath}}/endpoint/{{.Service.ServiceName | lower}}"
+)
+
+type streamService interface {
+{{range .ServerStreamMethods}}	{{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error
+{{end}}{{range .ClientStreamMethods}}	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (idl.{{.OutputName}}, error)
+{{end}}{{range .BidiStreamMethods}}	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error
+{{end}}}
+
+// grpcServer implements the generated gRPC server contract.
+type grpcServer struct {
+{{- if eq .Source "proto"}}
+	idl.Unimplemented{{.Service.ServiceName}}Server
+{{- end}}
+	stream streamService
+{{range .UnaryMethods}}	{{.Name | lower}} grpcserver.Handler
+{{end}}}
+
+{{range .UnaryMethods}}
+func (s *grpcServer) {{.Name}}(ctx context.Context, req *idl.{{.InputName}}) (*idl.{{.OutputName}}, error) {
+	_, resp, err := s.{{.Name | lower}}.ServeGRPC(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp.(*idl.{{.OutputName}}), nil
+}
+{{end}}
+
+{{range .ServerStreamMethods}}
+func (s *grpcServer) {{.Name}}(req *idl.{{.InputName}}, stream idl.{{$.Service.ServiceName}}_{{.Name}}Server) error {
+	return s.stream.{{.Name}}(stream.Context(), *req, func(resp idl.{{.OutputName}}) error {
+		return stream.Send(&resp)
+	})
+}
+{{end}}
+{{range .ClientStreamMethods}}
+func (s *grpcServer) {{.Name}}(stream idl.{{$.Service.ServiceName}}_{{.Name}}Server) error {
+	resp, err := s.stream.{{.Name}}(stream.Context(), func() (idl.{{.InputName}}, error) {
+		req, err := stream.Recv()
+		if err != nil {
+			return idl.{{.InputName}}{}, err
+		}
+		return *req, nil
+	})
+	if err != nil {
+		return err
+	}
+	return stream.SendAndClose(&resp)
+}
+{{end}}
+{{range .BidiStreamMethods}}
+func (s *grpcServer) {{.Name}}(stream idl.{{$.Service.ServiceName}}_{{.Name}}Server) error {
+	return s.stream.{{.Name}}(stream.Context(), func() (idl.{{.InputName}}, error) {
+		req, err := stream.Recv()
+		if err != nil {
+			return idl.{{.InputName}}{}, err
+		}
+		return *req, nil
+	}, func(resp idl.{{.OutputName}}) error {
+		return stream.Send(&resp)
+	})
+}
+{{end}}
+
+func NewGRPCServer(service streamService, endpoints genendpoint.{{.Service.ServiceName}}Endpoints) *grpcServer {
+	return &grpcServer{
+		stream: service,
+{{range .UnaryMethods}}		{{.Name | lower}}: grpcserver.NewServer(
+			endpoints.{{.Name}}Endpoint,
+			decodeGRPC{{.Name}}Request,
+			encodeGRPC{{.Name}}Response,
+		),
+{{end}}	}
+}
+
+func RegisterGRPCServer(s *grpc.Server, service streamService, endpoints genendpoint.{{.Service.ServiceName}}Endpoints) {
+	idl.Register{{.Service.ServiceName}}Server(s, NewGRPCServer(service, endpoints))
+}
+
+{{range .UnaryMethods}}
+func NewGRPC{{.Name}}Client(conn *grpc.ClientConn, options ...grpcclient.ClientOption) endpoint.Endpoint {
+	return grpcclient.NewClient(
+		conn,
+		"{{$.Service.PackageName}}.{{$.Service.ServiceName}}",
+		"{{.Name}}",
+		EncodeGRPC{{.Name}}Request,
+		DecodeGRPC{{.Name}}Response,
+		&idl.{{.OutputName}}{},
+		options...,
+	).Endpoint()
+}
+{{end}}
+{{range .ServerStreamMethods}}
+func NewGRPC{{.Name}}Client(ctx context.Context, client idl.{{$.Service.ServiceName}}Client, req idl.{{.InputName}}, opts ...grpc.CallOption) (idl.{{$.Service.ServiceName}}_{{.Name}}Client, error) {
+	return client.{{.Name}}(ctx, &req, opts...)
+}
+{{end}}
+{{range .ClientStreamMethods}}
+func NewGRPC{{.Name}}Client(ctx context.Context, client idl.{{$.Service.ServiceName}}Client, opts ...grpc.CallOption) (idl.{{$.Service.ServiceName}}_{{.Name}}Client, error) {
+	return client.{{.Name}}(ctx, opts...)
+}
+{{end}}
+{{range .BidiStreamMethods}}
+func NewGRPC{{.Name}}Client(ctx context.Context, client idl.{{$.Service.ServiceName}}Client, opts ...grpc.CallOption) (idl.{{$.Service.ServiceName}}_{{.Name}}Client, error) {
+	return client.{{.Name}}(ctx, opts...)
+}
+{{end}}
+
+{{range .UnaryMethods}}
+func decodeGRPC{{.Name}}Request(_ context.Context, grpcReq any) (any, error) {
+	req := grpcReq.(*idl.{{.InputName}})
+	return *req, nil
+}
+
+func encodeGRPC{{.Name}}Response(_ context.Context, response any) (any, error) {
+	resp := response.(idl.{{.OutputName}})
+	return &resp, nil
+}
+
+func EncodeGRPC{{.Name}}Request(_ context.Context, request any) (any, error) {
+	req := request.(idl.{{.InputName}})
+	return &req, nil
+}
+
+func DecodeGRPC{{.Name}}Response(_ context.Context, grpcReply any) (any, error) {
+	resp := grpcReply.(*idl.{{.OutputName}})
+	return *resp, nil
+}
+{{end}}
