@@ -32,6 +32,7 @@ func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEnt
 	if withOpenAPI {
 		routes = append(routes,
 			generatedRouteEntry{Method: "GET", Path: "/openapi.json", Handler: "openapi"},
+			generatedRouteEntry{Method: "GET", Path: "/schema.json", Handler: "json-schema"},
 			generatedRouteEntry{Method: "GET", Path: "/swagger/", Handler: "swagger-ui"},
 		)
 	}

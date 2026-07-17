@@ -10,7 +10,10 @@ import (
 	"github.com/dreamsxin/go-kit/v2/cmd/microgen/ir"
 )
 
-const openAPIVersion = "3.1.0"
+const (
+	openAPIVersion   = "3.1.0"
+	openAPIRefPrefix = "#/components/schemas/"
+)
 
 type openAPIDocument struct {
 	OpenAPI    string                 `json:"openapi"`
@@ -83,7 +86,7 @@ type openAPISchema struct {
 	Example              any                       `json:"example,omitempty"`
 }
 
-func (g *Generator) generateOpenAPI(ctx generationContext) error {
+func (g *Generator) generateContracts(ctx generationContext) error {
 	if err := os.MkdirAll(g.layout.docsDir(), 0o755); err != nil {
 		return err
 	}
@@ -91,15 +94,22 @@ func (g *Generator) generateOpenAPI(ctx generationContext) error {
 		return err
 	}
 	doc := buildOpenAPIDocument(ctx.project, g.config.RoutePrefix)
-	data, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal OpenAPI document: %w", err)
-	}
-	data = append(data, '\n')
-	if err := os.WriteFile(g.layout.openAPIFile(), data, 0o644); err != nil {
+	if err := writeJSONDocument(g.layout.openAPIFile(), doc); err != nil {
 		return fmt.Errorf("write OpenAPI document: %w", err)
 	}
+	if err := writeJSONDocument(g.layout.jsonSchemaFile(), buildJSONSchemaDocument(ctx.project)); err != nil {
+		return fmt.Errorf("write JSON Schema document: %w", err)
+	}
 	return nil
+}
+
+func writeJSONDocument(path string, document any) error {
+	data, err := json.MarshalIndent(document, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	return os.WriteFile(path, data, 0o644)
 }
 
 func buildOpenAPIDocument(project *ir.Project, basePrefix string) openAPIDocument {
@@ -107,23 +117,8 @@ func buildOpenAPIDocument(project *ir.Project, basePrefix string) openAPIDocumen
 		project = &ir.Project{}
 	}
 	messages := collectOpenAPIMessages(project)
-	schemas := make(map[string]*openAPISchema, len(messages)+1)
-	messageNames := make(map[string]struct{}, len(messages))
-	for name := range messages {
-		messageNames[name] = struct{}{}
-	}
-	for name, message := range messages {
-		schemas[name] = openAPIMessageSchema(message, messageNames)
-	}
-	schemas["ErrorResponse"] = &openAPISchema{
-		Type: "object",
-		Properties: map[string]*openAPISchema{
-			"code":       {Type: "string"},
-			"message":    {Type: "string"},
-			"request_id": {Type: "string"},
-		},
-		Required: []string{"code", "message"},
-	}
+	messageNames := contractMessageNames(messages)
+	schemas := buildContractSchemas(messages, messageNames, openAPIRefPrefix)
 
 	doc := openAPIDocument{
 		OpenAPI: openAPIVersion,
@@ -270,6 +265,10 @@ func errorOpenAPIResponse(description string) openAPIResponse {
 }
 
 func openAPIMessageSchema(message *ir.Message, messageNames map[string]struct{}) *openAPISchema {
+	return contractMessageSchema(message, messageNames, openAPIRefPrefix)
+}
+
+func contractMessageSchema(message *ir.Message, messageNames map[string]struct{}, refPrefix string) *openAPISchema {
 	schema := &openAPISchema{Type: "object", Properties: map[string]*openAPISchema{}}
 	if message == nil {
 		return schema
@@ -280,7 +279,7 @@ func openAPIMessageSchema(message *ir.Message, messageNames map[string]struct{})
 			continue
 		}
 		name := firstNonEmpty(field.JSONName, strings.ToLower(field.Name))
-		schema.Properties[name] = openAPIFieldSchema(field, messageNames)
+		schema.Properties[name] = contractFieldSchema(field, messageNames, refPrefix)
 		if field.Required {
 			schema.Required = append(schema.Required, name)
 		}
@@ -290,7 +289,11 @@ func openAPIMessageSchema(message *ir.Message, messageNames map[string]struct{})
 }
 
 func openAPIFieldSchema(field *ir.Field, messageNames map[string]struct{}) *openAPISchema {
-	schema := openAPISchemaForType(field.GoType, field.SchemaType, messageNames)
+	return contractFieldSchema(field, messageNames, openAPIRefPrefix)
+}
+
+func contractFieldSchema(field *ir.Field, messageNames map[string]struct{}, refPrefix string) *openAPISchema {
+	schema := contractSchemaForType(field.GoType, field.SchemaType, messageNames, refPrefix)
 	schema.Description = field.Description
 	if field.Example != "" {
 		var example any
@@ -303,6 +306,10 @@ func openAPIFieldSchema(field *ir.Field, messageNames map[string]struct{}) *open
 }
 
 func openAPISchemaForType(goType, schemaType string, messageNames map[string]struct{}) *openAPISchema {
+	return contractSchemaForType(goType, schemaType, messageNames, openAPIRefPrefix)
+}
+
+func contractSchemaForType(goType, schemaType string, messageNames map[string]struct{}, refPrefix string) *openAPISchema {
 	t := strings.TrimSpace(goType)
 	for strings.HasPrefix(t, "*") {
 		t = strings.TrimPrefix(t, "*")
@@ -311,17 +318,17 @@ func openAPISchemaForType(goType, schemaType string, messageNames map[string]str
 		return &openAPISchema{Type: "string", Format: "byte"}
 	}
 	if strings.HasPrefix(t, "[]") {
-		return &openAPISchema{Type: "array", Items: openAPISchemaForType(strings.TrimPrefix(t, "[]"), "", messageNames)}
+		return &openAPISchema{Type: "array", Items: contractSchemaForType(strings.TrimPrefix(t, "[]"), "", messageNames, refPrefix)}
 	}
 	if strings.HasPrefix(t, "map[") {
 		valueType := "any"
 		if end := strings.Index(t, "]"); end >= 0 && end+1 < len(t) {
 			valueType = t[end+1:]
 		}
-		return &openAPISchema{Type: "object", AdditionalProperties: openAPISchemaForType(valueType, "", messageNames)}
+		return &openAPISchema{Type: "object", AdditionalProperties: contractSchemaForType(valueType, "", messageNames, refPrefix)}
 	}
 	if _, ok := messageNames[t]; ok {
-		return openAPIRef(t)
+		return contractSchemaRef(refPrefix, t)
 	}
 
 	switch t {
@@ -348,7 +355,40 @@ func openAPISchemaForType(goType, schemaType string, messageNames map[string]str
 }
 
 func openAPIRef(name string) *openAPISchema {
-	return &openAPISchema{Ref: "#/components/schemas/" + name}
+	return contractSchemaRef(openAPIRefPrefix, name)
+}
+
+func contractSchemaRef(refPrefix, name string) *openAPISchema {
+	return &openAPISchema{Ref: refPrefix + name}
+}
+
+func contractMessageNames(messages map[string]*ir.Message) map[string]struct{} {
+	names := make(map[string]struct{}, len(messages))
+	for name := range messages {
+		names[name] = struct{}{}
+	}
+	return names
+}
+
+func buildContractSchemas(messages map[string]*ir.Message, messageNames map[string]struct{}, refPrefix string) map[string]*openAPISchema {
+	schemas := make(map[string]*openAPISchema, len(messages)+1)
+	for name, message := range messages {
+		schemas[name] = contractMessageSchema(message, messageNames, refPrefix)
+	}
+	schemas["ErrorResponse"] = errorResponseSchema()
+	return schemas
+}
+
+func errorResponseSchema() *openAPISchema {
+	return &openAPISchema{
+		Type: "object",
+		Properties: map[string]*openAPISchema{
+			"code":       {Type: "string"},
+			"message":    {Type: "string"},
+			"request_id": {Type: "string"},
+		},
+		Required: []string{"code", "message"},
+	}
 }
 
 func collectOpenAPIMessages(project *ir.Project) map[string]*ir.Message {

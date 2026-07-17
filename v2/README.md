@@ -101,12 +101,19 @@ Inspect the generated service:
 curl http://localhost:8080/health
 curl http://localhost:8080/debug/routes
 curl http://localhost:8080/openapi.json
+curl http://localhost:8080/schema.json
 curl http://localhost:8080/skill
 ```
 
 With `-openapi`, `microgen` emits OpenAPI 3.1 directly from the same normalized IR
-used by routes, clients, SDKs, and skill metadata. Swagger UI is available at
-`/swagger/`; it is a viewer for `/openapi.json`, not a second contract source.
+used by routes, clients, SDKs, and skill metadata. It also emits a standalone
+JSON Schema 2020-12 bundle at `docs/schema.json` and `GET /schema.json`.
+Swagger UI is available at `/swagger/`; its Swagger UI 5 assets are embedded in
+the generated binary, so it does not depend on a CDN. It is a viewer for
+`/openapi.json`, not a second contract source.
+
+Repository text files and generated JSON are UTF-8 without BOM. The repository
+encoding test rejects invalid UTF-8 and replacement characters before release.
 
 The generated business method initially returns a not-implemented error. Add
 business behavior in `service/helloservice/service.go`.

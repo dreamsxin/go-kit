@@ -51,6 +51,9 @@ func TestProjectLayoutArtifactPaths(t *testing.T) {
 	if got, want := layout.openAPIFile(), filepath.Join("out", "docs", "openapi.json"); got != want {
 		t.Fatalf("openAPIFile() = %q, want %q", got, want)
 	}
+	if got, want := layout.jsonSchemaFile(), filepath.Join("out", "docs", "schema.json"); got != want {
+		t.Fatalf("jsonSchemaFile() = %q, want %q", got, want)
+	}
 	if got, want := layout.idlCopy(), filepath.Join("out", "idl.go"); got != want {
 		t.Fatalf("idlCopy() = %q, want %q", got, want)
 	}

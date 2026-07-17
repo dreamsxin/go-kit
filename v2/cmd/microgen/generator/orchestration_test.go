@@ -126,6 +126,7 @@ func TestGenerateFull_WithOpenAPI_GeneratesContractAtConventionalPath(t *testing
 	docsPath := filepath.Join(outDir, "docs", "docs.go")
 	mustExist(t, docsPath)
 	mustContain(t, docsPath, "package docs")
+	mustContain(t, filepath.Join(outDir, "docs", "schema.json"), `"$defs"`)
 }
 
 func TestGenerateFull_FromProtoGRPC_GeneratesConventionalProtoAndClientArtifacts(t *testing.T) {
@@ -208,5 +209,6 @@ func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testin
 	mustContain(t, filepath.Join(outDir, "docs", "docs.go"), "package docs")
 	mustContain(t, filepath.Join(outDir, "docs", "openapi.json"), `"openapi": "3.1.0"`)
 	mustContain(t, filepath.Join(outDir, "docs", "openapi.json"), expectedPrefix)
+	mustContain(t, filepath.Join(outDir, "docs", "schema.json"), `"$schema": "https://json-schema.org/draft/2020-12/schema"`)
 	mustContain(t, filepath.Join(outDir, "skill", "skill.go"), "CreateUser")
 }

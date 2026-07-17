@@ -37,6 +37,7 @@ func (l projectLayout) readme() string         { return filepath.Join(l.root, "R
 func (l projectLayout) docsDir() string        { return filepath.Join(l.root, "docs") }
 func (l projectLayout) docsEmbed() string      { return filepath.Join(l.docsDir(), "docs.go") }
 func (l projectLayout) openAPIFile() string    { return filepath.Join(l.docsDir(), "openapi.json") }
+func (l projectLayout) jsonSchemaFile() string { return filepath.Join(l.docsDir(), "schema.json") }
 func (l projectLayout) skillFile() string      { return filepath.Join(l.root, "skill", "skill.go") }
 func (l projectLayout) aiDir() string          { return filepath.Join(l.root, ".ai") }
 func (l projectLayout) aiProjectGuide() string { return filepath.Join(l.aiDir(), "PROJECT_GUIDE.md") }

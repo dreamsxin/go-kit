@@ -24,6 +24,9 @@ v1.6.0 Stable
 允许破坏性调整的开发线位于 [`v2/`](v2/)，它是独立 Go 模块
 `github.com/dreamsxin/go-kit/v2`。根目录模块继续作为 v1 稳定线维护。
 
+本文后续命令面向 v1。新建 v2 项目和当前 `microgen` 工作流请以
+[v2 使用文档](v2/README_zh.md)为准。
+
 稳定范围：
 
 - 核心 `service -> endpoint -> transport` 运行时分层

@@ -13,11 +13,13 @@ root.
 - Final generated configuration validation for server, logging, database,
   middleware, and remote-provider settings.
 - Deterministic formatting and text normalization for generated output.
+- Repository-wide UTF-8 validation that rejects BOMs, invalid byte sequences,
+  and Unicode replacement characters in maintained text files.
 - External generated-project smoke coverage using `go mod tidy` and
   `go test ./...`.
 - Shared HTTP path/query codec for generated transports, clients, and SDKs.
-- OpenAPI 3.1 generation with JSON Schema 2020-12 components directly from the
-  common `microgen` IR.
+- OpenAPI 3.1 generation and a standalone JSON Schema 2020-12 bundle directly
+  from the common `microgen` IR.
 - Shared non-GET path parameter encoding and decoding for generated transports,
   clients, and SDKs.
 
@@ -36,6 +38,8 @@ root.
   clients and servers share one tagged query contract and do not send JSON bodies.
 - Generated Go clients and SDKs use the same complete HTTP paths as server route
   registration and OpenAPI output.
+- Generated OpenAPI projects embed Swagger UI 5 assets and serve both
+  `/openapi.json` and `/schema.json` without CDN dependencies.
 - HTTP JSON client timeout construction is explicit through
   `NewJSONClientWithTimeout`.
 - Service-discovery retry defaults to one attempt and only retries explicitly

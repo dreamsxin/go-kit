@@ -45,6 +45,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		mustExistFile(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"))
 		mustExistFile(t, filepath.Join(outDir, "docs", "docs.go"))
 		mustExistFile(t, filepath.Join(outDir, "docs", "openapi.json"))
+		mustExistFile(t, filepath.Join(outDir, "docs", "schema.json"))
 		mustExistFile(t, filepath.Join(outDir, "skill", "skill.go"))
 		mustExistFile(t, filepath.Join(outDir, "cmd", "main.go"))
 		mustExistFile(t, filepath.Join(outDir, "cmd", "custom_routes.go"))
@@ -52,6 +53,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		mustContainFile(t, filepath.Join(outDir, "client", "userservice", "demo.go"), "/api/idl/userservice")
 		mustContainFile(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"), "/api/idl/userservice")
 		mustContainFile(t, filepath.Join(outDir, "docs", "openapi.json"), `"openapi": "3.1.0"`)
+		mustContainFile(t, filepath.Join(outDir, "docs", "schema.json"), `"$schema": "https://json-schema.org/draft/2020-12/schema"`)
 
 		// Verify generated service package compiles (it only depends on go-kit itself)
 		buildCmd := exec.Command("go", "build", "-mod=mod", "./service/...")
@@ -139,7 +141,9 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 
 		mustContainFile(t, goModPath, "require example.com/custom v0.0.0")
 		mustContainFile(t, docsPath, "go:embed openapi.json")
+		mustContainFile(t, docsPath, "go:embed schema.json")
 		mustContainFile(t, filepath.Join(outDir, "docs", "openapi.json"), `"openapi": "3.1.0"`)
+		mustContainFile(t, filepath.Join(outDir, "docs", "schema.json"), `"$defs"`)
 		mustContainFile(t, customRoutesPath, "/custom/ping")
 		mustContainFile(t, customChainPath, "applyCustomMiddleware")
 	})

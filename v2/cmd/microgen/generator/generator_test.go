@@ -309,6 +309,8 @@ func TestGenerateFull_DirectoryStructure_WithOpenAPI(t *testing.T) {
 	}
 
 	mustExist(t, filepath.Join(outDir, "docs", "docs.go"))
+	mustExist(t, filepath.Join(outDir, "docs", "openapi.json"))
+	mustExist(t, filepath.Join(outDir, "docs", "schema.json"))
 }
 
 // ─────────────────────────── 生成文件内容验证 ─────────────────────────────
@@ -1212,8 +1214,12 @@ func TestGenerateFull_OpenAPIEmbed_Contents(t *testing.T) {
 	docsPath := filepath.Join(outDir, "docs", "docs.go")
 	mustContain(t, docsPath, "package docs")
 	mustContain(t, docsPath, "go:embed openapi.json")
+	mustContain(t, docsPath, "go:embed schema.json")
 	mustContain(t, docsPath, "func Handler")
+	mustContain(t, docsPath, "func SchemaHandler")
+	mustContain(t, docsPath, "application/schema+json; charset=utf-8")
 	mustContain(t, filepath.Join(outDir, "docs", "openapi.json"), `"openapi": "3.1.0"`)
+	mustContain(t, filepath.Join(outDir, "docs", "schema.json"), `"$schema": "https://json-schema.org/draft/2020-12/schema"`)
 }
 
 // ─────────────────────────── README.md 内容 ─────────────────────────────
@@ -1241,7 +1247,7 @@ func TestGenerateFull_Readme_Contents(t *testing.T) {
 	mustContain(t, readmePath, "cmd/generated_*.go")
 	mustContain(t, readmePath, "microgen extend -check -out .")
 	mustContain(t, readmePath, "## Capability Contract")
-	mustContain(t, readmePath, "The same contract drives HTTP routes, gRPC/proto assets, generated clients, SDKs, OpenAPI schemas, README endpoint listings, and AI tool metadata.")
+	mustContain(t, readmePath, "The same contract drives HTTP routes, gRPC/proto assets, generated clients, SDKs, OpenAPI and JSON Schema output, README endpoint listings, and AI tool metadata.")
 	mustContain(t, readmePath, "microgen.skill.v1")
 	mustContain(t, readmePath, "`/skill?format=mcp` is discovery output, not a tool execution endpoint.")
 	mustContain(t, readmePath, "interaction.NewRuntime")
@@ -1529,11 +1535,19 @@ func TestGenerateFull_OpenAPI_FullContent(t *testing.T) {
 	mustExist(t, docsPath)
 	openAPIPath := filepath.Join(outDir, "docs", "openapi.json")
 	mustExist(t, openAPIPath)
+	jsonSchemaPath := filepath.Join(outDir, "docs", "schema.json")
+	mustExist(t, jsonSchemaPath)
 	mustContain(t, docsPath, "package docs")
 
 	mustContain(t, docsPath, "go:embed openapi.json")
+	mustContain(t, docsPath, "go:embed schema.json")
 	mustContain(t, docsPath, "func Handler")
+	mustContain(t, docsPath, "func SchemaHandler")
 	mustContain(t, openAPIPath, `"openapi": "3.1.0"`)
+	mustContain(t, jsonSchemaPath, `"$defs"`)
+	mustContain(t, jsonSchemaPath, `"ErrorResponse"`)
+	mustContain(t, jsonSchemaPath, `"$ref": "#/$defs/User"`)
+	mustNotContain(t, jsonSchemaPath, `#/components/schemas/`)
 
 	mustNotContain(t, openAPIPath, `"jsonSchemaDialect"`)
 	mustContain(t, openAPIPath, `"components"`)
@@ -1626,7 +1640,9 @@ func TestGenerateFull_OpenAPI_MainRoutes(t *testing.T) {
 	mustContain(t, mainPath, `swaggerUI "github.com/swaggest/swgui/v5"`)
 	mustContain(t, mainPath, `swaggerUI.New("UserService API", "/openapi.json", "/swagger/")`)
 	mustContain(t, mainPath, "/openapi.json")
+	mustContain(t, mainPath, "/schema.json")
 	mustContain(t, mainPath, "docs.Handler")
+	mustContain(t, mainPath, "docs.SchemaHandler")
 	mustNotContain(t, mainPath, "swagger/doc.json")
 	mustContain(t, filepath.Join(outDir, "go.mod"), "github.com/swaggest/swgui v1.8.9")
 }
@@ -1807,6 +1823,7 @@ func TestGenerateFull_OpenAPI_DisabledDoesNotGenerateDocs(t *testing.T) {
 
 	mustNotExist(t, filepath.Join(outDir, "docs", "docs.go"))
 	mustNotExist(t, filepath.Join(outDir, "docs", "openapi.json"))
+	mustNotExist(t, filepath.Join(outDir, "docs", "schema.json"))
 
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	content := readFile(t, mainPath)
@@ -1814,4 +1831,5 @@ func TestGenerateFull_OpenAPI_DisabledDoesNotGenerateDocs(t *testing.T) {
 		t.Error("main.go should not contain swaggerUI when WithOpenAPI=false")
 	}
 	mustNotContain(t, mainPath, `r.HandleFunc("GET /openapi.json"`)
+	mustNotContain(t, mainPath, `r.HandleFunc("GET /schema.json"`)
 }

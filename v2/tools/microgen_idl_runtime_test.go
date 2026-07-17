@@ -288,6 +288,8 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		expectStatusContains(t, "GET", baseURL+"/skill?format=openai", "", http.StatusOK, "\"function\"")
 		expectStatusContains(t, "GET", baseURL+"/skill?format=mcp", "", http.StatusOK, "\"inputSchema\"")
 		expectStatusContains(t, "GET", baseURL+"/skill?format=unknown", "", http.StatusOK, "\"function\"")
+		expectStatusContains(t, "GET", baseURL+"/openapi.json", "", http.StatusOK, "\"openapi\": \"3.1.0\"")
+		expectStatusContains(t, "GET", baseURL+"/schema.json", "", http.StatusOK, "\"$defs\"")
 
 		demoCmd := exec.Command("go", "run", "./client/userservice/demo.go", "-mode=http", "-http.addr="+baseURL)
 		demoCmd.Dir = outDir

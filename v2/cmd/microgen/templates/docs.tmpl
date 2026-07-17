@@ -13,8 +13,19 @@ import (
 //go:embed openapi.json
 var OpenAPI []byte
 
+// JSONSchema is the generated JSON Schema 2020-12 bundle.
+//
+//go:embed schema.json
+var JSONSchema []byte
+
 // Handler serves the generated OpenAPI document.
 func Handler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_, _ = w.Write(OpenAPI)
+}
+
+// SchemaHandler serves the generated JSON Schema document.
+func SchemaHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/schema+json; charset=utf-8")
+	_, _ = w.Write(JSONSchema)
 }

@@ -95,7 +95,7 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 	withModel := fs.Bool("model", true, "Generate model")
 	withDB := fs.Bool("db", true, "Include DB init in main")
 	driver := fs.String("driver", "mysql", "Database driver")
-	withOpenAPI := fs.Bool("openapi", false, "Generate OpenAPI 3.1 documentation and Swagger UI")
+	withOpenAPI := fs.Bool("openapi", false, "Generate OpenAPI 3.1, JSON Schema, and Swagger UI")
 	withSkill := fs.Bool("skill", true, "Generate AI skill support")
 	withInteraction := fs.Bool("interaction", false, "Generate AI interaction runtime and MCP endpoint")
 	serviceName := fs.String("service", "", "Service name")

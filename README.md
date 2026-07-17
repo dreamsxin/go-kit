@@ -25,6 +25,9 @@ The breaking-change development line lives in [`v2/`](v2/) as the independent
 Go module `github.com/dreamsxin/go-kit/v2`. The root module remains the v1 stable
 line.
 
+The commands in this README target v1. For new v2 projects and the current
+`microgen` workflow, use the [v2 documentation](v2/README.md).
+
 Stable scope:
 
 - core `service -> endpoint -> transport` runtime layering

@@ -32,6 +32,7 @@ func printBanner(logger *kitlog.Logger, httpAddr string, withOpenAPI bool, withS
 	logger.Sugar().Infof(" HTTP: http://localhost%s", httpAddr)
 	if withOpenAPI {
 		logger.Sugar().Infof(" OpenAPI: http://localhost%s/openapi.json", httpAddr)
+		logger.Sugar().Infof(" JSON Schema: http://localhost%s/schema.json", httpAddr)
 		logger.Sugar().Infof(" API UI: http://localhost%s/swagger/index.html", httpAddr)
 	}
 	if withSkill {
@@ -135,6 +136,7 @@ func main() {
 	r.HandleFunc("GET /skill", skill.Handler)
 
 	r.HandleFunc("GET /openapi.json", docs.Handler)
+	r.HandleFunc("GET /schema.json", docs.SchemaHandler)
 	r.Handle("GET /swagger/", swaggerUI.New("UserService API", "/openapi.json", "/swagger/"))
 
 	runtime.registerRoutes(r)

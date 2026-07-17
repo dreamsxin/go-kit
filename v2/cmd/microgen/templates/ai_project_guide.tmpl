@@ -29,6 +29,7 @@ Generator-owned (do not hand-edit; use `microgen extend`):
 {{- if .WithOpenAPI }}
 - `docs/docs.go`
 - `docs/openapi.json`
+- `docs/schema.json`
 {{- end }}
 - `.ai/PROJECT_GUIDE.md`
 {{- if .WithInteraction }}
@@ -58,7 +59,8 @@ Generator-owned (do not hand-edit; use `microgen extend`):
 {{- end }}
 {{- if .WithOpenAPI }}
 - `GET /openapi.json` — generated OpenAPI 3.1 contract
-- `GET /swagger/` — Swagger UI backed by the generated contract
+- `GET /schema.json` — generated JSON Schema 2020-12 bundle
+- `GET /swagger/` — embedded Swagger UI 5 backed by the generated contract
 {{- end }}
 - `GET /debug/routes` — runtime route inspection
 - `GET /health` — health check

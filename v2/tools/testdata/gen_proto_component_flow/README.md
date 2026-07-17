@@ -15,7 +15,7 @@ For existing projects, prefer `microgen extend -check -out .` before changing ge
 
 ## Capability Contract
 
-The service capability contract starts from the input definition and is normalized by `microgen` before output is written. The same contract drives HTTP routes, gRPC/proto assets, generated clients, SDKs, OpenAPI schemas, README endpoint listings, and AI tool metadata.
+The service capability contract starts from the input definition and is normalized by `microgen` before output is written. The same contract drives HTTP routes, gRPC/proto assets, generated clients, SDKs, OpenAPI and JSON Schema output, README endpoint listings, and AI tool metadata.
 
 When `skill/` is generated, `/skill` exposes OpenAI-style tools and `/skill?format=mcp` exposes MCP-style tool descriptors from that same contract. The response also includes metadata with schema version `microgen.skill.v1`, source, services, and supported formats.
 `/skill?format=mcp` is discovery output, not a tool execution endpoint. If this project needs AI-facing sessions, tool-call execution, authorization, audit records, or an MCP-style JSON-RPC endpoint, build that runtime surface with the framework `interaction` package:
@@ -49,7 +49,7 @@ Extend mode updates new generated files plus generator-owned aggregation seams. 
 Use this loop when an AI agent or maintainer changes the generated project:
 
 1. Read this README and inspect the source contract snapshot before editing.
-2. Check `GET /debug/routes` and, when enabled, `GET /openapi.json`, `GET /skill`, or `GET /skill?format=mcp` to see the generated route and discovery surface.
+2. Check `GET /debug/routes` and, when enabled, `GET /openapi.json`, `GET /schema.json`, `GET /skill`, or `GET /skill?format=mcp` to see the generated route and discovery surface.
 3. Put business behavior in user-owned files; do not hand-edit generator-owned files.
 4. For new services, models, or middleware, run `microgen extend -check -out .` before an append command.
 5. Use `interaction` runtime hooks for executable AI sessions instead of turning generated `skill/` metadata into business logic.

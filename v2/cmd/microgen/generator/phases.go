@@ -139,8 +139,8 @@ func (g *Generator) generateFinalProjectArtifacts(ctx generationContext) error {
 	}
 
 	if g.config.WithOpenAPI {
-		if err := g.generateOpenAPI(ctx); err != nil {
-			return fmt.Errorf("generate OpenAPI failed: %w", err)
+		if err := g.generateContracts(ctx); err != nil {
+			return fmt.Errorf("generate API contracts failed: %w", err)
 		}
 	}
 

@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UserService API Schemas",
+  "description": "UserService manages users.",
+  "$defs": {
+    "CreateUserRequest": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "example": "email"
+        },
+        "username": {
+          "type": "string",
+          "example": "username"
+        }
+      },
+      "required": [
+        "email",
+        "username"
+      ]
+    },
+    "CreateUserResponse": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "example": "error"
+        },
+        "user": {
+          "$ref": "#/$defs/User",
+          "example": {}
+        }
+      },
+      "required": [
+        "error"
+      ]
+    },
+    "DeleteUserRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int64",
+          "example": 1
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "DeleteUserResponse": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "example": "error"
+        },
+        "success": {
+          "type": "boolean",
+          "example": true
+        }
+      },
+      "required": [
+        "error",
+        "success"
+      ]
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "request_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "GetUserRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int64",
+          "example": 1
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "GetUserResponse": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "example": "error"
+        },
+        "user": {
+          "$ref": "#/$defs/User",
+          "example": {}
+        }
+      },
+      "required": [
+        "error"
+      ]
+    },
+    "ListUsersRequest": {
+      "type": "object",
+      "properties": {
+        "keyword": {
+          "type": "string",
+          "example": "keyword"
+        },
+        "page": {
+          "type": "integer",
+          "format": "int64",
+          "example": 1
+        }
+      },
+      "required": [
+        "keyword",
+        "page"
+      ]
+    },
+    "ListUsersResponse": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "format": "int64",
+          "example": 1
+        },
+        "users": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/User"
+          },
+          "example": {}
+        }
+      },
+      "required": [
+        "total",
+        "users"
+      ]
+    },
+    "UpdateUserRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int64",
+          "example": 1
+        },
+        "username": {
+          "type": "string",
+          "example": "username"
+        }
+      },
+      "required": [
+        "id",
+        "username"
+      ]
+    },
+    "UpdateUserResponse": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "example": "error"
+        },
+        "user": {
+          "$ref": "#/$defs/User",
+          "example": {}
+        }
+      },
+      "required": [
+        "error"
+      ]
+    },
+    "User": {
+      "type": "object",
+      "description": "User is a simple DTO.",
+      "properties": {
+        "active": {
+          "type": "boolean",
+          "example": true
+        },
+        "age": {
+          "type": "integer",
+          "format": "int64",
+          "example": 1
+        },
+        "email": {
+          "type": "string",
+          "example": "email"
+        },
+        "id": {
+          "type": "integer",
+          "format": "int64",
+          "example": 1
+        },
+        "score": {
+          "type": "number",
+          "format": "double",
+          "example": 1
+        },
+        "username": {
+          "type": "string",
+          "example": "username"
+        }
+      },
+      "required": [
+        "active",
+        "age",
+        "email",
+        "id",
+        "score",
+        "username"
+      ]
+    }
+  }
+}
