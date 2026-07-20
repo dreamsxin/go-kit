@@ -144,10 +144,14 @@ relative and must resolve on a case-sensitive filesystem.
 
 1. Confirm the module path is `github.com/dreamsxin/go-kit/v2`.
 2. Review exported API and generated-output diffs.
-3. Run `make verify-release` and commit the release candidate.
-4. Generate and build projects for each supported source mode.
-5. Update `CHANGELOG.md`, `MIGRATION.md`, and `RELEASE.md`.
-6. Run `make release-check-clean` from the committed candidate.
-7. Tag v2 releases from the repository commit containing the `v2/go.mod` module.
+3. Update `CHANGELOG.md`, `MIGRATION.md`, `RELEASE.md`, and `ROADMAP.md`.
+4. Commit the final release candidate.
+5. Run `make verify-release` from that committed candidate.
+6. Run `make release-check-clean` from the same commit.
+7. Create the annotated subdirectory-module tag `v2/vX.Y.Z`. For v2.0.0, use
+   `git tag -a v2/v2.0.0 -m "go-kit v2.0.0"`.
+
+Consumers install the module with version `vX.Y.Z`; the `v2/` prefix exists only
+on the repository tag because `go.mod` is stored in the `v2` subdirectory.
 
 See [RELEASE.md](RELEASE.md) for the compatibility policy.

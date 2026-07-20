@@ -5,6 +5,12 @@ root.
 
 ## Unreleased
 
+## [2.0.0] - 2026-07-20
+
+First stable v2 release. Exported runtime APIs, the `microgen` CLI and
+configuration, generated ownership, and documented protocol behavior now follow
+the compatibility policy in [RELEASE.md](RELEASE.md).
+
 ### Added
 
 - Independent `github.com/dreamsxin/go-kit/v2` module.

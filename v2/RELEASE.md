@@ -2,19 +2,20 @@
 
 ## Current Position
 
-v2 is under active development in the independent module:
+v2.0.0 is the first stable release of the independent module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
 
-Until v2.0.0 is tagged, exported APIs, CLI flags, and generated layouts may
-change without compatibility shims. Changes must still be tested and documented.
-v1 release history remains in the repository root and is not duplicated here.
+Its repository source tag is `v2/v2.0.0`, following the Go module convention for
+a major-version module stored in the `v2` subdirectory. Consumers continue to
+request module version `v2.0.0`. v1 release history remains in the repository
+root and is not duplicated here.
 
 ## Versioning
 
-v2 follows semantic versioning after v2.0.0:
+v2 follows semantic versioning from v2.0.0 onward:
 
 - patch: compatible fixes and documentation corrections;
 - minor: backward-compatible public capabilities;
@@ -33,7 +34,9 @@ The compatibility contract includes:
 Templates and packages under `cmd/microgen` are internal implementation details,
 but their generated public behavior is a product surface.
 
-## v2.0.0 Entry Criteria
+## v2.0.0 Entry Criteria (Complete)
+
+The v2.0.0 release commit satisfies these criteria:
 
 - `kit`, endpoint, HTTP/gRPC transport, service discovery, and interaction
   lifecycles have explicit error and cancellation contracts.
@@ -77,6 +80,13 @@ make release-check-clean
 This checks the committed v2 scope without rejecting unrelated repository-root
 work in progress.
 
+After all gates pass from that commit, create the annotated source tag from the
+repository root:
+
+```bash
+git tag -a v2/v2.0.0 -m "go-kit v2.0.0"
+```
+
 The equivalent focused Go commands are:
 
 ```bash
@@ -106,7 +116,7 @@ Also verify:
 - `git diff --check` passes;
 - documentation links resolve;
 - no temporary generated files remain;
-- the tag is created from the commit containing `v2/go.mod`.
+- the `v2/v2.0.0` tag points at the verified commit containing `v2/go.mod`.
 
 Intentional exported API changes must be reviewed before refreshing the API
 snapshot:

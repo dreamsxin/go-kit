@@ -23,9 +23,9 @@ This directory is the independent Go module:
 github.com/dreamsxin/go-kit/v2
 ```
 
-v2 is under active development. Breaking API and generated-output changes are
-allowed until the v2.0.0 release contract is frozen. The repository root remains
-the v1 module.
+v2.0.0 is the stable v2 contract. Exported APIs, CLI and configuration behavior,
+generated ownership, and documented protocol behavior follow semantic
+versioning. The repository root remains the v1 module.
 
 Requires Go 1.25.8 or later.
 
@@ -51,7 +51,7 @@ Install `microgen` while developing in this repository:
 go -C v2 install ./cmd/microgen
 ```
 
-After v2.0.0 is published:
+Install the released generator:
 
 ```bash
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v2.0.0

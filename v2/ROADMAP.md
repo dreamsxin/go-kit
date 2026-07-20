@@ -80,7 +80,7 @@ services that do not use these adapters keep the core dependency path small.
 Completed: common HTTP hardening can be enabled explicitly with standard
 `http.Handler` composition and without changing endpoint or transport contracts.
 
-## Milestone 5 (In Progress): v2 Release Closure / v2 发布收口
+## Milestone 5 (Complete): v2 Release Closure / v2 发布收口
 
 - `make verify-release` runs full functional validation, generated-project and
   contract checks, pinned TypeScript checks, focused race tests, vet, module
@@ -96,8 +96,11 @@ Completed: common HTTP hardening can be enabled explicitly with standard
   repository ordering whitelists, effective retry/logging wiring, safe low-rate
   limiter bursts, explicit server-error shutdown, and streaming-safe generated
   HTTP defaults.
-- Remaining: run the gates from the final release commit, review release notes,
-  create the version tag, and publish only after every check passes.
+
+Completed: the v2.0.0 compatibility contract and release notes are frozen. The
+final release commit must pass every release gate before the source tag
+`v2/v2.0.0` is created. Remote publication is an operational release action,
+not an implementation milestone.
 
 ## Maintenance Rules / 维护规则
 
