@@ -10,7 +10,7 @@ import (
 // ServeHTTP implements http.Handler, allowing Service to be used directly
 // with httptest.NewServer or http.ListenAndServe.
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.mux.ServeHTTP(w, r)
+	s.httpHandler.ServeHTTP(w, r)
 }
 
 // Handle registers a raw http.Handler for the given pattern.
@@ -61,4 +61,11 @@ func (s *Service) prepareHTTPContext(ctx context.Context, r *http.Request, w htt
 	requestID := requestIDFromContextOrHeader(ctx)
 	w.Header().Set(requestIDHeader, requestID)
 	return endpoint.WithRequestID(ctx, requestID)
+}
+
+func (s *Service) applyHTTPMiddleware(handler http.Handler) http.Handler {
+	for i := len(s.httpMiddleware) - 1; i >= 0; i-- {
+		handler = s.httpMiddleware[i](handler)
+	}
+	return handler
 }

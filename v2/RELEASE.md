@@ -44,6 +44,8 @@ but their generated public behavior is a product surface.
 - Generated configuration validates before runtime wiring.
 - Optional `slog` and OpenTelemetry adapters pass their focused package tests
   without adding a direct adapter dependency to the main module.
+- Optional HTTP security middleware validates policy at construction and has
+  focused trusted-proxy, IP, CORS, CSRF, header, and streaming-boundary tests.
 - Database introspection is read-only and startup migration is opt-in.
 - HTTP/MCP limits, protocol checks, streaming timeouts, and concurrency behavior
   are covered by tests.
@@ -84,6 +86,7 @@ Also verify:
 - `make test-contracts` passes with the pinned TypeScript compiler;
 - `make test-observability` passes for the standard-library and OpenTelemetry
   adapters;
+- `make test-security` passes for optional browser-facing HTTP middleware;
 - Go and TypeScript SDKs match the shared path/query/body/error fixture;
 - contract snapshot changes have been reviewed and refreshed explicitly;
 - repeat generation produces no second-run diff;

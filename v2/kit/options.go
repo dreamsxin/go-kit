@@ -3,6 +3,7 @@ package kit
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -43,6 +44,22 @@ func WithHTTPServerConfig(config HTTPServerConfig) Option {
 			return fmt.Errorf("HTTP max header bytes cannot be negative")
 		}
 		s.httpConfig = config
+		return nil
+	}
+}
+
+// WithHTTPMiddleware installs standard-library HTTP middleware around every
+// route, including health, JSON endpoint, raw HTTP, and generated routes. The
+// first middleware is the outermost handler.
+func WithHTTPMiddleware(middlewares ...func(http.Handler) http.Handler) Option {
+	copied := append([]func(http.Handler) http.Handler(nil), middlewares...)
+	return func(s *Service) error {
+		for i, middleware := range copied {
+			if middleware == nil {
+				return fmt.Errorf("HTTP middleware %d is nil", i)
+			}
+		}
+		s.httpMiddleware = append(s.httpMiddleware, copied...)
 		return nil
 	}
 }

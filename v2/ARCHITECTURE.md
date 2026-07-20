@@ -107,6 +107,14 @@ separate module that adapts endpoint calls to application-owned OpenTelemetry
 tracers and meters. Neither adapter logs or records request/response payloads;
 operation names and application attributes must remain bounded.
 
+### Optional HTTP security
+
+`security/http` wraps standard-library handlers with trusted-proxy resolution,
+client-IP policy, CORS, signed double-submit CSRF, and security headers. It is
+assembled around transport handlers and does not change endpoint contracts.
+Authentication establishes a principal at the protocol boundary; business
+authorization remains in endpoint or service policy.
+
 ### `cmd/microgen`
 
 `microgen` is a build-time tool. Parsers produce a common IR that drives HTTP
@@ -128,6 +136,10 @@ Metrics, logging, timeout, rate limit, and circuit breaker options configured on
 `kit` apply to routes registered through `HandleJSON` or
 `HandleJSONEndpoint`. Raw handlers receive only explicitly installed HTTP
 middleware.
+
+`kit.WithHTTPMiddleware` is the explicit whole-server boundary for standard
+`http.Handler` middleware. It wraps health, JSON endpoint, raw HTTP, and
+generated routes without converting HTTP policy into endpoint middleware.
 
 Circuit breakers are scoped per route. Business validation errors should not be
 treated as infrastructure failure unless an application explicitly classifies

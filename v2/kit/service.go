@@ -19,6 +19,8 @@ import (
 type Service struct {
 	addr             string
 	mux              *http.ServeMux
+	httpHandler      http.Handler
+	httpMiddleware   []func(http.Handler) http.Handler
 	middleware       []endpoint.Middleware
 	routeMiddleware  []func(route string) endpoint.Middleware
 	logger           *kitlog.Logger
@@ -72,6 +74,7 @@ func New(addr string, opts ...Option) (*Service, error) {
 		}
 	}
 	s.registerHealthEndpoints()
+	s.httpHandler = s.applyHTTPMiddleware(s.mux)
 	return s, nil
 }
 

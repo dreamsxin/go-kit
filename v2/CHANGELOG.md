@@ -37,6 +37,11 @@ root.
 - Optional `observability/slog` endpoint logging and independent
   `observability/otel` tracing/metrics adapters with application-owned provider
   setup.
+- Optional standard-library `security/http` middleware for trusted proxy and
+  client IP resolution, IP policy, CORS, signed double-submit CSRF, and security
+  response headers.
+- `kit.WithHTTPMiddleware` for whole-server standard-library middleware across
+  health, endpoint, raw HTTP, and generated routes.
 
 ### Changed
 

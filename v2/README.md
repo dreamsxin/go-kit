@@ -231,6 +231,7 @@ HTTP integrations.
 | `log` | Framework logging adapter |
 | `observability/slog` | Optional standard-library `slog` endpoint logging |
 | `observability/otel` | Optional OpenTelemetry endpoint tracing and metrics module |
+| `security/http` | Optional trusted-proxy/IP, CORS, CSRF, and security headers |
 | `cmd/microgen` | Contract-driven project generator |
 
 Service-discovery constructors return both a callable endpoint and an owned
@@ -250,6 +251,12 @@ source does not import the adapter or its provider setup. Test both adapters wit
 ```bash
 make test-observability
 ```
+
+Browser-facing services can compose the standard-library middleware in
+[`security/http`](security/http/README.md). Configuration is validated during
+assembly, and `kit.WithHTTPMiddleware` can install it across every service
+route. Authentication/authorization remain application concerns. Test the
+package with `make test-security`.
 
 ## Configuration
 

@@ -114,8 +114,9 @@ explicit trusted-proxy policy.
 
 ## Browser-Facing HTTP
 
-CORS, CSRF, security headers, and trusted-proxy/IP handling are optional HTTP
-integration packages. Enable them only with deployment-specific policies.
+Use the optional [`security/http`](security/http/README.md) package for CORS,
+signed double-submit CSRF, security headers, trusted-proxy resolution, and
+client-IP policy. Enable each middleware only with deployment-specific policy.
 
 At minimum, review:
 
@@ -124,6 +125,18 @@ At minimum, review:
 - forwarded-header trust boundaries;
 - TLS termination and redirect behavior;
 - cache and content-type headers.
+
+Install trusted-proxy resolution before IP policy and HTTPS-dependent headers.
+Only configured direct peers may influence forwarded client IP or scheme. Keep
+CORS outside CSRF so browser preflight remains token-free. Scope CSRF to
+cookie-authenticated browser routes; do not place it over Bearer-only APIs or
+MCP POST routes unless those routes intentionally use browser cookies and can
+echo the token header. These middleware do not wrap `http.ResponseWriter`, so
+SSE flushing and other streaming interfaces remain available.
+
+`kit` applications can install the compiled policies once with
+`kit.WithHTTPMiddleware`; lower-level applications can use
+`httpsecurity.Chain` around their root handler.
 
 ## Logging
 

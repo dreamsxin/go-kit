@@ -78,7 +78,7 @@ func (s *Service) Start() error {
 
 	s.srv = &http.Server{
 		Addr:              s.addr,
-		Handler:           s.mux,
+		Handler:           s.httpHandler,
 		ReadHeaderTimeout: s.httpConfig.ReadHeaderTimeout,
 		ReadTimeout:       s.httpConfig.ReadTimeout,
 		WriteTimeout:      s.httpConfig.WriteTimeout,

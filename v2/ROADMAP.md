@@ -68,17 +68,19 @@ and protected from unreviewed deterministic drift.
 Completed: applications can adopt standard observability explicitly, while
 services that do not use these adapters keep the core dependency path small.
 
-## Milestone 4 (Next): Optional HTTP Security / 可选 HTTP 安全
+## Milestone 4 (Complete): Optional HTTP Security / 可选 HTTP 安全
 
-- Provide composable trusted-proxy/IP, CORS, CSRF, and security-header handlers.
+- `security/http` provides composable trusted-proxy/client-IP, IP policy, CORS,
+  signed double-submit CSRF, and security-header middleware.
 - Keep authentication and application authorization policy outside framework
   core.
-- Document proxy trust and streaming endpoint interactions.
+- Proxy trust, browser-cookie scope, middleware order, and SSE/MCP interactions
+  are documented and covered by focused tests.
 
-Done when common HTTP hardening can be enabled explicitly without changing
-endpoint or transport contracts.
+Completed: common HTTP hardening can be enabled explicitly with standard
+`http.Handler` composition and without changing endpoint or transport contracts.
 
-## Milestone 5: v2 Release Closure / v2 发布收口
+## Milestone 5 (Next): v2 Release Closure / v2 发布收口
 
 - Run full tests, focused race tests, generated-project builds, TypeScript type
   checks, UTF-8 checks, and documentation-link checks on a clean worktree.
