@@ -80,13 +80,16 @@ services that do not use these adapters keep the core dependency path small.
 Completed: common HTTP hardening can be enabled explicitly with standard
 `http.Handler` composition and without changing endpoint or transport contracts.
 
-## Milestone 5 (Next): v2 Release Closure / v2 发布收口
+## Milestone 5 (In Progress): v2 Release Closure / v2 发布收口
 
-- Run full tests, focused race tests, generated-project builds, TypeScript type
-  checks, UTF-8 checks, and documentation-link checks on a clean worktree.
-- Review exported APIs and generated ownership boundaries.
-- Ensure README examples and migration instructions match the final CLI.
-- Publish v2 only after all earlier milestone acceptance criteria are met.
+- `make verify-release` runs full functional validation, generated-project and
+  contract checks, pinned TypeScript checks, focused race tests, vet, module
+  tidy checks, UTF-8/link checks, and the reviewed public API snapshot.
+- README examples, migration instructions, CLI behavior, generated ownership,
+  and exported runtime packages are covered by executable checks or snapshots.
+- `make release-check-clean` verifies the committed v2 scope before tagging.
+- Remaining: run the gates from the final release commit, review release notes,
+  create the version tag, and publish only after every check passes.
 
 ## Maintenance Rules / 维护规则
 

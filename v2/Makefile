@@ -7,7 +7,8 @@
         coverage \
         deps tools \
         test-runtime test-microgen test-contracts test-docs test-examples \
-        test-observability test-security verify verify-release
+        test-observability test-security test-api test-race test-vet test-modules \
+        release-check-clean verify verify-release
 
 # Default variables, overridable from the command line.
 IDL         ?= ./examples/usersvc/idl.go
@@ -47,8 +48,8 @@ test-contracts:
 	@go test -v ./tools -run TestGeneratedSDKBehaviorContract -count=1
 
 test-docs:
-	@echo ">>> Running docs and skill verification..."
-	@go test -v ./tools/... -run TestSKILL
+	@echo ">>> Running documentation, UTF-8, and skill verification..."
+	@go test -v ./tools -run "Test(SKILL|RepositoryTextFilesAreUTF8|DocumentationLinksResolve)" -count=1
 
 test-examples:
 	@echo ">>> Running example package tests..."
@@ -66,11 +67,35 @@ test-security:
 	@echo ">>> Running optional HTTP security middleware tests..."
 	@go test -v ./security/http
 
+test-api:
+	@echo ">>> Verifying the reviewed public API surface..."
+	@go test -v ./tools -run TestPublicAPISurfaceSnapshot -count=1
+
+test-race:
+	@echo ">>> Running focused race tests..."
+	@go test -race ./kit ./interaction ./sd/... ./cmd/microgen/generator ./security/http ./observability/slog
+	@cd ./observability/otel && go test -race ./...
+
+test-vet:
+	@echo ">>> Running go vet across maintained modules..."
+	@go vet ./...
+	@cd ./observability/otel && go vet ./...
+	@cd ./tools/contractcheck && go vet ./...
+
+test-modules:
+	@echo ">>> Verifying module files are tidy..."
+	@go mod tidy -diff
+	@cd ./observability/otel && go mod tidy -diff
+	@cd ./tools/contractcheck && go mod tidy -diff
+
+release-check-clean:
+	@echo ">>> Verifying the v2 release scope is clean..."
+	@go run ./tools/releasecheck
+
 verify: build test-runtime test-microgen test-docs test-examples test-observability test-security
 	@echo ">>> Verification pass completed."
 
-verify-release: verify
-	@$(MAKE) test-contracts
+verify-release: verify test-contracts test-api test-race test-vet test-modules
 	@echo ">>> Release verification pass completed."
 
 ## install-microgen: build and install microgen into GOPATH/bin
@@ -232,8 +257,13 @@ help:
 	@echo "  make test-examples Run example tests and smoke tests"
 	@echo "  make test-observability Test slog and optional OpenTelemetry adapters"
 	@echo "  make test-security Test optional HTTP security middleware"
+	@echo "  make test-api      Verify the reviewed exported API snapshot"
+	@echo "  make test-race     Run focused race tests across release-critical packages"
+	@echo "  make test-vet      Run go vet across maintained modules"
+	@echo "  make test-modules  Verify all maintained go.mod files are tidy"
 	@echo "  make verify        Run recommended pre-merge validation pass"
 	@echo "  make verify-release Run the full release validation pass"
+	@echo "  make release-check-clean Verify the committed v2 scope is clean"
 	@echo "  make coverage      Generate coverage report"
 	@echo "  make lint          Run golangci-lint"
 	@echo ""

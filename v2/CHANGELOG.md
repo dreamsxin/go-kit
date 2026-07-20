@@ -42,6 +42,8 @@ root.
   response headers.
 - `kit.WithHTTPMiddleware` for whole-server standard-library middleware across
   health, endpoint, raw HTTP, and generated routes.
+- Release gates for reviewed public API drift, maintained Markdown links,
+  module tidy state, focused race tests, vet, and committed v2-scope cleanliness.
 
 ### Changed
 

@@ -290,6 +290,12 @@ behavior contract, and deterministic generated-contract snapshots:
 make verify-release
 ```
 
+After committing the release candidate, verify that the v2 scope is clean:
+
+```bash
+make release-check-clean
+```
+
 ## Documentation
 
 - [DOCS_INDEX.md](DOCS_INDEX.md): documentation map

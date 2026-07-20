@@ -278,6 +278,12 @@ go test -race ./kit ./interaction ./sd/... ./cmd/microgen/generator
 make verify-release
 ```
 
+提交发布候选版本后，检查 v2 范围没有未提交修改：
+
+```bash
+make release-check-clean
+```
+
 ## 文档
 
 - [DOCS_INDEX.md](DOCS_INDEX.md)：文档导航

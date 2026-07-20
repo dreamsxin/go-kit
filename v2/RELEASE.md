@@ -64,7 +64,18 @@ make verify-release
 The release target includes the normal Go validation plus generated OpenAPI
 3.1 parsing, JSON Schema 2020-12 compilation, TypeScript SDK type-checks,
 cross-SDK HTTP behavior checks, and deterministic contract snapshots for Go
-IDL, Protobuf, and database source modes.
+IDL, Protobuf, and database source modes. It also verifies the reviewed public
+API snapshot, documentation links and UTF-8, focused race tests, `go vet`, and
+tidy module files across the main and nested modules.
+
+After the release candidate is committed, run:
+
+```bash
+make release-check-clean
+```
+
+This checks the committed v2 scope without rejecting unrelated repository-root
+work in progress.
 
 The equivalent focused Go commands are:
 
@@ -87,6 +98,8 @@ Also verify:
 - `make test-observability` passes for the standard-library and OpenTelemetry
   adapters;
 - `make test-security` passes for optional browser-facing HTTP middleware;
+- `make test-api`, `make test-race`, `make test-vet`, and `make test-modules`
+  pass;
 - Go and TypeScript SDKs match the shared path/query/body/error fixture;
 - contract snapshot changes have been reviewed and refreshed explicitly;
 - repeat generation produces no second-run diff;
@@ -94,6 +107,14 @@ Also verify:
 - documentation links resolve;
 - no temporary generated files remain;
 - the tag is created from the commit containing `v2/go.mod`.
+
+Intentional exported API changes must be reviewed before refreshing the API
+snapshot:
+
+```bash
+go test ./tools -run TestPublicAPISurfaceSnapshot -count=1 \
+  -args -update-api-snapshot
+```
 
 ## Release Notes
 

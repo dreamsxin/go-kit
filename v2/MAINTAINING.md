@@ -65,6 +65,7 @@ go test ./tools -count=1
 make test-contracts
 make test-observability
 make test-security
+make test-api
 go test ./...
 ```
 
@@ -73,6 +74,13 @@ Intentional contract changes refresh snapshots with:
 ```bash
 go test ./tools -run "TestMicrogen(IDLContractIntegration|ProtoIntegration|FromDBIntegration)" \
   -count=1 -args -update-contract-snapshots
+```
+
+Intentional exported API changes refresh the reviewed API snapshot with:
+
+```bash
+go test ./tools -run TestPublicAPISurfaceSnapshot -count=1 \
+  -args -update-api-snapshot
 ```
 
 Generated Go must pass `go/format`. Generated non-Go text must have deterministic
@@ -136,9 +144,10 @@ relative and must resolve on a case-sensitive filesystem.
 
 1. Confirm the module path is `github.com/dreamsxin/go-kit/v2`.
 2. Review exported API and generated-output diffs.
-3. Run the full validation matrix on a clean worktree.
+3. Run `make verify-release` and commit the release candidate.
 4. Generate and build projects for each supported source mode.
 5. Update `CHANGELOG.md`, `MIGRATION.md`, and `RELEASE.md`.
-6. Tag v2 releases from the repository commit containing the `v2/go.mod` module.
+6. Run `make release-check-clean` from the committed candidate.
+7. Tag v2 releases from the repository commit containing the `v2/go.mod` module.
 
 See [RELEASE.md](RELEASE.md) for the compatibility policy.
