@@ -30,8 +30,8 @@ microgen -idl idl.go -out ./service -import example.com/service
 
 The input contains service interfaces and request/response types. `microgen`
 copies the contract into the generated project and maps methods into the common
-IR used by HTTP, clients, SDKs, OpenAPI 3.1, JSON Schema 2020-12, and skill
-metadata.
+IR used by HTTP, clients, SDKs, OpenAPI 3.1, JSON Schema 2020-12, and optional
+MCP tools.
 
 ### Protobuf
 
@@ -80,7 +80,6 @@ columns; startup migration is disabled by default.
 | `-model` | Generate model/repository output, default `true` |
 | `-docs` | Generate project documentation, default `true` |
 | `-tests` | Generate project tests |
-| `-skill` | Generate AI discovery metadata, default `true` |
 | `-interaction` | Generate interaction runtime and `/mcp` endpoint |
 | `-openapi` | Generate OpenAPI 3.1, JSON Schema, Swagger UI, and TypeScript SDK |
 
@@ -320,8 +319,8 @@ the required ownership seams.
 - `endpoint/<service>/generated_chain.go`
 - `model/generated_*.go`
 - `repository/generated_*.go`
-- generated clients, Go/TypeScript SDKs, skill metadata, OpenAPI/JSON Schema
-  assets, and protobuf assets
+- generated clients, Go/TypeScript SDKs, OpenAPI/JSON Schema assets, optional
+  MCP adapters, and protobuf assets
 
 Do not rely on templates or packages under `cmd/microgen` as runtime extension
 APIs.

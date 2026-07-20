@@ -10,7 +10,6 @@
     "grpc": true,
     "database": false,
     "openapi": false,
-    "skill": true,
     "interaction": false,
     "configMode": "file"
   },
@@ -32,7 +31,6 @@
     "config/remote.go",
     "endpoint/userservice/generated_chain.go",
     "pb/userservice/userservice.proto",
-    "sdk/userservicesdk/client.go",
-    "skill/skill.go"
+    "sdk/userservicesdk/client.go"
   ]
 }

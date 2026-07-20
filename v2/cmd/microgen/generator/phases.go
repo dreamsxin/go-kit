@@ -147,12 +147,6 @@ func (g *Generator) generateFinalProjectArtifacts(ctx generationContext) error {
 		}
 	}
 
-	if g.config.WithSkill {
-		if err := g.generateSkillFile(ctx); err != nil {
-			return fmt.Errorf("generate skill file failed: %w", err)
-		}
-	}
-
 	if g.config.WithInteraction {
 		if err := g.generateInteractionFile(ctx); err != nil {
 			return fmt.Errorf("generate interaction file failed: %w", err)

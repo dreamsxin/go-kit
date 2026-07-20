@@ -10,17 +10,15 @@ Generated with `go-kit microgen`.
 - `service/<name>/service.go` is the primary user-owned business logic file.
 - `endpoint/<name>/custom_chain.go` is the user-owned middleware hook file.
 - `cmd/custom_routes.go` is the user-owned custom HTTP route hook file.
-- `cmd/generated_*.go`, `endpoint/<name>/generated_chain.go`, `model/generated_*.go`, `repository/generated_*.go`, `sdk/`, `client/`, `skill/`, and `docs/` are generator-owned outputs.
+- `cmd/generated_*.go`, `endpoint/<name>/generated_chain.go`, `model/generated_*.go`, `repository/generated_*.go`, `sdk/`, `client/`, and `docs/` are generator-owned outputs.
 
 For existing projects, run `microgen extend -check -out .` before changing generated seams. It validates the manifest against the filesystem, and extend refuses mutations while drift is present.
 
 ## Capability Contract
 
-The service capability contract starts from the input definition and is normalized by `microgen` before output is written. The same contract drives HTTP routes, gRPC/proto assets, generated clients, SDKs, OpenAPI and JSON Schema output, README endpoint listings, and AI tool metadata.
+The service capability contract starts from the input definition and is normalized by `microgen` before output is written. The same contract drives HTTP routes, gRPC/proto assets, generated clients, SDKs, OpenAPI and JSON Schema output, README endpoint listings, and optional MCP tools.
 `docs/openapi.json` is the generated OpenAPI 3.1 contract and `docs/schema.json` is the reusable JSON Schema 2020-12 bundle. The running service exposes them at `GET /openapi.json` and `GET /schema.json`, and serves embedded Swagger UI 5 at `GET /swagger/`. `sdk/typescript/` contains the generated Fetch-based unary HTTP client. Files under `docs/` and `sdk/typescript/` are refreshed by generation and extend mode; do not hand-edit them.
-
-When `skill/` is generated, `/skill` exposes OpenAI-style tools and `/skill?format=mcp` exposes MCP-style tool descriptors from that same contract. The response also includes metadata with schema version `microgen.skill.v1`, source, services, and supported formats.
-`/skill?format=mcp` is discovery output, not a tool execution endpoint. If this project needs AI-facing sessions, tool-call execution, authorization, audit records, or an MCP-style JSON-RPC endpoint, build that runtime surface with the framework `interaction` package:
+If this project needs AI-facing sessions, tool-call execution, authorization, audit records, or an MCP-style JSON-RPC endpoint, regenerate with `-interaction` or compose the framework `interaction` package directly:
 
 - `interaction.NewRuntime()` with `WithHooks`, `WithResources`, `WithPrompts` chaining for sessions, events, tools, and hooks.
 - `interaction.AuthorizationHook` and `interaction.AuditHook` for transport-neutral policy.
@@ -51,10 +49,10 @@ Extend mode updates new generated files plus generator-owned aggregation seams, 
 Use this loop when an AI agent or maintainer changes the generated project:
 
 1. Read this README and inspect the source contract snapshot before editing.
-2. Check `GET /debug/routes` and, when enabled, `GET /openapi.json`, `GET /schema.json`, `GET /skill`, or `GET /skill?format=mcp` to see the generated route and discovery surface.
+2. Check `GET /debug/routes` and, when enabled, `GET /openapi.json`, `GET /schema.json`, or the MCP `tools/list` method to see the generated route and discovery surface.
 3. Put business behavior in user-owned files; do not hand-edit generator-owned files.
 4. For new services, models, or middleware, run `microgen extend -check -out .` before an append command.
-5. Use `interaction` runtime hooks for executable AI sessions instead of turning generated `skill/` metadata into business logic.
+5. Use `interaction` runtime hooks for executable AI sessions instead of adding a parallel discovery contract.
 6. Run the smallest relevant validation first, usually `go test ./...`, then start the service with `go run ./cmd`.
 
 ## Configuration
@@ -88,9 +86,6 @@ Runtime inspection:
 
 - `GET /health`
 - `GET /debug/routes`
-- `GET /skill`
-- `GET /skill?format=mcp`
-
 
 
 

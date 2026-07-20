@@ -7,30 +7,6 @@ import (
 	"github.com/dreamsxin/go-kit/v2/cmd/microgen/generator"
 )
 
-func TestGenerateFull_Skill(t *testing.T) {
-	outDir := newTmpDir(t)
-	project := parseIDLProject(t, "basic.go")
-
-	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/skilltest",
-		WithSkill:  true,
-	})
-	if err := gen.GenerateIR(project); err != nil {
-		t.Fatalf("GenerateIR: %v", err)
-	}
-
-	skillPath := filepath.Join(outDir, "skill", "skill.go")
-	mustExist(t, skillPath)
-	mustContain(t, skillPath, "func Handler(w http.ResponseWriter, r *http.Request)")
-	mustContain(t, skillPath, "type SkillMetadata struct")
-	mustContain(t, skillPath, `SchemaVersion: "microgen.skill.v1"`)
-	mustContain(t, skillPath, `Source:        "microgen-ir"`)
-	mustContain(t, skillPath, `"UserService"`)
-	mustContain(t, skillPath, "getOpenAITools()")
-	mustContain(t, skillPath, "getMCPTools()")
-}
-
 func TestGenerateFull_SDK(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
@@ -82,7 +58,6 @@ func TestGenerateFull_Interaction(t *testing.T) {
 		OutputDir:       outDir,
 		ImportPath:      "example.com/interactiontest",
 		WithInteraction: true,
-		WithSkill:       true,
 		WithConfig:      false,
 		WithDocs:        false,
 		DBDriver:        "sqlite",
@@ -114,29 +89,6 @@ func TestGenerateFull_Interaction(t *testing.T) {
 	mustNotExist(t, readmePath) // WithDocs=false
 }
 
-func TestGenerateFull_InteractionWithoutSkill(t *testing.T) {
-	outDir := newTmpDir(t)
-	project := parseIDLProject(t, "basic.go")
-
-	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:       outDir,
-		ImportPath:      "example.com/interaction_noskill",
-		WithInteraction: true,
-		WithSkill:       false,
-		WithConfig:      false,
-		WithDocs:        false,
-		DBDriver:        "sqlite",
-	})
-	if err := gen.GenerateIR(project); err != nil {
-		t.Fatalf("GenerateIR: %v", err)
-	}
-
-	interactionPath := filepath.Join(outDir, "cmd", "generated_interaction.go")
-	mustExist(t, interactionPath)
-	guidePath := filepath.Join(outDir, ".ai", "PROJECT_GUIDE.md")
-	mustExist(t, guidePath)
-}
-
 func TestGenerateFull_NoInteraction(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
@@ -145,7 +97,6 @@ func TestGenerateFull_NoInteraction(t *testing.T) {
 		OutputDir:       outDir,
 		ImportPath:      "example.com/nointeraction",
 		WithInteraction: false,
-		WithSkill:       true,
 		WithConfig:      false,
 		WithDocs:        false,
 		DBDriver:        "sqlite",

@@ -32,7 +32,6 @@ func TestGenerateProject_FromDBIR_GeneratesArtifactsFromExplicitIR(t *testing.T)
 		WithModel:  true,
 		WithConfig: false,
 		WithDocs:   true,
-		WithSkill:  true,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -46,12 +45,10 @@ func TestGenerateProject_FromDBIR_GeneratesArtifactsFromExplicitIR(t *testing.T)
 	mustExist(t, filepath.Join(outDir, "cmd", "main.go"))
 	mustExist(t, filepath.Join(outDir, ".microgen", "manifest.json"))
 	mustExist(t, filepath.Join(outDir, "README.md"))
-	mustExist(t, filepath.Join(outDir, "skill", "skill.go"))
 
 	mustContain(t, filepath.Join(outDir, "service", "useradminservice", "service.go"), "CreateUser")
 	mustContain(t, filepath.Join(outDir, "transport", "useradminservice", "transport_http.go"), "ListUsers")
 	mustContain(t, filepath.Join(outDir, "README.md"), "UserAdminService")
-	mustContain(t, filepath.Join(outDir, "skill", "skill.go"), "DeleteUser")
 	mustContain(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"source": "db"`)
 	mustNotContain(t, filepath.Join(outDir, "model", "generated_user.go"), "CreatedAt")
 	mustNotContain(t, filepath.Join(outDir, "model", "generated_user.go"), "gorm.DeletedAt")
@@ -107,7 +104,6 @@ func TestGenerateProject_FromGoIR_GeneratesArtifactsWithoutCompatParseResult(t *
 		WithModel:  true,
 		WithConfig: false,
 		WithDocs:   true,
-		WithSkill:  true,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -119,7 +115,6 @@ func TestGenerateProject_FromGoIR_GeneratesArtifactsWithoutCompatParseResult(t *
 	mustExist(t, filepath.Join(outDir, "model", "generated_user.go"))
 	mustExist(t, filepath.Join(outDir, "repository", "generated_user_repository.go"))
 	mustExist(t, filepath.Join(outDir, "README.md"))
-	mustExist(t, filepath.Join(outDir, "skill", "skill.go"))
 
 	mustContain(t, filepath.Join(outDir, "service", "userservice", "service.go"), "CreateUser")
 	mustContain(t, filepath.Join(outDir, "model", "generated_user.go"), `gorm:"primaryKey;autoIncrement"`)
@@ -162,7 +157,6 @@ message HelloResponse {
 		DBDriver:   "sqlite",
 		WithConfig: false,
 		WithDocs:   true,
-		WithSkill:  true,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -172,7 +166,6 @@ message HelloResponse {
 	mustExist(t, filepath.Join(outDir, "transport", "greeter", "transport_grpc.go"))
 	mustExist(t, filepath.Join(outDir, "pb", "greeter", "greeter.proto"))
 	mustExist(t, filepath.Join(outDir, "README.md"))
-	mustExist(t, filepath.Join(outDir, "skill", "skill.go"))
 
 	mustContain(t, filepath.Join(outDir, "pb", "greeter", "greeter.proto"), "rpc SayHello")
 	mustContain(t, filepath.Join(outDir, "pb", "greeter", "greeter.proto"), "string name = 1;")
@@ -191,7 +184,6 @@ func TestGenerateIR_FromGoIR_GeneratesArtifacts(t *testing.T) {
 		ImportPath: "example.com/basic",
 		DBDriver:   "sqlite",
 		WithDocs:   true,
-		WithSkill:  true,
 	})
 	if err := gen.GenerateIR(ir.FromParseResult(result)); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -199,5 +191,4 @@ func TestGenerateIR_FromGoIR_GeneratesArtifacts(t *testing.T) {
 
 	mustExist(t, filepath.Join(outDir, "service", "userservice", "service.go"))
 	mustExist(t, filepath.Join(outDir, "README.md"))
-	mustExist(t, filepath.Join(outDir, "skill", "skill.go"))
 }

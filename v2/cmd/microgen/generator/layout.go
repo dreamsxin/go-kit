@@ -40,7 +40,6 @@ func (l projectLayout) docsDir() string        { return filepath.Join(l.root, "d
 func (l projectLayout) docsEmbed() string      { return filepath.Join(l.docsDir(), "docs.go") }
 func (l projectLayout) openAPIFile() string    { return filepath.Join(l.docsDir(), "openapi.json") }
 func (l projectLayout) jsonSchemaFile() string { return filepath.Join(l.docsDir(), "schema.json") }
-func (l projectLayout) skillFile() string      { return filepath.Join(l.root, "skill", "skill.go") }
 func (l projectLayout) typeScriptSDKDir() string {
 	return filepath.Join(l.root, "sdk", "typescript")
 }
@@ -152,9 +151,6 @@ func (l projectLayout) requiredDirs(services []*serviceView, opts Options) []str
 			filepath.Join(l.root, "model"),
 			filepath.Join(l.root, "repository"),
 		)
-	}
-	if opts.WithSkill {
-		dirs = append(dirs, filepath.Join(l.root, "skill"))
 	}
 	if opts.WithOpenAPI {
 		dirs = append(dirs, l.typeScriptSDKDir())

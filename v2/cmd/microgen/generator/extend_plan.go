@@ -152,13 +152,6 @@ func BuildAppendServicePlan(existing *ExistingProject, project *ir.Project, opts
 			Reason:    "generated service test scaffold",
 		})
 	}
-	if opts.WithSkill {
-		plan.UpdatedFiles = append(plan.UpdatedFiles, PlannedUpdate{
-			Path:      filepath.Join(existing.Root, "skill", "skill.go"),
-			Ownership: OwnershipGeneratorRebuildable,
-			Reason:    "refresh generated skill output to include appended service",
-		})
-	}
 	if opts.WithOpenAPI {
 		plan.UpdatedFiles = append(plan.UpdatedFiles, generatedContractUpdates(layout)...)
 	}

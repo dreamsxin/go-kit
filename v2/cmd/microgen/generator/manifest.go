@@ -37,7 +37,6 @@ type ProjectManifestCapabilities struct {
 	GRPC           bool   `json:"grpc"`
 	Database       bool   `json:"database"`
 	OpenAPI        bool   `json:"openapi"`
-	Skill          bool   `json:"skill"`
 	Interaction    bool   `json:"interaction"`
 	ConfigMode     string `json:"configMode,omitempty"`
 	RemoteProvider string `json:"remoteProvider,omitempty"`
@@ -88,7 +87,6 @@ func (g *Generator) buildProjectManifest(ctx generationContext) ProjectManifest 
 			GRPC:           g.config.WithGRPC,
 			Database:       g.config.WithDB,
 			OpenAPI:        g.config.WithOpenAPI,
-			Skill:          g.config.WithSkill,
 			Interaction:    g.config.WithInteraction,
 			ConfigMode:     g.config.ConfigMode,
 			RemoteProvider: g.config.RemoteProvider,
@@ -165,9 +163,6 @@ func (g *Generator) manifestArtifacts(ctx generationContext) []string {
 			g.layout.typeScriptReadme(),
 			g.layout.typeScriptConfig(),
 		)
-	}
-	if g.config.WithSkill {
-		paths = append(paths, g.layout.skillFile())
 	}
 	if g.config.WithInteraction {
 		paths = append(paths, g.layout.cmdGeneratedInteraction(), g.layout.aiProjectGuide())

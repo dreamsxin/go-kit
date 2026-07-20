@@ -10,7 +10,6 @@
     "grpc": false,
     "database": false,
     "openapi": false,
-    "skill": true,
     "interaction": false
   },
   "services": [
@@ -30,7 +29,6 @@
     "endpoint/userservice/generated_chain.go",
     "idl.go",
     "sdk/orderservicesdk/client.go",
-    "sdk/userservicesdk/client.go",
-    "skill/skill.go"
+    "sdk/userservicesdk/client.go"
   ]
 }

@@ -19,7 +19,6 @@ func TestScanExistingProject_DetectsServicesOwnershipAndWarnings(t *testing.T) {
 		DBDriver:    "sqlite",
 		WithConfig:  true,
 		WithDocs:    false,
-		WithSkill:   true,
 		WithOpenAPI: true,
 	})
 	if err := gen.GenerateIR(project); err != nil {
@@ -324,7 +323,6 @@ func TestBuildAppendServicePlan_ProducesDeterministicPlan(t *testing.T) {
 	plan, err := generator.BuildAppendServicePlan(existing, source, generator.Options{
 		WithGRPC:  true,
 		WithTests: true,
-		WithSkill: true,
 	}, generator.ExtendOptions{
 		AppendService: "OrderService",
 	})
@@ -355,7 +353,6 @@ func TestBuildAppendServicePlan_ProducesDeterministicPlan(t *testing.T) {
 		filepath.Join(outDir, "cmd", "generated_routes.go"),
 		filepath.Join(outDir, "cmd", "generated_runtime.go"),
 		filepath.Join(outDir, "cmd", "generated_services.go"),
-		filepath.Join(outDir, "skill", "skill.go"),
 	} {
 		if !containsString(updatePaths, want) {
 			t.Fatalf("plan.UpdatedFiles missing %q: %v", want, updatePaths)
@@ -718,7 +715,6 @@ func TestApplyAppendService_WritesNewFilesAndPreservesExistingService(t *testing
 		DBDriver:    "sqlite",
 		WithDocs:    false,
 		WithConfig:  false,
-		WithSkill:   true,
 		WithOpenAPI: true,
 	})
 	if err := gen.GenerateIR(base); err != nil {
@@ -787,7 +783,6 @@ type OrderService interface {
 	mustExist(t, filepath.Join(outDir, "transport", "orderservice", "transport_http.go"))
 	mustContain(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/placeorder")
 	mustContain(t, filepath.Join(outDir, "cmd", "generated_services.go"), "orderserviceSvc")
-	mustContain(t, filepath.Join(outDir, "skill", "skill.go"), "PlaceOrder")
 	mustContain(t, filepath.Join(outDir, "docs", "openapi.json"), "OrderService_PlaceOrder")
 	mustContain(t, filepath.Join(outDir, "docs", "schema.json"), `"PlaceOrderRequest"`)
 	mustContain(t, filepath.Join(outDir, "sdk", "typescript", "client.ts"), "export class OrderServiceClient")

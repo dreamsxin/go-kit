@@ -41,9 +41,9 @@ JSON-RPC adapter for the runtime:
 - Server-initiated sampling (`sampling/createMessage`)
 - Server-initiated notifications (log, progress, list-changed)
 
-It is separate from generated `/skill?format=mcp` output. `/skill?format=mcp`
-describes available tools, while `interaction/mcp` can execute registered
-runtime tools inside interaction sessions.
+`interaction/mcp` is the generated AI protocol surface. It discovers and
+executes registered runtime tools inside interaction sessions; the framework no
+longer generates a parallel `/skill` discovery endpoint.
 
 Policy hooks:
 

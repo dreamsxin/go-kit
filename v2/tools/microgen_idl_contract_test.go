@@ -29,7 +29,6 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 			"-import", "example.com/gen_idl_integration",
 			"-prefix", "/api/idl",
 			"-openapi",
-			"-skill",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("microgen idl failed: %v\n%s", err, out)
@@ -50,7 +49,6 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		mustExistFile(t, filepath.Join(outDir, "sdk", "typescript", "client.ts"))
 		mustExistFile(t, filepath.Join(outDir, "sdk", "typescript", "README.md"))
 		mustExistFile(t, filepath.Join(outDir, "sdk", "typescript", "tsconfig.json"))
-		mustExistFile(t, filepath.Join(outDir, "skill", "skill.go"))
 		mustExistFile(t, filepath.Join(outDir, "cmd", "main.go"))
 		mustExistFile(t, filepath.Join(outDir, "cmd", "custom_routes.go"))
 		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/idl/userservice")
@@ -173,7 +171,6 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 			"-docs=false",
 			"-model=false",
 			"-db=false",
-			"-skill=false",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("microgen custom-routes fixture failed: %v\n%s", err, out)

@@ -103,11 +103,10 @@ curl http://localhost:8080/health
 curl http://localhost:8080/debug/routes
 curl http://localhost:8080/openapi.json
 curl http://localhost:8080/schema.json
-curl http://localhost:8080/skill
 ```
 
 With `-openapi`, `microgen` emits OpenAPI 3.1 directly from the same normalized IR
-used by routes, clients, SDKs, and skill metadata. It also emits a standalone
+used by routes, clients, SDKs, and optional MCP tools. It also emits a standalone
 JSON Schema 2020-12 bundle at `docs/schema.json` and `GET /schema.json`, plus a
 zero-runtime-dependency Fetch client under `sdk/typescript/`.
 Swagger UI is available at `/swagger/`; its Swagger UI 5 assets are embedded in
@@ -147,7 +146,7 @@ Do not hand-edit:
 - `cmd/generated_*.go`
 - `endpoint/<service>/generated_chain.go`
 - `model/generated_*.go` and `repository/generated_*.go`
-- generated `client/`, `sdk/`, `skill/`, `pb/`, and `docs/` assets
+- generated `client/`, `sdk/`, `pb/`, and `docs/` assets
 
 The versioned manifest records the source mode, module path, capabilities,
 route prefix, services, models, generated middleware, and generator-owned

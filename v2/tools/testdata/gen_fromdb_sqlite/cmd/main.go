@@ -17,7 +17,7 @@ import (
 	swaggerUI "github.com/swaggest/swgui/v5"
 )
 
-func printBanner(logger *kitlog.Logger, httpAddr string, withOpenAPI bool, withSkill bool) {
+func printBanner(logger *kitlog.Logger, httpAddr string, withOpenAPI bool) {
 	logger.Sugar().Info("------------------------------------------------------------")
 	logger.Sugar().Infof(" Service: CatalogService ")
 	logger.Sugar().Infof(" HTTP: http://localhost%s", httpAddr)
@@ -25,9 +25,6 @@ func printBanner(logger *kitlog.Logger, httpAddr string, withOpenAPI bool, withS
 		logger.Sugar().Infof(" OpenAPI: http://localhost%s/openapi.json", httpAddr)
 		logger.Sugar().Infof(" JSON Schema: http://localhost%s/schema.json", httpAddr)
 		logger.Sugar().Infof(" API UI: http://localhost%s/swagger/index.html", httpAddr)
-	}
-	if withSkill {
-		logger.Sugar().Infof(" Skill: http://localhost%s/skill", httpAddr)
 	}
 	logger.Sugar().Info(" Press Ctrl+C to stop")
 }
@@ -69,10 +66,10 @@ func main() {
 
 	r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, true, false))
+		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, true))
 	})
 
-	allRoutes := generatedRouteEntries(runtime, customRoutes, true, false)
+	allRoutes := generatedRouteEntries(runtime, customRoutes, true)
 	printAllRoutes(logger, allRoutes)
 
 	httpServer := &http.Server{
@@ -95,7 +92,7 @@ func main() {
 		}
 	}()
 
-	printBanner(logger, *httpAddr, true, false)
+	printBanner(logger, *httpAddr, true)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

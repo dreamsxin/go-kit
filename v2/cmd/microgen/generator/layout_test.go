@@ -16,7 +16,6 @@ func TestProjectLayoutRequiredDirs(t *testing.T) {
 	got := layout.requiredDirs(services, Options{
 		WithConfig: true,
 		WithModel:  true,
-		WithSkill:  true,
 	})
 
 	want := []string{
@@ -35,7 +34,6 @@ func TestProjectLayoutRequiredDirs(t *testing.T) {
 		filepath.Join("out", "config"),
 		filepath.Join("out", "model"),
 		filepath.Join("out", "repository"),
-		filepath.Join("out", "skill"),
 	}
 
 	if !reflect.DeepEqual(got, want) {

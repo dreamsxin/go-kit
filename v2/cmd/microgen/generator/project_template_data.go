@@ -17,7 +17,6 @@ type mainTemplateData struct {
 	WithConfig      bool
 	WithGRPC        bool
 	WithOpenAPI     bool
-	WithSkill       bool
 	WithInteraction bool
 }
 
@@ -27,7 +26,6 @@ type generatedRuntimeTemplateData struct {
 	WithDB          bool
 	WithGRPC        bool
 	WithOpenAPI     bool
-	WithSkill       bool
 	WithInteraction bool
 	SvcRoutes       []SvcRoute
 	ImportPath      string
@@ -73,17 +71,11 @@ type readmeTemplateData struct {
 	Project         *ir.Project
 	IsProtoInput    bool
 	WithOpenAPI     bool
-	WithSkill       bool
 	WithInteraction bool
 	WithConfig      bool
 	WithDB          bool
 	ConfigMode      string
 	RemoteProvider  string
-}
-
-type skillTemplateData struct {
-	Project    *ir.Project
-	ImportPath string
 }
 
 type interactionTemplateData struct {
@@ -99,7 +91,6 @@ type aiProjectGuideTemplateData struct {
 	WithDB          bool
 	WithGRPC        bool
 	WithOpenAPI     bool
-	WithSkill       bool
 	WithInteraction bool
 }
 

@@ -25,12 +25,11 @@ import (
 {{end}}
 {{if .WithOpenAPI}}	swaggerUI "github.com/swaggest/swgui/v5"
 	docs "{{$.ImportPath}}/docs"
-{{end}}{{if .WithSkill}}	"{{$.ImportPath}}/skill"
 {{end}}{{if .WithInteraction}}	"github.com/dreamsxin/go-kit/v2/interaction/mcp"
 {{end}}{{if .WithConfig}}	"{{$.ImportPath}}/config"
 {{end}})
 
-func printBanner(logger *kitlog.Logger, httpAddr string{{if .WithGRPC}}, grpcAddr string{{end}}, withOpenAPI bool, withSkill bool{{if .WithInteraction}}, withInteraction bool{{end}}) {
+func printBanner(logger *kitlog.Logger, httpAddr string{{if .WithGRPC}}, grpcAddr string{{end}}, withOpenAPI bool{{if .WithInteraction}}, withInteraction bool{{end}}) {
 	logger.Sugar().Info("------------------------------------------------------------")
 	logger.Sugar().Infof(" Service: {{range .Project.Services}}{{.Name}} {{end}}")
 	logger.Sugar().Infof(" HTTP: http://localhost%s", httpAddr)
@@ -38,9 +37,6 @@ func printBanner(logger *kitlog.Logger, httpAddr string{{if .WithGRPC}}, grpcAdd
 		logger.Sugar().Infof(" OpenAPI: http://localhost%s/openapi.json", httpAddr)
 		logger.Sugar().Infof(" JSON Schema: http://localhost%s/schema.json", httpAddr)
 		logger.Sugar().Infof(" API UI: http://localhost%s/swagger/index.html", httpAddr)
-	}
-	if withSkill {
-		logger.Sugar().Infof(" Skill: http://localhost%s/skill", httpAddr)
 	}
 {{if .WithInteraction}}	if withInteraction {
 		logger.Sugar().Infof(" MCP: http://localhost%s/mcp", httpAddr)
@@ -166,8 +162,6 @@ func main() {
 	r.HandleFunc("GET /health", healthHandler)
 	r.HandleFunc("HEAD /health", healthHandler)
 
-{{if .WithSkill}}	r.HandleFunc("GET /skill", skill.Handler)
-{{end}}
 {{if .WithInteraction}}	mcpHandler := mcp.NewStreamableHandler(interactionRuntime)
 	r.Handle("GET /mcp", mcpHandler)
 	r.Handle("POST /mcp", mcpHandler)
@@ -185,12 +179,12 @@ func main() {
 {{if .WithConfig}}	if cfg.Debug.RoutesEnabled {
 {{end}}	r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, {{if .WithOpenAPI}}true{{else}}false{{end}}, {{if .WithSkill}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}}))
+		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, {{if .WithOpenAPI}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}}))
 	})
 {{if .WithConfig}}	}
 {{end}}
 
-	allRoutes := generatedRouteEntries(runtime, customRoutes, {{if .WithOpenAPI}}true{{else}}false{{end}}, {{if .WithSkill}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}})
+	allRoutes := generatedRouteEntries(runtime, customRoutes, {{if .WithOpenAPI}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}})
 {{if .WithConfig}}	if cfg.Debug.PrintRoutes {
 		printAllRoutes(logger, allRoutes)
 	}
@@ -233,7 +227,7 @@ func main() {
 	}()
 {{end}}
 
-	printBanner(logger, *httpAddr{{if .WithGRPC}}, *grpcAddr{{end}}, {{if .WithOpenAPI}}true{{else}}false{{end}}, {{if .WithSkill}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}})
+	printBanner(logger, *httpAddr{{if .WithGRPC}}, *grpcAddr{{end}}, {{if .WithOpenAPI}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}})
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

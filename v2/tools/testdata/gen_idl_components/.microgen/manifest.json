@@ -10,7 +10,6 @@
     "grpc": false,
     "database": false,
     "openapi": true,
-    "skill": true,
     "interaction": false,
     "configMode": "file"
   },
@@ -38,7 +37,6 @@
     "sdk/typescript/README.md",
     "sdk/typescript/client.ts",
     "sdk/typescript/tsconfig.json",
-    "sdk/userservicesdk/client.go",
-    "skill/skill.go"
+    "sdk/userservicesdk/client.go"
   ]
 }

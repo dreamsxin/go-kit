@@ -10,7 +10,6 @@
     "grpc": false,
     "database": true,
     "openapi": false,
-    "skill": true,
     "interaction": false,
     "configMode": "file",
     "databaseDriver": "mysql"
@@ -39,7 +38,6 @@
     "repository/generated_base.go",
     "repository/generated_user_repository.go",
     "sdk/userservicesdk/client.go",
-    "service/userservice/generated_repos.go",
-    "skill/skill.go"
+    "service/userservice/generated_repos.go"
   ]
 }

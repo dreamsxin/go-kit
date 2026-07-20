@@ -151,11 +151,7 @@ func TestMicrogenInteractionIntegration(t *testing.T) {
 		}
 	})
 
-	// Verify /skill still works when interaction is enabled
-	t.Run("Skill_Discovery_StillWorks", func(t *testing.T) {
-		expectStatusContains(t, "GET", baseURL+"/skill", "", http.StatusOK, "microgen.skill.v1")
-		expectStatusContains(t, "GET", baseURL+"/skill?format=mcp", "", http.StatusOK, "inputSchema")
-	})
+	expectStatusContains(t, "GET", baseURL+"/skill", "", http.StatusNotFound, "404 page not found")
 }
 
 func postMCP(t *testing.T, url string, body map[string]any) map[string]any {

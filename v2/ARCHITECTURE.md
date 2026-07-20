@@ -91,6 +91,10 @@ factory-created client connections.
 policy hooks. `interaction/mcp` exposes those capabilities through MCP
 Streamable HTTP.
 
+MCP is an optional standards-based integration surface. General contract
+discovery remains OpenAPI/JSON Schema; the framework does not maintain a
+parallel proprietary tool-discovery endpoint.
+
 Provider implementations must copy mutable caller data and must not invoke user
 callbacks while holding internal locks.
 
@@ -119,7 +123,7 @@ authorization remains in endpoint or service policy.
 
 `microgen` is a build-time tool. Parsers produce a common IR that drives HTTP
 routes, transports, Go and TypeScript SDKs, OpenAPI 3.1, JSON Schema 2020-12,
-and AI discovery assets. Templates render projects from that IR. Runtime
+and optional MCP tool adapters. Templates render projects from that IR. Runtime
 packages must not depend on generator internals.
 
 See [MICROGEN.md](MICROGEN.md) for source modes and generated-file ownership.

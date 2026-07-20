@@ -254,29 +254,6 @@ func TestGenerateFull_FromProto_ServerStreamContents(t *testing.T) {
 	mustContain(t, sdkPath, "Interact(ctx context.Context, recv func() (idl.MessageEvent, error), send func(idl.MessageEvent) error) error")
 }
 
-// ── Proto → Skill 生成 ────────────────────────────────────────────────────────
-
-func TestGenerateFull_FromProto_SkillFile(t *testing.T) {
-	outDir := t.TempDir()
-	project := parseProtoProject(t, greeterProto)
-
-	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/greeter",
-		DBDriver:   "sqlite",
-		WithSkill:  true,
-		WithConfig: false,
-		WithDocs:   false,
-	})
-	if err := gen.GenerateIR(project); err != nil {
-		t.Fatalf("GenerateIR: %v", err)
-	}
-
-	skillPath := filepath.Join(outDir, "skill", "skill.go")
-	mustExist(t, skillPath)
-	mustContain(t, skillPath, "SayHello")
-}
-
 // ── WithTests 生成 ────────────────────────────────────────────────────────────
 
 func TestGenerateFull_WithTests_Contents(t *testing.T) {
@@ -410,74 +387,4 @@ func TestToSnakeCase_Generator(t *testing.T) {
 	// OrderService → orderservice, ProductService → productservice
 	mustExist(t, filepath.Join(outDir, "service", "orderservice", "service.go"))
 	mustExist(t, filepath.Join(outDir, "service", "productservice", "service.go"))
-}
-
-// ── Skill 内容验证 ────────────────────────────────────────────────────────────
-
-func TestGenerateFull_Skill_Contents(t *testing.T) {
-	outDir := t.TempDir()
-	project := parseIDLProject(t, "basic.go")
-
-	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithSkill:  true,
-		WithConfig: false,
-		WithDocs:   false,
-	})
-	if err := gen.GenerateIR(project); err != nil {
-		t.Fatalf("GenerateIR: %v", err)
-	}
-
-	skillPath := filepath.Join(outDir, "skill", "skill.go")
-	mustExist(t, skillPath)
-	mustContain(t, skillPath, "func Handler")
-	mustContain(t, skillPath, "getOpenAITools")
-	mustContain(t, skillPath, "getMCPTools")
-	mustContain(t, skillPath, "CreateUser")
-}
-
-func TestGenerateFull_Skill_NotGeneratedWhenDisabled(t *testing.T) {
-	outDir := t.TempDir()
-	project := parseIDLProject(t, "basic.go")
-
-	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/basic",
-		DBDriver:   "sqlite",
-		WithSkill:  false,
-		WithConfig: false,
-		WithDocs:   false,
-	})
-	if err := gen.GenerateIR(project); err != nil {
-		t.Fatalf("GenerateIR: %v", err)
-	}
-
-	mustNotExist(t, filepath.Join(outDir, "skill", "skill.go"))
-}
-
-// ── 多服务 Skill ──────────────────────────────────────────────────────────────
-
-func TestGenerateFull_MultiService_Skill(t *testing.T) {
-	outDir := t.TempDir()
-	project := parseIDLProject(t, "multi.go")
-
-	gen := mustNewGenerator(t, generator.Options{
-		OutputDir:  outDir,
-		ImportPath: "example.com/multi",
-		DBDriver:   "sqlite",
-		WithSkill:  true,
-		WithConfig: false,
-		WithDocs:   false,
-	})
-	if err := gen.GenerateIR(project); err != nil {
-		t.Fatalf("GenerateIR: %v", err)
-	}
-
-	skillPath := filepath.Join(outDir, "skill", "skill.go")
-	mustExist(t, skillPath)
-	// multi.go has OrderService with PlaceOrder/GetOrder and ProductService
-	mustContain(t, skillPath, "PlaceOrder")
-	mustContain(t, skillPath, "GetOrder")
 }

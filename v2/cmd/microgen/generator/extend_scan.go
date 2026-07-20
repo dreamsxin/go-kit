@@ -68,7 +68,6 @@ type ExistingProjectFeatures struct {
 	WithGRPC             bool
 	WithDB               bool
 	WithOpenAPI          bool
-	WithSkill            bool
 	WithInteraction      bool
 	ConfigMode           string
 	RemoteProvider       string
@@ -230,8 +229,6 @@ func classifyOwnership(root, rel string) FileOwnership {
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated sdk output"}
 	case strings.HasPrefix(rel, "client/"):
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated demo client output"}
-	case strings.HasPrefix(rel, "skill/"):
-		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated skill output"}
 	case rel == "docs/docs.go" || rel == "docs/openapi.json" || rel == "docs/schema.json":
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated API contract output"}
 	case rel == "config/config.go" || rel == "config/local.go" || rel == "config/env.go" || rel == "config/remote.go" || rel == "config/loader.go":
@@ -454,7 +451,6 @@ func projectFeaturesFromManifest(manifest ProjectManifest) ExistingProjectFeatur
 		WithGRPC:             capabilities.GRPC,
 		WithDB:               capabilities.Database,
 		WithOpenAPI:          capabilities.OpenAPI,
-		WithSkill:            capabilities.Skill,
 		WithInteraction:      capabilities.Interaction,
 		ConfigMode:           capabilities.ConfigMode,
 		RemoteProvider:       capabilities.RemoteProvider,
@@ -535,7 +531,6 @@ func detectProjectFeatures(root string, project *ExistingProject) ExistingProjec
 		WithModel:       hasGeneratedModelFiles(filepath.Join(root, "model")) || hasAnyMatch(filepath.Join(root, "repository"), "generated_"),
 		WithGRPC:        hasAnyMatch(filepath.Join(root, "transport"), "transport_grpc.go") || dirExists(filepath.Join(root, "pb")),
 		WithOpenAPI:     fileExists(filepath.Join(root, "docs", "docs.go")),
-		WithSkill:       fileExists(filepath.Join(root, "skill", "skill.go")),
 		WithInteraction: fileExists(filepath.Join(root, "cmd", "generated_interaction.go")),
 	}
 	if features.WithConfig {

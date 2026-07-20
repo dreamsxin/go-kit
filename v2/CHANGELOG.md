@@ -5,6 +5,13 @@ root.
 
 ## Unreleased
 
+### Removed
+
+- Removed the non-standard `microgen -skill` option, generated `skill/` package,
+  `/skill` discovery endpoint, repository AI `SKILL.md`, and dedicated skill
+  example. OpenAPI/JSON Schema remain the general contract formats, while the
+  optional interaction runtime exposes tool discovery and execution through MCP.
+
 ## [2.0.0] - 2026-07-20
 
 First stable v2 release. Exported runtime APIs, the `microgen` CLI and

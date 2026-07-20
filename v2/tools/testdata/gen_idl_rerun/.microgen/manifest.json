@@ -10,7 +10,6 @@
     "grpc": false,
     "database": true,
     "openapi": true,
-    "skill": true,
     "interaction": false,
     "configMode": "file",
     "databaseDriver": "mysql"
@@ -45,7 +44,6 @@
     "sdk/typescript/client.ts",
     "sdk/typescript/tsconfig.json",
     "sdk/userservicesdk/client.go",
-    "service/userservice/generated_repos.go",
-    "skill/skill.go"
+    "service/userservice/generated_repos.go"
   ]
 }

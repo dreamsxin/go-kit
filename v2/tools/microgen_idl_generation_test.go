@@ -44,7 +44,6 @@ func TestMicrogenIDLDefaultFlags(t *testing.T) {
 	mustExistFile(t, filepath.Join(outDir, "README.md"))
 	mustExistFile(t, filepath.Join(outDir, "model", "generated_user.go"))
 	mustExistFile(t, filepath.Join(outDir, "repository", "generated_user_repository.go"))
-	mustExistFile(t, filepath.Join(outDir, "skill", "skill.go"))
 	mustNotExistFile(t, filepath.Join(outDir, "docs", "docs.go"))
 	mustNotExistFile(t, filepath.Join(outDir, "transport", "userservice", "transport_grpc.go"))
 	mustNotExistFile(t, filepath.Join(outDir, "pb", "userservice", "userservice.proto"))

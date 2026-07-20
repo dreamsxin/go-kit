@@ -22,7 +22,7 @@ func (rt generatedRuntime) registerRoutes(r *http.ServeMux) {
 	}
 }
 
-func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEntry, withOpenAPI bool, withSkill bool) []generatedRouteEntry {
+func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEntry, withOpenAPI bool) []generatedRouteEntry {
 	routes := []generatedRouteEntry{
 		{Method: "GET", Path: "/health", Handler: "health"},
 		{Method: "GET", Path: "/debug/routes", Handler: "debug"},
@@ -35,9 +35,6 @@ func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEnt
 			generatedRouteEntry{Method: "GET", Path: "/schema.json", Handler: "json-schema"},
 			generatedRouteEntry{Method: "GET", Path: "/swagger/", Handler: "swagger-ui"},
 		)
-	}
-	if withSkill {
-		routes = append(routes, generatedRouteEntry{Method: "GET", Path: "/skill", Handler: "skill"})
 	}
 
 	return routes

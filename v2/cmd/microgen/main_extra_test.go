@@ -75,8 +75,8 @@ func TestRunFromIDL_MultiService(t *testing.T) {
 }
 
 func TestRunFromIDL_ProtoFile(t *testing.T) {
-	// Use the existing proto file in examples
-	idlPath := filepath.Join("..", "..", "examples", "microgen_skill", "greeter.proto")
+	// Use the shared integration contract.
+	idlPath := filepath.Join("..", "..", "tools", "testdata", "service.proto")
 	cfg := config{idlPath: idlPath}
 	result, err := runFromIDL(cfg)
 	if err != nil {

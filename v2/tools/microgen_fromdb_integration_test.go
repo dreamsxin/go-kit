@@ -35,7 +35,6 @@ func TestMicrogenFromDBIntegration(t *testing.T) {
 			"-config=false",
 			"-docs=false",
 			"-db=false",
-			"-skill=false",
 			"-openapi",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {

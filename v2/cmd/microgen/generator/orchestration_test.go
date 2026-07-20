@@ -173,7 +173,6 @@ func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testin
 		WithTests:   true,
 		WithModel:   true,
 		WithOpenAPI: true,
-		WithSkill:   true,
 	})
 	if err := gen.GenerateIR(project); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -203,7 +202,6 @@ func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testin
 	mustExist(t, filepath.Join(outDir, "config", "config.go"))
 	mustExist(t, filepath.Join(outDir, "README.md"))
 	mustExist(t, filepath.Join(outDir, "docs", "docs.go"))
-	mustExist(t, filepath.Join(outDir, "skill", "skill.go"))
 
 	expectedPrefix := "/api/v3/userservice"
 	mustContain(t, filepath.Join(outDir, "cmd", "generated_routes.go"), expectedPrefix)
@@ -212,5 +210,4 @@ func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testin
 	mustContain(t, filepath.Join(outDir, "docs", "openapi.json"), expectedPrefix)
 	mustContain(t, filepath.Join(outDir, "docs", "schema.json"), `"$schema": "https://json-schema.org/draft/2020-12/schema"`)
 	mustContain(t, filepath.Join(outDir, "sdk", "typescript", "client.ts"), expectedPrefix)
-	mustContain(t, filepath.Join(outDir, "skill", "skill.go"), "CreateUser")
 }

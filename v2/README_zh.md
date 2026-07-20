@@ -100,10 +100,9 @@ curl http://localhost:8080/health
 curl http://localhost:8080/debug/routes
 curl http://localhost:8080/openapi.json
 curl http://localhost:8080/schema.json
-curl http://localhost:8080/skill
 ```
 
-启用 `-openapi` 后，`microgen` 会从路由、客户端、SDK 和 skill 元数据共用的统一
+启用 `-openapi` 后，`microgen` 会从路由、客户端、SDK 和可选 MCP tool 共用的统一
 IR 直接生成 OpenAPI 3.1，并在 `docs/schema.json` 和 `GET /schema.json`
 提供独立 JSON Schema 2020-12 bundle，同时在 `sdk/typescript/` 生成零运行时
 依赖的 Fetch client。Swagger UI 位于 `/swagger/`，其
@@ -142,7 +141,7 @@ npx --yes --package typescript@7.0.2 tsc -p sdk/typescript/tsconfig.json
 - `cmd/generated_*.go`
 - `endpoint/<service>/generated_chain.go`
 - `model/generated_*.go` 和 `repository/generated_*.go`
-- 生成的 `client/`、`sdk/`、`skill/`、`pb/` 和 `docs/` 资源
+- 生成的 `client/`、`sdk/`、`pb/` 和 `docs/` 资源
 
 版本化 manifest 会记录生成源、模块路径、能力、路由前缀、服务、模型、生成
 middleware 和生成器归属文件。扩展项目之前先执行

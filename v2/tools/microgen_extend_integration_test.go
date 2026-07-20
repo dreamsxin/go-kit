@@ -80,7 +80,6 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 
 		mustExistFile(t, filepath.Join(outDir, "service", "orderservice", "service.go"))
 		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/placeorder")
-		mustContainFile(t, filepath.Join(outDir, "skill", "skill.go"), "PlaceOrder")
 		mustContainFile(t, userServicePath, customMarker)
 
 		binName := "microgen_extend_append_bin"
@@ -109,7 +108,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 		waitServer(t, baseURL+"/health")
 		expectJSONStatusContains(t, "POST", baseURL+"/createuser", `{"username":"alice","email":"alice@example.com"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 		expectJSONStatusContains(t, "POST", baseURL+"/placeorder", `{"user_id":1}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
-		expectStatusContains(t, "GET", baseURL+"/skill", "", http.StatusOK, "PlaceOrder")
+		expectStatusContains(t, "GET", baseURL+"/skill", "", http.StatusNotFound, "404 page not found")
 	})
 
 	t.Run("IDL_Extend_AppendModel_PreservesExistingHooksAndBuilds", func(t *testing.T) {

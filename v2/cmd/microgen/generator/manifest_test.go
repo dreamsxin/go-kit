@@ -30,7 +30,6 @@ func TestGenerateIR_WritesDeterministicProjectManifest(t *testing.T) {
 		WithGRPC:             true,
 		WithDB:               true,
 		WithOpenAPI:          true,
-		WithSkill:            true,
 		WithInteraction:      true,
 		RoutePrefix:          "/api/v2",
 		GeneratedMiddlewares: []string{"metrics", "tracing"},
@@ -53,7 +52,7 @@ func TestGenerateIR_WritesDeterministicProjectManifest(t *testing.T) {
 		t.Fatalf("GeneratedMiddlewares = %v, want [metrics tracing]", manifest.GeneratedMiddlewares)
 	}
 	capabilities := manifest.Capabilities
-	if !capabilities.Config || !capabilities.Docs || !capabilities.Tests || !capabilities.Model || !capabilities.GRPC || !capabilities.Database || !capabilities.OpenAPI || !capabilities.Skill || !capabilities.Interaction {
+	if !capabilities.Config || !capabilities.Docs || !capabilities.Tests || !capabilities.Model || !capabilities.GRPC || !capabilities.Database || !capabilities.OpenAPI || !capabilities.Interaction {
 		t.Fatalf("manifest capabilities = %+v, want all enabled", capabilities)
 	}
 	if capabilities.ConfigMode != "hybrid" || capabilities.RemoteProvider != "consul" || capabilities.DatabaseDriver != "sqlite" {

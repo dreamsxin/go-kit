@@ -49,19 +49,6 @@ func TestAllExamples(t *testing.T) {
 				{method: "POST", path: "/hello", body: `{"name":"Alice"}`, want: "Hello, Alice!"},
 			},
 		},
-		{
-			name: "microgen_skill",
-			path: "microgen_skill",
-			port: 8084,
-			run:  true,
-			smokeTests: []smokeTest{
-				{method: "POST", path: "/sayhello", body: `{"name":"Bob", "tags":["test"]}`, want: "Hello, Bob!"},
-				{method: "GET", path: "/skill", want: "SayHello"},
-				{method: "GET", path: "/skill?format=openai", want: "\"function\""},
-				{method: "GET", path: "/skill?format=mcp", want: "inputSchema"},
-				{method: "GET", path: "/skill?format=unknown", want: "\"function\""},
-			},
-		},
 	}
 
 	for _, tc := range examples {
@@ -75,17 +62,12 @@ func TestAllExamples(t *testing.T) {
 				binName += ".exe"
 			}
 
-			buildPath := "."
-			if tc.name == "microgen_skill" {
-				buildPath = "./cmd"
-			}
-
 			// Ensure dependencies are tidy
 			tidyCmd := exec.Command("go", "mod", "tidy")
 			tidyCmd.Dir = pkgPath
 			tidyCmd.Run()
 
-			cmd := exec.Command("go", "build", "-o", binName, buildPath)
+			cmd := exec.Command("go", "build", "-o", binName, ".")
 			cmd.Dir = pkgPath
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("build failed: %v\n%s", err, out)
@@ -102,11 +84,7 @@ func TestAllExamples(t *testing.T) {
 			baseURL := fmt.Sprintf("http://localhost:%d", tc.port)
 
 			runCmd := exec.Command("./" + binName)
-			if tc.name == "microgen_skill" {
-				runCmd.Args = append(runCmd.Args, "-http.addr="+addr, "-grpc.addr=:8091")
-			} else {
-				runCmd.Args = append(runCmd.Args, "-http.addr="+addr)
-			}
+			runCmd.Args = append(runCmd.Args, "-http.addr="+addr)
 			runCmd.Dir = pkgPath
 			runCmd.Env = os.Environ()
 

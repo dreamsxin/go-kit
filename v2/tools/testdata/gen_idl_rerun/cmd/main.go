@@ -22,11 +22,10 @@ import (
 
 	"example.com/gen_idl_rerun/config"
 	docs "example.com/gen_idl_rerun/docs"
-	"example.com/gen_idl_rerun/skill"
 	swaggerUI "github.com/swaggest/swgui/v5"
 )
 
-func printBanner(logger *kitlog.Logger, httpAddr string, withOpenAPI bool, withSkill bool) {
+func printBanner(logger *kitlog.Logger, httpAddr string, withOpenAPI bool) {
 	logger.Sugar().Info("------------------------------------------------------------")
 	logger.Sugar().Infof(" Service: UserService ")
 	logger.Sugar().Infof(" HTTP: http://localhost%s", httpAddr)
@@ -34,9 +33,6 @@ func printBanner(logger *kitlog.Logger, httpAddr string, withOpenAPI bool, withS
 		logger.Sugar().Infof(" OpenAPI: http://localhost%s/openapi.json", httpAddr)
 		logger.Sugar().Infof(" JSON Schema: http://localhost%s/schema.json", httpAddr)
 		logger.Sugar().Infof(" API UI: http://localhost%s/swagger/index.html", httpAddr)
-	}
-	if withSkill {
-		logger.Sugar().Infof(" Skill: http://localhost%s/skill", httpAddr)
 	}
 	logger.Sugar().Info(" Press Ctrl+C to stop")
 }
@@ -133,8 +129,6 @@ func main() {
 	r.HandleFunc("GET /health", healthHandler)
 	r.HandleFunc("HEAD /health", healthHandler)
 
-	r.HandleFunc("GET /skill", skill.Handler)
-
 	r.HandleFunc("GET /openapi.json", docs.Handler)
 	r.HandleFunc("GET /schema.json", docs.SchemaHandler)
 	r.Handle("GET /swagger/", swaggerUI.New("UserService API", "/openapi.json", "/swagger/"))
@@ -145,11 +139,11 @@ func main() {
 	if cfg.Debug.RoutesEnabled {
 		r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, true, true))
+			json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, true))
 		})
 	}
 
-	allRoutes := generatedRouteEntries(runtime, customRoutes, true, true)
+	allRoutes := generatedRouteEntries(runtime, customRoutes, true)
 	if cfg.Debug.PrintRoutes {
 		printAllRoutes(logger, allRoutes)
 	}
@@ -174,7 +168,7 @@ func main() {
 		}
 	}()
 
-	printBanner(logger, *httpAddr, true, true)
+	printBanner(logger, *httpAddr, true)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

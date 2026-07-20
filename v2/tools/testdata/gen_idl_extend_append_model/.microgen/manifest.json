@@ -10,7 +10,6 @@
     "grpc": false,
     "database": false,
     "openapi": false,
-    "skill": true,
     "interaction": false
   },
   "services": [
@@ -35,7 +34,6 @@
     "repository/generated_product_repository.go",
     "repository/generated_user_repository.go",
     "sdk/userservicesdk/client.go",
-    "service/userservice/generated_repos.go",
-    "skill/skill.go"
+    "service/userservice/generated_repos.go"
   ]
 }

@@ -31,7 +31,6 @@ type Options struct {
 	WithDB               bool
 	DBDriver             string
 	WithOpenAPI          bool
-	WithSkill            bool
 	WithInteraction      bool
 	IDLSrcPath           string
 	RoutePrefix          string

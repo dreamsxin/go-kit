@@ -25,7 +25,6 @@ func (g *Generator) generateMainFileFull(ctx generationContext) error {
 		WithConfig:      g.config.WithConfig,
 		WithGRPC:        g.config.WithGRPC,
 		WithOpenAPI:     g.config.WithOpenAPI,
-		WithSkill:       g.config.WithSkill,
 		WithInteraction: g.config.WithInteraction,
 	}
 	return g.executeTemplate("main.tmpl", g.layout.cmdMain(), data)
@@ -38,7 +37,6 @@ func (g *Generator) generateGeneratedRuntimeFile(ctx generationContext) error {
 		WithDB:          g.config.WithDB,
 		WithGRPC:        g.config.WithGRPC,
 		WithOpenAPI:     g.config.WithOpenAPI,
-		WithSkill:       g.config.WithSkill,
 		WithInteraction: g.config.WithInteraction,
 		SvcRoutes:       g.serviceRoutes(ctx.project),
 		ImportPath:      g.config.ImportPath,
@@ -137,7 +135,6 @@ func (g *Generator) generateReadme(ctx generationContext) error {
 		Project:         ctx.project,
 		IsProtoInput:    strings.EqualFold(ctx.source, "proto") || strings.HasSuffix(g.config.IDLSrcPath, ".proto"),
 		WithOpenAPI:     g.config.WithOpenAPI,
-		WithSkill:       g.config.WithSkill,
 		WithInteraction: g.config.WithInteraction,
 		WithConfig:      g.config.WithConfig,
 		WithDB:          g.config.WithDB,
@@ -145,14 +142,6 @@ func (g *Generator) generateReadme(ctx generationContext) error {
 		RemoteProvider:  g.config.RemoteProvider,
 	}
 	return g.executeTemplate("readme.tmpl", g.layout.readme(), data)
-}
-
-func (g *Generator) generateSkillFile(ctx generationContext) error {
-	data := skillTemplateData{
-		Project:    ctx.project,
-		ImportPath: g.config.ImportPath,
-	}
-	return g.executeTemplate("skill.tmpl", g.layout.skillFile(), data)
 }
 
 func (g *Generator) generateInteractionFile(ctx generationContext) error {
@@ -172,7 +161,6 @@ func (g *Generator) generateAIProjectGuide(ctx generationContext) error {
 		WithDB:          g.config.WithDB,
 		WithGRPC:        g.config.WithGRPC,
 		WithOpenAPI:     g.config.WithOpenAPI,
-		WithSkill:       g.config.WithSkill,
 		WithInteraction: g.config.WithInteraction,
 	}
 	return g.executeTemplate("ai_project_guide.tmpl", g.layout.aiProjectGuide(), data)

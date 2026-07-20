@@ -1,5 +1,5 @@
 source db
-5449210b7be5dbe65b62f9a97e29f80b1ce1369e931e47a0db826ca3e127bc88  .microgen/manifest.json
+ee10ec08a6a57890bb2619a80996ed53c054a30974cf6af976aeff698608c40c  .microgen/manifest.json
 2bbb0e609cf6874fd1cbf7df228c03e0ea8a2dbc2fe68ef2a3433d7ff0dcbb56  docs/openapi.json
 24c1885209c845d643155eb2ada3e2569f5af09fcf76ef0ecbe8a408b442ff99  docs/schema.json
 c6b1e1375e7720a37f17e1594ddd4d3c131ca78b5f3ed40b218b871165a81a87  idl.go

@@ -29,7 +29,6 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 			"-protocols", "http,grpc",
 			"-prefix", "/api/proto",
 			"-openapi",
-			"-skill",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("microgen proto failed: %v\n%s", err, out)
@@ -45,7 +44,6 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 		mustExistFile(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"))
 		mustExistFile(t, filepath.Join(outDir, "pb", "userservice", "userservice.proto"))
 		mustExistFile(t, filepath.Join(outDir, "docs", "docs.go"))
-		mustExistFile(t, filepath.Join(outDir, "skill", "skill.go"))
 		mustExistFile(t, filepath.Join(outDir, "cmd", "main.go"))
 		mustNotExistFile(t, filepath.Join(outDir, "idl.go"))
 		mustContainFile(t, filepath.Join(outDir, "pb", "userservice", "userservice.proto"), "string id = 1;")
@@ -83,7 +81,6 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 			"-protocols", "http,grpc",
 			"-model=false",
 			"-db=false",
-			"-skill",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("microgen proto component flow failed: %v\n%s", err, out)
@@ -111,7 +108,6 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 			"./transport/...",
 			"./client/...",
 			"./sdk/...",
-			"./skill/...",
 		}
 		buildCmd := exec.Command("go", append([]string{"build", "-mod=mod"}, buildTargets...)...)
 		buildCmd.Dir = outDir
@@ -159,7 +155,6 @@ message UploadSummary { int32 count = 1; }
 			"-docs=false",
 			"-model=false",
 			"-db=false",
-			"-skill=false",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("microgen proto server stream failed: %v\n%s", err, out)
@@ -224,7 +219,6 @@ message UploadSummary { int32 count = 1; }
 			"-docs=false",
 			"-model=false",
 			"-db=false",
-			"-skill=false",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("microgen proto grpc runtime failed: %v\n%s", err, out)

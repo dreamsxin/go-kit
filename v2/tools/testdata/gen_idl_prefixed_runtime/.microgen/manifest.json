@@ -11,7 +11,6 @@
     "grpc": false,
     "database": false,
     "openapi": false,
-    "skill": false,
     "interaction": false
   },
   "services": [

@@ -70,7 +70,6 @@ type HelloService interface {
 	runCommand(t, testCmd)
 
 	mustExistFile(t, filepath.Join(outDir, "service", "helloservice", "service.go"))
-	mustExistFile(t, filepath.Join(outDir, "skill", "skill.go"))
 	mustNotExistFile(t, filepath.Join(outDir, "config", "config.go"))
 	mustContainFile(t, filepath.Join(outDir, "README.md"), "## Agent Workflow")
 }

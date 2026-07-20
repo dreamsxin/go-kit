@@ -26,7 +26,6 @@ Generator-owned (do not hand-edit; use `microgen extend`):
 - `endpoint/<name>/generated_chain.go`
 - `model/generated_*.go`
 - `repository/generated_*.go`
-- `skill/skill.go`
 {{- if .WithOpenAPI }}
 - `docs/docs.go`
 - `docs/openapi.json`
@@ -54,10 +53,6 @@ Generator-owned (do not hand-edit; use `microgen extend`):
   - Supports Streamable HTTP transport: GET for SSE streams, DELETE for session termination
   - Supports MCP Sampling: server can request LLM completions from connected clients
   - Server-initiated notifications: tools/list_changed, prompts/list_changed, resources/list_changed, resources/updated, message, progress
-{{- end }}
-{{- if .WithSkill }}
-- `GET /skill` — OpenAI-style tool discovery
-- `GET /skill?format=mcp` — MCP-style tool discovery (schema only)
 {{- end }}
 {{- if .WithOpenAPI }}
 - `GET /openapi.json` — generated OpenAPI 3.1 contract

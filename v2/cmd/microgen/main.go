@@ -45,7 +45,6 @@ type config struct {
 	withDB          bool
 	dbDriver        string
 	withOpenAPI     bool
-	withSkill       bool
 	withInteraction bool
 	serviceName     string
 	routePrefix     string
@@ -96,7 +95,6 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 	withDB := fs.Bool("db", true, "Include DB init in main")
 	driver := fs.String("driver", "mysql", "Database driver")
 	withOpenAPI := fs.Bool("openapi", false, "Generate OpenAPI 3.1, JSON Schema, Swagger UI, and TypeScript SDK")
-	withSkill := fs.Bool("skill", true, "Generate AI skill support")
 	withInteraction := fs.Bool("interaction", false, "Generate AI interaction runtime and MCP endpoint")
 	serviceName := fs.String("service", "", "Service name")
 	routePrefix := fs.String("prefix", "", "HTTP route prefix")
@@ -135,7 +133,6 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 		withDB:          *withDB,
 		dbDriver:        *driver,
 		withOpenAPI:     *withOpenAPI,
-		withSkill:       *withSkill,
 		withInteraction: *withInteraction,
 		serviceName:     *serviceName,
 		routePrefix:     *routePrefix,
@@ -227,7 +224,6 @@ func (c config) generatorOptions(idlPath, serviceName string) generator.Options 
 		WithDB:          c.withDB,
 		DBDriver:        c.dbDriver,
 		WithOpenAPI:     c.withOpenAPI,
-		WithSkill:       c.withSkill,
 		WithInteraction: c.withInteraction,
 		IDLSrcPath:      idlPath,
 		RoutePrefix:     c.routePrefix,

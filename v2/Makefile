@@ -48,8 +48,8 @@ test-contracts:
 	@go test -v ./tools -run TestGeneratedSDKBehaviorContract -count=1
 
 test-docs:
-	@echo ">>> Running documentation, UTF-8, and skill verification..."
-	@go test -v ./tools -run "Test(SKILL|RepositoryTextFilesAreUTF8|DocumentationLinksResolve)" -count=1
+	@echo ">>> Running documentation and UTF-8 verification..."
+	@go test -v ./tools -run "Test(RepositoryTextFilesAreUTF8|DocumentationLinksResolve)" -count=1
 
 test-examples:
 	@echo ">>> Running example package tests..."
@@ -253,7 +253,7 @@ help:
 	@echo "  make test-runtime  Run focused runtime/framework tests"
 	@echo "  make test-microgen Run generator tests and integration coverage"
 	@echo "  make test-contracts Validate generated contracts and TypeScript SDKs"
-	@echo "  make test-docs     Verify docs-backed snippets and SKILL.md"
+	@echo "  make test-docs     Verify documentation links and UTF-8"
 	@echo "  make test-examples Run example tests and smoke tests"
 	@echo "  make test-observability Test slog and optional OpenTelemetry adapters"
 	@echo "  make test-security Test optional HTTP security middleware"

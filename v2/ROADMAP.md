@@ -23,7 +23,7 @@ durable product milestones, not session notes or release history.
 - Read-only database introspection and opt-in migration.
 - Deterministic UTF-8 project generation with external build coverage.
 - One normalized IR driving routes, Go clients, Go SDKs, OpenAPI 3.1, JSON
-  Schema 2020-12, TypeScript Fetch clients, and AI discovery metadata.
+  Schema 2020-12, TypeScript Fetch clients, and optional MCP tools.
 - Incremental service/model/middleware extension with user-file preservation.
 
 ## Milestone 1 (Complete): Generated Project Identity / 生成项目身份

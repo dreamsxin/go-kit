@@ -221,7 +221,6 @@ func optionsFromExistingProject(existing *ExistingProject) Options {
 		WithDB:               existing.Features.WithDB,
 		DBDriver:             existing.Features.DBDriver,
 		WithOpenAPI:          existing.Features.WithOpenAPI,
-		WithSkill:            existing.Features.WithSkill,
 		WithInteraction:      existing.Features.WithInteraction,
 		RoutePrefix:          existing.Features.RoutePrefix,
 		GeneratedMiddlewares: append([]string(nil), existing.Features.GeneratedMiddlewares...),

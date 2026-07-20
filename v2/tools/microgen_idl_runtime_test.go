@@ -61,13 +61,8 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 
 		waitServer(t, baseURL+"/health")
 		smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
-		smokeTest{method: "GET", path: "/skill", want: "CreateUser"}.run(t, baseURL)
-		expectStatusContains(t, "GET", baseURL+"/skill", "", http.StatusOK, "microgen.skill.v1")
-		expectStatusContains(t, "GET", baseURL+"/skill?format=openai", "", http.StatusOK, "\"function\"")
 		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusOK, "/createuser")
-		expectStatusContains(t, "GET", baseURL+"/skill?format=mcp", "", http.StatusOK, "\"inputSchema\"")
-		expectStatusContains(t, "GET", baseURL+"/skill?format=mcp", "", http.StatusOK, "microgen-ir")
-		expectStatusContains(t, "GET", baseURL+"/skill?format=unknown", "", http.StatusOK, "\"function\"")
+		expectStatusContains(t, "GET", baseURL+"/skill", "", http.StatusNotFound, "404 page not found")
 		expectJSONStatusContains(t, "POST", baseURL+"/createuser", `{"username":"alice","email":"alice@example.com"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 	})
 
@@ -84,7 +79,6 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 			"-docs=false",
 			"-model=false",
 			"-db=false",
-			"-skill=false",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("microgen idl minimal failed: %v\n%s", err, out)
@@ -135,23 +129,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
 		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusOK, "/createuser")
 
-		resp, err := http.Get(baseURL + "/skill")
-		if err != nil {
-			t.Fatalf("GET /skill: %v", err)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusOK {
-			t.Fatalf("expected /skill to be disabled, got status %d", resp.StatusCode)
-		}
-
-		mcpResp, err := http.Get(baseURL + "/skill?format=mcp")
-		if err != nil {
-			t.Fatalf("GET /skill?format=mcp: %v", err)
-		}
-		defer mcpResp.Body.Close()
-		if mcpResp.StatusCode == http.StatusOK {
-			t.Fatalf("expected MCP /skill to be disabled, got status %d", mcpResp.StatusCode)
-		}
+		expectStatusContains(t, "GET", baseURL+"/skill", "", http.StatusNotFound, "404 page not found")
 	})
 
 	t.Run("IDL_PrefixedProject_BuildsAndServesPrefixedBusinessRoute", func(t *testing.T) {
@@ -167,7 +145,6 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 			"-docs=false",
 			"-model=false",
 			"-db=false",
-			"-skill=false",
 			"-prefix", "/api/runtime",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
@@ -230,7 +207,6 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 			"-model=false",
 			"-db=false",
 			"-openapi",
-			"-skill",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("microgen idl components failed: %v\n%s", err, out)
@@ -242,7 +218,6 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		mustExistFile(t, filepath.Join(outDir, "transport", "userservice", "transport_http.go"))
 		mustExistFile(t, filepath.Join(outDir, "client", "userservice", "demo.go"))
 		mustExistFile(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"))
-		mustExistFile(t, filepath.Join(outDir, "skill", "skill.go"))
 
 		buildTargets := []string{
 			"./cmd",
@@ -251,7 +226,6 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 			"./transport/...",
 			"./client/...",
 			"./sdk/...",
-			"./skill/...",
 		}
 		buildCmd := exec.Command("go", append([]string{"build", "-mod=mod"}, buildTargets...)...)
 		buildCmd.Dir = outDir
@@ -284,10 +258,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 
 		waitServer(t, baseURL+"/health")
 		smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
-		smokeTest{method: "GET", path: "/skill", want: "CreateUser"}.run(t, baseURL)
-		expectStatusContains(t, "GET", baseURL+"/skill?format=openai", "", http.StatusOK, "\"function\"")
-		expectStatusContains(t, "GET", baseURL+"/skill?format=mcp", "", http.StatusOK, "\"inputSchema\"")
-		expectStatusContains(t, "GET", baseURL+"/skill?format=unknown", "", http.StatusOK, "\"function\"")
+		expectStatusContains(t, "GET", baseURL+"/skill", "", http.StatusNotFound, "404 page not found")
 		expectStatusContains(t, "GET", baseURL+"/openapi.json", "", http.StatusOK, "\"openapi\": \"3.1.0\"")
 		expectStatusContains(t, "GET", baseURL+"/schema.json", "", http.StatusOK, "\"$defs\"")
 
