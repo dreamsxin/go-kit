@@ -259,9 +259,10 @@ These are framework anti-patterns because they weaken separation between protoco
 
 ## Stability Notes
 
-Transport packages are public v2 APIs but may change before v2.0.0. Do not
-depend on undocumented internal execution details such as exact writer
-interception or internal request lifecycle structure.
+Transport packages are stable public v2 APIs from v2.0.0 onward. The
+compatibility contract covers documented behavior, not internal execution
+details such as exact writer interception or internal request lifecycle
+structure.
 
 ## Related Docs
 

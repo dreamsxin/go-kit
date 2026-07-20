@@ -211,8 +211,8 @@ Avoid:
 
 ## Stability Notes
 
-`endpoint` is a public v2 package, but its exported API may change before
-v2.0.0. The intended long-term surface includes:
+`endpoint` is a stable public v2 package from v2.0.0 onward. Its compatibility
+contract includes:
 
 - `Endpoint`
 - `Middleware`

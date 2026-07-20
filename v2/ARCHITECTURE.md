@@ -190,9 +190,8 @@ framework branches for one application.
 
 ## v2 Stability
 
-Until v2.0.0, all v2 APIs and generated layouts may change. Every breaking change
-must still be deliberate, tested, documented in [CHANGELOG.md](CHANGELOG.md), and
-covered by [MIGRATION.md](MIGRATION.md) when it affects v1 users.
-
-After v2.0.0, exported runtime APIs, module paths, CLI flags, generated ownership
-boundaries, and documented configuration keys form the compatibility contract.
+v2.0.0 freezes the compatibility contract for exported runtime APIs, module
+paths, CLI flags, generated ownership boundaries, documented configuration keys,
+and documented protocol behavior. Compatible changes follow semantic versioning;
+incompatible changes require a new major version and must be deliberate, tested,
+and documented in [CHANGELOG.md](CHANGELOG.md) and [MIGRATION.md](MIGRATION.md).
