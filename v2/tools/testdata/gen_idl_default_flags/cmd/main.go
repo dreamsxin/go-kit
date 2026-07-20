@@ -155,14 +155,16 @@ func main() {
 			r.ServeHTTP(w, req)
 			logger.Sugar().Infof("[HTTP] %s %s %v", req.Method, req.URL.Path, time.Since(start))
 		}),
-		ReadTimeout:  cfg.Server.ReadTimeout,
-		WriteTimeout: cfg.Server.WriteTimeout,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:       cfg.Server.ReadTimeout,
+		ReadHeaderTimeout: cfg.Server.ReadHeaderTimeout,
+		WriteTimeout:      cfg.Server.WriteTimeout,
+		IdleTimeout:       60 * time.Second,
 	}
+	serverErr := make(chan error, 2)
 
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Sugar().Fatalf("FATAL: HTTP server: %v", err)
+			serverErr <- fmt.Errorf("HTTP server: %w", err)
 		}
 	}()
 
@@ -170,7 +172,13 @@ func main() {
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	select {
+	case sig := <-quit:
+		logger.Sugar().Infof("Received signal: %s", sig)
+	case err := <-serverErr:
+		logger.Sugar().Errorf("Server stopped unexpectedly: %v", err)
+	}
+	signal.Stop(quit)
 	logger.Sugar().Info("Shutting down...")
 
 	shutdownTimeout := cfg.Server.GracefulShutdownTimeout

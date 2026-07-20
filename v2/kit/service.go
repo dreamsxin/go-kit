@@ -60,6 +60,7 @@ func New(addr string, opts ...Option) (*Service, error) {
 		addr:             addr,
 		mux:              http.NewServeMux(),
 		logger:           logger,
+		httpConfig:       DefaultHTTPServerConfig(),
 		jsonMaxBodyBytes: DefaultJSONMaxBodyBytes,
 		healthTimeout:    DefaultHealthCheckTimeout,
 		serveErrors:      make(chan error, 2),

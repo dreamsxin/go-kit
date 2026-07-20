@@ -60,6 +60,8 @@ Use this loop when an AI agent or maintainer changes the generated project:
 
 Generated config loads through `config.Load(path)`: defaults first, local YAML next, optional remote config after that, final environment overrides last, then `Config.Validate()` before runtime wiring. Environment variables are also applied once before remote loading so they can configure the remote provider connection.
 
+The generated HTTP server defaults to `read_header_timeout: 5s` and `write_timeout: 0s`, which protects header reads without terminating long-lived streaming responses.
+
 - Current generated config mode: `file`
 - Current remote provider: `none`
 - Local mode keeps remote config disabled and remains the default runnable path.
@@ -100,6 +102,8 @@ Runtime inspection:
 - `pb/userservice/userservice.proto` is generated from the current service contract and should be reviewed before running `protoc`.
 - If any unsupported shape still falls back to `TODO`, complete those message fields before generating stubs.
 - Generated streaming SDK callbacks are synchronous: a slow `send` callback applies backpressure to local message delivery. Applications should use context deadlines/cancellation plus their own bounded queues for long-running work.
+- Generated Go SDKs cap response bodies at 4 MiB by default; use `WithMaxResponseBodyBytes` when an endpoint contract requires a different limit.
+
 
 
 

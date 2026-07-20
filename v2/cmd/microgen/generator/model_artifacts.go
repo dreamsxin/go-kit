@@ -2,6 +2,7 @@ package generator
 
 import (
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -49,9 +50,52 @@ func (g *Generator) generateRepositoryBaseFile() error {
 }
 
 func (g *Generator) generateRepositoryFile(model *modelView) error {
+	orderColumns, defaultOrderBy := repositoryOrderColumns(model)
 	data := repositoryTemplateData{
-		Model:      model,
-		ImportPath: g.config.ImportPath,
+		Model:          model,
+		ImportPath:     g.config.ImportPath,
+		OrderColumns:   orderColumns,
+		DefaultOrderBy: defaultOrderBy,
 	}
 	return g.executeTemplate("repository.tmpl", g.layout.repositoryFile(model.Name), data)
+}
+
+func repositoryOrderColumns(model *modelView) ([]repositoryOrderColumn, string) {
+	if model == nil {
+		return nil, ""
+	}
+	aliases := make(map[string]string)
+	defaultAlias := ""
+	for _, field := range model.Fields {
+		column := gormColumnName(field)
+		if column == "" {
+			continue
+		}
+		for _, alias := range []string{field.JSONTag, toSnakeCase(field.Name), strings.ToLower(field.Name)} {
+			alias = strings.ToLower(strings.TrimSpace(strings.Split(alias, ",")[0]))
+			if alias != "" && alias != "-" {
+				aliases[alias] = column
+			}
+		}
+		if field.IsPrimary || defaultAlias == "" {
+			defaultAlias = firstNonEmpty(field.JSONTag, toSnakeCase(field.Name))
+			defaultAlias = strings.TrimSpace(strings.Split(defaultAlias, ",")[0])
+		}
+	}
+	columns := make([]repositoryOrderColumn, 0, len(aliases))
+	for alias, column := range aliases {
+		columns = append(columns, repositoryOrderColumn{Alias: alias, Column: column})
+	}
+	sort.Slice(columns, func(i, j int) bool { return columns[i].Alias < columns[j].Alias })
+	return columns, defaultAlias
+}
+
+func gormColumnName(field modelFieldView) string {
+	for _, part := range strings.Split(field.GormTag, ";") {
+		key, value, ok := strings.Cut(strings.TrimSpace(part), ":")
+		if ok && strings.EqualFold(key, "column") {
+			return strings.TrimSpace(value)
+		}
+	}
+	return toSnakeCase(field.Name)
 }

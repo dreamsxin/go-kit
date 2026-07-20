@@ -99,6 +99,9 @@ func (c Client) Endpoint() endpoint.Endpoint {
 
 		response, err := c.dec(ctx, resp)
 		if err != nil {
+			if c.bufferedStream {
+				_ = resp.Body.Close()
+			}
 			return nil, err
 		}
 
@@ -113,7 +116,7 @@ type bodyWithCancel struct {
 }
 
 func (bwc bodyWithCancel) Close() error {
-	bwc.ReadCloser.Close()
+	err := bwc.ReadCloser.Close()
 	bwc.cancel()
-	return nil
+	return err
 }

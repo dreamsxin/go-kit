@@ -9,7 +9,12 @@
 //
 //	# Initialize a session (note the Mcp-Session-Id response header)
 //	curl -i -X POST http://localhost:8080/mcp \
-//	  -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}'
+//	  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}'
+//
+//	# Complete the MCP lifecycle before sending requests
+//	curl -X POST http://localhost:8080/mcp \
+//	  -H 'Mcp-Session-Id: <sid>' \
+//	  -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
 //
 //	# List tools (replace <sid> with the session ID from above)
 //	curl -X POST http://localhost:8080/mcp \

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/interaction"
@@ -42,7 +43,13 @@ type StreamableHandler struct {
 	// default is used.
 	MaxPostBodyBytes int64
 
+	// AllowedOrigins permits browser clients from the listed origins. Requests
+	// without Origin are allowed; same-origin requests are always allowed.
+	AllowedOrigins []string
+
+	cleanupMu     sync.Mutex
 	cleanupCancel context.CancelFunc
+	cleanupWG     sync.WaitGroup
 }
 
 // NewStreamableHandler creates a StreamableHandler backed by the given runtime.
@@ -51,7 +58,7 @@ func NewStreamableHandler(runtime *interaction.Runtime) *StreamableHandler {
 		runtime = interaction.NewRuntime()
 	}
 	return &StreamableHandler{
-		core:    dispatchCore{Runtime: runtime, logLevel: "info"},
+		core:    dispatchCore{Runtime: runtime},
 		Sampler: NewSampler(),
 		store:   newSessionStore(),
 	}
@@ -61,6 +68,10 @@ func NewStreamableHandler(runtime *interaction.Runtime) *StreamableHandler {
 // the HTTP method (POST, GET, DELETE).
 func (h *StreamableHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(headerProtocolVersion, protocolVersion)
+	if err := h.validateOrigin(r); err != nil {
+		writeHTTPError(w, http.StatusForbidden, "origin_not_allowed", err.Error())
+		return
+	}
 	if err := validateProtocolVersion(r); err != nil {
 		writeHTTPError(w, http.StatusBadRequest, "unsupported_protocol_version", err.Error())
 		return
@@ -103,11 +114,31 @@ func (h *StreamableHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 		writeResponse(w, response{JSONRPC: jsonRPCVersion, Error: newError(-32700, "parse error", err.Error())})
 		return
 	}
+	if req.JSONRPC != jsonRPCVersion {
+		writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32600, "invalid request", "jsonrpc must be 2.0")})
+		return
+	}
 
 	sessionID := r.Header.Get(headerSessionID)
 
 	// ── initialize (no session yet) ──────────────────────────────────
 	if req.Method == "initialize" {
+		if req.ID == nil {
+			writeResponse(w, response{JSONRPC: jsonRPCVersion, Error: newError(-32600, "invalid request", "initialize must include an id")})
+			return
+		}
+		var initParams struct {
+			ProtocolVersion string         `json:"protocolVersion"`
+			Capabilities    map[string]any `json:"capabilities"`
+		}
+		if err := json.Unmarshal(req.Params, &initParams); err != nil {
+			writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32602, "invalid argument", "initialize params are required")})
+			return
+		}
+		if initParams.ProtocolVersion != protocolVersion {
+			writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32602, "unsupported protocol version", fmt.Sprintf("server supports %q", protocolVersion))})
+			return
+		}
 		sess, err := h.store.create()
 		if err != nil {
 			writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32603, "internal error", err.Error())})
@@ -115,13 +146,10 @@ func (h *StreamableHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 		}
 		h.Sampler.RegisterSession(sess.ID)
 
-		var initParams struct {
-			Capabilities map[string]any `json:"capabilities"`
-		}
-		if len(req.Params) > 0 {
-			_ = json.Unmarshal(req.Params, &initParams)
-		}
+		sess.mu.Lock()
 		sess.clientCaps = initParams.Capabilities
+		sess.protocol = initParams.ProtocolVersion
+		sess.mu.Unlock()
 
 		w.Header().Set(headerSessionID, sess.ID)
 		writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Result: h.core.buildInitializeResult()})
@@ -138,9 +166,14 @@ func (h *StreamableHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 		writeHTTPError(w, http.StatusNotFound, "session_not_found", "session not found; re-initialize")
 		return
 	}
+	ctx := context.WithValue(r.Context(), mcpSessionContextKey{}, sess)
 
 	// ── JSON-RPC response (to server-initiated request like sampling) ─
 	if req.Method == "" {
+		if !sess.isInitialized() {
+			writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32600, "invalid request", "session is not initialized")})
+			return
+		}
 		h.deliverSamplingResponse(sess, rawBody)
 		w.WriteHeader(http.StatusAccepted)
 		return
@@ -152,13 +185,17 @@ func (h *StreamableHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
 		return
 	}
+	if !sess.isInitialized() {
+		writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32600, "invalid request", "notifications/initialized must be sent before requests")})
+		return
+	}
 
 	// ── requests (have id) ───────────────────────────────────────────
 	accept := r.Header.Get("Accept")
 	if strings.Contains(accept, "text/event-stream") {
-		h.handleRequestSSE(w, r, sess, req)
+		h.handleRequestSSE(w, r.WithContext(ctx), sess, req)
 	} else {
-		resp := h.core.dispatch(r.Context(), req)
+		resp := h.core.dispatch(ctx, req)
 		writeResponse(w, resp)
 	}
 }
@@ -197,6 +234,10 @@ func (h *StreamableHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 	sess, ok := h.store.get(sessionID)
 	if !ok {
 		writeHTTPError(w, http.StatusNotFound, "session_not_found", "session not found")
+		return
+	}
+	if !sess.isInitialized() {
+		writeHTTPError(w, http.StatusConflict, "session_not_initialized", "notifications/initialized must be sent before opening an SSE stream")
 		return
 	}
 
@@ -271,12 +312,35 @@ func (h *StreamableHandler) SendSamplingRequest(ctx context.Context, sessionID s
 		if !ok {
 			return fmt.Errorf("mcp: session %q not found", sessionID)
 		}
+		if !sess.isInitialized() {
+			return fmt.Errorf("mcp: session %q is not initialized", sessionID)
+		}
+		if !sess.hasClientCapability("sampling") {
+			return fmt.Errorf("mcp: client session %q did not declare sampling capability", sessionID)
+		}
 		if delivered, err := sess.writeToPOST(data); delivered || err != nil {
 			return err
 		}
-		return sess.broadcastToGET(data)
+		return sess.writeToGET(data)
 	}
 	return h.Sampler.CreateMessage(ctx, sessionID, req, sendFn)
+}
+
+func (h *StreamableHandler) validateOrigin(r *http.Request) error {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return nil
+	}
+	origin = strings.TrimRight(origin, "/")
+	for _, allowed := range h.AllowedOrigins {
+		if origin == strings.TrimRight(strings.TrimSpace(allowed), "/") {
+			return nil
+		}
+	}
+	if origin == "http://"+r.Host || origin == "https://"+r.Host {
+		return nil
+	}
+	return fmt.Errorf("origin %q is not allowed", origin)
 }
 
 func (h *StreamableHandler) maxPostBodyBytes() int64 {
@@ -301,6 +365,11 @@ func (h *StreamableHandler) StartCleanup() {
 	if h.SessionTTL <= 0 {
 		return
 	}
+	h.cleanupMu.Lock()
+	defer h.cleanupMu.Unlock()
+	if h.cleanupCancel != nil {
+		return
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	h.cleanupCancel = cancel
 
@@ -312,7 +381,9 @@ func (h *StreamableHandler) StartCleanup() {
 		}
 	}
 
+	h.cleanupWG.Add(1)
 	go func() {
+		defer h.cleanupWG.Done()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
@@ -331,8 +402,12 @@ func (h *StreamableHandler) StartCleanup() {
 
 // StopCleanup terminates the background session cleanup goroutine.
 func (h *StreamableHandler) StopCleanup() {
-	if h.cleanupCancel != nil {
-		h.cleanupCancel()
-		h.cleanupCancel = nil
+	h.cleanupMu.Lock()
+	defer h.cleanupMu.Unlock()
+	if h.cleanupCancel == nil {
+		return
 	}
+	h.cleanupCancel()
+	h.cleanupWG.Wait()
+	h.cleanupCancel = nil
 }

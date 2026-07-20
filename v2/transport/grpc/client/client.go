@@ -96,11 +96,14 @@ func (c Client) Endpoint() endpoint.Endpoint {
 			return nil, err
 		}
 
-		md := &metadata.MD{}
-		for _, f := range c.before {
-			ctx = f(ctx, md)
+		md := metadata.MD{}
+		if outgoing, ok := metadata.FromOutgoingContext(ctx); ok {
+			md = outgoing.Copy()
 		}
-		ctx = metadata.NewOutgoingContext(ctx, *md)
+		for _, f := range c.before {
+			ctx = f(ctx, &md)
+		}
+		ctx = metadata.NewOutgoingContext(ctx, md)
 
 		var header, trailer metadata.MD
 		grpcReply := reflect.New(c.replyType.Elem()).Interface()

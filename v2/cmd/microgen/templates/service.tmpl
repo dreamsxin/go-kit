@@ -31,16 +31,11 @@ type {{.Service.ServiceName}} interface {
 
 // ServiceConfig controls generated service behavior.
 type ServiceConfig struct {
-	LogLevel      string        `json:"log_level"`
-	Timeout       time.Duration `json:"timeout"`
 	EnableLogging bool          `json:"enable_logging"`
-	EnableMetrics bool          `json:"enable_metrics"`
 	Logger        *kitlog.Logger `json:"-"`
 }
 
 var defaultConfig = &ServiceConfig{
-	LogLevel:      "info",
-	Timeout:       30 * time.Second,
 	EnableLogging: true,
 }
 
@@ -72,10 +67,6 @@ func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) {{.Service.Service
 	if cfg.EnableLogging {
 		svc = LoggingMiddleware(logger)(svc)
 	}
-	if cfg.EnableMetrics {
-		svc = MetricsMiddleware()(svc)
-	}
-
 	return svc
 }
 {{else}}
@@ -100,14 +91,9 @@ func newServiceImpl(cfg *ServiceConfig) {{.Service.ServiceName}} {
 	if cfg.EnableLogging {
 		svc = LoggingMiddleware(logger)(svc)
 	}
-	if cfg.EnableMetrics {
-		svc = MetricsMiddleware()(svc)
-	}
-
 	return svc
 }
 {{end}}
-
 type serviceImpl struct {
 	config *ServiceConfig
 	logger *kitlog.Logger
@@ -205,37 +191,6 @@ func (m *loggingMiddleware) {{.Name}}(ctx context.Context, recv func() (idl.{{.I
 			m.logger.Sugar().Infof("[{{$.Service.ServiceName}}] {{.Name}} elapsed=%v", time.Since(start))
 		}
 	}()
-	return m.next.{{.Name}}(ctx, recv, send)
-}
-{{end}}
-
-func MetricsMiddleware() ServiceMiddleware {
-	return func(next {{.Service.ServiceName}}) {{.Service.ServiceName}} {
-		return &metricsMiddleware{next: next}
-	}
-}
-
-type metricsMiddleware struct {
-	next {{.Service.ServiceName}}
-}
-
-{{range .UnaryMethods}}
-func (m *metricsMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
-	return m.next.{{.Name}}(ctx, req)
-}
-{{end}}
-{{range .ServerStreamMethods}}
-func (m *metricsMiddleware) {{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error {
-	return m.next.{{.Name}}(ctx, req, send)
-}
-{{end}}
-{{range .ClientStreamMethods}}
-func (m *metricsMiddleware) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (idl.{{.OutputName}}, error) {
-	return m.next.{{.Name}}(ctx, recv)
-}
-{{end}}
-{{range .BidiStreamMethods}}
-func (m *metricsMiddleware) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error {
 	return m.next.{{.Name}}(ctx, recv, send)
 }
 {{end}}

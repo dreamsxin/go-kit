@@ -7,7 +7,8 @@
 //
 // Basic HTTP interaction:
 //
-//	curl -X POST http://localhost:8090/mcp -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}'
+//	curl -X POST http://localhost:8090/mcp -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}'
+//	curl -X POST http://localhost:8090/mcp -H 'Mcp-Session-Id: <sid>' -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
 //	curl -X POST http://localhost:8090/mcp -H 'Mcp-Session-Id: <sid>' -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 //	curl -X POST http://localhost:8090/mcp -H 'Mcp-Session-Id: <sid>' -d '{"jsonrpc":"2.0","id":3,"method":"completion/complete","params":{"ref":{"type":"ref/prompt","name":"code_review"},"argument":{"name":"language","value":"go"}}}'
 package main

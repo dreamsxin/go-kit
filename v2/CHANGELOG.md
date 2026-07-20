@@ -74,6 +74,15 @@ root.
   reports filesystem or ownership drift before mutation.
 - Generated Go SDKs expose `APIError` with stable status-code and response-body
   fields, aligned with the TypeScript SDK error contract.
+- MCP Streamable HTTP now enforces the initialization lifecycle, protocol
+  version, browser Origin policy, and client sampling capability. Logging levels
+  are session-scoped, and server messages use one active SSE stream.
+- `kit` and generated HTTP servers use streaming-safe defaults with bounded
+  header reads and no default response write deadline.
+- Consul registrar operations return errors; instancer shutdown cancels and
+  joins the active blocking query.
+- Generated Go SDKs resolve URLs structurally and bound response bodies.
+- Generated repositories accept only model-derived ordering fields.
 
 ### Fixed
 
@@ -93,6 +102,13 @@ root.
   last and reject projects with unresolved manifest drift.
 - Database-derived contract IR now matches generated Go IDL for optional create
   fields, update fields, list query parameters, and response JSON shapes.
+- HTTP response-writer interception preserves optional streaming interfaces,
+  ignores repeated status writes, and accounts for `io.ReaderFrom` bytes.
+- Buffered HTTP client decode failures close the response body and cancel the
+  request context.
+- gRPC clients preserve caller-provided outgoing metadata while applying hooks.
+- MCP tool-triggered sampling now uses the transport session from request
+  context, and tool execution failures return `isError: true` results.
 
 ### Removed
 

@@ -152,6 +152,66 @@ func TestEndpoint_PropagatesResponseMetadataIntoContext(t *testing.T) {
 	}
 }
 
+func TestEndpoint_PreservesCallerOutgoingMetadata(t *testing.T) {
+	const bufSize = 1 << 20
+	lis := bufconn.Listen(bufSize)
+	srv := grpc.NewServer()
+	var received metadata.MD
+	srv.RegisterService(&grpc.ServiceDesc{
+		ServiceName: "test.MetadataService",
+		HandlerType: (*interface{})(nil),
+		Methods: []grpc.MethodDesc{{
+			MethodName: "Ping",
+			Handler: func(_ interface{}, ctx context.Context, dec func(interface{}) error, _ grpc.UnaryServerInterceptor) (interface{}, error) {
+				var req emptypb.Empty
+				if err := dec(&req); err != nil {
+					return nil, err
+				}
+				received, _ = metadata.FromIncomingContext(ctx)
+				return &emptypb.Empty{}, nil
+			},
+		}},
+	}, struct{}{})
+	go srv.Serve(lis) //nolint:errcheck
+	defer srv.Stop()
+	defer lis.Close()
+
+	conn, err := grpc.DialContext( //nolint:staticcheck
+		context.Background(),
+		"bufnet",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) { return lis.DialContext(ctx) }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatalf("DialContext: %v", err)
+	}
+	defer conn.Close()
+
+	ep := NewClient(
+		conn,
+		"test.MetadataService",
+		"Ping",
+		func(context.Context, interface{}) (interface{}, error) { return &emptypb.Empty{}, nil },
+		func(context.Context, interface{}) (interface{}, error) { return nil, nil },
+		&emptypb.Empty{},
+		ClientBefore(func(ctx context.Context, md *metadata.MD) context.Context {
+			md.Set("x-hook", "hook")
+			return ctx
+		}),
+	).Endpoint()
+
+	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("x-caller", "caller"))
+	if _, err := ep(ctx, nil); err != nil {
+		t.Fatalf("Endpoint: %v", err)
+	}
+	if got := received.Get("x-caller"); len(got) != 1 || got[0] != "caller" {
+		t.Fatalf("caller metadata = %v, want caller", got)
+	}
+	if got := received.Get("x-hook"); len(got) != 1 || got[0] != "hook" {
+		t.Fatalf("hook metadata = %v, want hook", got)
+	}
+}
+
 func TestEndpoint_NilHooks_DoNotPanicAtRequestTime(t *testing.T) {
 	const bufSize = 1 << 20
 

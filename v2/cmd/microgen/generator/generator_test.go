@@ -568,6 +568,9 @@ func TestGenerateFull_RepositoryFile_Contents(t *testing.T) {
 	mustContain(t, repoPath, "GetByID")
 	mustContain(t, repoPath, "Create")
 	mustContain(t, repoPath, "Delete")
+	mustContain(t, repoPath, "OrderColumns")
+	mustContain(t, repoPath, "unsupported order_by")
+	mustNotContain(t, repoPath, "db.Order(q.OrderBy)")
 }
 
 func TestGenerateFull_ClientDemo_Contents(t *testing.T) {
@@ -922,6 +925,8 @@ func TestGenerateFull_ConfigYAML_HTTPOnly(t *testing.T) {
 
 	configPath := filepath.Join(outDir, "config", "config.yaml")
 	mustContain(t, configPath, "http_addr")
+	mustContain(t, configPath, `read_header_timeout: "5s"`)
+	mustContain(t, configPath, `write_timeout: "0s"`)
 	mustContain(t, configPath, "circuit_breaker")
 	mustContain(t, configPath, "retry:")
 	mustContain(t, configPath, "max_attempts: 3")

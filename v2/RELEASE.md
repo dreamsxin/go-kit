@@ -81,7 +81,7 @@ The equivalent focused Go commands are:
 
 ```bash
 go test ./...
-go test -race ./kit ./interaction ./sd/... ./cmd/microgen/generator
+go test -race ./kit ./interaction/... ./transport/... ./sd/... ./cmd/microgen/generator
 go vet ./...
 ```
 

@@ -121,6 +121,13 @@ type repositoryBaseTemplateData struct {
 }
 
 type repositoryTemplateData struct {
-	Model      *modelView
-	ImportPath string
+	Model          *modelView
+	ImportPath     string
+	OrderColumns   []repositoryOrderColumn
+	DefaultOrderBy string
+}
+
+type repositoryOrderColumn struct {
+	Alias  string
+	Column string
 }

@@ -22,6 +22,17 @@ func TestWithHTTPServerConfig(t *testing.T) {
 	}
 }
 
+func TestNewUsesStreamingSafeHTTPDefaults(t *testing.T) {
+	svc := MustNew(":0")
+	want := DefaultHTTPServerConfig()
+	if svc.httpConfig != want {
+		t.Fatalf("http config: got %#v, want %#v", svc.httpConfig, want)
+	}
+	if svc.httpConfig.WriteTimeout != 0 {
+		t.Fatalf("WriteTimeout = %v, want 0 for streaming responses", svc.httpConfig.WriteTimeout)
+	}
+}
+
 func TestWithHTTPServerConfigRejectsNegativeValues(t *testing.T) {
 	tests := []HTTPServerConfig{
 		{ReadHeaderTimeout: -time.Second},

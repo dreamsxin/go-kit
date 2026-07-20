@@ -69,7 +69,8 @@ func NewServer(
 func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	iw := &InterceptingWriter{w, http.StatusOK, 0}
+	iw := &InterceptingWriter{ResponseWriter: w, code: http.StatusOK}
+	responseWriter := iw.reimplementInterfaces()
 	if len(s.finalizer) > 0 {
 		defer func() {
 			for _, f := range s.finalizer {
@@ -85,14 +86,14 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	request, err := s.dec(ctx, r)
 	if err != nil {
 		s.errorHandler.Handle(ctx, err)
-		s.errorEncoder(ctx, err, iw)
+		s.errorEncoder(ctx, err, responseWriter)
 		return
 	}
 
 	response, err := s.e(ctx, request)
 	if err != nil {
 		s.errorHandler.Handle(ctx, err)
-		s.errorEncoder(ctx, err, iw)
+		s.errorEncoder(ctx, err, responseWriter)
 		return
 	}
 
@@ -100,9 +101,9 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx = f(ctx, r, iw)
 	}
 
-	if err := s.enc(ctx, iw, response); err != nil {
+	if err := s.enc(ctx, responseWriter, response); err != nil {
 		s.errorHandler.Handle(ctx, err)
-		s.errorEncoder(ctx, err, iw)
+		s.errorEncoder(ctx, err, responseWriter)
 		return
 	}
 }

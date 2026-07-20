@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
@@ -62,6 +64,8 @@ type Client interface {
 // Option configures the HTTP client.
 type Option func(*httpClient)
 
+const defaultMaxResponseBodyBytes int64 = 4 << 20
+
 // WithTimeout sets the per-request HTTP timeout (default: 30s).
 func WithTimeout(d time.Duration) Option {
 	return func(c *httpClient) { c.timeout = d }
@@ -70,6 +74,15 @@ func WithTimeout(d time.Duration) Option {
 // WithHTTPClient replaces the default *http.Client.
 func WithHTTPClient(hc *http.Client) Option {
 	return func(c *httpClient) { c.http = hc }
+}
+
+// WithMaxResponseBodyBytes caps a single HTTP response body.
+func WithMaxResponseBodyBytes(n int64) Option {
+	return func(c *httpClient) {
+		if n > 0 {
+			c.maxResponseBodyBytes = n
+		}
+	}
 }
 
 // WithHeader adds a static header to every request (e.g. Authorization).
@@ -93,9 +106,10 @@ func WithRequestHook(fn func(r *http.Request)) Option {
 // baseURL is the server base URL, e.g. "http://localhost:8080".
 func New(baseURL string, opts ...Option) Client {
 	c := &httpClient{
-		baseURL: baseURL,
-		timeout: 30 * time.Second,
-		headers: make(map[string]string),
+		baseURL:              baseURL,
+		timeout:              30 * time.Second,
+		headers:              make(map[string]string),
+		maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 	}
 	for _, o := range opts {
 		o(c)
@@ -111,11 +125,12 @@ func New(baseURL string, opts ...Option) Client {
 // ─────────────────────────── HTTP implementation ──────────────────────────────
 
 type httpClient struct {
-	baseURL string
-	timeout time.Duration
-	http    *http.Client
-	headers map[string]string
-	hooks   []func(*http.Request)
+	baseURL              string
+	timeout              time.Duration
+	http                 *http.Client
+	headers              map[string]string
+	hooks                []func(*http.Request)
+	maxResponseBodyBytes int64
 }
 
 // APIError is returned when the server responds with a non-2xx status.
@@ -139,7 +154,11 @@ func (c *httpClient) do(ctx context.Context, method, path string, reqBody, respB
 		bodyReader = bytes.NewReader(b)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bodyReader)
+	requestURL, err := resolveRequestURL(c.baseURL, path)
+	if err != nil {
+		return fmt.Errorf("userservicesdk: resolve request URL: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, requestURL, bodyReader)
 	if err != nil {
 		return fmt.Errorf("userservicesdk: build request: %w", err)
 	}
@@ -160,7 +179,13 @@ func (c *httpClient) do(ctx context.Context, method, path string, reqBody, respB
 	}
 	defer resp.Body.Close()
 
-	raw, _ := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, c.maxResponseBodyBytes+1))
+	if err != nil {
+		return fmt.Errorf("userservicesdk: read response: %w", err)
+	}
+	if int64(len(raw)) > c.maxResponseBodyBytes {
+		return fmt.Errorf("userservicesdk: response body exceeds %d bytes", c.maxResponseBodyBytes)
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return &APIError{StatusCode: resp.StatusCode, Body: string(raw)}
 	}
@@ -171,6 +196,21 @@ func (c *httpClient) do(ctx context.Context, method, path string, reqBody, respB
 		}
 	}
 	return nil
+}
+
+func resolveRequestURL(baseURL, path string) (string, error) {
+	base, err := url.Parse(strings.TrimRight(baseURL, "/") + "/")
+	if err != nil {
+		return "", err
+	}
+	if base.Scheme == "" || base.Host == "" {
+		return "", fmt.Errorf("base URL must include scheme and host")
+	}
+	reference, err := url.Parse(path)
+	if err != nil {
+		return "", err
+	}
+	return base.ResolveReference(reference).String(), nil
 }
 
 func buildGETPath(path string, reqBody interface{}) (string, error) {

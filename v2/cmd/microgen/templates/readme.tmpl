@@ -26,6 +26,8 @@ When `skill/` is generated, `/skill` exposes OpenAI-style tools and `/skill?form
 
 {{- if .WithInteraction }}
 This project also generates an AI interaction runtime. `POST /mcp` exposes an MCP-compliant JSON-RPC 2.0 endpoint (protocol version 2025-06-18) supporting `initialize`, `ping`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`, `completion/complete`, and `logging/setLevel`. Every unary service method is automatically registered as an executable tool backed by the generated endpoints, preserving middleware and policy composition.
+
+Clients must send `initialize` with protocol version `2025-06-18`, then send `notifications/initialized` before normal requests. A client must advertise the `sampling` capability before the server can issue sampling requests.
 {{- else }}
 `/skill?format=mcp` is discovery output, not a tool execution endpoint. If this project needs AI-facing sessions, tool-call execution, authorization, audit records, or an MCP-style JSON-RPC endpoint, build that runtime surface with the framework `interaction` package:
 
@@ -75,6 +77,8 @@ Use this loop when an AI agent or maintainer changes the generated project:
 
 Generated config loads through `config.Load(path)`: defaults first, local YAML next, optional remote config after that, final environment overrides last, then `Config.Validate()` before runtime wiring. Environment variables are also applied once before remote loading so they can configure the remote provider connection.
 
+The generated HTTP server defaults to `read_header_timeout: 5s` and `write_timeout: 0s`, which protects header reads without terminating long-lived streaming responses.
+
 - Current generated config mode: `{{.ConfigMode}}`
 - Current remote provider: `{{if .RemoteProvider}}{{.RemoteProvider}}{{else}}none{{end}}`
 - Local mode keeps remote config disabled and remains the default runnable path.
@@ -123,6 +127,8 @@ Runtime inspection:
 - `pb/{{lower (index .Project.Services 0).Name}}/{{lower (index .Project.Services 0).Name}}.proto` is generated from the current service contract and should be reviewed before running `protoc`.
 - If any unsupported shape still falls back to `TODO`, complete those message fields before generating stubs.
 - Generated streaming SDK callbacks are synchronous: a slow `send` callback applies backpressure to local message delivery. Applications should use context deadlines/cancellation plus their own bounded queues for long-running work.
+- Generated Go SDKs cap response bodies at 4 MiB by default; use `WithMaxResponseBodyBytes` when an endpoint contract requires a different limit.
+{{if .WithDB}}- Generated repository `order_by` values are resolved through a model-field whitelist. Unsupported values return an error.{{end}}
 {{end}}
 
 {{range .Project.Services}}

@@ -51,16 +51,11 @@ type UserService interface {
 
 // ServiceConfig controls generated service behavior.
 type ServiceConfig struct {
-	LogLevel      string         `json:"log_level"`
-	Timeout       time.Duration  `json:"timeout"`
 	EnableLogging bool           `json:"enable_logging"`
-	EnableMetrics bool           `json:"enable_metrics"`
 	Logger        *kitlog.Logger `json:"-"`
 }
 
 var defaultConfig = &ServiceConfig{
-	LogLevel:      "info",
-	Timeout:       30 * time.Second,
 	EnableLogging: true,
 }
 
@@ -85,10 +80,6 @@ func newServiceImpl(cfg *ServiceConfig) UserService {
 	if cfg.EnableLogging {
 		svc = LoggingMiddleware(logger)(svc)
 	}
-	if cfg.EnableMetrics {
-		svc = MetricsMiddleware()(svc)
-	}
-
 	return svc
 }
 
@@ -311,64 +302,6 @@ func (m *loggingMiddleware) PatchStatus(ctx context.Context, req idl.UpdateUserR
 			m.logger.Sugar().Infof("[UserService] PatchStatus elapsed=%v", time.Since(start))
 		}
 	}()
-	return m.next.PatchStatus(ctx, req)
-}
-
-func MetricsMiddleware() ServiceMiddleware {
-	return func(next UserService) UserService {
-		return &metricsMiddleware{next: next}
-	}
-}
-
-type metricsMiddleware struct {
-	next UserService
-}
-
-func (m *metricsMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
-	return m.next.CreateUser(ctx, req)
-}
-
-func (m *metricsMiddleware) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
-	return m.next.GetUser(ctx, req)
-}
-
-func (m *metricsMiddleware) ListUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error) {
-	return m.next.ListUsers(ctx, req)
-}
-
-func (m *metricsMiddleware) DeleteUser(ctx context.Context, req idl.DeleteUserRequest) (idl.DeleteUserResponse, error) {
-	return m.next.DeleteUser(ctx, req)
-}
-
-func (m *metricsMiddleware) UpdateUser(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
-	return m.next.UpdateUser(ctx, req)
-}
-
-func (m *metricsMiddleware) FindByEmail(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
-	return m.next.FindByEmail(ctx, req)
-}
-
-func (m *metricsMiddleware) SearchUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error) {
-	return m.next.SearchUsers(ctx, req)
-}
-
-func (m *metricsMiddleware) QueryStats(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
-	return m.next.QueryStats(ctx, req)
-}
-
-func (m *metricsMiddleware) RemoveExpired(ctx context.Context, req idl.DeleteUserRequest) (idl.DeleteUserResponse, error) {
-	return m.next.RemoveExpired(ctx, req)
-}
-
-func (m *metricsMiddleware) EditProfile(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
-	return m.next.EditProfile(ctx, req)
-}
-
-func (m *metricsMiddleware) ModifyEmail(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
-	return m.next.ModifyEmail(ctx, req)
-}
-
-func (m *metricsMiddleware) PatchStatus(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
 	return m.next.PatchStatus(ctx, req)
 }
 

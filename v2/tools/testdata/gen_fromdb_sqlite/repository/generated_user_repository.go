@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"example.com/gen_fromdb_sqlite/model"
 	"gorm.io/gorm"
@@ -14,6 +15,15 @@ import (
 // UserRepository provides generated persistence helpers for User.
 type UserRepository struct {
 	db *DB
+}
+
+var userOrderColumns = map[string]string{
+	"created_at": "created_at",
+	"createdat":  "created_at",
+	"email":      "email",
+	"i_d":        "id",
+	"id":         "id",
+	"username":   "username",
 }
 
 // NewUserRepository creates a UserRepository.
@@ -99,7 +109,14 @@ func (r *UserRepository) List(ctx context.Context, q PageQuery) (*UserListResult
 		return nil, fmt.Errorf("users.List count: %w", err)
 	}
 
-	order := q.OrderBy
+	orderKey := strings.ToLower(strings.TrimSpace(q.OrderBy))
+	if orderKey == "" {
+		orderKey = "id"
+	}
+	order, ok := userOrderColumns[orderKey]
+	if !ok {
+		return nil, fmt.Errorf("users.List: unsupported order_by %q", q.OrderBy)
+	}
 	if q.Desc {
 		order += " DESC"
 	} else {

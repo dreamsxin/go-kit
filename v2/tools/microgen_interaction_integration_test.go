@@ -81,11 +81,15 @@ func TestMicrogenInteractionIntegration(t *testing.T) {
 			"jsonrpc": "2.0",
 			"id":      1,
 			"method":  "initialize",
+			"params": map[string]any{
+				"protocolVersion": "2025-06-18",
+			},
 		})
 		if sid == "" {
 			t.Fatalf("expected Mcp-Session-Id header on initialize, got empty")
 		}
 		mcpSessionID = sid
+		postMCPNotification(t, baseURL+"/mcp", sid, "notifications/initialized")
 		result := resp["result"].(map[string]any)
 		serverInfo := result["serverInfo"].(map[string]any)
 		if serverInfo["name"] != "go-kit interaction" {
@@ -122,8 +126,8 @@ func TestMicrogenInteractionIntegration(t *testing.T) {
 		}
 	})
 
-	// MCP tools/call — verify the call reaches the endpoint layer
-	// (service scaffold returns "not implemented", so we expect a JSON-RPC error)
+	// MCP tools/call — verify the call reaches the endpoint layer. Tool execution
+	// failures are represented by a CallToolResult with isError=true.
 	t.Run("MCP_ToolsCall_ReachesEndpoint", func(t *testing.T) {
 		_, resp := postMCPWithSession(t, baseURL+"/mcp", mcpSessionID, map[string]any{
 			"jsonrpc": "2.0",
@@ -134,17 +138,16 @@ func TestMicrogenInteractionIntegration(t *testing.T) {
 				"arguments": map[string]any{"username": "alice", "email": "alice@example.com"},
 			},
 		})
-		if resp["error"] == nil {
-			t.Fatalf("expected JSON-RPC error because service is scaffold, got result: %+v", resp["result"])
+		if resp["error"] != nil {
+			t.Fatalf("execution failure must not be a JSON-RPC error: %+v", resp["error"])
 		}
-		errObj := resp["error"].(map[string]any)
-		msg := errObj["message"].(string)
-		if !strings.Contains(msg, "tool call failed") {
-			t.Fatalf("unexpected error message: %v", msg)
+		result := resp["result"].(map[string]any)
+		if result["isError"] != true {
+			t.Fatalf("expected isError=true, got %+v", result)
 		}
-		data := errObj["data"].(string)
-		if !strings.Contains(data, "not implemented") {
-			t.Fatalf("expected 'not implemented' in error data, got: %v", data)
+		content := result["content"].([]any)[0].(map[string]any)
+		if !strings.Contains(content["text"].(string), "not implemented") {
+			t.Fatalf("expected 'not implemented' in tool result, got: %+v", content)
 		}
 	})
 
@@ -192,4 +195,20 @@ func postMCPWithSession(t *testing.T, url, sessionID string, body map[string]any
 		t.Fatalf("Decode response: %v", err)
 	}
 	return resp.Header.Get("Mcp-Session-Id"), result
+}
+
+func postMCPNotification(t *testing.T, url, sessionID, method string) {
+	t.Helper()
+	payload, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "method": method})
+	req, _ := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Mcp-Session-Id", sessionID)
+	resp, err := (&http.Client{Timeout: 2 * time.Second}).Do(req)
+	if err != nil {
+		t.Fatalf("POST notification %s failed: %v", url, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("POST notification %s: want 202, got %d", url, resp.StatusCode)
+	}
 }

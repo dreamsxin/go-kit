@@ -49,6 +49,9 @@ func TestGenerateFull_SDK(t *testing.T) {
 	mustContain(t, sdkPath, "type Client interface")
 	mustContain(t, sdkPath, "func New(baseURL string, opts ...Option) Client")
 	mustContain(t, sdkPath, "func NewGRPC(conn *grpc.ClientConn) Client")
+	mustContain(t, sdkPath, "WithMaxResponseBodyBytes")
+	mustContain(t, sdkPath, "io.LimitReader")
+	mustContain(t, sdkPath, "resolveRequestURL")
 }
 
 func TestGenerateFull_ModelsAndHooks(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -350,6 +351,44 @@ func TestBufferedStream(t *testing.T) {
 	}
 	if resp.(echoResp).Echo != "echo: stream" {
 		t.Errorf("echo: got %q, want %q", resp.(echoResp).Echo, "echo: stream")
+	}
+}
+
+type trackingBody struct {
+	io.Reader
+	closed bool
+	err    error
+}
+
+func (b *trackingBody) Close() error {
+	b.closed = true
+	return b.err
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestBufferedStream_DecodeErrorClosesBody(t *testing.T) {
+	body := &trackingBody{Reader: strings.NewReader("body")}
+	hc := &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: body}, nil
+	})}
+	tgt, _ := url.Parse("http://example.com")
+	client := httpclient.NewClient(
+		http.MethodGet,
+		tgt,
+		func(_ context.Context, r *http.Request, _ any) (*http.Request, error) { return r, nil },
+		func(context.Context, *http.Response) (any, error) { return nil, errors.New("decode failed") },
+		httpclient.SetClient(hc),
+		httpclient.BufferedStream(true),
+	)
+
+	if _, err := client.Endpoint()(context.Background(), nil); err == nil {
+		t.Fatal("expected decode error")
+	}
+	if !body.closed {
+		t.Fatal("buffered response body was not closed after decode error")
 	}
 }
 

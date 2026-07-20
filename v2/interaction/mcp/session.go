@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 )
@@ -14,6 +15,8 @@ import (
 type sseSession struct {
 	ID           string
 	clientCaps   map[string]any // client capabilities from initialize
+	protocol     string
+	logLevel     string
 	initialized  bool
 	mu           sync.RWMutex
 	getWriters   map[string]*sseWriter // keyed by writer ID
@@ -46,14 +49,14 @@ func newSSEWriter(w http.ResponseWriter) (*sseWriter, error) {
 
 // writeEvent writes a single SSE data event with the given JSON payload.
 func (sw *sseWriter) writeEvent(data json.RawMessage) error {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
 	select {
 	case <-sw.done:
 		return fmt.Errorf("mcp: SSE stream closed")
 	default:
 	}
 
-	sw.mu.Lock()
-	defer sw.mu.Unlock()
 	if _, err := fmt.Fprintf(sw.w, "data: %s\n\n", string(data)); err != nil {
 		return err
 	}
@@ -63,6 +66,8 @@ func (sw *sseWriter) writeEvent(data json.RawMessage) error {
 
 // close signals the SSE writer is done.
 func (sw *sseWriter) close() {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
 	sw.once.Do(func() { close(sw.done) })
 }
 
@@ -89,6 +94,7 @@ func (ss *sessionStore) create() (*sseSession, error) {
 		getWriters:   make(map[string]*sseWriter),
 		postWriters:  make(map[string]*sseWriter),
 		lastActivity: time.Now(),
+		logLevel:     "info",
 	}
 	ss.mu.Lock()
 	ss.sessions[id] = sess
@@ -125,28 +131,58 @@ func (ss *sessionStore) remove(id string) {
 	}
 }
 
-// broadcastToGET sends a JSON-RPC message to all GET SSE writers for a session.
-func (ss *sseSession) broadcastToGET(data json.RawMessage) error {
+// writeToGET sends a JSON-RPC message to one active GET SSE writer.
+func (ss *sseSession) writeToGET(data json.RawMessage) error {
 	ss.mu.RLock()
 	if ss.closed {
 		ss.mu.RUnlock()
 		return fmt.Errorf("mcp: session closed")
 	}
-	writers := make([]*sseWriter, 0, len(ss.getWriters))
-	for _, w := range ss.getWriters {
-		writers = append(writers, w)
+	ids := make([]string, 0, len(ss.getWriters))
+	for id := range ss.getWriters {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	writers := make([]*sseWriter, 0, len(ids))
+	for _, id := range ids {
+		writers = append(writers, ss.getWriters[id])
 	}
 	ss.mu.RUnlock()
 
 	for _, w := range writers {
-		if err := w.writeEvent(data); err != nil {
-			continue // best-effort delivery
+		if err := w.writeEvent(data); err == nil {
+			return nil
 		}
 	}
 	if len(writers) == 0 {
 		return fmt.Errorf("mcp: no active SSE stream for session")
 	}
-	return nil
+	return fmt.Errorf("mcp: no active GET SSE stream accepted message")
+}
+
+func (ss *sseSession) isInitialized() bool {
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+	return ss.initialized
+}
+
+func (ss *sseSession) hasClientCapability(name string) bool {
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+	_, ok := ss.clientCaps[name]
+	return ok
+}
+
+func (ss *sseSession) setLogLevel(level string) {
+	ss.mu.Lock()
+	ss.logLevel = level
+	ss.mu.Unlock()
+}
+
+func (ss *sseSession) getLogLevel() string {
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+	return ss.logLevel
 }
 
 // writeToPOST sends a JSON-RPC message to one active POST SSE writer, if any.

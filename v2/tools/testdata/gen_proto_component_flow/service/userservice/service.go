@@ -21,16 +21,11 @@ type UserService interface {
 
 // ServiceConfig controls generated service behavior.
 type ServiceConfig struct {
-	LogLevel      string         `json:"log_level"`
-	Timeout       time.Duration  `json:"timeout"`
 	EnableLogging bool           `json:"enable_logging"`
-	EnableMetrics bool           `json:"enable_metrics"`
 	Logger        *kitlog.Logger `json:"-"`
 }
 
 var defaultConfig = &ServiceConfig{
-	LogLevel:      "info",
-	Timeout:       30 * time.Second,
 	EnableLogging: true,
 }
 
@@ -55,10 +50,6 @@ func newServiceImpl(cfg *ServiceConfig) UserService {
 	if cfg.EnableLogging {
 		svc = LoggingMiddleware(logger)(svc)
 	}
-	if cfg.EnableMetrics {
-		svc = MetricsMiddleware()(svc)
-	}
-
 	return svc
 }
 
@@ -111,23 +102,5 @@ func (m *loggingMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRe
 			m.logger.Sugar().Infof("[UserService] CreateUser elapsed=%v", time.Since(start))
 		}
 	}()
-	return m.next.CreateUser(ctx, req)
-}
-
-func MetricsMiddleware() ServiceMiddleware {
-	return func(next UserService) UserService {
-		return &metricsMiddleware{next: next}
-	}
-}
-
-type metricsMiddleware struct {
-	next UserService
-}
-
-func (m *metricsMiddleware) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
-	return m.next.GetUser(ctx, req)
-}
-
-func (m *metricsMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
 	return m.next.CreateUser(ctx, req)
 }

@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -50,11 +52,48 @@ func TestInterceptingWriter_DefaultCode_Is200(t *testing.T) {
 	// Writing without explicit WriteHeader should default to 200.
 	iw.Write([]byte("ok")) //nolint:errcheck
 
-	// httptest.Recorder defaults to 200 when WriteHeader is not called explicitly.
-	if iw.GetCode() != 0 {
-		// InterceptingWriter.code is zero until WriteHeader is called.
-		// This is intentional — the underlying recorder tracks the real default.
+	if iw.GetCode() != http.StatusOK {
+		t.Fatalf("GetCode: got %d, want %d", iw.GetCode(), http.StatusOK)
 	}
+}
+
+func TestInterceptingWriter_IgnoresRepeatedWriteHeader(t *testing.T) {
+	rec := httptest.NewRecorder()
+	iw := &InterceptingWriter{ResponseWriter: rec}
+
+	iw.WriteHeader(http.StatusCreated)
+	iw.WriteHeader(http.StatusInternalServerError)
+
+	if iw.GetCode() != http.StatusCreated {
+		t.Fatalf("GetCode: got %d, want %d", iw.GetCode(), http.StatusCreated)
+	}
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("underlying code: got %d, want %d", rec.Code, http.StatusCreated)
+	}
+}
+
+func TestInterceptingWriter_ReadFromTracksBytes(t *testing.T) {
+	rec := &readerFromRecorder{ResponseRecorder: httptest.NewRecorder()}
+	iw := &InterceptingWriter{ResponseWriter: rec}
+
+	n, err := iw.ReadFrom(bytes.NewBufferString("streamed"))
+	if err != nil {
+		t.Fatalf("ReadFrom: %v", err)
+	}
+	if n != int64(len("streamed")) || iw.GetWritten() != n {
+		t.Fatalf("written = %d, ReadFrom = %d", iw.GetWritten(), n)
+	}
+	if _, ok := iw.reimplementInterfaces().(io.ReaderFrom); !ok {
+		t.Fatal("ReaderFrom capability was not restored")
+	}
+}
+
+type readerFromRecorder struct {
+	*httptest.ResponseRecorder
+}
+
+func (r *readerFromRecorder) ReadFrom(src io.Reader) (int64, error) {
+	return io.Copy(r.ResponseRecorder, src)
 }
 
 func TestInterceptingWriter_DelegatesToUnderlying(t *testing.T) {

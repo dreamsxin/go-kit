@@ -12,7 +12,10 @@ import (
 
 func initSession(t *testing.T, handler http.Handler) string {
 	t.Helper()
-	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+	body := map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{"protocolVersion": "2025-06-18"},
+	}
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
 	req.Header.Set("Accept", "application/json")
@@ -24,6 +27,15 @@ func initSession(t *testing.T, handler http.Handler) string {
 	sid := rec.Header().Get("Mcp-Session-Id")
 	if sid == "" {
 		t.Fatal("initialize: no Mcp-Session-Id header")
+	}
+	notify := map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"}
+	payload, _ = json.Marshal(notify)
+	req = httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	req.Header.Set("Mcp-Session-Id", sid)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("initialized: status = %d", rec.Code)
 	}
 	// Consume the body so the response is fully read.
 	_ = rec.Body
@@ -57,7 +69,10 @@ func TestMCPFullExample(t *testing.T) {
 	sid := initSession(t, handler)
 
 	// Initialize response should declare tools, resources, prompts, and logging.
-	initBody := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+	initBody := map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{"protocolVersion": "2025-06-18"},
+	}
 	payload, _ := json.Marshal(initBody)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
 	req.Header.Set("Accept", "application/json")

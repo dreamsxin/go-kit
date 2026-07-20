@@ -62,7 +62,11 @@ func generatedMiddlewareChain(logger *kitlog.Logger, cfg MiddlewareConfig, name 
 		middlewares = append(middlewares, circuitbreaker.Gobreaker(cb))
 	}
 	if cfg.RLEnabled && cfg.RLRps > 0 {
-		lim := rate.NewLimiter(rate.Limit(cfg.RLRps), int(cfg.RLRps))
+		burst := int(cfg.RLRps)
+		if burst < 1 {
+			burst = 1
+		}
+		lim := rate.NewLimiter(rate.Limit(cfg.RLRps), burst)
 		middlewares = append(middlewares, ratelimit.NewErroringLimiter(lim))
 	}
 	if cfg.RetryEnabled {

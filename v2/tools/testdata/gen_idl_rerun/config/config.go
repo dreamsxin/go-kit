@@ -24,6 +24,7 @@ type Config struct {
 type ServerConfig struct {
 	HTTPAddr                string        `yaml:"http_addr" mapstructure:"http_addr"`
 	ReadTimeout             time.Duration `yaml:"read_timeout" mapstructure:"read_timeout"`
+	ReadHeaderTimeout       time.Duration `yaml:"read_header_timeout" mapstructure:"read_header_timeout"`
 	WriteTimeout            time.Duration `yaml:"write_timeout" mapstructure:"write_timeout"`
 	GracefulShutdownTimeout time.Duration `yaml:"graceful_shutdown_timeout" mapstructure:"graceful_shutdown_timeout"`
 }
@@ -95,7 +96,8 @@ func Default() *Config {
 		Server: ServerConfig{
 			HTTPAddr:                ":8080",
 			ReadTimeout:             15 * time.Second,
-			WriteTimeout:            15 * time.Second,
+			ReadHeaderTimeout:       5 * time.Second,
+			WriteTimeout:            0,
 			GracefulShutdownTimeout: 30 * time.Second,
 		},
 		Logging: LoggingConfig{
@@ -153,6 +155,9 @@ func (cfg *Config) Validate() error {
 	}
 	if cfg.Server.ReadTimeout < 0 {
 		return fmt.Errorf("config: server.read_timeout cannot be negative")
+	}
+	if cfg.Server.ReadHeaderTimeout <= 0 {
+		return fmt.Errorf("config: server.read_header_timeout must be > 0")
 	}
 	if cfg.Server.WriteTimeout < 0 {
 		return fmt.Errorf("config: server.write_timeout cannot be negative")

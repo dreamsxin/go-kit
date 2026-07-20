@@ -19,13 +19,22 @@ import (
 )
 
 // HTTPServerConfig controls the production HTTP server created by Start.
-// Zero values retain net/http defaults.
 type HTTPServerConfig struct {
 	ReadHeaderTimeout time.Duration
 	ReadTimeout       time.Duration
 	WriteTimeout      time.Duration
 	IdleTimeout       time.Duration
 	MaxHeaderBytes    int
+}
+
+// DefaultHTTPServerConfig returns streaming-safe production defaults. Read and
+// write deadlines remain disabled; ReadHeaderTimeout limits slow header reads.
+func DefaultHTTPServerConfig() HTTPServerConfig {
+	return HTTPServerConfig{
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
 }
 
 // DefaultJSONMaxBodyBytes is the default strict JSON body limit used by

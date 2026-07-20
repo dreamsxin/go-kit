@@ -17,6 +17,7 @@
 //   - Session management via Mcp-Session-Id header
 //   - SSE streaming responses when client sends Accept: text/event-stream
 //   - Server-initiated requests (sampling/createMessage)
+//   - Protocol-version, initialization-state, and browser Origin validation
 //
 // NewHandler is a convenience alias for NewStreamableHandler.
 //
@@ -51,8 +52,8 @@
 //   - PromptListChangedNotification: sends notifications/prompts/list_changed
 //   - ToolListChangedNotification: sends notifications/tools/list_changed
 //
-// Notifications are delivered to the client's active SSE stream (POST or GET).
-// If no active stream exists, the notification is silently dropped.
+// Notifications are delivered to one active SSE stream (POST preferred, then
+// GET). Sending returns an error when no active stream can accept the message.
 //
 // # Sampling
 //
@@ -61,6 +62,7 @@
 // StreamableHandler.SendSamplingRequest during execution to request a
 // completion. The request is sent via SSE to the client, which responds via
 // POST. The tool blocks until the response arrives or the context is cancelled.
+// The client must advertise the sampling capability during initialization.
 //
 // # Pagination
 //
@@ -74,8 +76,10 @@
 //	-32601  Method not found
 //	-32602  Invalid params (unknown tool, missing prompt, bad argument)
 //	-32603  Internal error
-//	-32000  Tool call failed (application-level)
 //	-32002  Resource not found
+//
+// Tool execution failures are CallToolResult values with isError=true. Invalid
+// calls, including unknown tools, use JSON-RPC invalid-params errors.
 //
 // # Quick Start
 //
@@ -93,6 +97,7 @@
 //	http.ListenAndServe(":8080", nil)
 //
 //	// In a tool implementation:
+//	sessionID := mcp.SessionIDFromContext(ctx)
 //	result, err := h.SendSamplingRequest(ctx, sessionID, mcp.CreateMessageRequest{
 //	    Messages:  []mcp.SamplingMessage{{Role: "user", Content: mcp.SamplingContent{Type: "text", Text: "Hello"}}},
 //	    MaxTokens: 100,

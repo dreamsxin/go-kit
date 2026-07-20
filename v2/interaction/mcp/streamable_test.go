@@ -47,7 +47,10 @@ func streamPostJSON(t *testing.T, handler http.Handler, sessionID, method string
 
 func initSession(t *testing.T, handler http.Handler) string {
 	t.Helper()
-	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+	body := map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{"protocolVersion": protocolVersion, "capabilities": map[string]any{"sampling": map[string]any{}}},
+	}
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
 	req.Header.Set("Accept", "application/json")
@@ -59,6 +62,15 @@ func initSession(t *testing.T, handler http.Handler) string {
 	sid := rec.Header().Get(headerSessionID)
 	if sid == "" {
 		t.Fatal("initialize: no Mcp-Session-Id header")
+	}
+	notify := map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"}
+	payload, _ = json.Marshal(notify)
+	req = httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	req.Header.Set(headerSessionID, sid)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("initialized: status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 	return sid
 }
@@ -75,7 +87,7 @@ func TestStreamableInitialize(t *testing.T) {
 
 func TestStreamableRejectsUnsupportedProtocolHeader(t *testing.T) {
 	h := NewStreamableHandler(nil)
-	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{"protocolVersion": protocolVersion}}
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
 	req.Header.Set(headerProtocolVersion, "2024-11-05")
@@ -93,7 +105,7 @@ func TestStreamableRejectsUnsupportedProtocolHeader(t *testing.T) {
 
 func TestStreamableAcceptsSupportedProtocolHeader(t *testing.T) {
 	h := NewStreamableHandler(nil)
-	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{"protocolVersion": protocolVersion}}
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
 	req.Header.Set(headerProtocolVersion, protocolVersion)
@@ -109,10 +121,65 @@ func TestStreamableAcceptsSupportedProtocolHeader(t *testing.T) {
 	}
 }
 
+func TestStreamableRejectsUnsupportedInitializeProtocol(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	body := map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{"protocolVersion": "2024-11-05"},
+	}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	var resp map[string]any
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+	if resp["error"] == nil {
+		t.Fatalf("body = %s, want JSON-RPC error", rec.Body.String())
+	}
+}
+
+func TestStreamableRejectsCrossOriginRequest(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	body := map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{"protocolVersion": protocolVersion},
+	}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "http://localhost/mcp", bytes.NewReader(payload))
+	req.Header.Set("Origin", "https://attacker.example")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestStreamableRequiresInitializedNotification(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	body := map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{"protocolVersion": protocolVersion},
+	}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	sid := rec.Header().Get(headerSessionID)
+
+	code, resp := streamPostJSON(t, h, sid, "tools/list", nil)
+	if code != http.StatusOK || resp["error"] == nil {
+		t.Fatalf("status = %d, response = %+v", code, resp)
+	}
+}
+
 func TestStreamableRejectsOversizedPostBody(t *testing.T) {
 	h := NewStreamableHandler(nil)
 	h.MaxPostBodyBytes = 8
-	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize"}`))
+	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`))
 	rec := httptest.NewRecorder()
 
 	h.ServeHTTP(rec, req)
@@ -148,6 +215,61 @@ func TestStreamableGETAllowsMultipleConcurrentStreams(t *testing.T) {
 	cancel2()
 	<-done1
 	<-done2
+}
+
+func TestSessionWritesServerMessageToOnlyOneGETStream(t *testing.T) {
+	ss := &sseSession{getWriters: make(map[string]*sseWriter), postWriters: make(map[string]*sseWriter)}
+	rec1 := httptest.NewRecorder()
+	rec2 := httptest.NewRecorder()
+	w1, err := newSSEWriter(rec1)
+	if err != nil {
+		t.Fatalf("newSSEWriter 1: %v", err)
+	}
+	w2, err := newSSEWriter(rec2)
+	if err != nil {
+		t.Fatalf("newSSEWriter 2: %v", err)
+	}
+	ss.addGETWriter("one", w1)
+	ss.addGETWriter("two", w2)
+
+	if err := ss.writeToGET(json.RawMessage(`{"jsonrpc":"2.0","method":"ping"}`)); err != nil {
+		t.Fatalf("writeToGET: %v", err)
+	}
+	deliveries := strings.Count(rec1.Body.String(), "data:") + strings.Count(rec2.Body.String(), "data:")
+	if deliveries != 1 {
+		t.Fatalf("deliveries = %d, want 1", deliveries)
+	}
+}
+
+func TestSamplingRequiresClientCapability(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	body := map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{"protocolVersion": protocolVersion, "capabilities": map[string]any{}},
+	}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	sid := rec.Header().Get(headerSessionID)
+
+	notify := map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"}
+	payload, _ = json.Marshal(notify)
+	req = httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	req.Header.Set(headerSessionID, sid)
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	_, err := h.SendSamplingRequest(context.Background(), sid, CreateMessageRequest{MaxTokens: 1})
+	if err == nil || !strings.Contains(err.Error(), "sampling capability") {
+		t.Fatalf("error = %v, want sampling capability error", err)
+	}
+}
+
+func TestLogNotificationRejectsInvalidLevel(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	if err := h.LogNotification("missing", "verbose", "message", "test"); err == nil {
+		t.Fatal("expected invalid log level error")
+	}
 }
 
 func TestStreamableRequiresSession(t *testing.T) {

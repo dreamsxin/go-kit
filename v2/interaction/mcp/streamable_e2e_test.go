@@ -43,7 +43,7 @@ func newE2EEnv(t *testing.T, rt *interaction.Runtime) *e2eEnv {
 
 func (e *e2eEnv) initialize(t *testing.T) string {
 	t.Helper()
-	body := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{"sampling":{}}}}`
 	req, _ := http.NewRequest(http.MethodPost, e.baseURL, strings.NewReader(body))
 	req.Header.Set("Accept", "application/json")
 	resp, err := e.client.Do(req)
@@ -65,6 +65,9 @@ func (e *e2eEnv) initialize(t *testing.T) string {
 	result := rpcResp["result"].(map[string]any)
 	if result["protocolVersion"] != protocolVersion {
 		t.Fatalf("protocolVersion = %v, want %s", result["protocolVersion"], protocolVersion)
+	}
+	if code := e.postNotification(t, sid, "notifications/initialized"); code != http.StatusAccepted {
+		t.Fatalf("notifications/initialized: status=%d", code)
 	}
 	return sid
 }
@@ -477,8 +480,10 @@ func TestE2E_SamplingViaPostSSEStream(t *testing.T) {
 	samplingTool := interaction.ToolFunc{
 		ToolName: "smart_tool",
 		Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
-			// This tool requests a sampling completion from the client.
-			sid := "will-be-set-via-session"
+			sid := SessionIDFromContext(ctx)
+			if sid == "" {
+				return interaction.ToolResult{}, fmt.Errorf("missing MCP transport session")
+			}
 			result, err := handler.SendSamplingRequest(ctx, sid, CreateMessageRequest{
 				Messages: []SamplingMessage{
 					{Role: "user", Content: SamplingContent{Type: "text", Text: "Summarize this"}},
@@ -536,23 +541,28 @@ func TestE2E_SamplingViaPostSSEStream(t *testing.T) {
 	}()
 	time.Sleep(100 * time.Millisecond)
 
-	// Call the tool — it will trigger sampling.
-	// We need to fix the session ID in the tool closure.
-	// Since the tool uses a hardcoded sid, let's update it properly.
-	// Actually, the tool should get the session from the call context.
-	// For this test, we'll use a different approach: call SendSamplingRequest directly.
-
-	// Instead, test the direct sampling flow.
+	toolRespCh := make(chan map[string]any, 1)
+	toolErrCh := make(chan error, 1)
 	go func() {
-		time.Sleep(100 * time.Millisecond)
-		result, err := handler.SendSamplingRequest(context.Background(), sid, CreateMessageRequest{
-			Messages:  []SamplingMessage{{Role: "user", Content: SamplingContent{Type: "text", Text: "Test"}}},
-			MaxTokens: 50,
+		payload, _ := json.Marshal(map[string]any{
+			"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+			"params": map[string]any{"name": "smart_tool"},
 		})
+		req, _ := http.NewRequest(http.MethodPost, env.baseURL, bytes.NewReader(payload))
+		req.Header.Set(headerSessionID, sid)
+		req.Header.Set("Accept", "application/json")
+		resp, err := env.client.Do(req)
 		if err != nil {
+			toolErrCh <- err
 			return
 		}
-		_ = result
+		defer resp.Body.Close()
+		var rpcResp map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
+			toolErrCh <- err
+			return
+		}
+		toolRespCh <- rpcResp
 	}()
 
 	// Wait for sampling request on GET stream.
@@ -584,6 +594,21 @@ func TestE2E_SamplingViaPostSSEStream(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf("status=%d, want 202", resp.StatusCode)
+	}
+
+	select {
+	case err := <-toolErrCh:
+		t.Fatalf("tool call: %v", err)
+	case toolResp := <-toolRespCh:
+		if toolResp["error"] != nil {
+			t.Fatalf("tool call error: %+v", toolResp["error"])
+		}
+		result := toolResp["result"].(map[string]any)
+		if result["isError"] != false {
+			t.Fatalf("isError = %v, want false", result["isError"])
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("tool call did not finish after sampling response")
 	}
 
 	env.deleteSession(t, sid)
@@ -674,7 +699,7 @@ func TestE2E_ResourcesAndPrompts(t *testing.T) {
 	sid := env.initialize(t)
 
 	// Verify capabilities include resources and prompts.
-	initBody := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+	initBody := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`
 	req, _ := http.NewRequest(http.MethodPost, env.baseURL, strings.NewReader(initBody))
 	req.Header.Set("Accept", "application/json")
 	resp, _ := env.client.Do(req)
@@ -874,11 +899,13 @@ func TestE2E_LoggingSetLevel(t *testing.T) {
 	if resp["error"] != nil {
 		t.Fatalf("logging/setLevel error: %v", resp["error"])
 	}
-	env.handler.core.mu.RLock()
-	if env.handler.core.logLevel != "debug" {
-		t.Fatalf("logLevel = %v, want debug", env.handler.core.logLevel)
+	sess, ok := env.handler.store.get(sid)
+	if !ok {
+		t.Fatal("session not found")
 	}
-	env.handler.core.mu.RUnlock()
+	if sess.getLogLevel() != "debug" {
+		t.Fatalf("logLevel = %v, want debug", sess.getLogLevel())
+	}
 }
 
 // ─── E2E: Protocol version header ────────────────────────────────────────────

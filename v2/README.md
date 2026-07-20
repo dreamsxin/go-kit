@@ -213,6 +213,11 @@ func main() {
 `kit.New` validates options and returns errors. `Service.Run` follows the
 caller-owned context; process signal handling stays in `main`.
 
+The default HTTP server protects header reads with a 5-second timeout, limits
+headers to 1 MiB, and keeps `WriteTimeout` disabled so SSE and other streaming
+responses are not terminated unexpectedly. Override the complete policy with
+`kit.WithHTTPServerConfig` when a service needs different limits.
+
 Use `kit.HandleJSON` or `kit.HandleJSONEndpoint` for business routes that need
 endpoint middleware. Use `Service.Handle` and `Service.HandleFunc` only for raw
 HTTP integrations.
@@ -236,7 +241,13 @@ HTTP integrations.
 
 Service-discovery constructors return both a callable endpoint and an owned
 closer. Handle the construction error and close the endpoint resources before
-stopping the underlying instancer.
+stopping the underlying instancer. Consul registration and deregistration return
+errors, and `Instancer.Stop` cancels and joins the active blocking query.
+
+MCP clients must initialize with protocol version `2025-06-18`, send
+`notifications/initialized`, and declare `sampling` before the server may issue
+sampling requests. Browser requests with an `Origin` header are limited to the
+same origin or `StreamableHandler.AllowedOrigins`.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for ownership boundaries and extension
 rules. The framework intentionally excludes business platforms such as IAM,
@@ -276,7 +287,7 @@ enabled.
 ```bash
 cd v2
 go test ./...
-go test -race ./kit ./interaction ./sd/... ./cmd/microgen/generator
+go test -race ./kit ./interaction/... ./transport/... ./sd/... ./cmd/microgen/generator
 ```
 
 Generator changes must also prove that a generated project can run

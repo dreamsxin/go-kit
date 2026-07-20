@@ -73,7 +73,7 @@ test-api:
 
 test-race:
 	@echo ">>> Running focused race tests..."
-	@go test -race ./kit ./interaction ./sd/... ./cmd/microgen/generator ./security/http ./observability/slog
+	@go test -race ./kit ./interaction/... ./transport/... ./sd/... ./cmd/microgen/generator ./security/http ./observability/slog
 	@cd ./observability/otel && go test -race ./...
 
 test-vet:

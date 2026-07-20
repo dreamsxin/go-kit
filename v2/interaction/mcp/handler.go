@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"sync"
 
 	"github.com/dreamsxin/go-kit/v2/interaction"
 )
@@ -31,9 +30,7 @@ const (
 // dispatchCore contains the method dispatch logic shared by the handler.
 
 type dispatchCore struct {
-	Runtime  *interaction.Runtime
-	logLevel string
-	mu       sync.RWMutex
+	Runtime *interaction.Runtime
 }
 
 func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
@@ -46,7 +43,7 @@ func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 	case "tools/call":
 		result, err := c.callTool(ctx, req.Params)
 		if err != nil {
-			resp.Error = newError(-32000, "tool call failed", err.Error())
+			resp.Error = newError(-32602, "invalid argument", err.Error())
 			return resp
 		}
 		resp.Result = result
@@ -86,7 +83,7 @@ func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 		}
 		resp.Result = result
 	case "logging/setLevel":
-		result, err := c.handleLoggingSetLevel(req.Params)
+		result, err := c.handleLoggingSetLevel(ctx, req.Params)
 		if err != nil {
 			resp.Error = newError(-32602, "invalid argument", err.Error())
 			return resp
@@ -160,6 +157,12 @@ func (c *dispatchCore) callTool(ctx context.Context, raw json.RawMessage) (map[s
 	if params.Name == "" {
 		return nil, errors.New("tool name is required")
 	}
+	if c.Runtime.Tools == nil {
+		return nil, errors.New("tool registry is not configured")
+	}
+	if _, ok := c.Runtime.Tools.Get(params.Name); !ok {
+		return nil, fmt.Errorf("tool %q: %w", params.Name, interaction.ErrToolNotFound)
+	}
 
 	sessionID := interaction.SessionID(params.SessionID)
 	if sessionID == "" {
@@ -175,9 +178,7 @@ func (c *dispatchCore) callTool(ctx context.Context, raw json.RawMessage) (map[s
 		}()
 	}
 
-	// Propagate session ID through context so tool implementations can
-	// access it for notifications, sampling, or audit.
-	ctx = context.WithValue(ctx, sessionIDContextKey{}, string(sessionID))
+	ctx = context.WithValue(ctx, runtimeSessionIDContextKey{}, string(sessionID))
 
 	result, err := c.Runtime.CallTool(ctx, interaction.ToolCall{
 		SessionID: sessionID,
@@ -186,7 +187,14 @@ func (c *dispatchCore) callTool(ctx context.Context, raw json.RawMessage) (map[s
 		Metadata:  params.Metadata,
 	})
 	if err != nil {
-		return nil, err
+		return map[string]any{
+			"content": []map[string]any{{
+				"type": "text",
+				"text": err.Error(),
+			}},
+			"isError":   true,
+			"sessionId": string(sessionID),
+		}, nil
 	}
 	return map[string]any{
 		"content": []map[string]any{{
@@ -196,6 +204,7 @@ func (c *dispatchCore) callTool(ctx context.Context, raw json.RawMessage) (map[s
 		"structuredContent": result.Output,
 		"sessionId":         string(sessionID),
 		"metadata":          result.Metadata,
+		"isError":           false,
 	}, nil
 }
 
@@ -336,7 +345,7 @@ func (c *dispatchCore) handlePromptsGet(ctx context.Context, raw json.RawMessage
 
 // ─── logging ─────────────────────────────────────────────────────────────────
 
-func (c *dispatchCore) handleLoggingSetLevel(raw json.RawMessage) (map[string]any, error) {
+func (c *dispatchCore) handleLoggingSetLevel(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
 	var params struct {
 		Level string `json:"level"`
 	}
@@ -352,9 +361,11 @@ func (c *dispatchCore) handleLoggingSetLevel(raw json.RawMessage) (map[string]an
 	if !validLevels[params.Level] {
 		return nil, fmt.Errorf("invalid log level %q", params.Level)
 	}
-	c.mu.Lock()
-	c.logLevel = params.Level
-	c.mu.Unlock()
+	sess, ok := ctx.Value(mcpSessionContextKey{}).(*sseSession)
+	if !ok || sess == nil {
+		return nil, errors.New("MCP session is missing from context")
+	}
+	sess.setLogLevel(params.Level)
 	return map[string]any{}, nil
 }
 
@@ -558,14 +569,23 @@ func newError(code int, message, data string) *rpcError {
 
 // ─── wire types ──────────────────────────────────────────────────────────────
 
-// sessionIDContextKey is the context key for the MCP session ID.
-type sessionIDContextKey struct{}
+type mcpSessionContextKey struct{}
+type runtimeSessionIDContextKey struct{}
 
 // SessionIDFromContext retrieves the MCP session ID stored in the context
 // during tool execution. Returns an empty string if no session ID is present.
 // Tool implementations can use this to send notifications or sampling requests.
 func SessionIDFromContext(ctx context.Context) string {
-	if v, ok := ctx.Value(sessionIDContextKey{}).(string); ok {
+	if sess, ok := ctx.Value(mcpSessionContextKey{}).(*sseSession); ok && sess != nil {
+		return sess.ID
+	}
+	return ""
+}
+
+// RuntimeSessionIDFromContext returns the interaction runtime session ID used
+// for the current tool call. It is distinct from the MCP transport session ID.
+func RuntimeSessionIDFromContext(ctx context.Context) string {
+	if v, ok := ctx.Value(runtimeSessionIDContextKey{}).(string); ok {
 		return v
 	}
 	return ""

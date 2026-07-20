@@ -110,9 +110,14 @@ registrar := consul.NewRegistrar(client, logger, "my-service", "10.0.0.1", 8080,
         Interval: "10s",
     }),
 )
-registrar.Register()
-defer registrar.Deregister()
+if err := registrar.Register(); err != nil {
+    return err
+}
+defer func() { _ = registrar.Deregister() }()
 ```
+
+`Instancer.Stop` cancels and joins the active Consul blocking query, so call it
+after endpoint-owned resources have been closed.
 
 ## See also
 

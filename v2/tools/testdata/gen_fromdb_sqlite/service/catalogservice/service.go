@@ -30,16 +30,11 @@ type CatalogService interface {
 
 // ServiceConfig controls generated service behavior.
 type ServiceConfig struct {
-	LogLevel      string         `json:"log_level"`
-	Timeout       time.Duration  `json:"timeout"`
 	EnableLogging bool           `json:"enable_logging"`
-	EnableMetrics bool           `json:"enable_metrics"`
 	Logger        *kitlog.Logger `json:"-"`
 }
 
 var defaultConfig = &ServiceConfig{
-	LogLevel:      "info",
-	Timeout:       30 * time.Second,
 	EnableLogging: true,
 }
 
@@ -70,10 +65,6 @@ func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) CatalogService {
 	if cfg.EnableLogging {
 		svc = LoggingMiddleware(logger)(svc)
 	}
-	if cfg.EnableMetrics {
-		svc = MetricsMiddleware()(svc)
-	}
-
 	return svc
 }
 
@@ -178,35 +169,5 @@ func (m *loggingMiddleware) ListUsers(ctx context.Context, req idl.ListUsersRequ
 			m.logger.Sugar().Infof("[CatalogService] ListUsers elapsed=%v", time.Since(start))
 		}
 	}()
-	return m.next.ListUsers(ctx, req)
-}
-
-func MetricsMiddleware() ServiceMiddleware {
-	return func(next CatalogService) CatalogService {
-		return &metricsMiddleware{next: next}
-	}
-}
-
-type metricsMiddleware struct {
-	next CatalogService
-}
-
-func (m *metricsMiddleware) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
-	return m.next.CreateUser(ctx, req)
-}
-
-func (m *metricsMiddleware) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
-	return m.next.GetUser(ctx, req)
-}
-
-func (m *metricsMiddleware) UpdateUser(ctx context.Context, req idl.UpdateUserRequest) (idl.UpdateUserResponse, error) {
-	return m.next.UpdateUser(ctx, req)
-}
-
-func (m *metricsMiddleware) DeleteUser(ctx context.Context, req idl.DeleteUserRequest) (idl.DeleteUserResponse, error) {
-	return m.next.DeleteUser(ctx, req)
-}
-
-func (m *metricsMiddleware) ListUsers(ctx context.Context, req idl.ListUsersRequest) (idl.ListUsersResponse, error) {
 	return m.next.ListUsers(ctx, req)
 }

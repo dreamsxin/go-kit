@@ -73,6 +73,9 @@ func ApplyEnv(cfg *Config) error {
 	if err := readDuration("READ_TIMEOUT", &cfg.Server.ReadTimeout); err != nil {
 		return err
 	}
+	if err := readDuration("READ_HEADER_TIMEOUT", &cfg.Server.ReadHeaderTimeout); err != nil {
+		return err
+	}
 	if err := readDuration("WRITE_TIMEOUT", &cfg.Server.WriteTimeout); err != nil {
 		return err
 	}

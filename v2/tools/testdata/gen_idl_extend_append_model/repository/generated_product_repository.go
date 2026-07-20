@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"example.com/gen_idl_extend_append_model/model"
 	"gorm.io/gorm"
@@ -14,6 +15,12 @@ import (
 // ProductRepository provides generated persistence helpers for Product.
 type ProductRepository struct {
 	db *DB
+}
+
+var productOrderColumns = map[string]string{
+	"i_d":  "i_d",
+	"id":   "i_d",
+	"name": "name",
 }
 
 // NewProductRepository creates a ProductRepository.
@@ -99,7 +106,14 @@ func (r *ProductRepository) List(ctx context.Context, q PageQuery) (*ProductList
 		return nil, fmt.Errorf("product.List count: %w", err)
 	}
 
-	order := q.OrderBy
+	orderKey := strings.ToLower(strings.TrimSpace(q.OrderBy))
+	if orderKey == "" {
+		orderKey = "id"
+	}
+	order, ok := productOrderColumns[orderKey]
+	if !ok {
+		return nil, fmt.Errorf("product.List: unsupported order_by %q", q.OrderBy)
+	}
 	if q.Desc {
 		order += " DESC"
 	} else {

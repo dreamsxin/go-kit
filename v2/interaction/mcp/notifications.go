@@ -5,6 +5,11 @@ import (
 	"fmt"
 )
 
+var logLevels = map[string]int{
+	"debug": 0, "info": 1, "notice": 2, "warning": 3,
+	"error": 4, "critical": 5, "alert": 6, "emergency": 7,
+}
+
 // NotificationMessage builds a JSON-RPC notification for the given method and params.
 func NotificationMessage(method string, params map[string]any) json.RawMessage {
 	msg := map[string]any{
@@ -19,6 +24,16 @@ func NotificationMessage(method string, params map[string]any) json.RawMessage {
 // LogNotification sends a logging message notification to the client.
 // Level must be one of: debug, info, notice, warning, error, critical, alert, emergency.
 func (h *StreamableHandler) LogNotification(sessionID string, level string, data string, logger string) error {
+	if _, ok := logLevels[level]; !ok {
+		return fmt.Errorf("mcp: invalid log level %q", level)
+	}
+	sess, ok := h.store.get(sessionID)
+	if !ok {
+		return fmt.Errorf("mcp: session %q not found", sessionID)
+	}
+	if !logLevelEnabled(level, sess.getLogLevel()) {
+		return nil
+	}
 	params := map[string]any{
 		"level": level,
 		"data":  map[string]any{"type": "text", "text": data},
@@ -26,7 +41,7 @@ func (h *StreamableHandler) LogNotification(sessionID string, level string, data
 	if logger != "" {
 		params["logger"] = logger
 	}
-	return h.sendNotification(sessionID, NotificationMessage("notifications/message", params))
+	return h.sendNotificationToSession(sess, NotificationMessage("notifications/message", params))
 }
 
 // ProgressNotification sends a progress update notification to the client.
@@ -69,8 +84,27 @@ func (h *StreamableHandler) sendNotification(sessionID string, data json.RawMess
 	if !ok {
 		return fmt.Errorf("mcp: session %q not found", sessionID)
 	}
+	return h.sendNotificationToSession(sess, data)
+}
+
+func (h *StreamableHandler) sendNotificationToSession(sess *sseSession, data json.RawMessage) error {
+	if !sess.isInitialized() {
+		return fmt.Errorf("mcp: session %q is not initialized", sess.ID)
+	}
 	if delivered, err := sess.writeToPOST(data); delivered || err != nil {
 		return err
 	}
-	return sess.broadcastToGET(data)
+	return sess.writeToGET(data)
+}
+
+func logLevelEnabled(level, minimum string) bool {
+	value, ok := logLevels[level]
+	if !ok {
+		return false
+	}
+	threshold, ok := logLevels[minimum]
+	if !ok {
+		threshold = logLevels["info"]
+	}
+	return value >= threshold
 }

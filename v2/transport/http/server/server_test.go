@@ -40,6 +40,23 @@ func TestServer_OK(t *testing.T) {
 	}
 }
 
+func TestServer_ResponseEncoderReceivesFlusher(t *testing.T) {
+	ep := endpoint.Endpoint(func(context.Context, interface{}) (interface{}, error) {
+		return "ok", nil
+	})
+	var hasFlusher bool
+	s := server.NewServer(ep, nopDecode, func(_ context.Context, w http.ResponseWriter, _ interface{}) error {
+		_, hasFlusher = w.(http.Flusher)
+		_, err := w.Write([]byte("ok"))
+		return err
+	})
+
+	s.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	if !hasFlusher {
+		t.Fatal("response encoder did not receive the underlying Flusher capability")
+	}
+}
+
 func TestServer_DecodeError(t *testing.T) {
 	s := server.NewServer(endpoint.Nop,
 		func(_ context.Context, _ *http.Request) (interface{}, error) {

@@ -157,7 +157,12 @@ go test ./tools -run "TestMicrogen(IDLContractIntegration|ProtoIntegration|FromD
 ```
 
 The generated Go SDK returns an exported `APIError` for non-2xx responses, with
-`StatusCode` and `Body` fields matching the TypeScript SDK error contract.
+`StatusCode` and `Body` fields matching the TypeScript SDK error contract. It
+resolves request paths through `net/url` and limits response bodies to 4 MiB by
+default; use `WithMaxResponseBodyBytes` when the contract requires another cap.
+
+Generated repositories resolve `order_by` through a model-derived field
+whitelist. Unsupported names return an error instead of being passed to SQL.
 
 ## Minimal And Full Generation
 
@@ -197,8 +202,9 @@ microgen \
   -db=false
 ```
 
-MCP uses long-lived HTTP responses. Configure the generated HTTP server write
-timeout to `0` or to a value compatible with the maximum session duration.
+MCP uses long-lived HTTP responses. Generated projects default to
+`read_header_timeout: 5s` and `write_timeout: 0s`; set a finite write timeout only
+when it is longer than the maximum intended stream duration.
 
 ## Generated Configuration
 

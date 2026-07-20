@@ -9,8 +9,9 @@ import (
 // and number of bytes written, making them available to FinalizerFunc hooks.
 type InterceptingWriter struct {
 	http.ResponseWriter
-	code    int
-	written int64
+	code        int
+	written     int64
+	wroteHeader bool
 }
 
 func (w *InterceptingWriter) GetCode() int {
@@ -22,13 +23,29 @@ func (w *InterceptingWriter) GetWritten() int64 {
 }
 
 func (w *InterceptingWriter) WriteHeader(code int) {
+	if w.wroteHeader {
+		return
+	}
+	w.wroteHeader = true
 	w.code = code
 	w.ResponseWriter.WriteHeader(code)
 }
 
 func (w *InterceptingWriter) Write(p []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
 	n, err := w.ResponseWriter.Write(p)
 	w.written += int64(n)
+	return n, err
+}
+
+func (w *InterceptingWriter) ReadFrom(r io.Reader) (int64, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	n, err := io.Copy(w.ResponseWriter, r)
+	w.written += n
 	return n, err
 }
 
@@ -38,7 +55,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 		cn, i1 = w.ResponseWriter.(http.CloseNotifier)
 		pu, i2 = w.ResponseWriter.(http.Pusher)
 		fl, i3 = w.ResponseWriter.(http.Flusher)
-		rf, i4 = w.ResponseWriter.(io.ReaderFrom)
+		_, i4  = w.ResponseWriter.(io.ReaderFrom)
 	)
 
 	switch {
@@ -50,7 +67,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 		return struct {
 			http.ResponseWriter
 			io.ReaderFrom
-		}{w, rf}
+		}{w, w}
 	case !i0 && !i1 && !i2 && i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -61,7 +78,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.ResponseWriter
 			http.Flusher
 			io.ReaderFrom
-		}{w, fl, rf}
+		}{w, fl, w}
 	case !i0 && !i1 && i2 && !i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -72,7 +89,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.ResponseWriter
 			http.Pusher
 			io.ReaderFrom
-		}{w, pu, rf}
+		}{w, pu, w}
 	case !i0 && !i1 && i2 && i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -85,7 +102,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.Pusher
 			http.Flusher
 			io.ReaderFrom
-		}{w, pu, fl, rf}
+		}{w, pu, fl, w}
 	case !i0 && i1 && !i2 && !i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -96,7 +113,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.ResponseWriter
 			http.CloseNotifier
 			io.ReaderFrom
-		}{w, cn, rf}
+		}{w, cn, w}
 	case !i0 && i1 && !i2 && i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -109,7 +126,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.CloseNotifier
 			http.Flusher
 			io.ReaderFrom
-		}{w, cn, fl, rf}
+		}{w, cn, fl, w}
 	case !i0 && i1 && i2 && !i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -122,7 +139,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.CloseNotifier
 			http.Pusher
 			io.ReaderFrom
-		}{w, cn, pu, rf}
+		}{w, cn, pu, w}
 	case !i0 && i1 && i2 && i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -137,7 +154,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.Pusher
 			http.Flusher
 			io.ReaderFrom
-		}{w, cn, pu, fl, rf}
+		}{w, cn, pu, fl, w}
 	case i0 && !i1 && !i2 && !i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -148,7 +165,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.ResponseWriter
 			http.Hijacker
 			io.ReaderFrom
-		}{w, hj, rf}
+		}{w, hj, w}
 	case i0 && !i1 && !i2 && i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -161,7 +178,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.Hijacker
 			http.Flusher
 			io.ReaderFrom
-		}{w, hj, fl, rf}
+		}{w, hj, fl, w}
 	case i0 && !i1 && i2 && !i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -174,7 +191,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.Hijacker
 			http.Pusher
 			io.ReaderFrom
-		}{w, hj, pu, rf}
+		}{w, hj, pu, w}
 	case i0 && !i1 && i2 && i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -189,7 +206,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.Pusher
 			http.Flusher
 			io.ReaderFrom
-		}{w, hj, pu, fl, rf}
+		}{w, hj, pu, fl, w}
 	case i0 && i1 && !i2 && !i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -202,7 +219,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.Hijacker
 			http.CloseNotifier
 			io.ReaderFrom
-		}{w, hj, cn, rf}
+		}{w, hj, cn, w}
 	case i0 && i1 && !i2 && i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -217,7 +234,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.CloseNotifier
 			http.Flusher
 			io.ReaderFrom
-		}{w, hj, cn, fl, rf}
+		}{w, hj, cn, fl, w}
 	case i0 && i1 && i2 && !i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -232,7 +249,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.CloseNotifier
 			http.Pusher
 			io.ReaderFrom
-		}{w, hj, cn, pu, rf}
+		}{w, hj, cn, pu, w}
 	case i0 && i1 && i2 && i3 && !i4:
 		return struct {
 			http.ResponseWriter
@@ -249,7 +266,7 @@ func (w *InterceptingWriter) reimplementInterfaces() http.ResponseWriter {
 			http.Pusher
 			http.Flusher
 			io.ReaderFrom
-		}{w, hj, cn, pu, fl, rf}
+		}{w, hj, cn, pu, fl, w}
 	default:
 		return struct {
 			http.ResponseWriter

@@ -88,6 +88,14 @@ Completed: common HTTP hardening can be enabled explicitly with standard
 - README examples, migration instructions, CLI behavior, generated ownership,
   and exported runtime packages are covered by executable checks or snapshots.
 - `make release-check-clean` verifies the committed v2 scope before tagging.
+- Runtime closure now includes MCP lifecycle/version/origin/capability checks,
+  single-stream SSE delivery, per-session logging levels, and tool-result error
+  semantics; HTTP/gRPC metadata and streaming resource ownership; cancellable
+  Consul blocking queries; and streaming-safe `kit` defaults.
+- Generator closure now includes bounded SDK response reads, URL resolution,
+  repository ordering whitelists, effective retry/logging wiring, safe low-rate
+  limiter bursts, explicit server-error shutdown, and streaming-safe generated
+  HTTP defaults.
 - Remaining: run the gates from the final release commit, review release notes,
   create the version tag, and publish only after every check passes.
 

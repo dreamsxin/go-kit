@@ -75,6 +75,10 @@ if err := svc.Run(ctx); err != nil {
 Use `kit.WithShutdownTimeout` to configure the graceful-shutdown deadline.
 Service instances cannot be restarted after shutdown.
 
+The default v2 HTTP server now sets a 5-second `ReadHeaderTimeout`, a 60-second
+idle timeout, and a 1 MiB header limit while leaving `WriteTimeout` disabled for
+streaming. Pass `kit.WithHTTPServerConfig` to replace this policy.
+
 ## gRPC Registration
 
 v1:
@@ -155,6 +159,17 @@ defer instancer.Stop()
 defer closer.Close()
 ```
 
+Consul registrar methods now return errors:
+
+```go
+if err := registrar.Register(); err != nil {
+    return err
+}
+defer func() { _ = registrar.Deregister() }()
+```
+
+`consul.Instancer.Stop` cancels and waits for its active blocking query.
+
 ## Circuit Breakers
 
 v2 keeps one endpoint circuit-breaker adapter: `circuitbreaker.Gobreaker`.
@@ -175,6 +190,11 @@ values instead of relying on zero values.
 
 Database `AutoMigrate` is disabled by default. Enable it explicitly only when
 startup schema mutation is intended.
+
+Generated HTTP servers default to `read_header_timeout: 5s` and
+`write_timeout: 0s`. Generated SDK responses are capped at 4 MiB by default,
+and generated repository `order_by` values must match a generated field
+whitelist.
 
 ## Generated API Documentation
 
@@ -210,9 +230,17 @@ v2-generated project, use `microgen extend -check -out .` before extend mode.
 
 ## Interaction And MCP
 
-Re-test MCP clients against the generated v2 endpoint. Configure HTTP write
-timeouts for long-lived SSE responses, keep request-body limits enabled, and
-validate the negotiated protocol version.
+Re-test MCP clients against the generated v2 endpoint. Initialization must use
+protocol version `2025-06-18` and be followed by
+`notifications/initialized`. Clients must advertise `sampling` before the
+server can call `sampling/createMessage`. Browser clients must be same-origin or
+listed in `StreamableHandler.AllowedOrigins`.
+
+Tool execution failures are successful JSON-RPC responses containing a
+CallToolResult with `isError: true`; malformed calls and unknown tools remain
+JSON-RPC errors. Tool implementations should use `mcp.SessionIDFromContext` for
+the transport session and `mcp.RuntimeSessionIDFromContext` only when they need
+the internal interaction session.
 
 In-memory resource and prompt providers now copy mutable inputs and no longer
 invoke prompt render callbacks while holding provider locks. Code that depended

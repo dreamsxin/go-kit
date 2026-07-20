@@ -42,7 +42,9 @@ func CheckRegistrarOptions(check *stdconsul.AgentServiceCheck) RegistrarOption {
 }
 
 func NewRegistrar(client Client, logger *log.Logger, name string, address string, port int, options ...RegistrarOption) *Registrar {
-
+	if logger == nil {
+		logger = log.NewNopLogger()
+	}
 	r := &Registrar{
 		client: client,
 		registration: &stdconsul.AgentServiceRegistration{
@@ -61,18 +63,18 @@ func NewRegistrar(client Client, logger *log.Logger, name string, address string
 	return r
 }
 
-func (p *Registrar) Register() {
+func (p *Registrar) Register() error {
 	if err := p.client.Register(p.registration); err != nil {
-		p.logger.Sugar().Debugln("err", err)
-	} else {
-		p.logger.Sugar().Debugln("action", "register")
+		return err
 	}
+	p.logger.Sugar().Debugln("action", "register")
+	return nil
 }
 
-func (p *Registrar) Deregister() {
+func (p *Registrar) Deregister() error {
 	if err := p.client.Deregister(p.registration); err != nil {
-		p.logger.Sugar().Debugln("err", err)
-	} else {
-		p.logger.Sugar().Debugln("action", "deregister")
+		return err
 	}
+	p.logger.Sugar().Debugln("action", "deregister")
+	return nil
 }

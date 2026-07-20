@@ -60,6 +60,8 @@ Use this loop when an AI agent or maintainer changes the generated project:
 
 Generated config loads through `config.Load(path)`: defaults first, local YAML next, optional remote config after that, final environment overrides last, then `Config.Validate()` before runtime wiring. Environment variables are also applied once before remote loading so they can configure the remote provider connection.
 
+The generated HTTP server defaults to `read_header_timeout: 5s` and `write_timeout: 0s`, which protects header reads without terminating long-lived streaming responses.
+
 - Current generated config mode: `file`
 - Current remote provider: `none`
 - Local mode keeps remote config disabled and remains the default runnable path.

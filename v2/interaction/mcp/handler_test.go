@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -49,7 +50,10 @@ func postJSONRaw(t *testing.T, handler http.Handler, body map[string]any) (int, 
 // initSessionHelper sends an initialize request and returns the session ID.
 func initSessionHelper(t *testing.T, handler http.Handler) string {
 	t.Helper()
-	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+	body := map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{"protocolVersion": protocolVersion, "capabilities": map[string]any{"sampling": map[string]any{}}},
+	}
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
 	req.Header.Set("Accept", "application/json")
@@ -61,6 +65,15 @@ func initSessionHelper(t *testing.T, handler http.Handler) string {
 	sid := rec.Header().Get(headerSessionID)
 	if sid == "" {
 		t.Fatal("initialize: no Mcp-Session-Id header")
+	}
+	notify := map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"}
+	payload, _ = json.Marshal(notify)
+	req = httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	req.Header.Set(headerSessionID, sid)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("initialized: status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 	return sid
 }
@@ -177,6 +190,7 @@ func TestInitialize(t *testing.T) {
 
 	resp := postJSON(t, handler, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{"protocolVersion": protocolVersion},
 	})
 	result := resp["result"].(map[string]any)
 
@@ -201,6 +215,7 @@ func TestInitializeWithoutOptionalProviders(t *testing.T) {
 
 	resp := postJSON(t, handler, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{"protocolVersion": protocolVersion},
 	})
 	result := resp["result"].(map[string]any)
 	caps := result["capabilities"].(map[string]any)
@@ -317,8 +332,31 @@ func TestHandlerReturnsJSONRPCErrors(t *testing.T) {
 		"params": map[string]any{"name": "missing"},
 	})
 	errObj := resp["error"].(map[string]any)
-	if errObj["message"] != "tool call failed" {
-		t.Fatalf("error = %+v, want tool call failed", errObj)
+	if errObj["message"] != "invalid argument" {
+		t.Fatalf("error = %+v, want invalid argument", errObj)
+	}
+}
+
+func TestToolExecutionErrorUsesCallResult(t *testing.T) {
+	rt := interaction.NewRuntime()
+	_ = rt.RegisterTool(interaction.ToolFunc{
+		ToolName: "fails",
+		Fn: func(context.Context, interaction.ToolCall) (interaction.ToolResult, error) {
+			return interaction.ToolResult{}, errors.New("business rule rejected")
+		},
+	})
+	handler := NewHandler(rt)
+	sid := initSessionHelper(t, handler)
+	resp := postJSONSession(t, handler, sid, map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": "fails"},
+	})
+	if resp["error"] != nil {
+		t.Fatalf("execution error must not be a JSON-RPC error: %+v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["isError"] != true {
+		t.Fatalf("isError = %v, want true", result["isError"])
 	}
 }
 
@@ -503,11 +541,13 @@ func TestLoggingSetLevel(t *testing.T) {
 	if resp["error"] != nil {
 		t.Fatalf("unexpected error: %+v", resp["error"])
 	}
-	handler.core.mu.RLock()
-	if handler.core.logLevel != "debug" {
-		t.Fatalf("logLevel = %v, want debug", handler.core.logLevel)
+	sess, ok := handler.store.get(sid)
+	if !ok {
+		t.Fatal("session not found")
 	}
-	handler.core.mu.RUnlock()
+	if sess.getLogLevel() != "debug" {
+		t.Fatalf("logLevel = %v, want debug", sess.getLogLevel())
+	}
 }
 
 func TestLoggingSetLevelInvalid(t *testing.T) {
@@ -520,11 +560,13 @@ func TestLoggingSetLevelInvalid(t *testing.T) {
 	if resp["error"] == nil {
 		t.Fatal("expected JSON-RPC error for invalid log level")
 	}
-	handler.core.mu.RLock()
-	if handler.core.logLevel != "info" {
-		t.Fatalf("logLevel = %v, want info (unchanged)", handler.core.logLevel)
+	sess, ok := handler.store.get(sid)
+	if !ok {
+		t.Fatal("session not found")
 	}
-	handler.core.mu.RUnlock()
+	if sess.getLogLevel() != "info" {
+		t.Fatalf("logLevel = %v, want info (unchanged)", sess.getLogLevel())
+	}
 }
 
 // ─── pagination ──────────────────────────────────────────────────────────────
@@ -598,7 +640,7 @@ func TestCompletionComplete_Prompt(t *testing.T) {
 	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "completion/complete",
 		"params": map[string]any{
-			"ref": map[string]any{"type": "ref/prompt", "name": "summarize"},
+			"ref":      map[string]any{"type": "ref/prompt", "name": "summarize"},
 			"argument": map[string]any{"name": "style", "value": "bul"},
 		},
 	})
@@ -631,7 +673,7 @@ func TestCompletionComplete_MissingRef(t *testing.T) {
 	sid := initSessionHelper(t, handler)
 	resp := postJSONSession(t, handler, sid, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "completion/complete",
-		"params":  map[string]any{"argument": map[string]any{"name": "x", "value": "y"}},
+		"params": map[string]any{"argument": map[string]any{"name": "x", "value": "y"}},
 	})
 	errObj := resp["error"].(map[string]any)
 	if errObj["code"].(float64) != -32602 {

@@ -28,9 +28,6 @@ func (q *PageQuery) normalize() {
 	if q.PageSize > 200 {
 		q.PageSize = 200
 	}
-	if q.OrderBy == "" {
-		q.OrderBy = "id"
-	}
 }
 
 // DB wraps gorm.DB for generated repositories.

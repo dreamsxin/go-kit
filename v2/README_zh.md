@@ -207,6 +207,10 @@ func main() {
 `kit.New` 会校验 Option 并返回错误。`Service.Run` 跟随调用方提供的 context；
 系统信号监听应放在 `main` 中。
 
+默认 HTTP server 使用 5 秒 Header 读取超时、1 MiB Header 上限，并保持
+`WriteTimeout=0`，避免 SSE 和其他流式响应被意外中断。需要不同策略时使用
+`kit.WithHTTPServerConfig` 显式覆盖完整配置。
+
 需要 endpoint middleware 的业务路由使用 `kit.HandleJSON` 或
 `kit.HandleJSONEndpoint`。`Service.Handle` 和 `Service.HandleFunc` 仅用于原生
 HTTP 集成。
@@ -229,7 +233,13 @@ HTTP 集成。
 | `cmd/microgen` | 契约驱动的项目生成器 |
 
 服务发现构造函数会同时返回可调用 endpoint 和资源 closer。调用方必须处理构造
-错误，并在停止底层 instancer 之前关闭 endpoint 资源。
+错误，并在停止底层 instancer 之前关闭 endpoint 资源。Consul 注册和注销会返回
+错误，`Instancer.Stop` 会取消并等待正在执行的阻塞查询退出。
+
+MCP 客户端必须使用协议版本 `2025-06-18` 初始化，随后发送
+`notifications/initialized`；只有声明 `sampling` capability 后，服务端才能发起
+采样请求。带 `Origin` 的浏览器请求只允许同源或
+`StreamableHandler.AllowedOrigins` 中显式允许的来源。
 
 包边界和扩展规则见 [ARCHITECTURE.md](ARCHITECTURE.md)。框架核心明确不包含
 IAM、Outbox、任务平台、对象存储、Secret 平台和完整事务框架等业务平台能力。
@@ -264,7 +274,7 @@ make test-observability
 ```bash
 cd v2
 go test ./...
-go test -race ./kit ./interaction ./sd/... ./cmd/microgen/generator
+go test -race ./kit ./interaction/... ./transport/... ./sd/... ./cmd/microgen/generator
 ```
 
 修改生成器后，还必须验证在仓库外生成的项目可以执行 `go mod tidy` 和
