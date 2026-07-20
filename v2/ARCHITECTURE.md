@@ -99,6 +99,14 @@ callbacks while holding internal locks.
 `log` is the framework logging adapter. Libraries return errors; process entry
 points decide when to terminate.
 
+### Optional observability adapters
+
+`observability/slog` adapts endpoint outcomes to the standard-library
+`log/slog` API without changing the core zap logger. `observability/otel` is a
+separate module that adapts endpoint calls to application-owned OpenTelemetry
+tracers and meters. Neither adapter logs or records request/response payloads;
+operation names and application attributes must remain bounded.
+
 ### `cmd/microgen`
 
 `microgen` is a build-time tool. Parsers produce a common IR that drives HTTP

@@ -223,6 +223,8 @@ HTTP 集成。
 | `interaction` | tool、resource、prompt、session 和策略 hook |
 | `interaction/mcp` | MCP Streamable HTTP adapter |
 | `log` | 框架日志适配 |
+| `observability/slog` | 可选的标准库 `slog` endpoint 日志适配器 |
+| `observability/otel` | 可选的 OpenTelemetry endpoint 追踪和指标模块 |
 | `cmd/microgen` | 契约驱动的项目生成器 |
 
 服务发现构造函数会同时返回可调用 endpoint 和资源 closer。调用方必须处理构造
@@ -230,6 +232,15 @@ HTTP 集成。
 
 包边界和扩展规则见 [ARCHITECTURE.md](ARCHITECTURE.md)。框架核心明确不包含
 IAM、Outbox、任务平台、对象存储、Secret 平台和完整事务框架等业务平台能力。
+
+可选观测适配器将 provider 的创建、资源、导出器、采样和关闭责任保留在
+应用装配层。`observability/slog` 位于主 module 中且只使用标准库；
+`observability/otel` 是独立 module，主 v2 源码不会导入该适配器或其 provider
+装配。可以使用以下命令验证两个适配器：
+
+```bash
+make test-observability
+```
 
 ## 配置
 

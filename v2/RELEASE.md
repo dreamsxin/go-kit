@@ -42,6 +42,8 @@ but their generated public behavior is a product surface.
 - Go IDL, Protobuf, database, config, extend, and interaction generation paths
   have deterministic integration tests.
 - Generated configuration validates before runtime wiring.
+- Optional `slog` and OpenTelemetry adapters pass their focused package tests
+  without adding a direct adapter dependency to the main module.
 - Database introspection is read-only and startup migration is opt-in.
 - HTTP/MCP limits, protocol checks, streaming timeouts, and concurrency behavior
   are covered by tests.
@@ -80,6 +82,8 @@ go test ./...
 Also verify:
 
 - `make test-contracts` passes with the pinned TypeScript compiler;
+- `make test-observability` passes for the standard-library and OpenTelemetry
+  adapters;
 - Go and TypeScript SDKs match the shared path/query/body/error fixture;
 - contract snapshot changes have been reviewed and refreshed explicitly;
 - repeat generation produces no second-run diff;

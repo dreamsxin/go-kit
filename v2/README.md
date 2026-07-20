@@ -229,6 +229,8 @@ HTTP integrations.
 | `interaction` | Tools, resources, prompts, sessions, and policy hooks |
 | `interaction/mcp` | MCP Streamable HTTP adapter |
 | `log` | Framework logging adapter |
+| `observability/slog` | Optional standard-library `slog` endpoint logging |
+| `observability/otel` | Optional OpenTelemetry endpoint tracing and metrics module |
 | `cmd/microgen` | Contract-driven project generator |
 
 Service-discovery constructors return both a callable endpoint and an owned
@@ -239,6 +241,15 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for ownership boundaries and extension
 rules. The framework intentionally excludes business platforms such as IAM,
 outbox workflows, job platforms, object storage, secret platforms, and complete
 transaction frameworks.
+
+Optional observability adapters keep provider ownership in application
+assembly. `observability/slog` is part of the main module and uses only the
+standard library; `observability/otel` is a separate module, so the main v2
+source does not import the adapter or its provider setup. Test both adapters with:
+
+```bash
+make test-observability
+```
 
 ## Configuration
 

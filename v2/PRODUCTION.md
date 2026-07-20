@@ -139,6 +139,11 @@ Use structured logs with stable fields:
 Libraries return errors and do not call `Fatal`. Only `main` decides whether an
 error terminates the process.
 
+For standard-library logging, use the optional
+[`observability/slog`](observability/slog/README.md) adapter. It records
+endpoint outcome, duration, and correlation IDs without recording payloads;
+the application still selects the `slog.Handler` and level.
+
 ## Metrics
 
 Measure at the endpoint boundary for business calls and at the transport boundary
@@ -156,9 +161,12 @@ Avoid unbounded labels such as raw URL, user ID, request ID, or error text.
 
 ## Tracing
 
-OpenTelemetry support belongs in optional adapters. Propagate context through
-service, endpoint, transport, discovery, and interaction calls. Create spans at
-meaningful boundaries without creating a span for every small helper.
+OpenTelemetry support belongs in the optional
+[`observability/otel`](observability/otel/README.md) module. The application
+owns provider setup, resources, exporters, sampling, and shutdown. Propagate
+context through service, endpoint, transport, discovery, and interaction calls;
+create spans at meaningful boundaries without creating a span for every small
+helper.
 
 ## Health
 

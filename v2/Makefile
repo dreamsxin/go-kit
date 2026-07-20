@@ -7,7 +7,7 @@
         coverage \
         deps tools \
         test-runtime test-microgen test-contracts test-docs test-examples \
-        verify verify-release
+        test-observability verify verify-release
 
 # Default variables, overridable from the command line.
 IDL         ?= ./examples/usersvc/idl.go
@@ -56,7 +56,13 @@ test-examples:
 	@echo ">>> Running example smoke tests..."
 	@go test -v ./tools/... -run TestAllExamples
 
-verify: build test-runtime test-microgen test-docs test-examples
+test-observability:
+	@echo ">>> Running slog adapter tests..."
+	@go test -v ./observability/slog
+	@echo ">>> Running OpenTelemetry adapter tests..."
+	@cd ./observability/otel && go test -v ./...
+
+verify: build test-runtime test-microgen test-docs test-examples test-observability
 	@echo ">>> Verification pass completed."
 
 verify-release: verify
@@ -220,6 +226,7 @@ help:
 	@echo "  make test-contracts Validate generated contracts and TypeScript SDKs"
 	@echo "  make test-docs     Verify docs-backed snippets and SKILL.md"
 	@echo "  make test-examples Run example tests and smoke tests"
+	@echo "  make test-observability Test slog and optional OpenTelemetry adapters"
 	@echo "  make verify        Run recommended pre-merge validation pass"
 	@echo "  make verify-release Run the full release validation pass"
 	@echo "  make coverage      Generate coverage report"

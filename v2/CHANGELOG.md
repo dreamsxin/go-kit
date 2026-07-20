@@ -34,6 +34,9 @@ root.
   including path, query, body, headers, and non-2xx errors.
 - Reviewed deterministic contract snapshots for Go IDL, Protobuf, and database
   generation paths.
+- Optional `observability/slog` endpoint logging and independent
+  `observability/otel` tracing/metrics adapters with application-owned provider
+  setup.
 
 ### Changed
 

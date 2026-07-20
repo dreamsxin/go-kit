@@ -56,16 +56,19 @@ without scanning Go source for configuration clues.
 Completed: published contract artifacts are machine-validated, behavior-checked,
 and protected from unreviewed deterministic drift.
 
-## Milestone 3: Optional Operations Adapters / 可选运维适配
+## Milestone 3 (Complete): Optional Operations Adapters / 可选运维适配
 
-- Add standard-library `slog` adapters without replacing the core logger API.
-- Add OpenTelemetry tracing and metrics adapters as optional packages.
-- Keep provider setup and exporter selection in application assembly.
+- `observability/slog` provides standard-library structured endpoint logging
+  without replacing the core zap logger API.
+- `observability/otel` is an independent module for endpoint tracing and
+  metrics, with no direct adapter dependency in the main v2 module.
+- Provider setup, resources, exporters, sampling, and shutdown remain in
+  application assembly.
 
-Done when applications can adopt standard observability without adding those
-dependencies to services that do not use them.
+Completed: applications can adopt standard observability explicitly, while
+services that do not use these adapters keep the core dependency path small.
 
-## Milestone 4: Optional HTTP Security / 可选 HTTP 安全
+## Milestone 4 (Next): Optional HTTP Security / 可选 HTTP 安全
 
 - Provide composable trusted-proxy/IP, CORS, CSRF, and security-header handlers.
 - Keep authentication and application authorization policy outside framework
