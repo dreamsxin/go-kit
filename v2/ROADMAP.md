@@ -105,10 +105,9 @@ Completed: common HTTP hardening can be enabled explicitly with standard
   clients bound successful response bodies; invalid Go IDL fails generation.
 
 Completed: the v2.0.0 compatibility contract and release notes are frozen. The
-final release commit must pass every release gate before the immutable root tag
-`v2.0.0` is created. The existing `v2/v2.0.0` tag is not a valid module version
-for a `v2` subdirectory module. Remote publication and public module resolution are
-operational release actions, not implementation milestones.
+immutable root tag `v2.0.0` points at the verified release commit, and
+`github.com/dreamsxin/go-kit/v2@v2.0.0` resolves through the public Go proxy.
+The historical incorrect `v2/v2.0.0` tag has been removed.
 
 ## Maintenance Rules / 维护规则
 

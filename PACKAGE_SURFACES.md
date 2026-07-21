@@ -6,7 +6,7 @@ Use it together with:
 
 - [FRAMEWORK_BOUNDARIES.md](FRAMEWORK_BOUNDARIES.md)
 - [STABILITY.md](STABILITY.md)
-- [REFACTOR_ROADMAP.md](REFACTOR_ROADMAP.md)
+- [v2/ROADMAP.md](v2/ROADMAP.md)
 
 ## How To Read This Document
 

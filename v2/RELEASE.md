@@ -13,10 +13,9 @@ consumers request the normal module version `v2.0.0`. The release tag must be
 `v2.0.0`; do not use `v2/v2.0.0` for this module. v1 release history remains in
 the repository root and is not duplicated here.
 
-The repository currently has the historical tag `v2/v2.0.0`. That tag does not
-publish `github.com/dreamsxin/go-kit/v2` under Go module version rules and must
-not be treated as a completed v2 release. Create the root `v2.0.0` tag only from
-the final commit that passes this document's release gates.
+The historical incorrect tag `v2/v2.0.0` has been removed. The published root
+tag `v2.0.0` points at the release commit and resolves as
+`github.com/dreamsxin/go-kit/v2@v2.0.0` through the public Go proxy.
 
 ## Versioning
 

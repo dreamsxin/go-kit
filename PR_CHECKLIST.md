@@ -70,7 +70,7 @@ Reference:
 Key docs:
 
 - [README.md](README.md)
-- [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md)
+- [v2/MAINTAINING.md](v2/MAINTAINING.md)
 - [FRAMEWORK_BOUNDARIES.md](FRAMEWORK_BOUNDARIES.md)
 
 ## 7. Validation Check

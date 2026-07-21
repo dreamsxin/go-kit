@@ -15,16 +15,17 @@ Service -> Endpoint -> Transport
 
 ## 发布状态
 
-当前发布：
+当前推荐版本：
 
 ```text
-v1.6.0 Stable
+v2.0.0 Stable
+github.com/dreamsxin/go-kit/v2
 ```
 
-允许破坏性调整的开发线位于 [`v2/`](v2/)，它是独立 Go 模块
-`github.com/dreamsxin/go-kit/v2`。根目录模块继续作为 v1 稳定线维护。
+当前维护的产品线位于 [`v2/`](v2/)，它是独立 Go 模块。根目录模块继续作为
+v1.6 维护与源码历史保留。
 
-本文后续命令面向 v1。新建 v2 项目和当前 `microgen` 工作流请以
+本文后续命令面向旧版 v1。新建项目和当前 `microgen` 工作流请以
 [v2 使用文档](v2/README_zh.md)为准。
 
 稳定范围：
@@ -37,7 +38,8 @@ v1.6.0 Stable
 - `interaction` 和 `interaction/mcp` — AI interaction runtime，包含 session、event、tool、resource、prompt、hook 和完整 MCP 2025-06-18 Streamable HTTP 传输
 - 生成的 interaction adapters
 
-详见 [RELEASE.md](RELEASE.md)、[STABILITY.md](STABILITY.md) 和 [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md)。
+当前版本契约详见 [v2/RELEASE.md](v2/RELEASE.md)、
+[v2/ROADMAP.md](v2/ROADMAP.md) 和 [v2/MIGRATION.md](v2/MIGRATION.md)。
 
 ## 快速开始：本地生成服务
 
@@ -320,10 +322,10 @@ func main() {
 
 如果你要修改框架本身，而不是把它作为依赖使用：
 
-- 从 [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md) 开始。
-- 用 [DOCS_INDEX.md](DOCS_INDEX.md) 查看文档地图。
-- 阅读 [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md) 了解当前状态。
-- 使用 [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md) 选择验证命令。
+- 从 [v2/MAINTAINING.md](v2/MAINTAINING.md) 开始。
+- 用 [v2/DOCS_INDEX.md](v2/DOCS_INDEX.md) 查看当前文档地图。
+- 阅读 [v2/ROADMAP.md](v2/ROADMAP.md) 了解实施状态和范围。
+- 使用 [v2/RELEASE.md](v2/RELEASE.md) 执行发布校验和标签操作。
 
 ## License
 

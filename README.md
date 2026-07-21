@@ -15,18 +15,19 @@ Define the service contract once. `microgen` generates a runnable project with H
 
 ## Release Status
 
-Current release:
+Current recommended release:
 
 ```text
-v1.6.0 Stable
+v2.0.0 Stable
+github.com/dreamsxin/go-kit/v2
 ```
 
-The breaking-change development line lives in [`v2/`](v2/) as the independent
-Go module `github.com/dreamsxin/go-kit/v2`. The root module remains the v1 stable
+The maintained product line lives in [`v2/`](v2/) as an independent Go module.
+The root module remains available as the v1.6 maintenance and source-history
 line.
 
-The commands in this README target v1. For new v2 projects and the current
-`microgen` workflow, use the [v2 documentation](v2/README.md).
+The commands below target the legacy v1 module. For new projects and the
+maintained `microgen` workflow, use the [v2 documentation](v2/README.md).
 
 Stable scope:
 
@@ -38,7 +39,8 @@ Stable scope:
 - `interaction` and `interaction/mcp` — AI interaction runtime with sessions, events, tools, resources, prompts, hooks, and full MCP 2025-06-18 Streamable HTTP transport
 - generated interaction adapters
 
-See [RELEASE.md](RELEASE.md), [STABILITY.md](STABILITY.md), and [AI_FIRST_ROADMAP.md](AI_FIRST_ROADMAP.md).
+For the current contract, see [v2/RELEASE.md](v2/RELEASE.md),
+[v2/ROADMAP.md](v2/ROADMAP.md), and [v2/MIGRATION.md](v2/MIGRATION.md).
 
 ## Quick Start: Generate A Local Service
 
@@ -323,10 +325,10 @@ needs process or readiness probes beyond the default OK response.
 
 If you are modifying the framework itself rather than using it:
 
-- Start with [MAINTAINER_GUIDE.md](MAINTAINER_GUIDE.md).
-- Use [DOCS_INDEX.md](DOCS_INDEX.md) for the documentation map.
-- Read [PROJECT_SNAPSHOT.md](PROJECT_SNAPSHOT.md) for current status.
-- Use [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md) for validation commands.
+- Start with [v2/MAINTAINING.md](v2/MAINTAINING.md).
+- Use [v2/DOCS_INDEX.md](v2/DOCS_INDEX.md) for the current documentation map.
+- Read [v2/ROADMAP.md](v2/ROADMAP.md) for implementation status and scope.
+- Use [v2/RELEASE.md](v2/RELEASE.md) for release validation and tags.
 
 ## License
 

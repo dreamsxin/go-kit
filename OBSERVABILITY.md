@@ -11,7 +11,7 @@ Read this when:
 See also:
 - [endpoint/README.md](endpoint/README.md)
 - [transport/README.md](transport/README.md)
-- [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md)
+- [v2/MAINTAINING.md](v2/MAINTAINING.md)
 
 ## Layering Rule
 

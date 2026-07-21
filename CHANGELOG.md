@@ -45,7 +45,9 @@ This project has not reached v1.0. Until then, entries should clearly distinguis
 
 - **`MethodKindWebSocketSession`** from the microgen IR. WebSocket transport had no implementation — the constant and associated documentation references were dead code. The project focuses on MCP Streamable HTTP and gRPC as supported transports.
 - **`MethodKindEventSource`** from the microgen IR. Unused constant with no references in parsers, generators, or templates.
-- **WebSocket documentation references** cleaned across 14 files: `STABILITY.md` (removed fictitious `transport/ws` row), `README.md`, `README_zh.md`, `AI_FIRST_ROADMAP.md` (removed Phase 8), `REFACTOR_ROADMAP.md`, `RELEASE.md`, `MIGRATION.md`, `PROJECT_SNAPSHOT.md`, `PACKAGE_SURFACES.md`, `MICROGEN_COMPATIBILITY.md`.
+- **WebSocket documentation references** were cleaned across the legacy v1
+  documentation set. The completed root roadmap, workflow, snapshot, and AI
+  planning documents were later retired; current v2 guidance lives under `v2/`.
 - **Dead code**: commented-out `reimplementInterfaces` line in `transport/http/server/server.go`; `var _ = time.Second` hack and unused `"time"` import in `endpoint_generated_chain.tmpl`.
 - **Phantom `common/` directory** reference removed from `examples/README.md` learning path.
 

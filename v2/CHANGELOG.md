@@ -34,7 +34,7 @@ root.
 - Consul remote config loading now honors its timeout and response size limit
   without pulling a second Viper-based provider stack into generated projects.
 - The documented v2 release tag is the root `v2.0.0` tag required by Go module
-  resolution, not `v2/v2.0.0`.
+  resolution; the historical incorrect `v2/v2.0.0` tag was removed.
 
 ### Removed
 
