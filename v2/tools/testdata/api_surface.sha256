@@ -2,7 +2,7 @@ go-kit-v2 public API
 932f7bfb130e2f45939ac7444cf81b707e5f0361c0cec3e5c3577e807f595aa0  github.com/dreamsxin/go-kit/v2/endpoint
 2a482e1ea19438cae479dc8b0422faf26a5479af924de0c06456a657dff4d433  github.com/dreamsxin/go-kit/v2/endpoint/circuitbreaker
 7e8aa7783c9e1d16244ba68be02e81fe49abd4dbf881c8ec8e466022580f487e  github.com/dreamsxin/go-kit/v2/endpoint/ratelimit
-e2cf9ae1876ea52d244b6a28602fc4fd5d8f51a4689b3f1a4a774180b3ba5884  github.com/dreamsxin/go-kit/v2/interaction
+59b1611be66e7505ea18ce1a2fc00ab7d99e60fe1d8644e8bf44de1ad636adeb  github.com/dreamsxin/go-kit/v2/interaction
 5789e02728b58f8af8254c145e5d81c7fd0b306fa5443e99bf951865f3f1ac2e  github.com/dreamsxin/go-kit/v2/interaction/mcp
 b015bca87ee0c9f0334866212ce46954f79222d5e7740d5dd63785062b5a3f38  github.com/dreamsxin/go-kit/v2/kit
 34e7d9e4ae90e6ff5e60a9325609457cb5027bbf52a92fc60522f4171a8ed607  github.com/dreamsxin/go-kit/v2/log
@@ -21,7 +21,7 @@ eb023110223e31eeb1a1d91e96f20c307157dfbd6759ad96eb56971b7483a4b5  github.com/dre
 0af47a23126c6f92fe2ac1f7d1d3d19fd1f50c76811245a3d016355886e0b143  github.com/dreamsxin/go-kit/v2/transport/grpc/client
 ded081e2ea4152fcfec99ea4efd5513184d440c69711a0b32c16240e167d754e  github.com/dreamsxin/go-kit/v2/transport/grpc/server
 989c297558dcad71e978aed543173ef09fd76ac871916231ccb11f6cc5fab3e7  github.com/dreamsxin/go-kit/v2/transport/http
-0166fe1d5166f26384c22df2b2c874adc6fae8880bc73ebeeb90025ed24b1c9d  github.com/dreamsxin/go-kit/v2/transport/http/client
+938f20cb2a1192a03376fd12141483634f5e9167c7c67cd0f3afb7269bcac815  github.com/dreamsxin/go-kit/v2/transport/http/client
 ae0d37adf8257622e1e20d96360a00e0429a0f773f1e0e4a34679e27fa1cb0fa  github.com/dreamsxin/go-kit/v2/transport/http/interfaces
 9a10f99d97b063d3ff005ea68c576c9dc1c6969cea423fa526a2c73122a8491b  github.com/dreamsxin/go-kit/v2/transport/http/server
 5707d95a3373d94bfc9acca66c2372bdbef83d8d92dce80662ddc51192f7c78f  github.com/dreamsxin/go-kit/v2/utils

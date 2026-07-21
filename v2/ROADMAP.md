@@ -25,6 +25,8 @@ durable product milestones, not session notes or release history.
 - One normalized IR driving routes, Go clients, Go SDKs, OpenAPI 3.1, JSON
   Schema 2020-12, TypeScript Fetch clients, and optional MCP tools.
 - Incremental service/model/middleware extension with user-file preservation.
+- Minimal opt-in generator defaults, strict IDL validation, bounded client
+  responses, and transport-owned interaction session cleanup.
 
 ## Milestone 1 (Complete): Generated Project Identity / 生成项目身份
 
@@ -93,14 +95,20 @@ Completed: common HTTP hardening can be enabled explicitly with standard
   semantics; HTTP/gRPC metadata and streaming resource ownership; cancellable
   Consul blocking queries; and streaming-safe `kit` defaults.
 - Generator closure now includes bounded SDK response reads, URL resolution,
-  repository ordering whitelists, effective retry/logging wiring, safe low-rate
-  limiter bursts, explicit server-error shutdown, and streaming-safe generated
-  HTTP defaults.
+  repository ordering whitelists, effective logging/timeout wiring, opt-in
+  inbound middleware, safe low-rate limiter bursts, pre-bound server listeners,
+  database resource closure, and streaming-safe generated HTTP defaults.
+- Full regeneration protects user-owned service, assembly, config, and README
+  files while manifests enumerate all generator-owned endpoint and transport
+  artifacts.
+- MCP transport sessions own and release one runtime session; generic JSON
+  clients bound successful response bodies; invalid Go IDL fails generation.
 
 Completed: the v2.0.0 compatibility contract and release notes are frozen. The
-final release commit must pass every release gate before the source tag
-`v2/v2.0.0` is created. Remote publication is an operational release action,
-not an implementation milestone.
+final release commit must pass every release gate before the immutable root tag
+`v2.0.0` is created. The existing `v2/v2.0.0` tag is not a valid module version
+for a `v2` subdirectory module. Remote publication and public module resolution are
+operational release actions, not implementation milestones.
 
 ## Maintenance Rules / 维护规则
 

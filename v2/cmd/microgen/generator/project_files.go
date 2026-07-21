@@ -27,7 +27,7 @@ func (g *Generator) generateMainFileFull(ctx generationContext) error {
 		WithOpenAPI:     g.config.WithOpenAPI,
 		WithInteraction: g.config.WithInteraction,
 	}
-	return g.executeTemplate("main.tmpl", g.layout.cmdMain(), data)
+	return g.executeTemplateIfAbsent("main.tmpl", g.layout.cmdMain(), data)
 }
 
 func (g *Generator) generateGeneratedRuntimeFile(ctx generationContext) error {
@@ -95,7 +95,7 @@ func (g *Generator) generateConfigFile(services []*serviceView) error {
 		RemoteEnabledDefault:  g.config.ConfigMode == "hybrid" || g.config.ConfigMode == "remote",
 		RemoteFallbackDefault: g.config.ConfigMode != "remote",
 	}
-	return g.executeTemplate("config.tmpl", g.layout.configYAML(), data)
+	return g.executeTemplateIfAbsent("config.tmpl", g.layout.configYAML(), data)
 }
 
 func (g *Generator) generateConfigCodeFile(services []*serviceView) error {
@@ -141,7 +141,7 @@ func (g *Generator) generateReadme(ctx generationContext) error {
 		ConfigMode:      g.config.ConfigMode,
 		RemoteProvider:  g.config.RemoteProvider,
 	}
-	return g.executeTemplate("readme.tmpl", g.layout.readme(), data)
+	return g.executeTemplateIfAbsent("readme.tmpl", g.layout.readme(), data)
 }
 
 func (g *Generator) generateInteractionFile(ctx generationContext) error {

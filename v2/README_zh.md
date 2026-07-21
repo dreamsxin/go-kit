@@ -82,10 +82,7 @@ microgen \
   -idl idl.go \
   -out hello-svc \
   -import example.com/hello-svc \
-  -openapi \
-  -config=false \
-  -model=false \
-  -db=false
+  -protocols http
 
 cd hello-svc
 go mod tidy
@@ -97,10 +94,10 @@ go run ./cmd
 ```bash
 cat .microgen/manifest.json
 curl http://localhost:8080/health
-curl http://localhost:8080/debug/routes
-curl http://localhost:8080/openapi.json
-curl http://localhost:8080/schema.json
 ```
+
+需要 `openapi.json`、`schema.json` 和内嵌 Swagger UI 时显式增加 `-openapi`。
+`/debug/routes` 仅在配置模式中设置 `debug.routes_enabled: true` 后提供。
 
 启用 `-openapi` 后，`microgen` 会从路由、客户端、SDK 和可选 MCP tool 共用的统一
 IR 直接生成 OpenAPI 3.1，并在 `docs/schema.json` 和 `GET /schema.json`

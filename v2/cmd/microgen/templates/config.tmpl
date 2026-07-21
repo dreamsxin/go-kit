@@ -31,16 +31,13 @@ middleware:
     failure_threshold: 5
     timeout: "60s"
   rate_limit:
-    enabled: true
-    requests_per_second: 100
-  retry:
     enabled: false
-    max_attempts: 3
-    backoff: "2s"
+    requests_per_second: 100
+  timeout: "30s"
 
 debug:
-  routes_enabled: true
-  print_routes: true
+  routes_enabled: false
+  print_routes: false
 
 remote:
   enabled: {{if .RemoteEnabledDefault}}true{{else}}false{{end}}

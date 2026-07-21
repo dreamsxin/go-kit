@@ -25,10 +25,14 @@
     "cmd/generated_routes.go",
     "cmd/generated_runtime.go",
     "cmd/generated_services.go",
+    "endpoint/orderservice/endpoints.go",
     "endpoint/orderservice/generated_chain.go",
+    "endpoint/userservice/endpoints.go",
     "endpoint/userservice/generated_chain.go",
     "idl.go",
     "sdk/orderservicesdk/client.go",
-    "sdk/userservicesdk/client.go"
+    "sdk/userservicesdk/client.go",
+    "transport/orderservice/transport_http.go",
+    "transport/userservice/transport_http.go"
   ]
 }

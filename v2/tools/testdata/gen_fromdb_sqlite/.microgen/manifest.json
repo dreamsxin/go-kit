@@ -28,6 +28,7 @@
     "docs/docs.go",
     "docs/openapi.json",
     "docs/schema.json",
+    "endpoint/catalogservice/endpoints.go",
     "endpoint/catalogservice/generated_chain.go",
     "idl.go",
     "model/generated_user.go",
@@ -37,6 +38,7 @@
     "sdk/typescript/README.md",
     "sdk/typescript/client.ts",
     "sdk/typescript/tsconfig.json",
-    "service/catalogservice/generated_repos.go"
+    "service/catalogservice/generated_repos.go",
+    "transport/catalogservice/transport_http.go"
   ]
 }

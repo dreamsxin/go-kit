@@ -60,7 +60,8 @@ Generator-owned (do not hand-edit; use `microgen extend`):
 - `GET /swagger/` — embedded Swagger UI 5 backed by the generated contract
 - `sdk/typescript/client.ts` — generated Fetch-based unary HTTP client
 {{- end }}
-- `GET /debug/routes` — runtime route inspection
+{{- if .WithConfig }}- `GET /debug/routes` — runtime route inspection when `debug.routes_enabled` is true
+{{- end }}
 - `GET /health` — health check
 
 ## Common Modifications

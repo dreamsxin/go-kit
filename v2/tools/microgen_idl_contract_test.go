@@ -225,7 +225,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 			t.Fatalf("GET /custom/ping: want status %d, got %d", http.StatusNoContent, resp.StatusCode)
 		}
 
-		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusOK, "/custom/ping")
+		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusNotFound, "404 page not found")
 	})
 
 }

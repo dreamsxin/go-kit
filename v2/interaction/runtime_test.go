@@ -267,6 +267,27 @@ func TestRuntime_EndSession(t *testing.T) {
 	}
 }
 
+func TestRuntime_ReleaseSessionDeletesMemoryRecord(t *testing.T) {
+	rt := NewRuntime()
+	session, err := rt.StartSession(context.Background(), "subject", nil)
+	if err != nil {
+		t.Fatalf("StartSession: %v", err)
+	}
+	if err := rt.ReleaseSession(context.Background(), session.ID); err != nil {
+		t.Fatalf("ReleaseSession: %v", err)
+	}
+	if _, err := rt.Sessions.Get(context.Background(), session.ID); !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("Get after ReleaseSession = %v, want ErrSessionNotFound", err)
+	}
+	events, err := rt.Events.List(context.Background(), session.ID)
+	if err != nil {
+		t.Fatalf("List events: %v", err)
+	}
+	if len(events) != 2 || events[1].Type != EventSessionEnded {
+		t.Fatalf("events = %#v, want start and end", events)
+	}
+}
+
 func TestRuntime_StartSession_CancelledContext(t *testing.T) {
 	rt := NewRuntime()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -757,8 +778,8 @@ func (m *mockPromptProvider) GetPrompt(_ context.Context, _ string, _ map[string
 // minimalRegistry implements ToolRegistry but NOT ToolLister.
 type minimalRegistry struct{}
 
-func (m *minimalRegistry) Register(_ Tool) error                          { return nil }
-func (m *minimalRegistry) Get(_ string) (Tool, bool)                      { return nil, false }
+func (m *minimalRegistry) Register(_ Tool) error     { return nil }
+func (m *minimalRegistry) Get(_ string) (Tool, bool) { return nil, false }
 func (m *minimalRegistry) Call(_ context.Context, _ ToolCall) (ToolResult, error) {
 	return ToolResult{}, ErrToolNotFound
 }

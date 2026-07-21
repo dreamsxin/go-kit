@@ -2,24 +2,19 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
-	"os"
+
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	"google.golang.org/grpc"
-	"net"
-
-	"example.com/gen_proto_component_flow/config"
 )
 
 func printBanner(logger *kitlog.Logger, httpAddr string, grpcAddr string, withOpenAPI bool) {
@@ -42,56 +37,17 @@ func printAllRoutes(logger *kitlog.Logger, routes []generatedRouteEntry) {
 	}
 }
 
-func newConfiguredLogger(cfg config.LoggingConfig) (*kitlog.Logger, error) {
-	encoding := strings.ToLower(strings.TrimSpace(cfg.Format))
-	if encoding == "" {
-		encoding = "json"
-	}
-	if encoding != "json" && encoding != "console" {
-		return nil, fmt.Errorf("unsupported logging format %q", cfg.Format)
-	}
-
-	levelText := strings.ToLower(strings.TrimSpace(cfg.Level))
-	if levelText == "" {
-		levelText = "info"
-	}
-	var level zapcore.Level
-	if err := level.UnmarshalText([]byte(levelText)); err != nil {
-		return nil, fmt.Errorf("unsupported logging level %q: %w", cfg.Level, err)
-	}
-
-	zapConfig := zap.NewProductionConfig()
-	if encoding == "console" {
-		zapConfig = zap.NewDevelopmentConfig()
-	}
-	zapConfig.Encoding = encoding
-	zapConfig.Level = zap.NewAtomicLevelAt(level)
-	return zapConfig.Build()
-}
-
 func main() {
-	configPath := flag.String("config", "config/config.yaml", "path to config file")
-	flag.CommandLine.Parse(filterArgs(os.Args[1:], "-config"))
-
-	cfg, err := config.Load(*configPath)
-	if err != nil {
-		panic("FATAL: load config: " + err.Error())
-	}
-
 	var (
-		httpAddr = flag.String("http.addr", cfg.Server.HTTPAddr, "HTTP listen address")
-		grpcAddr = flag.String("grpc.addr", cfg.Server.GRPCAddr, "gRPC listen address")
+		httpAddr = flag.String("http.addr", ":8080", "HTTP listen address")
+		grpcAddr = flag.String("grpc.addr", ":8081", "gRPC listen address")
 	)
 	flag.Parse()
 
-	logger, err := newConfiguredLogger(cfg.Logging)
-	if err != nil {
-		panic("FATAL: create logger: " + err.Error())
-	}
+	logger, _ := kitlog.NewDevelopment()
 	defer logger.Sync() //nolint:errcheck
-	logger.Sugar().Infof("Config loaded from: %s", *configPath)
 
-	generated := initGeneratedServices(logger, cfg)
+	generated := initGeneratedServices(logger)
 	runtime := generated.generatedRuntime()
 
 	r := http.NewServeMux()
@@ -104,19 +60,7 @@ func main() {
 	r.HandleFunc("HEAD /health", healthHandler)
 
 	runtime.registerRoutes(r)
-	customRoutes := registerCustomRoutes(r)
-
-	if cfg.Debug.RoutesEnabled {
-		r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
-			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, false))
-		})
-	}
-
-	allRoutes := generatedRouteEntries(runtime, customRoutes, false)
-	if cfg.Debug.PrintRoutes {
-		printAllRoutes(logger, allRoutes)
-	}
+	registerCustomRoutes(r)
 
 	httpServer := &http.Server{
 		Addr: *httpAddr,
@@ -125,49 +69,51 @@ func main() {
 			r.ServeHTTP(w, req)
 			logger.Sugar().Infof("[HTTP] %s %s %v", req.Method, req.URL.Path, time.Since(start))
 		}),
-		ReadTimeout:       cfg.Server.ReadTimeout,
-		ReadHeaderTimeout: cfg.Server.ReadHeaderTimeout,
-		WriteTimeout:      cfg.Server.WriteTimeout,
+		ReadTimeout:       15 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      0,
 		IdleTimeout:       60 * time.Second,
 	}
 	serverErr := make(chan error, 2)
-
-	go func() {
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			serverErr <- fmt.Errorf("HTTP server: %w", err)
-		}
-	}()
+	httpListener, err := net.Listen("tcp", *httpAddr)
+	if err != nil {
+		logger.Sugar().Fatalf("FATAL: HTTP listen: %v", err)
+	}
+	defer httpListener.Close() //nolint:errcheck
 
 	lis, err := net.Listen("tcp", *grpcAddr)
 	if err != nil {
 		logger.Sugar().Fatalf("FATAL: gRPC listen: %v", err)
 	}
+	defer lis.Close() //nolint:errcheck
 	grpcServer := grpc.NewServer()
 	runtime.registerGRPCServices(grpcServer)
+
 	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
+		if err := httpServer.Serve(httpListener); err != nil && err != http.ErrServerClosed {
+			serverErr <- fmt.Errorf("HTTP server: %w", err)
+		}
+	}()
+
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil && err != grpc.ErrServerStopped {
 			serverErr <- fmt.Errorf("gRPC server: %w", err)
 		}
 	}()
 
 	printBanner(logger, *httpAddr, *grpcAddr, false)
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	runContext, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignals()
 	select {
-	case sig := <-quit:
-		logger.Sugar().Infof("Received signal: %s", sig)
+	case <-runContext.Done():
+		logger.Sugar().Info("Received shutdown signal")
 	case err := <-serverErr:
 		logger.Sugar().Errorf("Server stopped unexpectedly: %v", err)
 	}
-	signal.Stop(quit)
 	logger.Sugar().Info("Shutting down...")
 
-	shutdownTimeout := cfg.Server.GracefulShutdownTimeout
-	if shutdownTimeout <= 0 {
-		shutdownTimeout = 30 * time.Second
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := httpServer.Shutdown(ctx); err != nil {
@@ -186,23 +132,4 @@ func main() {
 		logger.Sugar().Infof("gRPC graceful stop timed out: %v", ctx.Err())
 	}
 	logger.Sugar().Info("Server exited cleanly")
-}
-
-func filterArgs(args []string, name string) []string {
-	var out []string
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if arg == name || arg == "-"+strings.TrimPrefix(name, "-") {
-			out = append(out, arg)
-			if i+1 < len(args) {
-				out = append(out, args[i+1])
-				i++
-			}
-			continue
-		}
-		if strings.HasPrefix(arg, name+"=") || strings.HasPrefix(arg, "-"+strings.TrimPrefix(name, "-")+"=") {
-			out = append(out, arg)
-		}
-	}
-	return out
 }

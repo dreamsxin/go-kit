@@ -3,15 +3,14 @@
   "modulePath": "example.com/gen_proto_component_flow",
   "source": "proto",
   "capabilities": {
-    "config": true,
+    "config": false,
     "docs": true,
     "tests": false,
     "model": false,
     "grpc": true,
     "database": false,
     "openapi": false,
-    "interaction": false,
-    "configMode": "file"
+    "interaction": false
   },
   "services": [
     "UserService"
@@ -24,13 +23,11 @@
     "cmd/generated_routes.go",
     "cmd/generated_runtime.go",
     "cmd/generated_services.go",
-    "config/config.go",
-    "config/env.go",
-    "config/loader.go",
-    "config/local.go",
-    "config/remote.go",
+    "endpoint/userservice/endpoints.go",
     "endpoint/userservice/generated_chain.go",
     "pb/userservice/userservice.proto",
-    "sdk/userservicesdk/client.go"
+    "sdk/userservicesdk/client.go",
+    "transport/userservice/transport_grpc.go",
+    "transport/userservice/transport_http.go"
   ]
 }

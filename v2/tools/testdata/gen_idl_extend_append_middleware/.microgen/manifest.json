@@ -27,8 +27,10 @@
     "cmd/generated_routes.go",
     "cmd/generated_runtime.go",
     "cmd/generated_services.go",
+    "endpoint/userservice/endpoints.go",
     "endpoint/userservice/generated_chain.go",
     "idl.go",
-    "sdk/userservicesdk/client.go"
+    "sdk/userservicesdk/client.go",
+    "transport/userservice/transport_http.go"
   ]
 }

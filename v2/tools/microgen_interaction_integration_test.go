@@ -71,7 +71,7 @@ func TestMicrogenInteractionIntegration(t *testing.T) {
 
 	// Smoke tests for discovery endpoints
 	smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
-	expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusOK, "/mcp")
+	expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusNotFound, "404 page not found")
 
 	// MCP initialize — StreamableHandler issues a Mcp-Session-Id header that
 	// must be used for all subsequent requests on the same session.

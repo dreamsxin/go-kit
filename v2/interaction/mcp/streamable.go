@@ -144,9 +144,16 @@ func (h *StreamableHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 			writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32603, "internal error", err.Error())})
 			return
 		}
+		runtimeSession, err := h.core.Runtime.StartSession(r.Context(), "mcp:"+sess.ID, nil)
+		if err != nil {
+			h.store.remove(sess.ID)
+			writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32603, "internal error", err.Error())})
+			return
+		}
 		h.Sampler.RegisterSession(sess.ID)
 
 		sess.mu.Lock()
+		sess.runtimeID = string(runtimeSession.ID)
 		sess.clientCaps = initParams.Capabilities
 		sess.protocol = initParams.ProtocolVersion
 		sess.mu.Unlock()
@@ -271,8 +278,19 @@ func (h *StreamableHandler) handleDelete(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	h.Sampler.UnregisterSession(sessionID)
-	h.store.remove(sessionID)
+	h.releaseRuntimeSession(r.Context(), h.store.remove(sessionID))
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func (h *StreamableHandler) releaseRuntimeSession(ctx context.Context, sess *sseSession) {
+	if sess == nil {
+		return
+	}
+	runtimeID := sess.runtimeSessionID()
+	if runtimeID == "" {
+		return
+	}
+	_ = h.core.Runtime.ReleaseSession(ctx, interaction.SessionID(runtimeID))
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -393,7 +411,7 @@ func (h *StreamableHandler) StartCleanup() {
 			case <-ticker.C:
 				for _, id := range h.store.expiredIDs(h.SessionTTL) {
 					h.Sampler.UnregisterSession(id)
-					h.store.remove(id)
+					h.releaseRuntimeSession(context.Background(), h.store.remove(id))
 				}
 			}
 		}

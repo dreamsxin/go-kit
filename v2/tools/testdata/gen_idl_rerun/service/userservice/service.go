@@ -59,20 +59,15 @@ var defaultConfig = &ServiceConfig{
 	EnableLogging: true,
 }
 
-// NewService creates a service without repository dependencies.
+// NewService creates a service instance.
 func NewService(cfg *ServiceConfig) UserService {
-	return NewServiceWithRepo(cfg, GeneratedRepos{})
-}
-
-// NewServiceWithRepo creates a service with repository dependencies.
-func NewServiceWithRepo(cfg *ServiceConfig, repos GeneratedRepos) UserService {
 	if cfg == nil {
 		cfg = defaultConfig
 	}
-	return newServiceImpl(cfg, repos)
+	return newServiceImpl(cfg)
 }
 
-func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) UserService {
+func newServiceImpl(cfg *ServiceConfig) UserService {
 	logger := cfg.Logger
 	if logger == nil {
 		logger = kitlog.NewNopLogger()
@@ -80,7 +75,6 @@ func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) UserService {
 	var svc UserService = &serviceImpl{
 		config: cfg,
 		logger: logger,
-		repos:  repos,
 	}
 
 	if cfg.EnableLogging {
@@ -92,7 +86,6 @@ func newServiceImpl(cfg *ServiceConfig, repos GeneratedRepos) UserService {
 type serviceImpl struct {
 	config *ServiceConfig
 	logger *kitlog.Logger
-	repos  GeneratedRepos
 }
 
 func (s *serviceImpl) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {

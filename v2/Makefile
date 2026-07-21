@@ -1,14 +1,13 @@
 .PHONY: all build test lint clean help \
         install-microgen \
         gen gen-http gen-grpc gen-full gen-from-db \
-        run-demo swag-demo \
+        run-demo \
         proto \
-        swag \
         coverage \
         deps tools \
         test-runtime test-microgen test-contracts test-docs test-examples \
         test-observability test-security test-api test-race test-vet test-modules \
-        release-check-clean verify verify-release
+        release-check-clean verify-published verify verify-release
 
 # Default variables, overridable from the command line.
 IDL         ?= ./examples/usersvc/idl.go
@@ -20,6 +19,7 @@ DB_NAME     ?=
 SERVICE     ?= AppService
 HTTP_PORT   ?= :8080
 PROTO_DIR   ?= $(OUT)/pb
+VERSION     ?= v2.0.0
 
 MICROGEN    := $(shell go env GOPATH)/bin/microgen
 
@@ -92,6 +92,10 @@ release-check-clean:
 	@echo ">>> Verifying the v2 release scope is clean..."
 	@go run ./tools/releasecheck
 
+verify-published:
+	@echo ">>> Verifying the published Go module..."
+	@go run ./tools/releasecheck -published-version $(VERSION)
+
 verify: build test-runtime test-microgen test-docs test-examples test-observability test-security
 	@echo ">>> Verification pass completed."
 
@@ -104,7 +108,7 @@ install-microgen:
 	@go install ./cmd/microgen
 	@echo "    Done: $(MICROGEN)"
 
-## gen: generate HTTP service with model/repository/swag
+## gen: generate HTTP service with model/repository/OpenAPI
 gen: install-microgen
 	@echo ">>> Generating HTTP service from $(IDL) -> $(OUT)"
 	@$(MICROGEN) \
@@ -112,6 +116,7 @@ gen: install-microgen
 		-out    $(OUT) \
 		-import $(IMPORT) \
 		-protocols http \
+		-config \
 		-model \
 		-db \
 		-driver $(DB_DRIVER) \
@@ -129,7 +134,7 @@ gen-http: install-microgen
 		-import $(IMPORT) \
 		-protocols http
 
-## gen-grpc: generate HTTP + gRPC service with model/repository/swag
+## gen-grpc: generate HTTP + gRPC service with model/repository/OpenAPI
 gen-grpc: install-microgen
 	@echo ">>> Generating HTTP+gRPC service from $(IDL) -> $(OUT)"
 	@$(MICROGEN) \
@@ -137,6 +142,7 @@ gen-grpc: install-microgen
 		-out    $(OUT) \
 		-import $(IMPORT) \
 		-protocols http,grpc \
+		-config \
 		-model \
 		-db \
 		-driver $(DB_DRIVER) \
@@ -150,6 +156,7 @@ gen-full: install-microgen
 		-out      $(OUT) \
 		-import   $(IMPORT) \
 		-protocols http,grpc \
+		-config   \
 		-model \
 		-db \
 		-driver $(DB_DRIVER) \
@@ -167,6 +174,7 @@ gen-from-db: install-microgen
 		-service $(SERVICE) \
 		-out     $(OUT) \
 		-import  $(IMPORT) \
+		-config  \
 		-openapi
 	@echo ">>> Done. Next steps:"
 	@echo "    cd $(OUT) && go mod tidy"
@@ -177,16 +185,6 @@ run-demo:
 	@go run ./tools/makeguard dir-exists "$(OUT)" "output directory '$(OUT)' not found. Run 'make gen' first."
 	@echo ">>> Starting demo service on $(HTTP_PORT)..."
 	@cd $(OUT) && go run ./cmd -http.addr $(HTTP_PORT)
-
-## swag-demo: regenerate Swagger docs for the generated service in OUT
-swag-demo:
-	@go run ./tools/makeguard dir-exists "$(OUT)" "output directory '$(OUT)' not found. Run 'make gen' first."
-	@echo ">>> Running swag init for $(OUT)..."
-	@cd $(OUT) && swag init -g cmd/main.go -o docs
-	@echo ">>> Done. Start with: make run-demo"
-
-## swag: alias for swag-demo
-swag: swag-demo
 
 ## proto: generate protobuf Go files from PROTO_DIR
 proto:
@@ -224,7 +222,6 @@ deps:
 tools:
 	@echo ">>> Installing tools..."
 	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	@go install github.com/swaggo/swag/cmd/swag@latest
 	@go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 	@go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 	@echo ">>> All tools installed"
@@ -241,10 +238,10 @@ help:
 	@echo "go-kit / microgen"
 	@echo ""
 	@echo "Generation"
-	@echo "  make gen           Generate HTTP service + model + db + swag"
+	@echo "  make gen           Generate HTTP service + model + db + OpenAPI"
 	@echo "  make gen-http      Generate HTTP-only service"
 	@echo "  make gen-grpc      Generate HTTP + gRPC service"
-	@echo "  make gen-full      Generate HTTP + gRPC + model + db + swag + tests"
+	@echo "  make gen-full      Generate HTTP + gRPC + model + db + OpenAPI + tests"
 	@echo "  make gen-from-db   Generate service from an existing database"
 	@echo ""
 	@echo "Validation"
@@ -276,5 +273,4 @@ help:
 	@echo ""
 	@echo "Examples"
 	@echo "  make run-demo      Run generated demo service from OUT"
-	@echo "  make swag-demo     Regenerate Swagger docs for OUT"
 	@echo ""

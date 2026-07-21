@@ -2,16 +2,21 @@
 
 ## Current Position
 
-v2.0.0 is the first stable release of the independent module:
+v2.0.0 is the intended first stable release of the independent module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
 
-Its repository source tag is `v2/v2.0.0`, following the Go module convention for
-a major-version module stored in the `v2` subdirectory. Consumers continue to
-request module version `v2.0.0`. v1 release history remains in the repository
-root and is not duplicated here.
+The module is stored in the repository's `v2` major-version subdirectory, but
+consumers request the normal module version `v2.0.0`. The release tag must be
+`v2.0.0`; do not use `v2/v2.0.0` for this module. v1 release history remains in
+the repository root and is not duplicated here.
+
+The repository currently has the historical tag `v2/v2.0.0`. That tag does not
+publish `github.com/dreamsxin/go-kit/v2` under Go module version rules and must
+not be treated as a completed v2 release. Create the root `v2.0.0` tag only from
+the final commit that passes this document's release gates.
 
 ## Versioning
 
@@ -84,7 +89,7 @@ After all gates pass from that commit, create the annotated source tag from the
 repository root:
 
 ```bash
-git tag -a v2/v2.0.0 -m "go-kit v2.0.0"
+git tag -a v2.0.0 -m "go-kit v2.0.0"
 ```
 
 The equivalent focused Go commands are:
@@ -116,7 +121,9 @@ Also verify:
 - `git diff --check` passes;
 - documentation links resolve;
 - no temporary generated files remain;
-- the `v2/v2.0.0` tag points at the verified commit containing `v2/go.mod`.
+- the `v2.0.0` tag points at the verified commit containing `v2/go.mod`;
+- after pushing the tag, `make verify-published VERSION=v2.0.0` resolves the
+  module through `proxy.golang.org` without a local `replace`.
 
 Intentional exported API changes must be reviewed before refreshing the API
 snapshot:

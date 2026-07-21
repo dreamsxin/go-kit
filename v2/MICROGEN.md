@@ -62,7 +62,8 @@ microgen \
 
 Database introspection supports MySQL, PostgreSQL, and SQLite in the CLI. It is
 read-only against the source database. Generated models preserve discovered
-columns; startup migration is disabled by default.
+columns and are always emitted for `-from-db`; database runtime wiring remains
+opt-in through `-db`, and startup migration is disabled by default.
 
 ## Common Options
 
@@ -72,12 +73,12 @@ columns; startup migration is disabled by default.
 | `-import` | Generated Go module path |
 | `-protocols` | `http` or `http,grpc` |
 | `-prefix` | HTTP route prefix |
-| `-config` | Generate configuration support, default `true` |
+| `-config` | Generate configuration support, default `false` |
 | `-config-mode` | `file`, `hybrid`, or `remote` |
 | `-remote-provider` | Remote provider; currently `consul` |
-| `-db` | Generate database runtime wiring, default `true` |
+| `-db` | Generate database runtime wiring, default `false` |
 | `-driver` | Generated database driver |
-| `-model` | Generate model/repository output, default `true` |
+| `-model` | Generate model/repository output, default `false` |
 | `-docs` | Generate project documentation, default `true` |
 | `-tests` | Generate project tests |
 | `-interaction` | Generate interaction runtime and `/mcp` endpoint |
@@ -172,9 +173,7 @@ microgen \
   -idl idl.go \
   -out . \
   -import example.com/service \
-  -config=false \
-  -model=false \
-  -db=false
+  -protocols http
 ```
 
 HTTP and gRPC project with generated config and tests:
@@ -197,8 +196,7 @@ microgen \
   -idl idl.go \
   -out . \
   -import example.com/agent-service \
-  -interaction \
-  -db=false
+  -interaction
 ```
 
 MCP uses long-lived HTTP responses. Generated projects default to
@@ -240,12 +238,13 @@ Modes:
 Examples:
 
 ```bash
-microgen -idl idl.go -out . -import example.com/svc -config-mode=file
+microgen -idl idl.go -out . -import example.com/svc -config -config-mode=file
 
 microgen \
   -idl idl.go \
   -out . \
   -import example.com/svc \
+  -config \
   -config-mode=hybrid \
   -remote-provider=consul
 ```

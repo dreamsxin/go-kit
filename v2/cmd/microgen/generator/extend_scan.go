@@ -249,6 +249,8 @@ func classifyOwnership(root, rel string) FileOwnership {
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated endpoint middleware seam"}
 	case strings.HasPrefix(rel, "endpoint/") && strings.HasSuffix(rel, "/custom_chain.go"):
 		return FileOwnership{Path: rel, Tier: OwnershipUserProtected, Reason: "custom endpoint middleware seam is user-owned"}
+	case strings.HasPrefix(rel, "endpoint/") && strings.HasSuffix(rel, "/endpoints.go"):
+		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated endpoint contract output"}
 	case strings.HasPrefix(rel, "service/") && strings.HasSuffix(rel, "/generated_repos.go"):
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated service repository dependency seam"}
 	case strings.HasPrefix(rel, "service/"):
@@ -256,7 +258,7 @@ func classifyOwnership(root, rel string) FileOwnership {
 	case strings.HasPrefix(rel, "endpoint/"):
 		return FileOwnership{Path: rel, Tier: OwnershipUserProtected, Reason: "endpoint code is not a supported extend mutation point"}
 	case strings.HasPrefix(rel, "transport/"):
-		return FileOwnership{Path: rel, Tier: OwnershipUserProtected, Reason: "transport files may be customized and are protected in extend mode"}
+		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated protocol transport output"}
 	case strings.HasPrefix(rel, "model/"):
 		return FileOwnership{Path: rel, Tier: OwnershipUserProtected, Reason: "model customization files are treated as protected"}
 	case strings.HasPrefix(rel, "repository/"):

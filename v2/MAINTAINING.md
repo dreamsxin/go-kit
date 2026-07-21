@@ -148,10 +148,10 @@ relative and must resolve on a case-sensitive filesystem.
 4. Commit the final release candidate.
 5. Run `make verify-release` from that committed candidate.
 6. Run `make release-check-clean` from the same commit.
-7. Create the annotated subdirectory-module tag `v2/vX.Y.Z`. For v2.0.0, use
-   `git tag -a v2/v2.0.0 -m "go-kit v2.0.0"`.
+7. Create the annotated major-version tag `vX.Y.Z`. For v2.0.0, use
+   `git tag -a v2.0.0 -m "go-kit v2.0.0"`.
 
-Consumers install the module with version `vX.Y.Z`; the `v2/` prefix exists only
-on the repository tag because `go.mod` is stored in the `v2` subdirectory.
+Consumers install the module with version `vX.Y.Z`. The `v2` directory is the
+major-version module source directory, not a tag prefix.
 
 See [RELEASE.md](RELEASE.md) for the compatibility policy.

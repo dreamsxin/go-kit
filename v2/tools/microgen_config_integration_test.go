@@ -30,6 +30,7 @@ func TestMicrogenConfigIntegration(t *testing.T) {
 			"-idl", idlFile,
 			"-out", outDir,
 			"-import", "example.com/gen_idl_remote_config",
+			"-config",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("microgen remote-config fixture failed: %v\n%s", err, out)
@@ -137,6 +138,7 @@ func TestMicrogenConfigIntegration(t *testing.T) {
 			"-idl", idlFile,
 			"-out", outDir,
 			"-import", "example.com/gen_idl_remote_config_strict",
+			"-config",
 			"-config-mode", "remote",
 			"-remote-provider", "consul",
 		)

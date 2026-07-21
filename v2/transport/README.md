@@ -139,12 +139,15 @@ Recommended entry points:
 
 - `client.NewClient`
 - `client.NewJSONClient`
+- `client.NewJSONClientWithMaxResponseBodyBytes`
 - `client.NewJSONClientWithTimeout`
 - `client.EncodeJSONRequest`
 
 `NewJSONClient` encodes GET/HEAD requests as path/query parameters and keeps the
-request body empty. `NewJSONClientWithTimeout` adds a context timeout; use
-`sd.NewEndpoint` with an explicit retry classifier when retries are required.
+request body empty. Successful JSON responses are capped at 4 MiB by default;
+use `NewJSONClientWithMaxResponseBodyBytes` for an intentional larger contract.
+`NewJSONClientWithTimeout` adds a context timeout; use `sd.NewEndpoint` with an
+explicit retry classifier when retries are required.
 
 Primary extension points:
 

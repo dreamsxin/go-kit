@@ -3,8 +3,10 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,6 +16,26 @@ import (
 )
 
 const maxStatusErrorBody = 64 << 10
+
+// DefaultMaxJSONResponseBytes bounds successful JSON responses decoded by
+// NewJSONClient. Callers with a larger, intentional contract can use
+// NewJSONClientWithMaxResponseBodyBytes.
+const DefaultMaxJSONResponseBytes int64 = 4 << 20
+
+// ErrResponseBodyTooLarge indicates that a successful response exceeded the
+// configured JSON response limit.
+var ErrResponseBodyTooLarge = errors.New("http client: response body too large")
+
+// ResponseBodyTooLargeError reports the configured response body limit.
+type ResponseBodyTooLargeError struct {
+	Limit int64
+}
+
+func (e *ResponseBodyTooLargeError) Error() string {
+	return fmt.Sprintf("%v (limit %d bytes)", ErrResponseBodyTooLarge, e.Limit)
+}
+
+func (e *ResponseBodyTooLargeError) Unwrap() error { return ErrResponseBodyTooLarge }
 
 // HTTPStatusError reports a non-2xx response returned by NewJSONClient.
 type HTTPStatusError struct {
@@ -61,6 +83,15 @@ func (e *HTTPStatusError) Retryable() bool {
 //	resp, err := ep(ctx, CreateReq{Name: "alice"})
 //	user := resp.(CreateResp)
 func NewJSONClient[Resp any](method, rawURL string, options ...ClientOption) (endpoint.Endpoint, error) {
+	return NewJSONClientWithMaxResponseBodyBytes[Resp](method, rawURL, DefaultMaxJSONResponseBytes, options...)
+}
+
+// NewJSONClientWithMaxResponseBodyBytes creates a JSON client with an
+// explicit successful response body limit.
+func NewJSONClientWithMaxResponseBodyBytes[Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (endpoint.Endpoint, error) {
+	if maxResponseBodyBytes <= 0 || maxResponseBodyBytes == math.MaxInt64 {
+		return nil, fmt.Errorf("NewJSONClient: max response body bytes must be between 1 and %d", int64(math.MaxInt64-1))
+	}
 	tgt, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("NewJSONClient: invalid URL %q: %w", rawURL, err)
@@ -69,8 +100,15 @@ func NewJSONClient[Resp any](method, rawURL string, options ...ClientOption) (en
 		if r.StatusCode < http.StatusOK || r.StatusCode >= http.StatusMultipleChoices {
 			return nil, newHTTPStatusError(r)
 		}
+		body, err := io.ReadAll(io.LimitReader(r.Body, maxResponseBodyBytes+1))
+		if err != nil {
+			return nil, err
+		}
+		if int64(len(body)) > maxResponseBodyBytes {
+			return nil, &ResponseBodyTooLargeError{Limit: maxResponseBodyBytes}
+		}
 		var resp Resp
-		if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
+		if err := json.Unmarshal(body, &resp); err != nil {
 			return nil, err
 		}
 		return resp, nil

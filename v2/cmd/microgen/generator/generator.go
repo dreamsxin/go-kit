@@ -121,6 +121,15 @@ func (g *Generator) executeTemplate(templateName, filePath string, data any) err
 	return nil
 }
 
+func (g *Generator) executeTemplateIfAbsent(templateName, filePath string, data any) error {
+	if _, err := os.Stat(filePath); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("inspect protected file %s: %w", filePath, err)
+	}
+	return g.executeTemplate(templateName, filePath, data)
+}
+
 func normalizeGeneratedText(content []byte) []byte {
 	text := strings.ReplaceAll(string(content), "\r\n", "\n")
 	lines := strings.Split(text, "\n")

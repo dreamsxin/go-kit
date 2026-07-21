@@ -14,6 +14,7 @@ import (
 // sseSession tracks one Streamable HTTP MCP session.
 type sseSession struct {
 	ID           string
+	runtimeID    string         // interaction.Runtime session bound to this MCP session
 	clientCaps   map[string]any // client capabilities from initialize
 	protocol     string
 	logLevel     string
@@ -114,7 +115,7 @@ func (ss *sessionStore) get(id string) (*sseSession, bool) {
 	return s, ok
 }
 
-func (ss *sessionStore) remove(id string) {
+func (ss *sessionStore) remove(id string) *sseSession {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 	if s, ok := ss.sessions[id]; ok {
@@ -128,7 +129,9 @@ func (ss *sessionStore) remove(id string) {
 		}
 		s.mu.Unlock()
 		delete(ss.sessions, id)
+		return s
 	}
+	return nil
 }
 
 // writeToGET sends a JSON-RPC message to one active GET SSE writer.
@@ -183,6 +186,12 @@ func (ss *sseSession) getLogLevel() string {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.logLevel
+}
+
+func (ss *sseSession) runtimeSessionID() string {
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+	return ss.runtimeID
 }
 
 // writeToPOST sends a JSON-RPC message to one active POST SSE writer, if any.

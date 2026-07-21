@@ -85,10 +85,7 @@ microgen \
   -idl idl.go \
   -out hello-svc \
   -import example.com/hello-svc \
-  -openapi \
-  -config=false \
-  -model=false \
-  -db=false
+  -protocols http
 
 cd hello-svc
 go mod tidy
@@ -100,10 +97,11 @@ Inspect the generated service:
 ```bash
 cat .microgen/manifest.json
 curl http://localhost:8080/health
-curl http://localhost:8080/debug/routes
-curl http://localhost:8080/openapi.json
-curl http://localhost:8080/schema.json
 ```
+
+Use `-openapi` when the project needs `openapi.json`, `schema.json`, and the
+embedded Swagger UI. `/debug/routes` is available only in config mode after
+enabling `debug.routes_enabled`.
 
 With `-openapi`, `microgen` emits OpenAPI 3.1 directly from the same normalized IR
 used by routes, clients, SDKs, and optional MCP tools. It also emits a standalone

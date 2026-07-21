@@ -2,7 +2,6 @@ package catalogservice
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	idl "example.com/gen_fromdb_sqlite"
@@ -26,9 +25,6 @@ type MiddlewareConfig struct {
 	CBTimeout          time.Duration
 	RLEnabled          bool
 	RLRps              float64
-	RetryEnabled       bool
-	RetryMaxAttempts   int
-	RetryBackoff       time.Duration
 	Timeout            time.Duration
 }
 
@@ -36,11 +32,8 @@ var DefaultMiddlewareConfig = MiddlewareConfig{
 	CBEnabled:          false,
 	CBFailureThreshold: 5,
 	CBTimeout:          60 * time.Second,
-	RLEnabled:          true,
+	RLEnabled:          false,
 	RLRps:              100,
-	RetryEnabled:       false,
-	RetryMaxAttempts:   3,
-	RetryBackoff:       2 * time.Second,
 	Timeout:            30 * time.Second,
 }
 
@@ -159,42 +152,4 @@ func (e CatalogServiceEndpoints) ListUsers(ctx context.Context, req idl.ListUser
 		return idl.ListUsersResponse{}, err
 	}
 	return resp.(idl.ListUsersResponse), nil
-}
-
-// RetryMiddleware retries only errors that explicitly implement
-// interface{ Retryable() bool } and return true. It is safe for server-side
-// endpoint chains because ordinary business errors are not retried.
-func RetryMiddleware(maxAttempts int, backoff time.Duration) endpoint.Middleware {
-	return func(next endpoint.Endpoint) endpoint.Endpoint {
-		return func(ctx context.Context, request any) (response any, err error) {
-			if maxAttempts <= 1 {
-				return next(ctx, request)
-			}
-			for i := 0; ; i++ {
-				response, err = next(ctx, request)
-				if err == nil || !retryableEndpointError(err) || i+1 >= maxAttempts {
-					return response, err
-				}
-				select {
-				case <-ctx.Done():
-					return nil, ctx.Err()
-				case <-time.After(backoff * time.Duration(i+1)):
-				}
-			}
-		}
-	}
-}
-
-func retryableEndpointError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return false
-	}
-	var retryable interface{ Retryable() bool }
-	if errors.As(err, &retryable) {
-		return retryable.Retryable()
-	}
-	return false
 }

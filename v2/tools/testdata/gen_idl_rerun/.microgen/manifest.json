@@ -3,23 +3,19 @@
   "modulePath": "example.com/gen_idl_rerun",
   "source": "go",
   "capabilities": {
-    "config": true,
+    "config": false,
     "docs": true,
     "tests": false,
-    "model": true,
+    "model": false,
     "grpc": false,
-    "database": true,
+    "database": false,
     "openapi": true,
-    "interaction": false,
-    "configMode": "file",
-    "databaseDriver": "mysql"
+    "interaction": false
   },
   "services": [
     "UserService"
   ],
-  "models": [
-    "User"
-  ],
+  "models": [],
   "generatedMiddlewares": [],
   "artifacts": [
     ".microgen/manifest.json",
@@ -27,23 +23,16 @@
     "cmd/generated_routes.go",
     "cmd/generated_runtime.go",
     "cmd/generated_services.go",
-    "config/config.go",
-    "config/env.go",
-    "config/loader.go",
-    "config/local.go",
-    "config/remote.go",
     "docs/docs.go",
     "docs/openapi.json",
     "docs/schema.json",
+    "endpoint/userservice/endpoints.go",
     "endpoint/userservice/generated_chain.go",
     "idl.go",
-    "model/generated_user.go",
-    "repository/generated_base.go",
-    "repository/generated_user_repository.go",
     "sdk/typescript/README.md",
     "sdk/typescript/client.ts",
     "sdk/typescript/tsconfig.json",
     "sdk/userservicesdk/client.go",
-    "service/userservice/generated_repos.go"
+    "transport/userservice/transport_http.go"
   ]
 }

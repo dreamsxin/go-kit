@@ -60,9 +60,6 @@ func generatedMiddlewareChain(logger *kitlog.Logger, cfg MiddlewareConfig, name 
 		lim := rate.NewLimiter(rate.Limit(cfg.RLRps), burst)
 		middlewares = append(middlewares, ratelimit.NewErroringLimiter(lim))
 	}
-	if cfg.RetryEnabled {
-		middlewares = append(middlewares, RetryMiddleware(cfg.RetryMaxAttempts, cfg.RetryBackoff))
-	}
 	return middlewares
 }
 

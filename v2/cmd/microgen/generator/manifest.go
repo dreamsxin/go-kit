@@ -140,7 +140,9 @@ func (g *Generator) manifestArtifacts(ctx generationContext) []string {
 	}
 	for _, service := range ctx.services {
 		paths = append(paths,
+			g.layout.endpointsFile(service.ServiceName),
 			g.layout.endpointGeneratedChainFile(service.ServiceName),
+			g.layout.httpTransportFile(service.ServiceName),
 			g.layout.clientDemoFile(service.ServiceName),
 			g.layout.sdkFile(service.ServiceName),
 		)
@@ -148,7 +150,10 @@ func (g *Generator) manifestArtifacts(ctx generationContext) []string {
 			paths = append(paths, g.layout.serviceGeneratedReposFile(service.ServiceName))
 		}
 		if g.config.WithGRPC {
-			paths = append(paths, g.layout.protoFile(service.ServiceName))
+			paths = append(paths,
+				g.layout.grpcTransportFile(service.ServiceName),
+				g.layout.protoFile(service.ServiceName),
+			)
 		}
 		if g.config.WithTests {
 			paths = append(paths, g.layout.serviceTestFile(service.ServiceName))

@@ -354,6 +354,53 @@ func TestGenerateFull_ServiceFile_Contents(t *testing.T) {
 	mustContain(t, servicePath, "LoggingMiddleware")
 }
 
+func TestGenerateProject_ProtectsUserOwnedFilesOnRerun(t *testing.T) {
+	outDir := newTmpDir(t)
+	project := parseIDLProject(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		DBDriver:   "sqlite",
+		WithConfig: true,
+		WithDocs:   true,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("initial GenerateIR: %v", err)
+	}
+
+	protected := map[string]string{
+		filepath.Join(outDir, "service", "userservice", "service.go"): "user service marker",
+		filepath.Join(outDir, "cmd", "main.go"):                       "user main marker",
+		filepath.Join(outDir, "config", "config.yaml"):                "user config marker",
+		filepath.Join(outDir, "README.md"):                            "user readme marker",
+	}
+	for path, content := range protected {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("write protected file %s: %v", path, err)
+		}
+	}
+
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("rerun GenerateIR: %v", err)
+	}
+	for path, want := range protected {
+		if got := readFile(t, path); got != want {
+			t.Errorf("protected file %s changed: got %q, want %q", path, got, want)
+		}
+	}
+
+	manifest := readFile(t, filepath.Join(outDir, ".microgen", "manifest.json"))
+	for _, artifact := range []string{
+		"endpoint/userservice/endpoints.go",
+		"transport/userservice/transport_http.go",
+	} {
+		if !strings.Contains(manifest, artifact) {
+			t.Errorf("manifest does not declare generated artifact %q", artifact)
+		}
+	}
+}
+
 func TestGenerateFull_EndpointsFile_Contents(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
@@ -373,9 +420,9 @@ func TestGenerateFull_EndpointsFile_Contents(t *testing.T) {
 	mustContain(t, epPath, "UserServiceEndpoints")
 	mustContain(t, epPath, "MakeServerEndpoints")
 	mustContain(t, epPath, "MakeCreateUserEndpoint")
-	mustContain(t, epPath, "RetryEnabled:       false")
-	mustContain(t, epPath, "RetryMiddleware")
-	mustContain(t, epPath, "retryableEndpointError")
+	mustContain(t, epPath, "RLEnabled:          false")
+	mustContain(t, epPath, "Timeout:            30 * time.Second")
+	mustNotContain(t, epPath, "RetryMiddleware")
 }
 
 func TestGenerateFull_TransportHTTP_Contents(t *testing.T) {
@@ -632,7 +679,9 @@ func TestGenerateFull_MainFile_HTTPOnly(t *testing.T) {
 
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	mustContain(t, mainPath, "http.addr")
-	mustContain(t, mainPath, "ListenAndServe")
+	mustContain(t, mainPath, `net.Listen("tcp", *httpAddr)`)
+	mustContain(t, mainPath, "httpServer.Serve(httpListener)")
+	mustNotContain(t, mainPath, `r.HandleFunc("GET /debug/routes"`)
 }
 
 func TestGenerateFull_MainFile_WithGRPC(t *testing.T) {
@@ -679,6 +728,7 @@ func TestGenerateFull_MainFile_WithDB(t *testing.T) {
 	mustContain(t, mainPath, "auto-migrate")
 	mustContain(t, mainPath, "DB migration skipped")
 	mustContain(t, mainPath, "redactDSN(*dsn)")
+	mustContain(t, mainPath, "defer sqlDB.Close()")
 	mustContain(t, mainPath, "func redactDSN(dsn string) string")
 	mustNotContain(t, mainPath, `dsn=%s]", "mysql", *dsn`)
 }
@@ -701,6 +751,7 @@ func TestGenerateFull_MainFile_WithConfigUsesLoggingConfig(t *testing.T) {
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	mustContain(t, mainPath, "newConfiguredLogger(cfg.Logging)")
 	mustContain(t, mainPath, "zap.NewProductionConfig()")
+	mustContain(t, mainPath, "if cfg.Debug.RoutesEnabled")
 }
 
 // ─────────────────────────── go.mod 生成 ─────────────────────────────────
@@ -728,7 +779,7 @@ func TestGenerateFull_GoMod_Created(t *testing.T) {
 	mustNotContain(t, goModPath, "replace github.com/dreamsxin/go-kit/v2")
 }
 
-func TestGenerateFull_GoMod_WithConfigIncludesViper(t *testing.T) {
+func TestGenerateFull_GoMod_WithConfigUsesYAMLWithoutRemoteProviderBundle(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -744,8 +795,8 @@ func TestGenerateFull_GoMod_WithConfigIncludesViper(t *testing.T) {
 	}
 
 	goModPath := filepath.Join(outDir, "go.mod")
-	mustContain(t, goModPath, "github.com/spf13/viper")
-	mustContain(t, goModPath, "github.com/spf13/viper/remote")
+	mustContain(t, goModPath, "gopkg.in/yaml.v3")
+	mustNotContain(t, goModPath, "github.com/spf13/viper")
 }
 
 func TestOptionsNormalize_DerivesDefaults(t *testing.T) {
@@ -928,9 +979,8 @@ func TestGenerateFull_ConfigYAML_HTTPOnly(t *testing.T) {
 	mustContain(t, configPath, `read_header_timeout: "5s"`)
 	mustContain(t, configPath, `write_timeout: "0s"`)
 	mustContain(t, configPath, "circuit_breaker")
-	mustContain(t, configPath, "retry:")
-	mustContain(t, configPath, "max_attempts: 3")
-	mustContain(t, configPath, "backoff: \"2s\"")
+	mustContain(t, configPath, "timeout: \"30s\"")
+	mustContain(t, configPath, "enabled: false")
 	mustContain(t, configPath, "remote:")
 	mustContain(t, configPath, "fallback_to_local: true")
 	mustContain(t, configPath, `provider: ""`)
@@ -1091,9 +1141,8 @@ func TestGenerateFull_ConfigCode_EnvOverrides(t *testing.T) {
 	mustContain(t, envPath, `readString("DB_DSN"`)
 	mustContain(t, envPath, `readBool("DB_AUTO_MIGRATE"`)
 	mustNotContain(t, envPath, `readString("SWAGGER_HOST"`)
-	mustContain(t, envPath, `readBool("RETRY_ENABLED"`)
-	mustContain(t, envPath, `readInt("RETRY_MAX_ATTEMPTS"`)
-	mustContain(t, envPath, `readDuration("RETRY_BACKOFF"`)
+	mustContain(t, envPath, `readDuration("MIDDLEWARE_TIMEOUT"`)
+	mustNotContain(t, envPath, `RETRY_ENABLED`)
 	mustContain(t, envPath, `readBool("DEBUG_ROUTES_ENABLED"`)
 	mustContain(t, envPath, `readBool("REMOTE_ENABLED"`)
 	mustContain(t, envPath, `readString("REMOTE_PROVIDER"`)
@@ -1127,13 +1176,13 @@ func TestGenerateFull_ConfigCode_RemoteConfigDefaults(t *testing.T) {
 	mustContain(t, codePath, "DataID          string")
 	mustContain(t, codePath, "FallbackToLocal bool")
 	mustContain(t, codePath, "Timeout:         5 * time.Second")
-	mustContain(t, remotePath, `"github.com/spf13/viper/remote"`)
-	mustContain(t, remotePath, `"github.com/spf13/viper"`)
+	mustNotContain(t, remotePath, `"github.com/spf13/viper`)
 	mustContain(t, remotePath, `case "consul":`)
 	mustContain(t, remotePath, "func loadRemoteFromConsul(cfg *Config) (*Config, error)")
-	mustContain(t, remotePath, `v.AddRemoteProvider("consul", endpoint, dataID)`)
-	mustContain(t, remotePath, "v.ReadRemoteConfig()")
-	mustContain(t, remotePath, "v.Unmarshal(&merged)")
+	mustContain(t, remotePath, `&http.Client{Timeout: cfg.Remote.Timeout}`)
+	mustContain(t, remotePath, "io.LimitReader(resp.Body, maxRemoteConfigBytes+1)")
+	mustContain(t, remotePath, "base64.StdEncoding.DecodeString")
+	mustContain(t, remotePath, "yaml.Unmarshal(payload, &merged)")
 }
 
 func TestGenerateFull_ConfigCode_WithGRPC(t *testing.T) {
@@ -1176,8 +1225,7 @@ func TestGenerateFull_ConfigCode_WithDB(t *testing.T) {
 	mustContain(t, codePath, "type DatabaseConfig struct")
 	mustContain(t, codePath, "AutoMigrate     bool")
 	mustContain(t, codePath, "AutoMigrate:     false")
-	mustContain(t, codePath, "Retry: RetryConfig")
-	mustContain(t, codePath, "MaxAttempts: 3")
+	mustContain(t, codePath, "Timeout: 30 * time.Second")
 	mustContain(t, codePath, `"mysql"`) // Default() 中包含 Driver: "mysql"。
 }
 
@@ -1279,7 +1327,7 @@ func TestGenerateFull_Readme_Contents(t *testing.T) {
 	mustContain(t, readmePath, "Read this README and inspect the source contract snapshot before editing.")
 	mustContain(t, readmePath, "Use `interaction` runtime hooks for executable AI sessions")
 	mustContain(t, readmePath, "Run the smallest relevant validation first, usually `go test ./...`")
-	mustContain(t, readmePath, "GET /debug/routes")
+	mustNotContain(t, readmePath, "GET /debug/routes")
 	mustNotContain(t, readmePath, "/skill")
 	mustNotContain(t, readmePath, "## Configuration")
 	mustNotContain(t, readmePath, "protoc --go_out=.")
@@ -1306,6 +1354,8 @@ func TestGenerateFull_Readme_ConfigDefaults(t *testing.T) {
 	mustContain(t, readmePath, "Current generated config mode: `file`")
 	mustContain(t, readmePath, "Current remote provider: `none`")
 	mustContain(t, readmePath, "APP_HTTP_ADDR")
+	mustContain(t, readmePath, "GET /debug/routes")
+	mustContain(t, readmePath, "debug.routes_enabled")
 }
 
 func TestGenerateFull_Readme_RemoteConfigMode(t *testing.T) {

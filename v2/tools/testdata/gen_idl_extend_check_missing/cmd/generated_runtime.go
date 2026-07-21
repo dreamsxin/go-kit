@@ -2,8 +2,6 @@
 package main
 
 import (
-	"example.com/gen_idl_extend_check_missing/model"
-	"gorm.io/gorm"
 	"net/http"
 )
 
@@ -23,19 +21,13 @@ func (rt generatedRuntime) registerRoutes(r *http.ServeMux) {
 		register(r)
 	}
 }
-func (rt generatedRuntime) autoMigrate(db *gorm.DB) error {
-	if db == nil {
-		return nil
-	}
-	return db.AutoMigrate(
-		&model.User{},
-	)
-}
 
-func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEntry, withOpenAPI bool) []generatedRouteEntry {
+func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEntry, withOpenAPI, withDebug bool) []generatedRouteEntry {
 	routes := []generatedRouteEntry{
 		{Method: "GET", Path: "/health", Handler: "health"},
-		{Method: "GET", Path: "/debug/routes", Handler: "debug"},
+	}
+	if withDebug {
+		routes = append(routes, generatedRouteEntry{Method: "GET", Path: "/debug/routes", Handler: "debug"})
 	}
 	routes = append(routes, rt.routeEntries...)
 	routes = append(routes, customRoutes...)

@@ -22,7 +22,7 @@ const (
 	serverName      = "go-kit interaction"
 	serverTitle     = "Go Kit Interaction MCP Server"
 	defaultPageSize = 50
-	serverVersion   = "0.4.0"
+	serverVersion   = "2.0.0"
 )
 
 // ─── shared dispatch core ────────────────────────────────────────────────────
@@ -165,6 +165,9 @@ func (c *dispatchCore) callTool(ctx context.Context, raw json.RawMessage) (map[s
 	}
 
 	sessionID := interaction.SessionID(params.SessionID)
+	if transportSession, ok := ctx.Value(mcpSessionContextKey{}).(*sseSession); ok && sessionID == "" {
+		sessionID = interaction.SessionID(transportSession.runtimeSessionID())
+	}
 	if sessionID == "" {
 		session, err := c.Runtime.StartSession(ctx, params.Subject, params.Metadata)
 		if err != nil {

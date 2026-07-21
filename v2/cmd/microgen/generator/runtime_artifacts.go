@@ -19,7 +19,7 @@ func (g *Generator) generateServiceFileFull(service *serviceView, models []*mode
 		ImportPath:          g.config.ImportPath,
 		Source:              source,
 	}
-	return g.executeTemplate("service.tmpl", g.layout.serviceFile(service.ServiceName), data)
+	return g.executeTemplateIfAbsent("service.tmpl", g.layout.serviceFile(service.ServiceName), data)
 }
 
 func (g *Generator) generateServiceGeneratedReposFile(service *serviceView, models []*modelView) error {

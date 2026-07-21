@@ -90,8 +90,7 @@ func TestMicrogenFromDBIntegration(t *testing.T) {
 
 		waitServer(t, baseURL+"/health")
 		smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
-		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusOK, "/user")
-		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusOK, "/users")
+		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusNotFound, "404 page not found")
 		expectJSONStatusContains(t, "POST", baseURL+"/user", `{"username":"db-user","email":"db@example.com"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 	})
 

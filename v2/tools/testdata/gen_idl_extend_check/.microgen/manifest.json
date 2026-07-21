@@ -8,10 +8,9 @@
     "tests": false,
     "model": true,
     "grpc": false,
-    "database": true,
+    "database": false,
     "openapi": false,
-    "interaction": false,
-    "databaseDriver": "mysql"
+    "interaction": false
   },
   "services": [
     "UserService"
@@ -26,12 +25,14 @@
     "cmd/generated_routes.go",
     "cmd/generated_runtime.go",
     "cmd/generated_services.go",
+    "endpoint/userservice/endpoints.go",
     "endpoint/userservice/generated_chain.go",
     "idl.go",
     "model/generated_user.go",
     "repository/generated_base.go",
     "repository/generated_user_repository.go",
     "sdk/userservicesdk/client.go",
-    "service/userservice/generated_repos.go"
+    "service/userservice/generated_repos.go",
+    "transport/userservice/transport_http.go"
   ]
 }

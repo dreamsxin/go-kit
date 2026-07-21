@@ -117,6 +117,12 @@ type SessionStore interface {
 	Close(ctx context.Context, id SessionID) (Session, error)
 }
 
+// SessionDeleter is an optional extension for stores that can permanently
+// remove an ended session. Stores that retain history may omit it.
+type SessionDeleter interface {
+	Delete(ctx context.Context, id SessionID) error
+}
+
 // EventSink records interaction events.
 type EventSink interface {
 	Emit(ctx context.Context, event Event) error

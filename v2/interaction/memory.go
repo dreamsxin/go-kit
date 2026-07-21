@@ -83,6 +83,20 @@ func (s *MemorySessionStore) Close(ctx context.Context, id SessionID) (Session, 
 	return copySession(session), nil
 }
 
+// Delete permanently removes a session after its lifecycle has ended.
+func (s *MemorySessionStore) Delete(ctx context.Context, id SessionID) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.sessions[id]; !ok {
+		return ErrSessionNotFound
+	}
+	delete(s.sessions, id)
+	return nil
+}
+
 // MemoryEventSink stores events in memory by session id.
 type MemoryEventSink struct {
 	mu     sync.RWMutex

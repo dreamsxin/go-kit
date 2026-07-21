@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -84,6 +85,38 @@ func TestNewJSONClient_Non2xxReturnsStatusError(t *testing.T) {
 	}
 	if !strings.Contains(string(statusErr.Body), "boom") {
 		t.Fatalf("body = %q, want boom", string(statusErr.Body))
+	}
+}
+
+func TestNewJSONClient_ResponseBodyLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"echo":"this response is intentionally larger than the limit"}`)
+	}))
+	defer srv.Close()
+
+	ep, err := httpclient.NewJSONClientWithMaxResponseBodyBytes[echoResp](http.MethodGet, srv.URL, 8)
+	if err != nil {
+		t.Fatalf("NewJSONClientWithMaxResponseBodyBytes: %v", err)
+	}
+	_, err = ep(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected response body limit error")
+	}
+	var tooLarge *httpclient.ResponseBodyTooLargeError
+	if !errors.As(err, &tooLarge) {
+		t.Fatalf("error = %T %v, want ResponseBodyTooLargeError", err, err)
+	}
+	if tooLarge.Limit != 8 || !errors.Is(err, httpclient.ErrResponseBodyTooLarge) {
+		t.Fatalf("limit error = %#v", tooLarge)
+	}
+}
+
+func TestNewJSONClient_ResponseBodyLimitValidation(t *testing.T) {
+	for _, limit := range []int64{0, -1, math.MaxInt64} {
+		if _, err := httpclient.NewJSONClientWithMaxResponseBodyBytes[echoResp](http.MethodGet, "http://example.com", limit); err == nil {
+			t.Fatalf("limit %d: expected validation error", limit)
+		}
 	}
 }
 

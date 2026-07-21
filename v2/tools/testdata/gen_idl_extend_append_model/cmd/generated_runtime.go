@@ -22,10 +22,12 @@ func (rt generatedRuntime) registerRoutes(r *http.ServeMux) {
 	}
 }
 
-func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEntry, withOpenAPI bool) []generatedRouteEntry {
+func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEntry, withOpenAPI, withDebug bool) []generatedRouteEntry {
 	routes := []generatedRouteEntry{
 		{Method: "GET", Path: "/health", Handler: "health"},
-		{Method: "GET", Path: "/debug/routes", Handler: "debug"},
+	}
+	if withDebug {
+		routes = append(routes, generatedRouteEntry{Method: "GET", Path: "/debug/routes", Handler: "debug"})
 	}
 	routes = append(routes, rt.routeEntries...)
 	routes = append(routes, customRoutes...)

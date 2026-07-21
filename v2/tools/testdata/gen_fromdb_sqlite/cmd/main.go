@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
-	"os"
+
 	"os/signal"
 	"syscall"
 	"time"
@@ -62,15 +63,7 @@ func main() {
 	r.Handle("GET /swagger/", swaggerUI.New("CatalogService API", "/openapi.json", "/swagger/"))
 
 	runtime.registerRoutes(r)
-	customRoutes := registerCustomRoutes(r)
-
-	r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, true))
-	})
-
-	allRoutes := generatedRouteEntries(runtime, customRoutes, true)
-	printAllRoutes(logger, allRoutes)
+	registerCustomRoutes(r)
 
 	httpServer := &http.Server{
 		Addr: *httpAddr,
@@ -85,24 +78,28 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 	}
 	serverErr := make(chan error, 2)
+	httpListener, err := net.Listen("tcp", *httpAddr)
+	if err != nil {
+		logger.Sugar().Fatalf("FATAL: HTTP listen: %v", err)
+	}
+	defer httpListener.Close() //nolint:errcheck
 
 	go func() {
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.Serve(httpListener); err != nil && err != http.ErrServerClosed {
 			serverErr <- fmt.Errorf("HTTP server: %w", err)
 		}
 	}()
 
 	printBanner(logger, *httpAddr, true)
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	runContext, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignals()
 	select {
-	case sig := <-quit:
-		logger.Sugar().Infof("Received signal: %s", sig)
+	case <-runContext.Done():
+		logger.Sugar().Info("Received shutdown signal")
 	case err := <-serverErr:
 		logger.Sugar().Errorf("Server stopped unexpectedly: %v", err)
 	}
-	signal.Stop(quit)
 	logger.Sugar().Info("Shutting down...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

@@ -120,7 +120,11 @@ func ParseFull(idlPath string) (*ParseResult, error) {
 
 			switch typeNode := ts.Type.(type) {
 			case *ast.InterfaceType:
-				result.Services = append(result.Services, parseService(ts, typeNode, declarationDoc))
+				service, err := parseService(ts, typeNode, declarationDoc)
+				if err != nil {
+					return nil, err
+				}
+				result.Services = append(result.Services, service)
 			case *ast.StructType:
 				result.Models = append(result.Models, parseModel(ts, typeNode, declarationDoc))
 			}
@@ -132,7 +136,7 @@ func ParseFull(idlPath string) (*ParseResult, error) {
 
 // ─────────────────────────── 接口解析 ───────────────────────────
 
-func parseService(ts *ast.TypeSpec, iface *ast.InterfaceType, declarationDoc *ast.CommentGroup) *Service {
+func parseService(ts *ast.TypeSpec, iface *ast.InterfaceType, declarationDoc *ast.CommentGroup) (*Service, error) {
 	svc := &Service{
 		ServiceName: ts.Name.Name,
 		PackageName: strings.ToLower(ts.Name.Name),
@@ -145,12 +149,11 @@ func parseService(ts *ast.TypeSpec, iface *ast.InterfaceType, declarationDoc *as
 	for _, m := range iface.Methods.List {
 		method, err := parseMethod(m, svc.ServiceName)
 		if err != nil {
-			fmt.Printf("Warning: failed to parse method: %v\n", err)
-			continue
+			return nil, fmt.Errorf("service %s: %w", svc.ServiceName, err)
 		}
 		svc.Methods = append(svc.Methods, method)
 	}
-	return svc
+	return svc, nil
 }
 
 // parseMethod 解析接口方法

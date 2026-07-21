@@ -262,25 +262,15 @@ func TestMethod_Route(t *testing.T) {
 	}
 }
 
-// ─────────────────────────── 无效签名容错 ───────────────────────────
+// ─────────────────────────── 无效签名拒绝 ───────────────────────────
 
-func TestParseFull_InvalidSignatures_SkipsBadMethods(t *testing.T) {
-	result, err := parser.ParseFull(testdataPath("invalid.go"))
-	if err != nil {
-		t.Fatalf("ParseFull: unexpected error: %v", err)
+func TestParseFull_InvalidSignatures_ReturnsError(t *testing.T) {
+	_, err := parser.ParseFull(testdataPath("invalid.go"))
+	if err == nil {
+		t.Fatal("ParseFull: expected invalid method signature error")
 	}
-	if len(result.Services) != 1 {
-		t.Fatalf("Services: want 1, got %d", len(result.Services))
-	}
-	svc := result.Services[0]
-
-	// 只有 ValidMethod 能通过校验
-	if len(svc.Methods) != 1 {
-		t.Errorf("Methods: want 1 (only ValidMethod), got %d (%v)",
-			len(svc.Methods), methodNames(svc.Methods))
-	}
-	if len(svc.Methods) > 0 && svc.Methods[0].Name != "ValidMethod" {
-		t.Errorf("surviving method: want %q, got %q", "ValidMethod", svc.Methods[0].Name)
+	if !strings.Contains(err.Error(), "BadService") || !strings.Contains(err.Error(), "NoParams") {
+		t.Fatalf("ParseFull error = %q, want service and method context", err)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -339,8 +340,14 @@ func TestStreamableNotification(t *testing.T) {
 // ─── StreamableHandler: DELETE ───────────────────────────────────────────────
 
 func TestStreamableDelete(t *testing.T) {
-	h := NewStreamableHandler(nil)
+	rt := interaction.NewRuntime()
+	h := NewStreamableHandler(rt)
 	sid := initSession(t, h)
+	sess, ok := h.store.get(sid)
+	if !ok || sess.runtimeSessionID() == "" {
+		t.Fatal("MCP session should own a runtime session")
+	}
+	runtimeID := interaction.SessionID(sess.runtimeSessionID())
 
 	req := httptest.NewRequest(http.MethodDelete, "/mcp", nil)
 	req.Header.Set(headerSessionID, sid)
@@ -360,6 +367,9 @@ func TestStreamableDelete(t *testing.T) {
 	h.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404 after delete", rec2.Code)
+	}
+	if _, err := rt.Sessions.Get(context.Background(), runtimeID); !errors.Is(err, interaction.ErrSessionNotFound) {
+		t.Fatalf("runtime session should be released after delete: %v", err)
 	}
 }
 
@@ -578,10 +588,16 @@ func TestSessionTTL_ExpiredIDs(t *testing.T) {
 }
 
 func TestSessionTTL_StartStopCleanup(t *testing.T) {
-	h := NewStreamableHandler(nil)
+	rt := interaction.NewRuntime()
+	h := NewStreamableHandler(rt)
 	h.SessionTTL = 50 * time.Millisecond
 	h.cleanupInterval = 30 * time.Millisecond
 	sid := initSessionHelper(t, h)
+	sess, ok := h.store.get(sid)
+	if !ok {
+		t.Fatal("transport session should exist before cleanup")
+	}
+	runtimeID := interaction.SessionID(sess.runtimeSessionID())
 
 	h.StartCleanup()
 	defer h.StopCleanup()
@@ -589,9 +605,12 @@ func TestSessionTTL_StartStopCleanup(t *testing.T) {
 	// Wait for the session to expire and cleanup to run.
 	time.Sleep(200 * time.Millisecond)
 
-	_, ok := h.store.get(sid)
+	_, ok = h.store.get(sid)
 	if ok {
 		t.Fatal("session should have been cleaned up")
+	}
+	if _, err := rt.Sessions.Get(context.Background(), runtimeID); !errors.Is(err, interaction.ErrSessionNotFound) {
+		t.Fatalf("runtime session should be released by TTL cleanup: %v", err)
 	}
 }
 

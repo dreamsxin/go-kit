@@ -2,20 +2,17 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
-	"os"
+
 	"os/signal"
 	"syscall"
 	"time"
 
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
-
-	"example.com/gen_idl_extend_check_ready/repository"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
 )
 
 func printBanner(logger *kitlog.Logger, httpAddr string, withOpenAPI bool) {
@@ -39,39 +36,15 @@ func printAllRoutes(logger *kitlog.Logger, routes []generatedRouteEntry) {
 
 func main() {
 	var (
-		httpAddr    = flag.String("http.addr", ":8080", "HTTP listen address")
-		dsn         = flag.String("db.dsn", "root:password@tcp(127.0.0.1:3306)/{svcname}?charset=utf8mb4&parseTime=True&loc=Local", "mysql DSN")
-		autoMigrate = flag.Bool("auto-migrate", false, "run database AutoMigrate on startup")
+		httpAddr = flag.String("http.addr", ":8080", "HTTP listen address")
 	)
 	flag.Parse()
 
 	logger, _ := kitlog.NewDevelopment()
 	defer logger.Sync() //nolint:errcheck
 
-	db, err := gorm.Open(mysql.Open(*dsn), &gorm.Config{})
-	if err != nil {
-		logger.Sugar().Fatalf("FATAL: connect database failed: %v", err)
-	}
-	sqlDB, _ := db.DB()
-	sqlDB.SetMaxOpenConns(20)
-	sqlDB.SetMaxIdleConns(5)
-	sqlDB.SetConnMaxLifetime(time.Hour)
-
-	logger.Sugar().Infof("DB connected [driver=%s dsn=%s]", "mysql", redactDSN(*dsn))
-
-	repoDB := repository.NewDB(db)
-
-	generated := initGeneratedServices(logger, repoDB)
+	generated := initGeneratedServices(logger)
 	runtime := generated.generatedRuntime()
-
-	if *autoMigrate {
-		if err := runtime.autoMigrate(db); err != nil {
-			logger.Sugar().Fatalf("FATAL: auto migrate failed: %v", err)
-		}
-		logger.Sugar().Info("DB migration done")
-	} else {
-		logger.Sugar().Info("DB migration skipped")
-	}
 
 	r := http.NewServeMux()
 	healthHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -83,15 +56,7 @@ func main() {
 	r.HandleFunc("HEAD /health", healthHandler)
 
 	runtime.registerRoutes(r)
-	customRoutes := registerCustomRoutes(r)
-
-	r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, false))
-	})
-
-	allRoutes := generatedRouteEntries(runtime, customRoutes, false)
-	printAllRoutes(logger, allRoutes)
+	registerCustomRoutes(r)
 
 	httpServer := &http.Server{
 		Addr: *httpAddr,
@@ -106,24 +71,28 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 	}
 	serverErr := make(chan error, 2)
+	httpListener, err := net.Listen("tcp", *httpAddr)
+	if err != nil {
+		logger.Sugar().Fatalf("FATAL: HTTP listen: %v", err)
+	}
+	defer httpListener.Close() //nolint:errcheck
 
 	go func() {
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.Serve(httpListener); err != nil && err != http.ErrServerClosed {
 			serverErr <- fmt.Errorf("HTTP server: %w", err)
 		}
 	}()
 
 	printBanner(logger, *httpAddr, false)
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	runContext, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignals()
 	select {
-	case sig := <-quit:
-		logger.Sugar().Infof("Received signal: %s", sig)
+	case <-runContext.Done():
+		logger.Sugar().Info("Received shutdown signal")
 	case err := <-serverErr:
 		logger.Sugar().Errorf("Server stopped unexpectedly: %v", err)
 	}
-	signal.Stop(quit)
 	logger.Sugar().Info("Shutting down...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -133,11 +102,4 @@ func main() {
 		logger.Sugar().Infof("HTTP shutdown error: %v", err)
 	}
 	logger.Sugar().Info("Server exited cleanly")
-}
-
-func redactDSN(dsn string) string {
-	if dsn == "" {
-		return ""
-	}
-	return "<redacted>"
 }

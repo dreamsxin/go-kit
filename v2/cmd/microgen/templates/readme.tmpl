@@ -59,7 +59,7 @@ Extend mode updates new generated files plus generator-owned aggregation seams, 
 Use this loop when an AI agent or maintainer changes the generated project:
 
 1. Read this README and inspect the source contract snapshot before editing.
-2. Check `GET /debug/routes` and, when enabled, `GET /openapi.json`, `GET /schema.json`, or the MCP `tools/list` method to see the generated route and discovery surface.
+2. Inspect `.microgen/manifest.json`{{if .WithConfig}} and, when enabled, `GET /debug/routes`{{end}}{{if .WithOpenAPI}}, `GET /openapi.json`, or `GET /schema.json`{{end}}{{if .WithInteraction}}, or MCP `tools/list`{{end}} to see the generated surface.
 3. Put business behavior in user-owned files; do not hand-edit generator-owned files.
 4. For new services, models, or middleware, run `microgen extend -check -out .` before an append command.
 {{- if .WithInteraction }}
@@ -84,7 +84,7 @@ The generated HTTP server defaults to `read_header_timeout: 5s` and `write_timeo
 - Remote mode enables strict remote loading and fails startup when remote config cannot be loaded.
 - Environment overrides use the `APP_` prefix, such as `APP_HTTP_ADDR`, `APP_LOG_LEVEL`, `APP_LOG_FORMAT`, `APP_REMOTE_ENABLED`, and `APP_DB_AUTO_MIGRATE`.
 - `logging.level` and `logging.format` are used by `cmd/main.go` when constructing the logger.
-- Inbound circuit breaker and retry are opt-in; retry only repeats errors that explicitly implement `Retryable() bool`.
+- Inbound rate limiting and circuit breaking are opt-in. Client-side retries belong at the service-discovery execution boundary, where idempotency and retryable errors can be classified explicitly.
 {{- if .WithDB}}
 - Database `AutoMigrate` is skipped by default. Enable `database.auto_migrate`, `APP_DB_AUTO_MIGRATE`, or `-auto-migrate` only when startup migrations are intended.
 {{- end}}
@@ -112,7 +112,8 @@ go run ./cmd
 Runtime inspection:
 
 - `GET /health`
-- `GET /debug/routes`
+{{if .WithConfig}}- `GET /debug/routes` when `debug.routes_enabled` is true
+{{end}}
 {{if .WithInteraction}}- `POST /mcp` — MCP JSON-RPC 2.0 endpoint (tools, resources, prompts, logging)
 {{end}}
 

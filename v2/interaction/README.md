@@ -18,6 +18,7 @@ Current entry points:
 
 - `NewRuntime` — builder pattern with `WithSessions`, `WithEvents`, `WithTools`, `WithHooks`, `WithResources`, `WithPrompts`
 - `Runtime.ListTools`
+- `Runtime.ReleaseSession` for transport-owned session cleanup
 - `NewMemorySessionStore`
 - `NewMemoryEventSink`
 - `NewMemoryToolRegistry`
@@ -40,6 +41,11 @@ JSON-RPC adapter for the runtime:
 - SSE streaming (POST and GET)
 - Server-initiated sampling (`sampling/createMessage`)
 - Server-initiated notifications (log, progress, list-changed)
+
+Each MCP transport session owns one interaction runtime session. Tool calls
+without an explicit runtime `sessionId` reuse it, and DELETE or TTL expiry ends
+and releases it. This keeps hook and event identity stable across a conversation
+without retaining one closed runtime session per call.
 
 `interaction/mcp` is the generated AI protocol surface. It discovers and
 executes registered runtime tools inside interaction sessions; the framework no

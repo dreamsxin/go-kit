@@ -4,7 +4,6 @@ package main
 import (
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
 {{- if .WithConfig}}
-	"time"
 {{- end}}
 {{- if .WithConfig}}
 	"{{.ImportPath}}/config"
@@ -58,10 +57,7 @@ func initGeneratedServices(logger *kitlog.Logger{{if .WithConfig}}, cfg *config.
 		CBTimeout:          cfg.Middleware.CircuitBreaker.Timeout,
 		RLEnabled:          cfg.Middleware.RateLimit.Enabled,
 		RLRps:              cfg.Middleware.RateLimit.RequestsPerSecond,
-		RetryEnabled:       cfg.Middleware.Retry.Enabled,
-		RetryMaxAttempts:   cfg.Middleware.Retry.MaxAttempts,
-		RetryBackoff:       cfg.Middleware.Retry.Backoff,
-		Timeout:            30 * time.Second,
+		Timeout:            cfg.Middleware.Timeout,
 	})
 {{- else}}
 	generated.{{.PackageName}}Endpoints = {{.PackageName}}Endpoint.MakeServerEndpoints(generated.{{.PackageName}}Svc, logger)

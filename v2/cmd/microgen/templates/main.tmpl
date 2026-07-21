@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+{{if .WithConfig}}	"encoding/json"
+{{end}}
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
-	"os"
+	{{if .WithConfig}}"os"
+	{{end}}
 	"os/signal"
 {{if .WithConfig}}	"strings"
 {{end}}	"syscall"
@@ -17,7 +20,6 @@ import (
 	"go.uber.org/zap/zapcore"
 {{end}}
 {{if .WithGRPC}}	"google.golang.org/grpc"
-	"net"
 {{end}}
 {{if .WithDB}}	"{{.DBImportPkg}}"
 	"gorm.io/gorm"
@@ -121,15 +123,17 @@ func main() {
 	if err != nil {
 		logger.Sugar().Fatalf("FATAL: connect database failed: %v", err)
 	}
-{{if ne .DBDriver "sqlite"}}	sqlDB, _ := db.DB()
+	sqlDB, err := db.DB()
+	if err != nil {
+		logger.Sugar().Fatalf("FATAL: get database handle failed: %v", err)
+	}
+	defer sqlDB.Close() //nolint:errcheck
 {{if .WithConfig}}	sqlDB.SetMaxOpenConns(cfg.Database.MaxOpenConns)
 	sqlDB.SetMaxIdleConns(cfg.Database.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
 {{else}}	sqlDB.SetMaxOpenConns(20)
 	sqlDB.SetMaxIdleConns(5)
 	sqlDB.SetConnMaxLifetime(time.Hour)
-{{end}}{{else}}
-	_ = time.Hour
 {{end}}
 	logger.Sugar().Infof("DB connected [driver=%s dsn=%s]", "{{.DBDriver}}", redactDSN(*dsn))
 
@@ -174,21 +178,22 @@ func main() {
 {{end}}
 
 	runtime.registerRoutes(r)
-	customRoutes := registerCustomRoutes(r)
-
-{{if .WithConfig}}	if cfg.Debug.RoutesEnabled {
-{{end}}	r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, {{if .WithOpenAPI}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}}))
-	})
-{{if .WithConfig}}	}
+{{if .WithConfig}}	customRoutes := registerCustomRoutes(r)
+{{else}}	registerCustomRoutes(r)
 {{end}}
 
-	allRoutes := generatedRouteEntries(runtime, customRoutes, {{if .WithOpenAPI}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}})
+{{if .WithConfig}}	if cfg.Debug.RoutesEnabled {
+		r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			_ = json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, {{if .WithOpenAPI}}true{{else}}false{{end}}, true{{if .WithInteraction}}, true{{end}}))
+		})
+	}
+{{end}}
+
 {{if .WithConfig}}	if cfg.Debug.PrintRoutes {
+		allRoutes := generatedRouteEntries(runtime, customRoutes, {{if .WithOpenAPI}}true{{else}}false{{end}}, cfg.Debug.RoutesEnabled{{if .WithInteraction}}, true{{end}})
 		printAllRoutes(logger, allRoutes)
 	}
-{{else}}	printAllRoutes(logger, allRoutes)
 {{end}}
 
 	httpServer := &http.Server{
@@ -207,21 +212,30 @@ func main() {
 {{end}}		IdleTimeout:  60 * time.Second,
 	}
 	serverErr := make(chan error, 2)
-
-	go func() {
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			serverErr <- fmt.Errorf("HTTP server: %w", err)
-		}
-	}()
+	httpListener, err := net.Listen("tcp", *httpAddr)
+	if err != nil {
+		logger.Sugar().Fatalf("FATAL: HTTP listen: %v", err)
+	}
+	defer httpListener.Close() //nolint:errcheck
 
 {{if .WithGRPC}}	lis, err := net.Listen("tcp", *grpcAddr)
 	if err != nil {
 		logger.Sugar().Fatalf("FATAL: gRPC listen: %v", err)
 	}
+	defer lis.Close() //nolint:errcheck
 	grpcServer := grpc.NewServer()
 	runtime.registerGRPCServices(grpcServer)
+{{end}}
+
 	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
+		if err := httpServer.Serve(httpListener); err != nil && err != http.ErrServerClosed {
+			serverErr <- fmt.Errorf("HTTP server: %w", err)
+		}
+	}()
+
+{{if .WithGRPC}}
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil && err != grpc.ErrServerStopped {
 			serverErr <- fmt.Errorf("gRPC server: %w", err)
 		}
 	}()
@@ -229,15 +243,14 @@ func main() {
 
 	printBanner(logger, *httpAddr{{if .WithGRPC}}, *grpcAddr{{end}}, {{if .WithOpenAPI}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}})
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	runContext, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignals()
 	select {
-	case sig := <-quit:
-		logger.Sugar().Infof("Received signal: %s", sig)
+	case <-runContext.Done():
+		logger.Sugar().Info("Received shutdown signal")
 	case err := <-serverErr:
 		logger.Sugar().Errorf("Server stopped unexpectedly: %v", err)
 	}
-	signal.Stop(quit)
 	logger.Sugar().Info("Shutting down...")
 
 {{if .WithConfig}}	shutdownTimeout := cfg.Server.GracefulShutdownTimeout

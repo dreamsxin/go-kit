@@ -2,12 +2,9 @@
 package main
 
 import (
-	"example.com/gen_idl_rerun/config"
 	userserviceEndpoint "example.com/gen_idl_rerun/endpoint/userservice"
-	"example.com/gen_idl_rerun/repository"
 	userserviceSvc "example.com/gen_idl_rerun/service/userservice"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
-	"time"
 )
 
 type generatedServices struct {
@@ -15,29 +12,12 @@ type generatedServices struct {
 	userserviceEndpoints userserviceEndpoint.UserServiceEndpoints
 }
 
-func initGeneratedServices(logger *kitlog.Logger, cfg *config.Config, repoDB *repository.DB) generatedServices {
+func initGeneratedServices(logger *kitlog.Logger) generatedServices {
 	generated := generatedServices{}
 
 	_ = logger
-	_ = cfg
-	_ = time.Second
-	_ = repoDB
-	userRepo := repository.NewUserRepository(repoDB)
-	_ = userRepo
-	generated.userserviceSvc = userserviceSvc.NewServiceWithRepo(nil, userserviceSvc.GeneratedRepos{
-		UserRepo: userRepo,
-	})
-	generated.userserviceEndpoints = userserviceEndpoint.MakeServerEndpointsWithConfig(generated.userserviceSvc, logger, userserviceEndpoint.MiddlewareConfig{
-		CBEnabled:          cfg.Middleware.CircuitBreaker.Enabled,
-		CBFailureThreshold: uint32(cfg.Middleware.CircuitBreaker.FailureThreshold),
-		CBTimeout:          cfg.Middleware.CircuitBreaker.Timeout,
-		RLEnabled:          cfg.Middleware.RateLimit.Enabled,
-		RLRps:              cfg.Middleware.RateLimit.RequestsPerSecond,
-		RetryEnabled:       cfg.Middleware.Retry.Enabled,
-		RetryMaxAttempts:   cfg.Middleware.Retry.MaxAttempts,
-		RetryBackoff:       cfg.Middleware.Retry.Backoff,
-		Timeout:            30 * time.Second,
-	})
+	generated.userserviceSvc = userserviceSvc.NewService(nil)
+	generated.userserviceEndpoints = userserviceEndpoint.MakeServerEndpoints(generated.userserviceSvc, logger)
 
 	return generated
 }

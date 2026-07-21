@@ -61,7 +61,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 
 		waitServer(t, baseURL+"/health")
 		smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
-		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusOK, "/createuser")
+		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusNotFound, "404 page not found")
 		expectStatusContains(t, "GET", baseURL+"/skill", "", http.StatusNotFound, "404 page not found")
 		expectJSONStatusContains(t, "POST", baseURL+"/createuser", `{"username":"alice","email":"alice@example.com"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 	})
@@ -127,7 +127,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 
 		waitServer(t, baseURL+"/health")
 		smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
-		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusOK, "/createuser")
+		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusNotFound, "404 page not found")
 
 		expectStatusContains(t, "GET", baseURL+"/skill", "", http.StatusNotFound, "404 page not found")
 	})
@@ -181,7 +181,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 
 		waitServer(t, baseURL+"/health")
 		smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
-		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusOK, "/api/runtime/userservice/createuser")
+		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusNotFound, "404 page not found")
 		expectJSONStatusContains(t, "POST", baseURL+"/api/runtime/userservice/createuser", `{"username":"alice","email":"alice@example.com"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 
 		resp, err := http.Post(baseURL+"/createuser", "application/json", strings.NewReader(`{"username":"alice","email":"alice@example.com"}`))

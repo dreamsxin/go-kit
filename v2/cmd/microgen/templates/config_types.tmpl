@@ -57,7 +57,7 @@ type DatabaseConfig struct {
 type MiddlewareConfig struct {
 	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker" mapstructure:"circuit_breaker"`
 	RateLimit      RateLimitConfig      `yaml:"rate_limit" mapstructure:"rate_limit"`
-	Retry          RetryConfig          `yaml:"retry" mapstructure:"retry"`
+	Timeout        time.Duration        `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // CircuitBreakerConfig holds circuit breaker settings.
@@ -71,13 +71,6 @@ type CircuitBreakerConfig struct {
 type RateLimitConfig struct {
 	Enabled           bool    `yaml:"enabled" mapstructure:"enabled"`
 	RequestsPerSecond float64 `yaml:"requests_per_second" mapstructure:"requests_per_second"`
-}
-
-// RetryConfig holds retry settings.
-type RetryConfig struct {
-	Enabled     bool          `yaml:"enabled" mapstructure:"enabled"`
-	MaxAttempts int           `yaml:"max_attempts" mapstructure:"max_attempts"`
-	Backoff     time.Duration `yaml:"backoff" mapstructure:"backoff"`
 }
 
 // DebugConfig holds debug endpoint settings.
@@ -132,18 +125,14 @@ func Default() *Config {
 				Timeout:          60 * time.Second,
 			},
 			RateLimit: RateLimitConfig{
-				Enabled:           true,
+				Enabled:           false,
 				RequestsPerSecond: 100,
 			},
-			Retry: RetryConfig{
-				Enabled:     false,
-				MaxAttempts: 3,
-				Backoff:     2 * time.Second,
-			},
+			Timeout: 30 * time.Second,
 		},
 		Debug: DebugConfig{
-			RoutesEnabled: true,
-			PrintRoutes:   true,
+			RoutesEnabled: false,
+			PrintRoutes:   false,
 		},
 		Remote: RemoteConfig{
 			Enabled:         {{if .RemoteEnabledDefault}}true{{else}}false{{end}},
@@ -224,13 +213,8 @@ func (cfg *Config) Validate() error {
 	if cfg.Middleware.RateLimit.Enabled && cfg.Middleware.RateLimit.RequestsPerSecond <= 0 {
 		return fmt.Errorf("config: middleware.rate_limit.requests_per_second must be > 0")
 	}
-	if cfg.Middleware.Retry.Enabled {
-		if cfg.Middleware.Retry.MaxAttempts < 2 {
-			return fmt.Errorf("config: middleware.retry.max_attempts must be >= 2")
-		}
-		if cfg.Middleware.Retry.Backoff < 0 {
-			return fmt.Errorf("config: middleware.retry.backoff cannot be negative")
-		}
+	if cfg.Middleware.Timeout < 0 {
+		return fmt.Errorf("config: middleware.timeout cannot be negative")
 	}
 
 	if cfg.Remote.Enabled {

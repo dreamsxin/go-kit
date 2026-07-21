@@ -3,7 +3,6 @@ package main
 
 import (
 	userserviceEndpoint "example.com/gen_idl_extend_check/endpoint/userservice"
-	"example.com/gen_idl_extend_check/repository"
 	userserviceSvc "example.com/gen_idl_extend_check/service/userservice"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
@@ -13,16 +12,11 @@ type generatedServices struct {
 	userserviceEndpoints userserviceEndpoint.UserServiceEndpoints
 }
 
-func initGeneratedServices(logger *kitlog.Logger, repoDB *repository.DB) generatedServices {
+func initGeneratedServices(logger *kitlog.Logger) generatedServices {
 	generated := generatedServices{}
 
 	_ = logger
-	_ = repoDB
-	userRepo := repository.NewUserRepository(repoDB)
-	_ = userRepo
-	generated.userserviceSvc = userserviceSvc.NewServiceWithRepo(nil, userserviceSvc.GeneratedRepos{
-		UserRepo: userRepo,
-	})
+	generated.userserviceSvc = userserviceSvc.NewService(nil)
 	generated.userserviceEndpoints = userserviceEndpoint.MakeServerEndpoints(generated.userserviceSvc, logger)
 
 	return generated

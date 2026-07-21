@@ -86,13 +86,13 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 	outputDir := fs.String("out", ".", "Output directory")
 	importPath := fs.String("import", "", "Go module import path")
 	protocols := fs.String("protocols", "http", "Supported protocols: http,grpc")
-	withConfig := fs.Bool("config", true, "Generate config")
+	withConfig := fs.Bool("config", false, "Generate config")
 	configMode := fs.String("config-mode", "", "Generated config mode: file, hybrid, remote")
 	remoteProvider := fs.String("remote-provider", "", "Generated remote config provider: consul")
 	withDocs := fs.Bool("docs", true, "Generate docs")
 	withTests := fs.Bool("tests", false, "Generate tests")
-	withModel := fs.Bool("model", true, "Generate model")
-	withDB := fs.Bool("db", true, "Include DB init in main")
+	withModel := fs.Bool("model", false, "Generate model")
+	withDB := fs.Bool("db", false, "Include DB init in main")
 	driver := fs.String("driver", "mysql", "Database driver")
 	withOpenAPI := fs.Bool("openapi", false, "Generate OpenAPI 3.1, JSON Schema, Swagger UI, and TypeScript SDK")
 	withInteraction := fs.Bool("interaction", false, "Generate AI interaction runtime and MCP endpoint")
@@ -128,7 +128,7 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 		remoteProvider:  strings.TrimSpace(*remoteProvider),
 		withDocs:        *withDocs,
 		withTests:       *withTests,
-		withModel:       *withModel,
+		withModel:       *withModel || *fromDB,
 		withGRPC:        hasGRPC,
 		withDB:          *withDB,
 		dbDriver:        *driver,

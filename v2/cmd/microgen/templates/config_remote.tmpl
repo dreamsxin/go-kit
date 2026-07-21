@@ -2,16 +2,21 @@
 package config
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strings"
 
-	_ "github.com/spf13/viper/remote"
-	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
+const maxRemoteConfigBytes int64 = 4 << 20
+
 // LoadRemote optionally loads remote config on top of the local/env-resolved
-// base config. The first concrete provider uses Viper remote support for
-// Consul while preserving local fallback behavior.
+// base config. Consul reads honor Remote.Timeout and bound the response body.
 func LoadRemote(cfg *Config) (*Config, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config: nil config")
@@ -48,25 +53,76 @@ func loadRemoteFromConsul(cfg *Config) (*Config, error) {
 	if endpoint == "" {
 		return nil, fmt.Errorf("config: remote consul endpoint is empty")
 	}
-
-	dataID := strings.TrimSpace(cfg.Remote.DataID)
+	dataID := strings.Trim(strings.TrimSpace(cfg.Remote.DataID), "/")
 	if dataID == "" {
 		return nil, fmt.Errorf("config: remote consul data_id is empty")
 	}
-
-	v := viper.New()
-	v.SetConfigType("yaml")
-	if err := v.AddRemoteProvider("consul", endpoint, dataID); err != nil {
-		return nil, fmt.Errorf("config: add consul remote provider: %w", err)
+	if cfg.Remote.Timeout <= 0 {
+		return nil, fmt.Errorf("config: remote timeout must be > 0")
 	}
-	if err := v.ReadRemoteConfig(); err != nil {
+
+	requestURL, err := consulKVURL(endpoint, dataID)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(http.MethodGet, requestURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("config: create consul request: %w", err)
+	}
+	resp, err := (&http.Client{Timeout: cfg.Remote.Timeout}).Do(req)
+	if err != nil {
 		return nil, fmt.Errorf("config: read consul remote config: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("config: consul returned HTTP %s", resp.Status)
+	}
+
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxRemoteConfigBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("config: read consul response: %w", err)
+	}
+	if int64(len(raw)) > maxRemoteConfigBytes {
+		return nil, fmt.Errorf("config: consul response exceeds %d bytes", maxRemoteConfigBytes)
+	}
+	var entries []struct {
+		Value string `json:"Value"`
+	}
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return nil, fmt.Errorf("config: decode consul response: %w", err)
+	}
+	if len(entries) == 0 || entries[0].Value == "" {
+		return nil, fmt.Errorf("config: consul key %q has no value", dataID)
+	}
+	payload, err := base64.StdEncoding.DecodeString(entries[0].Value)
+	if err != nil {
+		return nil, fmt.Errorf("config: decode consul value: %w", err)
+	}
+	if int64(len(payload)) > maxRemoteConfigBytes {
+		return nil, fmt.Errorf("config: remote config exceeds %d bytes", maxRemoteConfigBytes)
 	}
 
 	merged := *cfg
-	if err := v.Unmarshal(&merged); err != nil {
-		return nil, fmt.Errorf("config: unmarshal consul remote config: %w", err)
+	if err := yaml.Unmarshal(payload, &merged); err != nil {
+		return nil, fmt.Errorf("config: decode remote YAML: %w", err)
 	}
-
 	return &merged, nil
+}
+
+func consulKVURL(endpoint, dataID string) (string, error) {
+	if !strings.Contains(endpoint, "://") {
+		endpoint = "http://" + endpoint
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return "", fmt.Errorf("config: invalid remote consul endpoint %q", endpoint)
+	}
+	parts := strings.Split(dataID, "/")
+	for i := range parts {
+		parts[i] = url.PathEscape(parts[i])
+	}
+	u.Path = strings.TrimRight(u.Path, "/") + "/v1/kv/" + strings.Join(parts, "/")
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String(), nil
 }

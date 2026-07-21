@@ -5,12 +5,40 @@ root.
 
 ## Unreleased
 
+### Added
+
+- Public-module verification through `make verify-published VERSION=v2.0.0`.
+- A 4 MiB default success-response limit for `transport/http/client.NewJSONClient`,
+  with an explicit constructor for larger contracts.
+- Transport-owned interaction session release through `Runtime.ReleaseSession`.
+
+### Changed
+
+- `microgen` now defaults config, model/repository, and database runtime wiring
+  to off. `-from-db` still always emits the introspected models.
+- Full regeneration preserves user-owned service implementations, `cmd/main.go`,
+  config YAML, and project README; endpoint and transport artifacts are tracked
+  as generator-owned in the manifest.
+- Generated debug route registration and route printing are opt-in, rate limiting
+  is disabled by default, middleware timeout comes from config, and inbound retry
+  configuration has been removed.
+- Generated HTTP and gRPC listeners bind before serving; generated database
+  handles are checked and closed during shutdown.
+- MCP tool calls reuse the runtime session bound to the MCP transport session,
+  which is released on DELETE or TTL expiry.
+- Go IDL generation fails on an invalid interface method instead of silently
+  omitting the method.
+
+### Fixed
+
+- Consul remote config loading now honors its timeout and response size limit
+  without pulling a second Viper-based provider stack into generated projects.
+- The documented v2 release tag is the root `v2.0.0` tag required by Go module
+  resolution, not `v2/v2.0.0`.
+
 ### Removed
 
-- Removed the non-standard `microgen -skill` option, generated `skill/` package,
-  `/skill` discovery endpoint, repository AI `SKILL.md`, and dedicated skill
-  example. OpenAPI/JSON Schema remain the general contract formats, while the
-  optional interaction runtime exposes tool discovery and execution through MCP.
+- Dead combined config template and obsolete Swagger 2.0 Make targets/tooling.
 
 ## [2.0.0] - 2026-07-20
 
@@ -134,3 +162,7 @@ the compatibility policy in [RELEASE.md](RELEASE.md).
   `sd.NewEndpoint` construction.
 - Swagger 2.0 annotation output, `swagger_host`, and `APP_SWAGGER_HOST`; Swagger
   UI now reads the generated `/openapi.json` contract.
+- The non-standard `microgen -skill` option, generated `skill/` package,
+  `/skill` discovery endpoint, repository AI `SKILL.md`, and dedicated skill
+  example. OpenAPI/JSON Schema remain the general contract formats, while the
+  optional interaction runtime exposes tool discovery and execution through MCP.

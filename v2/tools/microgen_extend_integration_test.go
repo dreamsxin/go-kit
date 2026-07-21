@@ -273,6 +273,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 			"-import", "example.com/gen_idl_extend_check",
 			"-config=false",
 			"-docs=false",
+			"-model=true",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("initial microgen idl for extend-check failed: %v\n%s", err, out)
@@ -328,6 +329,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 			"-import", "example.com/gen_idl_extend_check_ready",
 			"-config=false",
 			"-docs=false",
+			"-model=true",
 		)
 		if out, err := generateCmd.CombinedOutput(); err != nil {
 			t.Fatalf("initial microgen idl for extend-check exit-code fixture failed: %v\n%s", err, out)
@@ -356,6 +358,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 			"-import", "example.com/gen_idl_extend_check_missing",
 			"-config=false",
 			"-docs=false",
+			"-model=true",
 		)
 		if out, err := generateLegacyCmd.CombinedOutput(); err != nil {
 			t.Fatalf("initial microgen idl for missing-seam fixture failed: %v\n%s", err, out)

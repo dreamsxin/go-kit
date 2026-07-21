@@ -125,6 +125,21 @@ func (r *Runtime) EndSession(ctx context.Context, id SessionID) (Session, error)
 	return session, nil
 }
 
+// ReleaseSession ends a session and permanently removes it when the store
+// implements SessionDeleter. Protocol transports should use this when their
+// own session is deleted or expires.
+func (r *Runtime) ReleaseSession(ctx context.Context, id SessionID) error {
+	_, endErr := r.EndSession(ctx, id)
+	var deleteErr error
+	if deleter, ok := r.Sessions.(SessionDeleter); ok {
+		deleteErr = deleter.Delete(ctx, id)
+	}
+	if endErr != nil {
+		return endErr
+	}
+	return deleteErr
+}
+
 // RegisterTool registers a tool with the runtime's tool registry.
 func (r *Runtime) RegisterTool(tool Tool) error {
 	return r.Tools.Register(tool)
