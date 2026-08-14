@@ -23,14 +23,14 @@ This directory is the independent Go module:
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.1.0` is the current published v2 release. It delivers the direct
-architecture refactor as a documented SemVer exception and is not
-source compatible with `v2.0.0`; existing v2 users must follow
-[MIGRATION.md](MIGRATION.md) before upgrading. The unreleased `main` branch has
-one additional approved exception: `endpoint.Metrics.Snapshot` now returns the
-lock-free `MetricsSnapshot` value type. Other changes in this development cycle
-are additive or behavioral fixes. Legacy v1 source remains available through
-the immutable `v1.0.0` to `v1.6.0` tags and is no longer maintained on `main`.
+`v2.2.0` is the release being published from `main`. It contains one narrowly
+approved SemVer exception: `endpoint.Metrics.Snapshot` now returns the
+lock-free, copy-safe `MetricsSnapshot` value type. Existing v2 users must follow
+[MIGRATION.md](MIGRATION.md) before upgrading. Other changes in this release are
+additive or behavioral fixes. The earlier `v2.1.0` direct-refactor exception
+remains documented in the migration guide. Legacy v1 source remains available
+through the immutable `v1.0.0` to `v1.6.0` tags and is no longer maintained on
+`main`.
 
 Requires Go 1.25.8 or later.
 
@@ -59,7 +59,7 @@ go -C v2 install ./cmd/microgen
 Install the refactored generator from its independently versioned module:
 
 ```bash
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.1.0
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.0
 ```
 
 The generator CLI, including SQLite schema introspection, installs and runs

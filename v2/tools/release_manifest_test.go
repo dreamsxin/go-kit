@@ -133,8 +133,12 @@ func TestReleaseManifestMatchesRepository(t *testing.T) {
 	assertVersionText(t, filepath.Join(root, "Makefile"), "VERSION     ?= "+manifest.CoreVersion)
 	assertVersionText(t, filepath.Join(root, "cmd", "microgen", "internal", "generator", "options.go"), `const defaultGoKitVersion = "`+manifest.CoreVersion+`"`)
 	examples := readModuleEdit(t, filepath.Join(root, "examples"))
-	if got := requiredVersion(examples, "github.com/dreamsxin/go-kit/v2"); got != manifest.CoreVersion {
-		t.Errorf("examples require core %q, want %q", got, manifest.CoreVersion)
+	wantExamplesCore := manifest.CoreVersion
+	if manifest.Phase == "core-candidate" {
+		wantExamplesCore = manifest.PreviousCoreVersion
+	}
+	if got := requiredVersion(examples, "github.com/dreamsxin/go-kit/v2"); got != wantExamplesCore {
+		t.Errorf("examples require core %q, want %q in phase %s", got, wantExamplesCore, manifest.Phase)
 	}
 	grpcModule, ok := modulesByPath["github.com/dreamsxin/go-kit/v2/integrations/grpc"]
 	if !ok {

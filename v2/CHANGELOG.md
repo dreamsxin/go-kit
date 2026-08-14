@@ -5,6 +5,8 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+## [2.2.0] - Release Candidate
+
 This development cycle contains one explicitly approved, narrowly scoped v2
 SemVer exception: `Metrics.Snapshot()` now returns `MetricsSnapshot` instead of
 `Metrics`. The migration is documented in [MIGRATION.md](MIGRATION.md).

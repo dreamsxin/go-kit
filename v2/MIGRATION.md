@@ -1,9 +1,9 @@
 # Migrating From v1 To v2
 
-## Unreleased `Metrics.Snapshot` Compatibility Exception
+## v2.2.0 `Metrics.Snapshot` Compatibility Exception
 
 The repository owner approved one additional narrowly scoped v2 SemVer
-exception for the next release: `(*endpoint.Metrics).Snapshot()` returns
+exception for `v2.2.0`: `(*endpoint.Metrics).Snapshot()` returns
 `endpoint.MetricsSnapshot` rather than `endpoint.Metrics`. The new value has the
 same public metric fields, contains no mutex, is safe to copy, and adds
 `AverageDuration()`.
@@ -34,7 +34,7 @@ are not safe while middleware is updating it. Concurrent readers must use
 `v2.1.0` is an explicitly approved direct-refactor SemVer exception: it is not source
 compatible with `v2.0.0`, even though the module path remains `/v2`. Existing
 v2 users must apply the direct-refactor package moves below before upgrading.
-This exception is separate from the narrowly approved unreleased
+This exception is separate from the narrowly approved `v2.2.0`
 `Metrics.Snapshot` return-type correction above.
 
 v2 is a new Go major-version module and does not preserve v1 source

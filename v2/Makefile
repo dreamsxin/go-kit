@@ -19,7 +19,7 @@ DB_NAME     ?=
 SERVICE     ?= AppService
 HTTP_PORT   ?= :8080
 PROTO_DIR   ?= $(OUT)/pb
-VERSION     ?= v2.1.0
+VERSION     ?= v2.2.0
 
 MICROGEN    := $(shell go env GOPATH)/bin/microgen
 
