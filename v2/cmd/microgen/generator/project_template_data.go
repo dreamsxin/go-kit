@@ -98,6 +98,7 @@ type goModTemplateData struct {
 	ImportPath   string
 	GoKitVersion string
 	WithConfig   bool
+	WithGRPC     bool
 	WithOpenAPI  bool
 	RootRelPath  string
 }

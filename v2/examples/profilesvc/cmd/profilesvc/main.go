@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/dreamsxin/go-kit/v2/examples/profilesvc"
+	"github.com/dreamsxin/go-kit-examples/v2/profilesvc"
 	"github.com/dreamsxin/go-kit/v2/log"
 	"go.uber.org/zap"
 )

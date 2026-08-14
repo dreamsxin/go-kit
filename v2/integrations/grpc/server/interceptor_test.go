@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	transportgrpc "github.com/dreamsxin/go-kit/v2/transport/grpc"
+	transportgrpc "github.com/dreamsxin/go-kit/v2/integrations/grpc"
 	"google.golang.org/grpc"
 )
 

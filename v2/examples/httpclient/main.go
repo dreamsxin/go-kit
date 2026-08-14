@@ -26,8 +26,12 @@ import (
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
-type echoReq  struct{ Message string `json:"message"` }
-type echoResp struct{ Echo    string `json:"echo"`    }
+type echoReq struct {
+	Message string `json:"message"`
+}
+type echoResp struct {
+	Echo string `json:"echo"`
+}
 
 // ── Server side ───────────────────────────────────────────────────────────────
 

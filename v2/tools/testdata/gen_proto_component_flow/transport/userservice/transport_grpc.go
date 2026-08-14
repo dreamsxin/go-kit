@@ -5,8 +5,8 @@ import (
 	genendpoint "example.com/gen_proto_component_flow/endpoint/userservice"
 	idl "example.com/gen_proto_component_flow/pb"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	grpcclient "github.com/dreamsxin/go-kit/v2/transport/grpc/client"
-	grpcserver "github.com/dreamsxin/go-kit/v2/transport/grpc/server"
+	grpcclient "github.com/dreamsxin/go-kit/v2/integrations/grpc/client"
+	grpcserver "github.com/dreamsxin/go-kit/v2/integrations/grpc/server"
 	"google.golang.org/grpc"
 )
 

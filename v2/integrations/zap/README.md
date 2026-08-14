@@ -1,6 +1,6 @@
 # Zap adapter
 
-`observability/zap` owns the Zap-specific endpoint logging middleware. The core
+`integrations/zap` owns the Zap-specific endpoint logging middleware. The core
 `endpoint` package does not import Zap or the framework `log` package.
 
 ```go

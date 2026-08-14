@@ -4,6 +4,12 @@ go 1.25.8
 
 require (
 	github.com/dreamsxin/go-kit/v2 {{.GoKitVersion}}
+	github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker v0.1.0
+	{{- if .WithGRPC}}
+	github.com/dreamsxin/go-kit/v2/integrations/grpc v0.1.0
+	{{- end}}
+	github.com/dreamsxin/go-kit/v2/integrations/ratelimit v0.1.0
+	github.com/dreamsxin/go-kit/v2/integrations/zap v0.1.0
 	github.com/sony/gobreaker v1.0.0
 	{{- if .WithOpenAPI}}
 	github.com/swaggest/swgui v1.8.9
@@ -18,4 +24,12 @@ require (
 
 {{if .RootRelPath}}
 replace github.com/dreamsxin/go-kit/v2 => {{printf "%q" .RootRelPath}}
+
+replace github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker => {{printf "%q" (printf "%s/integrations/circuitbreaker" .RootRelPath)}}
+{{if .WithGRPC}}
+replace github.com/dreamsxin/go-kit/v2/integrations/grpc => {{printf "%q" (printf "%s/integrations/grpc" .RootRelPath)}}
+{{end}}
+replace github.com/dreamsxin/go-kit/v2/integrations/ratelimit => {{printf "%q" (printf "%s/integrations/ratelimit" .RootRelPath)}}
+
+replace github.com/dreamsxin/go-kit/v2/integrations/zap => {{printf "%q" (printf "%s/integrations/zap" .RootRelPath)}}
 {{end}}

@@ -66,10 +66,10 @@ For most services, these are the main entry points:
 
 Related extension packages:
 
-- `endpoint/circuitbreaker`
-- `endpoint/ratelimit`
+- `integrations/circuitbreaker`
+- `integrations/ratelimit`
 - `observability/slog`
-- `observability/zap`
+- `integrations/zap`
 
 ## Builder API
 
@@ -171,9 +171,9 @@ This keeps the core `endpoint` import graph limited to the Go standard library.
 
 Specialized middleware packages:
 
-- `endpoint/circuitbreaker`
+- `integrations/circuitbreaker`
   - `Gobreaker`
-- `endpoint/ratelimit`
+- `integrations/ratelimit`
   - `NewErroringLimiter`
   - `NewDelayingLimiter`
 
@@ -227,8 +227,8 @@ contract includes:
 - builder-style composition
 - the framework's central middleware model
 
-Specialized subpackages such as `endpoint/circuitbreaker` and
-`endpoint/ratelimit` remain independently selectable components.
+Specialized modules such as `integrations/circuitbreaker` and
+`integrations/ratelimit` remain independently selectable components.
 
 ## Best Practices
 

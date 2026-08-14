@@ -5,26 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/sony/gobreaker"
-	"golang.org/x/time/rate"
-
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/endpoint/circuitbreaker"
-	"github.com/dreamsxin/go-kit/v2/endpoint/ratelimit"
-	testgrpc "github.com/dreamsxin/go-kit/v2/examples/transport/_grpc_test"
-	testpb "github.com/dreamsxin/go-kit/v2/examples/transport/_grpc_test/pb"
 	"github.com/dreamsxin/go-kit/v2/kit"
-	kitgrpc "github.com/dreamsxin/go-kit/v2/kit/grpc"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
-	zapadapter "github.com/dreamsxin/go-kit/v2/observability/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type helloReq struct {
@@ -50,16 +37,6 @@ func newSvc(t *testing.T, opts ...kit.Option) (*kit.Service, *httptest.Server) {
 	ts := httptest.NewServer(svc) // Service implements http.Handler
 	t.Cleanup(ts.Close)
 	return svc, ts
-}
-
-func freeTCPAddr(t *testing.T) string {
-	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("Listen: %v", err)
-	}
-	defer l.Close()
-	return l.Addr().String()
 }
 
 // ── README Quick Start pattern ────────────────────────────────────────────────
@@ -93,17 +70,17 @@ func TestReadme_QuickStart(t *testing.T) {
 
 // TestReadme_WithMiddleware verifies the middleware options shown in README.md.
 func TestReadme_WithMiddleware(t *testing.T) {
-	logger := kitlog.NewNopLogger()
 	var metrics endpoint.Metrics
-	limiter := rate.NewLimiter(100, 100)
-	breaker := gobreaker.NewCircuitBreaker(gobreaker.Settings{Name: "hello"})
+	var calls int
+	middleware := func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request any) (any, error) {
+			calls++
+			return next(ctx, request)
+		}
+	}
 
 	svc := kit.MustNew(":0",
-		kit.WithEndpointMiddleware(
-			ratelimit.NewErroringLimiter(limiter),
-			circuitbreaker.Gobreaker(breaker),
-			zapadapter.LoggingMiddleware(logger, "hello"),
-		),
+		kit.WithEndpointMiddleware(middleware),
 		kit.WithTimeout(5*time.Second),
 		kit.WithRequestID(),
 		kit.WithMetrics(&metrics),
@@ -126,44 +103,8 @@ func TestReadme_WithMiddleware(t *testing.T) {
 	if metrics.RequestCount != 1 {
 		t.Errorf("RequestCount: got %d, want 1", metrics.RequestCount)
 	}
-}
-
-func TestReadme_WithGRPC_LiveRPC(t *testing.T) {
-	grpcAddr := freeTCPAddr(t)
-
-	grpcComponent := kitgrpc.MustNew(grpcAddr)
-	svc := kit.MustNew(":0", kit.WithLifecycle(grpcComponent))
-	testpb.RegisterTestServer(grpcComponent.Server(), testgrpc.NewBinding(testgrpc.NewService()))
-
-	if err := svc.Start(); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	defer svc.Shutdown(context.Background()) //nolint:errcheck
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	conn, err := grpc.DialContext( //nolint:staticcheck
-		ctx,
-		grpcAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-	)
-	if err != nil {
-		t.Fatalf("dial grpc: %v", err)
-	}
-	defer conn.Close()
-
-	client := testpb.NewTestClient(conn)
-	resp, err := client.Test(context.Background(), &testpb.TestRequest{
-		A: "answer",
-		B: 42,
-	})
-	if err != nil {
-		t.Fatalf("grpc Test RPC: %v", err)
-	}
-	if resp.GetV() != "answer = 42" {
-		t.Fatalf("grpc response: got %q, want %q", resp.GetV(), "answer = 42")
+	if calls != 1 {
+		t.Errorf("middleware calls: got %d, want 1", calls)
 	}
 }
 
@@ -644,77 +585,6 @@ func TestService_WithTimeout_CancelsSlowHandler(t *testing.T) {
 	}
 }
 
-// ── Explicit endpoint middleware ─────────────────────────────────────────────
-
-func TestService_WithEndpointLoggingMiddleware(t *testing.T) {
-	logger := kitlog.NewNopLogger()
-	_, ts := newSvc(t, kit.WithEndpointMiddleware(zapadapter.LoggingMiddleware(logger, "hello")))
-
-	body, _ := json.Marshal(helloReq{Name: "log"})
-	resp, err := http.Post(ts.URL+"/hello", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("POST: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
-	}
-}
-
-func TestService_WithEndpointLoggingMiddleware_NilLoggerDoesNotPanic(t *testing.T) {
-	_, ts := newSvc(t, kit.WithEndpointMiddleware(zapadapter.LoggingMiddleware(nil, "hello")))
-
-	body, _ := json.Marshal(helloReq{Name: "log"})
-	resp, err := http.Post(ts.URL+"/hello", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("POST: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
-	}
-}
-
-func TestService_WithEndpointCircuitBreaker(t *testing.T) {
-	breaker := gobreaker.NewCircuitBreaker(gobreaker.Settings{Name: "hello"})
-	svc := kit.MustNew(":0", kit.WithEndpointMiddleware(circuitbreaker.Gobreaker(breaker)))
-	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
-	ts := httptest.NewServer(svc)
-	defer ts.Close()
-
-	body, _ := json.Marshal(helloReq{Name: "test"})
-	resp, err := http.Post(ts.URL+"/hello", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("POST: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
-	}
-}
-
-func TestService_WithEndpointRateLimit_AllowsAndRejects(t *testing.T) {
-	// burst=1 at near-zero rate: first call allowed, subsequent rejected
-	limiter := rate.NewLimiter(0.001, 1)
-	svc := kit.MustNew(":0", kit.WithEndpointMiddleware(ratelimit.NewErroringLimiter(limiter)))
-	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
-	ts := httptest.NewServer(svc)
-	defer ts.Close()
-
-	body, _ := json.Marshal(helloReq{Name: "test"})
-	// first call consumes the burst token
-	http.Post(ts.URL+"/hello", "application/json", bytes.NewReader(body)) //nolint:errcheck
-	// second call should be rate-limited (non-200)
-	resp, err := http.Post(ts.URL+"/hello", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("POST: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusOK {
-		t.Log("note: rate limit may not have triggered (timing-dependent)")
-	}
-}
-
 // ── WithRequestID ─────────────────────────────────────────────────────────────
 
 func TestService_WithRequestID(t *testing.T) {
@@ -827,53 +697,6 @@ func TestKitOptions_ReturnErrorsForInvalidConfiguration(t *testing.T) {
 				t.Fatal("expected invalid option error")
 			}
 		})
-	}
-}
-
-// ── Optional gRPC lifecycle ──────────────────────────────────────────────────
-
-func TestGRPCComponentReturnsServer(t *testing.T) {
-	component := kitgrpc.MustNew(":0")
-	gs := component.Server()
-	if gs == nil {
-		t.Fatal("Server returned nil")
-	}
-	again := component.Server()
-	if again != gs {
-		t.Error("Server should return the same instance on repeated calls")
-	}
-}
-
-func TestService_WithGRPCLifecycle_StartShutdown(t *testing.T) {
-	component := kitgrpc.MustNew(":0")
-	svc := kit.MustNew(":0", kit.WithLifecycle(component))
-	if err := svc.Start(); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if err := svc.Shutdown(ctx); err != nil {
-		t.Errorf("Shutdown: %v", err)
-	}
-}
-
-func TestService_WithGRPCLifecycle_HTTPStillWorks(t *testing.T) {
-	component := kitgrpc.MustNew(":0")
-	svc := kit.MustNew(":0", kit.WithLifecycle(component))
-	svc.Handle("/hello", kit.JSON[helloReq](helloHandler))
-	ts := httptest.NewServer(svc)
-	defer ts.Close()
-	defer svc.Shutdown(context.Background()) //nolint:errcheck
-
-	body, _ := json.Marshal(helloReq{Name: "gRPC+HTTP"})
-	resp, err := http.Post(ts.URL+"/hello", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("POST /hello: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 }
 

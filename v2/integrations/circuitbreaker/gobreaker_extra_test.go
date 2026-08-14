@@ -7,7 +7,7 @@ import (
 
 	"github.com/sony/gobreaker"
 
-	"github.com/dreamsxin/go-kit/v2/endpoint/circuitbreaker"
+	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
 )
 
 // ─────────────────────────── Gobreaker: AllowRequests / HalfOpen ───────────────

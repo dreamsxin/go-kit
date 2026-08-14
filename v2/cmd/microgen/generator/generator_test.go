@@ -776,7 +776,28 @@ func TestGenerateFull_GoMod_Created(t *testing.T) {
 	mustContain(t, goModPath, "module example.com/myproject")
 	mustContain(t, goModPath, "go 1.25.8")
 	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2 v2.0.0")
+	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker v0.1.0")
+	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/ratelimit v0.1.0")
+	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/zap v0.1.0")
+	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/grpc")
 	mustNotContain(t, goModPath, "replace github.com/dreamsxin/go-kit/v2")
+}
+
+func TestGenerateFull_GoMod_WithGRPCRequiresGRPCIntegration(t *testing.T) {
+	outDir := newTmpDir(t)
+	project := parseIDLProject(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/myproject",
+		Protocols:  []string{"http", "grpc"},
+		DBDriver:   "sqlite",
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	mustContain(t, filepath.Join(outDir, "go.mod"), "github.com/dreamsxin/go-kit/v2/integrations/grpc v0.1.0")
 }
 
 func TestGenerateFull_GoMod_WithConfigUsesYAMLWithoutRemoteProviderBundle(t *testing.T) {

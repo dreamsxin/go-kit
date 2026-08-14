@@ -132,7 +132,7 @@ release-path decision is made only after the refactor acceptance gates pass.
 - [x] Work Package 0: tests generate into isolated temporary projects and keep
   the worktree clean.
 - [x] Work Package 1 implementation: endpoint cache ownership moved to
-  `sd/endpointer`, Zap middleware moved to `observability/zap`, and the core
+  `sd/endpointer`, Zap middleware moved to `integrations/zap`, and the core
   endpoint package is guarded against non-standard imports.
 - [ ] Work Package 1 race gate: rerun `go test -race ./endpoint` in CI or a
   local CGO environment with a C compiler. The current Windows environment has
@@ -143,7 +143,14 @@ release-path decision is made only after the refactor acceptance gates pass.
 - [x] Work Package 3: HTTP error encoding and HTTP extension contracts now live
   under `transport/http`; the root transport package retains only the shared
   error-handler contract. Import tests reject HTTP/gRPC cross-dependencies.
-- [ ] Work Packages 4-8.
+- [x] Work Package 4: `kit` is HTTP-only, optional lifecycle components use a
+  neutral contract, and gRPC assembly lives in the independent `kit/grpc`
+  module.
+- [ ] Work Package 5: circuit breaker, rate limit, gRPC, Zap, OpenTelemetry,
+  and `microgen` have independent modules and the repository is orchestrated by
+  `go.work`. Consul and the legacy root Zap alias still need extraction before
+  this package is complete.
+- [ ] Work Packages 6-8.
 
 ### Refactor Goals / 重构目标
 
@@ -183,9 +190,12 @@ v2/
     http/
   observability/
     slog/
-    zap/                            # optional module
     otel/                           # optional module
   integrations/
+    circuitbreaker/                 # optional module
+    grpc/                           # optional module
+    ratelimit/                      # optional module
+    zap/                            # optional module
     consul/                         # optional module
   cmd/
     microgen/                       # independent tool module
@@ -201,12 +211,12 @@ and standard-library integrations. The following directories become nested Go
 modules with their own `go.mod`, tests, and release checks:
 
 - `kit/grpc` or the final optional gRPC assembly location;
-- `transport/grpc`;
+- `integrations/grpc`;
 - `integrations/consul`;
-- `observability/zap`;
+- `integrations/zap`;
 - `observability/otel`;
-- `endpoint/circuitbreaker`;
-- `endpoint/ratelimit` when it continues to use `golang.org/x/time/rate`;
+- `integrations/circuitbreaker`;
+- `integrations/ratelimit` when it continues to use `golang.org/x/time/rate`;
 - `cmd/microgen`.
 
 Nested module paths retain the package import path where practical. Module
@@ -221,7 +231,7 @@ versions and tags are owned by `RELEASE.md`; local development uses an explicit
 | `endpoint.EndpointCache` | `sd/endpointer` | Move and rename only if clarity improves |
 | `endpoint.Factory` | `sd/endpointer` | Move with cache ownership |
 | `endpoint.EndpointerOption*` | `sd/endpointer` | Move; remove from endpoint |
-| `endpoint.LoggingMiddleware` and `endpoint.Logger` | `observability/zap` | Move; endpoint stops importing Zap |
+| `endpoint.LoggingMiddleware` and `endpoint.Logger` | `integrations/zap` | Move; endpoint stops importing Zap |
 | endpoint trace/request ID context helpers | `endpoint` | Keep standard-library implementation |
 | `transport.ErrorHandler` | `transport` or protocol owner | Keep only if shared without protocol types |
 | `transport.ErrorEncoder` and `DefaultErrorEncoder` | `transport/http/server` | Move; root transport stops importing HTTP |
@@ -233,7 +243,7 @@ versions and tags are owned by `RELEASE.md`; local development uses an explicit
 | `sd/endpointer/executor` | `sd/retry` | Remove direct gRPC status handling |
 | `utils.Exponential` | `sd/retry/internal/backoff` | Make implementation private |
 | `sd/consul` | `integrations/consul` | Move into optional module |
-| `log` Zap alias package | `observability/zap` | Remove from core module |
+| `log` Zap alias package | `integrations/zap` | Remove from core module |
 | `kit.WithGRPC` and gRPC fields | `kit/grpc` component | Remove from HTTP core assembly |
 | `kit.WithRateLimit`, `WithCircuitBreaker` | explicit endpoint middleware | Remove dependency-owning shortcuts |
 | `cmd/microgen/{generator,parser,ir,dbschema}` | `cmd/microgen/internal/*` | Make generator internals non-importable |
@@ -270,7 +280,7 @@ provider SDKs.
   metrics.
 - Move endpoint cache, factory, and invalidation behavior to `sd/endpointer`.
 - Move Zap logging middleware and Zap field construction to
-  `observability/zap`.
+  `integrations/zap`.
 - Remove the `Logger` alias and split mixed-purpose source files.
 - Add an import-boundary test that rejects non-standard imports from the core
   endpoint package.
@@ -316,7 +326,7 @@ Goal: make every transport package own all protocol-specific behavior.
 - Keep HTTP status, headers, public messages, error codes, encoders, and request
   metadata inside `transport/http`.
 - Keep gRPC metadata, status conversion, interceptors, and retry classification
-  inside the independent `transport/grpc` module.
+  inside the independent `integrations/grpc` module.
 - Remove HTTP types from the root `transport` package. Delete the root package
   when no truly shared behavior remains.
 - Preserve equivalent before/after/finalizer ordering across HTTP and gRPC

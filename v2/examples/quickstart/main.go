@@ -1,9 +1,9 @@
 // Package quickstart is the minimal go-kit HTTP service.
 //
 // It demonstrates the recommended "happy path" for new users:
-//   1. Define plain request/response types.
-//   2. Write pure business logic (no framework imports).
-//   3. Wire everything with NewJSONServerWithMiddleware.
+//  1. Define plain request/response types.
+//  2. Write pure business logic (no framework imports).
+//  3. Wire everything with NewJSONServerWithMiddleware.
 //
 // Run:
 //
@@ -32,8 +32,8 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/endpoint/circuitbreaker"
-	"github.com/dreamsxin/go-kit/v2/endpoint/ratelimit"
+	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
+	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
@@ -75,7 +75,7 @@ func main() {
 			return b.
 				WithMetrics(&metrics).
 				WithErrorHandling("hello").
-				WithTimeout(5*time.Second).
+				WithTimeout(5 * time.Second).
 				Use(circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(
 					gobreaker.Settings{Name: "hello"},
 				))).

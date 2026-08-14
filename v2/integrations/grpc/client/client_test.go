@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	transportgrpc "github.com/dreamsxin/go-kit/v2/transport/grpc"
+	transportgrpc "github.com/dreamsxin/go-kit/v2/integrations/grpc"
 )
 
 func TestNewClient_PanicsOnNilEssentialParameters(t *testing.T) {

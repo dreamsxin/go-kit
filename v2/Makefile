@@ -28,42 +28,47 @@ all: build
 ## workflow shortcuts
 test-runtime:
 	@echo ">>> Running runtime package tests..."
-	@go test -v ./kit/... ./endpoint/... ./transport/... ./sd/... ./log
+	@go test -v ./kit ./endpoint/... ./transport/... ./sd/... ./log ./interaction/... ./security/http ./observability/slog
+	@go -C ./kit/grpc test -v ./...
+	@go -C ./integrations/circuitbreaker test -v ./...
+	@go -C ./integrations/grpc test -v ./...
+	@go -C ./integrations/ratelimit test -v ./...
+	@go -C ./integrations/zap test -v ./...
 
 test-microgen:
 	@echo ">>> Running microgen tests..."
-	@go test -v ./cmd/microgen/...
+	@go -C ./cmd/microgen test -v ./...
 	@echo ">>> Running microgen integration tests..."
-	@go test -v ./tools/... -run "Test(Microgen|ReadmeQuickStartSmoke)"
+	@go -C ./tools test -v ./... -run "Test(Microgen|ReadmeQuickStartSmoke)"
 
 test-contracts:
 	@echo ">>> Generating and validating OpenAPI, JSON Schema, and TypeScript contracts..."
-	@cd ./tools/contractcheck && go test ./...
-	@go test -v ./tools -run "TestMicrogen(IDLContractIntegration|ProtoIntegration|FromDBIntegration)" -count=1
-	@go run ./tools/typecheck \
-		./tools/testdata/gen_idl_integration/sdk/typescript/tsconfig.json \
-		./tools/testdata/gen_proto_integration/sdk/typescript/tsconfig.json \
-		./tools/testdata/gen_fromdb_sqlite/sdk/typescript/tsconfig.json
+	@go -C ./tools/contractcheck test ./...
+	@go -C ./tools test -v . -run "TestMicrogen(IDLContractIntegration|ProtoIntegration|FromDBIntegration)" -count=1
+	@go -C ./tools run ./typecheck \
+		./testdata/gen_idl_integration/sdk/typescript/tsconfig.json \
+		./testdata/gen_proto_integration/sdk/typescript/tsconfig.json \
+		./testdata/gen_fromdb_sqlite/sdk/typescript/tsconfig.json
 	@echo ">>> Comparing generated Go and TypeScript SDK HTTP behavior..."
-	@go test -v ./tools -run TestGeneratedSDKBehaviorContract -count=1
+	@go -C ./tools test -v . -run TestGeneratedSDKBehaviorContract -count=1
 
 test-docs:
 	@echo ">>> Running documentation and UTF-8 verification..."
-	@go test -v ./tools -run "Test(RepositoryTextFilesAreUTF8|DocumentationLinksResolve)" -count=1
+	@go -C ./tools test -v . -run "Test(RepositoryTextFilesAreUTF8|DocumentationLinksResolve)" -count=1
 
 test-examples:
 	@echo ">>> Running example package tests..."
-	@go test -v ./examples/...
+	@go -C ./examples test -v ./...
 	@echo ">>> Running example smoke tests..."
-	@go test -v ./tools/... -run TestAllExamples
+	@go -C ./tools test -v ./... -run TestAllExamples
 
 test-observability:
 	@echo ">>> Running slog adapter tests..."
 	@go test -v ./observability/slog
 	@echo ">>> Running Zap adapter tests..."
-	@go test -v ./observability/zap
+	@go -C ./integrations/zap test -v ./...
 	@echo ">>> Running OpenTelemetry adapter tests..."
-	@cd ./observability/otel && go test -v ./...
+	@go -C ./observability/otel test -v ./...
 
 test-security:
 	@echo ">>> Running optional HTTP security middleware tests..."
@@ -71,35 +76,65 @@ test-security:
 
 test-api:
 	@echo ">>> Verifying the reviewed public API surface..."
-	@go test -v ./tools -run TestPublicAPISurfaceSnapshot -count=1
+	@go -C ./tools test -v . -run TestPublicAPISurfaceSnapshot -count=1
 
 test-race:
 	@echo ">>> Running focused race tests..."
-	@go test -race ./kit/... ./interaction/... ./transport/... ./sd/... ./cmd/microgen/generator ./security/http ./observability/slog ./observability/zap
-	@cd ./observability/otel && go test -race ./...
+	@go test -race ./kit ./interaction/... ./transport/... ./sd/... ./security/http ./observability/slog
+	@go -C ./kit/grpc test -race ./...
+	@go -C ./integrations/circuitbreaker test -race ./...
+	@go -C ./integrations/grpc test -race ./...
+	@go -C ./integrations/ratelimit test -race ./...
+	@go -C ./integrations/zap test -race ./...
+	@go -C ./observability/otel test -race ./...
+	@go -C ./cmd/microgen test -race ./generator
 
 test-vet:
 	@echo ">>> Running go vet across maintained modules..."
 	@go vet ./...
-	@cd ./observability/otel && go vet ./...
-	@cd ./tools/contractcheck && go vet ./...
+	@go -C ./cmd/microgen vet ./...
+	@go -C ./examples vet ./...
+	@go -C ./integrations/circuitbreaker vet ./...
+	@go -C ./integrations/grpc vet ./...
+	@go -C ./integrations/ratelimit vet ./...
+	@go -C ./integrations/zap vet ./...
+	@go -C ./kit/grpc vet ./...
+	@go -C ./observability/otel vet ./...
+	@go -C ./tools vet ./...
+	@go -C ./tools/contractcheck vet ./...
 
 test-modules:
 	@echo ">>> Verifying module files are tidy..."
 	@go mod tidy
-	@git diff --exit-code -- go.mod go.sum
 	@go -C ./observability/otel mod tidy
-	@git -C ./observability/otel diff --exit-code -- go.mod go.sum
 	@go -C ./tools/contractcheck mod tidy
-	@git -C ./tools/contractcheck diff --exit-code -- go.mod go.sum
+	@go -C ./cmd/microgen mod tidy
+	@go -C ./examples mod tidy
+	@go -C ./integrations/circuitbreaker mod tidy
+	@go -C ./integrations/grpc mod tidy
+	@go -C ./integrations/ratelimit mod tidy
+	@go -C ./integrations/zap mod tidy
+	@go -C ./kit/grpc mod tidy
+	@go -C ./tools mod tidy
+	@git diff --exit-code -- go.mod go.sum go.work.sum \
+		./cmd/microgen/go.mod ./cmd/microgen/go.sum \
+		./examples/go.mod ./examples/go.sum \
+		./integrations/circuitbreaker/go.mod ./integrations/circuitbreaker/go.sum \
+		./integrations/grpc/go.mod ./integrations/grpc/go.sum \
+		./integrations/ratelimit/go.mod ./integrations/ratelimit/go.sum \
+		./integrations/zap/go.mod ./integrations/zap/go.sum \
+		./kit/grpc/go.mod ./kit/grpc/go.sum \
+		./observability/otel/go.mod ./observability/otel/go.sum \
+		./tools/go.mod ./tools/go.sum \
+		./tools/contractcheck/go.mod ./tools/contractcheck/go.sum
 
 release-check-clean:
 	@echo ">>> Verifying the v2 release scope is clean..."
-	@go run ./tools/releasecheck
+	@go -C ./tools run ./releasecheck
 
 verify-published:
 	@echo ">>> Verifying the published Go module..."
-	@go run ./tools/releasecheck -published-version $(VERSION)
+	@go -C ./tools run ./releasecheck -published-version $(VERSION)
 
 verify: build test-runtime test-microgen test-docs test-examples test-observability test-security
 	@echo ">>> Verification pass completed."
@@ -110,7 +145,7 @@ verify-release: verify test-contracts test-api test-race test-vet test-modules
 ## install-microgen: build and install microgen into GOPATH/bin
 install-microgen:
 	@echo ">>> Installing microgen..."
-	@go install ./cmd/microgen
+	@go -C ./cmd/microgen install .
 	@echo "    Done: $(MICROGEN)"
 
 ## gen: generate HTTP service with model/repository/OpenAPI
@@ -199,11 +234,21 @@ proto:
 build:
 	@echo ">>> Building go-kit..."
 	@go build ./...
+	@go -C ./cmd/microgen build ./...
+	@go -C ./examples build ./...
+	@go -C ./integrations/circuitbreaker build ./...
+	@go -C ./integrations/grpc build ./...
+	@go -C ./integrations/ratelimit build ./...
+	@go -C ./integrations/zap build ./...
+	@go -C ./kit/grpc build ./...
+	@go -C ./observability/otel build ./...
+	@go -C ./tools build ./...
+	@go -C ./tools/contractcheck build ./...
 
 ## test: run all tests with the race detector
 test:
 	@echo ">>> Running tests..."
-	@go test -v -race ./...
+	@$(MAKE) test-runtime test-microgen test-docs test-examples test-observability test-security test-race
 
 ## coverage: generate an HTML coverage report
 coverage:
@@ -220,8 +265,8 @@ lint:
 ## deps: tidy and download Go module dependencies
 deps:
 	@echo ">>> Tidying dependencies..."
-	@go mod tidy
-	@go mod download
+	@$(MAKE) test-modules
+	@go work sync
 
 ## tools: install local development tools
 tools:

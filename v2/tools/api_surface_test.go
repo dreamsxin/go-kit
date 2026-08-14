@@ -24,14 +24,10 @@ func TestPublicAPISurfaceSnapshot(t *testing.T) {
 
 	var snapshot strings.Builder
 	snapshot.WriteString("go-kit-v2 public API\n")
-	for _, packagePath := range packages {
-		doc := commandOutput(t, root, "go", "doc", "-all", packagePath)
-		fmt.Fprintf(&snapshot, "%x  %s\n", sha256.Sum256(normalizeCommandOutput(doc)), packagePath)
+	for _, pkg := range packages {
+		doc := commandOutput(t, pkg.root, "go", "doc", "-all", pkg.importPath)
+		fmt.Fprintf(&snapshot, "%x  %s\n", sha256.Sum256(normalizeCommandOutput(doc)), pkg.importPath)
 	}
-	otelRoot := filepath.Join(root, "observability", "otel")
-	otelModule := "github.com/dreamsxin/go-kit/v2/observability/otel"
-	otelDoc := commandOutput(t, otelRoot, "go", "doc", "-all", ".")
-	fmt.Fprintf(&snapshot, "%x  %s\n", sha256.Sum256(normalizeCommandOutput(otelDoc)), otelModule)
 
 	snapshotPath := filepath.Join(cwd, "testdata", "api_surface.sha256")
 	if *updateAPISnapshot {
@@ -50,21 +46,32 @@ func TestPublicAPISurfaceSnapshot(t *testing.T) {
 	}
 }
 
-func publicRuntimePackages(t *testing.T, root string) []string {
+type publicPackage struct {
+	root       string
+	importPath string
+}
+
+func publicRuntimePackages(t *testing.T, root string) []publicPackage {
 	t.Helper()
-	output := commandOutput(t, root, "go", "list", "./...")
-	const modulePrefix = "github.com/dreamsxin/go-kit/v2/"
-	var packages []string
-	for _, packagePath := range strings.Fields(string(output)) {
-		relative := strings.TrimPrefix(packagePath, modulePrefix)
-		if relative == packagePath || strings.HasPrefix(relative, "cmd/") ||
-			strings.HasPrefix(relative, "examples/") || relative == "tools" ||
-			strings.HasPrefix(relative, "tools/") {
-			continue
-		}
-		packages = append(packages, packagePath)
+	moduleRoots := []string{
+		root,
+		filepath.Join(root, "integrations", "circuitbreaker"),
+		filepath.Join(root, "integrations", "grpc"),
+		filepath.Join(root, "integrations", "ratelimit"),
+		filepath.Join(root, "integrations", "zap"),
+		filepath.Join(root, "kit", "grpc"),
+		filepath.Join(root, "observability", "otel"),
 	}
-	sort.Strings(packages)
+	var packages []publicPackage
+	for _, moduleRoot := range moduleRoots {
+		output := commandOutput(t, moduleRoot, "go", "list", "./...")
+		for _, importPath := range strings.Fields(string(output)) {
+			packages = append(packages, publicPackage{root: moduleRoot, importPath: importPath})
+		}
+	}
+	sort.Slice(packages, func(i, j int) bool {
+		return packages[i].importPath < packages[j].importPath
+	})
 	return packages
 }
 

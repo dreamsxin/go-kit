@@ -55,11 +55,8 @@ type HelloService interface {
 		"-db=false",
 	)
 	generateCmd.Dir = outDir
+	generateCmd.Env = append(os.Environ(), "MICROGEN_GO_KIT_ROOT="+filepath.ToSlash(root))
 	runCommand(t, generateCmd)
-
-	replaceCmd := exec.Command("go", "mod", "edit", "-replace", "github.com/dreamsxin/go-kit/v2="+root)
-	replaceCmd.Dir = outDir
-	runCommand(t, replaceCmd)
 
 	tidyCmd := exec.Command("go", "mod", "tidy")
 	tidyCmd.Dir = outDir

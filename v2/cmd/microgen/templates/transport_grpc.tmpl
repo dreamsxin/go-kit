@@ -7,8 +7,8 @@ import (
 
 {{- if .UnaryMethods}}
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	grpcclient "github.com/dreamsxin/go-kit/v2/transport/grpc/client"
-	grpcserver "github.com/dreamsxin/go-kit/v2/transport/grpc/server"
+	grpcclient "github.com/dreamsxin/go-kit/v2/integrations/grpc/client"
+	grpcserver "github.com/dreamsxin/go-kit/v2/integrations/grpc/server"
 {{- end}}
 	"google.golang.org/grpc"
 	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"

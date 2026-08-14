@@ -19,7 +19,7 @@ root.
 - Core `kit` is an HTTP-only assembly layer. Endpoint middleware with external
   dependencies is installed explicitly through `kit.WithEndpointMiddleware`.
 - HTTP and gRPC transports default to a no-op error handler; error reporting is
-  application-owned through the `observability/slog` or `observability/zap`
+  application-owned through the `observability/slog` or `integrations/zap`
   adapters.
 - `microgen` now defaults config, model/repository, and database runtime wiring
   to off. `-from-db` still always emits the introspected models.

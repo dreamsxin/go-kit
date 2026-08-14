@@ -75,7 +75,7 @@ from HTTP status codes or gRPC wire details.
 Transport packages adapt endpoints to protocols:
 
 - `transport/http/server` and `transport/http/client`;
-- `transport/grpc/server` and `transport/grpc/client`.
+- `integrations/grpc/server` and `integrations/grpc/client`.
 
 They own bounded decoding, response status handling, protocol metadata,
 streaming interfaces, and transport-specific errors. They do not decide whether
@@ -112,7 +112,7 @@ points decide when to terminate.
 ### Optional observability adapters
 
 `observability/slog` adapts endpoint outcomes and transport errors to the
-standard-library `log/slog` API. `observability/zap` owns equivalent
+standard-library `log/slog` API. `integrations/zap` owns equivalent
 Zap-specific adapters, so core packages remain provider-neutral.
 `observability/otel` is a separate module that adapts endpoint calls to
 application-owned OpenTelemetry tracers and meters. These adapters do not log

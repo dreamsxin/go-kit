@@ -34,7 +34,7 @@ Common helpers also live under:
 
 - `transport/error_handler.go`
 - `transport/http`
-- `transport/grpc`
+- `integrations/grpc`
 
 ## Hook Semantics
 
@@ -89,7 +89,7 @@ Primary extension points:
 
 The default error handler is a no-op. Install an application-owned handler when
 errors must be logged or recorded, for example
-`zapadapter.NewErrorHandler(logger)` from `observability/zap`.
+`zapadapter.NewErrorHandler(logger)` from `integrations/zap`.
 
 Typical flow:
 
@@ -232,7 +232,7 @@ Typical flow mirrors the HTTP client path:
 
 Current metadata note:
 
-- gRPC client response headers and trailers are exposed in context for decode/finalizer-time inspection via `transport/grpc` context keys.
+- gRPC client response headers and trailers are exposed in context for decode/finalizer-time inspection via `integrations/grpc` context keys.
 
 ## What Belongs In Transport
 

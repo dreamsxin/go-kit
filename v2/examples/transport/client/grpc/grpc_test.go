@@ -14,8 +14,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
-	test "github.com/dreamsxin/go-kit/v2/examples/transport/_grpc_test"
-	"github.com/dreamsxin/go-kit/v2/examples/transport/_grpc_test/pb"
+	test "github.com/dreamsxin/go-kit-examples/v2/transport/_grpc_test"
+	"github.com/dreamsxin/go-kit-examples/v2/transport/_grpc_test/pb"
 )
 
 func startTestServer(t *testing.T) (dialer func(context.Context, string) (net.Conn, error), cleanup func()) {

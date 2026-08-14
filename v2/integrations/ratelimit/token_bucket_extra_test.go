@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/dreamsxin/go-kit/v2/endpoint/ratelimit"
+	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
 )
 
 // ─────────────────────────── AllowerFunc adapter ───────────────────────────

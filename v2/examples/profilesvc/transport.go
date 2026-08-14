@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"net/url"
 
+	zapadapter "github.com/dreamsxin/go-kit/v2/integrations/zap"
 	"github.com/dreamsxin/go-kit/v2/log"
-	zapadapter "github.com/dreamsxin/go-kit/v2/observability/zap"
 	httptransportserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 

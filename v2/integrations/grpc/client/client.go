@@ -21,7 +21,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	transportgrpc "github.com/dreamsxin/go-kit/v2/transport/grpc"
+	transportgrpc "github.com/dreamsxin/go-kit/v2/integrations/grpc"
 )
 
 type Client struct {

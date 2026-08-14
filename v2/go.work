@@ -1,0 +1,15 @@
+go 1.25.8
+
+use (
+	.
+	./cmd/microgen
+	./examples
+	./integrations/circuitbreaker
+	./integrations/grpc
+	./integrations/ratelimit
+	./integrations/zap
+	./kit/grpc
+	./observability/otel
+	./tools
+	./tools/contractcheck
+)

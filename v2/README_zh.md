@@ -238,7 +238,7 @@ HTTP 集成。
 | `kit` | 小型服务装配和生命周期 |
 | `endpoint` | 与 transport 无关的 endpoint 和 middleware 组合 |
 | `transport/http` | HTTP server/client adapter |
-| `transport/grpc` | gRPC server/client adapter |
+| `integrations/grpc` | 可选的 gRPC server/client adapter |
 | `sd` | 与 provider 无关的服务发现契约 |
 | `sd/endpointer`、`sd/balancer`、`sd/retry` | 可独立组合的服务发现运行时组件 |
 | `sd/client` | 可选的发现、负载均衡和重试装配入口 |
@@ -246,7 +246,7 @@ HTTP 集成。
 | `interaction/mcp` | MCP Streamable HTTP adapter |
 | `log` | 框架日志适配 |
 | `observability/slog` | 可选的标准库 `slog` endpoint 日志适配器 |
-| `observability/zap` | 可选的 Zap endpoint 日志适配器 |
+| `integrations/zap` | 可选的 Zap endpoint 日志适配器 |
 | `observability/otel` | 可选的 OpenTelemetry endpoint 追踪和指标模块 |
 | `security/http` | 可选的可信代理/IP、CORS、CSRF 和安全 Header |
 | `cmd/microgen` | 契约驱动的项目生成器 |
@@ -264,7 +264,7 @@ MCP 客户端必须使用协议版本 `2025-06-18` 初始化，随后发送
 IAM、Outbox、任务平台、对象存储、Secret 平台和完整事务框架等业务平台能力。
 
 可选观测适配器将 provider 的创建、资源、导出器、采样和关闭责任保留在
-应用装配层。`observability/slog` 只使用标准库，`observability/zap` 负责当前
+应用装配层。`observability/slog` 只使用标准库，`integrations/zap` 负责当前
 Zap 集成，`observability/otel` 是独立 module；核心 `endpoint` 不导入这些
 provider。可以使用以下命令验证观测适配器：
 

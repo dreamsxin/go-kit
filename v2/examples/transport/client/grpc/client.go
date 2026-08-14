@@ -5,10 +5,10 @@ import (
 
 	"google.golang.org/grpc"
 
+	test "github.com/dreamsxin/go-kit-examples/v2/transport/_grpc_test"
+	"github.com/dreamsxin/go-kit-examples/v2/transport/_grpc_test/pb"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	test "github.com/dreamsxin/go-kit/v2/examples/transport/_grpc_test"
-	"github.com/dreamsxin/go-kit/v2/examples/transport/_grpc_test/pb"
-	grpctransport "github.com/dreamsxin/go-kit/v2/transport/grpc/client"
+	grpctransport "github.com/dreamsxin/go-kit/v2/integrations/grpc/client"
 )
 
 // 绑定多个端点

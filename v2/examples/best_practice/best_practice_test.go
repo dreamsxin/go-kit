@@ -14,8 +14,8 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/endpoint/circuitbreaker"
-	"github.com/dreamsxin/go-kit/v2/endpoint/ratelimit"
+	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
+	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
 	"github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 

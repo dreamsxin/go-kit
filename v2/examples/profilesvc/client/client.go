@@ -11,8 +11,8 @@ import (
 
 	consulapi "github.com/hashicorp/consul/api"
 
+	"github.com/dreamsxin/go-kit-examples/v2/profilesvc"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/examples/profilesvc"
 	"github.com/dreamsxin/go-kit/v2/log"
 	sdclient "github.com/dreamsxin/go-kit/v2/sd/client"
 	"github.com/dreamsxin/go-kit/v2/sd/consul"

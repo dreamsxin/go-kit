@@ -246,7 +246,7 @@ HTTP integrations.
 | `kit` | Small-service assembly and lifecycle |
 | `endpoint` | Transport-independent endpoint and middleware composition |
 | `transport/http` | HTTP server and client adapters |
-| `transport/grpc` | gRPC server and client adapters |
+| `integrations/grpc` | Optional gRPC server and client adapters |
 | `sd` | Provider-neutral service-discovery contracts |
 | `sd/endpointer`, `sd/balancer`, `sd/retry` | Independently composable discovery runtime |
 | `sd/client` | Optional discovery, balancing, and retry composition |
@@ -254,7 +254,7 @@ HTTP integrations.
 | `interaction/mcp` | MCP Streamable HTTP adapter |
 | `log` | Framework logging adapter |
 | `observability/slog` | Optional standard-library `slog` endpoint logging |
-| `observability/zap` | Optional Zap endpoint logging adapter |
+| `integrations/zap` | Optional Zap endpoint logging adapter |
 | `observability/otel` | Optional OpenTelemetry endpoint tracing and metrics module |
 | `security/http` | Optional trusted-proxy/IP, CORS, CSRF, and security headers |
 | `cmd/microgen` | Contract-driven project generator |
@@ -276,7 +276,7 @@ transaction frameworks.
 
 Optional observability adapters keep provider ownership in application
 assembly. `observability/slog` uses only the standard library,
-`observability/zap` owns the current Zap integration, and `observability/otel`
+`integrations/zap` owns the current Zap integration, and `observability/otel`
 is a separate module. The core `endpoint` package imports none of these
 providers. Test the adapters with:
 

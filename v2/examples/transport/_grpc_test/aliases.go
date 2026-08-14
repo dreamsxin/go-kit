@@ -16,9 +16,9 @@ var (
 	extractCorrelationID        = ExtractCorrelationID
 	displayServerRequestHeaders = DisplayServerRequestHeaders
 
-	injectResponseHeader         = InjectResponseHeader
-	injectResponseTrailer        = InjectResponseTrailer
-	injectConsumedCorrelationID  = InjectConsumedCorrelationID
-	displayServerResponseHeaders = DisplayServerResponseHeaders
+	injectResponseHeader          = InjectResponseHeader
+	injectResponseTrailer         = InjectResponseTrailer
+	injectConsumedCorrelationID   = InjectConsumedCorrelationID
+	displayServerResponseHeaders  = DisplayServerResponseHeaders
 	displayServerResponseTrailers = DisplayServerResponseTrailers
 )

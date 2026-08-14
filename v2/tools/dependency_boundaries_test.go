@@ -1,6 +1,8 @@
 package tools_test
 
 import (
+	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -42,7 +44,7 @@ func TestKitHTTPAssemblyDoesNotResolveOptionalDependencies(t *testing.T) {
 	output := commandOutput(t, root, "go", "list", "-deps", "-f", "{{.ImportPath}}", "./kit")
 	forbidden := []string{
 		"github.com/dreamsxin/go-kit/v2/kit/grpc",
-		"github.com/dreamsxin/go-kit/v2/observability/zap",
+		"github.com/dreamsxin/go-kit/v2/integrations/zap",
 		"github.com/go-sql-driver/mysql",
 		"github.com/hashicorp/consul",
 		"github.com/lib/pq",
@@ -63,26 +65,30 @@ func TestKitHTTPAssemblyDoesNotResolveOptionalDependencies(t *testing.T) {
 func TestTransportPackagesDoNotCrossProtocolBoundaries(t *testing.T) {
 	root := moduleRoot(t)
 	checks := []struct {
+		dir       string
 		pattern   string
 		forbidden []string
 	}{
 		{
+			dir:     root,
 			pattern: "./transport",
 			forbidden: []string{
 				"net/http",
 				"github.com/dreamsxin/go-kit/v2/transport/http",
-				"github.com/dreamsxin/go-kit/v2/transport/grpc",
+				"github.com/dreamsxin/go-kit/v2/integrations/grpc",
 			},
 		},
 		{
+			dir:     root,
 			pattern: "./transport/http/...",
 			forbidden: []string{
-				"github.com/dreamsxin/go-kit/v2/transport/grpc",
+				"github.com/dreamsxin/go-kit/v2/integrations/grpc",
 				"google.golang.org/grpc",
 			},
 		},
 		{
-			pattern: "./transport/grpc/...",
+			dir:     filepath.Join(root, "integrations", "grpc"),
+			pattern: "./...",
 			forbidden: []string{
 				"github.com/dreamsxin/go-kit/v2/transport/http",
 				"net/http",
@@ -91,7 +97,7 @@ func TestTransportPackagesDoNotCrossProtocolBoundaries(t *testing.T) {
 	}
 
 	for _, check := range checks {
-		output := commandOutput(t, root, "go", "list", "-f", "{{.ImportPath}}|{{join .Imports \",\"}}", check.pattern)
+		output := commandOutput(t, check.dir, "go", "list", "-f", "{{.ImportPath}}|{{join .Imports \",\"}}", check.pattern)
 		for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
 			parts := strings.SplitN(strings.TrimSpace(line), "|", 2)
 			if len(parts) != 2 {
@@ -108,6 +114,43 @@ func TestTransportPackagesDoNotCrossProtocolBoundaries(t *testing.T) {
 	}
 }
 
+func TestPublishableModulesDoNotUseLocalReplacements(t *testing.T) {
+	root := moduleRoot(t)
+	moduleRoots := []string{
+		root,
+		filepath.Join(root, "cmd", "microgen"),
+		filepath.Join(root, "integrations", "circuitbreaker"),
+		filepath.Join(root, "integrations", "grpc"),
+		filepath.Join(root, "integrations", "ratelimit"),
+		filepath.Join(root, "integrations", "zap"),
+		filepath.Join(root, "kit", "grpc"),
+		filepath.Join(root, "observability", "otel"),
+	}
+	type moduleVersion struct {
+		Path    string
+		Version string
+	}
+	type editJSON struct {
+		Replace []struct {
+			Old moduleVersion
+			New moduleVersion
+		}
+	}
+
+	for _, moduleRoot := range moduleRoots {
+		output := commandOutput(t, moduleRoot, "go", "mod", "edit", "-json")
+		var edit editJSON
+		if err := json.Unmarshal(output, &edit); err != nil {
+			t.Fatalf("decode %s/go.mod: %v", moduleRoot, err)
+		}
+		for _, replacement := range edit.Replace {
+			if replacement.New.Version == "" {
+				t.Errorf("publishable module %s uses local replace %s => %s", moduleRoot, replacement.Old.Path, replacement.New.Path)
+			}
+		}
+	}
+}
+
 func moduleRoot(t *testing.T) string {
 	t.Helper()
 	cwd := commandOutput(t, ".", "go", "env", "GOMOD")
@@ -119,5 +162,5 @@ func moduleRoot(t *testing.T) string {
 	if index < 0 {
 		t.Fatalf("invalid go.mod path %q", goMod)
 	}
-	return goMod[:index]
+	return filepath.Dir(filepath.Dir(goMod))
 }

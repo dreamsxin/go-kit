@@ -13,8 +13,8 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/endpoint/circuitbreaker"
-	"github.com/dreamsxin/go-kit/v2/endpoint/ratelimit"
+	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
+	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -27,7 +27,7 @@ func newQuickstartServer(t *testing.T) (*httptest.Server, *endpoint.Metrics) {
 			return b.
 				WithMetrics(&metrics).
 				WithErrorHandling("hello").
-				WithTimeout(5*time.Second).
+				WithTimeout(5 * time.Second).
 				Use(circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(
 					gobreaker.Settings{Name: "hello-test"},
 				))).

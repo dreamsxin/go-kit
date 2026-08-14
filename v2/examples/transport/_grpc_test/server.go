@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/dreamsxin/go-kit-examples/v2/transport/_grpc_test/pb"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/examples/transport/_grpc_test/pb"
-	grpctransport "github.com/dreamsxin/go-kit/v2/transport/grpc/server"
+	grpctransport "github.com/dreamsxin/go-kit/v2/integrations/grpc/server"
 )
 
 type service struct{}

@@ -27,7 +27,7 @@ v2 文档按任务组织。当前行为写入使用与架构文档；长期实�
 - [service discovery](sd/README.md)
 - [interaction](interaction/README.md)
 - [slog observability adapter](observability/slog/README.md)
-- [Zap observability adapter](observability/zap/README.md)
+- [Zap observability adapter](integrations/zap/README.md)
 - [OpenTelemetry observability adapter](observability/otel/README.md)
 - [optional HTTP security middleware](security/http/README.md)
 - [examples](examples/README.md)

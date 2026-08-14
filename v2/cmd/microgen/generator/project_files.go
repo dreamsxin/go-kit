@@ -187,6 +187,7 @@ func (g *Generator) generateGoModFile() error {
 		ImportPath:   g.config.ImportPath,
 		GoKitVersion: g.config.GoKitVersion,
 		WithConfig:   g.config.WithConfig,
+		WithGRPC:     g.config.WithGRPC,
 		WithOpenAPI:  g.config.WithOpenAPI,
 		RootRelPath:  g.rootRelativePath(),
 	}
