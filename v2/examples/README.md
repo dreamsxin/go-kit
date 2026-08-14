@@ -6,7 +6,7 @@ A guided tour of the go-kit framework, from simplest to most complete.
 
 | Directory | What it shows | Run |
 |-----------|--------------|-----|
-| `quickstart/` | Recommended kit API: `kit.New` + `kit.HandleJSON` + `svc.Run` | `go run ./examples/quickstart` |
+| `quickstart/` | Recommended kit API: `kit.New` + `kit.HandleJSONTyped` + `svc.Run` | `go run ./examples/quickstart` |
 | `basic/` | Middleware chain execution order | `go test ./examples/basic/...` |
 | `manual_composition/` | Explicit endpoint Builder + HTTP transport composition | `go run ./examples/manual_composition` |
 | `best_practice/` | Production patterns: metrics, circuit breaker, rate limit, graceful shutdown | `go run ./examples/best_practice` |
@@ -76,15 +76,12 @@ ep := endpoint.NewBuilder(base).
     Build()
 ```
 
-### 3. Zero-boilerplate HTTP handler
+### 3. Type-safe HTTP handler
 
 ```go
-// Automatic JSON decode/encode — no DecodeRequestFunc needed
-mux.Handle("/hello", server.NewJSONServer[helloRequest](
-    func(ctx context.Context, req helloRequest) (any, error) {
-        return ep(ctx, req)
-    },
-))
+// Automatic JSON decode/encode with concrete request and response types.
+typed := endpoint.Unwrap[helloRequest, helloResponse](ep)
+mux.Handle("/hello", server.NewTypedJSONServer(typed))
 ```
 
 ### 4. Service discovery in one line

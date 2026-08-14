@@ -89,12 +89,13 @@ ep := endpoint.NewBuilder(base).
     Build()
 
 snapshot := metrics.Snapshot()
-fmt.Println(snapshot.RequestCount, snapshot.ErrorCount)
+fmt.Println(snapshot.RequestCount, snapshot.ErrorCount, snapshot.AverageDuration())
 ```
 
-Use `Snapshot` for every concurrent read. The exported fields remain available
-for v2 source compatibility, but reading them while middleware is updating the
-collector is a data race.
+Use `Snapshot` for every concurrent read. It returns `MetricsSnapshot`, a
+lock-free value that is safe to copy. The collector's exported fields remain
+available for source compatibility, but reading them while middleware is
+updating the collector is a data race.
 
 Why prefer the builder:
 

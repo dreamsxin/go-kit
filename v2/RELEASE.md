@@ -10,7 +10,7 @@ github.com/dreamsxin/go-kit/v2
 
 The direct refactor tracked in [ROADMAP.md](ROADMAP.md) was published on
 2026-08-14. It is not source compatible with `v2.0.0`. The repository owner
-approved publishing it under `/v2` as a documented one-time SemVer exception
+approved publishing it under `/v2` as a documented SemVer exception
 instead of changing the module path to `/v3`. The source break is recorded in
 [CHANGELOG.md](CHANGELOG.md) and [MIGRATION.md](MIGRATION.md); the reviewed
 dependency closure and baseline comparison are recorded in
@@ -26,19 +26,29 @@ The immutable `v2.0.0` baseline and the `v2.1.0` root release resolve through
 the public Go proxy. The eight independently versioned nested modules listed in
 `RELEASE_MANIFEST.json` also resolve at `v0.1.0`.
 
+The unreleased `main` branch contains a second, separately approved exception:
+`Metrics.Snapshot()` returns `MetricsSnapshot` rather than `Metrics`. This is
+the only additional incompatible API authorized for the next v2 release. Its
+version and release manifest must be selected and reviewed before tagging.
+
 ## Versioning
 
-Except for the explicitly approved direct-refactor release, v2 follows semantic
-versioning from v2.0.0 onward:
+v2 follows semantic versioning except for explicitly approved and documented
+exceptions:
 
 - patch: compatible fixes and documentation corrections;
 - minor: backward-compatible public capabilities;
 - major: incompatible runtime API, module, CLI, configuration, or generated
   ownership changes.
 
-The approved exception applies only to the incompatible refactor delivered in
-`v2.1.0`. Normal compatibility rules resume from that release; the exception is
-not precedent for unrelated breaking changes.
+The approved exceptions are limited to:
+
+- the direct refactor delivered in `v2.1.0`;
+- the unreleased `Metrics.Snapshot() -> MetricsSnapshot` return-type correction.
+
+Neither exception authorizes unrelated breaking changes. Any further
+incompatibility requires a new major module path unless separately approved and
+documented before implementation.
 
 The compatibility contract includes:
 

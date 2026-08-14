@@ -24,11 +24,13 @@ github.com/dreamsxin/go-kit/v2
 ```
 
 `v2.1.0` is the current published v2 release. It delivers the direct
-architecture refactor as a documented one-time SemVer exception and is not
+architecture refactor as a documented SemVer exception and is not
 source compatible with `v2.0.0`; existing v2 users must follow
-[MIGRATION.md](MIGRATION.md) before upgrading. Normal v2 compatibility rules
-resume from `v2.1.0`. Legacy v1 source remains available through the immutable
-`v1.0.0` to `v1.6.0` tags and is no longer maintained on `main`.
+[MIGRATION.md](MIGRATION.md) before upgrading. The unreleased `main` branch has
+one additional approved exception: `endpoint.Metrics.Snapshot` now returns the
+lock-free `MetricsSnapshot` value type. Other changes in this development cycle
+are additive or behavioral fixes. Legacy v1 source remains available through
+the immutable `v1.0.0` to `v1.6.0` tags and is no longer maintained on `main`.
 
 Requires Go 1.25.8 or later.
 
@@ -59,6 +61,10 @@ Install the refactored generator from its independently versioned module:
 ```bash
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.1.0
 ```
+
+The generator CLI, including SQLite schema introspection, installs and runs
+without CGO or a local C compiler. A generated application may still use a
+CGO-backed database driver when that runtime adapter is explicitly selected.
 
 The `v2.0.0` root module also contains the historical generator. It can still be
 installed explicitly, but its generated package graph follows the old contract:
@@ -147,6 +153,7 @@ Edit:
 - `endpoint/<service>/custom_chain.go`
 - `cmd/custom_routes.go`
 - `config/config.yaml`
+- `config/custom.go`
 
 Do not hand-edit:
 
@@ -197,10 +204,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	kit.HandleJSON[HelloRequest](svc, "/hello", func(
+	kit.HandleJSONTyped(svc, "/hello", func(
 		ctx context.Context,
 		req HelloRequest,
-	) (any, error) {
+	) (HelloResponse, error) {
 		return HelloResponse{Message: "Hello, " + req.Name}, nil
 	})
 
@@ -245,9 +252,14 @@ headers to 1 MiB, and keeps `WriteTimeout` disabled so SSE and other streaming
 responses are not terminated unexpectedly. Override the complete policy with
 `kit.WithHTTPServerConfig` when a service needs different limits.
 
-Use `kit.HandleJSON` or `kit.HandleJSONEndpoint` for business routes that need
-endpoint middleware. Use `Service.Handle` and `Service.HandleFunc` only for raw
-HTTP integrations.
+Use `kit.HandleJSONTyped` for concrete request and response types,
+`kit.HandleJSON` for intentionally dynamic responses, and
+`kit.HandleJSONEndpoint` for an existing endpoint. Use `Service.Handle` and
+`Service.HandleFunc` only for raw HTTP integrations.
+
+`endpoint.Metrics` is the mutable collector used by middleware. Read it through
+`Snapshot()`, which returns a copyable `endpoint.MetricsSnapshot`; use
+`AverageDuration()` for the mean request duration.
 
 ## Components
 

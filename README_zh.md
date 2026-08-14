@@ -20,8 +20,10 @@ github.com/dreamsxin/go-kit/v2@v2.1.0
 ```
 
 `v2.1.0` 是一次有明确记录的 SemVer 例外，与 `v2.0.0` 不保持源码兼容。现有
-v2 用户升级前必须阅读[迁移指南](v2/MIGRATION.md)。从 `v2.1.0` 开始恢复正常
-的兼容性规则。
+v2 用户升级前必须阅读[迁移指南](v2/MIGRATION.md)。已发布的 `v2.1.0` 契约继续
+遵循正常兼容性规则；未发布的 `main` 另有一次严格限定的例外，仅涉及
+`endpoint.Metrics.Snapshot` 的返回类型。直接使用 `main` 前请阅读
+[CHANGELOG](v2/CHANGELOG.md) 和[迁移指南](v2/MIGRATION.md)。
 
 ## 开始使用
 

@@ -53,7 +53,9 @@ through the provider-neutral `kit.Lifecycle` contract.
 
 - `kit.New` validates configuration and returns an error.
 - `Service.Run(ctx)` follows a caller-owned context.
-- `kit.HandleJSON` and `kit.HandleJSONEndpoint` preserve endpoint middleware.
+- `kit.HandleJSONTyped`, `kit.HandleJSON`, and `kit.HandleJSONEndpoint` preserve
+  endpoint middleware; the typed entry point is preferred for concrete
+  responses.
 - `Service.Handle` and `Service.HandleFunc` are raw HTTP escape hatches.
 - `kit/grpc` is an optional lifecycle component and is not imported by core
   `kit`.
@@ -66,6 +68,9 @@ few lines of endpoint wiring.
 `endpoint` defines the transport-independent request function and standard
 library middleware composition, timeout, and metrics. Provider-specific
 logging, rate limiting, and circuit breaking remain explicit adapters.
+
+`Metrics` is a mutable collector owned by middleware. Concurrent readers use
+`Snapshot()`, which returns the lock-free, copyable `MetricsSnapshot` value.
 
 Endpoint middleware observes business call results. It should not infer errors
 from HTTP status codes or gRPC wire details.
@@ -209,11 +214,12 @@ framework branches for one application.
 
 ## Stability
 
-The published `v2.0.0` tag remains an immutable stable baseline. The current
-`main/v2` tree is a direct architecture refactor and intentionally does not
-preserve `v2.0.0` source compatibility. The repository owner approved a
-documented one-time SemVer exception that keeps this refactor under `/v2`; it
-is still development source until the remaining gates in
-[ROADMAP.md](ROADMAP.md) pass. The release must use a previously unused v2 tag
-and state the compatibility break prominently in [CHANGELOG.md](CHANGELOG.md),
-[MIGRATION.md](MIGRATION.md), and its release notes.
+`v2.1.0` is the current published contract and the direct architecture refactor
+is complete. It was published under `/v2` as an explicitly documented SemVer
+exception from `v2.0.0`.
+
+The unreleased `main/v2` tree contains one additional approved exception:
+`Metrics.Snapshot()` returns the lock-free `MetricsSnapshot` value instead of a
+copy of the mutex-bearing collector. No other incompatibility is authorized by
+that exception. The change must remain prominent in [CHANGELOG.md](CHANGELOG.md),
+[MIGRATION.md](MIGRATION.md), and the next release notes.

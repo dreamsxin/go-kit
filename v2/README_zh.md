@@ -22,10 +22,12 @@ v2 是独立 Go module：
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.1.0` 是当前已发布的 v2 版本。它以有明确记录的一次性 SemVer 例外交付直接
+`v2.1.0` 是当前已发布的 v2 版本。它以有明确记录的 SemVer 例外交付直接
 架构重构，与 `v2.0.0` 不保持源码兼容；现有 v2 用户升级前必须先阅读
-[MIGRATION.md](MIGRATION.md)。从 `v2.1.0` 开始恢复正常的 v2 兼容性规则。
-`main` 不再维护 v1，其源码仍可通过不可变的 `v1.0.0` 至 `v1.6.0` 标签获取。
+[MIGRATION.md](MIGRATION.md)。未发布的 `main` 另有一次已批准的严格限定例外：
+`endpoint.Metrics.Snapshot` 现在返回不含锁的 `MetricsSnapshot` 值类型。本轮其他
+变化均为增量 API 或行为修复。`main` 不再维护 v1，其源码仍可通过不可变的
+`v1.0.0` 至 `v1.6.0` 标签获取。
 
 需要 Go 1.25.8 或更高版本。
 
@@ -55,6 +57,9 @@ go -C v2 install ./cmd/microgen
 ```bash
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.1.0
 ```
+
+生成器 CLI（包括 SQLite 结构读取）安装和运行均不依赖 CGO 或本地 C 编译器。
+只有在生成应用显式选择相应运行时数据库 adapter 时，应用本身才可能需要 CGO。
 
 `v2.0.0` 根 module 仍包含历史生成器，可以显式安装，但它生成的包结构遵循旧契约：
 
@@ -139,6 +144,7 @@ npx --yes --package typescript@7.0.2 tsc -p sdk/typescript/tsconfig.json
 - `endpoint/<service>/custom_chain.go`
 - `cmd/custom_routes.go`
 - `config/config.yaml`
+- `config/custom.go`
 
 不要手动修改：
 
@@ -188,10 +194,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	kit.HandleJSON[HelloRequest](svc, "/hello", func(
+	kit.HandleJSONTyped(svc, "/hello", func(
 		ctx context.Context,
 		req HelloRequest,
-	) (any, error) {
+	) (HelloResponse, error) {
 		return HelloResponse{Message: "Hello, " + req.Name}, nil
 	})
 
@@ -235,9 +241,13 @@ svc, err := kit.New(":8080", kit.WithLifecycle(grpcComponent))
 `WriteTimeout=0`，避免 SSE 和其他流式响应被意外中断。需要不同策略时使用
 `kit.WithHTTPServerConfig` 显式覆盖完整配置。
 
-需要 endpoint middleware 的业务路由使用 `kit.HandleJSON` 或
-`kit.HandleJSONEndpoint`。`Service.Handle` 和 `Service.HandleFunc` 仅用于原生
-HTTP 集成。
+请求和响应都有具体类型时使用 `kit.HandleJSONTyped`；有意返回动态响应时使用
+`kit.HandleJSON`；已有 endpoint 时使用 `kit.HandleJSONEndpoint`。
+`Service.Handle` 和 `Service.HandleFunc` 仅用于原生 HTTP 集成。
+
+`endpoint.Metrics` 是 middleware 写入的可变采集器。并发读取必须通过
+`Snapshot()` 获取可复制的 `endpoint.MetricsSnapshot`，平均耗时使用
+`AverageDuration()`。
 
 ## 组件
 

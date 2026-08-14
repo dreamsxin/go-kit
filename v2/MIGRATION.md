@@ -1,11 +1,41 @@
 # Migrating From v1 To v2
 
-## v2.1.0 Compatibility Exception
+## Unreleased `Metrics.Snapshot` Compatibility Exception
 
-`v2.1.0` is an explicitly approved one-time SemVer exception: it is not source
+The repository owner approved one additional narrowly scoped v2 SemVer
+exception for the next release: `(*endpoint.Metrics).Snapshot()` returns
+`endpoint.MetricsSnapshot` rather than `endpoint.Metrics`. The new value has the
+same public metric fields, contains no mutex, is safe to copy, and adds
+`AverageDuration()`.
+
+Most callers require no source change:
+
+```go
+snapshot := metrics.Snapshot()
+fmt.Println(snapshot.RequestCount, snapshot.AverageDuration())
+```
+
+Only callers that explicitly declared the old result type must update it:
+
+```go
+// Before
+var snapshot endpoint.Metrics = metrics.Snapshot()
+
+// After
+var snapshot endpoint.MetricsSnapshot = metrics.Snapshot()
+```
+
+Direct reads from the mutable `Metrics` collector remain source-compatible but
+are not safe while middleware is updating it. Concurrent readers must use
+`Snapshot()`.
+
+## v2.1.0 Direct-Refactor Compatibility Exception
+
+`v2.1.0` is an explicitly approved direct-refactor SemVer exception: it is not source
 compatible with `v2.0.0`, even though the module path remains `/v2`. Existing
 v2 users must apply the direct-refactor package moves below before upgrading.
-After this contract reset, normal v2 compatibility rules resume.
+This exception is separate from the narrowly approved unreleased
+`Metrics.Snapshot` return-type correction above.
 
 v2 is a new Go major-version module and does not preserve v1 source
 compatibility. Migrate one service at a time and review generated output instead
@@ -141,10 +171,10 @@ listener and participates in the same bounded startup and shutdown lifecycle.
 Business JSON routes should use:
 
 ```go
-kit.HandleJSON[Request](svc, "/route", handler)
+kit.HandleJSONTyped(svc, "/route", typedHandler)
 ```
 
-or:
+Use `HandleJSON` for intentionally dynamic responses, or use:
 
 ```go
 kit.HandleJSONEndpoint[Request](svc, "/route", ep)
@@ -152,7 +182,8 @@ kit.HandleJSONEndpoint[Request](svc, "/route", ep)
 
 `Service.Handle` and `Service.HandleFunc` are raw HTTP escape hatches and do not
 apply endpoint middleware. Keep routes that need endpoint metrics, timeouts, or
-other endpoint policy on `HandleJSON` or `HandleJSONEndpoint`.
+other endpoint policy on `HandleJSONTyped`, `HandleJSON`, or
+`HandleJSONEndpoint`.
 
 ## Endpoint Middleware Assembly
 

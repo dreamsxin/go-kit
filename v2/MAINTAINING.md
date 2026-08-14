@@ -11,7 +11,13 @@ plans or progress notes in issues and pull requests.
 3. Check `git status` and preserve unrelated worktree changes.
 4. Decide whether the change affects runtime APIs, generated output, or both.
 
-Do not edit v1 while implementing a v2-only change.
+v1 source is not maintained on `main`. Do not recreate it or rewrite immutable
+legacy tags while implementing a v2 change.
+
+All maintained modules intentionally use the same minimum Go version declared
+in their `go.mod` files, currently Go 1.25.8. Changing that floor is a
+repository-wide compatibility decision: update every module, generated fixture,
+CI lane, README badge, and release check together.
 
 ## Scope Rules
 
@@ -122,6 +128,9 @@ relative and must resolve on a case-sensitive filesystem.
 - Names describe actual behavior; avoid names that promise retry, streaming, or
   safety that is not implemented.
 - Breaking changes are recorded in `CHANGELOG.md` and `MIGRATION.md` when needed.
+- Any SemVer exception requires explicit repository-owner approval and must be
+  limited to the exact API recorded in the changelog, migration guide, commit,
+  and release notes.
 
 ### Generator
 

@@ -124,12 +124,12 @@ deprecated forwarding packages merely to retain the old package graph.
 This is an explicit compatibility-policy override for the active development
 branch. On 2026-08-14, the repository owner approved publishing the result as
 another `/v2` release instead of changing the module path to `/v3`. This is a
-one-time SemVer exception and is called out in release notes; `v2.0.0` remains
-immutable and the published root refactor release is `v2.1.0`.
+direct-refactor-specific SemVer exception and is called out in release notes;
+`v2.0.0` remains immutable and the published root refactor release is `v2.1.0`.
 
 2026-08-14，仓库所有者批准继续使用 `/v2` 发布本次不兼容重构，不切换到
-`/v3`。该决定是一次性 SemVer 例外，并已在发布说明中明确披露；`v2.0.0` 保持
-不变，本次根 module 正式发布版本为 `v2.1.0`。
+`/v3`。该决定是仅针对直接重构的 SemVer 例外，并已在发布说明中明确披露；
+`v2.0.0` 保持不变，本次根 module 正式发布版本为 `v2.1.0`。
 
 ### Execution Status / 实施状态
 
@@ -272,8 +272,8 @@ Goal: establish a trustworthy baseline before moving packages.
   `tools/testdata/gen_*` directories.
 - Keep only intentional input fixtures and reviewed golden snapshots tracked.
 - Normalize CRLF and LF before comparing textual API and contract snapshots.
-- Skip SQLite runtime tests when CGO is unavailable and run them in a dedicated
-  CGO-enabled CI job.
+- Run SQLite introspection and generated-project tests with CGO disabled so the
+  generator remains portable without a local C toolchain.
 - Add a repository-cleanliness assertion around generation and release checks.
 - Run every Go command with the module-declared toolchain.
 

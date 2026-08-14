@@ -20,10 +20,13 @@ The maintained product line is the independent v2 module under [`v2/`](v2/):
 github.com/dreamsxin/go-kit/v2@v2.1.0
 ```
 
-`v2.1.0` is a documented one-time SemVer exception and is not source compatible
-with `v2.0.0`. Existing v2 users must read the
+`v2.1.0` is a documented SemVer exception and is not source compatible with
+`v2.0.0`. Existing v2 users must read the
 [migration guide](v2/MIGRATION.md) before upgrading. Normal compatibility rules
-resume from `v2.1.0`.
+apply to the published `v2.1.0` contract. The unreleased `main` branch contains
+one additional, narrowly approved exception for the return type of
+`endpoint.Metrics.Snapshot`; see the [changelog](v2/CHANGELOG.md) and
+[migration guide](v2/MIGRATION.md) before consuming `main` directly.
 
 ## Start Here
 

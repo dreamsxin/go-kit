@@ -5,18 +5,58 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+This development cycle contains one explicitly approved, narrowly scoped v2
+SemVer exception: `Metrics.Snapshot()` now returns `MetricsSnapshot` instead of
+`Metrics`. The migration is documented in [MIGRATION.md](MIGRATION.md).
+
+### Added
+
+- Transport-neutral `apperror` classification with consistent HTTP and gRPC
+  mappings, including a default gRPC error encoder.
+- Fully typed JSON assembly helpers in `kit` and `transport/http/server` for
+  concrete request and response types.
+- A lock-free `endpoint.MetricsSnapshot` value with `AverageDuration()`.
+- A bounded request-ID validator option and conservative validation for
+  caller-supplied request IDs.
+- Application-owned generated configuration extensions in `config/custom.go`,
+  including defaults, environment, and validation hooks preserved on rerun.
+
 ### Changed
 
+- **Approved SemVer exception:** `Metrics.Snapshot()` returns
+  `MetricsSnapshot`. Field access through an inferred local variable is
+  unchanged; code explicitly declaring the result as `Metrics` must update its
+  type.
+- `microgen` uses a pure-Go SQLite introspection driver, so installing and
+  running the CLI no longer requires CGO or GCC.
+- Generated demo clients delegate to the generated Go SDK instead of maintaining
+  a second HTTP/gRPC implementation.
+- Health checks execute concurrently with per-check timeouts and allow at most
+  one active invocation of each named check.
+- Quickstart and composition examples use typed handlers and propagate listener
+  and shutdown errors through the process lifecycle.
 - The `main` branch now contains only the maintained v2 product line; legacy v1
   source and documentation remain available through immutable release tags.
 - The repository-root README is now a concise v2 entry point instead of a
   duplicate v1 usage guide.
 
+### Fixed
+
+- Default HTTP and gRPC error encoders no longer expose unclassified internal
+  error messages to clients, while classified application errors retain stable
+  public codes and messages.
+- Concurrent health probes no longer accumulate serial latency or launch
+  overlapping timed-out checks.
+- Example metrics reads use atomic snapshots, and snapshots no longer carry an
+  internal mutex that triggers `go vet` copylock failures.
+- Public API snapshot collection ignores tool download diagnostics written to
+  stderr.
+
 ## [2.1.0] - 2026-08-14
 
-This release is the explicitly approved one-time v2 SemVer exception. It is
+This release is the explicitly approved direct-refactor v2 SemVer exception. It is
 not source compatible with `v2.0.0`; follow [MIGRATION.md](MIGRATION.md) before
-upgrading. Normal v2 compatibility rules resume from this reset contract.
+upgrading.
 
 ### Added
 
@@ -33,7 +73,7 @@ upgrading. Normal v2 compatibility rules resume from this reset contract.
 ### Changed
 
 - The repository owner approved publishing the direct incompatible refactor
-  under `/v2` as a documented one-time SemVer exception; `v2.0.0` remains
+  under `/v2` as a documented direct-refactor SemVer exception; `v2.0.0` remains
   immutable and the published root refactor release is `v2.1.0`.
 - The root runtime module now has no third-party requirements. gRPC, Consul,
   Gobreaker, rate limiting, Zap, and OpenTelemetry live in independent modules.

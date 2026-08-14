@@ -67,10 +67,13 @@ Use `transport/http/server` when exposing HTTP APIs.
 Recommended entry points:
 
 - `server.NewServer`
+- `server.NewTypedJSONServer`
 - `server.NewJSONServer`
 - `server.NewJSONEndpoint`
+- `server.NewStrictTypedJSONServer`
 - `server.NewStrictJSONServer`
 - `server.NewStrictJSONEndpoint`
+- `server.NewTypedJSONServerWithMiddleware`
 - `server.NewJSONServerWithMiddleware`
 - `server.DecodeJSONRequest`
 - `server.DecodeJSONRequestWithOptions`
@@ -108,9 +111,9 @@ Typical flow:
 Minimal example:
 
 ```go
-handler := server.NewJSONServer[HelloReq](
-    func(ctx context.Context, req HelloReq) (any, error) {
-        return ep(ctx, req)
+handler := server.NewTypedJSONServer(
+    func(ctx context.Context, req HelloReq) (HelloResp, error) {
+        return hello(ctx, req)
     },
     server.ServerErrorEncoder(server.JSONErrorEncoder),
 )
@@ -118,8 +121,9 @@ handler := server.NewJSONServer[HelloReq](
 http.Handle("/hello", handler)
 ```
 
-The typed JSON helpers are strict by default: they reject unknown object fields,
-a second JSON value, and bodies larger than the default byte limit.
+Prefer the fully typed helpers when the response has a concrete type. The JSON
+helpers are strict by default: they reject unknown object fields, a second JSON
+value, and bodies larger than the default byte limit.
 Use the explicit strict helpers when a route needs a custom body limit:
 
 ```go
