@@ -3,7 +3,7 @@
 All notable v2 changes are recorded here. v1 history remains in the repository
 root.
 
-## [2.1.0] - Release Candidate
+## [2.1.0] - 2026-08-14
 
 This release is the explicitly approved one-time v2 SemVer exception. It is
 not source compatible with `v2.0.0`; follow [MIGRATION.md](MIGRATION.md) before
@@ -25,7 +25,7 @@ upgrading. Normal v2 compatibility rules resume from this reset contract.
 
 - The repository owner approved publishing the direct incompatible refactor
   under `/v2` as a documented one-time SemVer exception; `v2.0.0` remains
-  immutable and the root refactor candidate is `v2.1.0`.
+  immutable and the published root refactor release is `v2.1.0`.
 - The root runtime module now has no third-party requirements. gRPC, Consul,
   Gobreaker, rate limiting, Zap, and OpenTelemetry live in independent modules.
 - `microgen` implementation packages are internal, generated code uses direct

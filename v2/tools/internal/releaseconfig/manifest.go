@@ -10,6 +10,7 @@ import (
 type Manifest struct {
 	SchemaVersion       int      `json:"schemaVersion"`
 	Phase               string   `json:"phase"`
+	ReleaseDate         string   `json:"releaseDate,omitempty"`
 	PreviousCoreVersion string   `json:"previousCoreVersion"`
 	CoreVersion         string   `json:"coreVersion"`
 	Modules             []Module `json:"modules"`

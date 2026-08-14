@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dreamsxin/go-kit-tools/v2/internal/releaseconfig"
 )
@@ -34,7 +35,14 @@ func TestReleaseManifestMatchesRepository(t *testing.T) {
 		t.Fatalf("schemaVersion = %d, want 1", manifest.SchemaVersion)
 	}
 	switch manifest.Phase {
-	case "core-candidate", "nested-candidate", "released":
+	case "core-candidate", "nested-candidate":
+		if manifest.ReleaseDate != "" {
+			t.Fatalf("releaseDate = %q in phase %q, want empty", manifest.ReleaseDate, manifest.Phase)
+		}
+	case "released":
+		if _, err := time.Parse(time.DateOnly, manifest.ReleaseDate); err != nil {
+			t.Fatalf("releaseDate = %q, want YYYY-MM-DD: %v", manifest.ReleaseDate, err)
+		}
 	default:
 		t.Fatalf("unsupported release phase %q", manifest.Phase)
 	}
@@ -142,7 +150,12 @@ func TestReleaseManifestMatchesRepository(t *testing.T) {
 		assertVersionText(t, path, manifest.CoreVersion)
 		assertVersionText(t, path, microgenModule.ModulePath+"@"+microgenModule.Version)
 	}
-	assertVersionText(t, filepath.Join(root, "CHANGELOG.md"), "## ["+strings.TrimPrefix(manifest.CoreVersion, "v")+"] - Release Candidate")
+	changelogVersion := strings.TrimPrefix(manifest.CoreVersion, "v")
+	changelogStatus := "Release Candidate"
+	if manifest.Phase == "released" {
+		changelogStatus = manifest.ReleaseDate
+	}
+	assertVersionText(t, filepath.Join(root, "CHANGELOG.md"), "## ["+changelogVersion+"] - "+changelogStatus)
 
 	fixtureOutput := commandOutput(t, root, "git", "ls-files", "--", "tools/testdata/*/go.mod")
 	for _, relative := range strings.Fields(string(fixtureOutput)) {

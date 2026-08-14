@@ -109,7 +109,7 @@ immutable root tag `v2.0.0` points at the verified release commit, and
 `github.com/dreamsxin/go-kit/v2@v2.0.0` resolves through the public Go proxy.
 The historical incorrect `v2/v2.0.0` tag has been removed.
 
-## Milestone 6 (Release Candidate): Direct v2 Architecture Refactor / v2 直接架构重构
+## Milestone 6 (Complete): Direct v2 Architecture Refactor / v2 直接架构重构
 
 ### Decision / 决策
 
@@ -124,12 +124,12 @@ deprecated forwarding packages merely to retain the old package graph.
 This is an explicit compatibility-policy override for the active development
 branch. On 2026-08-14, the repository owner approved publishing the result as
 another `/v2` release instead of changing the module path to `/v3`. This is a
-one-time SemVer exception and must be called out in release notes; `v2.0.0`
-remains immutable and the root refactor candidate is `v2.1.0`.
+one-time SemVer exception and is called out in release notes; `v2.0.0` remains
+immutable and the published root refactor release is `v2.1.0`.
 
 2026-08-14，仓库所有者批准继续使用 `/v2` 发布本次不兼容重构，不切换到
-`/v3`。该决定是一次性 SemVer 例外，必须在发布说明中明确披露；`v2.0.0` 保持
-不变，本次根 module 候选版本固定为 `v2.1.0`。
+`/v3`。该决定是一次性 SemVer 例外，并已在发布说明中明确披露；`v2.0.0` 保持
+不变，本次根 module 正式发布版本为 `v2.1.0`。
 
 ### Execution Status / 实施状态
 
@@ -163,11 +163,10 @@ remains immutable and the root refactor candidate is `v2.1.0`.
 - [x] Work Package 8: dependency boundaries are executable and the current
   closure and `v2.0.0` comparison are captured in `DEPENDENCY_REPORT.md`.
   Functional, contract, API, vet, module, standalone-module, and clean-scope
-  gates pass from the current candidate. The `/v2` SemVer exception and
-  `v2.1.0` root version are approved. The full Ubuntu/Windows candidate workflow
-  passed on 2026-08-14. Tag creation, proxy verification, nested-module version
-  updates, and the final release record remain the phased publication procedure
-  defined in `RELEASE.md`; they are not implementation blockers.
+  gates pass. The `/v2` SemVer exception and `v2.1.0` root version are approved.
+  The full Ubuntu/Windows workflow passed on 2026-08-14. The root and all eight
+  nested-module tags were published in order and resolve through the public Go
+  proxy; the final release record is complete.
 
 ### Refactor Goals / 重构目标
 

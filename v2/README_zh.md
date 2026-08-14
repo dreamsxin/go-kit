@@ -22,11 +22,10 @@ v2 是独立 Go module：
 github.com/dreamsxin/go-kit/v2
 ```
 
-已发布的 `v2.0.0` tag 是稳定的 v2 基线。当前 `main/v2` 源码正在直接进行不兼容
-的架构重构，与该 tag 不保持源码兼容。仓库所有者已批准把本次重构作为一次有明确
-记录的 v2 SemVer 例外，以 `v2.1.0` 候选版本继续在 `/v2` 发布；在
-[ROADMAP.md](ROADMAP.md) 的剩余验收门禁完成前，它仍是开发版本。仓库根目录
-仍然是 v1 module。
+`v2.1.0` 是当前已发布的 v2 版本。它以有明确记录的一次性 SemVer 例外交付直接
+架构重构，与 `v2.0.0` 不保持源码兼容；现有 v2 用户升级前必须先阅读
+[MIGRATION.md](MIGRATION.md)。从 `v2.1.0` 开始恢复正常的 v2 兼容性规则。仓库
+根目录仍然是 v1 module。
 
 需要 Go 1.25.8 或更高版本。
 
@@ -51,19 +50,16 @@ github.com/dreamsxin/go-kit/v2
 go -C v2 install ./cmd/microgen
 ```
 
-安装已发布 `v2.0.0` 基线中的生成器：
-
-```bash
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v2.0.0
-```
-
-该命令安装的是历史根 module 中的生成器，其生成包结构与当前分支记录的
-不兼容重构不同。评估当前 `main/v2` 时，请使用上面的仓库内安装命令。
-
-完成 `v2.1.0` 多 module 发布后，从独立 module 安装重构版生成器：
+从独立版本 module 安装重构版生成器：
 
 ```bash
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.1.0
+```
+
+`v2.0.0` 根 module 仍包含历史生成器，可以显式安装，但它生成的包结构遵循旧契约：
+
+```bash
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v2.0.0
 ```
 
 创建 `idl.go`：

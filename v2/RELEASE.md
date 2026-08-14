@@ -2,35 +2,29 @@
 
 ## Current Position
 
-v2.0.0 is the published stable baseline of the independent module:
+v2.1.0 is the current published release of the independent module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
 
-The current `main/v2` source contains the incompatible direct refactor tracked
-in [ROADMAP.md](ROADMAP.md). It is not covered by the `v2.0.0` compatibility
-contract. On 2026-08-14, the repository owner approved publishing this refactor
-under `/v2` as a documented one-time SemVer exception instead of changing the
-module path to `/v3`.
-
-This approval fixes the publication path and `RELEASE_MANIFEST.json` selects
-`v2.1.0` as the root candidate. It does not authorize moving or recreating
-`v2.0.0`, skipping release gates, or creating tags before the candidate passes.
-The release must identify the source break prominently in release notes,
-[CHANGELOG.md](CHANGELOG.md), and [MIGRATION.md](MIGRATION.md). The reviewed
+The direct refactor tracked in [ROADMAP.md](ROADMAP.md) was published on
+2026-08-14. It is not source compatible with `v2.0.0`. The repository owner
+approved publishing it under `/v2` as a documented one-time SemVer exception
+instead of changing the module path to `/v3`. The source break is recorded in
+[CHANGELOG.md](CHANGELOG.md) and [MIGRATION.md](MIGRATION.md); the reviewed
 dependency closure and baseline comparison are recorded in
 [DEPENDENCY_REPORT.md](DEPENDENCY_REPORT.md).
 
 The published module is stored in the repository's `v2` major-version
-subdirectory, but consumers request the normal module version `v2.0.0`. Its tag
-is the root tag `v2.0.0`, not `v2/v2.0.0`. A future `/v3` module would likewise
-use a root `v3.0.0` tag. v1 release history remains in the repository root and
-is not duplicated here.
+subdirectory, but consumers request normal module versions such as `v2.1.0`.
+Its tag is the root tag `v2.1.0`, not `v2/v2.1.0`. A future `/v3` module would
+likewise use a root `v3.0.0` tag. v1 release history remains in the repository
+root and is not duplicated here.
 
-The historical incorrect tag `v2/v2.0.0` has been removed. The published root
-tag `v2.0.0` points at the release commit and resolves as
-`github.com/dreamsxin/go-kit/v2@v2.0.0` through the public Go proxy.
+The immutable `v2.0.0` baseline and the `v2.1.0` root release resolve through
+the public Go proxy. The eight independently versioned nested modules listed in
+`RELEASE_MANIFEST.json` also resolve at `v0.1.0`.
 
 ## Versioning
 
@@ -42,9 +36,9 @@ versioning from v2.0.0 onward:
 - major: incompatible runtime API, module, CLI, configuration, or generated
   ownership changes.
 
-The approved exception applies only to the incompatible refactor currently
-tracked as Milestone 6. Normal compatibility rules resume after that release;
-the exception is not precedent for unrelated breaking changes.
+The approved exception applies only to the incompatible refactor delivered in
+`v2.1.0`. Normal compatibility rules resume from that release; the exception is
+not precedent for unrelated breaking changes.
 
 The compatibility contract includes:
 
