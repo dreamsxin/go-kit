@@ -109,7 +109,7 @@ immutable root tag `v2.0.0` points at the verified release commit, and
 `github.com/dreamsxin/go-kit/v2@v2.0.0` resolves through the public Go proxy.
 The historical incorrect `v2/v2.0.0` tag has been removed.
 
-## Milestone 6 (Active): Direct v2 Architecture Refactor / v2 直接架构重构
+## Milestone 6 (Release Candidate): Direct v2 Architecture Refactor / v2 直接架构重构
 
 ### Decision / 决策
 
@@ -138,9 +138,8 @@ remains immutable and the root refactor candidate is `v2.1.0`.
 - [x] Work Package 1 implementation: endpoint cache ownership moved to
   `sd/endpointer`, Zap middleware moved to `integrations/zap`, and the core
   endpoint package is guarded against non-standard imports.
-- [ ] Work Package 1 race gate: rerun `go test -race ./endpoint` in CI or a
-  local CGO environment with a C compiler. The current Windows environment has
-  `CGO_ENABLED=0` and no `gcc` executable.
+- [x] Work Package 1 race gate: the full maintained race suite passes locally
+  with a MinGW-w64 C compiler and in the Ubuntu/Windows release workflow.
 - [x] Work Package 2: service-discovery contracts now live in `sd`; balancing,
   retry, endpointer, instance cache, and client composition have independent
   packages. Generic SD dependency tests reject gRPC and Consul provider imports.
@@ -161,12 +160,14 @@ remains immutable and the root refactor candidate is `v2.1.0`.
 - [x] Work Package 7: `kit` is the only quickstart, lower-level wiring is named
   `manual_composition`, package docs use the final graph, and migration docs map
   removed APIs and package paths.
-- [ ] Work Package 8: dependency boundaries are executable and the current
+- [x] Work Package 8: dependency boundaries are executable and the current
   closure and `v2.0.0` comparison are captured in `DEPENDENCY_REPORT.md`.
   Functional, contract, API, vet, module, standalone-module, and clean-scope
   gates pass from the current candidate. The `/v2` SemVer exception and
-  `v2.1.0` root version are approved. Linux/Windows CI now owns the full
-  cross-platform and race gate; a successful candidate run remains required.
+  `v2.1.0` root version are approved. The full Ubuntu/Windows candidate workflow
+  passed on 2026-08-14. Tag creation, proxy verification, nested-module version
+  updates, and the final release record remain the phased publication procedure
+  defined in `RELEASE.md`; they are not implementation blockers.
 
 ### Refactor Goals / 重构目标
 
