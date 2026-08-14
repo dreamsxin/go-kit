@@ -10,7 +10,6 @@ import (
 	"net/url"
 
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
-	"github.com/dreamsxin/go-kit/v2/transport/http/interfaces"
 )
 
 // EncodeRequestFunc encodes a domain request value into an *http.Request.
@@ -22,7 +21,7 @@ type EncodeRequestFunc func(context.Context, *http.Request, interface{}) (*http.
 type DecodeResponseFunc func(context.Context, *http.Response) (response interface{}, err error)
 
 // EncodeJSONRequest JSON-encodes the request body and sets Content-Type to
-// application/json.  If the request implements interfaces.Headerer, those
+// application/json. If the request implements transporthttp.Headerer, those
 // headers are also added.
 func EncodeJSONRequest(c context.Context, req *http.Request, request interface{}) (*http.Request, error) {
 	if req == nil {
@@ -57,7 +56,7 @@ func EncodeQueryRequest(_ context.Context, req *http.Request, request interface{
 }
 
 func applyRequestHeaders(req *http.Request, request interface{}) {
-	if headerer, ok := request.(interfaces.Headerer); ok {
+	if headerer, ok := request.(transporthttp.Headerer); ok {
 		headers := headerer.Headers()
 		for k := range headers {
 			req.Header.Set(k, headers.Get(k))

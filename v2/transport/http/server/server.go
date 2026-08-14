@@ -29,7 +29,7 @@ type Server struct {
 	enc          EncodeResponseFunc
 	before       []RequestFunc
 	after        []ResponseFunc
-	errorEncoder transport.ErrorEncoder
+	errorEncoder ErrorEncoder
 	finalizer    []FinalizerFunc
 	errorHandler transport.ErrorHandler
 }
@@ -52,13 +52,13 @@ func NewServer(
 		e:            e,
 		dec:          dec,
 		enc:          enc,
-		errorEncoder: transport.DefaultErrorEncoder,
+		errorEncoder: DefaultErrorEncoder,
 	}
 	for _, option := range options {
 		option(s)
 	}
 	if s.errorEncoder == nil {
-		s.errorEncoder = transport.DefaultErrorEncoder
+		s.errorEncoder = DefaultErrorEncoder
 	}
 	if s.errorHandler == nil {
 		s.errorHandler = transport.NewLogErrorHandler(nil)

@@ -69,7 +69,7 @@ func TestHttpClient(t *testing.T) {
 
 // ─────────────────────────── TestHttpClient_Headerer ───────────────────────────
 
-// headerPayload implements transport/http/interfaces.Headerer
+// headerPayload implements transport/http.Headerer.
 type headerPayload struct {
 	Value string `json:"value"`
 }

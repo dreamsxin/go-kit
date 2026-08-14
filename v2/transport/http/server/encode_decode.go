@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/dreamsxin/go-kit/v2/transport/http/interfaces"
+	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 )
 
 // DecodeRequestFunc decodes an *http.Request into a domain request value.
@@ -29,11 +29,11 @@ func NopResponseEncoder(context.Context, http.ResponseWriter, interface{}) error
 
 // EncodeJSONResponse is an EncodeResponseFunc that JSON-encodes the response.
 // It honours two optional interfaces on the response value:
-//   - interfaces.StatusCoder  → uses that HTTP status code (default 200)
-//   - interfaces.Headerer     → merges those headers into the response
+//   - transporthttp.StatusCoder: uses that HTTP status code (default 200)
+//   - transporthttp.Headerer: merges those headers into the response
 func EncodeJSONResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if headerer, ok := response.(interfaces.Headerer); ok {
+	if headerer, ok := response.(transporthttp.Headerer); ok {
 		for k, values := range headerer.Headers() {
 			for _, v := range values {
 				w.Header().Add(k, v)
@@ -41,7 +41,7 @@ func EncodeJSONResponse(_ context.Context, w http.ResponseWriter, response inter
 		}
 	}
 	code := http.StatusOK
-	if sc, ok := response.(interfaces.StatusCoder); ok {
+	if sc, ok := response.(transporthttp.StatusCoder); ok {
 		code = sc.StatusCode()
 	}
 	w.WriteHeader(code)

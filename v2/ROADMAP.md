@@ -140,7 +140,10 @@ release-path decision is made only after the refactor acceptance gates pass.
 - [x] Work Package 2: service-discovery contracts now live in `sd`; balancing,
   retry, endpointer, instance cache, and client composition have independent
   packages. Generic SD dependency tests reject gRPC and Consul provider imports.
-- [ ] Work Packages 3-8.
+- [x] Work Package 3: HTTP error encoding and HTTP extension contracts now live
+  under `transport/http`; the root transport package retains only the shared
+  error-handler contract. Import tests reject HTTP/gRPC cross-dependencies.
+- [ ] Work Packages 4-8.
 
 ### Refactor Goals / 重构目标
 

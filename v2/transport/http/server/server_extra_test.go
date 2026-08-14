@@ -9,8 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dreamsxin/go-kit/v2/transport"
-	"github.com/dreamsxin/go-kit/v2/transport/http/interfaces"
+	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 	"github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -356,11 +355,11 @@ func TestServerFinalizer_AlwaysRuns(t *testing.T) {
 	}
 }
 
-// ── transport.DefaultErrorEncoder ────────────────────────────────────────────
+// ── server.DefaultErrorEncoder ───────────────────────────────────────────────
 
 func TestDefaultErrorEncoder_PlainText(t *testing.T) {
 	w := httptest.NewRecorder()
-	transport.DefaultErrorEncoder(context.Background(), errors.New("plain error"), w)
+	server.DefaultErrorEncoder(context.Background(), errors.New("plain error"), w)
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("status: got %d, want %d", w.Code, http.StatusInternalServerError)
 	}
@@ -371,13 +370,13 @@ func TestDefaultErrorEncoder_PlainText(t *testing.T) {
 
 func TestDefaultErrorEncoder_StatusCoder(t *testing.T) {
 	w := httptest.NewRecorder()
-	transport.DefaultErrorEncoder(context.Background(), extraStatusErr{code: http.StatusBadRequest}, w)
+	server.DefaultErrorEncoder(context.Background(), extraStatusErr{code: http.StatusBadRequest}, w)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d, want %d", w.Code, http.StatusBadRequest)
 	}
 }
 
-// ── transport/http/interfaces ────────────────────────────────────────────────
+// ── transport/http contracts ─────────────────────────────────────────────────
 
 type myResp struct{}
 
@@ -389,10 +388,10 @@ func (r myResp) PublicMessage() string {
 }
 
 func TestInterfaces_StatusCoderAndHeaderer(t *testing.T) {
-	var _ interfaces.StatusCoder = myResp{}
-	var _ interfaces.Headerer = myResp{}
-	var _ interfaces.ErrorCoder = myResp{}
-	var _ interfaces.PublicMessager = myResp{}
+	var _ transporthttp.StatusCoder = myResp{}
+	var _ transporthttp.Headerer = myResp{}
+	var _ transporthttp.ErrorCoder = myResp{}
+	var _ transporthttp.PublicMessager = myResp{}
 
 	w := httptest.NewRecorder()
 	server.EncodeJSONResponse(context.Background(), w, myResp{}) //nolint:errcheck

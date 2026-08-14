@@ -31,7 +31,7 @@ func ServerAfter(after ...ResponseFunc) ServerOption {
 
 // ServerErrorEncoder sets the function used to encode errors into HTTP
 // responses.  The default encoder writes a plain-text body with status 500.
-func ServerErrorEncoder(ee transport.ErrorEncoder) ServerOption {
+func ServerErrorEncoder(ee ErrorEncoder) ServerOption {
 	return func(s *Server) { s.errorEncoder = ee }
 }
 

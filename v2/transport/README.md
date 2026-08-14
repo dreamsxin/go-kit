@@ -125,8 +125,8 @@ Decode errors returned by JSON request decoders carry HTTP 400 status metadata
 for `JSONErrorEncoder`.
 
 `JSONErrorEncoder` writes `code`, `message`, and optional `request_id` fields.
-Return `server.NewHTTPError` or implement `interfaces.StatusCoder`,
-`interfaces.ErrorCoder`, and `interfaces.PublicMessager` on application errors
+Return `server.NewHTTPError` or implement `transporthttp.StatusCoder`,
+`transporthttp.ErrorCoder`, and `transporthttp.PublicMessager` on application errors
 when a route needs custom status, code, or public text. For unclassified 5xx
 errors, the encoder returns the HTTP status text instead of exposing the
 internal error string.
