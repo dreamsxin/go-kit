@@ -139,7 +139,7 @@ test-modules:
 
 release-check-clean:
 	@echo ">>> Verifying the v2 release scope is clean..."
-	@go -C ./tools run ./releasecheck
+	@go -C ./tools run ./releasecheck -scope ..
 
 verify-published:
 	@echo ">>> Verifying the published Go module..."
