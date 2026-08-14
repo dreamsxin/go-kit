@@ -19,7 +19,7 @@ DB_NAME     ?=
 SERVICE     ?= AppService
 HTTP_PORT   ?= :8080
 PROTO_DIR   ?= $(OUT)/pb
-VERSION     ?= v2.0.0
+VERSION     ?= v2.1.0
 
 MICROGEN    := $(shell go env GOPATH)/bin/microgen
 
@@ -81,7 +81,7 @@ test-api:
 
 test-boundaries:
 	@echo ">>> Verifying architecture and module dependency boundaries..."
-	@go -C ./tools test -v . -run "Test(ArchitectureDependencyGates|CoreModuleHasNoThirdPartyRequirements|MicrogenImplementationPackagesAreInternal|PublishableModulesDoNotUseLocalReplacements)" -count=1
+	@go -C ./tools test -v . -run "Test(ArchitectureDependencyGates|CoreModuleHasNoThirdPartyRequirements|MicrogenImplementationPackagesAreInternal|PublishableModulesDoNotUseLocalReplacements|ReleaseManifestMatchesRepository)" -count=1
 
 test-race:
 	@echo ">>> Running focused race tests..."
