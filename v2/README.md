@@ -309,7 +309,8 @@ enabled.
 ```bash
 cd v2
 go test ./...
-go test -race ./kit ./interaction/... ./transport/... ./sd/... ./cmd/microgen/generator
+go test -race ./kit ./interaction/... ./transport/... ./sd/...
+go -C ./cmd/microgen test -race ./internal/generator
 ```
 
 Generator changes must also prove that a generated project can run

@@ -23,7 +23,7 @@ func TestMicrogenInteractionIntegration(t *testing.T) {
 
 	outDir := generatedProjectDir(t, "gen_interaction_e2e")
 
-	idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
+	idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
 	cmd := exec.Command("go", "run", microgenPath,
 		"-idl", idlFile,
 		"-out", outDir,

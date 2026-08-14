@@ -36,6 +36,18 @@ func TestCoreModuleHasNoThirdPartyRequirements(t *testing.T) {
 	}
 }
 
+func TestMicrogenImplementationPackagesAreInternal(t *testing.T) {
+	root := moduleRoot(t)
+	microgenRoot := filepath.Join(root, "cmd", "microgen")
+	output := commandOutput(t, microgenRoot, "go", "list", "-f", "{{.ImportPath}}", "./...")
+	modulePath := "github.com/dreamsxin/go-kit/v2/cmd/microgen"
+	for _, importPath := range strings.Fields(string(output)) {
+		if importPath != modulePath && !strings.HasPrefix(importPath, modulePath+"/internal/") {
+			t.Errorf("microgen exposes implementation package %q outside internal", importPath)
+		}
+	}
+}
+
 func TestGenericServiceDiscoveryDoesNotDependOnProviders(t *testing.T) {
 	root := moduleRoot(t)
 	packages := []string{

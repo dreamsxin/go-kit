@@ -135,7 +135,9 @@ authorization remains in endpoint or service policy.
 `microgen` is a build-time tool. Parsers produce a common IR that drives HTTP
 routes, transports, Go and TypeScript SDKs, OpenAPI 3.1, JSON Schema 2020-12,
 and optional MCP tool adapters. Templates render projects from that IR. Runtime
-packages must not depend on generator internals.
+packages must not depend on generator internals. Parser, schema, IR, and
+generation implementation packages live under `cmd/microgen/internal`; the CLI
+is the supported entry point.
 
 See [MICROGEN.md](MICROGEN.md) for source modes and generated-file ownership.
 

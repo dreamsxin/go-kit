@@ -95,7 +95,8 @@ The equivalent focused Go commands are:
 
 ```bash
 go test ./...
-go test -race ./kit ./interaction/... ./transport/... ./sd/... ./cmd/microgen/generator
+go test -race ./kit ./interaction/... ./transport/... ./sd/...
+go -C ./cmd/microgen test -race ./internal/generator
 go vet ./...
 ```
 

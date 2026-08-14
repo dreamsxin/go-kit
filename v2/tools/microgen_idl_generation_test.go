@@ -15,7 +15,7 @@ func TestMicrogenIDLDefaultFlags(t *testing.T) {
 	root := filepath.Dir(cwd)
 	outDir := generatedProjectDir(t, "gen_idl_default_flags")
 
-	idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
+	idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
 	cmd := exec.Command("go", "run", microgenMainPath(t),
 		"-idl", idlFile,
 		"-out", outDir,

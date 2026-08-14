@@ -68,7 +68,7 @@ func TestMicrogenCLIValidation(t *testing.T) {
 	t.Run("FailsForUnsupportedDriver", func(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_bad_driver")
 
-		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
+		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
 			"-idl", idlFile,
 			"-out", outDir,

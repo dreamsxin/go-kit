@@ -7,11 +7,11 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/dreamsxin/go-kit/v2/cmd/microgen/generator"
+	"github.com/dreamsxin/go-kit-tools/v2/internal/releaseconfig"
 )
 
 func main() {
-	version := flag.String("typescript-version", generator.TypeScriptCompilerVersion, "TypeScript compiler version")
+	version := flag.String("typescript-version", releaseconfig.TypeScriptCompilerVersion, "TypeScript compiler version")
 	flag.Parse()
 	if flag.NArg() == 0 {
 		fmt.Fprintln(os.Stderr, "usage: go run ./tools/typecheck [flags] <tsconfig> [<tsconfig> ...]")

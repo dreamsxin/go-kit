@@ -21,7 +21,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	t.Run("IDL_Extend_AppendService_PreservesExistingFilesAndServesNewRoute", func(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_idl_extend_append")
 
-		baseIDL := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
+		baseIDL := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
 			"-idl", baseIDL,
 			"-out", outDir,
@@ -113,7 +113,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	t.Run("IDL_Extend_AppendModel_PreservesExistingHooksAndBuilds", func(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_idl_extend_append_model")
 
-		baseIDL := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
+		baseIDL := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
 			"-idl", baseIDL,
 			"-out", outDir,
@@ -184,7 +184,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	t.Run("IDL_Extend_AppendMiddleware_PreservesCustomChainAndServesWrappedErrors", func(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_idl_extend_append_middleware")
 
-		baseIDL := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
+		baseIDL := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
 			"-idl", baseIDL,
 			"-out", outDir,
@@ -262,7 +262,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	t.Run("IDL_Extend_Check_ReportsCompatibility", func(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_idl_extend_check")
 
-		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
+		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
 			"-idl", idlFile,
 			"-out", outDir,
@@ -316,7 +316,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 
 		readyDir := generatedProjectDir(t, "gen_idl_extend_check_ready")
 
-		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
+		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
 		generateCmd := exec.Command("go", "run", microgenPath,
 			"-idl", idlFile,
 			"-out", readyDir,

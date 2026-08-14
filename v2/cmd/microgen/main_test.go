@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dreamsxin/go-kit/v2/cmd/microgen/generator"
+	"github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/generator"
 )
 
 func TestSplitComma(t *testing.T) {

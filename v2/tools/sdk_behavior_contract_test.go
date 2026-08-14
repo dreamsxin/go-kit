@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/dreamsxin/go-kit/v2/cmd/microgen/generator"
+	"github.com/dreamsxin/go-kit-tools/v2/internal/releaseconfig"
 )
 
 type sdkBehaviorResult struct {
@@ -92,7 +92,7 @@ func runTypeScriptSDKBehaviorProbe(t *testing.T, root string) sdkBehaviorResult 
 	buildDir := t.TempDir()
 	compile := exec.Command(npx,
 		"--yes",
-		"--package", "typescript@"+generator.TypeScriptCompilerVersion,
+		"--package", "typescript@"+releaseconfig.TypeScriptCompilerVersion,
 		"tsc",
 		"--ignoreConfig",
 		"client.ts",

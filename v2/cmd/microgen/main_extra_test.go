@@ -43,7 +43,7 @@ func TestConfigValidate_BothFromDBAndIDL(t *testing.T) {
 // ── runFromIDL ────────────────────────────────────────────────────────────────
 
 func TestRunFromIDL_GoFile(t *testing.T) {
-	idlPath := filepath.Join("parser", "testdata", "basic.go")
+	idlPath := filepath.Join("internal", "parser", "testdata", "basic.go")
 	cfg := config{idlPath: idlPath}
 	result, err := runFromIDL(cfg)
 	if err != nil {
@@ -62,7 +62,7 @@ func TestRunFromIDL_GoFile(t *testing.T) {
 }
 
 func TestRunFromIDL_MultiService(t *testing.T) {
-	idlPath := filepath.Join("parser", "testdata", "multi.go")
+	idlPath := filepath.Join("internal", "parser", "testdata", "multi.go")
 	cfg := config{idlPath: idlPath}
 	result, err := runFromIDL(cfg)
 	if err != nil {
@@ -92,7 +92,7 @@ func TestRunFromIDL_ProtoFile(t *testing.T) {
 }
 
 func TestRunFromIDL_ReturnsParseError(t *testing.T) {
-	cfg := config{idlPath: filepath.Join("parser", "testdata", "missing.go")}
+	cfg := config{idlPath: filepath.Join("internal", "parser", "testdata", "missing.go")}
 	if _, err := runFromIDL(cfg); err == nil {
 		t.Fatal("runFromIDL error = nil, want parse error")
 	}

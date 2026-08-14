@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dreamsxin/go-kit/v2/cmd/microgen/dbschema"
-	"github.com/dreamsxin/go-kit/v2/cmd/microgen/generator"
-	"github.com/dreamsxin/go-kit/v2/cmd/microgen/ir"
-	"github.com/dreamsxin/go-kit/v2/cmd/microgen/parser"
+	"github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/dbschema"
+	"github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/generator"
+	"github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/ir"
+	"github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/parser"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"

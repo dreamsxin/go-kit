@@ -294,7 +294,8 @@ make test-observability
 ```bash
 cd v2
 go test ./...
-go test -race ./kit ./interaction/... ./transport/... ./sd/... ./cmd/microgen/generator
+go test -race ./kit ./interaction/... ./transport/... ./sd/...
+go -C ./cmd/microgen test -race ./internal/generator
 ```
 
 修改生成器后，还必须验证在仓库外生成的项目可以执行 `go mod tidy` 和
