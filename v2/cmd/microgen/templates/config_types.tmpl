@@ -20,6 +20,7 @@ type Config struct {
 	Middleware MiddlewareConfig `yaml:"middleware" mapstructure:"middleware"`
 	Debug      DebugConfig      `yaml:"debug" mapstructure:"debug"`
 	Remote     RemoteConfig     `yaml:"remote" mapstructure:"remote"`
+	Custom     CustomConfig     `yaml:"custom" mapstructure:"custom"`
 }
 
 // ServerConfig holds HTTP and optional gRPC listener settings.
@@ -78,7 +79,7 @@ type RemoteConfig struct {
 
 // Default returns generated defaults aligned with config.yaml.
 func Default() *Config {
-	return &Config{
+	cfg := &Config{
 		Server: ServerConfig{
 			HTTPAddr:                ":8080",
 {{- if .WithGRPC}}
@@ -121,6 +122,8 @@ func Default() *Config {
 			FallbackToLocal: {{if .RemoteFallbackDefault}}true{{else}}false{{end}},
 		},
 	}
+	cfg.Custom.SetDefaults()
+	return cfg
 }
 
 // Validate checks the final merged configuration before runtime wiring starts.
@@ -196,6 +199,9 @@ func (cfg *Config) Validate() error {
 		if cfg.Remote.Timeout <= 0 {
 			return fmt.Errorf("config: remote.timeout must be > 0")
 		}
+	}
+	if err := cfg.Custom.Validate(); err != nil {
+		return fmt.Errorf("config: custom: %w", err)
 	}
 	return nil
 }

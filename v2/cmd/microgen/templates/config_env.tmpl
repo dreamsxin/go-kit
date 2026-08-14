@@ -120,5 +120,8 @@ func ApplyEnv(cfg *Config) error {
 		return err
 	}
 
+	if err := cfg.Custom.ApplyEnv(); err != nil {
+		return fmt.Errorf("config: custom env: %w", err)
+	}
 	return nil
 }

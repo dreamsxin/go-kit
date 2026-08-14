@@ -53,7 +53,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/idl/userservice")
 		mustContainFile(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"schemaVersion": "microgen.project.v2"`)
 		mustContainFile(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"routePrefix": "/api/idl"`)
-		mustContainFile(t, filepath.Join(outDir, "client", "userservice", "demo.go"), "/api/idl/userservice")
+		mustContainFile(t, filepath.Join(outDir, "client", "userservice", "demo.go"), `svcSDK "example.com/gen_idl_integration/sdk/userservicesdk"`)
 		mustContainFile(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"), "/api/idl/userservice")
 		mustContainFile(t, filepath.Join(outDir, "docs", "openapi.json"), `"openapi": "3.1.0"`)
 		mustContainFile(t, filepath.Join(outDir, "docs", "schema.json"), `"$schema": "https://json-schema.org/draft/2020-12/schema"`)

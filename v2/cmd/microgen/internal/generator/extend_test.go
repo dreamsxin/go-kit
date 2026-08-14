@@ -44,6 +44,10 @@ func TestScanExistingProject_DetectsServicesOwnershipAndWarnings(t *testing.T) {
 	if serviceOwn.Tier != generator.OwnershipUserProtected {
 		t.Fatalf("service ownership tier = %q, want %q", serviceOwn.Tier, generator.OwnershipUserProtected)
 	}
+	customConfigOwn := existing.Ownership["config/custom.go"]
+	if customConfigOwn.Tier != generator.OwnershipUserProtected {
+		t.Fatalf("custom config ownership tier = %q, want %q", customConfigOwn.Tier, generator.OwnershipUserProtected)
+	}
 	sdkOwn := existing.Ownership["sdk/userservicesdk/client.go"]
 	if sdkOwn.Tier != generator.OwnershipGeneratorRebuildable {
 		t.Fatalf("sdk ownership tier = %q, want %q", sdkOwn.Tier, generator.OwnershipGeneratorRebuildable)

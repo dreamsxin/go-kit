@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // TestAllExamples builds and runs all examples to ensure they still work.
@@ -219,18 +219,6 @@ func runCommand(t *testing.T, cmd *exec.Cmd) string {
 	return string(out)
 }
 
-func requireCGO(t *testing.T) {
-	t.Helper()
-	cmd := exec.Command("go", "env", "CGO_ENABLED")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("read CGO configuration: %v\n%s", err, out)
-	}
-	if strings.TrimSpace(string(out)) != "1" {
-		t.Skip("SQLite integration requires CGO_ENABLED=1")
-	}
-}
-
 func resolveCommandPath(name string, envVar string, extraDirs ...string) string {
 	if envVar != "" {
 		if candidate := strings.TrimSpace(os.Getenv(envVar)); candidate != "" {
@@ -412,13 +400,14 @@ func writeProtoGRPCE2EProbe(t *testing.T, outDir, probeDirName, importPath, grpc
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	idl "` + importPath + `/pb"
 	genTransport "` + importPath + `/transport/userservice"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 func main() {
@@ -442,7 +431,7 @@ func main() {
 	if err == nil {
 		panic("expected scaffold grpc error")
 	}
-	if !strings.Contains(err.Error(), "CreateUser") {
+	if status.Code(err) != codes.Internal {
 		panic(fmt.Sprintf("unexpected grpc error: %v", err))
 	}
 	fmt.Println(err.Error())
@@ -818,7 +807,7 @@ func createSQLiteSchema(t *testing.T, dbPath string) {
 		t.Fatalf("mkdir sqlite dir: %v", err)
 	}
 
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatalf("open sqlite db: %v", err)
 	}

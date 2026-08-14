@@ -1,155 +1,24 @@
 package main
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"flag"
-	"fmt"
-	"log"
-	"net/http"
-	"time"
-
-	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
-	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
-{{- if .WithGRPC}}
 {{- if .UnaryMethods}}
-	genTransport "{{.ImportPath}}/transport/{{.Service.ServiceName | lower}}"
+	"context"
 {{- end}}
+	"flag"
+	"log"
+
+{{- if .UnaryMethods}}
+	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
+{{- end}}
+	svcSDK "{{.ImportPath}}/sdk/{{.Service.PackageName}}sdk"
+{{- if .WithGRPC}}
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 {{- end}}
 )
 
-// ─────────────────────────── HTTP Client ───────────────────────────
-
-// {{.Service.ServiceName}}HTTPClient {{.Service.ServiceName}} HTTP 客户端
-type {{.Service.ServiceName}}HTTPClient struct {
-	baseURL    string
-	httpClient *http.Client
-}
-
-// New{{.Service.ServiceName}}HTTPClient 创建 HTTP 客户端，baseURL 如 "http://localhost:8080"
-func New{{.Service.ServiceName}}HTTPClient(baseURL string) *{{.Service.ServiceName}}HTTPClient {
-	return &{{.Service.ServiceName}}HTTPClient{
-		baseURL:    baseURL,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-	}
-}
-
-func (c *{{.Service.ServiceName}}HTTPClient) do(ctx context.Context, method, path string, req, resp interface{}) error {
-	var body *bytes.Reader
-	if req != nil {
-		raw, err := json.Marshal(req)
-		if err != nil {
-			return fmt.Errorf("marshal: %w", err)
-		}
-		body = bytes.NewReader(raw)
-	} else {
-		body = bytes.NewReader(nil)
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
-	if err != nil {
-		return fmt.Errorf("new request: %w", err)
-	}
-	if req != nil {
-		httpReq.Header.Set("Content-Type", "application/json")
-	}
-	r, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return fmt.Errorf("send: %w", err)
-	}
-	defer r.Body.Close()
-	if r.StatusCode != http.StatusOK {
-		return fmt.Errorf("status %d", r.StatusCode)
-	}
-	return json.NewDecoder(r.Body).Decode(resp)
-}
-
-func buildGETPath(path string, req interface{}) (string, error) {
-	return transporthttp.EncodePathAndQuery(path, req)
-}
-
-func buildRequestPath(path string, req interface{}) (string, error) {
-	return transporthttp.EncodePath(path, req)
-}
-
-{{range .UnaryMethods}}
-// {{.Name}} 通过 HTTP 调用 {{.Name}}
-func (c *{{$.Service.ServiceName}}HTTPClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
-	var resp idl.{{.OutputName}}
-{{- if eq (.HTTPMethod | lower) "get"}}
-	path, err := buildGETPath("{{$.RoutePrefix}}{{.Route}}", req)
-	if err != nil {
-		return resp, fmt.Errorf("encode GET query: %w", err)
-	}
-	return resp, c.do(ctx, "GET", path, nil, &resp)
-{{- else}}
-	path, err := buildRequestPath("{{$.RoutePrefix}}{{.Route}}", req)
-	if err != nil {
-		return resp, fmt.Errorf("encode request path: %w", err)
-	}
-	return resp, c.do(ctx, "{{.HTTPMethod | upper}}", path, req, &resp)
-{{- end}}
-}
-{{end}}
-
-{{- if .WithGRPC}}
-// ─────────────────────────── gRPC Client ───────────────────────────
-
-// {{.Service.ServiceName}}GRPCClient gRPC 客户端
-type {{.Service.ServiceName}}GRPCClient struct {
-	conn *grpc.ClientConn
-{{range .UnaryMethods}}	{{.Name | lower}} func(ctx context.Context, request interface{}) (interface{}, error)
-{{end}}
-}
-
-// New{{.Service.ServiceName}}GRPCClient 创建 gRPC 客户端，addr 格式如 "localhost:8081"
-func New{{.Service.ServiceName}}GRPCClient(addr string, opts ...grpc.DialOption) (*{{.Service.ServiceName}}GRPCClient, error) {
-	if len(opts) == 0 {
-		opts = []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		}
-	}
-	conn, err := grpc.NewClient(addr, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("grpc dial %s: %w", addr, err)
-	}
-	return &{{.Service.ServiceName}}GRPCClient{
-		conn: conn,
-{{range .UnaryMethods}}		{{.Name | lower}}: genTransport.NewGRPC{{.Name}}Client(conn),
-{{end}}
-	}, nil
-}
-
-// Close 关闭 gRPC 连接
-func (c *{{.Service.ServiceName}}GRPCClient) Close() error {
-	return c.conn.Close()
-}
-
-{{range .UnaryMethods}}
-// {{.Name}} 通过 gRPC 调用 {{.Name}}
-func (c *{{$.Service.ServiceName}}GRPCClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
-	resp, err := c.{{.Name | lower}}(ctx, req)
-	if err != nil {
-		return idl.{{.OutputName}}{}, err
-	}
-	return resp.(idl.{{.OutputName}}), nil
-}
-{{end}}
-{{- end}}
-
-// ─────────────────────────── 通用接口 ───────────────────────────
-
-// {{.Service.ServiceName}}Client 统一客户端接口（HTTP 和 gRPC 均实现该接口）
-type {{.Service.ServiceName}}Client interface {
-{{range .UnaryMethods}}	{{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error)
-{{end}}
-}
-
-// ─────────────────────────── Demo logic ───────────────────────────
-
-func runDemo(client {{.Service.ServiceName}}Client, logger *log.Logger) {
+func runDemo(client svcSDK.Client, logger *log.Logger) {
+{{- if .UnaryMethods}}
 	ctx := context.Background()
 {{range .UnaryMethods}}
 	logger.Println(">>> {{.Name}}")
@@ -160,9 +29,11 @@ func runDemo(client {{.Service.ServiceName}}Client, logger *log.Logger) {
 		logger.Printf("    OK  : %+v", {{.Name | lower}}Resp)
 	}
 {{end}}
+{{- else}}
+	_ = client
+	logger.Println("No unary methods are available; use the generated streaming SDK for gRPC streams.")
+{{- end}}
 }
-
-// ─────────────────────────── main ───────────────────────────
 
 func main() {
 	var (
@@ -177,21 +48,20 @@ func main() {
 	flag.Parse()
 
 	logger := log.New(log.Writer(), "[demo] ", log.LstdFlags)
-
 	switch *mode {
 {{- if .WithGRPC}}
 	case "grpc":
-		logger.Printf("=== {{.Service.ServiceName}} gRPC Client Demo  addr=%s ===", *grpcAddr)
-		client, err := New{{.Service.ServiceName}}GRPCClient(*grpcAddr)
+		logger.Printf("=== {{.Service.ServiceName}} gRPC client demo addr=%s ===", *grpcAddr)
+		conn, err := grpc.NewClient(*grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			logger.Fatalf("FATAL: dial grpc: %v", err)
+			logger.Fatalf("dial gRPC: %v", err)
 		}
-		defer client.Close()
-		runDemo(client, logger)
+		defer conn.Close()
+		runDemo(svcSDK.NewGRPC(conn), logger)
 {{- end}}
 	case "http":
-		logger.Printf("=== {{.Service.ServiceName}} HTTP Client Demo  addr=%s ===", *httpAddr)
-		runDemo(New{{.Service.ServiceName}}HTTPClient(*httpAddr), logger)
+		logger.Printf("=== {{.Service.ServiceName}} HTTP client demo addr=%s ===", *httpAddr)
+		runDemo(svcSDK.New(*httpAddr), logger)
 	default:
 		logger.Fatalf("unknown mode %q{{if .WithGRPC}}, use -mode=grpc or -mode=http{{else}}, use -mode=http{{end}}", *mode)
 	}

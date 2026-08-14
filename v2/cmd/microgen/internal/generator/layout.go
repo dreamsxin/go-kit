@@ -33,6 +33,7 @@ func (l projectLayout) configLocal() string    { return filepath.Join(l.root, "c
 func (l projectLayout) configEnv() string      { return filepath.Join(l.root, "config", "env.go") }
 func (l projectLayout) configRemote() string   { return filepath.Join(l.root, "config", "remote.go") }
 func (l projectLayout) configLoader() string   { return filepath.Join(l.root, "config", "loader.go") }
+func (l projectLayout) configCustom() string   { return filepath.Join(l.root, "config", "custom.go") }
 func (l projectLayout) manifestDir() string    { return filepath.Join(l.root, ".microgen") }
 func (l projectLayout) manifestFile() string   { return filepath.Join(l.manifestDir(), "manifest.json") }
 func (l projectLayout) readme() string         { return filepath.Join(l.root, "README.md") }

@@ -103,8 +103,8 @@ func TestGenerateFull_RoutePrefix_AlignedAcrossArtifacts(t *testing.T) {
 
 	expectedPrefix := "/api/v2/userservice"
 	mustContain(t, filepath.Join(outDir, "cmd", "generated_routes.go"), expectedPrefix)
-	mustContain(t, filepath.Join(outDir, "client", "userservice", "demo.go"), expectedPrefix)
 	mustContain(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"), expectedPrefix)
+	mustContain(t, filepath.Join(outDir, "client", "userservice", "demo.go"), `svcSDK "example.com/basic/sdk/userservicesdk"`)
 }
 
 func TestGenerateFull_WithOpenAPI_GeneratesContractAtConventionalPath(t *testing.T) {

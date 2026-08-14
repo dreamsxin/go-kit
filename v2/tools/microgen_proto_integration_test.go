@@ -274,8 +274,8 @@ message UploadSummary { int32 count = 1; }
 		grpcProbeCmd := exec.Command("go", "run", "-mod=mod", grpcProbePkg)
 		grpcProbeCmd.Dir = outDir
 		grpcOut := runCommand(t, grpcProbeCmd)
-		if !strings.Contains(grpcOut, "CreateUser") {
-			t.Fatalf("grpc probe output did not contain CreateUser scaffold error:\n%s", grpcOut)
+		if !strings.Contains(grpcOut, "Internal") {
+			t.Fatalf("grpc probe output did not contain redacted Internal scaffold error:\n%s", grpcOut)
 		}
 
 		demoCmd := exec.Command("go", "run", "./client/userservice/demo.go", "-mode=grpc", "-grpc.addr="+grpcAddr)

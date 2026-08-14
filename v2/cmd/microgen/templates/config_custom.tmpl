@@ -1,0 +1,18 @@
+// Package config contains application-owned configuration extensions.
+//
+// This file is created once and is never overwritten by microgen. Add fields
+// to CustomConfig and implement the hooks needed by the application.
+package config
+
+// CustomConfig contains application-specific settings such as Redis, Kafka,
+// or external API credentials.
+type CustomConfig struct{}
+
+// SetDefaults applies application-owned defaults before YAML is loaded.
+func (cfg *CustomConfig) SetDefaults() {}
+
+// ApplyEnv applies application-owned environment overrides.
+func (cfg *CustomConfig) ApplyEnv() error { return nil }
+
+// Validate checks application-owned configuration after all sources merge.
+func (cfg *CustomConfig) Validate() error { return nil }

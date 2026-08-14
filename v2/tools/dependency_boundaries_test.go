@@ -25,7 +25,7 @@ func TestArchitectureDependencyGates(t *testing.T) {
 		{
 			name:         "http transport",
 			pattern:      "./transport/http/...",
-			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/transport"},
+			allowedExact: []string{coreModulePath + "/apperror", coreModulePath + "/endpoint", coreModulePath + "/transport"},
 			allowedTrees: []string{coreModulePath + "/transport/http"},
 		},
 		{
@@ -175,6 +175,7 @@ func TestKitHTTPAssemblyDoesNotResolveOptionalDependencies(t *testing.T) {
 		"github.com/hashicorp/consul",
 		"github.com/lib/pq",
 		"github.com/mattn/go-sqlite3",
+		"modernc.org/sqlite",
 		"github.com/sony/gobreaker",
 		"go.uber.org/zap",
 		"google.golang.org/grpc",

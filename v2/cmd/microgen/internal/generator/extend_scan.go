@@ -243,6 +243,8 @@ func classifyOwnership(root, rel string) FileOwnership {
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated proto contract output"}
 	case rel == "config/config.yaml":
 		return FileOwnership{Path: rel, Tier: OwnershipUserProtected, Reason: "user-edited config values"}
+	case rel == "config/custom.go":
+		return FileOwnership{Path: rel, Tier: OwnershipUserProtected, Reason: "application-owned config schema and hooks"}
 	case rel == "cmd/custom_routes.go":
 		return FileOwnership{Path: rel, Tier: OwnershipUserProtected, Reason: "custom route hook is user-owned"}
 	case strings.HasPrefix(rel, "endpoint/") && strings.HasSuffix(rel, "/generated_chain.go"):

@@ -13,7 +13,6 @@ func TestMicrogenFromDBIntegration(t *testing.T) {
 	microgenPath := microgenMainPath(t)
 
 	t.Run("FromDB_SQLite_GeneratedProject_BuildsAndRuns", func(t *testing.T) {
-		requireCGO(t)
 		outDir := generatedProjectDir(t, "gen_fromdb_sqlite")
 
 		dbPath := filepath.Join(t.TempDir(), "fromdb_runtime.sqlite")

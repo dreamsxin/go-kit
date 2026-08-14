@@ -127,7 +127,7 @@ func (g *Generator) generateConfigCodeFile(services []*serviceView) error {
 			return err
 		}
 	}
-	return nil
+	return g.executeTemplateIfAbsent("config_custom.tmpl", g.layout.configCustom(), data)
 }
 
 func (g *Generator) generateReadme(ctx generationContext) error {

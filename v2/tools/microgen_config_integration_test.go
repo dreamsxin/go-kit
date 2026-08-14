@@ -21,6 +21,106 @@ func TestMicrogenConfigIntegration(t *testing.T) {
 	root := filepath.Dir(cwd)
 	microgenPath := microgenMainPath(t)
 
+	t.Run("IDL_Config_CustomHooksAreUserOwned", func(t *testing.T) {
+		outDir := generatedProjectDir(t, "gen_idl_custom_config")
+		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
+		generateArgs := []string{
+			"run", microgenPath,
+			"-idl", idlFile,
+			"-out", outDir,
+			"-import", "example.com/gen_idl_custom_config",
+			"-config",
+			"-docs=false",
+		}
+		if out, err := exec.Command("go", generateArgs...).CombinedOutput(); err != nil {
+			t.Fatalf("microgen custom-config fixture failed: %v\n%s", err, out)
+		}
+
+		customPath := filepath.Join(outDir, "config", "custom.go")
+		customSource := `package config
+
+import (
+	"fmt"
+	"os"
+)
+
+type CustomConfig struct {
+	RedisAddr string ` + "`yaml:\"redis_addr\" mapstructure:\"redis_addr\"`" + `
+}
+
+func (cfg *CustomConfig) SetDefaults() { cfg.RedisAddr = "default:6379" }
+
+func (cfg *CustomConfig) ApplyEnv() error {
+	if value, ok := os.LookupEnv("APP_REDIS_ADDR"); ok {
+		cfg.RedisAddr = value
+	}
+	return nil
+}
+
+func (cfg *CustomConfig) Validate() error {
+	if cfg.RedisAddr == "" {
+		return fmt.Errorf("redis_addr is required")
+	}
+	return nil
+}
+`
+		if err := os.WriteFile(customPath, []byte(customSource), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		configPath := filepath.Join(outDir, "config", "custom.yaml")
+		if err := os.WriteFile(configPath, []byte("custom:\n  redis_addr: yaml:6379\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		probeDir, err := os.MkdirTemp(outDir, ".customconfigprobe-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.RemoveAll(probeDir)
+		probeSource := `package main
+
+import (
+	"fmt"
+	"os"
+
+	"example.com/gen_idl_custom_config/config"
+)
+
+func main() {
+	cfg, err := config.Load(os.Args[1])
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(cfg.Custom.RedisAddr)
+}
+`
+		if err := os.WriteFile(filepath.Join(probeDir, "main.go"), []byte(probeSource), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		probeRel, err := filepath.Rel(outDir, probeDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		probePkg := "./" + filepath.ToSlash(probeRel)
+
+		probe := exec.Command("go", "run", "-mod=mod", probePkg, "./config/custom.yaml")
+		probe.Dir = outDir
+		if out := runCommand(t, probe); !strings.Contains(out, "yaml:6379") {
+			t.Fatalf("custom YAML hook output = %q", out)
+		}
+		probe = exec.Command("go", "run", "-mod=mod", probePkg, "./config/custom.yaml")
+		probe.Dir = outDir
+		probe.Env = append(os.Environ(), "APP_REDIS_ADDR=env:6379")
+		if out := runCommand(t, probe); !strings.Contains(out, "env:6379") {
+			t.Fatalf("custom env hook output = %q", out)
+		}
+
+		if out, err := exec.Command("go", generateArgs...).CombinedOutput(); err != nil {
+			t.Fatalf("microgen custom-config rerun failed: %v\n%s", err, out)
+		}
+		mustContainFile(t, customPath, "APP_REDIS_ADDR")
+	})
+
 	t.Run("IDL_Config_RemoteConsul_UsesRemoteAndFallsBackToLocal", func(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_idl_remote_config")
 

@@ -164,7 +164,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		}
 
 		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/runtime/userservice")
-		mustContainFile(t, filepath.Join(outDir, "client", "userservice", "demo.go"), "/api/runtime/userservice")
+		mustContainFile(t, filepath.Join(outDir, "client", "userservice", "demo.go"), `svcSDK "example.com/gen_idl_prefixed_runtime/sdk/userservicesdk"`)
 		mustContainFile(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"), "/api/runtime/userservice")
 		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/runtime/userservice")
 

@@ -313,7 +313,8 @@ defaults -> local YAML -> optional remote config -> final environment overrides 
 Environment variables use the `APP_` prefix. Invalid final configuration fails
 before runtime wiring starts. Database generation is read-only against the
 source schema, and generated services do not run `AutoMigrate` unless explicitly
-enabled.
+enabled. Application-owned settings live in `config/custom.go`; microgen creates
+that extension file once and preserves it across regeneration.
 
 ## Validate Changes
 

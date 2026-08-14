@@ -11,6 +11,10 @@ From the repository root during v2 development:
 go -C v2 install ./cmd/microgen
 ```
 
+The CLI is CGO-free, including SQLite schema introspection. Installing and
+running `microgen` does not require GCC. A generated service may still choose a
+CGO-dependent runtime database adapter explicitly through its own `-db` setup.
+
 Inspect the exact CLI supported by the current checkout:
 
 ```bash
@@ -160,6 +164,8 @@ The generated Go SDK returns an exported `APIError` for non-2xx responses, with
 `StatusCode` and `Body` fields matching the TypeScript SDK error contract. It
 resolves request paths through `net/url` and limits response bodies to 4 MiB by
 default; use `WithMaxResponseBodyBytes` when the contract requires another cap.
+The runnable files under `client/<service>/` delegate to this SDK rather than
+maintaining a second HTTP or gRPC implementation.
 
 Generated repositories resolve `order_by` through a model-derived field
 whitelist. Unsupported names return an error instead of being passed to SQL.
@@ -226,6 +232,12 @@ APP_DB_DSN
 APP_DB_AUTO_MIGRATE
 APP_REMOTE_ENABLED
 ```
+
+Application-specific sections belong in the user-owned `config/custom.go` file.
+Add fields to `CustomConfig`; YAML and remote config merge into `custom`, while
+`SetDefaults`, `ApplyEnv`, and `Validate` provide explicit hooks for custom
+defaults, environment variables, and validation. Full regeneration never
+overwrites this file.
 
 Modes:
 

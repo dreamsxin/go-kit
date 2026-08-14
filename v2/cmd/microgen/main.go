@@ -18,7 +18,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 //go:embed templates/*.tmpl
@@ -571,11 +571,7 @@ func runFromIDL(cfg config) (*ir.Project, error) {
 }
 
 func runFromDB(cfg config) (*ir.Project, string, error) {
-	sqlDriver := cfg.dbDriver
-	switch strings.ToLower(sqlDriver) {
-	case "sqlite":
-		sqlDriver = "sqlite3"
-	}
+	sqlDriver := introspectionSQLDriver(cfg.dbDriver)
 	db, err := sql.Open(sqlDriver, cfg.dbDSN)
 	if err != nil {
 		return nil, "", err
@@ -601,4 +597,13 @@ func runFromDB(cfg config) (*ir.Project, string, error) {
 	}
 	project := ir.FromTableSchemas(schemas, serviceName, pkgName)
 	return project, idlPath, nil
+}
+
+func introspectionSQLDriver(driver string) string {
+	switch strings.ToLower(strings.TrimSpace(driver)) {
+	case "sqlite", "sqlite3":
+		return "sqlite"
+	default:
+		return driver
+	}
 }

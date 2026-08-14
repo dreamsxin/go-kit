@@ -1,6 +1,7 @@
 package tools_test
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"flag"
 	"fmt"
@@ -81,11 +82,14 @@ func commandOutput(t *testing.T, dir, name string, args ...string) []byte {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	cmd.Env = os.Environ()
-	output, err := cmd.CombinedOutput()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
 	if err != nil {
-		t.Fatalf("%s %s: %v\n%s", name, strings.Join(args, " "), err, output)
+		t.Fatalf("%s %s: %v\n%s%s", name, strings.Join(args, " "), err, stdout.Bytes(), stderr.Bytes())
 	}
-	return output
+	return stdout.Bytes()
 }
 
 func normalizeCommandOutput(data []byte) []byte {

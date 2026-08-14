@@ -283,6 +283,7 @@ func TestGenerateFull_DirectoryStructure_WithConfig(t *testing.T) {
 	mustExist(t, filepath.Join(outDir, "config", "env.go"))
 	mustExist(t, filepath.Join(outDir, "config", "remote.go"))
 	mustExist(t, filepath.Join(outDir, "config", "loader.go"))
+	mustExist(t, filepath.Join(outDir, "config", "custom.go"))
 }
 
 func TestGenerateFull_DirectoryStructure_WithDocs(t *testing.T) {
@@ -373,6 +374,7 @@ func TestGenerateProject_ProtectsUserOwnedFilesOnRerun(t *testing.T) {
 		filepath.Join(outDir, "service", "userservice", "service.go"): "user service marker",
 		filepath.Join(outDir, "cmd", "main.go"):                       "user main marker",
 		filepath.Join(outDir, "config", "config.yaml"):                "user config marker",
+		filepath.Join(outDir, "config", "custom.go"):                  "package config\n\n// user custom config marker\n",
 		filepath.Join(outDir, "README.md"):                            "user readme marker",
 	}
 	for path, content := range protected {
@@ -642,7 +644,10 @@ func TestGenerateFull_ClientDemo_Contents(t *testing.T) {
 
 	demoPath := filepath.Join(outDir, "client", "userservice", "demo.go")
 	mustContain(t, demoPath, "runDemo")
-	mustContain(t, demoPath, "UserService")
+	mustContain(t, demoPath, `svcSDK "example.com/basic/sdk/userservicesdk"`)
+	mustContain(t, demoPath, "svcSDK.New(*httpAddr)")
+	mustNotContain(t, demoPath, "type UserServiceHTTPClient struct")
+	mustNotContain(t, demoPath, "http.Client")
 }
 
 func TestGenerateFull_ClientDemo_WithGRPC(t *testing.T) {
@@ -662,7 +667,8 @@ func TestGenerateFull_ClientDemo_WithGRPC(t *testing.T) {
 	}
 
 	demoPath := filepath.Join(outDir, "client", "userservice", "demo.go")
-	mustContain(t, demoPath, "GRPCClient")
+	mustContain(t, demoPath, "svcSDK.NewGRPC(conn)")
+	mustContain(t, demoPath, "grpc.NewClient")
 }
 
 // ─────────────────────────── main.go 生成 ─────────────────────────────────
@@ -1142,19 +1148,27 @@ func TestGenerateFull_ConfigCode_Generated(t *testing.T) {
 	envPath := filepath.Join(outDir, "config", "env.go")
 	remotePath := filepath.Join(outDir, "config", "remote.go")
 	loaderPath := filepath.Join(outDir, "config", "loader.go")
+	customPath := filepath.Join(outDir, "config", "custom.go")
 	mustExist(t, codePath)
 	mustExist(t, localPath)
 	mustExist(t, envPath)
 	mustExist(t, remotePath)
 	mustExist(t, loaderPath)
+	mustExist(t, customPath)
 	mustContain(t, codePath, "type Config struct")
 	mustContain(t, codePath, "func Default()")
 	mustContain(t, codePath, "func (cfg *Config) Validate() error")
 	mustContain(t, codePath, `yaml:"server"`)
 	mustContain(t, codePath, "type RemoteConfig struct")
 	mustContain(t, codePath, `yaml:"remote"`)
+	mustContain(t, codePath, "Custom     CustomConfig")
+	mustContain(t, codePath, "cfg.Custom.SetDefaults()")
+	mustContain(t, codePath, "cfg.Custom.Validate()")
 	mustContain(t, localPath, "func LoadLocal(path string)")
 	mustContain(t, envPath, "func ApplyEnv(cfg *Config) error")
+	mustContain(t, envPath, "cfg.Custom.ApplyEnv()")
+	mustContain(t, customPath, "type CustomConfig struct")
+	mustContain(t, customPath, "func (cfg *CustomConfig) Validate() error")
 	mustContain(t, remotePath, "func LoadRemote(cfg *Config) (*Config, error)")
 	mustContain(t, loaderPath, "func Load(path string)")
 	mustContain(t, loaderPath, "cfg, err = LoadRemote(cfg)")
@@ -1300,6 +1314,7 @@ func TestGenerateFull_ConfigCode_NotGeneratedWhenWithConfigFalse(t *testing.T) {
 		filepath.Join(outDir, "config", "env.go"),
 		filepath.Join(outDir, "config", "remote.go"),
 		filepath.Join(outDir, "config", "loader.go"),
+		filepath.Join(outDir, "config", "custom.go"),
 	} {
 		if _, err := os.Stat(path); err == nil {
 			t.Errorf("%s should NOT be generated when WithConfig=false", path)

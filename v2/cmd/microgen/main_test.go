@@ -29,6 +29,24 @@ func TestSplitComma(t *testing.T) {
 	}
 }
 
+func TestIntrospectionSQLDriver(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"sqlite", "sqlite"},
+		{"sqlite3", "sqlite"},
+		{" SQLite3 ", "sqlite"},
+		{"mysql", "mysql"},
+		{"postgres", "postgres"},
+	}
+	for _, tt := range tests {
+		if got := introspectionSQLDriver(tt.input); got != tt.want {
+			t.Errorf("introspectionSQLDriver(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
 func TestConfigValidate(t *testing.T) {
 	cases := []struct {
 		cfg  config
