@@ -15,7 +15,7 @@ v2 文档按任务组织。当前行为写入使用与架构文档；长期实�
 | Generate or extend a service | [MICROGEN.md](MICROGEN.md) |
 | Build a small service with `kit` | [README.md](README.md#build-with-kit) / [中文](README_zh.md#使用-kit) |
 | Understand package boundaries | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| Follow the implementation sequence | [ROADMAP.md](ROADMAP.md) |
+| Execute the active direct v2 architecture refactor | [ROADMAP.md](ROADMAP.md) |
 | Prepare a service for production | [PRODUCTION.md](PRODUCTION.md) |
 | Move from v1 to v2 | [MIGRATION.md](MIGRATION.md) |
 | Change or release the repository | [MAINTAINING.md](MAINTAINING.md) and [RELEASE.md](RELEASE.md) |
