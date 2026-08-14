@@ -8,22 +8,17 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/grpc"
-
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
-// Service is a ready-to-run HTTP + gRPC microservice.
-// Create one with New, register handlers with Handle/GRPC, then call Run.
+// Service is a ready-to-run HTTP microservice. Optional servers can be
+// attached through WithLifecycle.
 type Service struct {
 	addr             string
 	mux              *http.ServeMux
 	httpHandler      http.Handler
 	httpMiddleware   []func(http.Handler) http.Handler
 	middleware       []endpoint.Middleware
-	routeMiddleware  []func(route string) endpoint.Middleware
-	logger           *kitlog.Logger
 	metrics          *endpoint.Metrics
 	httpConfig       HTTPServerConfig
 	requestID        bool
@@ -33,10 +28,8 @@ type Service struct {
 	readinessChecks  []namedHealthCheck
 	srv              *http.Server
 	serveErrors      chan error
-
-	grpcAddr   string
-	grpcServer *grpc.Server
-	grpcOpts   []grpc.ServerOption
+	lifecycles       []Lifecycle
+	lifecycleDone    chan struct{}
 
 	lifecycleMu     sync.Mutex
 	started         bool
@@ -52,18 +45,12 @@ func New(addr string, opts ...Option) (*Service, error) {
 	if strings.TrimSpace(addr) == "" {
 		return nil, fmt.Errorf("kit: HTTP address cannot be empty")
 	}
-	logger, err := kitlog.NewDevelopment()
-	if err != nil {
-		return nil, fmt.Errorf("kit: create default logger: %w", err)
-	}
 	s := &Service{
 		addr:             addr,
 		mux:              http.NewServeMux(),
-		logger:           logger,
 		httpConfig:       DefaultHTTPServerConfig(),
 		jsonMaxBodyBytes: DefaultJSONMaxBodyBytes,
 		healthTimeout:    DefaultHealthCheckTimeout,
-		serveErrors:      make(chan error, 2),
 		shutdownTimeout:  DefaultShutdownTimeout,
 	}
 	for i, option := range opts {
@@ -74,6 +61,7 @@ func New(addr string, opts ...Option) (*Service, error) {
 			return nil, fmt.Errorf("kit: apply option %d: %w", i, err)
 		}
 	}
+	s.serveErrors = make(chan error, len(s.lifecycles)+1)
 	s.registerHealthEndpoints()
 	s.httpHandler = s.applyHTTPMiddleware(s.mux)
 	return s, nil

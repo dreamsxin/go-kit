@@ -7,6 +7,8 @@ root.
 
 ### Added
 
+- A provider-neutral `kit.Lifecycle` contract and optional `kit/grpc`
+  component for multi-server applications.
 - Public-module verification through `make verify-published VERSION=v2.0.0`.
 - A 4 MiB default success-response limit for `transport/http/client.NewJSONClient`,
   with an explicit constructor for larger contracts.
@@ -14,6 +16,11 @@ root.
 
 ### Changed
 
+- Core `kit` is an HTTP-only assembly layer. Endpoint middleware with external
+  dependencies is installed explicitly through `kit.WithEndpointMiddleware`.
+- HTTP and gRPC transports default to a no-op error handler; error reporting is
+  application-owned through the `observability/slog` or `observability/zap`
+  adapters.
 - `microgen` now defaults config, model/repository, and database runtime wiring
   to off. `-from-db` still always emits the introspected models.
 - Full regeneration preserves user-owned service implementations, `cmd/main.go`,
@@ -38,6 +45,9 @@ root.
 
 ### Removed
 
+- `kit.WithGRPC`, `Service.GRPCServer`, `kit.WithRateLimit`,
+  `kit.WithCircuitBreaker`, `kit.WithLogging`, and the root transport
+  `NewLogErrorHandler` convenience API.
 - Dead combined config template and obsolete Swagger 2.0 Make targets/tooling.
 
 ## [2.0.0] - 2026-07-20

@@ -3,10 +3,17 @@ package kit
 import (
 	"context"
 	"errors"
-	"net"
 	"testing"
 	"time"
 )
+
+type failingLifecycle struct {
+	err error
+}
+
+func (f failingLifecycle) Start() error                   { return f.err }
+func (f failingLifecycle) Errors() <-chan error           { return nil }
+func (f failingLifecycle) Shutdown(context.Context) error { return nil }
 
 func TestWithHTTPServerConfig(t *testing.T) {
 	want := HTTPServerConfig{
@@ -73,19 +80,13 @@ func TestServiceErrors(t *testing.T) {
 	}
 }
 
-func TestStartClosesHTTPListenerWhenGRPCBindFails(t *testing.T) {
-	occupied, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-	defer occupied.Close()
-
-	svc := MustNew(":0", WithGRPC(occupied.Addr().String()))
+func TestStartClosesHTTPListenerWhenLifecycleStartFails(t *testing.T) {
+	svc := MustNew(":0", WithLifecycle(failingLifecycle{err: errors.New("start failed")}))
 	if err := svc.Start(); err == nil {
-		t.Fatal("expected gRPC bind error")
+		t.Fatal("expected lifecycle start error")
 	}
 	if svc.srv != nil {
-		t.Fatal("HTTP server should not start when gRPC bind fails")
+		t.Fatal("HTTP server should not start when lifecycle startup fails")
 	}
 }
 

@@ -175,7 +175,6 @@ func main() {
 	svc, err := kit.New(":8080",
 		kit.WithRequestID(),
 		kit.WithTimeout(5*time.Second),
-		kit.WithRateLimit(100),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -202,6 +201,27 @@ func main() {
 
 `kit.New` 会校验 Option 并返回错误。`Service.Run` 跟随调用方提供的 context；
 系统信号监听应放在 `main` 中。
+
+带第三方依赖的 endpoint middleware 由应用显式装配：
+
+```go
+limiter := rate.NewLimiter(100, 100)
+svc, err := kit.New(":8080", kit.WithEndpointMiddleware(
+	ratelimit.NewErroringLimiter(limiter),
+))
+```
+
+可选服务器实现 `kit.Lifecycle`。gRPC adapter 通过组件挂载，不会让纯 HTTP
+应用解析 gRPC 依赖：
+
+```go
+grpcComponent, err := kitgrpc.New(":8081")
+if err != nil {
+	return err
+}
+pb.RegisterGreeterServer(grpcComponent.Server(), greeter)
+svc, err := kit.New(":8080", kit.WithLifecycle(grpcComponent))
+```
 
 默认 HTTP server 使用 5 秒 Header 读取超时、1 MiB Header 上限，并保持
 `WriteTimeout=0`，避免 SSE 和其他流式响应被意外中断。需要不同策略时使用

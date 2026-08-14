@@ -4,18 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
-	"github.com/sony/gobreaker"
-	"golang.org/x/time/rate"
-	"google.golang.org/grpc"
-
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/endpoint/circuitbreaker"
-	"github.com/dreamsxin/go-kit/v2/endpoint/ratelimit"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
-	zapadapter "github.com/dreamsxin/go-kit/v2/observability/zap"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -133,39 +126,48 @@ func Healthy(context.Context) error {
 	return nil
 }
 
-// WithRateLimit adds a token-bucket rate limiter (rps = requests per second).
-func WithRateLimit(rps float64) Option {
+// WithEndpointMiddleware installs middleware around every endpoint registered
+// through HandleJSON or HandleJSONEndpoint. The first middleware is outermost.
+// Protocol- and dependency-specific middleware remains application owned.
+func WithEndpointMiddleware(middlewares ...endpoint.Middleware) Option {
+	copied := append([]endpoint.Middleware(nil), middlewares...)
 	return func(s *Service) error {
-		if rps <= 0 {
-			return fmt.Errorf("rate limit must be > 0")
+		for i, middleware := range copied {
+			if middleware == nil {
+				return fmt.Errorf("endpoint middleware %d is nil", i)
+			}
 		}
-		burst := int(rps)
-		if burst < 1 {
-			burst = 1
-		}
-		lim := rate.NewLimiter(rate.Limit(rps), burst)
-		s.middleware = append(s.middleware, ratelimit.NewErroringLimiter(lim))
+		s.middleware = append(s.middleware, copied...)
 		return nil
 	}
 }
 
-// WithCircuitBreaker adds a Gobreaker circuit breaker that opens after
-// consecutiveFailures consecutive errors.
-func WithCircuitBreaker(consecutiveFailures uint32) Option {
+// WithLifecycle attaches optional servers or background components to the
+// Service lifecycle. Components start in declaration order and stop in reverse
+// order.
+func WithLifecycle(components ...Lifecycle) Option {
+	copied := append([]Lifecycle(nil), components...)
 	return func(s *Service) error {
-		if consecutiveFailures == 0 {
-			return fmt.Errorf("circuit breaker threshold must be > 0")
+		for i, component := range copied {
+			if isNilLifecycle(component) {
+				return fmt.Errorf("lifecycle component %d is nil", i)
+			}
 		}
-		s.routeMiddleware = append(s.routeMiddleware, func(route string) endpoint.Middleware {
-			cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
-				Name: route,
-				ReadyToTrip: func(c gobreaker.Counts) bool {
-					return c.ConsecutiveFailures >= consecutiveFailures
-				},
-			})
-			return circuitbreaker.Gobreaker(cb)
-		})
+		s.lifecycles = append(s.lifecycles, copied...)
 		return nil
+	}
+}
+
+func isNilLifecycle(component Lifecycle) bool {
+	if component == nil {
+		return true
+	}
+	value := reflect.ValueOf(component)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
 	}
 }
 
@@ -176,18 +178,6 @@ func WithTimeout(d time.Duration) Option {
 			return fmt.Errorf("timeout must be > 0")
 		}
 		s.middleware = append(s.middleware, endpoint.TimeoutMiddleware(d))
-		return nil
-	}
-}
-
-// WithLogging adds structured request logging.
-func WithLogging(logger *kitlog.Logger) Option {
-	return func(s *Service) error {
-		if logger == nil {
-			logger = kitlog.NewNopLogger()
-		}
-		s.logger = logger
-		s.middleware = append(s.middleware, zapadapter.LoggingMiddleware(logger, "request"))
 		return nil
 	}
 }
@@ -211,19 +201,6 @@ func WithRequestID() Option {
 	return func(s *Service) error {
 		s.requestID = true
 		s.middleware = append(s.middleware, requestIDMiddleware())
-		return nil
-	}
-}
-
-// WithGRPC enables a gRPC server on the given address (for example ":8081").
-// Call GRPCServer() to register proto services before calling Run or Start.
-func WithGRPC(addr string, opts ...grpc.ServerOption) Option {
-	return func(s *Service) error {
-		if strings.TrimSpace(addr) == "" {
-			return fmt.Errorf("gRPC address cannot be empty")
-		}
-		s.grpcAddr = addr
-		s.grpcOpts = opts
 		return nil
 	}
 }

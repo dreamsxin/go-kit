@@ -7,12 +7,20 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	"google.golang.org/grpc"
 )
 
 // DefaultShutdownTimeout is the graceful shutdown deadline used by Run.
 const DefaultShutdownTimeout = 10 * time.Second
+
+// Lifecycle is an optional component managed alongside the HTTP server.
+// Start must report listener or configuration failures synchronously. Errors
+// reports asynchronous failures after Start; it may return nil when the
+// component has no asynchronous failure path.
+type Lifecycle interface {
+	Start() error
+	Errors() <-chan error
+	Shutdown(context.Context) error
+}
 
 // Run starts the configured servers and blocks until ctx is cancelled or a
 // server fails. Signal handling belongs to the calling main package.
@@ -39,8 +47,8 @@ func (s *Service) Run(ctx context.Context) error {
 	return errors.Join(runErr, s.Shutdown(shutdownCtx))
 }
 
-// Start starts the HTTP server (and gRPC server if enabled) in the background.
-// It returns an error if either listener fails to bind.
+// Start starts the HTTP server and attached lifecycle components in the
+// background. Listener and component startup failures are returned directly.
 func (s *Service) Start() error {
 	if s == nil {
 		return fmt.Errorf("kit: nil Service")
@@ -54,26 +62,24 @@ func (s *Service) Start() error {
 		return fmt.Errorf("kit: service cannot be restarted after shutdown")
 	}
 
-	// Bind the HTTP listener synchronously so bind errors (e.g. port in use)
-	// surface before we return to the caller.
 	httpLis, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		return fmt.Errorf("http listen: %w", err)
 	}
 
-	var grpcLis net.Listener
-	var grpcServer *grpc.Server
-	if s.grpcAddr != "" {
-		grpcServer, err = s.grpcServerLocked()
-		if err != nil {
+	startedComponents := 0
+	for i, component := range s.lifecycles {
+		if err := component.Start(); err != nil {
 			_ = httpLis.Close()
-			return err
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
+			cleanupErr := shutdownLifecycles(cleanupCtx, s.lifecycles[:startedComponents])
+			cancel()
+			if startedComponents > 0 {
+				s.stopped = true
+			}
+			return errors.Join(fmt.Errorf("start lifecycle component %d: %w", i, err), cleanupErr)
 		}
-		grpcLis, err = net.Listen("tcp", s.grpcAddr)
-		if err != nil {
-			_ = httpLis.Close()
-			return fmt.Errorf("grpc listen: %w", err)
-		}
+		startedComponents++
 	}
 
 	s.srv = &http.Server{
@@ -85,40 +91,50 @@ func (s *Service) Start() error {
 		IdleTimeout:       s.httpConfig.IdleTimeout,
 		MaxHeaderBytes:    s.httpConfig.MaxHeaderBytes,
 	}
+	s.lifecycleDone = make(chan struct{})
 	s.started = true
 	go func() {
-		s.logger.Sugar().Infof("HTTP listening on %s", s.addr)
 		if err := s.srv.Serve(httpLis); err != nil && err != http.ErrServerClosed {
 			s.reportServeError(fmt.Errorf("http serve: %w", err))
 		}
 	}()
 
-	if grpcLis != nil {
-		go func() {
-			s.logger.Sugar().Infof("gRPC listening on %s", s.grpcAddr)
-			if err := grpcServer.Serve(grpcLis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
-				s.reportServeError(fmt.Errorf("grpc serve: %w", err))
-			}
-		}()
+	for i, component := range s.lifecycles {
+		errors := component.Errors()
+		if errors != nil {
+			go s.watchLifecycle(i, errors, s.lifecycleDone)
+		}
 	}
 	return nil
 }
 
-// Errors reports asynchronous HTTP or gRPC serving failures after Start.
+// Errors reports asynchronous HTTP or lifecycle component failures after Start.
 // Listener bind failures are still returned directly from Start.
 func (s *Service) Errors() <-chan error {
+	if s == nil {
+		return nil
+	}
 	return s.serveErrors
 }
 
 func (s *Service) reportServeError(err error) {
-	s.logger.Sugar().Error(err)
 	select {
 	case s.serveErrors <- err:
 	default:
 	}
 }
 
-// Shutdown gracefully stops the HTTP server and gRPC server if running.
+func (s *Service) watchLifecycle(index int, errors <-chan error, done <-chan struct{}) {
+	select {
+	case err, ok := <-errors:
+		if ok && err != nil {
+			s.reportServeError(fmt.Errorf("lifecycle component %d: %w", index, err))
+		}
+	case <-done:
+	}
+}
+
+// Shutdown gracefully stops the HTTP server and attached components.
 func (s *Service) Shutdown(ctx context.Context) error {
 	if s == nil {
 		return nil
@@ -132,35 +148,28 @@ func (s *Service) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	srv := s.srv
-	grpcServer := s.grpcServer
+	lifecycleDone := s.lifecycleDone
+	components := append([]Lifecycle(nil), s.lifecycles...)
 	s.started = false
 	s.stopped = true
 	s.lifecycleMu.Unlock()
 
-	var shutdownErr error
-	if grpcServer != nil {
-		shutdownErr = s.shutdownGRPC(ctx, grpcServer)
+	if lifecycleDone != nil {
+		close(lifecycleDone)
 	}
-	if srv == nil {
-		return shutdownErr
+	var httpErr error
+	if srv != nil {
+		httpErr = srv.Shutdown(ctx)
 	}
-	return errors.Join(shutdownErr, srv.Shutdown(ctx))
+	return errors.Join(httpErr, shutdownLifecycles(ctx, components))
 }
 
-func (s *Service) shutdownGRPC(ctx context.Context, server *grpc.Server) error {
-	done := make(chan struct{})
-	go func() {
-		server.GracefulStop()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		s.logger.Sugar().Info("gRPC stopped")
-		return nil
-	case <-ctx.Done():
-		server.Stop()
-		s.logger.Sugar().Errorf("gRPC graceful stop timed out: %v", ctx.Err())
-		return ctx.Err()
+func shutdownLifecycles(ctx context.Context, components []Lifecycle) error {
+	var result error
+	for i := len(components) - 1; i >= 0; i-- {
+		if err := components[i].Shutdown(ctx); err != nil {
+			result = errors.Join(result, fmt.Errorf("shutdown lifecycle component %d: %w", i, err))
+		}
 	}
+	return result
 }

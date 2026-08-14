@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/transport"
 )
 
 const defaultLevel = slog.LevelInfo
@@ -20,6 +21,17 @@ type Options struct {
 
 // Option configures Options.
 type Option func(*Options)
+
+// NewErrorHandler adapts a standard-library slog logger to
+// transport.ErrorHandler. Logger and handler setup remain application owned.
+func NewErrorHandler(logger *slog.Logger) transport.ErrorHandler {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return transport.ErrorHandlerFunc(func(ctx context.Context, err error) {
+		logger.ErrorContext(ctx, "transport error", slog.Any("error", err))
+	})
+}
 
 // WithLevel changes the level used for both success and failure records.
 func WithLevel(level slog.Level) Option {

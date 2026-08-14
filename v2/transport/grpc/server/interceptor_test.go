@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	transportgrpc "github.com/dreamsxin/go-kit/v2/transport/grpc"
 	"google.golang.org/grpc"
 )
@@ -38,14 +37,6 @@ func TestInterceptor_PropagatesHandlerError(t *testing.T) {
 	_, err := Interceptor(context.Background(), nil, info, handler)
 	if err != grpc.ErrServerStopped {
 		t.Errorf("err: got %v, want %v", err, grpc.ErrServerStopped)
-	}
-}
-
-func TestServerErrorLogger_SetsHandler(t *testing.T) {
-	logger := kitlog.NewNopLogger()
-	s := NewServer(stubEndpoint, stubDec, stubEnc, ServerErrorLogger(logger))
-	if s.errorHandler == nil {
-		t.Error("expected errorHandler to be set")
 	}
 }
 

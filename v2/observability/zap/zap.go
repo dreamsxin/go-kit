@@ -10,7 +10,18 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/log"
+	"github.com/dreamsxin/go-kit/v2/transport"
 )
+
+// NewErrorHandler adapts a Zap logger to transport.ErrorHandler.
+func NewErrorHandler(logger *log.Logger) transport.ErrorHandler {
+	if logger == nil {
+		logger = log.NewNopLogger()
+	}
+	return transport.ErrorHandlerFunc(func(_ context.Context, err error) {
+		logger.Error("transport error", zap.Error(err))
+	})
+}
 
 // LoggingMiddleware records the operation outcome and elapsed duration.
 func LoggingMiddleware(logger *log.Logger, operation string) endpoint.Middleware {

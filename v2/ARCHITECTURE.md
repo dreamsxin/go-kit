@@ -48,20 +48,24 @@ Each layer owns one kind of decision:
 ### `kit`
 
 `kit` is a high-level assembly scaffold for small services. It composes the
-normal endpoint and transport packages and owns HTTP/gRPC server lifecycle.
+normal endpoint and HTTP transport packages. Optional servers are attached
+through the provider-neutral `kit.Lifecycle` contract.
 
 - `kit.New` validates configuration and returns an error.
 - `Service.Run(ctx)` follows a caller-owned context.
 - `kit.HandleJSON` and `kit.HandleJSONEndpoint` preserve endpoint middleware.
 - `Service.Handle` and `Service.HandleFunc` are raw HTTP escape hatches.
+- `kit/grpc` is an optional lifecycle component and is not imported by core
+  `kit`.
 
 Application routes should not be moved to raw HTTP handlers merely to reduce a
 few lines of endpoint wiring.
 
 ### `endpoint`
 
-`endpoint` defines the transport-independent request function, middleware
-composition, timeout, metrics, logging, rate limiting, and circuit breaking.
+`endpoint` defines the transport-independent request function and standard
+library middleware composition, timeout, and metrics. Provider-specific
+logging, rate limiting, and circuit breaking remain explicit adapters.
 
 Endpoint middleware observes business call results. It should not infer errors
 from HTTP status codes or gRPC wire details.
@@ -107,12 +111,13 @@ points decide when to terminate.
 
 ### Optional observability adapters
 
-`observability/slog` adapts endpoint outcomes to the standard-library
-`log/slog` API. `observability/zap` owns Zap-specific endpoint middleware, so
-the core `endpoint` package remains provider-neutral. `observability/otel` is a
-separate module that adapts endpoint calls to application-owned OpenTelemetry
-tracers and meters. These adapters do not log or record request/response
-payloads; operation names and application attributes must remain bounded.
+`observability/slog` adapts endpoint outcomes and transport errors to the
+standard-library `log/slog` API. `observability/zap` owns equivalent
+Zap-specific adapters, so core packages remain provider-neutral.
+`observability/otel` is a separate module that adapts endpoint calls to
+application-owned OpenTelemetry tracers and meters. These adapters do not log
+or record request/response payloads; operation names and application attributes
+must remain bounded.
 
 ### Optional HTTP security
 
@@ -139,16 +144,18 @@ Endpoint middleware and HTTP middleware are intentionally different:
   errors;
 - HTTP middleware sees methods, paths, headers, status codes, and byte streams.
 
-Metrics, logging, timeout, rate limit, and circuit breaker options configured on
-`kit` apply to routes registered through `HandleJSON` or
-`HandleJSONEndpoint`. Raw handlers receive only explicitly installed HTTP
-middleware.
+Endpoint middleware installed through `kit.WithEndpointMiddleware` applies to
+routes registered through `HandleJSON` or `HandleJSONEndpoint`. Raw handlers
+receive only explicitly installed HTTP middleware. Dependency-owning adapters
+such as Zap, Gobreaker, or token buckets are created by the application and
+passed through this generic option.
 
 `kit.WithHTTPMiddleware` is the explicit whole-server boundary for standard
 `http.Handler` middleware. It wraps health, JSON endpoint, raw HTTP, and
 generated routes without converting HTTP policy into endpoint middleware.
 
-Circuit breakers are scoped per route. Business validation errors should not be
+Circuit-breaker scope is application owned. Create one adapter per route when
+routes must not share breaker state. Business validation errors should not be
 treated as infrastructure failure unless an application explicitly classifies
 them that way.
 

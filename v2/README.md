@@ -182,7 +182,6 @@ func main() {
 	svc, err := kit.New(":8080",
 		kit.WithRequestID(),
 		kit.WithTimeout(5*time.Second),
-		kit.WithRateLimit(100),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -209,6 +208,27 @@ func main() {
 
 `kit.New` validates options and returns errors. `Service.Run` follows the
 caller-owned context; process signal handling stays in `main`.
+
+Dependency-specific endpoint middleware is assembled explicitly:
+
+```go
+limiter := rate.NewLimiter(100, 100)
+svc, err := kit.New(":8080", kit.WithEndpointMiddleware(
+	ratelimit.NewErroringLimiter(limiter),
+))
+```
+
+Optional servers implement `kit.Lifecycle`. The gRPC adapter is attached
+without adding gRPC to an HTTP-only application:
+
+```go
+grpcComponent, err := kitgrpc.New(":8081")
+if err != nil {
+	return err
+}
+pb.RegisterGreeterServer(grpcComponent.Server(), greeter)
+svc, err := kit.New(":8080", kit.WithLifecycle(grpcComponent))
+```
 
 The default HTTP server protects header reads with a 5-second timeout, limits
 headers to 1 MiB, and keeps `WriteTimeout` disabled so SSE and other streaming

@@ -56,13 +56,13 @@ func NewServer(
 		e:            e,
 		dec:          dec,
 		enc:          enc,
-		errorHandler: transport.NewLogErrorHandler(nil),
+		errorHandler: transport.NopErrorHandler,
 	}
 	for _, option := range options {
 		option(s)
 	}
 	if s.errorHandler == nil {
-		s.errorHandler = transport.NewLogErrorHandler(nil)
+		s.errorHandler = transport.NopErrorHandler
 	}
 	return s
 }

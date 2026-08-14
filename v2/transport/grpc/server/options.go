@@ -1,9 +1,6 @@
 package server
 
-import (
-	"github.com/dreamsxin/go-kit/v2/log"
-	"github.com/dreamsxin/go-kit/v2/transport"
-)
+import "github.com/dreamsxin/go-kit/v2/transport"
 
 type ServerOption func(*Server)
 
@@ -27,11 +24,6 @@ func ServerAfter(after ...ResponseFunc) ServerOption {
 			}
 		}
 	}
-}
-
-// ServerErrorLogger sets a logger-based error handler (convenience wrapper).
-func ServerErrorLogger(logger *log.Logger) ServerOption {
-	return func(s *Server) { s.errorHandler = transport.NewLogErrorHandler(logger) }
 }
 
 // ServerErrorHandler sets the handler called when any step returns an error.

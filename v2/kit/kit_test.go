@@ -11,11 +11,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sony/gobreaker"
+	"golang.org/x/time/rate"
+
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/endpoint/circuitbreaker"
+	"github.com/dreamsxin/go-kit/v2/endpoint/ratelimit"
 	testgrpc "github.com/dreamsxin/go-kit/v2/examples/transport/_grpc_test"
 	testpb "github.com/dreamsxin/go-kit/v2/examples/transport/_grpc_test/pb"
 	"github.com/dreamsxin/go-kit/v2/kit"
+	kitgrpc "github.com/dreamsxin/go-kit/v2/kit/grpc"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	zapadapter "github.com/dreamsxin/go-kit/v2/observability/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -88,13 +95,17 @@ func TestReadme_QuickStart(t *testing.T) {
 func TestReadme_WithMiddleware(t *testing.T) {
 	logger := kitlog.NewNopLogger()
 	var metrics endpoint.Metrics
+	limiter := rate.NewLimiter(100, 100)
+	breaker := gobreaker.NewCircuitBreaker(gobreaker.Settings{Name: "hello"})
 
 	svc := kit.MustNew(":0",
-		kit.WithRateLimit(100),
-		kit.WithCircuitBreaker(5),
+		kit.WithEndpointMiddleware(
+			ratelimit.NewErroringLimiter(limiter),
+			circuitbreaker.Gobreaker(breaker),
+			zapadapter.LoggingMiddleware(logger, "hello"),
+		),
 		kit.WithTimeout(5*time.Second),
 		kit.WithRequestID(),
-		kit.WithLogging(logger),
 		kit.WithMetrics(&metrics),
 	)
 	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
@@ -120,12 +131,9 @@ func TestReadme_WithMiddleware(t *testing.T) {
 func TestReadme_WithGRPC_LiveRPC(t *testing.T) {
 	grpcAddr := freeTCPAddr(t)
 
-	svc := kit.MustNew(":0", kit.WithGRPC(grpcAddr))
-	grpcServer, err := svc.GRPCServer()
-	if err != nil {
-		t.Fatalf("GRPCServer: %v", err)
-	}
-	testpb.RegisterTestServer(grpcServer, testgrpc.NewBinding(testgrpc.NewService()))
+	grpcComponent := kitgrpc.MustNew(grpcAddr)
+	svc := kit.MustNew(":0", kit.WithLifecycle(grpcComponent))
+	testpb.RegisterTestServer(grpcComponent.Server(), testgrpc.NewBinding(testgrpc.NewService()))
 
 	if err := svc.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -636,11 +644,11 @@ func TestService_WithTimeout_CancelsSlowHandler(t *testing.T) {
 	}
 }
 
-// ── WithLogging ───────────────────────────────────────────────────────────────
+// ── Explicit endpoint middleware ─────────────────────────────────────────────
 
-func TestService_WithLogging(t *testing.T) {
+func TestService_WithEndpointLoggingMiddleware(t *testing.T) {
 	logger := kitlog.NewNopLogger()
-	_, ts := newSvc(t, kit.WithLogging(logger))
+	_, ts := newSvc(t, kit.WithEndpointMiddleware(zapadapter.LoggingMiddleware(logger, "hello")))
 
 	body, _ := json.Marshal(helloReq{Name: "log"})
 	resp, err := http.Post(ts.URL+"/hello", "application/json", bytes.NewReader(body))
@@ -653,8 +661,8 @@ func TestService_WithLogging(t *testing.T) {
 	}
 }
 
-func TestService_WithLogging_NilLogger_DoesNotPanic(t *testing.T) {
-	_, ts := newSvc(t, kit.WithLogging(nil))
+func TestService_WithEndpointLoggingMiddleware_NilLoggerDoesNotPanic(t *testing.T) {
+	_, ts := newSvc(t, kit.WithEndpointMiddleware(zapadapter.LoggingMiddleware(nil, "hello")))
 
 	body, _ := json.Marshal(helloReq{Name: "log"})
 	resp, err := http.Post(ts.URL+"/hello", "application/json", bytes.NewReader(body))
@@ -667,13 +675,9 @@ func TestService_WithLogging_NilLogger_DoesNotPanic(t *testing.T) {
 	}
 }
 
-// ── WithCircuitBreaker ────────────────────────────────────────────────────────
-
-// TestService_WithCircuitBreaker verifies that WithCircuitBreaker option is
-// accepted and the service starts correctly. Circuit breaker behavior at the
-// endpoint level is tested in endpoint/circuitbreaker package.
-func TestService_WithCircuitBreaker(t *testing.T) {
-	svc := kit.MustNew(":0", kit.WithCircuitBreaker(2))
+func TestService_WithEndpointCircuitBreaker(t *testing.T) {
+	breaker := gobreaker.NewCircuitBreaker(gobreaker.Settings{Name: "hello"})
+	svc := kit.MustNew(":0", kit.WithEndpointMiddleware(circuitbreaker.Gobreaker(breaker)))
 	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -689,40 +693,10 @@ func TestService_WithCircuitBreaker(t *testing.T) {
 	}
 }
 
-func TestService_WithCircuitBreaker_IsPerJSONRoute(t *testing.T) {
-	svc := kit.MustNew(":0", kit.WithCircuitBreaker(1))
-	kit.HandleJSON[helloReq](svc, "/bad", func(context.Context, helloReq) (any, error) {
-		return nil, errors.New("boom")
-	})
-	kit.HandleJSON[helloReq](svc, "/ok", helloHandler)
-	ts := httptest.NewServer(svc)
-	defer ts.Close()
-
-	body, _ := json.Marshal(helloReq{Name: "ok"})
-	resp, err := http.Post(ts.URL+"/bad", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("POST /bad: %v", err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode == http.StatusOK {
-		t.Fatalf("POST /bad status = %d, want failure", resp.StatusCode)
-	}
-
-	resp, err = http.Post(ts.URL+"/ok", "application/json", bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("POST /ok: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("POST /ok status = %d, want %d", resp.StatusCode, http.StatusOK)
-	}
-}
-
-// ── WithRateLimit ─────────────────────────────────────────────────────────────
-
-func TestService_WithRateLimit_AllowsAndRejects(t *testing.T) {
+func TestService_WithEndpointRateLimit_AllowsAndRejects(t *testing.T) {
 	// burst=1 at near-zero rate: first call allowed, subsequent rejected
-	svc := kit.MustNew(":0", kit.WithRateLimit(0.001))
+	limiter := rate.NewLimiter(0.001, 1)
+	svc := kit.MustNew(":0", kit.WithEndpointMiddleware(ratelimit.NewErroringLimiter(limiter)))
 	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -806,20 +780,16 @@ func TestKitOptions_ReturnErrorsForInvalidConfiguration(t *testing.T) {
 		option kit.Option
 	}{
 		{
-			name:   "rate limit <= 0",
-			option: kit.WithRateLimit(0),
-		},
-		{
 			name:   "timeout <= 0",
 			option: kit.WithTimeout(0),
 		},
 		{
-			name:   "circuit breaker threshold zero",
-			option: kit.WithCircuitBreaker(0),
+			name:   "endpoint middleware nil",
+			option: kit.WithEndpointMiddleware(nil),
 		},
 		{
-			name:   "grpc empty address",
-			option: kit.WithGRPC(""),
+			name:   "lifecycle component nil",
+			option: kit.WithLifecycle(nil),
 		},
 		{
 			name:   "json max body bytes negative",
@@ -860,43 +830,23 @@ func TestKitOptions_ReturnErrorsForInvalidConfiguration(t *testing.T) {
 	}
 }
 
-// ── gRPC support ──────────────────────────────────────────────────────────────
+// ── Optional gRPC lifecycle ──────────────────────────────────────────────────
 
-// TestService_WithGRPC_ErrorsWithoutOption verifies GRPCServer reports missing
-// configuration explicitly.
-func TestService_WithGRPC_ErrorsWithoutOption(t *testing.T) {
-	svc := kit.MustNew(":0")
-	if _, err := svc.GRPCServer(); err == nil {
-		t.Fatal("expected GRPCServer error without WithGRPC")
-	}
-}
-
-// TestService_WithGRPC_ReturnsServer verifies GRPCServer() returns a non-nil
-// *grpc.Server when WithGRPC is set.
-func TestService_WithGRPC_ReturnsServer(t *testing.T) {
-	svc := kit.MustNew(":0", kit.WithGRPC(":0"))
-	gs, err := svc.GRPCServer()
-	if err != nil {
-		t.Fatalf("GRPCServer: %v", err)
-	}
+func TestGRPCComponentReturnsServer(t *testing.T) {
+	component := kitgrpc.MustNew(":0")
+	gs := component.Server()
 	if gs == nil {
-		t.Fatal("GRPCServer() returned nil")
+		t.Fatal("Server returned nil")
 	}
-	// calling again returns the same instance
-	again, err := svc.GRPCServer()
-	if err != nil {
-		t.Fatalf("GRPCServer second call: %v", err)
-	}
+	again := component.Server()
 	if again != gs {
-		t.Error("GRPCServer() should return the same instance on repeated calls")
+		t.Error("Server should return the same instance on repeated calls")
 	}
 }
 
-// TestService_WithGRPC_StartShutdown verifies the gRPC server starts and
-// shuts down cleanly alongside the HTTP server.
-func TestService_WithGRPC_StartShutdown(t *testing.T) {
-	svc := kit.MustNew(":0", kit.WithGRPC(":0"))
-	// register nothing — just verify lifecycle
+func TestService_WithGRPCLifecycle_StartShutdown(t *testing.T) {
+	component := kitgrpc.MustNew(":0")
+	svc := kit.MustNew(":0", kit.WithLifecycle(component))
 	if err := svc.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -908,10 +858,9 @@ func TestService_WithGRPC_StartShutdown(t *testing.T) {
 	}
 }
 
-// TestService_WithGRPC_HTTPStillWorks verifies HTTP continues to work when
-// gRPC is also enabled.
-func TestService_WithGRPC_HTTPStillWorks(t *testing.T) {
-	svc := kit.MustNew(":0", kit.WithGRPC(":0"))
+func TestService_WithGRPCLifecycle_HTTPStillWorks(t *testing.T) {
+	component := kitgrpc.MustNew(":0")
+	svc := kit.MustNew(":0", kit.WithLifecycle(component))
 	svc.Handle("/hello", kit.JSON[helloReq](helloHandler))
 	ts := httptest.NewServer(svc)
 	defer ts.Close()

@@ -90,13 +90,20 @@ grpcServer := svc.GRPCServer()
 v2:
 
 ```go
-grpcServer, err := svc.GRPCServer()
+grpcComponent, err := kitgrpc.New(":8081")
+if err != nil {
+	return err
+}
+pb.RegisterGreeterServer(grpcComponent.Server(), greeter)
+
+svc, err := kit.New(":8080", kit.WithLifecycle(grpcComponent))
 if err != nil {
 	return err
 }
 ```
 
-`WithGRPC` must be configured before requesting the server.
+Core `kit.Service` is HTTP-only. `kit/grpc.Component` owns the optional gRPC
+listener and participates in the same bounded startup and shutdown lifecycle.
 
 ## HTTP Route Registration
 
@@ -113,7 +120,23 @@ kit.HandleJSONEndpoint[Request](svc, "/route", ep)
 ```
 
 `Service.Handle` and `Service.HandleFunc` are raw HTTP escape hatches and do not
-apply endpoint middleware. Code that previously expected endpoint metrics,
+apply endpoint middleware. Keep routes that need endpoint metrics, timeouts, or
+other endpoint policy on `HandleJSON` or `HandleJSONEndpoint`.
+
+## Endpoint Middleware Assembly
+
+Dependency-owning convenience options were replaced by explicit composition:
+
+```go
+svc, err := kit.New(":8080", kit.WithEndpointMiddleware(
+	ratelimit.NewErroringLimiter(limiter),
+	circuitbreaker.Gobreaker(breaker),
+	zapadapter.LoggingMiddleware(logger, "request"),
+))
+```
+
+Replace `WithRateLimit`, `WithCircuitBreaker`, and `WithLogging` at application
+assembly. The application now owns each adapter instance and its scope.
 logging, timeout, rate limit, or circuit breaking around a raw handler must move
 to an endpoint-backed registration path.
 
@@ -249,7 +272,7 @@ on mutating registered slices or maps must update through provider APIs instead.
 ## Migration Checklist
 
 - Update module imports to `/v2`.
-- Handle `kit.New`, `Run`, and `GRPCServer` errors.
+- Handle `kit.New`, `Run`, and optional lifecycle constructor errors.
 - Move signal handling to `main`.
 - Register business routes through endpoint-backed APIs.
 - Update custom service-discovery implementations.

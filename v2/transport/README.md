@@ -87,6 +87,10 @@ Primary extension points:
 - `ServerErrorEncoder`
 - `ServerErrorHandler`
 
+The default error handler is a no-op. Install an application-owned handler when
+errors must be logged or recorded, for example
+`zapadapter.NewErrorHandler(logger)` from `observability/zap`.
+
 Typical flow:
 
 1. `ServerBefore` hooks populate context from the request.

@@ -23,11 +23,13 @@
 // With middleware:
 //
 //	svc, err := kit.New(":8080",
-//	    kit.WithRateLimit(100),
-//	    kit.WithCircuitBreaker(5),
+//	    kit.WithEndpointMiddleware(
+//	        ratelimit.NewErroringLimiter(limiter),
+//	        circuitbreaker.Gobreaker(breaker),
+//	        zapadapter.LoggingMiddleware(logger, "request"),
+//	    ),
 //	    kit.WithTimeout(5*time.Second),
 //	    kit.WithRequestID(),
-//	    kit.WithLogging(logger),
 //	    kit.WithMetrics(&metrics),
 //	    kit.WithReadinessCheck("database", checkDatabase),
 //	)

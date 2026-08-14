@@ -37,6 +37,29 @@ func TestGenericServiceDiscoveryDoesNotDependOnProviders(t *testing.T) {
 	}
 }
 
+func TestKitHTTPAssemblyDoesNotResolveOptionalDependencies(t *testing.T) {
+	root := moduleRoot(t)
+	output := commandOutput(t, root, "go", "list", "-deps", "-f", "{{.ImportPath}}", "./kit")
+	forbidden := []string{
+		"github.com/dreamsxin/go-kit/v2/kit/grpc",
+		"github.com/dreamsxin/go-kit/v2/observability/zap",
+		"github.com/go-sql-driver/mysql",
+		"github.com/hashicorp/consul",
+		"github.com/lib/pq",
+		"github.com/mattn/go-sqlite3",
+		"github.com/sony/gobreaker",
+		"go.uber.org/zap",
+		"google.golang.org/grpc",
+	}
+	for _, importPath := range strings.Fields(string(output)) {
+		for _, prefix := range forbidden {
+			if importPath == prefix || strings.HasPrefix(importPath, prefix+"/") {
+				t.Errorf("kit HTTP assembly resolves optional package %q", importPath)
+			}
+		}
+	}
+}
+
 func TestTransportPackagesDoNotCrossProtocolBoundaries(t *testing.T) {
 	root := moduleRoot(t)
 	checks := []struct {

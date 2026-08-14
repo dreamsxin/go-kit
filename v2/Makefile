@@ -28,7 +28,7 @@ all: build
 ## workflow shortcuts
 test-runtime:
 	@echo ">>> Running runtime package tests..."
-	@go test -v ./kit ./endpoint ./transport/... ./sd/... ./log ./utils
+	@go test -v ./kit/... ./endpoint/... ./transport/... ./sd/... ./log
 
 test-microgen:
 	@echo ">>> Running microgen tests..."
@@ -60,6 +60,8 @@ test-examples:
 test-observability:
 	@echo ">>> Running slog adapter tests..."
 	@go test -v ./observability/slog
+	@echo ">>> Running Zap adapter tests..."
+	@go test -v ./observability/zap
 	@echo ">>> Running OpenTelemetry adapter tests..."
 	@cd ./observability/otel && go test -v ./...
 
@@ -73,7 +75,7 @@ test-api:
 
 test-race:
 	@echo ">>> Running focused race tests..."
-	@go test -race ./kit ./interaction/... ./transport/... ./sd/... ./cmd/microgen/generator ./security/http ./observability/slog
+	@go test -race ./kit/... ./interaction/... ./transport/... ./sd/... ./cmd/microgen/generator ./security/http ./observability/slog ./observability/zap
 	@cd ./observability/otel && go test -race ./...
 
 test-vet:
@@ -84,9 +86,12 @@ test-vet:
 
 test-modules:
 	@echo ">>> Verifying module files are tidy..."
-	@go mod tidy -diff
-	@cd ./observability/otel && go mod tidy -diff
-	@cd ./tools/contractcheck && go mod tidy -diff
+	@go mod tidy
+	@git diff --exit-code -- go.mod go.sum
+	@go -C ./observability/otel mod tidy
+	@git -C ./observability/otel diff --exit-code -- go.mod go.sum
+	@go -C ./tools/contractcheck mod tidy
+	@git -C ./tools/contractcheck diff --exit-code -- go.mod go.sum
 
 release-check-clean:
 	@echo ">>> Verifying the v2 release scope is clean..."

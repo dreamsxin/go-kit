@@ -32,16 +32,13 @@ func (s *Service) HandleFunc(pattern string, fn http.HandlerFunc) {
 	s.Handle(pattern, fn)
 }
 
-func (s *Service) applyEndpointMiddleware(route string, base endpoint.Endpoint) endpoint.Endpoint {
-	if len(s.middleware) == 0 && len(s.routeMiddleware) == 0 {
+func (s *Service) applyEndpointMiddleware(base endpoint.Endpoint) endpoint.Endpoint {
+	if len(s.middleware) == 0 {
 		return base
 	}
 	b := endpoint.NewBuilder(base)
 	for _, mw := range s.middleware {
 		b = b.Use(mw)
-	}
-	for _, build := range s.routeMiddleware {
-		b = b.Use(build(route))
 	}
 	return b.Build()
 }

@@ -83,3 +83,17 @@ func TestLoggingMiddlewareUsesDefaultLoggerWhenNil(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestNewErrorHandlerRecordsError(t *testing.T) {
+	handler := &captureHandler{}
+	wantErr := errors.New("transport failed")
+	NewErrorHandler(slog.New(handler)).Handle(context.Background(), wantErr)
+
+	record := handler.latest()
+	if record.Message != "transport error" {
+		t.Fatalf("message = %q", record.Message)
+	}
+	if got := recordAttrs(record)["error"]; got != wantErr {
+		t.Fatalf("error attr = %#v", got)
+	}
+}

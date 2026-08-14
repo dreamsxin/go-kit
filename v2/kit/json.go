@@ -52,7 +52,7 @@ func HandleJSONEndpoint[Req any](
 	if ep == nil {
 		panic("kit: JSON endpoint cannot be nil")
 	}
-	ep = s.applyEndpointMiddleware(pattern, ep)
+	ep = s.applyEndpointMiddleware(ep)
 	h := httpserver.NewStrictJSONEndpoint[Req](ep, s.jsonMaxBodyBytes, options...)
 	s.mux.Handle(pattern, s.withHTTPContext(h))
 }

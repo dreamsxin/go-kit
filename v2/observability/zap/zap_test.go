@@ -35,3 +35,11 @@ func TestLoggingMiddlewareNilLogger(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestNewErrorHandlerAcceptsNilLogger(t *testing.T) {
+	handler := NewErrorHandler(nil)
+	if handler == nil {
+		t.Fatal("NewErrorHandler returned nil")
+	}
+	handler.Handle(context.Background(), errors.New("failed"))
+}

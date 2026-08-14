@@ -12,7 +12,7 @@ import (
 	"net/url"
 
 	"github.com/dreamsxin/go-kit/v2/log"
-	"github.com/dreamsxin/go-kit/v2/transport"
+	zapadapter "github.com/dreamsxin/go-kit/v2/observability/zap"
 	httptransportserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -28,7 +28,7 @@ func MakeHTTPHandler(s Service, logger *log.Logger) http.Handler {
 	r := http.NewServeMux()
 	e := MakeServerEndpoints(s)
 	options := []httptransportserver.ServerOption{
-		httptransportserver.ServerErrorHandler(transport.NewLogErrorHandler(logger)),
+		httptransportserver.ServerErrorHandler(zapadapter.NewErrorHandler(logger)),
 		httptransportserver.ServerErrorEncoder(encodeError),
 	}
 
