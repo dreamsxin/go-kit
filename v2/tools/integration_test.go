@@ -62,17 +62,12 @@ func TestAllExamples(t *testing.T) {
 				binName += ".exe"
 			}
 
-			// Ensure dependencies are tidy
-			tidyCmd := exec.Command("go", "mod", "tidy")
-			tidyCmd.Dir = pkgPath
-			tidyCmd.Run()
-
-			cmd := exec.Command("go", "build", "-o", binName, ".")
+			binPath := filepath.Join(t.TempDir(), binName)
+			cmd := exec.Command("go", "build", "-o", binPath, ".")
 			cmd.Dir = pkgPath
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("build failed: %v\n%s", err, out)
 			}
-			defer os.Remove(filepath.Join(pkgPath, binName))
 
 			if !tc.run {
 				return
@@ -83,7 +78,7 @@ func TestAllExamples(t *testing.T) {
 			addr := fmt.Sprintf(":%d", tc.port)
 			baseURL := fmt.Sprintf("http://localhost:%d", tc.port)
 
-			runCmd := exec.Command("./" + binName)
+			runCmd := exec.Command(binPath)
 			runCmd.Args = append(runCmd.Args, "-http.addr="+addr)
 			runCmd.Dir = pkgPath
 			runCmd.Env = os.Environ()
@@ -213,6 +208,18 @@ func runCommand(t *testing.T, cmd *exec.Cmd) string {
 		t.Fatalf("%s failed: %v\n%s", strings.Join(cmd.Args, " "), err, out)
 	}
 	return string(out)
+}
+
+func requireCGO(t *testing.T) {
+	t.Helper()
+	cmd := exec.Command("go", "env", "CGO_ENABLED")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("read CGO configuration: %v\n%s", err, out)
+	}
+	if strings.TrimSpace(string(out)) != "1" {
+		t.Skip("SQLite integration requires CGO_ENABLED=1")
+	}
 }
 
 func resolveCommandPath(name string, envVar string, extraDirs ...string) string {

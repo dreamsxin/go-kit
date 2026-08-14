@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/dreamsxin/go-kit/v2/cmd/microgen/generator"
@@ -49,17 +50,26 @@ func TestGeneratedSDKBehaviorContract(t *testing.T) {
 
 func runGoSDKBehaviorProbe(t *testing.T, root string) sdkBehaviorResult {
 	t.Helper()
-	probeDir := filepath.Join(root, "testdata", "sdkbehaviorprobe")
-	if err := os.MkdirAll(probeDir, 0o755); err != nil {
-		t.Fatalf("create Go SDK behavior probe: %v", err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(probeDir) })
+	probeDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(probeDir, "main.go"), []byte(goSDKBehaviorProbe), 0o644); err != nil {
 		t.Fatalf("write Go SDK behavior probe: %v", err)
 	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	moduleRoot := filepath.Dir(cwd)
+	goMod := "module example.com/sdkbehaviorprobe\n\n" +
+		"go 1.25.8\n\n" +
+		"require example.com/gen_fromdb_sqlite v0.0.0\n\n" +
+		"replace example.com/gen_fromdb_sqlite => " + strconv.Quote(filepath.ToSlash(root)) + "\n" +
+		"replace github.com/dreamsxin/go-kit/v2 => " + strconv.Quote(filepath.ToSlash(moduleRoot)) + "\n"
+	if err := os.WriteFile(filepath.Join(probeDir, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatalf("write Go SDK behavior probe module: %v", err)
+	}
 
-	cmd := exec.Command("go", "run", "-mod=mod", "./testdata/sdkbehaviorprobe")
-	cmd.Dir = root
+	cmd := exec.Command("go", "run", "-mod=mod", ".")
+	cmd.Dir = probeDir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("run Go SDK behavior probe: %v\n%s", err, out)

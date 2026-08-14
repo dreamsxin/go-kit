@@ -19,8 +19,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 	microgenPath := microgenMainPath(t)
 
 	t.Run("IDL_GeneratedProject_BuildsAndRuns", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_idl_runnable")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_idl_runnable")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
@@ -67,8 +66,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 	})
 
 	t.Run("IDL_MinimalProject_BuildsAndRunsWithoutOptionalFeatures", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_idl_minimal_runtime")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_idl_minimal_runtime")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
@@ -133,8 +131,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 	})
 
 	t.Run("IDL_PrefixedProject_BuildsAndServesPrefixedBusinessRoute", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_idl_prefixed_runtime")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_idl_prefixed_runtime")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
@@ -195,8 +192,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 	})
 
 	t.Run("IDL_FullGeneratedComponents_AreUsable", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_idl_components")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_idl_components")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,

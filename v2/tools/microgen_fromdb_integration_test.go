@@ -10,19 +10,13 @@ import (
 )
 
 func TestMicrogenFromDBIntegration(t *testing.T) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd: %v", err)
-	}
 	microgenPath := microgenMainPath(t)
 
 	t.Run("FromDB_SQLite_GeneratedProject_BuildsAndRuns", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_fromdb_sqlite")
-		os.RemoveAll(outDir)
+		requireCGO(t)
+		outDir := generatedProjectDir(t, "gen_fromdb_sqlite")
 
-		dbPath := filepath.Join(cwd, "testdata", "fromdb_runtime.sqlite")
-		_ = os.Remove(dbPath)
-		defer os.Remove(dbPath)
+		dbPath := filepath.Join(t.TempDir(), "fromdb_runtime.sqlite")
 		createSQLiteSchema(t, dbPath)
 
 		cmd := exec.Command("go", "run", microgenPath,

@@ -18,8 +18,7 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 	microgenPath := microgenMainPath(t)
 
 	t.Run("Proto", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_proto_integration")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_proto_integration")
 
 		protoFile := filepath.Join(cwd, "testdata", "service.proto")
 		cmd := exec.Command("go", "run", microgenPath,
@@ -70,8 +69,7 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 	t.Run("Proto_ComponentFlow_WhenProtocAvailable", func(t *testing.T) {
 		protoc, protocGenGo, protocGenGoGRPC := requireProtoToolchain(t)
 
-		outDir := filepath.Join(cwd, "testdata", "gen_proto_component_flow")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_proto_component_flow")
 
 		protoFile := filepath.Join(cwd, "testdata", "service.proto")
 		cmd := exec.Command("go", "run", microgenPath,
@@ -122,10 +120,9 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 	t.Run("Proto_Streaming_GeneratedProject_Builds", func(t *testing.T) {
 		protoc, protocGenGo, protocGenGoGRPC := requireProtoToolchain(t)
 
-		outDir := filepath.Join(cwd, "testdata", "gen_proto_server_stream")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_proto_server_stream")
 
-		protoFile := filepath.Join(cwd, "testdata", "server_stream.proto")
+		protoFile := filepath.Join(t.TempDir(), "server_stream.proto")
 		if err := os.WriteFile(protoFile, []byte(`syntax = "proto3";
 package chat;
 
@@ -144,8 +141,6 @@ message UploadSummary { int32 count = 1; }
 `), 0o644); err != nil {
 			t.Fatalf("write stream proto: %v", err)
 		}
-		defer os.Remove(protoFile)
-
 		cmd := exec.Command("go", "run", microgenPath,
 			"-idl", protoFile,
 			"-out", outDir,
@@ -206,8 +201,7 @@ message UploadSummary { int32 count = 1; }
 	t.Run("Proto_GRPC_GeneratedProject_BuildsAndServesRequests", func(t *testing.T) {
 		protoc, protocGenGo, protocGenGoGRPC := requireProtoToolchain(t)
 
-		outDir := filepath.Join(cwd, "testdata", "gen_proto_grpc_runtime")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_proto_grpc_runtime")
 
 		protoFile := filepath.Join(cwd, "testdata", "service.proto")
 		cmd := exec.Command("go", "run", microgenPath,

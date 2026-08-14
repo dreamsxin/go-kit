@@ -19,8 +19,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	microgenPath := microgenMainPath(t)
 
 	t.Run("IDL_Extend_AppendService_PreservesExistingFilesAndServesNewRoute", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_idl_extend_append")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_idl_extend_append")
 
 		baseIDL := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
@@ -112,8 +111,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	})
 
 	t.Run("IDL_Extend_AppendModel_PreservesExistingHooksAndBuilds", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_idl_extend_append_model")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_idl_extend_append_model")
 
 		baseIDL := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
@@ -184,8 +182,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	})
 
 	t.Run("IDL_Extend_AppendMiddleware_PreservesCustomChainAndServesWrappedErrors", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_idl_extend_append_middleware")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_idl_extend_append_middleware")
 
 		baseIDL := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
@@ -263,8 +260,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	})
 
 	t.Run("IDL_Extend_Check_ReportsCompatibility", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_idl_extend_check")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_idl_extend_check")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
@@ -311,16 +307,14 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			binName += ".exe"
 		}
-		buildMicrogenCmd := exec.Command("go", "build", "-o", binName, "./cmd/microgen")
+		microgenBin := filepath.Join(t.TempDir(), binName)
+		buildMicrogenCmd := exec.Command("go", "build", "-o", microgenBin, "./cmd/microgen")
 		buildMicrogenCmd.Dir = root
 		if out, err := buildMicrogenCmd.CombinedOutput(); err != nil {
 			t.Fatalf("build microgen binary for exit-code test failed: %v\n%s", err, out)
 		}
-		microgenBin := filepath.Join(root, binName)
-		defer os.Remove(microgenBin)
 
-		readyDir := filepath.Join(cwd, "testdata", "gen_idl_extend_check_ready")
-		os.RemoveAll(readyDir)
+		readyDir := generatedProjectDir(t, "gen_idl_extend_check_ready")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		generateCmd := exec.Command("go", "run", microgenPath,
@@ -347,8 +341,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 			t.Fatalf("ready extend-check output missing ready status:\n%s", readyOut)
 		}
 
-		legacyDir := filepath.Join(cwd, "testdata", "gen_idl_extend_check_missing")
-		os.RemoveAll(legacyDir)
+		legacyDir := generatedProjectDir(t, "gen_idl_extend_check_missing")
 		if err := os.MkdirAll(legacyDir, 0o755); err != nil {
 			t.Fatalf("MkdirAll legacyDir: %v", err)
 		}

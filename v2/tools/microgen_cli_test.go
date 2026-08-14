@@ -18,6 +18,11 @@ func microgenMainPath(t *testing.T) string {
 	return filepath.Join(root, "cmd", "microgen", "main.go")
 }
 
+func generatedProjectDir(t *testing.T, name string) string {
+	t.Helper()
+	return filepath.Join(t.TempDir(), name)
+}
+
 func TestMicrogenCLIValidation(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -38,8 +43,7 @@ func TestMicrogenCLIValidation(t *testing.T) {
 	})
 
 	t.Run("FailsForMissingIDLPath", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_missing_idl")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_missing_idl")
 
 		cmd := exec.Command("go", "run", microgenPath,
 			"-idl", filepath.Join(cwd, "testdata", "does-not-exist.go"),
@@ -57,8 +61,7 @@ func TestMicrogenCLIValidation(t *testing.T) {
 	})
 
 	t.Run("FailsForUnsupportedDriver", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_bad_driver")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_bad_driver")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,

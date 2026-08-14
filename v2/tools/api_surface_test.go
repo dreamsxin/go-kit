@@ -43,8 +43,10 @@ func TestPublicAPISurfaceSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read API snapshot: %v (rerun with -args -update-api-snapshot)", err)
 	}
-	if got := snapshot.String(); got != string(want) {
-		t.Fatalf("public API surface changed\n--- want\n%s--- got\n%s\nreview exported API changes, then rerun with -args -update-api-snapshot", want, got)
+	got := string(normalizeCommandOutput([]byte(snapshot.String())))
+	wantText := string(normalizeCommandOutput(want))
+	if got != wantText {
+		t.Fatalf("public API surface changed\n--- want\n%s--- got\n%s\nreview exported API changes, then rerun with -args -update-api-snapshot", wantText, got)
 	}
 }
 

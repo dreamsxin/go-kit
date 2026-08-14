@@ -22,8 +22,7 @@ func TestMicrogenConfigIntegration(t *testing.T) {
 	microgenPath := microgenMainPath(t)
 
 	t.Run("IDL_Config_RemoteConsul_UsesRemoteAndFallsBackToLocal", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_idl_remote_config")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_idl_remote_config")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
@@ -130,8 +129,7 @@ func TestMicrogenConfigIntegration(t *testing.T) {
 	})
 
 	t.Run("IDL_Config_RemoteConsul_StrictModeFailsWithoutFallback", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_idl_remote_config_strict")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_idl_remote_config_strict")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,

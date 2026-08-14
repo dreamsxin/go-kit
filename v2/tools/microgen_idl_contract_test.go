@@ -19,8 +19,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 	microgenPath := microgenMainPath(t)
 
 	t.Run("IDL", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_idl_integration")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_idl_integration")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
@@ -74,8 +73,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 	})
 
 	t.Run("IDL_Rerun_RefreshesGeneratedDocsAndPreservesCustomFiles", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_idl_rerun")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_idl_rerun")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		run := func() {
@@ -159,8 +157,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 	})
 
 	t.Run("IDL_CustomRoutes_ArePreservedAndServed", func(t *testing.T) {
-		outDir := filepath.Join(cwd, "testdata", "gen_idl_custom_routes")
-		os.RemoveAll(outDir)
+		outDir := generatedProjectDir(t, "gen_idl_custom_routes")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "parser", "testdata", "basic.go")
 		cmd := exec.Command("go", "run", microgenPath,
