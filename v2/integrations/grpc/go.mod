@@ -3,14 +3,12 @@ module github.com/dreamsxin/go-kit/v2/integrations/grpc
 go 1.25.8
 
 require (
-	github.com/dreamsxin/go-kit/v2 v2.0.0
+	github.com/dreamsxin/go-kit/v2 v2.1.0
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
 )
 
 require (
-	go.uber.org/multierr v1.10.0 // indirect
-	go.uber.org/zap v1.27.1 // indirect
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
