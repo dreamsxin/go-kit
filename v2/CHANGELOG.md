@@ -7,6 +7,8 @@ root.
 
 ### Added
 
+- Executable architecture dependency gates and a reviewed dependency closure
+  comparison against the published `v2.0.0` baseline.
 - A provider-neutral `kit.Lifecycle` contract and optional `kit/grpc`
   component for multi-server applications.
 - Public-module verification through `make verify-published VERSION=v2.0.0`.

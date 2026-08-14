@@ -13,10 +13,23 @@ in [ROADMAP.md](ROADMAP.md). It is not covered by the `v2.0.0` compatibility
 contract. A release from this source must use a semantic version appropriate
 for the break after all refactor acceptance gates pass.
 
-The module is stored in the repository's `v2` major-version subdirectory, but
-consumers request the normal module version `v2.0.0`. The release tag must be
-`v2.0.0`; do not use `v2/v2.0.0` for this module. v1 release history remains in
-the repository root and is not duplicated here.
+Do not move or recreate the existing `v2.0.0` tag. Before publishing the
+incompatible refactor, the owner must choose one of these paths:
+
+- change the module and integration paths to `/v3` and publish a normal major
+  release; this is the SemVer-compliant path;
+- explicitly approve a documented v2 SemVer exception and select a new,
+  previously unused v2 tag.
+
+Passing repository checks does not make this product decision or authorize a
+tag. The reviewed dependency closure and baseline comparison are recorded in
+[DEPENDENCY_REPORT.md](DEPENDENCY_REPORT.md).
+
+The published module is stored in the repository's `v2` major-version
+subdirectory, but consumers request the normal module version `v2.0.0`. Its tag
+is the root tag `v2.0.0`, not `v2/v2.0.0`. A future `/v3` module would likewise
+use a root `v3.0.0` tag. v1 release history remains in the repository root and
+is not duplicated here.
 
 The historical incorrect tag `v2/v2.0.0` has been removed. The published root
 tag `v2.0.0` points at the release commit and resolves as
@@ -89,11 +102,12 @@ make release-check-clean
 This checks the committed v2 scope without rejecting unrelated repository-root
 work in progress.
 
-After all gates pass from that commit, create the annotated source tag from the
-repository root:
+After all gates pass from that commit and the publication path is approved,
+create an annotated source tag from the repository root. Replace the example
+version with the approved, previously unused version:
 
 ```bash
-git tag -a v2.0.0 -m "go-kit v2.0.0"
+git tag -a <version> -m "go-kit <version>"
 ```
 
 The equivalent focused Go commands are:
@@ -118,23 +132,24 @@ Also verify:
 - `make test-observability` passes for the standard-library and OpenTelemetry
   adapters;
 - `make test-security` passes for optional browser-facing HTTP middleware;
-- `make test-api`, `make test-race`, `make test-vet`, and `make test-modules`
-  pass;
+- `make test-api`, `make test-boundaries`, `make test-race`, `make test-vet`,
+  and `make test-modules` pass;
 - Go and TypeScript SDKs match the shared path/query/body/error fixture;
 - contract snapshot changes have been reviewed and refreshed explicitly;
 - repeat generation produces no second-run diff;
 - `git diff --check` passes;
 - documentation links resolve;
 - no temporary generated files remain;
-- the `v2.0.0` tag points at the verified commit containing `v2/go.mod`;
-- after pushing the tag, `make verify-published VERSION=v2.0.0` resolves the
+- the approved tag points at the verified commit containing the matching
+  major-version module path;
+- after pushing the tag, `make verify-published VERSION=<version>` resolves the
   module through `proxy.golang.org` without a local `replace`.
 
 Intentional exported API changes must be reviewed before refreshing the API
 snapshot:
 
 ```bash
-go test ./tools -run TestPublicAPISurfaceSnapshot -count=1 \
+go -C ./tools test . -run TestPublicAPISurfaceSnapshot -count=1 \
   -args -update-api-snapshot
 ```
 

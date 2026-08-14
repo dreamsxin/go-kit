@@ -157,7 +157,10 @@ release-path decision is made only after the refactor acceptance gates pass.
 - [x] Work Package 7: `kit` is the only quickstart, lower-level wiring is named
   `manual_composition`, package docs use the final graph, and migration docs map
   removed APIs and package paths.
-- [ ] Work Package 8.
+- [ ] Work Package 8: dependency boundaries are executable and the current
+  closure and `v2.0.0` comparison are captured in `DEPENDENCY_REPORT.md`.
+  Functional, contract, API, vet, and module gates must pass again from the
+  final clean commit; the focused race suite and publication decision remain.
 
 ### Refactor Goals / 重构目标
 
