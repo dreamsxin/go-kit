@@ -24,8 +24,8 @@ github.com/dreamsxin/go-kit/v2
 
 `v2.1.0` 是当前已发布的 v2 版本。它以有明确记录的一次性 SemVer 例外交付直接
 架构重构，与 `v2.0.0` 不保持源码兼容；现有 v2 用户升级前必须先阅读
-[MIGRATION.md](MIGRATION.md)。从 `v2.1.0` 开始恢复正常的 v2 兼容性规则。仓库
-根目录仍然是 v1 module。
+[MIGRATION.md](MIGRATION.md)。从 `v2.1.0` 开始恢复正常的 v2 兼容性规则。
+`main` 不再维护 v1，其源码仍可通过不可变的 `v1.0.0` 至 `v1.6.0` 标签获取。
 
 需要 Go 1.25.8 或更高版本。
 

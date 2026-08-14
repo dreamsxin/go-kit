@@ -1,7 +1,16 @@
 # Changelog
 
-All notable v2 changes are recorded here. v1 history remains in the repository
-root.
+All notable v2 changes are recorded here. Legacy history remains available
+through the immutable v0 and v1 tags.
+
+## [Unreleased]
+
+### Changed
+
+- The `main` branch now contains only the maintained v2 product line; legacy v1
+  source and documentation remain available through immutable release tags.
+- The repository-root README is now a concise v2 entry point instead of a
+  duplicate v1 usage guide.
 
 ## [2.1.0] - 2026-08-14
 

@@ -19,8 +19,8 @@ dependency closure and baseline comparison are recorded in
 The published module is stored in the repository's `v2` major-version
 subdirectory, but consumers request normal module versions such as `v2.1.0`.
 Its tag is the root tag `v2.1.0`, not `v2/v2.1.0`. A future `/v3` module would
-likewise use a root `v3.0.0` tag. v1 release history remains in the repository
-root and is not duplicated here.
+likewise use a root `v3.0.0` tag. v1 release history remains available through
+the immutable v1 tags and is not duplicated on `main`.
 
 The immutable `v2.0.0` baseline and the `v2.1.0` root release resolve through
 the public Go proxy. The eight independently versioned nested modules listed in

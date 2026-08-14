@@ -27,7 +27,8 @@ github.com/dreamsxin/go-kit/v2
 architecture refactor as a documented one-time SemVer exception and is not
 source compatible with `v2.0.0`; existing v2 users must follow
 [MIGRATION.md](MIGRATION.md) before upgrading. Normal v2 compatibility rules
-resume from `v2.1.0`. The repository root remains the v1 module.
+resume from `v2.1.0`. Legacy v1 source remains available through the immutable
+`v1.0.0` to `v1.6.0` tags and is no longer maintained on `main`.
 
 Requires Go 1.25.8 or later.
 

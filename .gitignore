@@ -1,15 +1,3 @@
-# Generated service directories
-generated-*/
-generated/
-
-# microgen integration test output (dynamically generated, not committed)
-tools/testdata/gen_idl_integration/
-tools/testdata/gen_proto_integration/
-tools/testdata/gen_idl_remote_config/
-tools/testdata/gen_idl_remote_config_strict/
-tools/testdata/gen_interaction_e2e/
-tools/testdata/gen_proto_server_stream/
-
 # Compiled executables
 *.exe
 *.test
@@ -20,10 +8,6 @@ tools/testdata/gen_proto_server_stream/
 coverage
 coverage.out
 coverage.html
-
-# Temporary AI-generated helper scripts
-tools/_*.py
-tools/__pycache__/
 
 # IDE
 .vscode/
