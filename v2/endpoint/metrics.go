@@ -19,8 +19,8 @@ type Metrics struct {
 	LastRequestTime time.Time
 }
 
-// MetricsSnapshot is an immutable point-in-time view of Metrics. It contains
-// no synchronization state and is safe to copy or pass by value.
+// MetricsSnapshot is a detached point-in-time view of Metrics. It contains no
+// synchronization state and is safe to copy or pass by value.
 type MetricsSnapshot struct {
 	RequestCount    int64
 	ErrorCount      int64

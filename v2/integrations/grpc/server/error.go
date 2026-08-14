@@ -6,15 +6,13 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"github.com/dreamsxin/go-kit/v2/apperror"
 )
 
 // ErrorEncoder maps application errors to errors safe for gRPC clients.
 type ErrorEncoder func(ctx context.Context, err error) error
 
-// DefaultErrorEncoder preserves existing gRPC statuses, maps apperror kinds to
-// gRPC codes, and redacts all unclassified errors as Internal.
+// DefaultErrorEncoder preserves existing gRPC statuses, maps transport-neutral
+// application error kinds to gRPC codes, and redacts unclassified errors.
 func DefaultErrorEncoder(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
@@ -28,9 +26,9 @@ func DefaultErrorEncoder(ctx context.Context, err error) error {
 
 	code := codes.Internal
 	message := "internal error"
-	var kinder apperror.Kinder
+	var kinder interface{ ErrorKindName() string }
 	if errors.As(err, &kinder) {
-		code = codeForErrorKind(kinder.ErrorKind())
+		code = codeForErrorKind(kinder.ErrorKindName())
 		var publicMessager interface{ PublicMessage() string }
 		if errors.As(err, &publicMessager) && publicMessager.PublicMessage() != "" {
 			message = publicMessager.PublicMessage()
@@ -47,27 +45,27 @@ func DefaultErrorEncoder(ctx context.Context, err error) error {
 	}
 }
 
-func codeForErrorKind(kind apperror.Kind) codes.Code {
+func codeForErrorKind(kind string) codes.Code {
 	switch kind {
-	case apperror.KindInvalidArgument:
+	case "invalid_argument":
 		return codes.InvalidArgument
-	case apperror.KindUnauthenticated:
+	case "unauthenticated":
 		return codes.Unauthenticated
-	case apperror.KindPermissionDenied:
+	case "permission_denied":
 		return codes.PermissionDenied
-	case apperror.KindNotFound:
+	case "not_found":
 		return codes.NotFound
-	case apperror.KindAlreadyExists:
+	case "already_exists":
 		return codes.AlreadyExists
-	case apperror.KindConflict:
+	case "conflict":
 		return codes.Aborted
-	case apperror.KindFailedPrecondition:
+	case "failed_precondition":
 		return codes.FailedPrecondition
-	case apperror.KindResourceExhausted:
+	case "resource_exhausted":
 		return codes.ResourceExhausted
-	case apperror.KindUnavailable:
+	case "unavailable":
 		return codes.Unavailable
-	case apperror.KindDeadlineExceeded:
+	case "deadline_exceeded":
 		return codes.DeadlineExceeded
 	default:
 		return codes.Internal

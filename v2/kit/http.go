@@ -20,9 +20,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // protocol endpoints.
 //
 // Endpoint middleware is intentionally not applied to plain HTTP handlers.
-// Use HandleJSON or HandleJSONEndpoint for application endpoints that should
-// use the service -> endpoint -> transport chain and endpoint middleware such
-// as timeout, logging, metrics, rate limiting, or circuit breaking.
+// Use HandleJSONTyped, HandleJSON, or HandleJSONEndpoint for application
+// endpoints that should use the service -> endpoint -> transport chain and
+// endpoint middleware such as timeout, logging, metrics, rate limiting, or
+// circuit breaking.
 func (s *Service) Handle(pattern string, handler http.Handler) {
 	s.mux.Handle(pattern, s.withHTTPContext(handler))
 }

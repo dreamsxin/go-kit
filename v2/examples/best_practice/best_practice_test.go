@@ -32,10 +32,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	limiter := rate.NewLimiter(rate.Every(time.Second), 100)
 
 	var metrics endpoint.Metrics
-	base := endpoint.Endpoint(func(ctx context.Context, req any) (any, error) {
-		return helloLogic(ctx, req.(helloRequest))
-	})
-	ep := endpoint.NewBuilder(base).
+	ep := endpoint.NewTypedBuilder(endpoint.TypedEndpoint[helloRequest, helloResponse](helloLogic)).
 		WithMetrics(&metrics).
 		WithErrorHandling("hello").
 		Use(endpoint.TimeoutMiddleware(5 * time.Second)).
@@ -44,10 +41,8 @@ func newTestServer(t *testing.T) *httptest.Server {
 		Build()
 
 	mux := http.NewServeMux()
-	mux.Handle("/hello", server.NewJSONServer[helloRequest](
-		func(ctx context.Context, req helloRequest) (any, error) {
-			return ep(ctx, req)
-		},
+	mux.Handle("/hello", server.NewTypedJSONServer(
+		endpoint.Unwrap[helloRequest, helloResponse](ep),
 	))
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -32,7 +32,7 @@ func DefaultHTTPServerConfig() HTTPServerConfig {
 }
 
 // DefaultJSONMaxBodyBytes is the default strict JSON body limit used by
-// HandleJSON.
+// HandleJSON and HandleJSONTyped.
 const DefaultJSONMaxBodyBytes = httpserver.DefaultMaxJSONBodyBytes
 
 // WithHTTPServerConfig configures timeouts and header limits for the HTTP
@@ -68,8 +68,8 @@ func WithHTTPMiddleware(middlewares ...func(http.Handler) http.Handler) Option {
 }
 
 // WithJSONMaxBodyBytes configures the strict JSON body limit used by
-// HandleJSON. A value <= 0 disables the size limit while keeping strict field
-// and trailing-data checks.
+// HandleJSON and HandleJSONTyped. A value <= 0 disables the size limit while
+// keeping strict field and trailing-data checks.
 func WithJSONMaxBodyBytes(maxBodyBytes int64) Option {
 	return func(s *Service) error {
 		if maxBodyBytes < 0 {
@@ -131,7 +131,8 @@ func Healthy(context.Context) error {
 }
 
 // WithEndpointMiddleware installs middleware around every endpoint registered
-// through HandleJSON or HandleJSONEndpoint. The first middleware is outermost.
+// through HandleJSONTyped, HandleJSON, or HandleJSONEndpoint. The first
+// middleware is outermost.
 // Protocol- and dependency-specific middleware remains application owned.
 func WithEndpointMiddleware(middlewares ...endpoint.Middleware) Option {
 	copied := append([]endpoint.Middleware(nil), middlewares...)

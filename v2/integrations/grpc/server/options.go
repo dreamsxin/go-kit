@@ -32,7 +32,8 @@ func ServerErrorHandler(errorHandler transport.ErrorHandler) ServerOption {
 }
 
 // ServerErrorEncoder sets the mapping used before an error is returned to a
-// gRPC client. The default maps apperror kinds and redacts unknown failures.
+// gRPC client. The default maps application error kinds and redacts unknown
+// failures.
 func ServerErrorEncoder(errorEncoder ErrorEncoder) ServerOption {
 	return func(s *Server) { s.errorEncoder = errorEncoder }
 }

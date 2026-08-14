@@ -18,7 +18,12 @@ func TestNew(t *testing.T) {
 	if err.PublicMessage() != "name is required" {
 		t.Fatalf("message = %q", err.PublicMessage())
 	}
+	if err.ErrorKindName() != string(apperror.KindInvalidArgument) {
+		t.Fatalf("kind name = %q", err.ErrorKindName())
+	}
 }
+
+var _ apperror.KindNamer = (*apperror.Error)(nil)
 
 func TestWrapPreservesCause(t *testing.T) {
 	cause := errors.New("database unavailable")

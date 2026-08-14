@@ -26,6 +26,12 @@ type Kinder interface {
 	ErrorKind() Kind
 }
 
+// KindNamer is the minimal structural contract used by optional transports
+// that must not depend on this package directly.
+type KindNamer interface {
+	ErrorKindName() string
+}
+
 // Error is a classified application error with a stable machine-readable code
 // and an optional message that is safe to expose to clients.
 type Error struct {
@@ -81,6 +87,11 @@ func (e *Error) ErrorKind() Kind {
 		return KindInternal
 	}
 	return normalizeKind(e.kind)
+}
+
+// ErrorKindName returns the transport-neutral failure class as a string.
+func (e *Error) ErrorKindName() string {
+	return string(e.ErrorKind())
 }
 
 // ErrorCode returns the stable machine-readable application code.

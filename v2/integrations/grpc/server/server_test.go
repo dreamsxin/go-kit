@@ -8,9 +8,17 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 )
+
+type classifiedError struct {
+	kind    string
+	message string
+}
+
+func (e classifiedError) Error() string         { return e.message }
+func (e classifiedError) ErrorKindName() string { return e.kind }
+func (e classifiedError) PublicMessage() string { return e.message }
 
 func TestNewServer_PanicsOnNilEssentialParameters(t *testing.T) {
 	tests := []struct {
@@ -91,7 +99,7 @@ func TestServeGRPC_EndpointError_DoesNotPanicWithNilErrorHandlerOption(t *testin
 func TestServeGRPC_MapsApplicationError(t *testing.T) {
 	s := NewServer(
 		func(context.Context, any) (any, error) {
-			return nil, apperror.New(apperror.KindNotFound, "user.not_found", "user not found")
+			return nil, classifiedError{kind: "not_found", message: "user not found"}
 		},
 		func(context.Context, interface{}) (interface{}, error) { return "req", nil },
 		func(context.Context, interface{}) (interface{}, error) { return nil, nil },
