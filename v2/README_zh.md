@@ -22,8 +22,9 @@ v2 是独立 Go module：
 github.com/dreamsxin/go-kit/v2
 ```
 
-v2.0.0 是稳定的 v2 契约。导出的 API、CLI 与配置行为、生成文件归属以及文档中
-声明的协议行为均遵循语义化版本；仓库根目录仍然是 v1 module。
+已发布的 `v2.0.0` tag 是稳定的 v2 基线。当前 `main/v2` 源码正在直接进行不兼容
+的架构重构，与该 tag 不保持源码兼容；在 [ROADMAP.md](ROADMAP.md) 的验收门禁和
+发布决策完成前，它仍是开发版本。仓库根目录仍然是 v1 module。
 
 需要 Go 1.25.8 或更高版本。
 
@@ -53,6 +54,9 @@ go -C v2 install ./cmd/microgen
 ```bash
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v2.0.0
 ```
+
+该命令安装的是已发布 `v2.0.0` 基线对应的生成器，其生成包结构与当前分支记录的
+不兼容重构不同。评估当前 `main/v2` 时，请使用上面的仓库内安装命令。
 
 创建 `idl.go`：
 

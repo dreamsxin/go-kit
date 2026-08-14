@@ -28,6 +28,30 @@ go test ./...
 Do not add a local `replace` for v2 unless you are intentionally developing the
 framework and application together.
 
+## Direct Refactor Package Moves
+
+Applications moving from the published `v2.0.0` baseline to the direct-refactor
+source must update these ownership boundaries:
+
+| Previous path/API | Refactored path/API |
+| --- | --- |
+| `endpoint.EndpointCache`, `Factory`, endpointer options | `sd/endpointer` |
+| `endpoint.LoggingMiddleware` | `integrations/zap.LoggingMiddleware` or `observability/slog.LoggingMiddleware` |
+| `transport.ErrorEncoder`, `DefaultErrorEncoder` | `transport/http/server` |
+| `transport/http/interfaces` | `transport/http` |
+| `transport/grpc` | independent `integrations/grpc` module |
+| `sd/interfaces`, `sd/events` contracts | root `sd` package |
+| `sd/endpointer/balancer` | `sd/balancer` |
+| `sd/endpointer/executor` | `sd/retry` |
+| `sd/consul` | independent `integrations/consul` module |
+| root Zap-backed `log` usage | standard `log/slog` or independent `integrations/zap` module |
+| `kit.WithGRPC`, `Service.GRPCServer` | `kit/grpc.Component` through `kit.WithLifecycle` |
+| `kit.WithRateLimit`, `kit.WithCircuitBreaker`, `kit.WithLogging` | explicit `kit.WithEndpointMiddleware` adapters |
+| importable `cmd/microgen/{generator,parser,ir,dbschema}` | CLI only; implementation is under Go `internal` |
+
+Optional integrations have their own `go.mod`. Add only the modules used by the
+application; the root runtime module has no third-party requirements.
+
 ## `kit` Construction
 
 v1:
@@ -137,7 +161,7 @@ svc, err := kit.New(":8080", kit.WithEndpointMiddleware(
 
 Replace `WithRateLimit`, `WithCircuitBreaker`, and `WithLogging` at application
 assembly. The application now owns each adapter instance and its scope.
-logging, timeout, rate limit, or circuit breaking around a raw handler must move
+Logging, timeout, rate limit, or circuit breaking around a raw handler must move
 to an endpoint-backed registration path.
 
 Generated HTTP routes now use Go's `http.ServeMux` method patterns. Custom route

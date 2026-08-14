@@ -37,6 +37,15 @@ func TestAllExamples(t *testing.T) {
 			port: 8082,
 			run:  true,
 			smokeTests: []smokeTest{
+				{method: "POST", path: "/greet", body: `{"name":"world"}`, want: "Hello, world!"},
+			},
+		},
+		{
+			name: "manual_composition",
+			path: "manual_composition",
+			port: 8084,
+			run:  true,
+			smokeTests: []smokeTest{
 				{method: "POST", path: "/hello", body: `{"name":"world"}`, want: "Hello, world!"},
 			},
 		},

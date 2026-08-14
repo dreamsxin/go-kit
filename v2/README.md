@@ -23,9 +23,11 @@ This directory is the independent Go module:
 github.com/dreamsxin/go-kit/v2
 ```
 
-v2.0.0 is the stable v2 contract. Exported APIs, CLI and configuration behavior,
-generated ownership, and documented protocol behavior follow semantic
-versioning. The repository root remains the v1 module.
+The published `v2.0.0` tag is the stable v2 baseline. The current `main/v2`
+source is an incompatible direct architecture refactor and is not source
+compatible with that tag. It remains development source until the acceptance
+gates and release decision in [ROADMAP.md](ROADMAP.md) are complete. The
+repository root remains the v1 module.
 
 Requires Go 1.25.8 or later.
 
@@ -56,6 +58,11 @@ Install the released generator:
 ```bash
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v2.0.0
 ```
+
+That command installs the generator for the published `v2.0.0` baseline. Its
+generated package graph does not match the incompatible refactor documented on
+this branch; use the repository-local install above when evaluating current
+`main/v2`.
 
 Create `idl.go`:
 

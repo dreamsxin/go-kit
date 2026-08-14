@@ -34,4 +34,5 @@ profilesvc/
 ```
 
 This example demonstrates manual component assembly. For a new generated
-service, start with `microgen`; for a smaller assembly, see `examples/kit_basic`.
+service, start with `microgen`; for a smaller assembly, see
+`examples/quickstart`.

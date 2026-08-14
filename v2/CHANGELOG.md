@@ -16,6 +16,12 @@ root.
 
 ### Changed
 
+- The root runtime module now has no third-party requirements. gRPC, Consul,
+  Gobreaker, rate limiting, Zap, and OpenTelemetry live in independent modules.
+- `microgen` implementation packages are internal, generated code uses direct
+  `slog`, and minimal HTTP projects omit optional provider and database modules.
+- The recommended example is now `examples/quickstart` using `kit`; explicit
+  endpoint/transport wiring lives in `examples/manual_composition`.
 - Core `kit` is an HTTP-only assembly layer. Endpoint middleware with external
   dependencies is installed explicitly through `kit.WithEndpointMiddleware`.
 - HTTP and gRPC transports default to a no-op error handler; error reporting is
@@ -45,6 +51,8 @@ root.
 
 ### Removed
 
+- Old provider-owned package paths under `endpoint`, `transport/grpc`, and
+  `sd/consul`; use the corresponding independent integration modules.
 - `kit.WithGRPC`, `Service.GRPCServer`, `kit.WithRateLimit`,
   `kit.WithCircuitBreaker`, `kit.WithLogging`, and the root transport
   `NewLogErrorHandler` convenience API.

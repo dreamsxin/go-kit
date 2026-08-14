@@ -2,11 +2,16 @@
 
 ## Current Position
 
-v2.0.0 is the intended first stable release of the independent module:
+v2.0.0 is the published stable baseline of the independent module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
+
+The current `main/v2` source contains the incompatible direct refactor tracked
+in [ROADMAP.md](ROADMAP.md). It is not covered by the `v2.0.0` compatibility
+contract. A release from this source must use a semantic version appropriate
+for the break after all refactor acceptance gates pass.
 
 The module is stored in the repository's `v2` major-version subdirectory, but
 consumers request the normal module version `v2.0.0`. The release tag must be

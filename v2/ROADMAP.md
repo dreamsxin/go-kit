@@ -154,7 +154,10 @@ release-path decision is made only after the refactor acceptance gates pass.
   `cmd/microgen/internal`; generated projects use the new package topology and
   direct `slog`, and minimal HTTP projects resolve no optional provider or
   database dependencies.
-- [ ] Work Packages 7-8.
+- [x] Work Package 7: `kit` is the only quickstart, lower-level wiring is named
+  `manual_composition`, package docs use the final graph, and migration docs map
+  removed APIs and package paths.
+- [ ] Work Package 8.
 
 ### Refactor Goals / 重构目标
 

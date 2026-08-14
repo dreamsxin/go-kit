@@ -207,10 +207,12 @@ Prefer, in order:
 Avoid global registries, hidden goroutines, package-level process control, and
 framework branches for one application.
 
-## v2 Stability
+## Stability
 
-v2.0.0 freezes the compatibility contract for exported runtime APIs, module
-paths, CLI flags, generated ownership boundaries, documented configuration keys,
-and documented protocol behavior. Compatible changes follow semantic versioning;
-incompatible changes require a new major version and must be deliberate, tested,
-and documented in [CHANGELOG.md](CHANGELOG.md) and [MIGRATION.md](MIGRATION.md).
+The published `v2.0.0` tag remains an immutable stable baseline. The current
+`main/v2` tree is a direct architecture refactor and intentionally does not
+preserve `v2.0.0` source compatibility. It is development source until the
+release path in [ROADMAP.md](ROADMAP.md) is completed. Any release containing
+these incompatible changes must use a semantic version that communicates the
+break and must document it in [CHANGELOG.md](CHANGELOG.md) and
+[MIGRATION.md](MIGRATION.md).

@@ -13,6 +13,66 @@ import (
 
 var markdownLinkPattern = regexp.MustCompile(`!?\[[^\]]*\]\(([^)]+)\)`)
 
+var removedDocumentationReferences = []string{
+	"github.com/dreamsxin/go-kit/v2/transport/grpc",
+	"github.com/dreamsxin/go-kit/v2/endpoint/circuitbreaker",
+	"github.com/dreamsxin/go-kit/v2/endpoint/ratelimit",
+	"github.com/dreamsxin/go-kit/v2/observability/zap",
+	"github.com/dreamsxin/go-kit/v2/sd/consul",
+	"github.com/dreamsxin/go-kit/v2/cmd/microgen/generator",
+	"examples/kit_basic",
+	"kit.WithRateLimit(",
+	"kit.WithCircuitBreaker(",
+	"kit.WithLogging(",
+}
+
+func TestDocumentationDoesNotRecommendRemovedAPIs(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	root := filepath.Dir(cwd)
+	historical := map[string]struct{}{
+		"CHANGELOG.md": {},
+		"MIGRATION.md": {},
+		"ROADMAP.md":   {},
+	}
+
+	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			relative, _ := filepath.Rel(root, path)
+			if relative == filepath.Join("tools", "testdata") || entry.Name() == "node_modules" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.EqualFold(filepath.Ext(path), ".md") {
+			return nil
+		}
+		if _, ok := historical[entry.Name()]; ok && filepath.Dir(path) == root {
+			return nil
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, removed := range removedDocumentationReferences {
+			if strings.Contains(string(data), removed) {
+				relative, _ := filepath.Rel(root, path)
+				t.Errorf("%s recommends removed API %q", filepath.ToSlash(relative), removed)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk documentation: %v", err)
+	}
+}
+
 func TestDocumentationLinksResolve(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {

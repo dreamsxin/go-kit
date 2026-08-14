@@ -6,9 +6,9 @@ A guided tour of the go-kit framework, from simplest to most complete.
 
 | Directory | What it shows | Run |
 |-----------|--------------|-----|
-| `kit_basic/` | High-level kit API: `kit.New` + `kit.HandleJSON` + `svc.Run` | `go run ./examples/kit_basic` |
+| `quickstart/` | Recommended kit API: `kit.New` + `kit.HandleJSON` + `svc.Run` | `go run ./examples/quickstart` |
 | `basic/` | Middleware chain execution order | `go test ./examples/basic/...` |
-| `quickstart/` | Minimal HTTP service with Builder + NewJSONServer | `go run ./examples/quickstart` |
+| `manual_composition/` | Explicit endpoint Builder + HTTP transport composition | `go run ./examples/manual_composition` |
 | `best_practice/` | Production patterns: metrics, circuit breaker, rate limit, graceful shutdown | `go run ./examples/best_practice` |
 | `middleware/` | Endpoint middleware: Chain, Builder, Failer, Timeout, Gobreaker, ErroringLimiter, DelayingLimiter | `go run ./examples/middleware` |
 | `httpclient/` | HTTP client: NewJSONClient, ClientBefore/After/Finalizer, SetClient | `go run ./examples/httpclient` |
@@ -24,8 +24,14 @@ A guided tour of the go-kit framework, from simplest to most complete.
 ## Quick Start
 
 ```bash
-# Minimal HTTP service
+# Recommended kit service
 go run ./examples/quickstart
+curl -X POST http://localhost:8080/greet \
+     -H "Content-Type: application/json" \
+     -d '{"name":"world"}'
+
+# Lower-level component composition
+go run ./examples/manual_composition
 curl -X POST http://localhost:8080/hello \
      -H "Content-Type: application/json" \
      -d '{"name":"world"}'

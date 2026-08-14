@@ -9,68 +9,43 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sony/gobreaker"
-	"golang.org/x/time/rate"
-
-	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
-	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
-	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
+	"github.com/dreamsxin/go-kit/v2/kit"
 )
 
-func newQuickstartServer(t *testing.T) (*httptest.Server, *endpoint.Metrics) {
+func newTestService(t *testing.T) *httptest.Server {
 	t.Helper()
-	var metrics endpoint.Metrics
-	handler := httpserver.NewJSONServerWithMiddleware[HelloRequest](
-		hello,
-		func(b *endpoint.Builder) *endpoint.Builder {
-			return b.
-				WithMetrics(&metrics).
-				WithErrorHandling("hello").
-				WithTimeout(5 * time.Second).
-				Use(circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(
-					gobreaker.Settings{Name: "hello-test"},
-				))).
-				Use(ratelimit.NewErroringLimiter(
-					rate.NewLimiter(rate.Every(time.Second), 100),
-				))
-		},
-		httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder),
+	svc := kit.MustNew(":0",
+		kit.WithRequestID(),
+		kit.WithTimeout(5*time.Second),
 	)
-
-	mux := http.NewServeMux()
-	mux.Handle("/hello", handler)
-	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
-	})
-	return httptest.NewServer(mux), &metrics
+	kit.HandleJSON[GreetRequest](svc, "/greet", greet)
+	return httptest.NewServer(svc)
 }
 
-func TestHello_Success(t *testing.T) {
-	resp, err := hello(context.Background(), HelloRequest{Name: "World"})
+func TestGreet_Logic(t *testing.T) {
+	resp, err := greet(context.Background(), GreetRequest{Name: "World"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	hr := resp.(HelloResponse)
-	if hr.Message != "Hello, World!" {
-		t.Errorf("got %q, want %q", hr.Message, "Hello, World!")
+	gr := resp.(GreetResponse)
+	if gr.Message != "Hello, World!" {
+		t.Errorf("got %q, want %q", gr.Message, "Hello, World!")
 	}
 }
 
-func TestHello_EmptyName(t *testing.T) {
-	_, err := hello(context.Background(), HelloRequest{})
+func TestGreet_EmptyName(t *testing.T) {
+	_, err := greet(context.Background(), GreetRequest{})
 	if err == nil {
 		t.Fatal("expected error for empty name")
 	}
 }
 
-func TestHTTP_Hello_Success(t *testing.T) {
-	srv, _ := newQuickstartServer(t)
+func TestHTTP_Greet(t *testing.T) {
+	srv := newTestService(t)
 	defer srv.Close()
 
-	body, _ := json.Marshal(HelloRequest{Name: "Quickstart"})
-	resp, err := http.Post(srv.URL+"/hello", "application/json", bytes.NewReader(body))
+	body, _ := json.Marshal(GreetRequest{Name: "Kit"})
+	resp, err := http.Post(srv.URL+"/greet", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
@@ -80,33 +55,38 @@ func TestHTTP_Hello_Success(t *testing.T) {
 		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 
-	var result HelloResponse
+	var result GreetResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if result.Message != "Hello, Quickstart!" {
-		t.Errorf("message: got %q, want %q", result.Message, "Hello, Quickstart!")
+	if result.Message != "Hello, Kit!" {
+		t.Errorf("message: got %q, want %q", result.Message, "Hello, Kit!")
+	}
+
+	// Verify request ID header was injected by WithRequestID.
+	if id := resp.Header.Get("X-Request-ID"); id == "" {
+		t.Error("expected X-Request-ID header from WithRequestID option")
 	}
 }
 
-func TestHTTP_Hello_EmptyName_Returns4xx(t *testing.T) {
-	srv, _ := newQuickstartServer(t)
+func TestHTTP_Greet_EmptyName(t *testing.T) {
+	srv := newTestService(t)
 	defer srv.Close()
 
-	body, _ := json.Marshal(HelloRequest{Name: ""})
-	resp, err := http.Post(srv.URL+"/hello", "application/json", bytes.NewReader(body))
+	body, _ := json.Marshal(GreetRequest{Name: ""})
+	resp, err := http.Post(srv.URL+"/greet", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 400 {
-		t.Errorf("expected 4xx, got %d", resp.StatusCode)
+		t.Errorf("expected 4xx for empty name, got %d", resp.StatusCode)
 	}
 }
 
 func TestHTTP_Health(t *testing.T) {
-	srv, _ := newQuickstartServer(t)
+	srv := newTestService(t)
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/health")
@@ -117,37 +97,5 @@ func TestHTTP_Health(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
-	}
-}
-
-func TestHTTP_MetricsTracked(t *testing.T) {
-	srv, metrics := newQuickstartServer(t)
-	defer srv.Close()
-
-	for i := 0; i < 3; i++ {
-		body, _ := json.Marshal(HelloRequest{Name: "test"})
-		http.Post(srv.URL+"/hello", "application/json", bytes.NewReader(body)) //nolint:errcheck
-	}
-
-	if metrics.RequestCount != 3 {
-		t.Errorf("RequestCount: got %d, want 3", metrics.RequestCount)
-	}
-	if metrics.SuccessCount != 3 {
-		t.Errorf("SuccessCount: got %d, want 3", metrics.SuccessCount)
-	}
-}
-
-func TestHTTP_InvalidJSON(t *testing.T) {
-	srv, _ := newQuickstartServer(t)
-	defer srv.Close()
-
-	resp, err := http.Post(srv.URL+"/hello", "application/json", bytes.NewReader([]byte("not-json")))
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 400 {
-		t.Errorf("expected 4xx for invalid JSON, got %d", resp.StatusCode)
 	}
 }

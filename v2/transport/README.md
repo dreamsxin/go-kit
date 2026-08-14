@@ -23,12 +23,15 @@ If a behavior can be expressed as endpoint middleware, it should usually live th
 
 ## Package Overview
 
-The transport layer is split into four main public areas:
+The core transport module exposes the HTTP areas:
 
 - `transport/http/server`
 - `transport/http/client`
-- `transport/grpc/server`
-- `transport/grpc/client`
+
+gRPC is an optional module with two public areas:
+
+- `integrations/grpc/server`
+- `integrations/grpc/client`
 
 Common helpers also live under:
 
@@ -186,7 +189,7 @@ Typical flow:
 
 ## gRPC Server
 
-Use `transport/grpc/server` when exposing gRPC APIs.
+Use `integrations/grpc/server` when exposing gRPC APIs.
 
 Recommended entry points:
 
@@ -209,7 +212,7 @@ Typical flow mirrors the HTTP server path:
 
 ## gRPC Client
 
-Use `transport/grpc/client` when making gRPC calls through framework abstractions.
+Use `integrations/grpc/client` when making gRPC calls through framework abstractions.
 
 Recommended entry points:
 

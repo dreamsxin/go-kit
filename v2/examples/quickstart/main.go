@@ -1,9 +1,11 @@
-// Package quickstart is the minimal go-kit HTTP service.
+// Command quickstart demonstrates the recommended kit path from zero to a
+// running HTTP service. kit.New, kit.HandleJSON, and Service.Run own HTTP
+// assembly, middleware, lifecycle, and graceful shutdown.
 //
-// It demonstrates the recommended "happy path" for new users:
-//  1. Define plain request/response types.
-//  2. Write pure business logic (no framework imports).
-//  3. Wire everything with NewJSONServerWithMiddleware.
+// Concepts shown:
+//   - kit.New validates configuration and creates a Service with /health
+//   - kit.HandleJSON wraps a typed handler with endpoint middleware and JSON transport
+//   - svc.Run follows the caller-owned context lifecycle
 //
 // Run:
 //
@@ -11,9 +13,9 @@
 //
 // Test:
 //
-//	curl -X POST http://localhost:8080/hello \
+//	curl -X POST http://localhost:8080/greet \
 //	     -H "Content-Type: application/json" \
-//	     -d '{"name":"world"}'
+//	     -d '{"name":"Alice"}'
 //
 //	curl http://localhost:8080/health
 package main
@@ -22,89 +24,58 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log/slog"
-	"net/http"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/sony/gobreaker"
-	"golang.org/x/time/rate"
-
-	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
-	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
-	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
+	"github.com/dreamsxin/go-kit/v2/kit"
 )
 
-// ── 1. Domain types (no framework dependency) ────────────────────────────────
+// ── Domain types (no framework dependency) ────────────────────────────────────
 
-type HelloRequest struct {
+type GreetRequest struct {
 	Name string `json:"name"`
 }
 
-type HelloResponse struct {
+type GreetResponse struct {
 	Message string `json:"message"`
 }
 
-// ── 2. Pure business logic ────────────────────────────────────────────────────
+// ── Pure business logic ───────────────────────────────────────────────────────
 
-func hello(_ context.Context, req HelloRequest) (any, error) {
+func greet(_ context.Context, req GreetRequest) (any, error) {
 	if req.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-	return HelloResponse{Message: "Hello, " + req.Name + "!"}, nil
+	return GreetResponse{Message: "Hello, " + req.Name + "!"}, nil
 }
 
-// ── 3. Wire-up ────────────────────────────────────────────────────────────────
+// ── Wire-up ───────────────────────────────────────────────────────────────────
 
 func main() {
 	httpAddr := flag.String("http.addr", ":8080", "HTTP listen address")
 	flag.Parse()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
-	var metrics endpoint.Metrics
-
-	// NewJSONServerWithMiddleware wires business logic + middleware + HTTP in one call.
-	handler := httpserver.NewJSONServerWithMiddleware[HelloRequest](
-		hello,
-		func(b *endpoint.Builder) *endpoint.Builder {
-			return b.
-				WithMetrics(&metrics).
-				WithErrorHandling("hello").
-				WithTimeout(5 * time.Second).
-				Use(circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(
-					gobreaker.Settings{Name: "hello"},
-				))).
-				Use(ratelimit.NewErroringLimiter(
-					rate.NewLimiter(rate.Every(time.Second), 100),
-				))
-		},
-		httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder),
+	// kit.New creates a Service with sensible defaults. Options add
+	// cross-cutting concerns (request IDs and timeouts) as
+	// service-level middleware applied to every registered handler.
+	svc, err := kit.New(*httpAddr,
+		kit.WithRequestID(),
+		kit.WithTimeout(5*time.Second),
 	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	mux := http.NewServeMux()
-	mux.Handle("/hello", handler)
-	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprintf(w, `{"status":"ok","requests":%d}`, metrics.RequestCount)
-	})
+	// HandleJSON preserves the normal service -> endpoint -> transport path, so
+	// configured endpoint middleware and strict JSON decoding both apply.
+	kit.HandleJSON[GreetRequest](svc, "/greet", greet)
 
-	srv := &http.Server{Addr: *httpAddr, Handler: mux}
-	go func() {
-		logger.Info("listening", "address", *httpAddr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("listen failed", "err", err)
-		}
-	}()
-
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	srv.Shutdown(ctx) //nolint:errcheck
-	logger.Info("stopped", "total_requests", metrics.RequestCount)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := svc.Run(ctx); err != nil {
+		log.Fatal(err)
+	}
 }
