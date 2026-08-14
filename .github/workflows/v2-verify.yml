@@ -1,0 +1,66 @@
+name: v2 verify
+
+on:
+  pull_request:
+    paths:
+      - "v2/**"
+      - ".github/workflows/v2-verify.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "v2/**"
+      - ".github/workflows/v2-verify.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: v2-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: release (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - name: Check out repository and tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.8"
+          cache-dependency-path: |
+            v2/**/go.sum
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Ensure a Windows C compiler is available
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command gcc -ErrorAction SilentlyContinue)) {
+            choco install mingw --no-progress -y
+          }
+          gcc --version
+
+      - name: Run all release suites
+        working-directory: v2/tools
+        run: go run ./releaseverify -root .. -suites test,standalone,vet,tidy,race
+
+      - name: Verify clean scope and release phase
+        working-directory: v2/tools
+        run: go run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-tags
