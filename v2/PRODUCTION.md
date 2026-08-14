@@ -186,11 +186,20 @@ helper.
 - Liveness answers whether the process can continue running.
 - Readiness answers whether it should receive traffic.
 - Dependency checks need short, independent timeouts.
+- Health checks must return promptly when their context is canceled.
 - Do not expose secrets, stack traces, or full dependency errors in public
   health responses.
 
 `kit` exposes `/health`, `/livez`, and `/readyz`. Generated projects expose
-`/health`; add deployment-specific readiness behavior as needed.
+`/health`; add deployment-specific readiness behavior as needed. Registered
+`kit` checks run concurrently under one request budget. A named check never
+overlaps with its previous invocation, which bounds damage from a dependency
+probe that fails to honor cancellation.
+
+When `kit.WithRequestID` is enabled, caller-supplied IDs are validated before
+they are copied into context, responses, and logs. The default accepts common
+ASCII token characters up to 128 bytes. Use `WithRequestIDValidator` only when
+the deployment has a different trusted ID format.
 
 ## Pre-Deployment Checklist
 

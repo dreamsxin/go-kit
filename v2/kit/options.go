@@ -86,7 +86,7 @@ func WithLivenessCheck(name string, check HealthCheck) Option {
 		if err := validateHealthCheck(name, check); err != nil {
 			return err
 		}
-		s.livenessChecks = append(s.livenessChecks, namedHealthCheck{name: name, check: check})
+		s.livenessChecks = append(s.livenessChecks, newNamedHealthCheck(name, check))
 		return nil
 	}
 }
@@ -97,7 +97,7 @@ func WithReadinessCheck(name string, check HealthCheck) Option {
 		if err := validateHealthCheck(name, check); err != nil {
 			return err
 		}
-		s.readinessChecks = append(s.readinessChecks, namedHealthCheck{name: name, check: check})
+		s.readinessChecks = append(s.readinessChecks, newNamedHealthCheck(name, check))
 		return nil
 	}
 }
@@ -119,6 +119,10 @@ func validateHealthCheck(name string, check HealthCheck) error {
 		return fmt.Errorf("health check cannot be nil")
 	}
 	return nil
+}
+
+func newNamedHealthCheck(name string, check HealthCheck) namedHealthCheck {
+	return namedHealthCheck{name: name, check: check, gate: make(chan struct{}, 1)}
 }
 
 // Healthy is a convenience health check that always succeeds.
@@ -196,11 +200,24 @@ func WithMetrics(m *endpoint.Metrics) Option {
 }
 
 // WithRequestID injects a request ID into the context and response headers.
-// The ID is taken from X-Request-ID if present, otherwise generated.
+// A valid ID is taken from X-Request-ID if present, otherwise a new ID is
+// generated. Use WithRequestIDValidator to replace the default trust policy.
 func WithRequestID() Option {
 	return func(s *Service) error {
 		s.requestID = true
-		s.middleware = append(s.middleware, requestIDMiddleware())
+		s.middleware = append(s.middleware, requestIDMiddleware(s))
+		return nil
+	}
+}
+
+// WithRequestIDValidator replaces the validation policy for request IDs read
+// from context or X-Request-ID. Option order does not affect the result.
+func WithRequestIDValidator(validator RequestIDValidator) Option {
+	return func(s *Service) error {
+		if validator == nil {
+			return fmt.Errorf("request ID validator cannot be nil")
+		}
+		s.requestIDValidator = validator
 		return nil
 	}
 }

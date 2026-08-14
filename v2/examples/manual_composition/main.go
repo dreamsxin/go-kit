@@ -94,7 +94,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/hello", handler)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprintf(w, `{"status":"ok","requests":%d}`, metrics.RequestCount)
+		fmt.Fprintf(w, `{"status":"ok","requests":%d}`, metrics.Snapshot().RequestCount)
 	})
 
 	srv := &http.Server{Addr: *httpAddr, Handler: mux}
@@ -112,5 +112,5 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	srv.Shutdown(ctx) //nolint:errcheck
-	logger.Info("stopped", "total_requests", metrics.RequestCount)
+	logger.Info("stopped", "total_requests", metrics.Snapshot().RequestCount)
 }

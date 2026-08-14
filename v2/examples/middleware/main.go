@@ -116,8 +116,9 @@ func main() {
 
 	call(ep, divReq{10, 2}) // success
 	call(ep, divReq{5, 0})  // Failer (not an endpoint error)
+	snapshot := m.Snapshot()
 	fmt.Printf("  metrics: requests=%d success=%d errors=%d\n",
-		m.RequestCount, m.SuccessCount, m.ErrorCount)
+		snapshot.RequestCount, snapshot.SuccessCount, snapshot.ErrorCount)
 
 	// ── 2b. TypedEndpoint — no type assertions ────────────────────────────────
 	fmt.Println("\n=== 2b. TypedEndpoint (compile-time type safety) ===")

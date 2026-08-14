@@ -8,7 +8,8 @@ import (
 	"time"
 )
 
-// HealthCheck reports whether a runtime dependency is healthy.
+// HealthCheck reports whether a runtime dependency is healthy. Implementations
+// must stop promptly when ctx is canceled.
 type HealthCheck func(context.Context) error
 
 // DefaultHealthCheckTimeout is the per-check timeout used by /health, /livez,
@@ -18,6 +19,7 @@ const DefaultHealthCheckTimeout = 2 * time.Second
 type namedHealthCheck struct {
 	name  string
 	check HealthCheck
+	gate  chan struct{}
 }
 
 type healthResponse struct {
@@ -62,45 +64,95 @@ func runHealthChecks(ctx context.Context, checks []namedHealthCheck, timeout tim
 	if len(checks) == 0 {
 		return "ok", nil
 	}
-	results := make([]healthCheckResult, 0, len(checks))
-	status := "ok"
-	for _, hc := range checks {
-		result := healthCheckResult{Name: hc.name, Status: "ok"}
-		if err := runHealthCheck(ctx, hc.check, timeout); err != nil {
-			status = "unavailable"
-			result.Status = "error"
-			result.Error = healthCheckErrorMessage(ctx, err)
-		}
-		results = append(results, result)
+	checksCtx := ctx
+	cancel := func() {}
+	if timeout > 0 {
+		checksCtx, cancel = context.WithTimeout(ctx, timeout)
 	}
-	return status, results
+	defer cancel()
+
+	type outcome struct {
+		index int
+		err   error
+	}
+	results := make([]healthCheckResult, len(checks))
+	completed := make([]bool, len(checks))
+	outcomes := make(chan outcome, len(checks))
+	for i, hc := range checks {
+		results[i] = healthCheckResult{Name: hc.name, Status: "ok"}
+		go func(index int, check namedHealthCheck) {
+			outcomes <- outcome{index: index, err: runHealthCheck(checksCtx, check)}
+		}(i, hc)
+	}
+
+	remaining := len(checks)
+	for remaining > 0 {
+		select {
+		case result := <-outcomes:
+			remaining--
+			completed[result.index] = true
+			applyHealthCheckOutcome(checksCtx, &results[result.index], result.err)
+		case <-checksCtx.Done():
+			draining := true
+			for draining {
+				select {
+				case result := <-outcomes:
+					remaining--
+					completed[result.index] = true
+					applyHealthCheckOutcome(checksCtx, &results[result.index], result.err)
+				default:
+					draining = false
+				}
+			}
+			for i := range results {
+				if !completed[i] {
+					results[i].Status = "error"
+					results[i].Error = healthCheckErrorMessage(checksCtx, checksCtx.Err())
+				}
+			}
+			return "unavailable", results
+		}
+	}
+
+	for _, result := range results {
+		if result.Status != "ok" {
+			return "unavailable", results
+		}
+	}
+	return "ok", results
+}
+
+func applyHealthCheckOutcome(ctx context.Context, result *healthCheckResult, err error) {
+	if err == nil {
+		return
+	}
+	result.Status = "error"
+	result.Error = healthCheckErrorMessage(ctx, err)
 }
 
 func healthCheckErrorMessage(ctx context.Context, err error) string {
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return "check timed out"
 	}
+	if errors.Is(err, errHealthCheckInProgress) {
+		return "check already running"
+	}
 	return "check failed"
 }
 
-func runHealthCheck(ctx context.Context, check HealthCheck, timeout time.Duration) error {
-	if timeout <= 0 {
-		return check(ctx)
-	}
-	checkCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+var errHealthCheckInProgress = errors.New("health check is already running")
 
-	done := make(chan error, 1)
-	go func() {
-		done <- check(checkCtx)
-	}()
-
-	select {
-	case err := <-done:
-		return err
-	case <-checkCtx.Done():
-		return checkCtx.Err()
+func runHealthCheck(ctx context.Context, check namedHealthCheck) error {
+	if check.gate != nil {
+		select {
+		case check.gate <- struct{}{}:
+			defer func() { <-check.gate }()
+		default:
+			return errHealthCheckInProgress
+		}
 	}
+
+	return check.check(ctx)
 }
 
 func appendHealthChecks(a, b []namedHealthCheck) []namedHealthCheck {

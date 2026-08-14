@@ -7,6 +7,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -100,8 +102,8 @@ func TestReadme_WithMiddleware(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
 	}
-	if metrics.RequestCount != 1 {
-		t.Errorf("RequestCount: got %d, want 1", metrics.RequestCount)
+	if got := metrics.Snapshot().RequestCount; got != 1 {
+		t.Errorf("RequestCount: got %d, want 1", got)
 	}
 	if calls != 1 {
 		t.Errorf("middleware calls: got %d, want 1", calls)
@@ -303,6 +305,102 @@ func TestService_HealthIncludesLivenessAndReadiness(t *testing.T) {
 	}
 }
 
+func TestService_HealthChecksRunConcurrently(t *testing.T) {
+	started := make(chan string, 2)
+	release := make(chan struct{})
+	check := func(name string) kit.HealthCheck {
+		return func(ctx context.Context) error {
+			started <- name
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	}
+	_, ts := newSvc(t,
+		kit.WithHealthCheckTimeout(time.Second),
+		kit.WithReadinessCheck("db", check("db")),
+		kit.WithReadinessCheck("cache", check("cache")),
+	)
+
+	type response struct {
+		resp *http.Response
+		err  error
+	}
+	done := make(chan response, 1)
+	go func() {
+		resp, err := http.Get(ts.URL + "/readyz")
+		done <- response{resp: resp, err: err}
+	}()
+
+	seen := map[string]bool{}
+	for len(seen) < 2 {
+		select {
+		case name := <-started:
+			seen[name] = true
+		case <-time.After(250 * time.Millisecond):
+			close(release)
+			t.Fatalf("checks did not start concurrently: %#v", seen)
+		}
+	}
+	close(release)
+	result := <-done
+	if result.err != nil {
+		t.Fatal(result.err)
+	}
+	defer result.resp.Body.Close()
+	if result.resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", result.resp.StatusCode, http.StatusOK)
+	}
+}
+
+func TestService_HealthCheckDoesNotOverlapAfterTimeout(t *testing.T) {
+	var calls atomic.Int32
+	started := make(chan struct{})
+	release := make(chan struct{})
+	_, ts := newSvc(t,
+		kit.WithHealthCheckTimeout(10*time.Millisecond),
+		kit.WithReadinessCheck("stuck", func(context.Context) error {
+			if calls.Add(1) == 1 {
+				close(started)
+			}
+			<-release
+			return nil
+		}),
+	)
+
+	first, err := http.Get(ts.URL + "/readyz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.Body.Close()
+	<-started
+
+	second, err := http.Get(ts.URL + "/readyz")
+	if err != nil {
+		close(release)
+		t.Fatal(err)
+	}
+	defer second.Body.Close()
+	close(release)
+	if calls.Load() != 1 {
+		t.Fatalf("check calls = %d, want 1", calls.Load())
+	}
+	var body struct {
+		Checks []struct {
+			Error string `json:"error"`
+		} `json:"checks"`
+	}
+	if err := json.NewDecoder(second.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Checks) != 1 || body.Checks[0].Error != "check already running" {
+		t.Fatalf("checks = %#v", body.Checks)
+	}
+}
+
 // ── kit.JSON (package-level function) ────────────────────────────────────────
 
 func TestKitJSON_Success(t *testing.T) {
@@ -408,8 +506,8 @@ func TestService_HandleFunc_DoesNotApplyEndpointMiddleware(t *testing.T) {
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusInternalServerError)
 	}
-	if m.RequestCount != 0 {
-		t.Fatalf("endpoint metrics should not count plain HTTP handlers, got %d", m.RequestCount)
+	if got := m.Snapshot().RequestCount; got != 0 {
+		t.Fatalf("endpoint metrics should not count plain HTTP handlers, got %d", got)
 	}
 }
 
@@ -551,11 +649,12 @@ func TestService_WithMetrics_TracksRequests(t *testing.T) {
 		body, _ := json.Marshal(helloReq{Name: "test"})
 		http.Post(ts.URL+"/hello", "application/json", bytes.NewReader(body)) //nolint:errcheck
 	}
-	if m.RequestCount != 3 {
-		t.Errorf("RequestCount: got %d, want 3", m.RequestCount)
+	snapshot := m.Snapshot()
+	if snapshot.RequestCount != 3 {
+		t.Errorf("RequestCount: got %d, want 3", snapshot.RequestCount)
 	}
-	if m.SuccessCount != 3 {
-		t.Errorf("SuccessCount: got %d, want 3", m.SuccessCount)
+	if snapshot.SuccessCount != 3 {
+		t.Errorf("SuccessCount: got %d, want 3", snapshot.SuccessCount)
 	}
 }
 
@@ -644,6 +743,77 @@ func TestService_WithRequestID_PreservesIncomingHeader(t *testing.T) {
 	}
 }
 
+func TestService_WithRequestID_RejectsInvalidIncomingHeader(t *testing.T) {
+	svc := kit.MustNew(":0", kit.WithRequestID())
+	kit.HandleJSON[helloReq](svc, "/id", func(ctx context.Context, _ helloReq) (any, error) {
+		return map[string]string{"id": endpoint.RequestIDFromContext(ctx)}, nil
+	})
+	ts := httptest.NewServer(svc)
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/id", strings.NewReader(`{"name":"rid"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-ID", "untrusted request id")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	got := resp.Header.Get("X-Request-ID")
+	if got == "" || got == "untrusted request id" || !kit.DefaultRequestIDValidator(got) {
+		t.Fatalf("generated request ID = %q", got)
+	}
+}
+
+func TestService_WithRequestIDValidator_IsOrderIndependent(t *testing.T) {
+	svc := kit.MustNew(":0",
+		kit.WithRequestID(),
+		kit.WithRequestIDValidator(func(id string) bool { return id == "tenant/request" }),
+	)
+	kit.HandleJSON[helloReq](svc, "/id", func(ctx context.Context, _ helloReq) (any, error) {
+		return map[string]string{"id": endpoint.RequestIDFromContext(ctx)}, nil
+	})
+	ts := httptest.NewServer(svc)
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/id", strings.NewReader(`{"name":"rid"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-ID", "tenant/request")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if got := resp.Header.Get("X-Request-ID"); got != "tenant/request" {
+		t.Fatalf("request ID = %q", got)
+	}
+}
+
+func TestDefaultRequestIDValidator(t *testing.T) {
+	tests := []struct {
+		id   string
+		want bool
+	}{
+		{"request-123_ABC.xyz:1", true},
+		{"", false},
+		{"contains space", false},
+		{"contains/slash", false},
+		{strings.Repeat("a", kit.MaxRequestIDLength+1), false},
+		{"\xff", false},
+	}
+	for _, tt := range tests {
+		if got := kit.DefaultRequestIDValidator(tt.id); got != tt.want {
+			t.Errorf("DefaultRequestIDValidator(%q) = %v, want %v", tt.id, got, tt.want)
+		}
+	}
+}
+
 func TestKitOptions_ReturnErrorsForInvalidConfiguration(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -684,6 +854,10 @@ func TestKitOptions_ReturnErrorsForInvalidConfiguration(t *testing.T) {
 		{
 			name:   "metrics nil",
 			option: kit.WithMetrics(nil),
+		},
+		{
+			name:   "request ID validator nil",
+			option: kit.WithRequestIDValidator(nil),
 		},
 		{
 			name:   "shutdown timeout <= 0",
@@ -760,8 +934,8 @@ func TestThreeLayer_ServiceEndpointTransport(t *testing.T) {
 		t.Errorf("name: got %q, want %q", result.Name, "Alice")
 	}
 	// Middleware (metrics) applied via svc.Handle
-	if m.RequestCount != 1 {
-		t.Errorf("RequestCount: got %d, want 1", m.RequestCount)
+	if got := m.Snapshot().RequestCount; got != 1 {
+		t.Errorf("RequestCount: got %d, want 1", got)
 	}
 }
 
@@ -810,8 +984,8 @@ func TestThreeLayer_EndpointMiddlewareComposition(t *testing.T) {
 	if resp.(createUserResp).Name != "Carol" {
 		t.Errorf("name: got %q, want %q", resp.(createUserResp).Name, "Carol")
 	}
-	if m.RequestCount != 1 {
-		t.Errorf("RequestCount: got %d, want 1", m.RequestCount)
+	if got := m.Snapshot().RequestCount; got != 1 {
+		t.Errorf("RequestCount: got %d, want 1", got)
 	}
 }
 

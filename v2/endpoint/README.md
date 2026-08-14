@@ -87,7 +87,14 @@ ep := endpoint.NewBuilder(base).
     Use(circuitbreaker.Gobreaker(cb)).
     Use(ratelimit.NewErroringLimiter(limiter)).
     Build()
+
+snapshot := metrics.Snapshot()
+fmt.Println(snapshot.RequestCount, snapshot.ErrorCount)
 ```
+
+Use `Snapshot` for every concurrent read. The exported fields remain available
+for v2 source compatibility, but reading them while middleware is updating the
+collector is a data race.
 
 Why prefer the builder:
 

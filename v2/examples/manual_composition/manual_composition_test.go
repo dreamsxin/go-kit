@@ -139,11 +139,12 @@ func TestHTTP_MetricsTracked(t *testing.T) {
 		http.Post(srv.URL+"/hello", "application/json", bytes.NewReader(body)) //nolint:errcheck
 	}
 
-	if metrics.RequestCount != 3 {
-		t.Errorf("RequestCount: got %d, want 3", metrics.RequestCount)
+	snapshot := metrics.Snapshot()
+	if snapshot.RequestCount != 3 {
+		t.Errorf("RequestCount: got %d, want 3", snapshot.RequestCount)
 	}
-	if metrics.SuccessCount != 3 {
-		t.Errorf("SuccessCount: got %d, want 3", metrics.SuccessCount)
+	if snapshot.SuccessCount != 3 {
+		t.Errorf("SuccessCount: got %d, want 3", snapshot.SuccessCount)
 	}
 }
 

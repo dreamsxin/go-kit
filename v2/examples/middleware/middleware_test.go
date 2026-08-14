@@ -93,8 +93,8 @@ func TestBuilder_WithMetrics(t *testing.T) {
 		Build()
 
 	ep(context.Background(), divReq{A: 6, B: 2}) //nolint:errcheck
-	if m.RequestCount != 1 {
-		t.Errorf("RequestCount: got %d, want 1", m.RequestCount)
+	if got := m.Snapshot().RequestCount; got != 1 {
+		t.Errorf("RequestCount: got %d, want 1", got)
 	}
 }
 

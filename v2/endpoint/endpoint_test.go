@@ -137,19 +137,20 @@ func TestMetricsMiddleware_Success(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		ep(context.Background(), nil) //nolint:errcheck
 	}
-	if m.RequestCount != 3 {
-		t.Errorf("RequestCount: want 3, got %d", m.RequestCount)
+	snapshot := m.Snapshot()
+	if snapshot.RequestCount != 3 {
+		t.Errorf("RequestCount: want 3, got %d", snapshot.RequestCount)
 	}
-	if m.SuccessCount != 3 {
-		t.Errorf("SuccessCount: want 3, got %d", m.SuccessCount)
+	if snapshot.SuccessCount != 3 {
+		t.Errorf("SuccessCount: want 3, got %d", snapshot.SuccessCount)
 	}
-	if m.ErrorCount != 0 {
-		t.Errorf("ErrorCount: want 0, got %d", m.ErrorCount)
+	if snapshot.ErrorCount != 0 {
+		t.Errorf("ErrorCount: want 0, got %d", snapshot.ErrorCount)
 	}
-	if m.TotalDuration < 0 {
+	if snapshot.TotalDuration < 0 {
 		t.Error("TotalDuration should be non-negative")
 	}
-	if m.LastRequestTime.IsZero() {
+	if snapshot.LastRequestTime.IsZero() {
 		t.Error("LastRequestTime should not be zero")
 	}
 }
@@ -163,14 +164,15 @@ func TestMetricsMiddleware_Error(t *testing.T) {
 
 	ep(context.Background(), nil) //nolint:errcheck
 	ep(context.Background(), nil) //nolint:errcheck
-	if m.RequestCount != 2 {
-		t.Errorf("RequestCount: want 2, got %d", m.RequestCount)
+	snapshot := m.Snapshot()
+	if snapshot.RequestCount != 2 {
+		t.Errorf("RequestCount: want 2, got %d", snapshot.RequestCount)
 	}
-	if m.ErrorCount != 2 {
-		t.Errorf("ErrorCount: want 2, got %d", m.ErrorCount)
+	if snapshot.ErrorCount != 2 {
+		t.Errorf("ErrorCount: want 2, got %d", snapshot.ErrorCount)
 	}
-	if m.SuccessCount != 0 {
-		t.Errorf("SuccessCount: want 0, got %d", m.SuccessCount)
+	if snapshot.SuccessCount != 0 {
+		t.Errorf("SuccessCount: want 0, got %d", snapshot.SuccessCount)
 	}
 }
 
@@ -188,14 +190,15 @@ func TestMetricsMiddleware_Mixed(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		ep(context.Background(), nil) //nolint:errcheck
 	}
-	if m.RequestCount != 4 {
-		t.Errorf("RequestCount: want 4, got %d", m.RequestCount)
+	snapshot := m.Snapshot()
+	if snapshot.RequestCount != 4 {
+		t.Errorf("RequestCount: want 4, got %d", snapshot.RequestCount)
 	}
-	if m.SuccessCount != 2 {
-		t.Errorf("SuccessCount: want 2, got %d", m.SuccessCount)
+	if snapshot.SuccessCount != 2 {
+		t.Errorf("SuccessCount: want 2, got %d", snapshot.SuccessCount)
 	}
-	if m.ErrorCount != 2 {
-		t.Errorf("ErrorCount: want 2, got %d", m.ErrorCount)
+	if snapshot.ErrorCount != 2 {
+		t.Errorf("ErrorCount: want 2, got %d", snapshot.ErrorCount)
 	}
 }
 

@@ -51,10 +51,11 @@ func newTestServer(t *testing.T) *httptest.Server {
 	))
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		snapshot := metrics.Snapshot()
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"requests": metrics.RequestCount,
-			"success":  metrics.SuccessCount,
-			"errors":   metrics.ErrorCount,
+			"requests": snapshot.RequestCount,
+			"success":  snapshot.SuccessCount,
+			"errors":   snapshot.ErrorCount,
 		})
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -165,14 +166,14 @@ func TestHTTP_MetricsEndpoint(t *testing.T) {
 }
 
 func TestAvgMs_ZeroRequests(t *testing.T) {
-	m := &endpoint.Metrics{}
+	m := endpoint.Metrics{}
 	if got := avgMs(m); got != 0 {
 		t.Errorf("avgMs with 0 requests: got %f, want 0", got)
 	}
 }
 
 func TestAvgMs_WithRequests(t *testing.T) {
-	m := &endpoint.Metrics{
+	m := endpoint.Metrics{
 		RequestCount:  2,
 		TotalDuration: 200 * time.Millisecond,
 	}

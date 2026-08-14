@@ -112,12 +112,13 @@ func main() {
 	// /metrics — expose request counters
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		snapshot := metrics.Snapshot()
 		fmt.Fprintf(w,
 			`{"requests":%d,"success":%d,"errors":%d,"avg_ms":%.2f}`,
-			metrics.RequestCount,
-			metrics.SuccessCount,
-			metrics.ErrorCount,
-			avgMs(&metrics),
+			snapshot.RequestCount,
+			snapshot.SuccessCount,
+			snapshot.ErrorCount,
+			avgMs(snapshot),
 		)
 	})
 
@@ -145,12 +146,12 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Sugar().Errorf("shutdown: %v", err)
 	}
-	logger.Sugar().Infof("stopped — total requests: %d", metrics.RequestCount)
+	logger.Sugar().Infof("stopped — total requests: %d", metrics.Snapshot().RequestCount)
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-func avgMs(m *endpoint.Metrics) float64 {
+func avgMs(m endpoint.Metrics) float64 {
 	if m.RequestCount == 0 {
 		return 0
 	}

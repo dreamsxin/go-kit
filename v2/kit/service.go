@@ -14,22 +14,23 @@ import (
 // Service is a ready-to-run HTTP microservice. Optional servers can be
 // attached through WithLifecycle.
 type Service struct {
-	addr             string
-	mux              *http.ServeMux
-	httpHandler      http.Handler
-	httpMiddleware   []func(http.Handler) http.Handler
-	middleware       []endpoint.Middleware
-	metrics          *endpoint.Metrics
-	httpConfig       HTTPServerConfig
-	requestID        bool
-	jsonMaxBodyBytes int64
-	healthTimeout    time.Duration
-	livenessChecks   []namedHealthCheck
-	readinessChecks  []namedHealthCheck
-	srv              *http.Server
-	serveErrors      chan error
-	lifecycles       []Lifecycle
-	lifecycleDone    chan struct{}
+	addr               string
+	mux                *http.ServeMux
+	httpHandler        http.Handler
+	httpMiddleware     []func(http.Handler) http.Handler
+	middleware         []endpoint.Middleware
+	metrics            *endpoint.Metrics
+	httpConfig         HTTPServerConfig
+	requestID          bool
+	requestIDValidator RequestIDValidator
+	jsonMaxBodyBytes   int64
+	healthTimeout      time.Duration
+	livenessChecks     []namedHealthCheck
+	readinessChecks    []namedHealthCheck
+	srv                *http.Server
+	serveErrors        chan error
+	lifecycles         []Lifecycle
+	lifecycleDone      chan struct{}
 
 	lifecycleMu     sync.Mutex
 	started         bool

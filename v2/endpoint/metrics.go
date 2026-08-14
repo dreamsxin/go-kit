@@ -7,8 +7,8 @@ import (
 )
 
 // Metrics holds counters and timing data collected by MetricsMiddleware.
-// All fields are protected by an internal mutex; use Snapshot to read
-// them safely from any goroutine.
+// The exported fields remain for v2 source compatibility. Concurrent readers
+// must use Snapshot rather than reading the fields directly.
 type Metrics struct {
 	mu sync.Mutex
 
@@ -19,8 +19,7 @@ type Metrics struct {
 	LastRequestTime time.Time
 }
 
-// Snapshot returns a point-in-time copy of the metrics that is safe to
-// read without holding any lock.
+// Snapshot returns a point-in-time copy that is safe to read without a lock.
 func (m *Metrics) Snapshot() Metrics {
 	m.mu.Lock()
 	defer m.mu.Unlock()

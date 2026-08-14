@@ -55,7 +55,7 @@ func (s *Service) prepareHTTPContext(ctx context.Context, r *http.Request, w htt
 	if !s.requestID {
 		return ctx
 	}
-	requestID := requestIDFromContextOrHeader(ctx)
+	requestID := requestIDFromContextOrHeader(ctx, s.requestIDValidator)
 	w.Header().Set(requestIDHeader, requestID)
 	return endpoint.WithRequestID(ctx, requestID)
 }
