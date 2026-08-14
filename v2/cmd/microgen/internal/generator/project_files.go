@@ -220,7 +220,9 @@ func (g *Generator) serviceRoutes(project *ir.Project) []SvcRoute {
 
 func (g *Generator) rootRelativePath() string {
 	if root := strings.TrimSpace(os.Getenv("MICROGEN_GO_KIT_ROOT")); root != "" {
-		return filepath.ToSlash(root)
+		// Environment overrides may come from a different host OS than the
+		// generator process (for example, a Windows path in Linux CI).
+		return strings.ReplaceAll(filepath.ToSlash(root), `\`, "/")
 	}
 	root := findGoKitModuleRoot(g.outputDir)
 	if root == "" {

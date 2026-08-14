@@ -63,10 +63,23 @@ func TestRootRelativePath(t *testing.T) {
 }
 
 func TestRootRelativePathFromEnvironment(t *testing.T) {
-	t.Setenv("MICROGEN_GO_KIT_ROOT", `C:\work tree\go-kit\v2`)
-	g := &Generator{outputDir: t.TempDir()}
-	if got, want := g.rootRelativePath(), "C:/work tree/go-kit/v2"; got != want {
-		t.Fatalf("rootRelativePath() = %q, want %q", got, want)
+	tests := []struct {
+		name string
+		root string
+		want string
+	}{
+		{name: "windows", root: `C:\work tree\go-kit\v2`, want: "C:/work tree/go-kit/v2"},
+		{name: "unix", root: "/work tree/go-kit/v2", want: "/work tree/go-kit/v2"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("MICROGEN_GO_KIT_ROOT", tt.root)
+			g := &Generator{outputDir: t.TempDir()}
+			if got := g.rootRelativePath(); got != tt.want {
+				t.Fatalf("rootRelativePath() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
