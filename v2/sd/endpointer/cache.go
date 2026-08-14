@@ -3,12 +3,12 @@ package endpointer
 import (
 	"errors"
 	"io"
+	"log/slog"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/sd"
 )
 
@@ -50,19 +50,19 @@ type Cache struct {
 	cache              map[string]endpointCloser
 	err                error
 	endpoints          []endpoint.Endpoint
-	logger             *log.Logger
+	logger             *slog.Logger
 	invalidateDeadline time.Time
 	timeNow            func() time.Time
 	closed             bool
 }
 
 // NewCache creates an endpoint cache owned by the service-discovery layer.
-func NewCache(factory Factory, logger *log.Logger, options Options) *Cache {
+func NewCache(factory Factory, logger *slog.Logger, options Options) *Cache {
 	if factory == nil {
 		panic("endpointer: nil endpoint factory")
 	}
 	if logger == nil {
-		logger = log.NewNopLogger()
+		logger = slog.New(slog.DiscardHandler)
 	}
 	return &Cache{
 		options: options,
@@ -89,7 +89,7 @@ func (c *Cache) Update(event sd.Event) {
 		return
 	}
 
-	c.logger.Sugar().Debugln("err", event.Err)
+	c.logger.Debug("service discovery update failed", "err", event.Err)
 	if !c.options.InvalidateOnError || c.err != nil {
 		c.mtx.Unlock()
 		return
@@ -114,14 +114,14 @@ func (c *Cache) updateCacheLocked(instances []string) []io.Closer {
 
 		service, closer, err := c.factory(instance)
 		if err != nil {
-			c.logger.Sugar().Debugln("instance", instance, "err", err)
+			c.logger.Debug("create endpoint failed", "instance", instance, "err", err)
 			if closer != nil {
 				stale = append(stale, closer)
 			}
 			continue
 		}
 		if service == nil {
-			c.logger.Sugar().Debugln("instance", instance, "err", "factory returned nil endpoint")
+			c.logger.Debug("create endpoint failed", "instance", instance, "err", "factory returned nil endpoint")
 			if closer != nil {
 				stale = append(stale, closer)
 			}
@@ -216,6 +216,6 @@ func closeEndpointClosers(closers []io.Closer) error {
 
 func (c *Cache) closeStale(closers []io.Closer) {
 	if err := closeEndpointClosers(closers); err != nil {
-		c.logger.Sugar().Warnln("close stale endpoint resources", err)
+		c.logger.Warn("close stale endpoint resources", "err", err)
 	}
 }

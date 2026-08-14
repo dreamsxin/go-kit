@@ -9,7 +9,6 @@ require (
 	github.com/dreamsxin/go-kit/v2/integrations/grpc v0.1.0
 	{{- end}}
 	github.com/dreamsxin/go-kit/v2/integrations/ratelimit v0.1.0
-	github.com/dreamsxin/go-kit/v2/integrations/zap v0.1.0
 	github.com/sony/gobreaker v1.0.0
 	{{- if .WithOpenAPI}}
 	github.com/swaggest/swgui v1.8.9
@@ -17,7 +16,6 @@ require (
 	golang.org/x/time v0.11.0
 	gorm.io/gorm v1.31.1
 {{- if .WithConfig}}
-	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v3 v3.0.1
 {{- end}}
 )
@@ -31,5 +29,4 @@ replace github.com/dreamsxin/go-kit/v2/integrations/grpc => {{printf "%q" (print
 {{end}}
 replace github.com/dreamsxin/go-kit/v2/integrations/ratelimit => {{printf "%q" (printf "%s/integrations/ratelimit" .RootRelPath)}}
 
-replace github.com/dreamsxin/go-kit/v2/integrations/zap => {{printf "%q" (printf "%s/integrations/zap" .RootRelPath)}}
 {{end}}

@@ -1,10 +1,8 @@
 package consul
 
 import (
+	"log/slog"
 	"strconv"
-
-	"github.com/dreamsxin/go-kit/v2/log"
-	"github.com/dreamsxin/go-kit/v2/sd"
 
 	stdconsul "github.com/hashicorp/consul/api"
 )
@@ -13,10 +11,8 @@ import (
 type Registrar struct {
 	client       Client
 	registration *stdconsul.AgentServiceRegistration
-	logger       *log.Logger
+	logger       *slog.Logger
 }
-
-var _ sd.Registrar = (*Registrar)(nil)
 
 type RegistrarOption func(*Registrar)
 
@@ -44,9 +40,9 @@ func CheckRegistrarOptions(check *stdconsul.AgentServiceCheck) RegistrarOption {
 	}
 }
 
-func NewRegistrar(client Client, logger *log.Logger, name string, address string, port int, options ...RegistrarOption) *Registrar {
+func NewRegistrar(client Client, logger *slog.Logger, name string, address string, port int, options ...RegistrarOption) *Registrar {
 	if logger == nil {
-		logger = log.NewNopLogger()
+		logger = slog.New(slog.DiscardHandler)
 	}
 	r := &Registrar{
 		client: client,
@@ -70,7 +66,7 @@ func (p *Registrar) Register() error {
 	if err := p.client.Register(p.registration); err != nil {
 		return err
 	}
-	p.logger.Sugar().Debugln("action", "register")
+	p.logger.Debug("consul service registered", "id", p.registration.ID)
 	return nil
 }
 
@@ -78,6 +74,6 @@ func (p *Registrar) Deregister() error {
 	if err := p.client.Deregister(p.registration); err != nil {
 		return err
 	}
-	p.logger.Sugar().Debugln("action", "deregister")
+	p.logger.Debug("consul service deregistered", "id", p.registration.ID)
 	return nil
 }

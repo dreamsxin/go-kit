@@ -38,7 +38,7 @@ resp, err := ep(ctx, request)
 ```go
 import (
 	"github.com/dreamsxin/go-kit/v2/sd/client"
-	"github.com/dreamsxin/go-kit/v2/sd/consul"
+	"github.com/dreamsxin/go-kit/v2/integrations/consul"
 )
 
 instancer := consul.NewInstancer(consulClient, logger, "my-service", true)
@@ -107,7 +107,7 @@ retry.WithClassifier(time.Second, lb,
 
 The default classifier retries explicit `Retryable() == true` errors and
 temporary no-endpoint conditions. Unknown and protocol errors are permanent.
-For gRPC, pass `transport/grpc.Retryable` explicitly through
+For gRPC, pass `integrations/grpc.Retryable` explicitly through
 `client.WithRetryable`; domain write safety remains an application decision.
 
 `Endpointer.Close` waits for its update loop and closes all resources returned

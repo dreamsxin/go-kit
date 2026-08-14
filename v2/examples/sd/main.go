@@ -21,13 +21,13 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/sd"
 	"github.com/dreamsxin/go-kit/v2/sd/balancer"
 	sdclient "github.com/dreamsxin/go-kit/v2/sd/client"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
 	"github.com/dreamsxin/go-kit/v2/sd/retry"
+	"log/slog"
 )
 
 type transientError struct {
@@ -52,7 +52,7 @@ var factory = endpointer.Factory(func(addr string) (endpoint.Endpoint, io.Closer
 
 // ── Demo 1: instance.Cache + Endpointer + RoundRobin ─────────────────────────
 
-func demo1_RoundRobin(logger *kitlog.Logger) {
+func demo1_RoundRobin(logger *slog.Logger) {
 	fmt.Println("=== 1. instance.Cache + Endpointer + RoundRobin ===")
 
 	cache := instance.NewCache()
@@ -86,7 +86,7 @@ func demo1_RoundRobin(logger *kitlog.Logger) {
 
 // ── Demo 2: retry.Retry ───────────────────────────────────────────────────────
 
-func demo2_Retry(logger *kitlog.Logger) {
+func demo2_Retry(logger *slog.Logger) {
 	fmt.Println("\n=== 2. retry.Retry (max 3 attempts) ===")
 
 	attempts := 0
@@ -116,7 +116,7 @@ func demo2_Retry(logger *kitlog.Logger) {
 
 // ── Demo 3: retry.WithCallback ────────────────────────────────────────────────
 
-func demo3_RetryWithCallback(logger *kitlog.Logger) {
+func demo3_RetryWithCallback(logger *slog.Logger) {
 	fmt.Println("\n=== 3. retry.WithCallback ===")
 
 	var sentinelErr = errors.New("non-retryable")
@@ -162,7 +162,7 @@ func demo3_RetryWithCallback(logger *kitlog.Logger) {
 
 // ── Demo 4: sd/client.NewEndpoint (one-liner) ────────────────────────────────
 
-func demo4_NewEndpoint(logger *kitlog.Logger) {
+func demo4_NewEndpoint(logger *slog.Logger) {
 	fmt.Println("\n=== 4. sd/client.NewEndpoint (one-liner) ===")
 
 	cache := instance.NewCache()
@@ -188,7 +188,7 @@ func demo4_NewEndpoint(logger *kitlog.Logger) {
 
 // ── Demo 5: InvalidateOnError ─────────────────────────────────────────────────
 
-func demo5_InvalidateOnError(logger *kitlog.Logger) {
+func demo5_InvalidateOnError(logger *slog.Logger) {
 	fmt.Println("\n=== 5. endpointer.InvalidateOnError ===")
 
 	cache := instance.NewCache()
@@ -225,7 +225,7 @@ func demo5_InvalidateOnError(logger *kitlog.Logger) {
 // ── main ──────────────────────────────────────────────────────────────────────
 
 func main() {
-	logger := kitlog.NewNopLogger()
+	logger := slog.New(slog.DiscardHandler)
 
 	demo1_RoundRobin(logger)
 	demo2_Retry(logger)

@@ -247,12 +247,13 @@ HTTP integrations.
 | `endpoint` | Transport-independent endpoint and middleware composition |
 | `transport/http` | HTTP server and client adapters |
 | `integrations/grpc` | Optional gRPC server and client adapters |
+| `integrations/consul` | Optional Consul service-discovery provider |
 | `sd` | Provider-neutral service-discovery contracts |
 | `sd/endpointer`, `sd/balancer`, `sd/retry` | Independently composable discovery runtime |
 | `sd/client` | Optional discovery, balancing, and retry composition |
 | `interaction` | Tools, resources, prompts, sessions, and policy hooks |
 | `interaction/mcp` | MCP Streamable HTTP adapter |
-| `log` | Framework logging adapter |
+| `log` | Deprecated standard-library logging compatibility facade |
 | `observability/slog` | Optional standard-library `slog` endpoint logging |
 | `integrations/zap` | Optional Zap endpoint logging adapter |
 | `observability/otel` | Optional OpenTelemetry endpoint tracing and metrics module |

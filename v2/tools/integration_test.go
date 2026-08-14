@@ -296,14 +296,11 @@ import (
 	userserviceendpoint "` + importPath + `/endpoint/userservice"
 	userservicesvc "` + importPath + `/service/userservice"
 	userservicetransport "` + importPath + `/transport/userservice"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"log/slog"
 )
 
 func main() {
-	logger, err := kitlog.NewDevelopment()
-	if err != nil {
-		panic(err)
-	}
+	logger := slog.New(slog.DiscardHandler)
 
 	svc := userservicesvc.NewService(nil)
 	endpoints := userserviceendpoint.MakeServerEndpoints(svc, logger)
@@ -356,14 +353,11 @@ import (
 	userserviceendpoint "` + importPath + `/endpoint/userservice"
 	userservicesvc "` + importPath + `/service/userservice"
 	userservicetransport "` + importPath + `/transport/userservice"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"log/slog"
 )
 
 func main() {
-	logger, err := kitlog.NewDevelopment()
-	if err != nil {
-		panic(err)
-	}
+	logger := slog.New(slog.DiscardHandler)
 
 	svc := userservicesvc.NewService(nil)
 	endpoints := userserviceendpoint.MakeServerEndpoints(svc, logger)
@@ -481,7 +475,7 @@ import (
 	chatsdk "` + importPath + `/sdk/chatservicesdk"
 	chatsvc "` + importPath + `/service/chatservice"
 	chattransport "` + importPath + `/transport/chatservice"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"log/slog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 )
@@ -566,10 +560,7 @@ func (streamSvc) Interact(ctx context.Context, recv func() (idl.MessageEvent, er
 }
 
 func main() {
-	logger, err := kitlog.NewDevelopment()
-	if err != nil {
-		panic(err)
-	}
+	logger := slog.New(slog.DiscardHandler)
 
 	svc := streamSvc{}
 	endpoints := chatendpoint.MakeServerEndpoints(svc, logger)

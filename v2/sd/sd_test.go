@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/sd"
 	"github.com/dreamsxin/go-kit/v2/sd/balancer"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
 	"github.com/dreamsxin/go-kit/v2/sd/retry"
+	"log/slog"
 )
 
 type retryableTestError struct {
@@ -83,10 +83,9 @@ func newFactory() endpointer.Factory {
 	}
 }
 
-func newLogger(t *testing.T) *kitlog.Logger {
+func newLogger(t *testing.T) *slog.Logger {
 	t.Helper()
-	l, _ := kitlog.NewDevelopment()
-	return l
+	return slog.New(slog.DiscardHandler)
 }
 
 // ─────────────────────────── Endpointer tests ───────────────────────────

@@ -5,9 +5,9 @@ go 1.25.8
 require (
 	github.com/dreamsxin/go-kit/v2 v2.0.0
 	github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker v0.1.0
+	github.com/dreamsxin/go-kit/v2/integrations/consul v0.1.0
 	github.com/dreamsxin/go-kit/v2/integrations/grpc v0.1.0
 	github.com/dreamsxin/go-kit/v2/integrations/ratelimit v0.1.0
-	github.com/dreamsxin/go-kit/v2/integrations/zap v0.1.0
 	github.com/hashicorp/consul/api v1.33.7
 	github.com/sony/gobreaker v1.0.0
 	go.uber.org/zap v1.27.1
@@ -42,6 +42,8 @@ require (
 replace github.com/dreamsxin/go-kit/v2 => ..
 
 replace github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker => ../integrations/circuitbreaker
+
+replace github.com/dreamsxin/go-kit/v2/integrations/consul => ../integrations/consul
 
 replace github.com/dreamsxin/go-kit/v2/integrations/grpc => ../integrations/grpc
 

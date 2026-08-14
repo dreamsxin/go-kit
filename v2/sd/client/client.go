@@ -4,11 +4,11 @@ package client
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"reflect"
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/sd"
 	"github.com/dreamsxin/go-kit/v2/sd/balancer"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
@@ -47,7 +47,7 @@ func WithRetryable(classifier retry.Classifier) Option {
 }
 
 // NewEndpoint composes an Endpointer, round-robin Balancer, and retry executor.
-func NewEndpoint(src sd.Instancer, factory endpointer.Factory, logger *kitlog.Logger, opts ...Option) (endpoint.Endpoint, io.Closer, error) {
+func NewEndpoint(src sd.Instancer, factory endpointer.Factory, logger *slog.Logger, opts ...Option) (endpoint.Endpoint, io.Closer, error) {
 	options := Options{MaxAttempts: 1, Timeout: 500 * time.Millisecond}
 	for i, option := range opts {
 		if option == nil {
@@ -71,7 +71,7 @@ func NewEndpoint(src sd.Instancer, factory endpointer.Factory, logger *kitlog.Lo
 
 // NewEndpointWithDefaults uses one attempt, a 500ms total timeout, and a five
 // second invalidation grace period.
-func NewEndpointWithDefaults(src sd.Instancer, factory endpointer.Factory, logger *kitlog.Logger) (endpoint.Endpoint, io.Closer, error) {
+func NewEndpointWithDefaults(src sd.Instancer, factory endpointer.Factory, logger *slog.Logger) (endpoint.Endpoint, io.Closer, error) {
 	return NewEndpoint(src, factory, logger,
 		WithMaxAttempts(1),
 		WithTimeout(500*time.Millisecond),
@@ -79,7 +79,7 @@ func NewEndpointWithDefaults(src sd.Instancer, factory endpointer.Factory, logge
 	)
 }
 
-func validate(src sd.Instancer, factory endpointer.Factory, logger *kitlog.Logger, options Options) error {
+func validate(src sd.Instancer, factory endpointer.Factory, logger *slog.Logger, options Options) error {
 	switch {
 	case isNil(src):
 		return fmt.Errorf("sd/client: instancer is nil")

@@ -22,6 +22,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -34,7 +35,6 @@ import (
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
 	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -63,8 +63,7 @@ func main() {
 	httpAddr := flag.String("http.addr", ":8080", "HTTP listen address")
 	flag.Parse()
 
-	logger, _ := kitlog.NewDevelopment()
-	defer logger.Sync() //nolint:errcheck
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	var metrics endpoint.Metrics
 
@@ -94,9 +93,9 @@ func main() {
 
 	srv := &http.Server{Addr: *httpAddr, Handler: mux}
 	go func() {
-		logger.Sugar().Infof("listening on %s", *httpAddr)
+		logger.Info("listening", "address", *httpAddr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Sugar().Fatalf("listen: %v", err)
+			logger.Error("listen failed", "err", err)
 		}
 	}()
 
@@ -107,5 +106,5 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	srv.Shutdown(ctx) //nolint:errcheck
-	logger.Sugar().Infof("stopped. total requests: %d", metrics.RequestCount)
+	logger.Info("stopped", "total_requests", metrics.RequestCount)
 }

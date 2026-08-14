@@ -8,11 +8,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 
-	zapadapter "github.com/dreamsxin/go-kit/v2/integrations/zap"
-	"github.com/dreamsxin/go-kit/v2/log"
+	slogadapter "github.com/dreamsxin/go-kit/v2/observability/slog"
 	httptransportserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -24,11 +24,11 @@ var (
 
 // MakeHTTPHandler mounts all of the service endpoints into an http.Handler.
 // Useful in a profilesvc server.
-func MakeHTTPHandler(s Service, logger *log.Logger) http.Handler {
+func MakeHTTPHandler(s Service, logger *slog.Logger) http.Handler {
 	r := http.NewServeMux()
 	e := MakeServerEndpoints(s)
 	options := []httptransportserver.ServerOption{
-		httptransportserver.ServerErrorHandler(zapadapter.NewErrorHandler(logger)),
+		httptransportserver.ServerErrorHandler(slogadapter.NewErrorHandler(logger)),
 		httptransportserver.ServerErrorEncoder(encodeError),
 	}
 

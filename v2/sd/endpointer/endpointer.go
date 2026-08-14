@@ -2,10 +2,10 @@ package endpointer
 
 import (
 	"io"
+	"log/slog"
 	"sync"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/sd"
 )
 
@@ -20,7 +20,7 @@ type Endpointer interface {
 // NewEndpointer creates an Endpointer that subscribes to src and builds
 // Endpoints using f.  It starts a background goroutine to process events;
 // call Close() on the returned value to stop it.
-func NewEndpointer(src sd.Instancer, f Factory, logger *log.Logger, options ...Option) Endpointer {
+func NewEndpointer(src sd.Instancer, f Factory, logger *slog.Logger, options ...Option) Endpointer {
 	opts := Options{}
 	for _, opt := range options {
 		opt(&opts)

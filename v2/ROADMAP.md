@@ -146,10 +146,10 @@ release-path decision is made only after the refactor acceptance gates pass.
 - [x] Work Package 4: `kit` is HTTP-only, optional lifecycle components use a
   neutral contract, and gRPC assembly lives in the independent `kit/grpc`
   module.
-- [ ] Work Package 5: circuit breaker, rate limit, gRPC, Zap, OpenTelemetry,
-  and `microgen` have independent modules and the repository is orchestrated by
-  `go.work`. Consul and the legacy root Zap alias still need extraction before
-  this package is complete.
+- [x] Work Package 5: circuit breaker, rate limit, gRPC, Consul, Zap,
+  OpenTelemetry, and `microgen` have independent modules and the repository is
+  orchestrated by `go.work`. The root runtime module has no third-party
+  requirements; legacy `log` is a standard-library-only compatibility facade.
 - [ ] Work Packages 6-8.
 
 ### Refactor Goals / 重构目标

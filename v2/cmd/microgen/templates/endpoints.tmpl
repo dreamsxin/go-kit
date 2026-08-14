@@ -2,10 +2,10 @@ package {{.Service.ServiceName | lower}}
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 {{- if .UnaryMethods}}
 	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
 {{- end}}
@@ -36,13 +36,13 @@ var DefaultMiddlewareConfig = MiddlewareConfig{
 	Timeout:            30 * time.Second,
 }
 
-func MakeServerEndpoints(s svc.{{.Service.ServiceName}}, logger *kitlog.Logger) {{.Service.ServiceName}}Endpoints {
+func MakeServerEndpoints(s svc.{{.Service.ServiceName}}, logger *slog.Logger) {{.Service.ServiceName}}Endpoints {
 	return MakeServerEndpointsWithConfig(s, logger, DefaultMiddlewareConfig)
 }
 
 func MakeServerEndpointsWithConfig(
 	s svc.{{.Service.ServiceName}},
-	logger *kitlog.Logger,
+	logger *slog.Logger,
 	cfg MiddlewareConfig,
 ) {{.Service.ServiceName}}Endpoints {
 {{- if .UnaryMethods}}

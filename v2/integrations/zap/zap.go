@@ -1,5 +1,5 @@
 // Package zapadapter integrates the core endpoint abstraction with the
-// framework's Zap logger.
+// Zap logger.
 package zapadapter
 
 import (
@@ -9,14 +9,13 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/transport"
 )
 
 // NewErrorHandler adapts a Zap logger to transport.ErrorHandler.
-func NewErrorHandler(logger *log.Logger) transport.ErrorHandler {
+func NewErrorHandler(logger *zap.Logger) transport.ErrorHandler {
 	if logger == nil {
-		logger = log.NewNopLogger()
+		logger = zap.NewNop()
 	}
 	return transport.ErrorHandlerFunc(func(_ context.Context, err error) {
 		logger.Error("transport error", zap.Error(err))
@@ -24,9 +23,9 @@ func NewErrorHandler(logger *log.Logger) transport.ErrorHandler {
 }
 
 // LoggingMiddleware records the operation outcome and elapsed duration.
-func LoggingMiddleware(logger *log.Logger, operation string) endpoint.Middleware {
+func LoggingMiddleware(logger *zap.Logger, operation string) endpoint.Middleware {
 	if logger == nil {
-		logger = log.NewNopLogger()
+		logger = zap.NewNop()
 	}
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (resp any, err error) {

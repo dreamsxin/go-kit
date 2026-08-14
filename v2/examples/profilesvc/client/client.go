@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -13,15 +14,14 @@ import (
 
 	"github.com/dreamsxin/go-kit-examples/v2/profilesvc"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/log"
+	"github.com/dreamsxin/go-kit/v2/integrations/consul"
 	sdclient "github.com/dreamsxin/go-kit/v2/sd/client"
-	"github.com/dreamsxin/go-kit/v2/sd/consul"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
 )
 
 // New returns a profilesvc.Service that is load-balanced over all healthy
 // Consul instances tagged "prod". The caller must close the returned closer.
-func New(consulAddr string, logger *log.Logger) (profilesvc.Service, io.Closer, error) {
+func New(consulAddr string, logger *slog.Logger) (profilesvc.Service, io.Closer, error) {
 	if logger == nil {
 		return nil, nil, fmt.Errorf("profilesvc client: logger is nil")
 	}

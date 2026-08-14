@@ -5,6 +5,7 @@ use (
 	./cmd/microgen
 	./examples
 	./integrations/circuitbreaker
+	./integrations/consul
 	./integrations/grpc
 	./integrations/ratelimit
 	./integrations/zap

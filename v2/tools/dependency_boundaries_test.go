@@ -18,6 +18,24 @@ func TestEndpointHasOnlyStandardLibraryImports(t *testing.T) {
 	}
 }
 
+func TestCoreModuleHasNoThirdPartyRequirements(t *testing.T) {
+	root := moduleRoot(t)
+	type editJSON struct {
+		Require []struct {
+			Path string
+		}
+	}
+
+	output := commandOutput(t, root, "go", "mod", "edit", "-json")
+	var edit editJSON
+	if err := json.Unmarshal(output, &edit); err != nil {
+		t.Fatalf("decode core go.mod: %v", err)
+	}
+	for _, requirement := range edit.Require {
+		t.Errorf("core module requires third-party module %q", requirement.Path)
+	}
+}
+
 func TestGenericServiceDiscoveryDoesNotDependOnProviders(t *testing.T) {
 	root := moduleRoot(t)
 	packages := []string{
@@ -120,6 +138,7 @@ func TestPublishableModulesDoNotUseLocalReplacements(t *testing.T) {
 		root,
 		filepath.Join(root, "cmd", "microgen"),
 		filepath.Join(root, "integrations", "circuitbreaker"),
+		filepath.Join(root, "integrations", "consul"),
 		filepath.Join(root, "integrations", "grpc"),
 		filepath.Join(root, "integrations", "ratelimit"),
 		filepath.Join(root, "integrations", "zap"),

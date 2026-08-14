@@ -36,7 +36,6 @@ import (
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
 	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -69,7 +68,7 @@ func main() {
 	httpAddr := flag.String("http.addr", ":8080", "HTTP listen address")
 	flag.Parse()
 
-	logger, err := kitlog.NewDevelopment()
+	logger, err := zap.NewDevelopment()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "logger init: %v\n", err)
 		os.Exit(1)

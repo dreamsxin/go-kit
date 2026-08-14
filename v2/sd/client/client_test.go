@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/sd"
 	sdclient "github.com/dreamsxin/go-kit/v2/sd/client"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
+	"log/slog"
 )
 
 func nopFactory(addr string) (endpoint.Endpoint, io.Closer, error) {
@@ -23,7 +23,7 @@ func nopFactory(addr string) (endpoint.Endpoint, io.Closer, error) {
 	return ep, io.NopCloser(nil), nil
 }
 
-func nopLogger() *kitlog.Logger { return kitlog.NewNopLogger() }
+func nopLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
 func newTestEndpoint(t *testing.T, cache *instance.Cache, opts ...sdclient.Option) endpoint.Endpoint {
 	t.Helper()
@@ -125,7 +125,7 @@ func TestNewEndpoint_RejectsInvalidConfiguration(t *testing.T) {
 		name    string
 		src     *instance.Cache
 		factory endpointer.Factory
-		logger  *kitlog.Logger
+		logger  *slog.Logger
 		opts    []sdclient.Option
 		want    string
 	}{

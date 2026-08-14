@@ -726,7 +726,7 @@ func TestGenerateFull_MainFile_WithDB(t *testing.T) {
 	mustContain(t, mainPath, "gorm.Open")
 	mustContain(t, mainPath, "db.dsn")
 	mustContain(t, mainPath, "auto-migrate")
-	mustContain(t, mainPath, "DB migration skipped")
+	mustContain(t, mainPath, "database migration skipped")
 	mustContain(t, mainPath, "redactDSN(*dsn)")
 	mustContain(t, mainPath, "defer sqlDB.Close()")
 	mustContain(t, mainPath, "func redactDSN(dsn string) string")
@@ -750,7 +750,7 @@ func TestGenerateFull_MainFile_WithConfigUsesLoggingConfig(t *testing.T) {
 
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	mustContain(t, mainPath, "newConfiguredLogger(cfg.Logging)")
-	mustContain(t, mainPath, "zap.NewProductionConfig()")
+	mustContain(t, mainPath, "slog.NewJSONHandler(os.Stdout, options)")
 	mustContain(t, mainPath, "if cfg.Debug.RoutesEnabled")
 }
 
@@ -778,7 +778,7 @@ func TestGenerateFull_GoMod_Created(t *testing.T) {
 	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2 v2.0.0")
 	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker v0.1.0")
 	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/ratelimit v0.1.0")
-	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/zap v0.1.0")
+	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/zap")
 	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/grpc")
 	mustNotContain(t, goModPath, "replace github.com/dreamsxin/go-kit/v2")
 }

@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 // ── Service unit tests ────────────────────────────────────────────────────────
@@ -134,7 +133,7 @@ func TestEndpoints_GetNotFound(t *testing.T) {
 func newTestHTTPServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	svc := NewInmemService()
-	handler := MakeHTTPHandler(svc, kitlog.NewNopLogger())
+	handler := MakeHTTPHandler(svc, slog.New(slog.DiscardHandler))
 	return httptest.NewServer(handler)
 }
 

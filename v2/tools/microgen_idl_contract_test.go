@@ -130,10 +130,10 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 
 	import (
 		"github.com/dreamsxin/go-kit/v2/endpoint"
-		kitlog "github.com/dreamsxin/go-kit/v2/log"
+		"log/slog"
 	)
 
-	func applyCustomMiddleware(ep endpoint.Endpoint, logger *kitlog.Logger, cfg MiddlewareConfig, name string) endpoint.Endpoint {
+	func applyCustomMiddleware(ep endpoint.Endpoint, logger *slog.Logger, cfg MiddlewareConfig, name string) endpoint.Endpoint {
 		_ = logger
 		_ = cfg
 		_ = name

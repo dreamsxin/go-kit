@@ -1,6 +1,8 @@
 package log_test
 
 import (
+	"context"
+	"log/slog"
 	"testing"
 
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
@@ -49,8 +51,7 @@ func TestNewNopLogger_DoesNotPanic(t *testing.T) {
 
 func TestNewNopLogger_IsNop(t *testing.T) {
 	logger := kitlog.NewNopLogger()
-	// zap.NewNop() returns a logger that is enabled for no levels
-	if logger.Core().Enabled(0) {
+	if logger.Slog().Enabled(context.Background(), slog.LevelDebug) {
 		t.Error("nop logger should not be enabled for any level")
 	}
 }

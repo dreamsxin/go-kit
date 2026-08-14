@@ -89,7 +89,8 @@ components; `sd/client` is their optional convenience composition. Updates are
 snapshots, not mutable caller-owned slices. Cancellation interrupts both calls
 and retry backoff. Constructors return explicit closers for subscription
 goroutines and factory-created client connections. Protocol retry classification
-belongs to the protocol adapter, not generic discovery.
+belongs to the protocol adapter, not generic discovery. Consul support lives in
+the independent `integrations/consul` module.
 
 ### `interaction`
 
@@ -106,8 +107,10 @@ callbacks while holding internal locks.
 
 ### `log`
 
-`log` is the framework logging adapter. Libraries return errors; process entry
-points decide when to terminate.
+`log` is a deprecated standard-library compatibility facade for projects
+generated before the direct refactor. New applications use `log/slog` directly
+and opt into provider adapters explicitly. Libraries return errors; process
+entry points decide when to terminate.
 
 ### Optional observability adapters
 

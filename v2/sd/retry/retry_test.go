@@ -9,15 +9,15 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/sd"
 	"github.com/dreamsxin/go-kit/v2/sd/balancer"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
 	"github.com/dreamsxin/go-kit/v2/sd/retry"
+	"log/slog"
 )
 
-var nopLogger = kitlog.NewNopLogger()
+var nopLogger = slog.New(slog.DiscardHandler)
 
 type permanentError struct {
 	error

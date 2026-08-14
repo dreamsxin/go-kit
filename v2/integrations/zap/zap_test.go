@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/log"
+	"go.uber.org/zap"
 )
 
 func TestLoggingMiddlewareSuccess(t *testing.T) {
-	middleware := LoggingMiddleware(log.NewNopLogger(), "testOp")
+	middleware := LoggingMiddleware(zap.NewNop(), "testOp")
 	response, err := middleware(func(context.Context, any) (any, error) {
 		return "ok", nil
 	})(context.Background(), nil)
@@ -21,7 +21,7 @@ func TestLoggingMiddlewareSuccess(t *testing.T) {
 
 func TestLoggingMiddlewareError(t *testing.T) {
 	sentinel := errors.New("failed")
-	middleware := LoggingMiddleware(log.NewNopLogger(), "testOp")
+	middleware := LoggingMiddleware(zap.NewNop(), "testOp")
 	_, err := middleware(func(context.Context, any) (any, error) {
 		return nil, sentinel
 	})(context.Background(), nil)

@@ -7,10 +7,11 @@ import (
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 )
 
-// Event is a snapshot of the currently healthy service instances. When Err is
-// non-nil, consumers may continue using the previous snapshot for a grace
-// period before invalidating it.
-type Event struct {
+// Event is a snapshot of the currently healthy service instances. It is an
+// alias so providers can implement Instancer without importing this module.
+// When Err is non-nil, consumers may continue using the previous snapshot for
+// a grace period before invalidating it.
+type Event = struct {
 	Instances []string
 	Err       error
 }

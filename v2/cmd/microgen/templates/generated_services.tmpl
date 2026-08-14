@@ -2,7 +2,7 @@
 package main
 
 import (
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"log/slog"
 {{- if .WithConfig}}
 {{- end}}
 {{- if .WithConfig}}
@@ -24,7 +24,7 @@ type generatedServices struct {
 {{- end}}
 }
 
-func initGeneratedServices(logger *kitlog.Logger{{if .WithConfig}}, cfg *config.Config{{end}}{{if .WithDB}}, repoDB *repository.DB{{end}}) generatedServices {
+func initGeneratedServices(logger *slog.Logger{{if .WithConfig}}, cfg *config.Config{{end}}{{if .WithDB}}, repoDB *repository.DB{{end}}) generatedServices {
 	generated := generatedServices{}
 
 	_ = logger

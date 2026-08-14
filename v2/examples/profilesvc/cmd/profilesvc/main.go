@@ -3,14 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/dreamsxin/go-kit-examples/v2/profilesvc"
-	"github.com/dreamsxin/go-kit/v2/log"
-	"go.uber.org/zap"
 )
 
 func main() {
@@ -19,16 +18,12 @@ func main() {
 	)
 	flag.Parse()
 
-	logger, err := log.NewDevelopment()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Log error: %v\n", err)
-		os.Exit(1)
-	}
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	var s profilesvc.Service
 	s = profilesvc.LoggingMiddleware(logger)(profilesvc.NewInmemService())
 
-	h := profilesvc.MakeHTTPHandler(s, logger.With(zap.String("component", "HTTP")))
+	h := profilesvc.MakeHTTPHandler(s, logger.With("component", "HTTP"))
 
 	errs := make(chan error)
 	go func() {
@@ -38,10 +33,10 @@ func main() {
 	}()
 
 	go func() {
-		logger.Sugar().Info("transport", "HTTP", "addr", *httpAddr)
+		logger.Info("transport started", "transport", "HTTP", "address", *httpAddr)
 
 		errs <- http.ListenAndServe(*httpAddr, h)
 	}()
 
-	logger.Sugar().Info("exit", <-errs)
+	logger.Info("exit", "reason", <-errs)
 }

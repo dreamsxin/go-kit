@@ -4,15 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"sync"
 	"time"
 
 	consul "github.com/hashicorp/consul/api"
-
-	"github.com/dreamsxin/go-kit/v2/log"
-	"github.com/dreamsxin/go-kit/v2/sd"
-	"github.com/dreamsxin/go-kit/v2/sd/instance"
 )
 
 const defaultIndex = 0
@@ -21,9 +18,9 @@ var errStopped = errors.New("quit and closed consul instancer")
 
 // 服务实例发现类
 type Instancer struct {
-	cache       *instance.Cache
+	cache       *eventCache
 	client      Client
-	logger      *log.Logger
+	logger      *slog.Logger
 	service     string
 	tags        []string
 	passingOnly bool // 只返回正常的实例
@@ -33,8 +30,6 @@ type Instancer struct {
 	stopOnce    sync.Once
 }
 
-var _ sd.Instancer = (*Instancer)(nil)
-
 type InstancerOption func(*Instancer)
 
 func TagsInstancerOptions(tags []string) InstancerOption {
@@ -43,13 +38,13 @@ func TagsInstancerOptions(tags []string) InstancerOption {
 	}
 }
 
-func NewInstancer(client Client, logger *log.Logger, service string, passingOnly bool, options ...InstancerOption) *Instancer {
+func NewInstancer(client Client, logger *slog.Logger, service string, passingOnly bool, options ...InstancerOption) *Instancer {
 	if logger == nil {
-		logger = log.NewNopLogger()
+		logger = slog.New(slog.DiscardHandler)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Instancer{
-		cache:       instance.NewCache(),
+		cache:       newEventCache(),
 		client:      client,
 		logger:      logger,
 		service:     service,
@@ -63,11 +58,11 @@ func NewInstancer(client Client, logger *log.Logger, service string, passingOnly
 
 	instances, index, err := s.getInstances(ctx, defaultIndex)
 	if err == nil {
-		s.logger.Sugar().Debugln("instances", len(instances))
+		s.logger.Debug("consul instances loaded", "count", len(instances))
 	} else {
-		s.logger.Sugar().Debugln("err", err)
+		s.logger.Debug("consul initial query failed", "err", err)
 	}
-	s.cache.Update(sd.Event{Instances: instances, Err: err})
+	s.cache.Update(Event{Instances: instances, Err: err})
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -93,32 +88,32 @@ func (s *Instancer) loop(lastIndex uint64) {
 		instances, index, err = s.getInstances(s.ctx, lastIndex)
 		switch {
 		case errors.Is(err, errStopped):
-			s.logger.Sugar().Debugln("loop", errStopped)
+			s.logger.Debug("consul watch stopped")
 			return
 		case err != nil:
-			s.logger.Sugar().Debugln("loop", err, d.Seconds())
+			s.logger.Debug("consul watch failed", "err", err, "retry_after", d)
 			if !waitForRetry(d, s.ctx.Done()) {
 				return
 			}
 			d = nextDelay(d)
-			s.cache.Update(sd.Event{Err: err})
+			s.cache.Update(Event{Err: err})
 		case index == defaultIndex:
-			s.logger.Sugar().Debugln("loop", "index is not sane", d.Seconds())
+			s.logger.Debug("consul watch returned zero index", "retry_after", d)
 			if !waitForRetry(d, s.ctx.Done()) {
 				return
 			}
 			d = nextDelay(d)
 		case index < lastIndex:
-			s.logger.Sugar().Debugln("loop", "index is less than previous; resetting to default", d.Seconds())
+			s.logger.Debug("consul watch index regressed", "index", index, "previous", lastIndex, "retry_after", d)
 			lastIndex = defaultIndex
 			if !waitForRetry(d, s.ctx.Done()) {
 				return
 			}
 			d = nextDelay(d)
 		default:
-			s.logger.Sugar().Debugln("loop", "default", "index", index)
+			s.logger.Debug("consul instances updated", "index", index, "count", len(instances))
 			lastIndex = index
-			s.cache.Update(sd.Event{Instances: instances})
+			s.cache.Update(Event{Instances: instances})
 			d = 10 * time.Millisecond
 		}
 	}
@@ -151,7 +146,7 @@ func (s *Instancer) getInstances(ctx context.Context, lastIndex uint64) ([]strin
 		tag = s.tags[0]
 	}
 
-	s.logger.Sugar().Debugln("getInstances", "lastIndex", lastIndex)
+	s.logger.Debug("query consul instances", "last_index", lastIndex)
 	query := (&consul.QueryOptions{WaitIndex: lastIndex}).WithContext(ctx)
 	entries, meta, err := s.client.Service(s.service, tag, s.passingOnly, query)
 	if err != nil {
@@ -170,12 +165,12 @@ func (s *Instancer) getInstances(ctx context.Context, lastIndex uint64) ([]strin
 }
 
 // Register implements Instancer.
-func (s *Instancer) Register(ch chan sd.Event) sd.Event {
+func (s *Instancer) Register(ch chan Event) Event {
 	return s.cache.Register(ch)
 }
 
 // Deregister implements Instancer.
-func (s *Instancer) Deregister(ch chan sd.Event) {
+func (s *Instancer) Deregister(ch chan Event) {
 	s.cache.Deregister(ch)
 }
 

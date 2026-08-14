@@ -2,12 +2,38 @@ package consul
 
 import (
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
 
 	stdconsul "github.com/hashicorp/consul/api"
 )
+
+func TestEventCacheCopiesAndKeepsLatestSnapshot(t *testing.T) {
+	cache := newEventCache()
+	instances := []string{"b:8080", "a:8080"}
+	cache.Update(Event{Instances: instances})
+	instances[0] = "mutated"
+
+	state := cache.Register(nil)
+	if want := []string{"a:8080", "b:8080"}; !reflect.DeepEqual(state.Instances, want) {
+		t.Fatalf("initial state = %v, want %v", state.Instances, want)
+	}
+	state.Instances[0] = "mutated"
+	if got := cache.Register(nil).Instances[0]; got != "a:8080" {
+		t.Fatalf("cached state was mutated through subscriber result: %q", got)
+	}
+
+	updates := make(chan Event, 1)
+	cache.Register(updates)
+	cache.Update(Event{Instances: []string{"c:8080"}})
+	cache.Update(Event{Instances: []string{"d:8080"}})
+	if got := <-updates; !reflect.DeepEqual(got.Instances, []string{"d:8080"}) {
+		t.Fatalf("buffered update = %v, want latest snapshot", got.Instances)
+	}
+	cache.Deregister(updates)
+}
 
 type fakeClient struct {
 	mu              sync.Mutex

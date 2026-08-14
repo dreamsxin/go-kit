@@ -239,12 +239,13 @@ HTTP 集成。
 | `endpoint` | 与 transport 无关的 endpoint 和 middleware 组合 |
 | `transport/http` | HTTP server/client adapter |
 | `integrations/grpc` | 可选的 gRPC server/client adapter |
+| `integrations/consul` | 可选的 Consul 服务发现 provider |
 | `sd` | 与 provider 无关的服务发现契约 |
 | `sd/endpointer`、`sd/balancer`、`sd/retry` | 可独立组合的服务发现运行时组件 |
 | `sd/client` | 可选的发现、负载均衡和重试装配入口 |
 | `interaction` | tool、resource、prompt、session 和策略 hook |
 | `interaction/mcp` | MCP Streamable HTTP adapter |
-| `log` | 框架日志适配 |
+| `log` | 已弃用的标准库日志兼容层 |
 | `observability/slog` | 可选的标准库 `slog` endpoint 日志适配器 |
 | `integrations/zap` | 可选的 Zap endpoint 日志适配器 |
 | `observability/otel` | 可选的 OpenTelemetry endpoint 追踪和指标模块 |

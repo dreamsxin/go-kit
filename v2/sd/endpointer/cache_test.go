@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/sd"
+	"log/slog"
 )
 
 type nopCloser struct{ closed bool }
@@ -31,7 +31,7 @@ func TestCacheUpdateAndEndpoints(t *testing.T) {
 	cache := NewCache(makeFactory(map[string]endpoint.Endpoint{
 		"host1:8080": ep1,
 		"host2:8080": ep2,
-	}), kitlog.NewNopLogger(), Options{})
+	}), slog.New(slog.DiscardHandler), Options{})
 
 	cache.Update(sd.Event{Instances: []string{"host1:8080", "host2:8080"}})
 	endpoints, err := cache.Endpoints()
@@ -54,7 +54,7 @@ func TestCacheUpdateRemovesOld(t *testing.T) {
 			return endpoint.Nop, closerA, nil
 		}
 		return endpoint.Nop, &nopCloser{}, nil
-	}, kitlog.NewNopLogger(), Options{})
+	}, slog.New(slog.DiscardHandler), Options{})
 
 	cache.Update(sd.Event{Instances: []string{"A"}})
 	cache.Update(sd.Event{Instances: []string{"B"}})
@@ -68,7 +68,7 @@ func TestCacheReusesSameInstance(t *testing.T) {
 	cache := NewCache(func(string) (endpoint.Endpoint, io.Closer, error) {
 		factoryCalls++
 		return endpoint.Nop, &nopCloser{}, nil
-	}, kitlog.NewNopLogger(), Options{})
+	}, slog.New(slog.DiscardHandler), Options{})
 
 	cache.Update(sd.Event{Instances: []string{"host:80"}})
 	cache.Update(sd.Event{Instances: []string{"host:80"}})
@@ -81,7 +81,7 @@ func TestCacheDoesNotMutateInstances(t *testing.T) {
 	instances := []string{"b:80", "a:80"}
 	cache := NewCache(func(string) (endpoint.Endpoint, io.Closer, error) {
 		return endpoint.Nop, nil, nil
-	}, kitlog.NewNopLogger(), Options{})
+	}, slog.New(slog.DiscardHandler), Options{})
 
 	cache.Update(sd.Event{Instances: instances})
 	if instances[0] != "b:80" || instances[1] != "a:80" {
@@ -90,7 +90,7 @@ func TestCacheDoesNotMutateInstances(t *testing.T) {
 }
 
 func TestCacheErrorEventWithoutInvalidation(t *testing.T) {
-	cache := NewCache(makeFactory(map[string]endpoint.Endpoint{"h:1": endpoint.Nop}), kitlog.NewNopLogger(), Options{})
+	cache := NewCache(makeFactory(map[string]endpoint.Endpoint{"h:1": endpoint.Nop}), slog.New(slog.DiscardHandler), Options{})
 	cache.Update(sd.Event{Instances: []string{"h:1"}})
 	cache.Update(sd.Event{Err: errors.New("consul down")})
 
@@ -102,7 +102,7 @@ func TestCacheErrorEventWithoutInvalidation(t *testing.T) {
 
 func TestCacheErrorEventWithInvalidation(t *testing.T) {
 	timeout := 20 * time.Millisecond
-	cache := NewCache(makeFactory(map[string]endpoint.Endpoint{"h:1": endpoint.Nop}), kitlog.NewNopLogger(), Options{
+	cache := NewCache(makeFactory(map[string]endpoint.Endpoint{"h:1": endpoint.Nop}), slog.New(slog.DiscardHandler), Options{
 		InvalidateOnError: true,
 		InvalidateTimeout: timeout,
 	})
@@ -119,7 +119,7 @@ func TestCacheErrorEventWithInvalidation(t *testing.T) {
 }
 
 func TestCacheEmptyUpdate(t *testing.T) {
-	cache := NewCache(makeFactory(map[string]endpoint.Endpoint{"h:1": endpoint.Nop}), kitlog.NewNopLogger(), Options{})
+	cache := NewCache(makeFactory(map[string]endpoint.Endpoint{"h:1": endpoint.Nop}), slog.New(slog.DiscardHandler), Options{})
 	cache.Update(sd.Event{Instances: []string{"h:1"}})
 	cache.Update(sd.Event{})
 	if endpoints, err := cache.Endpoints(); err != nil || len(endpoints) != 0 {
@@ -140,7 +140,7 @@ func TestCacheCloseReleasesResourcesAndRejectsUpdates(t *testing.T) {
 			}
 			return nil
 		}), nil
-	}, kitlog.NewNopLogger(), Options{})
+	}, slog.New(slog.DiscardHandler), Options{})
 
 	cache.Update(sd.Event{Instances: []string{"a:80", "b:80"}})
 	if err := cache.Close(); !errors.Is(err, closeErr) {
