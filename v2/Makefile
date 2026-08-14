@@ -6,7 +6,7 @@
         coverage \
         deps tools \
         test-runtime test-microgen test-contracts test-docs test-examples \
-        test-observability test-security test-api test-race test-vet test-modules \
+        test-observability test-security test-api test-boundaries test-race test-vet test-modules \
         release-check-clean verify-published verify verify-release
 
 # Default variables, overridable from the command line.
@@ -55,7 +55,7 @@ test-contracts:
 
 test-docs:
 	@echo ">>> Running documentation and UTF-8 verification..."
-	@go -C ./tools test -v . -run "Test(RepositoryTextFilesAreUTF8|DocumentationLinksResolve)" -count=1
+	@go -C ./tools test -v . -run "Test(RepositoryTextFilesAreUTF8|DocumentationLinksResolve|DocumentationDoesNotRecommendRemovedAPIs)" -count=1
 
 test-examples:
 	@echo ">>> Running example package tests..."
@@ -78,6 +78,10 @@ test-security:
 test-api:
 	@echo ">>> Verifying the reviewed public API surface..."
 	@go -C ./tools test -v . -run TestPublicAPISurfaceSnapshot -count=1
+
+test-boundaries:
+	@echo ">>> Verifying architecture and module dependency boundaries..."
+	@go -C ./tools test -v . -run "Test(ArchitectureDependencyGates|CoreModuleHasNoThirdPartyRequirements|MicrogenImplementationPackagesAreInternal|PublishableModulesDoNotUseLocalReplacements)" -count=1
 
 test-race:
 	@echo ">>> Running focused race tests..."
@@ -144,7 +148,7 @@ verify-published:
 verify: build test-runtime test-microgen test-docs test-examples test-observability test-security
 	@echo ">>> Verification pass completed."
 
-verify-release: verify test-contracts test-api test-race test-vet test-modules
+verify-release: verify test-contracts test-api test-boundaries test-race test-vet test-modules
 	@echo ">>> Release verification pass completed."
 
 ## install-microgen: build and install microgen into GOPATH/bin
@@ -311,6 +315,7 @@ help:
 	@echo "  make test-observability Test slog and optional OpenTelemetry adapters"
 	@echo "  make test-security Test optional HTTP security middleware"
 	@echo "  make test-api      Verify the reviewed exported API snapshot"
+	@echo "  make test-boundaries Verify architecture and module dependency boundaries"
 	@echo "  make test-race     Run focused race tests across release-critical packages"
 	@echo "  make test-vet      Run go vet across maintained modules"
 	@echo "  make test-modules  Verify all maintained go.mod files are tidy"

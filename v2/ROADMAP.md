@@ -469,13 +469,13 @@ These rules are enforced by tests or repository tooling, not only by review:
 | Package or module | Allowed non-standard dependency |
 | --- | --- |
 | `endpoint` | none |
-| `transport/http/...` | core endpoint packages only |
+| `transport/http/...` | core endpoint and protocol-neutral transport contracts only |
 | generic `sd/...` | core endpoint packages only |
 | `kit` | core endpoint and HTTP transport packages only |
 | `interaction` | none |
 | `interaction/mcp` | interaction only |
 | `security/http` | none |
-| `observability/slog` | core endpoint packages only |
+| `observability/slog` | core endpoint and protocol-neutral transport contracts only |
 | optional modules | only their declared provider SDK and core contracts |
 
 ### Completion Definition / 完成定义

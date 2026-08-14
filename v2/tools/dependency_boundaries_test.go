@@ -7,12 +7,108 @@ import (
 	"testing"
 )
 
+const coreModulePath = "github.com/dreamsxin/go-kit/v2"
+
+func TestArchitectureDependencyGates(t *testing.T) {
+	root := moduleRoot(t)
+	checks := []struct {
+		name         string
+		pattern      string
+		allowedExact []string
+		allowedTrees []string
+	}{
+		{
+			name:         "endpoint",
+			pattern:      "./endpoint/...",
+			allowedTrees: []string{coreModulePath + "/endpoint"},
+		},
+		{
+			name:         "http transport",
+			pattern:      "./transport/http/...",
+			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/transport"},
+			allowedTrees: []string{coreModulePath + "/transport/http"},
+		},
+		{
+			name:         "service discovery",
+			pattern:      "./sd/...",
+			allowedExact: []string{coreModulePath + "/endpoint"},
+			allowedTrees: []string{coreModulePath + "/sd"},
+		},
+		{
+			name:         "kit",
+			pattern:      "./kit",
+			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/transport"},
+			allowedTrees: []string{coreModulePath + "/kit", coreModulePath + "/transport/http"},
+		},
+		{
+			name:         "interaction",
+			pattern:      "./interaction",
+			allowedTrees: []string{coreModulePath + "/interaction"},
+		},
+		{
+			name:         "mcp interaction",
+			pattern:      "./interaction/mcp",
+			allowedExact: []string{coreModulePath + "/interaction"},
+			allowedTrees: []string{coreModulePath + "/interaction/mcp"},
+		},
+		{
+			name:         "http security",
+			pattern:      "./security/http",
+			allowedTrees: []string{coreModulePath + "/security/http"},
+		},
+		{
+			name:         "slog observability",
+			pattern:      "./observability/slog",
+			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/transport"},
+			allowedTrees: []string{coreModulePath + "/observability/slog"},
+		},
+	}
+
+	for _, check := range checks {
+		t.Run(check.name, func(t *testing.T) {
+			output := commandOutput(t, root, "go", "list", "-f", "{{.ImportPath}}|{{join .Imports \",\"}}", check.pattern)
+			for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+				parts := strings.SplitN(strings.TrimSpace(line), "|", 2)
+				if len(parts) != 2 {
+					t.Fatalf("unexpected go list output %q", line)
+				}
+				for _, importPath := range strings.Split(parts[1], ",") {
+					if importPath == "" || isStandardLibraryImport(importPath) {
+						continue
+					}
+					if !isAllowedImport(importPath, check.allowedExact, check.allowedTrees) {
+						t.Errorf("%s imports package outside its dependency gate: %q", parts[0], importPath)
+					}
+				}
+			}
+		})
+	}
+}
+
+func isStandardLibraryImport(importPath string) bool {
+	firstSegment := strings.SplitN(importPath, "/", 2)[0]
+	return !strings.Contains(firstSegment, ".")
+}
+
+func isAllowedImport(importPath string, exact, trees []string) bool {
+	for _, allowed := range exact {
+		if importPath == allowed {
+			return true
+		}
+	}
+	for _, allowed := range trees {
+		if importPath == allowed || strings.HasPrefix(importPath, allowed+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 func TestEndpointHasOnlyStandardLibraryImports(t *testing.T) {
 	root := moduleRoot(t)
 	output := commandOutput(t, root, "go", "list", "-f", "{{join .Imports \"\\n\"}}", "./endpoint")
 	for _, importPath := range strings.Fields(string(output)) {
-		firstSegment := strings.SplitN(importPath, "/", 2)[0]
-		if strings.Contains(firstSegment, ".") {
+		if !isStandardLibraryImport(importPath) {
 			t.Errorf("endpoint imports non-standard package %q", importPath)
 		}
 	}
