@@ -269,10 +269,11 @@ These are framework anti-patterns because they weaken separation between protoco
 
 ## Stability Notes
 
-Transport packages are stable public v2 APIs from v2.0.0 onward. The
-compatibility contract covers documented behavior, not internal execution
-details such as exact writer interception or internal request lifecycle
-structure.
+The published `v2.0.0` transport API remains a historical stable baseline. The
+approved `v2.1.0` SemVer exception resets the contract to the reviewed API
+snapshot. After `v2.1.0`, compatibility covers documented behavior, not
+internal execution details such as exact writer interception or internal
+request lifecycle structure.
 
 ## Related Docs
 

@@ -19,7 +19,7 @@ v2 文档按任务组织。当前行为写入使用与架构文档；长期实�
 | Execute the active direct v2 architecture refactor | [ROADMAP.md](ROADMAP.md) |
 | Prepare a service for production | [PRODUCTION.md](PRODUCTION.md) |
 | Move from v1 to v2 | [MIGRATION.md](MIGRATION.md) |
-| Change or release the repository | [MAINTAINING.md](MAINTAINING.md) and [RELEASE.md](RELEASE.md) |
+| Change or release the repository | [MAINTAINING.md](MAINTAINING.md), [RELEASE.md](RELEASE.md), and [RELEASE_MANIFEST.json](RELEASE_MANIFEST.json) |
 
 ## Package Guides
 

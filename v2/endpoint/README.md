@@ -219,8 +219,10 @@ Avoid:
 
 ## Stability Notes
 
-`endpoint` is a stable public v2 package from v2.0.0 onward. Its compatibility
-contract includes:
+The published `v2.0.0` endpoint API remains a historical stable baseline. The
+approved `v2.1.0` SemVer exception resets this package contract to the API
+reviewed in `tools/testdata/api_surface.sha256`. After `v2.1.0`, compatibility
+again covers:
 
 - `Endpoint`
 - `Middleware`

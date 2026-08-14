@@ -26,8 +26,8 @@ github.com/dreamsxin/go-kit/v2
 The published `v2.0.0` tag is the stable v2 baseline. The current `main/v2`
 source is an incompatible direct architecture refactor and is not source
 compatible with that tag. The repository owner approved publishing this
-refactor under `/v2` as a documented one-time SemVer exception. It remains
-development source until the remaining acceptance gates in
+refactor as the `v2.1.0` candidate under `/v2`, as a documented one-time SemVer
+exception. It remains development source until the remaining acceptance gates in
 [ROADMAP.md](ROADMAP.md) are complete. The repository root remains the v1
 module.
 
@@ -55,16 +55,23 @@ Install `microgen` while developing in this repository:
 go -C v2 install ./cmd/microgen
 ```
 
-Install the released generator:
+Install the generator from the published `v2.0.0` baseline:
 
 ```bash
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v2.0.0
 ```
 
-That command installs the generator for the published `v2.0.0` baseline. Its
+That command installs the historical generator from the root module. Its
 generated package graph does not match the incompatible refactor documented on
 this branch; use the repository-local install above when evaluating current
 `main/v2`.
+
+After the multi-module `v2.1.0` release is complete, install the refactored
+generator from its independent module:
+
+```bash
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.1.0
+```
 
 Create `idl.go`:
 

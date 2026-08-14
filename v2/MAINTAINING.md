@@ -142,16 +142,17 @@ relative and must resolve on a case-sensitive filesystem.
 
 ## Release Preparation
 
-1. Confirm the module path is `github.com/dreamsxin/go-kit/v2`.
+1. Review `RELEASE_MANIFEST.json` and confirm its phase, module paths, versions,
+   tags, and release order.
 2. Review exported API and generated-output diffs.
 3. Update `CHANGELOG.md`, `MIGRATION.md`, `RELEASE.md`, and `ROADMAP.md`.
 4. Commit the final release candidate.
-5. Run `make verify-release` from that committed candidate.
+5. Run `make verify-release` and `make verify-cross-platform` from that
+   committed candidate, or require the equivalent Linux/Windows CI jobs.
 6. Run `make release-check-clean` from the same commit.
-7. Create the annotated major-version tag `vX.Y.Z`. For v2.0.0, use
-   `git tag -a v2.0.0 -m "go-kit v2.0.0"`.
+7. Follow the phased core and nested-module tag sequence in `RELEASE.md`.
 
-Consumers install the module with version `vX.Y.Z`. The `v2` directory is the
-major-version module source directory, not a tag prefix.
+The root module uses a root `vX.Y.Z` tag. Nested modules use repository-relative
+directory-prefixed tags recorded in `RELEASE_MANIFEST.json`.
 
 See [RELEASE.md](RELEASE.md) for the compatibility policy.

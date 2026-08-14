@@ -3,7 +3,11 @@
 All notable v2 changes are recorded here. v1 history remains in the repository
 root.
 
-## Unreleased
+## [2.1.0] - Release Candidate
+
+This release is the explicitly approved one-time v2 SemVer exception. It is
+not source compatible with `v2.0.0`; follow [MIGRATION.md](MIGRATION.md) before
+upgrading. Normal v2 compatibility rules resume from this reset contract.
 
 ### Added
 
@@ -11,7 +15,8 @@ root.
   comparison against the published `v2.0.0` baseline.
 - A provider-neutral `kit.Lifecycle` contract and optional `kit/grpc`
   component for multi-server applications.
-- Public-module verification through `make verify-published VERSION=v2.0.0`.
+- Manifest-driven verification for the core and all independently versioned
+  modules through `make verify-published-core` and `make verify-published`.
 - A 4 MiB default success-response limit for `transport/http/client.NewJSONClient`,
   with an explicit constructor for larger contracts.
 - Transport-owned interaction session release through `Runtime.ReleaseSession`.
@@ -20,7 +25,7 @@ root.
 
 - The repository owner approved publishing the direct incompatible refactor
   under `/v2` as a documented one-time SemVer exception; `v2.0.0` remains
-  immutable and the refactor will use a new v2 tag selected at release time.
+  immutable and the root refactor candidate is `v2.1.0`.
 - The root runtime module now has no third-party requirements. gRPC, Consul,
   Gobreaker, rate limiting, Zap, and OpenTelemetry live in independent modules.
 - `microgen` implementation packages are internal, generated code uses direct

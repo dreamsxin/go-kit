@@ -1,5 +1,12 @@
 # Migrating From v1 To v2
 
+## v2.1.0 Compatibility Exception
+
+`v2.1.0` is an explicitly approved one-time SemVer exception: it is not source
+compatible with `v2.0.0`, even though the module path remains `/v2`. Existing
+v2 users must apply the direct-refactor package moves below before upgrading.
+After this contract reset, normal v2 compatibility rules resume.
+
 v2 is a new Go major-version module and does not preserve v1 source
 compatibility. Migrate one service at a time and review generated output instead
 of mechanically replacing every import in a repository.

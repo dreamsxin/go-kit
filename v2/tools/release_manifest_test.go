@@ -133,6 +133,16 @@ func TestReleaseManifestMatchesRepository(t *testing.T) {
 		t.Fatal("release manifest is missing integrations/grpc")
 	}
 	assertVersionText(t, filepath.Join(root, "cmd", "microgen", "templates", "go_mod.tmpl"), "github.com/dreamsxin/go-kit/v2/integrations/grpc "+grpcModule.Version)
+	microgenModule, ok := modulesByPath["github.com/dreamsxin/go-kit/v2/cmd/microgen"]
+	if !ok {
+		t.Fatal("release manifest is missing cmd/microgen")
+	}
+	for _, readme := range []string{"README.md", "README_zh.md"} {
+		path := filepath.Join(root, readme)
+		assertVersionText(t, path, manifest.CoreVersion)
+		assertVersionText(t, path, microgenModule.ModulePath+"@"+microgenModule.Version)
+	}
+	assertVersionText(t, filepath.Join(root, "CHANGELOG.md"), "## ["+strings.TrimPrefix(manifest.CoreVersion, "v")+"] - Release Candidate")
 
 	fixtureOutput := commandOutput(t, root, "git", "ls-files", "--", "tools/testdata/*/go.mod")
 	for _, relative := range strings.Fields(string(fixtureOutput)) {

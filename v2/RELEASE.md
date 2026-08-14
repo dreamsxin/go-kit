@@ -14,10 +14,10 @@ contract. On 2026-08-14, the repository owner approved publishing this refactor
 under `/v2` as a documented one-time SemVer exception instead of changing the
 module path to `/v3`.
 
-This approval fixes the publication path, but it does not authorize moving or
-recreating `v2.0.0`, skipping release gates, or creating a tag before a release
-version is selected. The incompatible release must use a previously unused v2
-tag and must identify the source break prominently in release notes,
+This approval fixes the publication path and `RELEASE_MANIFEST.json` selects
+`v2.1.0` as the root candidate. It does not authorize moving or recreating
+`v2.0.0`, skipping release gates, or creating tags before the candidate passes.
+The release must identify the source break prominently in release notes,
 [CHANGELOG.md](CHANGELOG.md), and [MIGRATION.md](MIGRATION.md). The reviewed
 dependency closure and baseline comparison are recorded in
 [DEPENDENCY_REPORT.md](DEPENDENCY_REPORT.md).
@@ -101,22 +101,14 @@ After the release candidate is committed, run:
 make release-check-clean
 ```
 
-This checks the committed v2 scope without rejecting unrelated repository-root
-work in progress.
-
-After all gates pass from that commit and the publication path is approved,
-create an annotated source tag from the repository root. Replace the example
-version with the approved, previously unused version:
-
-```bash
-git tag -a <version> -m "go-kit <version>"
-```
+This checks the committed v2 scope and the manifest phase without rejecting
+unrelated repository-root work in progress.
 
 The equivalent focused Go commands are:
 
 ```bash
 go test ./...
-go test -race ./kit ./interaction/... ./transport/... ./sd/...
+go test -race ./endpoint ./kit ./interaction/... ./transport/... ./sd/...
 go -C ./cmd/microgen test -race ./internal/generator
 go vet ./...
 ```
@@ -144,8 +136,8 @@ Also verify:
 - no temporary generated files remain;
 - the approved tag points at the verified commit containing the matching
   major-version module path;
-- after pushing the tag, `make verify-published VERSION=<version>` resolves the
-  module through `proxy.golang.org` without a local `replace`.
+- after pushing tags, the manifest-driven published checks resolve every module
+  through `proxy.golang.org` without a local `replace`.
 
 Intentional exported API changes must be reviewed before refreshing the API
 snapshot:
@@ -154,6 +146,77 @@ snapshot:
 go -C ./tools test . -run TestPublicAPISurfaceSnapshot -count=1 \
   -args -update-api-snapshot
 ```
+
+## v2.1.0 Multi-Module Release
+
+`RELEASE_MANIFEST.json` is the source of truth. The root and nested modules do
+not share one module version or one tag:
+
+- root runtime: `github.com/dreamsxin/go-kit/v2@v2.1.0`;
+- microgen and optional nested modules: independent `v0.1.0` releases;
+- examples and repository tools: not published as product modules.
+
+The release is deliberately phased because a nested module cannot require the
+new core version until the root tag is available through Go module resolution.
+
+### Phase 1: Core Candidate
+
+The manifest phase is `core-candidate`. All candidate tags must be absent.
+Core-dependent nested modules temporarily retain the last published core
+requirement while workspace tests exercise them against the local refactor.
+
+1. Require successful Linux and Windows `v2 verify` jobs for the candidate.
+2. Run `make release-check-clean` from the candidate commit.
+3. Create and push only the root tag:
+
+```bash
+git tag -a v2.1.0 -m "go-kit v2.1.0"
+git push origin v2.1.0
+make verify-published-core
+```
+
+### Phase 2: Nested Candidates
+
+After the root module resolves publicly:
+
+1. Change the manifest phase to `nested-candidate`.
+2. Change every `dependsOnCore` module requirement from `v2.0.0` to `v2.1.0`.
+3. Run `go mod tidy` and `GOWORK=off go test ./...` in every nested module.
+4. Commit and rerun the full Linux/Windows release workflow.
+5. Run `make release-check-clean`; it now requires the root tag and rejects any
+   nested tag that already exists.
+6. Create the manifest tags from that verified commit:
+
+```bash
+git tag -a v2/cmd/microgen/v0.1.0 -m "microgen v0.1.0"
+git tag -a v2/integrations/circuitbreaker/v0.1.0 -m "circuitbreaker v0.1.0"
+git tag -a v2/integrations/consul/v0.1.0 -m "consul integration v0.1.0"
+git tag -a v2/integrations/grpc/v0.1.0 -m "gRPC integration v0.1.0"
+git tag -a v2/integrations/ratelimit/v0.1.0 -m "rate-limit integration v0.1.0"
+git tag -a v2/integrations/zap/v0.1.0 -m "Zap integration v0.1.0"
+git tag -a v2/kit/grpc/v0.1.0 -m "kit gRPC component v0.1.0"
+git tag -a v2/observability/otel/v0.1.0 -m "OpenTelemetry integration v0.1.0"
+git push origin \
+  v2/cmd/microgen/v0.1.0 \
+  v2/integrations/circuitbreaker/v0.1.0 \
+  v2/integrations/consul/v0.1.0 \
+  v2/integrations/grpc/v0.1.0 \
+  v2/integrations/ratelimit/v0.1.0 \
+  v2/integrations/zap/v0.1.0 \
+  v2/kit/grpc/v0.1.0 \
+  v2/observability/otel/v0.1.0
+make verify-published
+```
+
+If the public proxy has not propagated a new tag yet, wait and rerun the
+published check. Do not bypass it with `GOPROXY=direct` or a local `replace`.
+
+### Phase 3: Release Record
+
+After every module resolves publicly, change the manifest phase to `released`,
+replace the changelog candidate marker with the release date, and commit the
+final release record. In this phase `make release-check-clean` requires every
+manifest tag to exist.
 
 ## Release Notes
 
