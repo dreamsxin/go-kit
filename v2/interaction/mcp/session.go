@@ -228,8 +228,12 @@ func (ss *sseSession) addGETWriter(id string, w *sseWriter) {
 // removeGETWriter unregisters a GET SSE writer.
 func (ss *sseSession) removeGETWriter(id string) {
 	ss.mu.Lock()
-	defer ss.mu.Unlock()
+	w := ss.getWriters[id]
 	delete(ss.getWriters, id)
+	ss.mu.Unlock()
+	if w != nil {
+		w.close()
+	}
 }
 
 // addPostWriter registers a POST-initiated SSE writer.
@@ -242,8 +246,12 @@ func (ss *sseSession) addPostWriter(id string, w *sseWriter) {
 // removePostWriter unregisters a POST-initiated SSE writer.
 func (ss *sseSession) removePostWriter(id string) {
 	ss.mu.Lock()
-	defer ss.mu.Unlock()
+	w := ss.postWriters[id]
 	delete(ss.postWriters, id)
+	ss.mu.Unlock()
+	if w != nil {
+		w.close()
+	}
 }
 
 func newSSEWriterID(prefix, sessionID string) (string, error) {

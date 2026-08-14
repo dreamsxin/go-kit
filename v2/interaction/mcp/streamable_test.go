@@ -76,6 +76,41 @@ func initSession(t *testing.T, handler http.Handler) string {
 	return sid
 }
 
+func TestSessionWriterRemovalClosesStream(t *testing.T) {
+	tests := []struct {
+		name   string
+		add    func(*sseSession, string, *sseWriter)
+		remove func(*sseSession, string)
+	}{
+		{name: "GET", add: (*sseSession).addGETWriter, remove: (*sseSession).removeGETWriter},
+		{name: "POST", add: (*sseSession).addPostWriter, remove: (*sseSession).removePostWriter},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sess := &sseSession{
+				getWriters:  make(map[string]*sseWriter),
+				postWriters: make(map[string]*sseWriter),
+			}
+			sw, err := newSSEWriter(httptest.NewRecorder())
+			if err != nil {
+				t.Fatalf("newSSEWriter: %v", err)
+			}
+			tt.add(sess, "writer", sw)
+			tt.remove(sess, "writer")
+
+			select {
+			case <-sw.Done():
+			default:
+				t.Fatal("removed SSE writer remains open")
+			}
+			if err := sw.writeEvent(json.RawMessage(`{"jsonrpc":"2.0"}`)); err == nil {
+				t.Fatal("removed SSE writer accepted an event")
+			}
+		})
+	}
+}
+
 // ─── StreamableHandler: initialization & sessions ────────────────────────────
 
 func TestStreamableInitialize(t *testing.T) {
