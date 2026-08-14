@@ -1,4 +1,4 @@
-package executor_test
+package retry_test
 
 import (
 	"context"
@@ -10,14 +10,11 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/balancer"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
-	"github.com/dreamsxin/go-kit/v2/sd/endpointer/balancer"
-	"github.com/dreamsxin/go-kit/v2/sd/endpointer/executor"
-	"github.com/dreamsxin/go-kit/v2/sd/events"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
-	"github.com/dreamsxin/go-kit/v2/sd/interfaces"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"github.com/dreamsxin/go-kit/v2/sd/retry"
 )
 
 var nopLogger = kitlog.NewNopLogger()
@@ -34,10 +31,10 @@ type transientError struct {
 
 func (transientError) Retryable() bool { return true }
 
-func newBalancer(t *testing.T, factory endpointer.Factory) interfaces.Balancer {
+func newBalancer(t *testing.T, factory endpointer.Factory) sd.Balancer {
 	t.Helper()
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
 	time.Sleep(20 * time.Millisecond)
 	ep := endpointer.NewEndpointer(cache, factory, nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
@@ -52,7 +49,7 @@ func TestRetry_SucceedsOnFirstAttempt(t *testing.T) {
 		return ep, io.NopCloser(nil), nil
 	})
 	lb := newBalancer(t, f)
-	ep := executor.Retry(3, time.Second, lb)
+	ep := retry.Retry(3, time.Second, lb)
 
 	resp, err := ep(context.Background(), nil)
 	if err != nil {
@@ -76,7 +73,7 @@ func TestRetry_SucceedsAfterFailures(t *testing.T) {
 		return ep, io.NopCloser(nil), nil
 	})
 	lb := newBalancer(t, f)
-	ep := executor.Retry(5, time.Second, lb)
+	ep := retry.Retry(5, time.Second, lb)
 
 	resp, err := ep(context.Background(), nil)
 	if err != nil {
@@ -95,7 +92,7 @@ func TestRetry_ExceedsMax(t *testing.T) {
 		return ep, io.NopCloser(nil), nil
 	})
 	lb := newBalancer(t, f)
-	ep := executor.Retry(3, time.Second, lb)
+	ep := retry.Retry(3, time.Second, lb)
 
 	_, err := ep(context.Background(), nil)
 	if err == nil {
@@ -113,7 +110,7 @@ func TestRetry_DoesNotRetryNonRetryableError(t *testing.T) {
 		return ep, io.NopCloser(nil), nil
 	})
 	lb := newBalancer(t, f)
-	ep := executor.Retry(5, time.Second, lb)
+	ep := retry.Retry(5, time.Second, lb)
 
 	_, err := ep(context.Background(), nil)
 	if err == nil {
@@ -133,7 +130,7 @@ func TestRetry_ContextCancelled(t *testing.T) {
 		return ep, io.NopCloser(nil), nil
 	})
 	lb := newBalancer(t, f)
-	ep := executor.Retry(10, time.Second, lb)
+	ep := retry.Retry(10, time.Second, lb)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
 	defer cancel()
@@ -153,7 +150,7 @@ func TestRetry_BackoffStopsOnContextCancel(t *testing.T) {
 	lb := newBalancer(t, f)
 
 	var cancel context.CancelFunc
-	ep := executor.RetryWithCallback(time.Second, lb, func(n int, _ error) (bool, error) {
+	ep := retry.WithCallback(time.Second, lb, func(n int, _ error) (bool, error) {
 		if n == 1 {
 			cancel()
 		}
@@ -172,27 +169,18 @@ func TestRetry_BackoffStopsOnContextCancel(t *testing.T) {
 	}
 }
 
-func TestDefaultRetryable_GRPCInvalidArgumentIsPermanent(t *testing.T) {
-	err := status.Error(codes.InvalidArgument, "bad request")
-	if executor.DefaultRetryable(err) {
-		t.Fatal("InvalidArgument should not be retryable")
-	}
-}
-
-func TestDefaultRetryable_UnknownErrorIsPermanent(t *testing.T) {
-	if executor.DefaultRetryable(errors.New("business failure")) {
+func TestDefaultClassifierUnknownErrorIsPermanent(t *testing.T) {
+	if retry.DefaultClassifier(errors.New("business failure")) {
 		t.Fatal("unknown errors should not be retryable")
 	}
 }
 
-func TestDefaultRetryable_KnownTransientErrors(t *testing.T) {
+func TestDefaultClassifierKnownTransientErrors(t *testing.T) {
 	for _, err := range []error{
 		transientError{errors.New("temporary")},
-		interfaces.ErrNoEndpoints,
-		status.Error(codes.Unavailable, "unavailable"),
-		status.Error(codes.ResourceExhausted, "busy"),
+		sd.ErrNoEndpoints,
 	} {
-		if !executor.DefaultRetryable(err) {
+		if !retry.DefaultClassifier(err) {
 			t.Fatalf("%v should be retryable", err)
 		}
 	}
@@ -210,7 +198,7 @@ func TestRetryWithCallback_StopsOnFalse(t *testing.T) {
 		return ep, io.NopCloser(nil), nil
 	})
 	lb := newBalancer(t, f)
-	ep := executor.RetryWithCallback(time.Second, lb,
+	ep := retry.WithCallback(time.Second, lb,
 		func(n int, _ error) (bool, error) {
 			return n < 2, nil // retry only once
 		},
@@ -234,14 +222,14 @@ func TestRetryWithCallback_ReplacesError(t *testing.T) {
 		return ep, io.NopCloser(nil), nil
 	})
 	lb := newBalancer(t, f)
-	ep := executor.RetryWithCallback(time.Second, lb,
+	ep := retry.WithCallback(time.Second, lb,
 		func(n int, _ error) (bool, error) {
 			return false, replacement
 		},
 	)
 
 	_, err := ep(context.Background(), nil)
-	var retryErr executor.RetryError
+	var retryErr retry.Error
 	if errors.As(err, &retryErr) {
 		if !errors.Is(retryErr.Final, replacement) {
 			t.Errorf("Final: got %v, want replacement", retryErr.Final)
@@ -254,7 +242,7 @@ func TestRetryWithCallback_ReplacesError(t *testing.T) {
 // ── RetryError ────────────────────────────────────────────────────────────────
 
 func TestRetryError_ErrorString_Single(t *testing.T) {
-	e := executor.RetryError{
+	e := retry.Error{
 		RawErrors: []error{errors.New("only error")},
 	}
 	if e.Error() != "only error" {
@@ -263,7 +251,7 @@ func TestRetryError_ErrorString_Single(t *testing.T) {
 }
 
 func TestRetryError_ErrorString_Multiple(t *testing.T) {
-	e := executor.RetryError{
+	e := retry.Error{
 		RawErrors: []error{errors.New("first"), errors.New("second")},
 	}
 	got := e.Error()

@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 
 	consul "github.com/hashicorp/consul/api"
 
 	"github.com/dreamsxin/go-kit/v2/log"
-	"github.com/dreamsxin/go-kit/v2/sd/events"
+	"github.com/dreamsxin/go-kit/v2/sd"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
-	"github.com/dreamsxin/go-kit/v2/utils"
 )
 
 const defaultIndex = 0
@@ -32,6 +32,8 @@ type Instancer struct {
 	wg          sync.WaitGroup
 	stopOnce    sync.Once
 }
+
+var _ sd.Instancer = (*Instancer)(nil)
 
 type InstancerOption func(*Instancer)
 
@@ -65,7 +67,7 @@ func NewInstancer(client Client, logger *log.Logger, service string, passingOnly
 	} else {
 		s.logger.Sugar().Debugln("err", err)
 	}
-	s.cache.Update(events.Event{Instances: instances, Err: err})
+	s.cache.Update(sd.Event{Instances: instances, Err: err})
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -98,25 +100,25 @@ func (s *Instancer) loop(lastIndex uint64) {
 			if !waitForRetry(d, s.ctx.Done()) {
 				return
 			}
-			d = utils.Exponential(d)
-			s.cache.Update(events.Event{Err: err})
+			d = nextDelay(d)
+			s.cache.Update(sd.Event{Err: err})
 		case index == defaultIndex:
 			s.logger.Sugar().Debugln("loop", "index is not sane", d.Seconds())
 			if !waitForRetry(d, s.ctx.Done()) {
 				return
 			}
-			d = utils.Exponential(d)
+			d = nextDelay(d)
 		case index < lastIndex:
 			s.logger.Sugar().Debugln("loop", "index is less than previous; resetting to default", d.Seconds())
 			lastIndex = defaultIndex
 			if !waitForRetry(d, s.ctx.Done()) {
 				return
 			}
-			d = utils.Exponential(d)
+			d = nextDelay(d)
 		default:
 			s.logger.Sugar().Debugln("loop", "default", "index", index)
 			lastIndex = index
-			s.cache.Update(events.Event{Instances: instances})
+			s.cache.Update(sd.Event{Instances: instances})
 			d = 10 * time.Millisecond
 		}
 	}
@@ -131,6 +133,15 @@ func waitForRetry(delay time.Duration, stop <-chan struct{}) bool {
 	case <-stop:
 		return false
 	}
+}
+
+func nextDelay(delay time.Duration) time.Duration {
+	delay *= 2
+	delay = time.Duration(float64(delay) * (rand.Float64() + 0.5))
+	if delay > time.Minute {
+		return time.Minute
+	}
+	return delay
 }
 
 // 获取实例列表
@@ -159,12 +170,12 @@ func (s *Instancer) getInstances(ctx context.Context, lastIndex uint64) ([]strin
 }
 
 // Register implements Instancer.
-func (s *Instancer) Register(ch chan events.Event) events.Event {
+func (s *Instancer) Register(ch chan sd.Event) sd.Event {
 	return s.cache.Register(ch)
 }
 
 // Deregister implements Instancer.
-func (s *Instancer) Deregister(ch chan events.Event) {
+func (s *Instancer) Deregister(ch chan sd.Event) {
 	s.cache.Deregister(ch)
 }
 

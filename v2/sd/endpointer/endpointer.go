@@ -6,8 +6,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/log"
-	"github.com/dreamsxin/go-kit/v2/sd/events"
-	"github.com/dreamsxin/go-kit/v2/sd/interfaces"
+	"github.com/dreamsxin/go-kit/v2/sd"
 )
 
 // Endpointer resolves a set of live Endpoints from a service-discovery source.
@@ -21,7 +20,7 @@ type Endpointer interface {
 // NewEndpointer creates an Endpointer that subscribes to src and builds
 // Endpoints using f.  It starts a background goroutine to process events;
 // call Close() on the returned value to stop it.
-func NewEndpointer(src interfaces.Instancer, f Factory, logger *log.Logger, options ...Option) Endpointer {
+func NewEndpointer(src sd.Instancer, f Factory, logger *log.Logger, options ...Option) Endpointer {
 	opts := Options{}
 	for _, opt := range options {
 		opt(&opts)
@@ -29,7 +28,7 @@ func NewEndpointer(src interfaces.Instancer, f Factory, logger *log.Logger, opti
 	se := &DefaultEndpointer{
 		cache:     NewCache(f, logger, opts),
 		instancer: src,
-		ch:        make(chan events.Event, 1),
+		ch:        make(chan sd.Event, 1),
 		done:      make(chan struct{}),
 	}
 	initial := src.Register(se.ch)
@@ -41,8 +40,8 @@ func NewEndpointer(src interfaces.Instancer, f Factory, logger *log.Logger, opti
 
 type DefaultEndpointer struct {
 	cache     *Cache
-	instancer interfaces.Instancer
-	ch        chan events.Event
+	instancer sd.Instancer
+	ch        chan sd.Event
 	done      chan struct{}
 	closeOnce sync.Once
 	receiveWG sync.WaitGroup

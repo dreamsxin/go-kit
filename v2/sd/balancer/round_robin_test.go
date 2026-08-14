@@ -8,9 +8,9 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/balancer"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
-	"github.com/dreamsxin/go-kit/v2/sd/endpointer/balancer"
-	"github.com/dreamsxin/go-kit/v2/sd/events"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
 )
 
@@ -27,7 +27,7 @@ func newEndpointer(t *testing.T, addrs ...string) endpointer.Endpointer {
 	ep := endpointer.NewEndpointer(cache, endpointer.Factory(echoFactory), nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 	if len(addrs) > 0 {
-		cache.Update(events.Event{Instances: addrs})
+		cache.Update(sd.Event{Instances: addrs})
 		time.Sleep(20 * time.Millisecond)
 	}
 	return ep

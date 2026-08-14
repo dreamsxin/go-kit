@@ -132,8 +132,8 @@ The v2 `Instancer` registration contract returns the initial snapshot
 synchronously:
 
 ```go
-Register(chan events.Event) events.Event
-Deregister(chan events.Event)
+Register(chan sd.Event) sd.Event
+Deregister(chan sd.Event)
 ```
 
 Custom instancers must return an immutable current event and publish later
@@ -145,13 +145,13 @@ with `WithMaxAttempts(n)`. The default is one attempt, and unknown errors are no
 retryable. Mark transient application errors with `Retryable() bool` when retrying
 them is safe.
 
-`sd.NewEndpoint` and `sd.NewEndpointWithDefaults` now return
+`sd/client.NewEndpoint` and `sd/client.NewEndpointWithDefaults` return
 `(endpoint.Endpoint, io.Closer, error)`. The former `NewEndpointCloser` duplicate
 was removed. Handle validation errors and close the returned resource before
 stopping the Instancer:
 
 ```go
-call, closer, err := sd.NewEndpoint(instancer, factory, logger)
+call, closer, err := sdclient.NewEndpoint(instancer, factory, logger)
 if err != nil {
     return err
 }

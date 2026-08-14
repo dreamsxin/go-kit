@@ -79,11 +79,13 @@ a business operation is safe to retry.
 
 ### `sd`
 
-`sd` converts discovered instances into endpoint sets and executes calls through
-balancers and optional retry strategies. Updates are snapshots, not mutable
-caller-owned slices. Cancellation must interrupt both calls and retry backoff.
-Constructors return explicit closers for subscription goroutines and
-factory-created client connections.
+The root `sd` package owns provider-neutral discovery contracts.
+`sd/endpointer`, `sd/balancer`, and `sd/retry` are independently usable runtime
+components; `sd/client` is their optional convenience composition. Updates are
+snapshots, not mutable caller-owned slices. Cancellation interrupts both calls
+and retry backoff. Constructors return explicit closers for subscription
+goroutines and factory-created client connections. Protocol retry classification
+belongs to the protocol adapter, not generic discovery.
 
 ### `interaction`
 

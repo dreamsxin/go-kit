@@ -14,7 +14,7 @@ import (
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/examples/profilesvc"
 	"github.com/dreamsxin/go-kit/v2/log"
-	"github.com/dreamsxin/go-kit/v2/sd"
+	sdclient "github.com/dreamsxin/go-kit/v2/sd/client"
 	"github.com/dreamsxin/go-kit/v2/sd/consul"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
 )
@@ -34,17 +34,17 @@ func New(consulAddr string, logger *log.Logger) (profilesvc.Service, io.Closer, 
 		consulService = "profilesvc"
 		passingOnly   = true
 	)
-	sdclient := consul.NewClient(apiclient)
-	instancer := consul.NewInstancer(sdclient, logger, consulService, passingOnly,
+	discoveryClient := consul.NewClient(apiclient)
+	instancer := consul.NewInstancer(discoveryClient, logger, consulService, passingOnly,
 		consul.TagsInstancerOptions([]string{"prod"}))
 	resources := &clientResources{stopInstancer: instancer.Stop}
 
-	sdOpts := []sd.Option{
-		sd.WithTimeout(500 * time.Millisecond),
+	sdOpts := []sdclient.Option{
+		sdclient.WithTimeout(500 * time.Millisecond),
 	}
 
 	newEndpoint := func(factory endpointer.Factory) (endpoint.Endpoint, error) {
-		ep, closer, err := sd.NewEndpoint(instancer, factory, logger, sdOpts...)
+		ep, closer, err := sdclient.NewEndpoint(instancer, factory, logger, sdOpts...)
 		if err != nil {
 			return nil, err
 		}

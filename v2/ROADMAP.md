@@ -137,7 +137,10 @@ release-path decision is made only after the refactor acceptance gates pass.
 - [ ] Work Package 1 race gate: rerun `go test -race ./endpoint` in CI or a
   local CGO environment with a C compiler. The current Windows environment has
   `CGO_ENABLED=0` and no `gcc` executable.
-- [ ] Work Packages 2-8.
+- [x] Work Package 2: service-discovery contracts now live in `sd`; balancing,
+  retry, endpointer, instance cache, and client composition have independent
+  packages. Generic SD dependency tests reject gRPC and Consul provider imports.
+- [ ] Work Packages 3-8.
 
 ### Refactor Goals / 重构目标
 

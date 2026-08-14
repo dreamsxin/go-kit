@@ -137,7 +137,7 @@ func newHTTPStatusError(r *http.Response) error {
 //	ep, _ := NewJSONClient[Resp](method, rawURL, options...)
 //	ep = endpoint.NewBuilder(ep).WithTimeout(timeout).Build()
 //
-// For retry with service discovery, use sd.NewEndpoint instead.
+// For retry with service discovery, use sd/client.NewEndpoint instead.
 //
 // Example:
 //

@@ -13,11 +13,10 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/balancer"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
-	"github.com/dreamsxin/go-kit/v2/sd/endpointer/balancer"
-	"github.com/dreamsxin/go-kit/v2/sd/endpointer/executor"
-	"github.com/dreamsxin/go-kit/v2/sd/events"
-	"github.com/dreamsxin/go-kit/v2/sd/interfaces"
+	"github.com/dreamsxin/go-kit/v2/sd/retry"
 )
 
 type retryableTestError struct {
@@ -31,17 +30,17 @@ func (retryableTestError) Retryable() bool { return true }
 // mockInstancer is a simple in-process Instancer driven by a channel.
 type mockInstancer struct {
 	mu          sync.Mutex
-	subscribers []chan events.Event
+	subscribers []chan sd.Event
 }
 
-func (m *mockInstancer) Register(ch chan events.Event) events.Event {
+func (m *mockInstancer) Register(ch chan sd.Event) sd.Event {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.subscribers = append(m.subscribers, ch)
-	return events.Event{}
+	return sd.Event{}
 }
 
-func (m *mockInstancer) Deregister(ch chan events.Event) {
+func (m *mockInstancer) Deregister(ch chan sd.Event) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	subs := m.subscribers[:0]
@@ -62,7 +61,7 @@ func (m *mockInstancer) Stop() {
 	m.subscribers = nil
 }
 
-func (m *mockInstancer) Broadcast(ev events.Event) {
+func (m *mockInstancer) Broadcast(ev sd.Event) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, ch := range m.subscribers {
@@ -110,7 +109,7 @@ func TestEndpointer_ReceivesInstances(t *testing.T) {
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
 	t.Cleanup(func() { _ = ep.Close() })
 
-	inst.Broadcast(events.Event{Instances: []string{"host1:80", "host2:80"}})
+	inst.Broadcast(sd.Event{Instances: []string{"host1:80", "host2:80"}})
 	time.Sleep(20 * time.Millisecond) // let the goroutine process
 
 	endpoints, err := ep.Endpoints()
@@ -127,10 +126,10 @@ func TestEndpointer_UpdateInstances(t *testing.T) {
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
 	t.Cleanup(func() { _ = ep.Close() })
 
-	inst.Broadcast(events.Event{Instances: []string{"a:80", "b:80", "c:80"}})
+	inst.Broadcast(sd.Event{Instances: []string{"a:80", "b:80", "c:80"}})
 	time.Sleep(20 * time.Millisecond)
 
-	inst.Broadcast(events.Event{Instances: []string{"a:80"}})
+	inst.Broadcast(sd.Event{Instances: []string{"a:80"}})
 	time.Sleep(20 * time.Millisecond)
 
 	endpoints, _ := ep.Endpoints()
@@ -148,7 +147,7 @@ func TestEndpointer_FactoryError(t *testing.T) {
 	ep := endpointer.NewEndpointer(inst, badFactory, newLogger(t))
 	t.Cleanup(func() { _ = ep.Close() })
 
-	inst.Broadcast(events.Event{Instances: []string{"bad:80"}})
+	inst.Broadcast(sd.Event{Instances: []string{"bad:80"}})
 	time.Sleep(20 * time.Millisecond)
 
 	endpoints, err := ep.Endpoints()
@@ -169,7 +168,7 @@ func TestRoundRobin_NoEndpoints(t *testing.T) {
 	rr := balancer.NewRoundRobin(ep)
 
 	_, err := rr.Endpoint()
-	if !errors.Is(err, interfaces.ErrNoEndpoints) {
+	if !errors.Is(err, sd.ErrNoEndpoints) {
 		t.Errorf("want ErrNoEndpoints, got %v", err)
 	}
 }
@@ -179,7 +178,7 @@ func TestRoundRobin_SingleEndpoint(t *testing.T) {
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
 	t.Cleanup(func() { _ = ep.Close() })
 
-	inst.Broadcast(events.Event{Instances: []string{"only:80"}})
+	inst.Broadcast(sd.Event{Instances: []string{"only:80"}})
 	time.Sleep(20 * time.Millisecond)
 
 	rr := balancer.NewRoundRobin(ep)
@@ -201,7 +200,7 @@ func TestRoundRobin_Distributes(t *testing.T) {
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
 	t.Cleanup(func() { _ = ep.Close() })
 
-	inst.Broadcast(events.Event{Instances: instances})
+	inst.Broadcast(sd.Event{Instances: instances})
 	time.Sleep(20 * time.Millisecond)
 
 	rr := balancer.NewRoundRobin(ep)
@@ -256,7 +255,7 @@ func TestRetry_SuccessFirstTry(t *testing.T) {
 	b := fixedBalancer{ep: func(ctx context.Context, req interface{}) (interface{}, error) {
 		return want, nil
 	}}
-	ep := executor.Retry(3, time.Second, b)
+	ep := retry.Retry(3, time.Second, b)
 	resp, err := ep(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -268,7 +267,7 @@ func TestRetry_SuccessFirstTry(t *testing.T) {
 
 func TestRetry_SuccessAfterRetries(t *testing.T) {
 	cb := &countingBalancer{threshold: 3}
-	ep := executor.Retry(5, time.Second, cb)
+	ep := retry.Retry(5, time.Second, cb)
 	resp, err := ep(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error after retries: %v", err)
@@ -281,12 +280,12 @@ func TestRetry_SuccessAfterRetries(t *testing.T) {
 func TestRetry_ExhaustsMaxAttempts(t *testing.T) {
 	fail := retryableTestError{errors.New("always fail")}
 	b := errorBalancer{err: fail}
-	ep := executor.Retry(3, time.Second, b)
+	ep := retry.Retry(3, time.Second, b)
 	_, err := ep(context.Background(), nil)
 	if err == nil {
 		t.Fatal("expected error after exhausting retries, got nil")
 	}
-	var retErr executor.RetryError
+	var retErr retry.Error
 	if !errors.As(err, &retErr) {
 		t.Fatalf("expected RetryError, got %T: %v", err, err)
 	}
@@ -305,7 +304,7 @@ func TestRetry_Timeout(t *testing.T) {
 			return "ok", nil
 		}
 	}}
-	ep := executor.Retry(10, 50*time.Millisecond, b)
+	ep := retry.Retry(10, 50*time.Millisecond, b)
 	_, err := ep(context.Background(), nil)
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
@@ -323,7 +322,7 @@ func TestRetry_RetryWithCallback(t *testing.T) {
 	}}
 
 	cbCalls := 0
-	ep := executor.RetryWithCallback(time.Second, b, func(n int, err error) (bool, error) {
+	ep := retry.WithCallback(time.Second, b, func(n int, err error) (bool, error) {
 		cbCalls++
 		return n < 5, nil
 	})

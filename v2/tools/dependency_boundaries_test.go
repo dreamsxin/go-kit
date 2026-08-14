@@ -16,6 +16,27 @@ func TestEndpointHasOnlyStandardLibraryImports(t *testing.T) {
 	}
 }
 
+func TestGenericServiceDiscoveryDoesNotDependOnProviders(t *testing.T) {
+	root := moduleRoot(t)
+	packages := []string{
+		"./sd",
+		"./sd/balancer",
+		"./sd/client",
+		"./sd/endpointer",
+		"./sd/instance",
+		"./sd/retry",
+	}
+	args := []string{"list", "-deps", "-f", "{{.ImportPath}}"}
+	args = append(args, packages...)
+	output := commandOutput(t, root, "go", args...)
+	for _, importPath := range strings.Fields(string(output)) {
+		if strings.HasPrefix(importPath, "google.golang.org/grpc") ||
+			strings.HasPrefix(importPath, "github.com/hashicorp/consul") {
+			t.Errorf("generic service discovery resolves provider package %q", importPath)
+		}
+	}
+}
+
 func moduleRoot(t *testing.T) string {
 	t.Helper()
 	cwd := commandOutput(t, ".", "go", "env", "GOMOD")

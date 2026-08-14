@@ -4,7 +4,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/dreamsxin/go-kit/v2/sd/events"
+	"github.com/dreamsxin/go-kit/v2/sd"
 )
 
 // Cache is an in-memory Instancer backed by explicit Update calls.
@@ -12,9 +12,11 @@ import (
 // where no external service registry is available.
 type Cache struct {
 	mtx   sync.RWMutex
-	state events.Event
+	state sd.Event
 	reg   registry
 }
+
+var _ sd.Instancer = (*Cache)(nil)
 
 func NewCache() *Cache {
 	return &Cache{
@@ -25,7 +27,7 @@ func NewCache() *Cache {
 // Update sets the current instance list (or error) and broadcasts the event
 // to all registered subscribers.  Duplicate events (same instances + error)
 // are silently dropped.
-func (c *Cache) Update(event events.Event) {
+func (c *Cache) Update(event sd.Event) {
 	event = copyEvent(event)
 	if event.Instances != nil {
 		sort.Strings(event.Instances)
@@ -45,7 +47,7 @@ func (c *Cache) Update(event events.Event) {
 }
 
 // State returns a copy of the most recently broadcast event.
-func (c *Cache) State() events.Event {
+func (c *Cache) State() sd.Event {
 	c.mtx.RLock()
 	event := c.state
 	c.mtx.RUnlock()
@@ -53,12 +55,9 @@ func (c *Cache) State() events.Event {
 	return eventCopy
 }
 
-// 预留
-func (c *Cache) Stop() {}
-
 // Register subscribes ch to future events and synchronously returns the current
 // state so callers can initialize before processing asynchronous updates.
-func (c *Cache) Register(ch chan events.Event) events.Event {
+func (c *Cache) Register(ch chan sd.Event) sd.Event {
 	if ch == nil {
 		return c.State()
 	}
@@ -71,14 +70,14 @@ func (c *Cache) Register(ch chan events.Event) events.Event {
 }
 
 // Deregister removes ch from the subscriber list.
-func (c *Cache) Deregister(ch chan events.Event) {
+func (c *Cache) Deregister(ch chan sd.Event) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	c.reg.deregister(ch)
 }
 
 // eventsEqual compares two events without external dependencies.
-func eventsEqual(a, b events.Event) bool {
+func eventsEqual(a, b sd.Event) bool {
 	if a.Err != b.Err {
 		return false
 	}

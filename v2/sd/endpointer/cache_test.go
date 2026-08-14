@@ -9,7 +9,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
-	"github.com/dreamsxin/go-kit/v2/sd/events"
+	"github.com/dreamsxin/go-kit/v2/sd"
 )
 
 type nopCloser struct{ closed bool }
@@ -33,7 +33,7 @@ func TestCacheUpdateAndEndpoints(t *testing.T) {
 		"host2:8080": ep2,
 	}), kitlog.NewNopLogger(), Options{})
 
-	cache.Update(events.Event{Instances: []string{"host1:8080", "host2:8080"}})
+	cache.Update(sd.Event{Instances: []string{"host1:8080", "host2:8080"}})
 	endpoints, err := cache.Endpoints()
 	if err != nil || len(endpoints) != 2 {
 		t.Fatalf("Endpoints = %v, %v; want two endpoints", endpoints, err)
@@ -56,8 +56,8 @@ func TestCacheUpdateRemovesOld(t *testing.T) {
 		return endpoint.Nop, &nopCloser{}, nil
 	}, kitlog.NewNopLogger(), Options{})
 
-	cache.Update(events.Event{Instances: []string{"A"}})
-	cache.Update(events.Event{Instances: []string{"B"}})
+	cache.Update(sd.Event{Instances: []string{"A"}})
+	cache.Update(sd.Event{Instances: []string{"B"}})
 	if factoryCalls != 2 || !closerA.closed {
 		t.Fatalf("factory calls=%d closerA.closed=%v", factoryCalls, closerA.closed)
 	}
@@ -70,8 +70,8 @@ func TestCacheReusesSameInstance(t *testing.T) {
 		return endpoint.Nop, &nopCloser{}, nil
 	}, kitlog.NewNopLogger(), Options{})
 
-	cache.Update(events.Event{Instances: []string{"host:80"}})
-	cache.Update(events.Event{Instances: []string{"host:80"}})
+	cache.Update(sd.Event{Instances: []string{"host:80"}})
+	cache.Update(sd.Event{Instances: []string{"host:80"}})
 	if factoryCalls != 1 {
 		t.Fatalf("factory calls = %d, want 1", factoryCalls)
 	}
@@ -83,7 +83,7 @@ func TestCacheDoesNotMutateInstances(t *testing.T) {
 		return endpoint.Nop, nil, nil
 	}, kitlog.NewNopLogger(), Options{})
 
-	cache.Update(events.Event{Instances: instances})
+	cache.Update(sd.Event{Instances: instances})
 	if instances[0] != "b:80" || instances[1] != "a:80" {
 		t.Fatalf("Update mutated caller instances: %v", instances)
 	}
@@ -91,8 +91,8 @@ func TestCacheDoesNotMutateInstances(t *testing.T) {
 
 func TestCacheErrorEventWithoutInvalidation(t *testing.T) {
 	cache := NewCache(makeFactory(map[string]endpoint.Endpoint{"h:1": endpoint.Nop}), kitlog.NewNopLogger(), Options{})
-	cache.Update(events.Event{Instances: []string{"h:1"}})
-	cache.Update(events.Event{Err: errors.New("consul down")})
+	cache.Update(sd.Event{Instances: []string{"h:1"}})
+	cache.Update(sd.Event{Err: errors.New("consul down")})
 
 	endpoints, err := cache.Endpoints()
 	if err != nil || len(endpoints) != 1 {
@@ -106,8 +106,8 @@ func TestCacheErrorEventWithInvalidation(t *testing.T) {
 		InvalidateOnError: true,
 		InvalidateTimeout: timeout,
 	})
-	cache.Update(events.Event{Instances: []string{"h:1"}})
-	cache.Update(events.Event{Err: errors.New("sd error")})
+	cache.Update(sd.Event{Instances: []string{"h:1"}})
+	cache.Update(sd.Event{Err: errors.New("sd error")})
 
 	if endpoints, err := cache.Endpoints(); err != nil || len(endpoints) != 1 {
 		t.Fatalf("before deadline: endpoints=%v err=%v", endpoints, err)
@@ -120,8 +120,8 @@ func TestCacheErrorEventWithInvalidation(t *testing.T) {
 
 func TestCacheEmptyUpdate(t *testing.T) {
 	cache := NewCache(makeFactory(map[string]endpoint.Endpoint{"h:1": endpoint.Nop}), kitlog.NewNopLogger(), Options{})
-	cache.Update(events.Event{Instances: []string{"h:1"}})
-	cache.Update(events.Event{})
+	cache.Update(sd.Event{Instances: []string{"h:1"}})
+	cache.Update(sd.Event{})
 	if endpoints, err := cache.Endpoints(); err != nil || len(endpoints) != 0 {
 		t.Fatalf("Endpoints = %v, %v; want empty cache", endpoints, err)
 	}
@@ -142,7 +142,7 @@ func TestCacheCloseReleasesResourcesAndRejectsUpdates(t *testing.T) {
 		}), nil
 	}, kitlog.NewNopLogger(), Options{})
 
-	cache.Update(events.Event{Instances: []string{"a:80", "b:80"}})
+	cache.Update(sd.Event{Instances: []string{"a:80", "b:80"}})
 	if err := cache.Close(); !errors.Is(err, closeErr) {
 		t.Fatalf("Close error = %v, want joined close error", err)
 	}
@@ -155,7 +155,7 @@ func TestCacheCloseReleasesResourcesAndRejectsUpdates(t *testing.T) {
 	if _, err := cache.Endpoints(); !errors.Is(err, ErrCacheClosed) {
 		t.Fatalf("Endpoints error = %v, want ErrCacheClosed", err)
 	}
-	cache.Update(events.Event{Instances: []string{"c:80"}})
+	cache.Update(sd.Event{Instances: []string{"c:80"}})
 	if factoryCalls != 2 {
 		t.Fatalf("factory called after Close: %d calls", factoryCalls)
 	}

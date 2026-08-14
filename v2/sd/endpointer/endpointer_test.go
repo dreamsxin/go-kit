@@ -9,8 +9,8 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	"github.com/dreamsxin/go-kit/v2/sd"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
-	"github.com/dreamsxin/go-kit/v2/sd/events"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
 )
 
@@ -42,7 +42,7 @@ func TestNewEndpointer_ReceivesInstances(t *testing.T) {
 	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 
-	cache.Update(events.Event{Instances: []string{"a:80", "b:80"}})
+	cache.Update(sd.Event{Instances: []string{"a:80", "b:80"}})
 	time.Sleep(20 * time.Millisecond)
 
 	eps, err := ep.Endpoints()
@@ -59,10 +59,10 @@ func TestNewEndpointer_UpdateInstances(t *testing.T) {
 	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 
-	cache.Update(events.Event{Instances: []string{"a:80", "b:80", "c:80"}})
+	cache.Update(sd.Event{Instances: []string{"a:80", "b:80", "c:80"}})
 	time.Sleep(20 * time.Millisecond)
 
-	cache.Update(events.Event{Instances: []string{"a:80"}})
+	cache.Update(sd.Event{Instances: []string{"a:80"}})
 	time.Sleep(20 * time.Millisecond)
 
 	eps, err := ep.Endpoints()
@@ -87,7 +87,7 @@ func TestNewEndpointer_FactoryError_SkipsInstance(t *testing.T) {
 	ep := endpointer.NewEndpointer(cache, failFactory, nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 
-	cache.Update(events.Event{Instances: []string{"good:80", "bad:80"}})
+	cache.Update(sd.Event{Instances: []string{"good:80", "bad:80"}})
 	time.Sleep(20 * time.Millisecond)
 
 	eps, err := ep.Endpoints()
@@ -107,7 +107,7 @@ func TestNewEndpointer_WithInvalidateOnError(t *testing.T) {
 	)
 	t.Cleanup(func() { _ = ep.Close() })
 
-	cache.Update(events.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
 	time.Sleep(20 * time.Millisecond)
 
 	// healthy
@@ -117,7 +117,7 @@ func TestNewEndpointer_WithInvalidateOnError(t *testing.T) {
 	}
 
 	// inject error
-	cache.Update(events.Event{Err: errors.New("sd error")})
+	cache.Update(sd.Event{Err: errors.New("sd error")})
 	time.Sleep(10 * time.Millisecond)
 
 	// within grace period — still returns cached
@@ -141,8 +141,8 @@ func TestDefaultEndpointer_CloseIsIdempotentAndSafeDuringUpdate(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		for i := 0; i < 100; i++ {
-			cache.Update(events.Event{Instances: []string{"svc:80"}})
-			cache.Update(events.Event{Instances: []string{"svc2:80"}})
+			cache.Update(sd.Event{Instances: []string{"svc:80"}})
+			cache.Update(sd.Event{Instances: []string{"svc2:80"}})
 		}
 		close(done)
 	}()
@@ -165,7 +165,7 @@ func TestDefaultEndpointer_CloseIsIdempotentAndSafeDuringUpdate(t *testing.T) {
 
 func TestDefaultEndpointer_CloseReleasesEndpointResources(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
 	closed := make(chan struct{})
 	factory := endpointer.Factory(func(string) (endpoint.Endpoint, io.Closer, error) {
 		return endpoint.Nop, closerFunc(func() error {

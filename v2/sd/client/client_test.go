@@ -1,4 +1,4 @@
-package sd_test
+package client_test
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/sd"
+	sdclient "github.com/dreamsxin/go-kit/v2/sd/client"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
-	"github.com/dreamsxin/go-kit/v2/sd/events"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
 )
 
@@ -25,9 +25,9 @@ func nopFactory(addr string) (endpoint.Endpoint, io.Closer, error) {
 
 func nopLogger() *kitlog.Logger { return kitlog.NewNopLogger() }
 
-func newTestEndpoint(t *testing.T, cache *instance.Cache, opts ...sd.Option) endpoint.Endpoint {
+func newTestEndpoint(t *testing.T, cache *instance.Cache, opts ...sdclient.Option) endpoint.Endpoint {
 	t.Helper()
-	ep, closer, err := sd.NewEndpoint(cache, endpointer.Factory(nopFactory), nopLogger(), opts...)
+	ep, closer, err := sdclient.NewEndpoint(cache, endpointer.Factory(nopFactory), nopLogger(), opts...)
 	if err != nil {
 		t.Fatalf("NewEndpoint: %v", err)
 	}
@@ -43,7 +43,7 @@ func newTestEndpoint(t *testing.T, cache *instance.Cache, opts ...sd.Option) end
 
 func TestNewEndpoint_CallsInstance(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"host:80"}})
+	cache.Update(sd.Event{Instances: []string{"host:80"}})
 	time.Sleep(10 * time.Millisecond)
 
 	ep := newTestEndpoint(t, cache)
@@ -58,12 +58,12 @@ func TestNewEndpoint_CallsInstance(t *testing.T) {
 
 func TestNewEndpoint_RoundRobin(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"a:80", "b:80"}})
+	cache.Update(sd.Event{Instances: []string{"a:80", "b:80"}})
 	time.Sleep(10 * time.Millisecond)
 
 	ep := newTestEndpoint(t, cache,
-		sd.WithMaxAttempts(1),
-		sd.WithTimeout(time.Second),
+		sdclient.WithMaxAttempts(1),
+		sdclient.WithTimeout(time.Second),
 	)
 
 	seen := map[string]int{}
@@ -81,13 +81,13 @@ func TestNewEndpoint_RoundRobin(t *testing.T) {
 
 func TestNewEndpoint_WithOptions(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
 	time.Sleep(10 * time.Millisecond)
 
 	ep := newTestEndpoint(t, cache,
-		sd.WithMaxAttempts(2),
-		sd.WithTimeout(500*time.Millisecond),
-		sd.WithInvalidateOnError(5*time.Second),
+		sdclient.WithMaxAttempts(2),
+		sdclient.WithTimeout(500*time.Millisecond),
+		sdclient.WithInvalidateOnError(5*time.Second),
 	)
 	resp, err := ep(context.Background(), nil)
 	if err != nil {
@@ -102,10 +102,10 @@ func TestNewEndpoint_WithOptions(t *testing.T) {
 
 func TestNewEndpointWithDefaults(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"default:80"}})
+	cache.Update(sd.Event{Instances: []string{"default:80"}})
 	time.Sleep(10 * time.Millisecond)
 
-	ep, closer, err := sd.NewEndpointWithDefaults(cache, endpointer.Factory(nopFactory), nopLogger())
+	ep, closer, err := sdclient.NewEndpointWithDefaults(cache, endpointer.Factory(nopFactory), nopLogger())
 	if err != nil {
 		t.Fatalf("NewEndpointWithDefaults: %v", err)
 	}
@@ -126,21 +126,21 @@ func TestNewEndpoint_RejectsInvalidConfiguration(t *testing.T) {
 		src     *instance.Cache
 		factory endpointer.Factory
 		logger  *kitlog.Logger
-		opts    []sd.Option
+		opts    []sdclient.Option
 		want    string
 	}{
 		{name: "nil instancer", factory: nopFactory, logger: nopLogger(), want: "instancer is nil"},
 		{name: "nil factory", src: cache, logger: nopLogger(), want: "factory is nil"},
 		{name: "nil logger", src: cache, factory: nopFactory, want: "logger is nil"},
-		{name: "attempts", src: cache, factory: nopFactory, logger: nopLogger(), opts: []sd.Option{sd.WithMaxAttempts(0)}, want: "max attempts"},
-		{name: "timeout", src: cache, factory: nopFactory, logger: nopLogger(), opts: []sd.Option{sd.WithTimeout(0)}, want: "timeout"},
-		{name: "invalidation", src: cache, factory: nopFactory, logger: nopLogger(), opts: []sd.Option{sd.WithInvalidateOnError(-time.Second)}, want: "invalidate-on-error"},
-		{name: "nil option", src: cache, factory: nopFactory, logger: nopLogger(), opts: []sd.Option{nil}, want: "option 0 is nil"},
+		{name: "attempts", src: cache, factory: nopFactory, logger: nopLogger(), opts: []sdclient.Option{sdclient.WithMaxAttempts(0)}, want: "max attempts"},
+		{name: "timeout", src: cache, factory: nopFactory, logger: nopLogger(), opts: []sdclient.Option{sdclient.WithTimeout(0)}, want: "timeout"},
+		{name: "invalidation", src: cache, factory: nopFactory, logger: nopLogger(), opts: []sdclient.Option{sdclient.WithInvalidateOnError(-time.Second)}, want: "invalidate-on-error"},
+		{name: "nil option", src: cache, factory: nopFactory, logger: nopLogger(), opts: []sdclient.Option{nil}, want: "option 0 is nil"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, closer, err := sd.NewEndpoint(tt.src, tt.factory, tt.logger, tt.opts...)
+			_, closer, err := sdclient.NewEndpoint(tt.src, tt.factory, tt.logger, tt.opts...)
 			if closer != nil {
 				t.Fatal("invalid construction returned a closer")
 			}
@@ -153,7 +153,7 @@ func TestNewEndpoint_RejectsInvalidConfiguration(t *testing.T) {
 
 func TestNewEndpoint_CloserReleasesFactoryResources(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
 	closed := false
 	factory := endpointer.Factory(func(string) (endpoint.Endpoint, io.Closer, error) {
 		return endpoint.Nop, closerFunc(func() error {
@@ -162,7 +162,7 @@ func TestNewEndpoint_CloserReleasesFactoryResources(t *testing.T) {
 		}), nil
 	})
 
-	ep, closer, err := sd.NewEndpoint(cache, factory, nopLogger())
+	ep, closer, err := sdclient.NewEndpoint(cache, factory, nopLogger())
 	if err != nil {
 		t.Fatalf("NewEndpoint: %v", err)
 	}

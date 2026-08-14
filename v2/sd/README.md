@@ -1,13 +1,15 @@
-# sd — Service Discovery
+# sd - Service Discovery
 
-The `sd` package wires together service discovery, load balancing, and retry
-into a single callable `endpoint.Endpoint`.
+The root `sd` package owns the protocol-neutral `Event`, `Instancer`,
+`Registrar`, `Balancer`, and `ErrNoEndpoints` contracts. Concrete components
+live in focused subpackages and can be used independently.
 
 ## Quick start (no Consul needed)
 
 ```go
 import (
     "github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/client"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
     "github.com/dreamsxin/go-kit/v2/sd/instance"
 )
@@ -18,11 +20,11 @@ factory := endpointer.Factory(func(instance string) (endpoint.Endpoint, io.Close
 
 // In-memory instancer — perfect for tests and local dev
 cache := instance.NewCache()
-cache.Update(events.Event{Instances: []string{"host1:8080", "host2:8080"}})
+cache.Update(sd.Event{Instances: []string{"host1:8080", "host2:8080"}})
 
-ep, closer, err := sd.NewEndpoint(cache, factory, logger,
-    sd.WithMaxAttempts(3),
-    sd.WithTimeout(500*time.Millisecond),
+ep, closer, err := client.NewEndpoint(cache, factory, logger,
+    client.WithMaxAttempts(3),
+    client.WithTimeout(500*time.Millisecond),
 )
 if err != nil {
     return err
@@ -34,14 +36,17 @@ resp, err := ep(ctx, request)
 ## With Consul
 
 ```go
-import "github.com/dreamsxin/go-kit/v2/sd/consul"
+import (
+	"github.com/dreamsxin/go-kit/v2/sd/client"
+	"github.com/dreamsxin/go-kit/v2/sd/consul"
+)
 
 instancer := consul.NewInstancer(consulClient, logger, "my-service", true)
 
-ep, closer, err := sd.NewEndpoint(instancer, factory, logger,
-    sd.WithMaxAttempts(3),
-    sd.WithTimeout(500*time.Millisecond),
-    sd.WithInvalidateOnError(5*time.Second),
+ep, closer, err := client.NewEndpoint(instancer, factory, logger,
+    client.WithMaxAttempts(3),
+    client.WithTimeout(500*time.Millisecond),
+    client.WithInvalidateOnError(5*time.Second),
 )
 if err != nil {
     instancer.Stop()
@@ -75,21 +80,21 @@ Each layer is independently usable:
 ep   := endpointer.NewEndpointer(instancer, factory, logger)
 defer ep.Close()
 lb   := balancer.NewRoundRobin(ep)
-call := executor.Retry(3, 500*time.Millisecond, lb)
+call := retry.Retry(3, 500*time.Millisecond, lb)
 ```
 
 For low-level assembly, cache invalidation is configured with
-`endpointer.InvalidateOnError`. The higher-level `sd.NewEndpoint` constructor
-exposes the equivalent `sd.WithInvalidateOnError` option.
+`endpointer.InvalidateOnError`. The higher-level `client.NewEndpoint`
+constructor exposes the equivalent `client.WithInvalidateOnError` option.
 
 ## Retry strategies
 
 ```go
 // Fixed max attempts
-executor.Retry(3, time.Second, lb)
+retry.Retry(3, time.Second, lb)
 
 // Production calls should provide an explicit retry classifier.
-executor.RetryWithRetryable(time.Second, lb,
+retry.WithClassifier(time.Second, lb,
     func(n int, err error) (keepTrying bool, replacement error) {
         return n < 5, nil
     },
@@ -100,10 +105,10 @@ executor.RetryWithRetryable(time.Second, lb,
 )
 ```
 
-The default classifier retries explicit `Retryable() == true` errors,
-no-endpoint discovery errors, and known transient gRPC statuses. Unknown errors
-are permanent. Use a domain-specific classifier when write safety or business
-error semantics matter.
+The default classifier retries explicit `Retryable() == true` errors and
+temporary no-endpoint conditions. Unknown and protocol errors are permanent.
+For gRPC, pass `transport/grpc.Retryable` explicitly through
+`client.WithRetryable`; domain write safety remains an application decision.
 
 `Endpointer.Close` waits for its update loop and closes all resources returned
 by the endpoint factory. Treat the closer as part of the constructor contract,

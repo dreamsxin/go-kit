@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/dreamsxin/go-kit/v2/log"
+	"github.com/dreamsxin/go-kit/v2/sd"
 
 	stdconsul "github.com/hashicorp/consul/api"
 )
@@ -14,6 +15,8 @@ type Registrar struct {
 	registration *stdconsul.AgentServiceRegistration
 	logger       *log.Logger
 }
+
+var _ sd.Registrar = (*Registrar)(nil)
 
 type RegistrarOption func(*Registrar)
 

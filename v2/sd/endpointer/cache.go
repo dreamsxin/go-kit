@@ -9,7 +9,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/log"
-	"github.com/dreamsxin/go-kit/v2/sd/events"
+	"github.com/dreamsxin/go-kit/v2/sd"
 )
 
 // Factory creates an endpoint for a discovered service instance. The closer,
@@ -74,7 +74,7 @@ func NewCache(factory Factory, logger *log.Logger, options Options) *Cache {
 }
 
 // Update reconciles the cache with a service-discovery event.
-func (c *Cache) Update(event events.Event) {
+func (c *Cache) Update(event sd.Event) {
 	c.mtx.Lock()
 	if c.closed {
 		c.mtx.Unlock()

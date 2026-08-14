@@ -54,7 +54,7 @@ deployment boundary.
 Always set a client timeout or request deadline. JSON clients return
 `HTTPStatusError` for non-2xx responses and bound the captured error body.
 
-`NewJSONClientWithTimeout` adds a per-call context timeout. Use `sd.NewEndpoint`
+`NewJSONClientWithTimeout` adds a per-call context timeout. Use `sd/client.NewEndpoint`
 and an explicit retry policy when retries are actually required.
 
 Retry only operations whose idempotency and error classification are known.
@@ -72,7 +72,7 @@ Unknown business errors should not be assumed transient.
 
 Discovery subscribers receive immutable snapshots. Consumers should use buffered
 update channels and must deregister or close their endpointer during shutdown.
-`sd.NewEndpoint` returns `(endpoint, closer, error)`; treat the closer as owned
+`sd/client.NewEndpoint` returns `(endpoint, closer, error)`; treat the closer as owned
 runtime state. Close it before stopping the Instancer so subscriptions are
 removed and factory-created client connections are released.
 

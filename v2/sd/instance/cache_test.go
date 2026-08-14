@@ -6,18 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dreamsxin/go-kit/v2/sd/events"
+	"github.com/dreamsxin/go-kit/v2/sd"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
 )
 
 // ─────────────────────────── helpers ───────────────────────────
 
-func drain(ch <-chan events.Event, timeout time.Duration) (events.Event, bool) {
+func drain(ch <-chan sd.Event, timeout time.Duration) (sd.Event, bool) {
 	select {
 	case ev := <-ch:
 		return ev, true
 	case <-time.After(timeout):
-		return events.Event{}, false
+		return sd.Event{}, false
 	}
 }
 
@@ -33,7 +33,7 @@ func TestCache_InitialStateEmpty(t *testing.T) {
 
 func TestCache_UpdateSetsState(t *testing.T) {
 	c := instance.NewCache()
-	c.Update(events.Event{Instances: []string{"a:80", "b:80"}})
+	c.Update(sd.Event{Instances: []string{"a:80", "b:80"}})
 	state := c.State()
 	if len(state.Instances) != 2 {
 		t.Errorf("expected 2 instances, got %d", len(state.Instances))
@@ -44,7 +44,7 @@ func TestCache_UpdateDoesNotMutateInputInstances(t *testing.T) {
 	c := instance.NewCache()
 	instances := []string{"b:80", "a:80"}
 
-	c.Update(events.Event{Instances: instances})
+	c.Update(sd.Event{Instances: instances})
 
 	if instances[0] != "b:80" || instances[1] != "a:80" {
 		t.Fatalf("Update mutated input slice: %v", instances)
@@ -57,10 +57,10 @@ func TestCache_UpdateDoesNotMutateInputInstances(t *testing.T) {
 
 func TestCache_UpdateDeduplicates(t *testing.T) {
 	c := instance.NewCache()
-	ch := make(chan events.Event, 4)
+	ch := make(chan sd.Event, 4)
 	c.Register(ch)
 
-	ev := events.Event{Instances: []string{"x:80"}}
+	ev := sd.Event{Instances: []string{"x:80"}}
 	c.Update(ev)
 	c.Update(ev) // same event — should be ignored
 
@@ -81,11 +81,11 @@ func TestCache_UpdateDeduplicates(t *testing.T) {
 
 func TestCache_UpdateErrorEvent(t *testing.T) {
 	c := instance.NewCache()
-	ch := make(chan events.Event, 2)
+	ch := make(chan sd.Event, 2)
 	c.Register(ch)
 
 	sentinel := errors.New("sd error")
-	c.Update(events.Event{Err: sentinel})
+	c.Update(sd.Event{Err: sentinel})
 
 	got, ok := drain(ch, 50*time.Millisecond)
 	if !ok {
@@ -100,9 +100,9 @@ func TestCache_UpdateErrorEvent(t *testing.T) {
 
 func TestCache_RegisterReceivesCurrentState(t *testing.T) {
 	c := instance.NewCache()
-	c.Update(events.Event{Instances: []string{"h:80"}})
+	c.Update(sd.Event{Instances: []string{"h:80"}})
 
-	ch := make(chan events.Event, 1)
+	ch := make(chan sd.Event, 1)
 	got := c.Register(ch)
 	if len(got.Instances) != 1 || got.Instances[0] != "h:80" {
 		t.Errorf("unexpected state: %+v", got)
@@ -111,8 +111,8 @@ func TestCache_RegisterReceivesCurrentState(t *testing.T) {
 
 func TestCache_RegisterDoesNotBlockOnUnbufferedSubscriber(t *testing.T) {
 	c := instance.NewCache()
-	c.Update(events.Event{Instances: []string{"h:80"}})
-	ch := make(chan events.Event)
+	c.Update(sd.Event{Instances: []string{"h:80"}})
+	ch := make(chan sd.Event)
 	done := make(chan struct{})
 	go func() {
 		_ = c.Register(ch)
@@ -128,11 +128,11 @@ func TestCache_RegisterDoesNotBlockOnUnbufferedSubscriber(t *testing.T) {
 
 func TestCache_DeregisterStopsEvents(t *testing.T) {
 	c := instance.NewCache()
-	ch := make(chan events.Event, 4)
+	ch := make(chan sd.Event, 4)
 	c.Register(ch)
 
 	c.Deregister(ch)
-	c.Update(events.Event{Instances: []string{"new:80"}})
+	c.Update(sd.Event{Instances: []string{"new:80"}})
 
 	_, ok := drain(ch, 50*time.Millisecond)
 	if ok {
@@ -142,12 +142,12 @@ func TestCache_DeregisterStopsEvents(t *testing.T) {
 
 func TestCache_UpdateDoesNotBlockOnSlowSubscriber(t *testing.T) {
 	c := instance.NewCache()
-	ch := make(chan events.Event, 1)
+	ch := make(chan sd.Event, 1)
 	c.Register(ch)
 
 	done := make(chan struct{})
 	go func() {
-		c.Update(events.Event{Instances: []string{"new:80"}})
+		c.Update(sd.Event{Instances: []string{"new:80"}})
 		close(done)
 	}()
 
@@ -162,7 +162,7 @@ func TestCache_UpdateDoesNotBlockOnSlowSubscriber(t *testing.T) {
 
 func TestCache_StateCopyIsIsolated(t *testing.T) {
 	c := instance.NewCache()
-	c.Update(events.Event{Instances: []string{"a:80"}})
+	c.Update(sd.Event{Instances: []string{"a:80"}})
 
 	state := c.State()
 	state.Instances[0] = "mutated"
@@ -183,7 +183,7 @@ func TestCache_ConcurrentUpdates(t *testing.T) {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
-			c.Update(events.Event{Instances: []string{"host:80"}})
+			c.Update(sd.Event{Instances: []string{"host:80"}})
 		}(i)
 	}
 	wg.Wait()

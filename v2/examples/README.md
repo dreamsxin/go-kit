@@ -15,7 +15,7 @@ A guided tour of the go-kit framework, from simplest to most complete.
 | `interaction_policy/` | AI interaction runtime: MCP-style tool calls with authorization and audit hooks | `go test ./examples/interaction_policy/...` |
 | `mcp_basic/` | Minimal MCP server: single tool, `NewRuntime()`, `mcp.ListenAndServe` | `go run ./examples/mcp_basic` |
 | `mcp_full/` | Full MCP server: tools, resources, prompts, notifications, completions, SSE streaming | `go test ./examples/mcp_full/...` |
-| `sd/` | Service discovery: instance.Cache, Endpointer, RoundRobin, Retry, RetryWithCallback, sd.NewEndpoint, InvalidateOnError | `go run ./examples/sd` |
+| `sd/` | Service discovery: instance.Cache, Endpointer, RoundRobin, Retry, sd/client.NewEndpoint, InvalidateOnError | `go run ./examples/sd` |
 | `multisvc/` | IDL definition for two services in one package | (library) |
 | `profilesvc/` | Full CRUD service: Service → Endpoint → HTTP transport + Consul client | `go run ./examples/profilesvc/cmd/profilesvc` |
 | `transport/` | Deep-dive tests for HTTP server, HTTP client, and gRPC | `go test ./examples/transport/...` |
@@ -85,9 +85,9 @@ mux.Handle("/hello", server.NewJSONServer[helloRequest](
 
 ```go
 // Consul → Endpointer → RoundRobin → Retry, all wired automatically
-ep, closer, err := sd.NewEndpoint(instancer, factory, logger,
-    sd.WithMaxAttempts(3),
-    sd.WithTimeout(500*time.Millisecond),
+ep, closer, err := sdclient.NewEndpoint(instancer, factory, logger,
+    sdclient.WithMaxAttempts(3),
+    sdclient.WithTimeout(500*time.Millisecond),
 )
 if err != nil { return err }
 defer closer.Close()

@@ -11,12 +11,11 @@ import (
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/balancer"
+	sdclient "github.com/dreamsxin/go-kit/v2/sd/client"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
-	"github.com/dreamsxin/go-kit/v2/sd/endpointer/balancer"
-	"github.com/dreamsxin/go-kit/v2/sd/endpointer/executor"
-	"github.com/dreamsxin/go-kit/v2/sd/events"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
-	"github.com/dreamsxin/go-kit/v2/sd/interfaces"
+	"github.com/dreamsxin/go-kit/v2/sd/retry"
 )
 
 var nopLogger = kitlog.NewNopLogger()
@@ -55,7 +54,7 @@ func TestRoundRobin_DistributesLoad(t *testing.T) {
 	t.Cleanup(func() { _ = ep.Close() })
 	lb := balancer.NewRoundRobin(ep)
 
-	cache.Update(events.Event{Instances: []string{"A:80", "B:80"}})
+	cache.Update(sd.Event{Instances: []string{"A:80", "B:80"}})
 	time.Sleep(20 * time.Millisecond)
 
 	seen := map[string]int{}
@@ -78,10 +77,10 @@ func TestRoundRobin_RemoveInstance(t *testing.T) {
 	t.Cleanup(func() { _ = ep.Close() })
 	lb := balancer.NewRoundRobin(ep)
 
-	cache.Update(events.Event{Instances: []string{"A:80", "B:80"}})
+	cache.Update(sd.Event{Instances: []string{"A:80", "B:80"}})
 	time.Sleep(20 * time.Millisecond)
 
-	cache.Update(events.Event{Instances: []string{"A:80"}})
+	cache.Update(sd.Event{Instances: []string{"A:80"}})
 	time.Sleep(20 * time.Millisecond)
 
 	for i := 0; i < 3; i++ {
@@ -110,13 +109,13 @@ func TestRetry_SucceedsAfterFailures(t *testing.T) {
 	})
 
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
 	time.Sleep(20 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, flakyFactory, nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 	lb := balancer.NewRoundRobin(ep)
-	retryEp := executor.Retry(5, time.Second, lb)
+	retryEp := retry.Retry(5, time.Second, lb)
 
 	resp, err := retryEp(context.Background(), nil)
 	if err != nil {
@@ -136,13 +135,13 @@ func TestRetry_ExceedsMaxAttempts(t *testing.T) {
 	})
 
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
 	time.Sleep(20 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, alwaysFail, nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 	lb := balancer.NewRoundRobin(ep)
-	retryEp := executor.Retry(3, time.Second, lb)
+	retryEp := retry.Retry(3, time.Second, lb)
 
 	_, err := retryEp(context.Background(), nil)
 	if err == nil {
@@ -166,14 +165,14 @@ func TestRetryWithCallback_StopsOnNonRetryable(t *testing.T) {
 	})
 
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
 	time.Sleep(20 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, flakyFactory, nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 	lb := balancer.NewRoundRobin(ep)
 
-	retryEp := executor.RetryWithCallback(time.Second, lb,
+	retryEp := retry.WithCallback(time.Second, lb,
 		func(n int, err error) (bool, error) {
 			if errors.Is(err, sentinel) {
 				return false, err
@@ -184,7 +183,7 @@ func TestRetryWithCallback_StopsOnNonRetryable(t *testing.T) {
 
 	_, err := retryEp(context.Background(), nil)
 	// RetryWithCallback wraps errors in RetryError; check Final field
-	var retryErr executor.RetryError
+	var retryErr retry.Error
 	if errors.As(err, &retryErr) {
 		if !errors.Is(retryErr.Final, sentinel) {
 			t.Errorf("expected sentinel as Final error, got %v", retryErr.Final)
@@ -199,12 +198,12 @@ func TestRetryWithCallback_StopsOnNonRetryable(t *testing.T) {
 
 func TestNewEndpoint_RoundRobins(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"svc1:80", "svc2:80", "svc3:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc1:80", "svc2:80", "svc3:80"}})
 	time.Sleep(20 * time.Millisecond)
 
-	ep, closer, err := sd.NewEndpoint(cache, factory, nopLogger,
-		sd.WithMaxAttempts(3),
-		sd.WithTimeout(500*time.Millisecond),
+	ep, closer, err := sdclient.NewEndpoint(cache, factory, nopLogger,
+		sdclient.WithMaxAttempts(3),
+		sdclient.WithTimeout(500*time.Millisecond),
 	)
 	if err != nil {
 		t.Fatalf("NewEndpoint: %v", err)
@@ -226,7 +225,7 @@ func TestNewEndpoint_RoundRobins(t *testing.T) {
 
 func TestInvalidateOnError_ClearsCache(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
 	time.Sleep(20 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, factory, nopLogger,
@@ -242,7 +241,7 @@ func TestInvalidateOnError_ClearsCache(t *testing.T) {
 	}
 
 	// inject SD error
-	cache.Update(events.Event{Err: errors.New("consul down")})
+	cache.Update(sd.Event{Err: errors.New("consul down")})
 	time.Sleep(10 * time.Millisecond)
 
 	// within grace period — still cached
@@ -257,7 +256,7 @@ func TestInvalidateOnError_ClearsCache(t *testing.T) {
 	if err == nil {
 		t.Error("expected error after cache invalidation")
 	}
-	if !errors.Is(err, interfaces.ErrNoEndpoints) && err != nil {
+	if !errors.Is(err, sd.ErrNoEndpoints) && err != nil {
 		t.Logf("got expected error: %v", err)
 	}
 }

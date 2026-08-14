@@ -3,9 +3,9 @@
 //
 //   - sd/instance.Cache        — in-memory Instancer for testing
 //   - sd/endpointer            — wires Instancer → EndpointCache
-//   - sd/endpointer/balancer   — lock-free RoundRobin
-//   - sd/endpointer/executor   — Retry, RetryWithCallback
-//   - sd.NewEndpoint           — one-liner that wires everything together
+//   - sd/balancer              — lock-free RoundRobin
+//   - sd/retry                 — Retry, WithCallback
+//   - sd/client.NewEndpoint    — one-liner that wires everything together
 //   - endpointer.InvalidateOnError — cache invalidation on SD errors
 //
 // Run:
@@ -23,12 +23,11 @@ import (
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/balancer"
+	sdclient "github.com/dreamsxin/go-kit/v2/sd/client"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
-	"github.com/dreamsxin/go-kit/v2/sd/endpointer/balancer"
-	"github.com/dreamsxin/go-kit/v2/sd/endpointer/executor"
-	"github.com/dreamsxin/go-kit/v2/sd/events"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
-	"github.com/dreamsxin/go-kit/v2/sd/interfaces"
+	"github.com/dreamsxin/go-kit/v2/sd/retry"
 )
 
 type transientError struct {
@@ -66,7 +65,7 @@ func demo1_RoundRobin(logger *kitlog.Logger) {
 	fmt.Printf("  no instances: %v\n", err) // ErrNoEndpoints
 
 	// Register two instances
-	cache.Update(events.Event{Instances: []string{"host-A:8080", "host-B:8080"}})
+	cache.Update(sd.Event{Instances: []string{"host-A:8080", "host-B:8080"}})
 	time.Sleep(10 * time.Millisecond) // let the goroutine process
 
 	fmt.Println("  round-robin over 4 calls:")
@@ -77,7 +76,7 @@ func demo1_RoundRobin(logger *kitlog.Logger) {
 	}
 
 	// Remove one instance
-	cache.Update(events.Event{Instances: []string{"host-A:8080"}})
+	cache.Update(sd.Event{Instances: []string{"host-A:8080"}})
 	time.Sleep(10 * time.Millisecond)
 
 	e, _ := lb.Endpoint()
@@ -85,10 +84,10 @@ func demo1_RoundRobin(logger *kitlog.Logger) {
 	fmt.Printf("  after removing host-B: %s\n", resp)
 }
 
-// ── Demo 2: executor.Retry ────────────────────────────────────────────────────
+// ── Demo 2: retry.Retry ───────────────────────────────────────────────────────
 
 func demo2_Retry(logger *kitlog.Logger) {
-	fmt.Println("\n=== 2. executor.Retry (max 3 attempts) ===")
+	fmt.Println("\n=== 2. retry.Retry (max 3 attempts) ===")
 
 	attempts := 0
 	flakyFactory := endpointer.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
@@ -103,22 +102,22 @@ func demo2_Retry(logger *kitlog.Logger) {
 	})
 
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
 	time.Sleep(10 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, flakyFactory, logger)
 	defer ep.Close() //nolint:errcheck
 	lb := balancer.NewRoundRobin(ep)
-	retryEp := executor.Retry(5, time.Second, lb)
+	retryEp := retry.Retry(5, time.Second, lb)
 
 	resp, err := retryEp(context.Background(), nil)
 	fmt.Printf("  result: %v, err: %v\n", resp, err)
 }
 
-// ── Demo 3: executor.RetryWithCallback ───────────────────────────────────────
+// ── Demo 3: retry.WithCallback ────────────────────────────────────────────────
 
 func demo3_RetryWithCallback(logger *kitlog.Logger) {
-	fmt.Println("\n=== 3. executor.RetryWithCallback ===")
+	fmt.Println("\n=== 3. retry.WithCallback ===")
 
 	var sentinelErr = errors.New("non-retryable")
 	callCount := 0
@@ -139,14 +138,14 @@ func demo3_RetryWithCallback(logger *kitlog.Logger) {
 	})
 
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
 	time.Sleep(10 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, flakyFactory, logger)
 	defer ep.Close() //nolint:errcheck
 	lb := balancer.NewRoundRobin(ep)
 
-	retryEp := executor.RetryWithCallback(time.Second, lb,
+	retryEp := retry.WithCallback(time.Second, lb,
 		func(n int, err error) (keepTrying bool, replacement error) {
 			if errors.Is(err, sentinelErr) {
 				fmt.Printf("  attempt %d: non-retryable error, stopping\n", n)
@@ -161,18 +160,18 @@ func demo3_RetryWithCallback(logger *kitlog.Logger) {
 	fmt.Printf("  final error: %v\n", err)
 }
 
-// ── Demo 4: sd.NewEndpoint (one-liner) ───────────────────────────────────────
+// ── Demo 4: sd/client.NewEndpoint (one-liner) ────────────────────────────────
 
 func demo4_NewEndpoint(logger *kitlog.Logger) {
-	fmt.Println("\n=== 4. sd.NewEndpoint (one-liner) ===")
+	fmt.Println("\n=== 4. sd/client.NewEndpoint (one-liner) ===")
 
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"svc1:80", "svc2:80", "svc3:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc1:80", "svc2:80", "svc3:80"}})
 	time.Sleep(10 * time.Millisecond)
 
-	ep, closer, err := sd.NewEndpoint(cache, factory, logger,
-		sd.WithMaxAttempts(3),
-		sd.WithTimeout(500*time.Millisecond),
+	ep, closer, err := sdclient.NewEndpoint(cache, factory, logger,
+		sdclient.WithMaxAttempts(3),
+		sdclient.WithTimeout(500*time.Millisecond),
 	)
 	if err != nil {
 		fmt.Printf("  construct endpoint: %v\n", err)
@@ -180,7 +179,7 @@ func demo4_NewEndpoint(logger *kitlog.Logger) {
 	}
 	defer closer.Close() //nolint:errcheck
 
-	fmt.Println("  5 calls via sd.NewEndpoint:")
+	fmt.Println("  5 calls via sd/client.NewEndpoint:")
 	for i := 0; i < 5; i++ {
 		resp, err := ep(context.Background(), nil)
 		fmt.Printf("    call %d → %v (err=%v)\n", i+1, resp, err)
@@ -193,7 +192,7 @@ func demo5_InvalidateOnError(logger *kitlog.Logger) {
 	fmt.Println("\n=== 5. endpointer.InvalidateOnError ===")
 
 	cache := instance.NewCache()
-	cache.Update(events.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
 	time.Sleep(10 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, factory, logger,
@@ -207,7 +206,7 @@ func demo5_InvalidateOnError(logger *kitlog.Logger) {
 	fmt.Printf("  before error: endpoint=%v err=%v\n", e != nil, err)
 
 	// Simulate SD error
-	cache.Update(events.Event{Err: errors.New("consul down")})
+	cache.Update(sd.Event{Err: errors.New("consul down")})
 	time.Sleep(10 * time.Millisecond)
 
 	// Within grace period — still returns cached endpoints
@@ -218,7 +217,7 @@ func demo5_InvalidateOnError(logger *kitlog.Logger) {
 	time.Sleep(80 * time.Millisecond)
 	_, err = lb.Endpoint()
 	fmt.Printf("  after grace period: err=%v\n", err)
-	if errors.Is(err, interfaces.ErrNoEndpoints) || err != nil {
+	if errors.Is(err, sd.ErrNoEndpoints) || err != nil {
 		fmt.Println("  cache invalidated as expected")
 	}
 }
