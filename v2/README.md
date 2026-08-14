@@ -232,6 +232,7 @@ HTTP integrations.
 | `interaction/mcp` | MCP Streamable HTTP adapter |
 | `log` | Framework logging adapter |
 | `observability/slog` | Optional standard-library `slog` endpoint logging |
+| `observability/zap` | Optional Zap endpoint logging adapter |
 | `observability/otel` | Optional OpenTelemetry endpoint tracing and metrics module |
 | `security/http` | Optional trusted-proxy/IP, CORS, CSRF, and security headers |
 | `cmd/microgen` | Contract-driven project generator |
@@ -252,9 +253,10 @@ outbox workflows, job platforms, object storage, secret platforms, and complete
 transaction frameworks.
 
 Optional observability adapters keep provider ownership in application
-assembly. `observability/slog` is part of the main module and uses only the
-standard library; `observability/otel` is a separate module, so the main v2
-source does not import the adapter or its provider setup. Test both adapters with:
+assembly. `observability/slog` uses only the standard library,
+`observability/zap` owns the current Zap integration, and `observability/otel`
+is a separate module. The core `endpoint` package imports none of these
+providers. Test the adapters with:
 
 ```bash
 make test-observability

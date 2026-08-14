@@ -4,12 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-
-	"github.com/dreamsxin/go-kit/v2/log"
 )
-
-// Logger is an alias kept for convenience within this package.
-type Logger = log.Logger
 
 // TraceID is a unique identifier for a distributed trace.
 type TraceID string
@@ -90,10 +85,4 @@ func (b *Builder) WithTracing() *Builder {
 // WithBackpressure appends BackpressureMiddleware with the given concurrency limit.
 func (b *Builder) WithBackpressure(max int64) *Builder {
 	return b.Use(BackpressureMiddleware(max))
-}
-
-// WithLogging appends LoggingMiddleware for the named operation.
-// This is a shorthand for Use(LoggingMiddleware(logger, operation)).
-func (b *Builder) WithLogging(logger *Logger, operation string) *Builder {
-	return b.Use(LoggingMiddleware(logger, operation))
 }

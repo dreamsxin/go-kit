@@ -16,7 +16,7 @@ import (
 
 var nopLogger = kitlog.NewNopLogger()
 
-var echoFactory = endpoint.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
+var echoFactory = endpointer.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
 	ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 		return addr, nil
 	})
@@ -75,7 +75,7 @@ func TestNewEndpointer_UpdateInstances(t *testing.T) {
 }
 
 func TestNewEndpointer_FactoryError_SkipsInstance(t *testing.T) {
-	failFactory := endpoint.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
+	failFactory := endpointer.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
 		if addr == "bad:80" {
 			return nil, nil, errors.New("factory error")
 		}
@@ -103,7 +103,7 @@ func TestNewEndpointer_FactoryError_SkipsInstance(t *testing.T) {
 func TestNewEndpointer_WithInvalidateOnError(t *testing.T) {
 	cache := instance.NewCache()
 	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger,
-		endpoint.InvalidateOnError(50*time.Millisecond),
+		endpointer.InvalidateOnError(50*time.Millisecond),
 	)
 	t.Cleanup(func() { _ = ep.Close() })
 
@@ -158,8 +158,8 @@ func TestDefaultEndpointer_CloseIsIdempotentAndSafeDuringUpdate(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("updates blocked while endpointer was closing")
 	}
-	if _, err := ep.Endpoints(); !errors.Is(err, endpoint.ErrEndpointCacheClosed) {
-		t.Fatalf("Endpoints after Close error = %v, want ErrEndpointCacheClosed", err)
+	if _, err := ep.Endpoints(); !errors.Is(err, endpointer.ErrCacheClosed) {
+		t.Fatalf("Endpoints after Close error = %v, want ErrCacheClosed", err)
 	}
 }
 
@@ -167,7 +167,7 @@ func TestDefaultEndpointer_CloseReleasesEndpointResources(t *testing.T) {
 	cache := instance.NewCache()
 	cache.Update(events.Event{Instances: []string{"svc:80"}})
 	closed := make(chan struct{})
-	factory := endpoint.Factory(func(string) (endpoint.Endpoint, io.Closer, error) {
+	factory := endpointer.Factory(func(string) (endpoint.Endpoint, io.Closer, error) {
 		return endpoint.Nop, closerFunc(func() error {
 			close(closed)
 			return nil

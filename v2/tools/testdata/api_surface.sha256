@@ -1,15 +1,16 @@
 go-kit-v2 public API
-932f7bfb130e2f45939ac7444cf81b707e5f0361c0cec3e5c3577e807f595aa0  github.com/dreamsxin/go-kit/v2/endpoint
+904702ecb3d9caded7356f0ebf3ca27d7dde1d032338a0a3a6cca02989eb1188  github.com/dreamsxin/go-kit/v2/endpoint
 2a482e1ea19438cae479dc8b0422faf26a5479af924de0c06456a657dff4d433  github.com/dreamsxin/go-kit/v2/endpoint/circuitbreaker
 7e8aa7783c9e1d16244ba68be02e81fe49abd4dbf881c8ec8e466022580f487e  github.com/dreamsxin/go-kit/v2/endpoint/ratelimit
 59b1611be66e7505ea18ce1a2fc00ab7d99e60fe1d8644e8bf44de1ad636adeb  github.com/dreamsxin/go-kit/v2/interaction
 5789e02728b58f8af8254c145e5d81c7fd0b306fa5443e99bf951865f3f1ac2e  github.com/dreamsxin/go-kit/v2/interaction/mcp
 b015bca87ee0c9f0334866212ce46954f79222d5e7740d5dd63785062b5a3f38  github.com/dreamsxin/go-kit/v2/kit
 34e7d9e4ae90e6ff5e60a9325609457cb5027bbf52a92fc60522f4171a8ed607  github.com/dreamsxin/go-kit/v2/log
-55c89a8da067e0dbfea973642d7a8df3d209615c4f098caa5478f05c147f7446  github.com/dreamsxin/go-kit/v2/observability/slog
-3ba2e3de2ac679fa19c25737cfc24207eb1cbabd08a081470f8ca77ec8e0c324  github.com/dreamsxin/go-kit/v2/sd
+61ac6f1fcc60821cdf699529c72d29c17b82b40563b179398bdd1365db0d9ff5  github.com/dreamsxin/go-kit/v2/observability/slog
+d88c11f57924fc16e5009b6cf338b7ae14c63644feb82977279091207cb325c9  github.com/dreamsxin/go-kit/v2/observability/zap
+56dd76e1fd561d152717f0dcac0989d8f8e1af5fbd1fd548e127386e931e64c8  github.com/dreamsxin/go-kit/v2/sd
 45d16cf4b7387fb4fcec76a86832ff4844cd2ffeba83265040969a6527648c3b  github.com/dreamsxin/go-kit/v2/sd/consul
-2fccc4757a5dd53c70a5e52fbc1d9265092ea28d7a823752cf59059f018b121d  github.com/dreamsxin/go-kit/v2/sd/endpointer
+e9ca4bd4af58f26577bcd3511cba1c21f456023eebbb2a746bb82ec64aef7ceb  github.com/dreamsxin/go-kit/v2/sd/endpointer
 565630e5c41dc7f7d4fc72c2516ba6637a7a7ec7b9ca6512389187ff4eb60b15  github.com/dreamsxin/go-kit/v2/sd/endpointer/balancer
 55959b82a5380116cee59b3ef34728556c16934664926e6967c6d562dd8fe9c7  github.com/dreamsxin/go-kit/v2/sd/endpointer/executor
 4a6b93debe1f9f6475988db2461ed70dff6ed6c85c0f918bfe6b11651cb1c32c  github.com/dreamsxin/go-kit/v2/sd/events

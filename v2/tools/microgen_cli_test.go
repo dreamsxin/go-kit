@@ -20,6 +20,11 @@ func microgenMainPath(t *testing.T) string {
 
 func generatedProjectDir(t *testing.T, name string) string {
 	t.Helper()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	t.Setenv("MICROGEN_GO_KIT_ROOT", filepath.ToSlash(filepath.Dir(cwd)))
 	return filepath.Join(t.TempDir(), name)
 }
 

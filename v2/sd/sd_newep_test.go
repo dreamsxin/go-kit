@@ -11,6 +11,7 @@ import (
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
 	"github.com/dreamsxin/go-kit/v2/sd/events"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
 )
@@ -26,7 +27,7 @@ func nopLogger() *kitlog.Logger { return kitlog.NewNopLogger() }
 
 func newTestEndpoint(t *testing.T, cache *instance.Cache, opts ...sd.Option) endpoint.Endpoint {
 	t.Helper()
-	ep, closer, err := sd.NewEndpoint(cache, endpoint.Factory(nopFactory), nopLogger(), opts...)
+	ep, closer, err := sd.NewEndpoint(cache, endpointer.Factory(nopFactory), nopLogger(), opts...)
 	if err != nil {
 		t.Fatalf("NewEndpoint: %v", err)
 	}
@@ -104,7 +105,7 @@ func TestNewEndpointWithDefaults(t *testing.T) {
 	cache.Update(events.Event{Instances: []string{"default:80"}})
 	time.Sleep(10 * time.Millisecond)
 
-	ep, closer, err := sd.NewEndpointWithDefaults(cache, endpoint.Factory(nopFactory), nopLogger())
+	ep, closer, err := sd.NewEndpointWithDefaults(cache, endpointer.Factory(nopFactory), nopLogger())
 	if err != nil {
 		t.Fatalf("NewEndpointWithDefaults: %v", err)
 	}
@@ -123,7 +124,7 @@ func TestNewEndpoint_RejectsInvalidConfiguration(t *testing.T) {
 	tests := []struct {
 		name    string
 		src     *instance.Cache
-		factory endpoint.Factory
+		factory endpointer.Factory
 		logger  *kitlog.Logger
 		opts    []sd.Option
 		want    string
@@ -154,7 +155,7 @@ func TestNewEndpoint_CloserReleasesFactoryResources(t *testing.T) {
 	cache := instance.NewCache()
 	cache.Update(events.Event{Instances: []string{"svc:80"}})
 	closed := false
-	factory := endpoint.Factory(func(string) (endpoint.Endpoint, io.Closer, error) {
+	factory := endpointer.Factory(func(string) (endpoint.Endpoint, io.Closer, error) {
 		return endpoint.Nop, closerFunc(func() error {
 			closed = true
 			return nil
@@ -172,8 +173,8 @@ func TestNewEndpoint_CloserReleasesFactoryResources(t *testing.T) {
 		t.Fatal("factory resource was not closed")
 	}
 	_, err = ep(context.Background(), nil)
-	if !errors.Is(err, endpoint.ErrEndpointCacheClosed) {
-		t.Fatalf("call after Close error = %v, want ErrEndpointCacheClosed", err)
+	if !errors.Is(err, endpointer.ErrCacheClosed) {
+		t.Fatalf("call after Close error = %v, want ErrCacheClosed", err)
 	}
 }
 

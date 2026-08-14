@@ -106,10 +106,11 @@ points decide when to terminate.
 ### Optional observability adapters
 
 `observability/slog` adapts endpoint outcomes to the standard-library
-`log/slog` API without changing the core zap logger. `observability/otel` is a
+`log/slog` API. `observability/zap` owns Zap-specific endpoint middleware, so
+the core `endpoint` package remains provider-neutral. `observability/otel` is a
 separate module that adapts endpoint calls to application-owned OpenTelemetry
-tracers and meters. Neither adapter logs or records request/response payloads;
-operation names and application attributes must remain bounded.
+tracers and meters. These adapters do not log or record request/response
+payloads; operation names and application attributes must remain bounded.
 
 ### Optional HTTP security
 

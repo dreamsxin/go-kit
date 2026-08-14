@@ -34,7 +34,7 @@ type transientError struct {
 
 func (transientError) Retryable() bool { return true }
 
-func newBalancer(t *testing.T, factory endpoint.Factory) interfaces.Balancer {
+func newBalancer(t *testing.T, factory endpointer.Factory) interfaces.Balancer {
 	t.Helper()
 	cache := instance.NewCache()
 	cache.Update(events.Event{Instances: []string{"svc:80"}})
@@ -47,7 +47,7 @@ func newBalancer(t *testing.T, factory endpoint.Factory) interfaces.Balancer {
 // ── Retry ─────────────────────────────────────────────────────────────────────
 
 func TestRetry_SucceedsOnFirstAttempt(t *testing.T) {
-	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) { return "ok", nil })
 		return ep, io.NopCloser(nil), nil
 	})
@@ -65,7 +65,7 @@ func TestRetry_SucceedsOnFirstAttempt(t *testing.T) {
 
 func TestRetry_SucceedsAfterFailures(t *testing.T) {
 	attempts := 0
-	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			attempts++
 			if attempts < 3 {
@@ -88,7 +88,7 @@ func TestRetry_SucceedsAfterFailures(t *testing.T) {
 }
 
 func TestRetry_ExceedsMax(t *testing.T) {
-	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			return nil, transientError{errors.New("always fails")}
 		})
@@ -105,7 +105,7 @@ func TestRetry_ExceedsMax(t *testing.T) {
 
 func TestRetry_DoesNotRetryNonRetryableError(t *testing.T) {
 	attempts := 0
-	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			attempts++
 			return nil, permanentError{errors.New("validation failed")}
@@ -125,7 +125,7 @@ func TestRetry_DoesNotRetryNonRetryableError(t *testing.T) {
 }
 
 func TestRetry_ContextCancelled(t *testing.T) {
-	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(ctx context.Context, _ any) (any, error) {
 			time.Sleep(50 * time.Millisecond)
 			return nil, transientError{errors.New("slow fail")}
@@ -144,7 +144,7 @@ func TestRetry_ContextCancelled(t *testing.T) {
 }
 
 func TestRetry_BackoffStopsOnContextCancel(t *testing.T) {
-	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			return nil, transientError{errors.New("transient")}
 		})
@@ -202,7 +202,7 @@ func TestDefaultRetryable_KnownTransientErrors(t *testing.T) {
 
 func TestRetryWithCallback_StopsOnFalse(t *testing.T) {
 	calls := 0
-	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			calls++
 			return nil, errors.New("fail")
@@ -227,7 +227,7 @@ func TestRetryWithCallback_StopsOnFalse(t *testing.T) {
 
 func TestRetryWithCallback_ReplacesError(t *testing.T) {
 	replacement := errors.New("replaced")
-	f := endpoint.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			return nil, errors.New("original")
 		})

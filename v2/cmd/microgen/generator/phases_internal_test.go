@@ -62,6 +62,14 @@ func TestRootRelativePath(t *testing.T) {
 	}
 }
 
+func TestRootRelativePathFromEnvironment(t *testing.T) {
+	t.Setenv("MICROGEN_GO_KIT_ROOT", `C:\work tree\go-kit\v2`)
+	g := &Generator{outputDir: t.TempDir()}
+	if got, want := g.rootRelativePath(), "C:/work tree/go-kit/v2"; got != want {
+		t.Fatalf("rootRelativePath() = %q, want %q", got, want)
+	}
+}
+
 func TestServiceRoutes(t *testing.T) {
 	g := &Generator{config: Options{RoutePrefix: "/api/v1"}}
 	project := &ir.Project{

@@ -1,7 +1,7 @@
 # slog adapter
 
-`observability/slog` is an optional adapter for endpoint logging. It uses the
-standard-library `log/slog` API and does not replace `github.com/dreamsxin/go-kit/v2/log`.
+`observability/slog` is an optional adapter for endpoint logging. It uses only
+the standard-library `log/slog` API and is independent of the Zap adapter.
 
 ```go
 logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))

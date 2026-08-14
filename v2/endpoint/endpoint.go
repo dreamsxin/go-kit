@@ -6,10 +6,7 @@
 // transport layers all communicate through this single interface.
 package endpoint
 
-import (
-	"context"
-	"time"
-)
+import "context"
 
 // Endpoint is a function that handles a single RPC-style request.
 // It is the primary abstraction in the framework — every service method,
@@ -19,32 +16,6 @@ type Endpoint func(ctx context.Context, request any) (response any, err error)
 // Nop is a no-op Endpoint that always succeeds and returns an empty struct.
 // Useful as a placeholder in tests or when an endpoint is not yet implemented.
 func Nop(context.Context, any) (any, error) { return struct{}{}, nil }
-
-// EndpointerOptions configures the behaviour of an EndpointCache when a
-// service-discovery error is received.
-type EndpointerOptions struct {
-	// InvalidateOnError, when true, causes the cache to be cleared after
-	// InvalidateTimeout has elapsed following a discovery error.
-	InvalidateOnError bool
-
-	// InvalidateTimeout is the grace period before the cache is cleared.
-	// Only meaningful when InvalidateOnError is true.
-	InvalidateTimeout time.Duration
-}
-
-// EndpointerOption is a functional option for EndpointerOptions.
-type EndpointerOption func(*EndpointerOptions)
-
-// InvalidateOnError returns an EndpointerOption that enables cache
-// invalidation after a service-discovery error.  The cache is cleared once
-// timeout has elapsed, causing subsequent Endpoints() calls to return an
-// error until healthy instances are re-discovered.
-func InvalidateOnError(timeout time.Duration) EndpointerOption {
-	return func(opts *EndpointerOptions) {
-		opts.InvalidateOnError = true
-		opts.InvalidateTimeout = timeout
-	}
-}
 
 // Failer may be implemented by a response type to signal a business-logic
 // error without using the Go error return value.  If the response implements

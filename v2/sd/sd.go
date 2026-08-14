@@ -1,5 +1,5 @@
 // Package sd provides service-discovery helpers that wire together an
-// Instancer, EndpointCache, Balancer, and Retry executor into a single
+// Instancer, endpointer cache, Balancer, and Retry executor into a single
 // callable endpoint.Endpoint.
 //
 // Typical usage:
@@ -78,7 +78,7 @@ func WithRetryable(fn executor.RetryableFunc) Option {
 // endpoint resource created by factory. Close it before stopping the Instancer.
 func NewEndpoint(
 	src interfaces.Instancer,
-	factory endpoint.Factory,
+	factory endpointer.Factory,
 	logger *kitlog.Logger,
 	opts ...Option,
 ) (endpoint.Endpoint, io.Closer, error) {
@@ -96,9 +96,9 @@ func NewEndpoint(
 		return nil, nil, err
 	}
 
-	var epOpts []endpoint.EndpointerOption
+	var epOpts []endpointer.Option
 	if o.InvalidateOnError > 0 {
-		epOpts = append(epOpts, endpoint.InvalidateOnError(o.InvalidateOnError))
+		epOpts = append(epOpts, endpointer.InvalidateOnError(o.InvalidateOnError))
 	}
 
 	ep := endpointer.NewEndpointer(src, factory, logger, epOpts...)
@@ -117,7 +117,7 @@ func NewEndpoint(
 // Use NewEndpoint when you need to customise these values.
 func NewEndpointWithDefaults(
 	src interfaces.Instancer,
-	factory endpoint.Factory,
+	factory endpointer.Factory,
 	logger *kitlog.Logger,
 ) (endpoint.Endpoint, io.Closer, error) {
 	return NewEndpoint(src, factory, logger,
@@ -127,7 +127,7 @@ func NewEndpointWithDefaults(
 	)
 }
 
-func validateEndpointConfig(src interfaces.Instancer, factory endpoint.Factory, logger *kitlog.Logger, o Options) error {
+func validateEndpointConfig(src interfaces.Instancer, factory endpointer.Factory, logger *kitlog.Logger, o Options) error {
 	switch {
 	case isNil(src):
 		return fmt.Errorf("sd: instancer is nil")

@@ -6,7 +6,7 @@
 //   - sd/endpointer/balancer   — lock-free RoundRobin
 //   - sd/endpointer/executor   — Retry, RetryWithCallback
 //   - sd.NewEndpoint           — one-liner that wires everything together
-//   - endpoint.InvalidateOnError — cache invalidation on SD errors
+//   - endpointer.InvalidateOnError — cache invalidation on SD errors
 //
 // Run:
 //
@@ -47,7 +47,7 @@ func instanceFactory(addr string) (endpoint.Endpoint, io.Closer, error) {
 	return ep, io.NopCloser(nil), nil
 }
 
-var factory = endpoint.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
+var factory = endpointer.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
 	return instanceFactory(addr)
 })
 
@@ -91,7 +91,7 @@ func demo2_Retry(logger *kitlog.Logger) {
 	fmt.Println("\n=== 2. executor.Retry (max 3 attempts) ===")
 
 	attempts := 0
-	flakyFactory := endpoint.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
+	flakyFactory := endpointer.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			attempts++
 			if attempts < 3 {
@@ -123,7 +123,7 @@ func demo3_RetryWithCallback(logger *kitlog.Logger) {
 	var sentinelErr = errors.New("non-retryable")
 	callCount := 0
 
-	flakyFactory := endpoint.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
+	flakyFactory := endpointer.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			callCount++
 			switch callCount {
@@ -190,14 +190,14 @@ func demo4_NewEndpoint(logger *kitlog.Logger) {
 // ── Demo 5: InvalidateOnError ─────────────────────────────────────────────────
 
 func demo5_InvalidateOnError(logger *kitlog.Logger) {
-	fmt.Println("\n=== 5. endpoint.InvalidateOnError ===")
+	fmt.Println("\n=== 5. endpointer.InvalidateOnError ===")
 
 	cache := instance.NewCache()
 	cache.Update(events.Event{Instances: []string{"svc:80"}})
 	time.Sleep(10 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, factory, logger,
-		endpoint.InvalidateOnError(50*time.Millisecond),
+		endpointer.InvalidateOnError(50*time.Millisecond),
 	)
 	defer ep.Close() //nolint:errcheck
 	lb := balancer.NewRoundRobin(ep)

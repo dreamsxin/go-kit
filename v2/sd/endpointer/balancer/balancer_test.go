@@ -24,7 +24,7 @@ func echoFactory(addr string) (endpoint.Endpoint, io.Closer, error) {
 func newEndpointer(t *testing.T, addrs ...string) endpointer.Endpointer {
 	t.Helper()
 	cache := instance.NewCache()
-	ep := endpointer.NewEndpointer(cache, endpoint.Factory(echoFactory), nopLogger)
+	ep := endpointer.NewEndpointer(cache, endpointer.Factory(echoFactory), nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 	if len(addrs) > 0 {
 		cache.Update(events.Event{Instances: addrs})

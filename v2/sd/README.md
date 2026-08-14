@@ -8,8 +8,13 @@ into a single callable `endpoint.Endpoint`.
 ```go
 import (
     "github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
     "github.com/dreamsxin/go-kit/v2/sd/instance"
 )
+
+factory := endpointer.Factory(func(instance string) (endpoint.Endpoint, io.Closer, error) {
+	return makeClientEndpoint(instance), nil, nil
+})
 
 // In-memory instancer — perfect for tests and local dev
 cache := instance.NewCache()
@@ -72,6 +77,10 @@ defer ep.Close()
 lb   := balancer.NewRoundRobin(ep)
 call := executor.Retry(3, 500*time.Millisecond, lb)
 ```
+
+For low-level assembly, cache invalidation is configured with
+`endpointer.InvalidateOnError`. The higher-level `sd.NewEndpoint` constructor
+exposes the equivalent `sd.WithInvalidateOnError` option.
 
 ## Retry strategies
 

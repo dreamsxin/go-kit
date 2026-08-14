@@ -16,6 +16,7 @@ import (
 	"github.com/dreamsxin/go-kit/v2/log"
 	"github.com/dreamsxin/go-kit/v2/sd"
 	"github.com/dreamsxin/go-kit/v2/sd/consul"
+	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
 )
 
 // New returns a profilesvc.Service that is load-balanced over all healthy
@@ -42,7 +43,7 @@ func New(consulAddr string, logger *log.Logger) (profilesvc.Service, io.Closer, 
 		sd.WithTimeout(500 * time.Millisecond),
 	}
 
-	newEndpoint := func(factory endpoint.Factory) (endpoint.Endpoint, error) {
+	newEndpoint := func(factory endpointer.Factory) (endpoint.Endpoint, error) {
 		ep, closer, err := sd.NewEndpoint(instancer, factory, logger, sdOpts...)
 		if err != nil {
 			return nil, err
@@ -97,7 +98,7 @@ func (r *clientResources) Close() error {
 	return r.err
 }
 
-func factoryFor(makeEndpoint func(profilesvc.Service) endpoint.Endpoint) endpoint.Factory {
+func factoryFor(makeEndpoint func(profilesvc.Service) endpoint.Endpoint) endpointer.Factory {
 	return func(instance string) (endpoint.Endpoint, io.Closer, error) {
 		svc, err := profilesvc.MakeClientEndpoints(instance)
 		if err != nil {

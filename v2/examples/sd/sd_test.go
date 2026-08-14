@@ -98,7 +98,7 @@ func TestRoundRobin_RemoveInstance(t *testing.T) {
 
 func TestRetry_SucceedsAfterFailures(t *testing.T) {
 	attempts := 0
-	flakyFactory := endpoint.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
+	flakyFactory := endpointer.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			attempts++
 			if attempts < 3 {
@@ -128,7 +128,7 @@ func TestRetry_SucceedsAfterFailures(t *testing.T) {
 }
 
 func TestRetry_ExceedsMaxAttempts(t *testing.T) {
-	alwaysFail := endpoint.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
+	alwaysFail := endpointer.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			return nil, transientError{errors.New("always fails")}
 		})
@@ -154,7 +154,7 @@ func TestRetryWithCallback_StopsOnNonRetryable(t *testing.T) {
 	sentinel := errors.New("non-retryable")
 	callCount := 0
 
-	flakyFactory := endpoint.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
+	flakyFactory := endpointer.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			callCount++
 			if callCount == 1 {
@@ -230,7 +230,7 @@ func TestInvalidateOnError_ClearsCache(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	ep := endpointer.NewEndpointer(cache, factory, nopLogger,
-		endpoint.InvalidateOnError(50*time.Millisecond),
+		endpointer.InvalidateOnError(50*time.Millisecond),
 	)
 	t.Cleanup(func() { _ = ep.Close() })
 	lb := balancer.NewRoundRobin(ep)

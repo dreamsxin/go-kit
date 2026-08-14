@@ -15,6 +15,7 @@ import (
 	"github.com/dreamsxin/go-kit/v2/endpoint/circuitbreaker"
 	"github.com/dreamsxin/go-kit/v2/endpoint/ratelimit"
 	kitlog "github.com/dreamsxin/go-kit/v2/log"
+	zapadapter "github.com/dreamsxin/go-kit/v2/observability/zap"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -186,7 +187,7 @@ func WithLogging(logger *kitlog.Logger) Option {
 			logger = kitlog.NewNopLogger()
 		}
 		s.logger = logger
-		s.middleware = append(s.middleware, endpoint.LoggingMiddleware(logger, "request"))
+		s.middleware = append(s.middleware, zapadapter.LoggingMiddleware(logger, "request"))
 		return nil
 	}
 }

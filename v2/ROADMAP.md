@@ -127,6 +127,18 @@ exception and must be called out in release notes. The technically strict
 alternative is to change the module path to `/v3` before publication; that
 release-path decision is made only after the refactor acceptance gates pass.
 
+### Execution Status / 实施状态
+
+- [x] Work Package 0: tests generate into isolated temporary projects and keep
+  the worktree clean.
+- [x] Work Package 1 implementation: endpoint cache ownership moved to
+  `sd/endpointer`, Zap middleware moved to `observability/zap`, and the core
+  endpoint package is guarded against non-standard imports.
+- [ ] Work Package 1 race gate: rerun `go test -race ./endpoint` in CI or a
+  local CGO environment with a C compiler. The current Windows environment has
+  `CGO_ENABLED=0` and no `gcc` executable.
+- [ ] Work Packages 2-8.
+
 ### Refactor Goals / 重构目标
 
 - Keep `Service -> Endpoint -> Transport` as the only request architecture.

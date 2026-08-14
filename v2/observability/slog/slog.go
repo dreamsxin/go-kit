@@ -1,5 +1,5 @@
 // Package slogadapter provides an optional log/slog adapter for endpoint
-// middleware. It does not change the framework's zap-based log package.
+// middleware without depending on the framework's Zap adapter.
 package slogadapter
 
 import (

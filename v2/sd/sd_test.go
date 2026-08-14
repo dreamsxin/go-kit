@@ -78,7 +78,7 @@ func instanceEndpoint(instance string) endpoint.Endpoint {
 	}
 }
 
-func newFactory() endpoint.Factory {
+func newFactory() endpointer.Factory {
 	return func(instance string) (endpoint.Endpoint, io.Closer, error) {
 		return instanceEndpoint(instance), io.NopCloser(nil), nil
 	}

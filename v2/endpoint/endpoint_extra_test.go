@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	kitlog "github.com/dreamsxin/go-kit/v2/log"
 )
 
 // ── Builder ───────────────────────────────────────────────────────────────────
@@ -296,7 +295,7 @@ func TestTimeoutMiddleware_PassesThrough(t *testing.T) {
 
 func TestTimeoutMiddleware_CancelsContext(t *testing.T) {
 	var ctxErr error
-	ep := endpoint.TimeoutMiddleware(20*time.Millisecond)(
+	ep := endpoint.TimeoutMiddleware(20 * time.Millisecond)(
 		endpoint.Endpoint(func(ctx context.Context, _ any) (any, error) {
 			<-ctx.Done()
 			ctxErr = ctx.Err()
@@ -306,36 +305,6 @@ func TestTimeoutMiddleware_CancelsContext(t *testing.T) {
 	ep(context.Background(), nil) //nolint:errcheck
 	if ctxErr == nil {
 		t.Error("expected context to be cancelled")
-	}
-}
-
-// ── LoggingMiddleware ─────────────────────────────────────────────────────────
-
-func TestLoggingMiddleware_Success(t *testing.T) {
-	logger := kitlog.NewNopLogger()
-	ep := endpoint.LoggingMiddleware(logger, "testOp")(endpoint.Nop)
-	_, err := ep(context.Background(), nil)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestLoggingMiddleware_Error(t *testing.T) {
-	logger := kitlog.NewNopLogger()
-	failEp := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
-		return nil, errors.New("fail")
-	})
-	ep := endpoint.LoggingMiddleware(logger, "testOp")(failEp)
-	_, err := ep(context.Background(), nil)
-	if err == nil {
-		t.Error("expected error to propagate")
-	}
-}
-
-func TestLoggingMiddleware_NilLogger_DoesNotPanic(t *testing.T) {
-	ep := endpoint.LoggingMiddleware(nil, "testOp")(endpoint.Nop)
-	if _, err := ep(context.Background(), nil); err != nil {
-		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

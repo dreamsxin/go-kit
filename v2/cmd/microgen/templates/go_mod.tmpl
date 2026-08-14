@@ -17,5 +17,5 @@ require (
 )
 
 {{if .RootRelPath}}
-replace github.com/dreamsxin/go-kit/v2 => {{.RootRelPath}}
+replace github.com/dreamsxin/go-kit/v2 => {{printf "%q" .RootRelPath}}
 {{end}}

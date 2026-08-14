@@ -5,7 +5,6 @@ The `endpoint` package is the core runtime abstraction of `go-kit`.
 It is where business operations are wrapped with reusable runtime policy such as:
 
 - timeout
-- logging
 - metrics
 - tracing
 - backpressure
@@ -61,13 +60,16 @@ For most services, these are the main entry points:
 - `TimeoutMiddleware`
 - `MetricsMiddleware`
 - `ErrorHandlingMiddleware`
-- `LoggingMiddleware`
+- `TracingMiddleware`
+- `BackpressureMiddleware`
 - `Unwrap`
 
 Related extension packages:
 
 - `endpoint/circuitbreaker`
 - `endpoint/ratelimit`
+- `observability/slog`
+- `observability/zap`
 
 ## Builder API
 
@@ -155,11 +157,17 @@ Core middleware in `endpoint`:
 - `MetricsMiddleware`
 - `ErrorHandlingMiddleware`
 - `TimeoutMiddleware`
-- `LoggingMiddleware`
+- `TracingMiddleware`
+- `BackpressureMiddleware`
 
-Logging note:
+Logging is provider-specific and lives outside the core package:
 
-- `LoggingMiddleware(nil, ...)` degrades to a nop logger so composition remains safe even when callers do not supply a logger instance.
+```go
+ep = zapadapter.LoggingMiddleware(logger, "CreateUser")(ep)
+// Or use observability/slog with a standard-library slog.Logger.
+```
+
+This keeps the core `endpoint` import graph limited to the Go standard library.
 
 Specialized middleware packages:
 
@@ -176,7 +184,7 @@ Good responsibilities for this layer:
 - runtime timeout policy
 - request accounting and metrics
 - structured error wrapping
-- tracing and observability
+- request correlation and protocol-neutral instrumentation hooks
 - resilience wrappers
 - reusable invocation policy
 

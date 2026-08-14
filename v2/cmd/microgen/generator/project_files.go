@@ -216,6 +216,9 @@ func (g *Generator) serviceRoutes(project *ir.Project) []SvcRoute {
 }
 
 func (g *Generator) rootRelativePath() string {
+	if root := strings.TrimSpace(os.Getenv("MICROGEN_GO_KIT_ROOT")); root != "" {
+		return filepath.ToSlash(root)
+	}
 	root := findGoKitModuleRoot(g.outputDir)
 	if root == "" {
 		return ""
