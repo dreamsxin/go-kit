@@ -7,7 +7,7 @@
         deps tools \
         test-runtime test-microgen test-contracts test-docs test-examples \
         test-observability test-security test-api test-boundaries test-race test-vet test-modules \
-        release-check-clean verify-published verify verify-release
+        release-check-clean verify-published-core verify-published verify verify-release
 
 # Default variables, overridable from the command line.
 IDL         ?= ./examples/usersvc/idl.go
@@ -139,11 +139,15 @@ test-modules:
 
 release-check-clean:
 	@echo ">>> Verifying the v2 release scope is clean..."
-	@go -C ./tools run ./releasecheck -scope ..
+	@go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-tags
+
+verify-published-core:
+	@echo ">>> Verifying the published core module..."
+	@go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -published-order 1
 
 verify-published:
-	@echo ">>> Verifying the published Go module..."
-	@go -C ./tools run ./releasecheck -published-version $(VERSION)
+	@echo ">>> Verifying all published modules..."
+	@go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -published-order 2
 
 verify: build test-runtime test-microgen test-docs test-examples test-observability test-security
 	@echo ">>> Verification pass completed."
@@ -321,7 +325,9 @@ help:
 	@echo "  make test-modules  Verify all maintained go.mod files are tidy"
 	@echo "  make verify        Run recommended pre-merge validation pass"
 	@echo "  make verify-release Run the full release validation pass"
-	@echo "  make release-check-clean Verify the committed v2 scope is clean"
+	@echo "  make release-check-clean Verify the committed v2 scope and release tag phase"
+	@echo "  make verify-published-core Verify the published core module from the manifest"
+	@echo "  make verify-published Verify every published module from the manifest"
 	@echo "  make coverage      Generate coverage report"
 	@echo "  make lint          Run golangci-lint"
 	@echo ""

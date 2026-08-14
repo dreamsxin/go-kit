@@ -8,28 +8,13 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/dreamsxin/go-kit-tools/v2/internal/releaseconfig"
 )
 
 const releaseManifestName = "RELEASE_MANIFEST.json"
 
 var releaseVersionPattern = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$`)
-
-type releaseManifest struct {
-	SchemaVersion       int             `json:"schemaVersion"`
-	Phase               string          `json:"phase"`
-	PreviousCoreVersion string          `json:"previousCoreVersion"`
-	CoreVersion         string          `json:"coreVersion"`
-	Modules             []releaseModule `json:"modules"`
-}
-
-type releaseModule struct {
-	Directory     string `json:"directory"`
-	ModulePath    string `json:"modulePath"`
-	Version       string `json:"version"`
-	Tag           string `json:"tag"`
-	ReleaseOrder  int    `json:"releaseOrder"`
-	DependsOnCore bool   `json:"dependsOnCore"`
-}
 
 type moduleEdit struct {
 	Module struct {
@@ -62,8 +47,8 @@ func TestReleaseManifestMatchesRepository(t *testing.T) {
 		t.Fatal("previousCoreVersion and coreVersion must differ")
 	}
 
-	modulesByDir := make(map[string]releaseModule, len(manifest.Modules))
-	modulesByPath := make(map[string]releaseModule, len(manifest.Modules))
+	modulesByDir := make(map[string]releaseconfig.Module, len(manifest.Modules))
+	modulesByPath := make(map[string]releaseconfig.Module, len(manifest.Modules))
 	tags := make(map[string]struct{}, len(manifest.Modules))
 	for _, module := range manifest.Modules {
 		if module.Directory == "" || module.ModulePath == "" || module.Tag == "" {
@@ -158,15 +143,11 @@ func TestReleaseManifestMatchesRepository(t *testing.T) {
 	}
 }
 
-func readReleaseManifest(t *testing.T, root string) releaseManifest {
+func readReleaseManifest(t *testing.T, root string) releaseconfig.Manifest {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(root, releaseManifestName))
+	manifest, err := releaseconfig.LoadManifest(filepath.Join(root, releaseManifestName))
 	if err != nil {
-		t.Fatalf("read %s: %v", releaseManifestName, err)
-	}
-	var manifest releaseManifest
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		t.Fatalf("decode %s: %v", releaseManifestName, err)
+		t.Fatalf("load %s: %v", releaseManifestName, err)
 	}
 	return manifest
 }

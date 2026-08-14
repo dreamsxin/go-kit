@@ -5,6 +5,33 @@ import (
 	"testing"
 )
 
+func TestExpectedTagState(t *testing.T) {
+	tests := []struct {
+		phase string
+		order int
+		want  bool
+	}{
+		{phase: "core-candidate", order: 1, want: false},
+		{phase: "core-candidate", order: 2, want: false},
+		{phase: "nested-candidate", order: 1, want: true},
+		{phase: "nested-candidate", order: 2, want: false},
+		{phase: "released", order: 1, want: true},
+		{phase: "released", order: 2, want: true},
+	}
+	for _, test := range tests {
+		got, err := expectedTagState(test.phase, test.order)
+		if err != nil {
+			t.Fatalf("expectedTagState(%q, %d): %v", test.phase, test.order, err)
+		}
+		if got != test.want {
+			t.Errorf("expectedTagState(%q, %d) = %t, want %t", test.phase, test.order, got, test.want)
+		}
+	}
+	if _, err := expectedTagState("unknown", 1); err == nil {
+		t.Fatal("expected unsupported phase to fail")
+	}
+}
+
 func TestResolveScopeFromNestedToolModule(t *testing.T) {
 	repoRoot := t.TempDir()
 	cwd := filepath.Join(repoRoot, "v2", "tools")
