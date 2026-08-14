@@ -4,8 +4,6 @@ package main
 import (
 	"log/slog"
 {{- if .WithConfig}}
-{{- end}}
-{{- if .WithConfig}}
 	"{{.ImportPath}}/config"
 {{- end}}
 {{- if .WithDB}}
@@ -28,10 +26,6 @@ func initGeneratedServices(logger *slog.Logger{{if .WithConfig}}, cfg *config.Co
 	generated := generatedServices{}
 
 	_ = logger
-{{- if .WithConfig}}
-	_ = cfg
-	_ = time.Second
-{{- end}}
 {{- if .WithDB}}
 	_ = repoDB
 {{- range .GormModels}}
@@ -52,12 +46,7 @@ func initGeneratedServices(logger *slog.Logger{{if .WithConfig}}, cfg *config.Co
 {{- end}}
 {{- if $.WithConfig}}
 	generated.{{.PackageName}}Endpoints = {{.PackageName}}Endpoint.MakeServerEndpointsWithConfig(generated.{{.PackageName}}Svc, logger, {{.PackageName}}Endpoint.MiddlewareConfig{
-		CBEnabled:          cfg.Middleware.CircuitBreaker.Enabled,
-		CBFailureThreshold: uint32(cfg.Middleware.CircuitBreaker.FailureThreshold),
-		CBTimeout:          cfg.Middleware.CircuitBreaker.Timeout,
-		RLEnabled:          cfg.Middleware.RateLimit.Enabled,
-		RLRps:              cfg.Middleware.RateLimit.RequestsPerSecond,
-		Timeout:            cfg.Middleware.Timeout,
+		Timeout: cfg.Middleware.Timeout,
 	})
 {{- else}}
 	generated.{{.PackageName}}Endpoints = {{.PackageName}}Endpoint.MakeServerEndpoints(generated.{{.PackageName}}Svc, logger)

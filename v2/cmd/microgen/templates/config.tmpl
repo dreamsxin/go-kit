@@ -26,13 +26,6 @@ database:
 {{- end}}
 
 middleware:
-  circuit_breaker:
-    enabled: false
-    failure_threshold: 5
-    timeout: "60s"
-  rate_limit:
-    enabled: false
-    requests_per_second: 100
   timeout: "30s"
 
 debug:

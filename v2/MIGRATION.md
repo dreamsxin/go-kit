@@ -211,6 +211,13 @@ defaults -> local YAML -> optional remote config -> final environment overrides 
 verify address, timeout, logging, database, middleware, and remote-provider
 values instead of relying on zero values.
 
+Newly generated projects no longer include `middleware.circuit_breaker` or
+`middleware.rate_limit` configuration, nor the corresponding Gobreaker and
+`x/time` module dependencies. Applications that need those policies should add
+the optional integration modules and compose them in the user-owned endpoint
+custom chain. Existing generated projects keep their user-owned configuration
+until they are migrated deliberately.
+
 Database `AutoMigrate` is disabled by default. Enable it explicitly only when
 startup schema mutation is intended.
 

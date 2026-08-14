@@ -253,6 +253,12 @@ The final merged config is validated before logger, database, middleware, and
 servers are created. Do not place credentials in generated YAML; inject them
 through the deployment environment or an application-owned provider.
 
+The generated endpoint chain contains standard-library logging, timeout, and
+the selected provider-neutral generated middleware. Rate limiting, circuit
+breaking, and other dependency-owning adapters are intentionally not added to a
+new project's module graph. Install them explicitly and compose them in the
+user-owned `endpoint/<service>/custom_chain.go` hook when required.
+
 ## Database Migration
 
 Generated services skip `AutoMigrate` by default. Enable it only when startup

@@ -150,9 +150,10 @@ release-path decision is made only after the refactor acceptance gates pass.
   OpenTelemetry, and `microgen` have independent modules and the repository is
   orchestrated by `go.work`. The root runtime module has no third-party
   requirements; legacy `log` is a standard-library-only compatibility facade.
-- [ ] Work Package 6: generator implementation packages now live under
-  `cmd/microgen/internal`; generated-project topology and dependency acceptance
-  gates remain in progress.
+- [x] Work Package 6: generator implementation packages live under
+  `cmd/microgen/internal`; generated projects use the new package topology and
+  direct `slog`, and minimal HTTP projects resolve no optional provider or
+  database dependencies.
 - [ ] Work Packages 7-8.
 
 ### Refactor Goals / 重构目标

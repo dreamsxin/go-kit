@@ -83,6 +83,21 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		}
 
 		mustExistFile(t, filepath.Join(outDir, "go.mod"))
+		goMod, err := os.ReadFile(filepath.Join(outDir, "go.mod"))
+		if err != nil {
+			t.Fatalf("read generated minimal go.mod: %v", err)
+		}
+		for _, forbidden := range []string{
+			"integrations/circuitbreaker",
+			"integrations/ratelimit",
+			"github.com/sony/gobreaker",
+			"golang.org/x/time",
+			"gorm.io/gorm",
+		} {
+			if strings.Contains(string(goMod), forbidden) {
+				t.Errorf("minimal go.mod contains optional dependency %q", forbidden)
+			}
+		}
 		mustExistFile(t, filepath.Join(outDir, "cmd", "main.go"))
 		mustExistFile(t, filepath.Join(outDir, "service", "userservice", "service.go"))
 		mustExistFile(t, filepath.Join(outDir, "endpoint", "userservice", "endpoints.go"))

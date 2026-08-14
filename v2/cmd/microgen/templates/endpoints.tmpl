@@ -19,21 +19,11 @@ type {{.Service.ServiceName}}Endpoints struct {
 }
 
 type MiddlewareConfig struct {
-	CBEnabled          bool
-	CBFailureThreshold uint32
-	CBTimeout          time.Duration
-	RLEnabled          bool
-	RLRps              float64
-	Timeout            time.Duration
+	Timeout time.Duration
 }
 
 var DefaultMiddlewareConfig = MiddlewareConfig{
-	CBEnabled:          false,
-	CBFailureThreshold: 5,
-	CBTimeout:          60 * time.Second,
-	RLEnabled:          false,
-	RLRps:              100,
-	Timeout:            30 * time.Second,
+	Timeout: 30 * time.Second,
 }
 
 func MakeServerEndpoints(s svc.{{.Service.ServiceName}}, logger *slog.Logger) {{.Service.ServiceName}}Endpoints {

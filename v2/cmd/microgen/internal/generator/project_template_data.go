@@ -100,5 +100,7 @@ type goModTemplateData struct {
 	WithConfig   bool
 	WithGRPC     bool
 	WithOpenAPI  bool
+	WithModel    bool
+	WithDB       bool
 	RootRelPath  string
 }

@@ -55,22 +55,7 @@ type DatabaseConfig struct {
 
 // MiddlewareConfig groups generated middleware settings.
 type MiddlewareConfig struct {
-	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker" mapstructure:"circuit_breaker"`
-	RateLimit      RateLimitConfig      `yaml:"rate_limit" mapstructure:"rate_limit"`
-	Timeout        time.Duration        `yaml:"timeout" mapstructure:"timeout"`
-}
-
-// CircuitBreakerConfig holds circuit breaker settings.
-type CircuitBreakerConfig struct {
-	Enabled          bool          `yaml:"enabled" mapstructure:"enabled"`
-	FailureThreshold int           `yaml:"failure_threshold" mapstructure:"failure_threshold"`
-	Timeout          time.Duration `yaml:"timeout" mapstructure:"timeout"`
-}
-
-// RateLimitConfig holds rate limiting settings.
-type RateLimitConfig struct {
-	Enabled           bool    `yaml:"enabled" mapstructure:"enabled"`
-	RequestsPerSecond float64 `yaml:"requests_per_second" mapstructure:"requests_per_second"`
+	Timeout time.Duration `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // DebugConfig holds debug endpoint settings.
@@ -119,15 +104,6 @@ func Default() *Config {
 		},
 {{- end}}
 		Middleware: MiddlewareConfig{
-			CircuitBreaker: CircuitBreakerConfig{
-				Enabled:          false,
-				FailureThreshold: 5,
-				Timeout:          60 * time.Second,
-			},
-			RateLimit: RateLimitConfig{
-				Enabled:           false,
-				RequestsPerSecond: 100,
-			},
 			Timeout: 30 * time.Second,
 		},
 		Debug: DebugConfig{
@@ -174,7 +150,7 @@ func (cfg *Config) Validate() error {
 	}
 
 	switch strings.ToLower(strings.TrimSpace(cfg.Logging.Level)) {
-	case "debug", "info", "warn", "error", "dpanic", "panic", "fatal":
+	case "debug", "info", "warn", "error":
 	default:
 		return fmt.Errorf("config: unsupported logging.level %q", cfg.Logging.Level)
 	}
@@ -202,17 +178,6 @@ func (cfg *Config) Validate() error {
 	}
 {{- end}}
 
-	if cfg.Middleware.CircuitBreaker.Enabled {
-		if cfg.Middleware.CircuitBreaker.FailureThreshold <= 0 {
-			return fmt.Errorf("config: middleware.circuit_breaker.failure_threshold must be > 0")
-		}
-		if cfg.Middleware.CircuitBreaker.Timeout <= 0 {
-			return fmt.Errorf("config: middleware.circuit_breaker.timeout must be > 0")
-		}
-	}
-	if cfg.Middleware.RateLimit.Enabled && cfg.Middleware.RateLimit.RequestsPerSecond <= 0 {
-		return fmt.Errorf("config: middleware.rate_limit.requests_per_second must be > 0")
-	}
 	if cfg.Middleware.Timeout < 0 {
 		return fmt.Errorf("config: middleware.timeout cannot be negative")
 	}

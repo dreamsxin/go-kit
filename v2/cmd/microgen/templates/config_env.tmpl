@@ -31,6 +31,7 @@ func ApplyEnv(cfg *Config) error {
 		*target = parsed
 		return nil
 	}
+{{- if .WithDB}}
 	readInt := func(key string, target *int) error {
 		value, ok := os.LookupEnv(envPrefix + key)
 		if !ok {
@@ -43,18 +44,7 @@ func ApplyEnv(cfg *Config) error {
 		*target = parsed
 		return nil
 	}
-	readFloat64 := func(key string, target *float64) error {
-		value, ok := os.LookupEnv(envPrefix + key)
-		if !ok {
-			return nil
-		}
-		parsed, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			return fmt.Errorf("config: parse %s%s as float64: %w", envPrefix, key, err)
-		}
-		*target = parsed
-		return nil
-	}
+{{- end}}
 	readDuration := func(key string, target *time.Duration) error {
 		value, ok := os.LookupEnv(envPrefix + key)
 		if !ok {
@@ -104,23 +94,6 @@ func ApplyEnv(cfg *Config) error {
 		return err
 	}
 {{- end}}
-
-	if err := readBool("CB_ENABLED", &cfg.Middleware.CircuitBreaker.Enabled); err != nil {
-		return err
-	}
-	if err := readInt("CB_FAILURE_THRESHOLD", &cfg.Middleware.CircuitBreaker.FailureThreshold); err != nil {
-		return err
-	}
-	if err := readDuration("CB_TIMEOUT", &cfg.Middleware.CircuitBreaker.Timeout); err != nil {
-		return err
-	}
-
-	if err := readBool("RATE_LIMIT_ENABLED", &cfg.Middleware.RateLimit.Enabled); err != nil {
-		return err
-	}
-	if err := readFloat64("RATE_LIMIT_RPS", &cfg.Middleware.RateLimit.RequestsPerSecond); err != nil {
-		return err
-	}
 
 	if err := readDuration("MIDDLEWARE_TIMEOUT", &cfg.Middleware.Timeout); err != nil {
 		return err

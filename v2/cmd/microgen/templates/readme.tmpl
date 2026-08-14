@@ -84,7 +84,7 @@ The generated HTTP server defaults to `read_header_timeout: 5s` and `write_timeo
 - Remote mode enables strict remote loading and fails startup when remote config cannot be loaded.
 - Environment overrides use the `APP_` prefix, such as `APP_HTTP_ADDR`, `APP_LOG_LEVEL`, `APP_LOG_FORMAT`, `APP_REMOTE_ENABLED`, and `APP_DB_AUTO_MIGRATE`.
 - `logging.level` and `logging.format` are used by `cmd/main.go` when constructing the logger.
-- Inbound rate limiting and circuit breaking are opt-in. Client-side retries belong at the service-discovery execution boundary, where idempotency and retryable errors can be classified explicitly.
+- Inbound rate limiting and circuit breaking are opt-in and are not added to the generated module graph. Install the required adapter and compose it in `endpoint/<name>/custom_chain.go`. Client-side retries belong at the service-discovery execution boundary, where idempotency and retryable errors can be classified explicitly.
 {{- if .WithDB}}
 - Database `AutoMigrate` is skipped by default. Enable `database.auto_migrate`, `APP_DB_AUTO_MIGRATE`, or `-auto-migrate` only when startup migrations are intended.
 {{- end}}

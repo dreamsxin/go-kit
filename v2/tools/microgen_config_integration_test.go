@@ -34,6 +34,11 @@ func TestMicrogenConfigIntegration(t *testing.T) {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("microgen remote-config fixture failed: %v\n%s", err, out)
 		}
+		compile := exec.Command("go", "test", "-mod=mod", "./...")
+		compile.Dir = outDir
+		if out, err := compile.CombinedOutput(); err != nil {
+			t.Fatalf("generated config project does not compile: %v\n%s", err, out)
+		}
 
 		probePkg := writeConfigRemoteProbe(t, outDir, "remoteconfigprobe", "example.com/gen_idl_remote_config")
 

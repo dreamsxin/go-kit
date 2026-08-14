@@ -420,9 +420,14 @@ func TestGenerateFull_EndpointsFile_Contents(t *testing.T) {
 	mustContain(t, epPath, "UserServiceEndpoints")
 	mustContain(t, epPath, "MakeServerEndpoints")
 	mustContain(t, epPath, "MakeCreateUserEndpoint")
-	mustContain(t, epPath, "RLEnabled:          false")
-	mustContain(t, epPath, "Timeout:            30 * time.Second")
+	mustNotContain(t, epPath, "RLEnabled")
+	mustContain(t, epPath, "Timeout: 30 * time.Second")
 	mustNotContain(t, epPath, "RetryMiddleware")
+	chainPath := filepath.Join(outDir, "endpoint", "userservice", "generated_chain.go")
+	mustNotContain(t, chainPath, "integrations/circuitbreaker")
+	mustNotContain(t, chainPath, "integrations/ratelimit")
+	mustNotContain(t, chainPath, "github.com/sony/gobreaker")
+	mustNotContain(t, chainPath, "golang.org/x/time/rate")
 }
 
 func TestGenerateFull_TransportHTTP_Contents(t *testing.T) {
@@ -776,11 +781,31 @@ func TestGenerateFull_GoMod_Created(t *testing.T) {
 	mustContain(t, goModPath, "module example.com/myproject")
 	mustContain(t, goModPath, "go 1.25.8")
 	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2 v2.0.0")
-	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker v0.1.0")
-	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/ratelimit v0.1.0")
+	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker")
+	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/ratelimit")
 	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/zap")
 	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/grpc")
+	mustNotContain(t, goModPath, "github.com/sony/gobreaker")
+	mustNotContain(t, goModPath, "golang.org/x/time")
+	mustNotContain(t, goModPath, "gorm.io/gorm")
 	mustNotContain(t, goModPath, "replace github.com/dreamsxin/go-kit/v2")
+}
+
+func TestGenerateFull_GoMod_WithModelRequiresGORM(t *testing.T) {
+	outDir := newTmpDir(t)
+	project := parseIDLProject(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/myproject",
+		DBDriver:   "sqlite",
+		WithModel:  true,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	mustContain(t, filepath.Join(outDir, "go.mod"), "gorm.io/gorm v1.31.1")
 }
 
 func TestGenerateFull_GoMod_WithGRPCRequiresGRPCIntegration(t *testing.T) {
@@ -999,7 +1024,8 @@ func TestGenerateFull_ConfigYAML_HTTPOnly(t *testing.T) {
 	mustContain(t, configPath, "http_addr")
 	mustContain(t, configPath, `read_header_timeout: "5s"`)
 	mustContain(t, configPath, `write_timeout: "0s"`)
-	mustContain(t, configPath, "circuit_breaker")
+	mustNotContain(t, configPath, "circuit_breaker")
+	mustNotContain(t, configPath, "rate_limit")
 	mustContain(t, configPath, "timeout: \"30s\"")
 	mustContain(t, configPath, "enabled: false")
 	mustContain(t, configPath, "remote:")
@@ -1171,7 +1197,7 @@ func TestGenerateFull_ConfigCode_EnvOverrides(t *testing.T) {
 	mustContain(t, envPath, `readBool("REMOTE_FALLBACK_TO_LOCAL"`)
 	mustContain(t, envPath, "strconv.ParseBool")
 	mustContain(t, envPath, "strconv.Atoi")
-	mustContain(t, envPath, "strconv.ParseFloat")
+	mustNotContain(t, envPath, "strconv.ParseFloat")
 	mustContain(t, envPath, "time.ParseDuration")
 }
 

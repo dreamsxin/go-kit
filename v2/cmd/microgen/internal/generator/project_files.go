@@ -189,6 +189,8 @@ func (g *Generator) generateGoModFile() error {
 		WithConfig:   g.config.WithConfig,
 		WithGRPC:     g.config.WithGRPC,
 		WithOpenAPI:  g.config.WithOpenAPI,
+		WithModel:    g.config.WithModel,
+		WithDB:       g.config.WithDB,
 		RootRelPath:  g.rootRelativePath(),
 	}
 	return g.executeTemplate("go_mod.tmpl", g.layout.goMod(), data)
