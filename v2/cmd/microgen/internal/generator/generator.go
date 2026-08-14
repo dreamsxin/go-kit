@@ -105,7 +105,7 @@ func (g *Generator) executeTemplate(templateName, filePath string, data any) err
 		return fmt.Errorf("render %s: %w", templateName, err)
 	}
 
-	content := rendered.Bytes()
+	content := normalizeGeneratedLineEndings(rendered.Bytes())
 	if filepath.Ext(filePath) == ".go" {
 		formatted, err := format.Source(content)
 		if err != nil {
@@ -131,7 +131,7 @@ func (g *Generator) executeTemplateIfAbsent(templateName, filePath string, data 
 }
 
 func normalizeGeneratedText(content []byte) []byte {
-	text := strings.ReplaceAll(string(content), "\r\n", "\n")
+	text := string(normalizeGeneratedLineEndings(content))
 	lines := strings.Split(text, "\n")
 	for i := range lines {
 		lines[i] = strings.TrimRight(lines[i], " \t")
@@ -141,6 +141,10 @@ func normalizeGeneratedText(content []byte) []byte {
 		return nil
 	}
 	return []byte(text + "\n")
+}
+
+func normalizeGeneratedLineEndings(content []byte) []byte {
+	return bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
 }
 
 func toSnakeCase(s string) string {

@@ -1,6 +1,7 @@
 package tools_test
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"flag"
 	"fmt"
@@ -36,7 +37,7 @@ func assertGeneratedContractSnapshot(t *testing.T, name, root string) {
 		if err != nil {
 			t.Fatalf("read contract artifact %s: %v", relative, err)
 		}
-		sum := sha256.Sum256(data)
+		sum := contractArtifactDigest(data)
 		fmt.Fprintf(&snapshot, "%x  %s\n", sum, filepath.ToSlash(relative))
 	}
 
@@ -58,6 +59,18 @@ func assertGeneratedContractSnapshot(t *testing.T, name, root string) {
 	wantText := string(normalizeCommandOutput(want))
 	if got != wantText {
 		t.Fatalf("generated %s contract changed\n--- want\n%s--- got\n%s\nreview the public contract, then rerun with -args -update-contract-snapshots", name, wantText, got)
+	}
+}
+
+func contractArtifactDigest(data []byte) [sha256.Size]byte {
+	return sha256.Sum256(bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n")))
+}
+
+func TestContractArtifactDigestNormalizesLineEndings(t *testing.T) {
+	lf := contractArtifactDigest([]byte("package sdk\n\nfunc Call() {}\n"))
+	crlf := contractArtifactDigest([]byte("package sdk\r\n\r\nfunc Call() {}\r\n"))
+	if lf != crlf {
+		t.Fatalf("contract artifact digest differs by line ending: LF=%x CRLF=%x", lf, crlf)
 	}
 }
 

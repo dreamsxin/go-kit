@@ -1,11 +1,20 @@
 package generator
 
 import (
+	"bytes"
 	"path/filepath"
 	"testing"
 
 	"github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/ir"
 )
+
+func TestNormalizeGeneratedLineEndings(t *testing.T) {
+	lf := []byte("// Package example.\n// \npackage example\n")
+	crlf := []byte("// Package example.\r\n// \r\npackage example\r\n")
+	if got := normalizeGeneratedLineEndings(crlf); !bytes.Equal(got, lf) {
+		t.Fatalf("normalizeGeneratedLineEndings() = %q, want %q", got, lf)
+	}
+}
 
 func TestShouldCopyIDLSource(t *testing.T) {
 	tests := []struct {
