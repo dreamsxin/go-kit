@@ -10,19 +10,16 @@ github.com/dreamsxin/go-kit/v2
 
 The current `main/v2` source contains the incompatible direct refactor tracked
 in [ROADMAP.md](ROADMAP.md). It is not covered by the `v2.0.0` compatibility
-contract. A release from this source must use a semantic version appropriate
-for the break after all refactor acceptance gates pass.
+contract. On 2026-08-14, the repository owner approved publishing this refactor
+under `/v2` as a documented one-time SemVer exception instead of changing the
+module path to `/v3`.
 
-Do not move or recreate the existing `v2.0.0` tag. Before publishing the
-incompatible refactor, the owner must choose one of these paths:
-
-- change the module and integration paths to `/v3` and publish a normal major
-  release; this is the SemVer-compliant path;
-- explicitly approve a documented v2 SemVer exception and select a new,
-  previously unused v2 tag.
-
-Passing repository checks does not make this product decision or authorize a
-tag. The reviewed dependency closure and baseline comparison are recorded in
+This approval fixes the publication path, but it does not authorize moving or
+recreating `v2.0.0`, skipping release gates, or creating a tag before a release
+version is selected. The incompatible release must use a previously unused v2
+tag and must identify the source break prominently in release notes,
+[CHANGELOG.md](CHANGELOG.md), and [MIGRATION.md](MIGRATION.md). The reviewed
+dependency closure and baseline comparison are recorded in
 [DEPENDENCY_REPORT.md](DEPENDENCY_REPORT.md).
 
 The published module is stored in the repository's `v2` major-version
@@ -37,12 +34,17 @@ tag `v2.0.0` points at the release commit and resolves as
 
 ## Versioning
 
-v2 follows semantic versioning from v2.0.0 onward:
+Except for the explicitly approved direct-refactor release, v2 follows semantic
+versioning from v2.0.0 onward:
 
 - patch: compatible fixes and documentation corrections;
 - minor: backward-compatible public capabilities;
 - major: incompatible runtime API, module, CLI, configuration, or generated
   ownership changes.
+
+The approved exception applies only to the incompatible refactor currently
+tracked as Milestone 6. Normal compatibility rules resume after that release;
+the exception is not precedent for unrelated breaking changes.
 
 The compatibility contract includes:
 

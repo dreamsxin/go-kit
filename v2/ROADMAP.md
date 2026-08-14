@@ -122,10 +122,14 @@ deprecated forwarding packages merely to retain the old package graph.
 最终发布前集中记录到 `MIGRATION.md` 和 `CHANGELOG.md`。
 
 This is an explicit compatibility-policy override for the active development
-branch. Publishing the result as another `/v2` release is a deliberate SemVer
-exception and must be called out in release notes. The technically strict
-alternative is to change the module path to `/v3` before publication; that
-release-path decision is made only after the refactor acceptance gates pass.
+branch. On 2026-08-14, the repository owner approved publishing the result as
+another `/v2` release instead of changing the module path to `/v3`. This is a
+one-time SemVer exception and must be called out in release notes; `v2.0.0`
+remains immutable and the refactor must use a previously unused v2 tag.
+
+2026-08-14，仓库所有者批准继续使用 `/v2` 发布本次不兼容重构，不切换到
+`/v3`。该决定是一次性 SemVer 例外，必须在发布说明中明确披露；`v2.0.0` 保持
+不变，本次重构发布时必须使用尚未占用的新 v2 tag。
 
 ### Execution Status / 实施状态
 
@@ -159,8 +163,9 @@ release-path decision is made only after the refactor acceptance gates pass.
   removed APIs and package paths.
 - [ ] Work Package 8: dependency boundaries are executable and the current
   closure and `v2.0.0` comparison are captured in `DEPENDENCY_REPORT.md`.
-  Functional, contract, API, vet, and module gates must pass again from the
-  final clean commit; the focused race suite and publication decision remain.
+  Functional, contract, API, vet, module, standalone-module, and clean-scope
+  gates pass from the final commit. The `/v2` SemVer exception is approved; the
+  focused race suite remains for a CGO-enabled environment.
 
 ### Refactor Goals / 重构目标
 

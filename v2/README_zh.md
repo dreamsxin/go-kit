@@ -23,8 +23,9 @@ github.com/dreamsxin/go-kit/v2
 ```
 
 已发布的 `v2.0.0` tag 是稳定的 v2 基线。当前 `main/v2` 源码正在直接进行不兼容
-的架构重构，与该 tag 不保持源码兼容；在 [ROADMAP.md](ROADMAP.md) 的验收门禁和
-发布决策完成前，它仍是开发版本。仓库根目录仍然是 v1 module。
+的架构重构，与该 tag 不保持源码兼容。仓库所有者已批准把本次重构作为一次有明确
+记录的 v2 SemVer 例外继续在 `/v2` 发布；在 [ROADMAP.md](ROADMAP.md) 的剩余验收
+门禁完成前，它仍是开发版本。仓库根目录仍然是 v1 module。
 
 需要 Go 1.25.8 或更高版本。
 

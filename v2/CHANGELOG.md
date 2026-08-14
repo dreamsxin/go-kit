@@ -18,6 +18,9 @@ root.
 
 ### Changed
 
+- The repository owner approved publishing the direct incompatible refactor
+  under `/v2` as a documented one-time SemVer exception; `v2.0.0` remains
+  immutable and the refactor will use a new v2 tag selected at release time.
 - The root runtime module now has no third-party requirements. gRPC, Consul,
   Gobreaker, rate limiting, Zap, and OpenTelemetry live in independent modules.
 - `microgen` implementation packages are internal, generated code uses direct

@@ -25,9 +25,11 @@ github.com/dreamsxin/go-kit/v2
 
 The published `v2.0.0` tag is the stable v2 baseline. The current `main/v2`
 source is an incompatible direct architecture refactor and is not source
-compatible with that tag. It remains development source until the acceptance
-gates and release decision in [ROADMAP.md](ROADMAP.md) are complete. The
-repository root remains the v1 module.
+compatible with that tag. The repository owner approved publishing this
+refactor under `/v2` as a documented one-time SemVer exception. It remains
+development source until the remaining acceptance gates in
+[ROADMAP.md](ROADMAP.md) are complete. The repository root remains the v1
+module.
 
 Requires Go 1.25.8 or later.
 

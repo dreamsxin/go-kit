@@ -211,8 +211,9 @@ framework branches for one application.
 
 The published `v2.0.0` tag remains an immutable stable baseline. The current
 `main/v2` tree is a direct architecture refactor and intentionally does not
-preserve `v2.0.0` source compatibility. It is development source until the
-release path in [ROADMAP.md](ROADMAP.md) is completed. Any release containing
-these incompatible changes must use a semantic version that communicates the
-break and must document it in [CHANGELOG.md](CHANGELOG.md) and
-[MIGRATION.md](MIGRATION.md).
+preserve `v2.0.0` source compatibility. The repository owner approved a
+documented one-time SemVer exception that keeps this refactor under `/v2`; it
+is still development source until the remaining gates in
+[ROADMAP.md](ROADMAP.md) pass. The release must use a previously unused v2 tag
+and state the compatibility break prominently in [CHANGELOG.md](CHANGELOG.md),
+[MIGRATION.md](MIGRATION.md), and its release notes.
