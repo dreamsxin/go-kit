@@ -530,6 +530,49 @@ func TestService_HandleJSON(t *testing.T) {
 	}
 }
 
+func TestService_HandleJSONTyped(t *testing.T) {
+	svc := kit.MustNew(":0")
+	kit.HandleJSONTyped(svc, "/hello", func(_ context.Context, req helloReq) (helloResp, error) {
+		return helloResp{Message: "Hello, " + req.Name + "!"}, nil
+	})
+	ts := httptest.NewServer(svc)
+	defer ts.Close()
+
+	body, _ := json.Marshal(helloReq{Name: "Typed"})
+	resp, err := http.Post(ts.URL+"/hello", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer resp.Body.Close()
+	var result helloResp
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if result.Message != "Hello, Typed!" {
+		t.Fatalf("message: got %q, want %q", result.Message, "Hello, Typed!")
+	}
+}
+
+func TestJSONTyped(t *testing.T) {
+	h := kit.JSONTyped(func(_ context.Context, req helloReq) (helloResp, error) {
+		return helloResp{Message: req.Name}, nil
+	})
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"standalone"}`))
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusOK)
+	}
+	var result helloResp
+	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if result.Message != "standalone" {
+		t.Fatalf("message: got %q, want standalone", result.Message)
+	}
+}
+
 func TestService_HandleJSON_AppliesEndpointMiddlewareToBusinessErrors(t *testing.T) {
 	var m endpoint.Metrics
 	svc := kit.MustNew(":0", kit.WithMetrics(&m))

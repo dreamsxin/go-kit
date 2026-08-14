@@ -2,7 +2,8 @@
 // prototyping and small production services.
 //
 // Kit is a thin scaffold over the framework's normal service -> endpoint ->
-// transport shape. Prefer HandleJSON for concise handlers and
+// transport shape. Prefer HandleJSONTyped for concrete response types,
+// HandleJSON for dynamic responses, and
 // HandleJSONEndpoint when you already have an endpoint.Endpoint. Use
 // Service.Handle and Service.HandleFunc only for raw HTTP integrations such as
 // static files, third-party handlers, probes, or custom protocol endpoints.
@@ -14,7 +15,7 @@
 //	    if err != nil {
 //	        return err
 //	    }
-//	    kit.HandleJSON[HelloReq](svc, "/hello", func(ctx context.Context, req HelloReq) (any, error) {
+//	    kit.HandleJSONTyped(svc, "/hello", func(ctx context.Context, req HelloReq) (HelloResp, error) {
 //	        return HelloResp{Message: "Hello, " + req.Name}, nil
 //	    })
 //	    return svc.Run(ctx)

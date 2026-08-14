@@ -165,23 +165,6 @@ func TestHTTP_MetricsEndpoint(t *testing.T) {
 	}
 }
 
-func TestAvgMs_ZeroRequests(t *testing.T) {
-	m := endpoint.Metrics{}
-	if got := avgMs(m); got != 0 {
-		t.Errorf("avgMs with 0 requests: got %f, want 0", got)
-	}
-}
-
-func TestAvgMs_WithRequests(t *testing.T) {
-	m := endpoint.Metrics{
-		RequestCount:  2,
-		TotalDuration: 200 * time.Millisecond,
-	}
-	if got := avgMs(m); got != 100.0 {
-		t.Errorf("avgMs: got %f, want 100.0", got)
-	}
-}
-
 func TestRateLimit_Rejected(t *testing.T) {
 	// burst=1: second call is rejected
 	limiter := rate.NewLimiter(0, 1)

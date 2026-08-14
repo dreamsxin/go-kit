@@ -18,7 +18,7 @@ func newTestService(t *testing.T) *httptest.Server {
 		kit.WithRequestID(),
 		kit.WithTimeout(5*time.Second),
 	)
-	kit.HandleJSON[GreetRequest](svc, "/greet", greet)
+	kit.HandleJSONTyped(svc, "/greet", greet)
 	return httptest.NewServer(svc)
 }
 
@@ -27,9 +27,8 @@ func TestGreet_Logic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	gr := resp.(GreetResponse)
-	if gr.Message != "Hello, World!" {
-		t.Errorf("got %q, want %q", gr.Message, "Hello, World!")
+	if resp.Message != "Hello, World!" {
+		t.Errorf("got %q, want %q", resp.Message, "Hello, World!")
 	}
 }
 

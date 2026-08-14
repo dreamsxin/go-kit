@@ -21,7 +21,7 @@ import (
 func newManualCompositionServer(t *testing.T) (*httptest.Server, *endpoint.Metrics) {
 	t.Helper()
 	var metrics endpoint.Metrics
-	handler := httpserver.NewJSONServerWithMiddleware[HelloRequest](
+	handler := httpserver.NewTypedJSONServerWithMiddleware(
 		hello,
 		func(b *endpoint.Builder) *endpoint.Builder {
 			return b.
@@ -52,9 +52,8 @@ func TestHello_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	hr := resp.(HelloResponse)
-	if hr.Message != "Hello, World!" {
-		t.Errorf("got %q, want %q", hr.Message, "Hello, World!")
+	if resp.Message != "Hello, World!" {
+		t.Errorf("got %q, want %q", resp.Message, "Hello, World!")
 	}
 }
 

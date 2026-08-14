@@ -19,11 +19,29 @@ type Metrics struct {
 	LastRequestTime time.Time
 }
 
-// Snapshot returns a point-in-time copy that is safe to read without a lock.
-func (m *Metrics) Snapshot() Metrics {
+// MetricsSnapshot is an immutable point-in-time view of Metrics. It contains
+// no synchronization state and is safe to copy or pass by value.
+type MetricsSnapshot struct {
+	RequestCount    int64
+	ErrorCount      int64
+	SuccessCount    int64
+	TotalDuration   time.Duration
+	LastRequestTime time.Time
+}
+
+// AverageDuration returns the mean duration of recorded requests.
+func (m MetricsSnapshot) AverageDuration() time.Duration {
+	if m.RequestCount == 0 {
+		return 0
+	}
+	return m.TotalDuration / time.Duration(m.RequestCount)
+}
+
+// Snapshot returns a point-in-time value that is safe to read and copy.
+func (m *Metrics) Snapshot() MetricsSnapshot {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return Metrics{
+	return MetricsSnapshot{
 		RequestCount:    m.RequestCount,
 		ErrorCount:      m.ErrorCount,
 		SuccessCount:    m.SuccessCount,

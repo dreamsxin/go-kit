@@ -1,10 +1,10 @@
 // Command quickstart demonstrates the recommended kit path from zero to a
-// running HTTP service. kit.New, kit.HandleJSON, and Service.Run own HTTP
+// running HTTP service. kit.New, kit.HandleJSONTyped, and Service.Run own HTTP
 // assembly, middleware, lifecycle, and graceful shutdown.
 //
 // Concepts shown:
 //   - kit.New validates configuration and creates a Service with /health
-//   - kit.HandleJSON wraps a typed handler with endpoint middleware and JSON transport
+//   - kit.HandleJSONTyped keeps request and response types checked at compile time
 //   - svc.Run follows the caller-owned context lifecycle
 //
 // Run:
@@ -45,9 +45,9 @@ type GreetResponse struct {
 
 // ── Transport-neutral business logic ─────────────────────────────────────────
 
-func greet(_ context.Context, req GreetRequest) (any, error) {
+func greet(_ context.Context, req GreetRequest) (GreetResponse, error) {
 	if req.Name == "" {
-		return nil, apperror.New(
+		return GreetResponse{}, apperror.New(
 			apperror.KindInvalidArgument,
 			"greet.name_required",
 			"name is required",
@@ -73,9 +73,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// HandleJSON preserves the normal service -> endpoint -> transport path, so
+	// HandleJSONTyped preserves the normal service -> endpoint -> transport path, so
 	// configured endpoint middleware and strict JSON decoding both apply.
-	kit.HandleJSON[GreetRequest](svc, "/greet", greet)
+	kit.HandleJSONTyped(svc, "/greet", greet)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

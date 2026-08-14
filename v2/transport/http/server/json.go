@@ -28,10 +28,16 @@ func NewJSONServer[Req any](
 	handler func(ctx context.Context, req Req) (any, error),
 	options ...ServerOption,
 ) *Server {
-	e := endpoint.Endpoint(func(ctx context.Context, request any) (any, error) {
-		return handler(ctx, request.(Req))
-	})
-	return NewJSONEndpoint[Req](e, options...)
+	return NewJSONEndpoint[Req](endpoint.TypedEndpoint[Req, any](handler).Wrap(), options...)
+}
+
+// NewTypedJSONServer creates an HTTP server with compile-time request and
+// response types.
+func NewTypedJSONServer[Req, Resp any](
+	handler func(ctx context.Context, req Req) (Resp, error),
+	options ...ServerOption,
+) *Server {
+	return NewJSONEndpoint[Req](endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), options...)
 }
 
 // NewJSONEndpoint creates a strict JSON HTTP server for an existing
@@ -72,10 +78,17 @@ func NewStrictJSONServer[Req any](
 	maxBodyBytes int64,
 	options ...ServerOption,
 ) *Server {
-	e := endpoint.Endpoint(func(ctx context.Context, request any) (any, error) {
-		return handler(ctx, request.(Req))
-	})
-	return NewStrictJSONEndpoint[Req](e, maxBodyBytes, options...)
+	return NewStrictJSONEndpoint[Req](endpoint.TypedEndpoint[Req, any](handler).Wrap(), maxBodyBytes, options...)
+}
+
+// NewStrictTypedJSONServer creates a strict JSON server with compile-time
+// request and response types.
+func NewStrictTypedJSONServer[Req, Resp any](
+	handler func(ctx context.Context, req Req) (Resp, error),
+	maxBodyBytes int64,
+	options ...ServerOption,
+) *Server {
+	return NewStrictJSONEndpoint[Req](endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), maxBodyBytes, options...)
 }
 
 // NewJSONServerWithMiddleware is a convenience wrapper that combines
@@ -85,10 +98,19 @@ func NewJSONServerWithMiddleware[Req any](
 	middleware func(*endpoint.Builder) *endpoint.Builder,
 	options ...ServerOption,
 ) *Server {
-	e := endpoint.Endpoint(func(ctx context.Context, request any) (any, error) {
-		return handler(ctx, request.(Req))
-	})
+	e := endpoint.TypedEndpoint[Req, any](handler).Wrap()
 	ep := middleware(endpoint.NewBuilder(e)).Build()
+	return NewJSONEndpoint[Req](ep, options...)
+}
+
+// NewTypedJSONServerWithMiddleware combines a fully typed handler with an
+// endpoint middleware chain.
+func NewTypedJSONServerWithMiddleware[Req, Resp any](
+	handler func(ctx context.Context, req Req) (Resp, error),
+	middleware func(*endpoint.Builder) *endpoint.Builder,
+	options ...ServerOption,
+) *Server {
+	ep := middleware(endpoint.NewTypedBuilder(endpoint.TypedEndpoint[Req, Resp](handler))).Build()
 	return NewJSONEndpoint[Req](ep, options...)
 }
 

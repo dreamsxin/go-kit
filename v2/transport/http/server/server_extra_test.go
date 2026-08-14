@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/dreamsxin/go-kit/v2/endpoint"
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 	"github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
@@ -259,6 +260,53 @@ func TestNewJSONServer_Success(t *testing.T) {
 	}
 }
 
+func TestNewTypedJSONServer_Success(t *testing.T) {
+	type response struct {
+		Echo string `json:"echo"`
+	}
+	h := server.NewTypedJSONServer(func(_ context.Context, req testReq) (response, error) {
+		return response{Echo: req.Name}, nil
+	})
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"typed"}`))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusOK)
+	}
+	var got response
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Echo != "typed" {
+		t.Fatalf("echo: got %q, want typed", got.Echo)
+	}
+}
+
+func TestNewTypedJSONServerWithMiddleware(t *testing.T) {
+	called := false
+	h := server.NewTypedJSONServerWithMiddleware(
+		func(_ context.Context, req testReq) (string, error) {
+			return req.Name, nil
+		},
+		func(builder *endpoint.Builder) *endpoint.Builder {
+			return builder.Use(func(next endpoint.Endpoint) endpoint.Endpoint {
+				return func(ctx context.Context, request any) (any, error) {
+					called = true
+					return next(ctx, request)
+				}
+			})
+		},
+	)
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"typed"}`))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK || !called {
+		t.Fatalf("status = %d, middleware called = %v", w.Code, called)
+	}
+}
+
 func TestNewJSONServer_HandlerError(t *testing.T) {
 	h := server.NewJSONServer[testReq](func(_ context.Context, _ testReq) (any, error) {
 		return nil, errors.New("handler error")
@@ -308,6 +356,24 @@ func TestNewStrictJSONServer_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
 	json.NewDecoder(w.Body).Decode(&body) //nolint:errcheck
 	if body["code"] != "bad_request.invalid_json" {
 		t.Errorf("code: got %q, want bad_request.invalid_json", body["code"])
+	}
+	if called {
+		t.Fatal("handler should not run for invalid strict JSON")
+	}
+}
+
+func TestNewStrictTypedJSONServer_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
+	called := false
+	h := server.NewStrictTypedJSONServer(func(_ context.Context, _ testReq) (string, error) {
+		called = true
+		return "ok", nil
+	}, 128)
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"x","extra":true}`))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d, want %d", w.Code, http.StatusBadRequest)
 	}
 	if called {
 		t.Fatal("handler should not run for invalid strict JSON")

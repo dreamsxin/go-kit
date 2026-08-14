@@ -15,6 +15,14 @@ func JSON[Req any](handler func(ctx context.Context, req Req) (any, error)) http
 	)
 }
 
+// JSONTyped creates a JSON http.Handler with compile-time request and response
+// types without needing a Service.
+func JSONTyped[Req, Resp any](handler func(ctx context.Context, req Req) (Resp, error)) http.Handler {
+	return httpserver.NewTypedJSONServer[Req, Resp](handler,
+		httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder),
+	)
+}
+
 // HandleJSON registers a typed JSON endpoint on a Service.
 //
 // It is the recommended high-level path for small services: Service
@@ -31,10 +39,22 @@ func HandleJSON[Req any](
 	if handler == nil {
 		panic("kit: JSON handler cannot be nil")
 	}
-	ep := endpoint.Endpoint(func(ctx context.Context, request any) (any, error) {
-		return handler(ctx, request.(Req))
-	})
+	ep := endpoint.TypedEndpoint[Req, any](handler).Wrap()
 	HandleJSONEndpoint[Req](s, pattern, ep, options...)
+}
+
+// HandleJSONTyped registers a JSON endpoint with compile-time request and
+// response types. Prefer it for new handlers that return a concrete response.
+func HandleJSONTyped[Req, Resp any](
+	s *Service,
+	pattern string,
+	handler func(ctx context.Context, req Req) (Resp, error),
+	options ...httpserver.ServerOption,
+) {
+	if handler == nil {
+		panic("kit: JSON handler cannot be nil")
+	}
+	HandleJSONEndpoint[Req](s, pattern, endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), options...)
 }
 
 // HandleJSONEndpoint registers an already-built endpoint.Endpoint as a strict

@@ -1,7 +1,7 @@
 // Package main demonstrates go-kit best practices:
 //   - Pure business logic separated from transport
 //   - Fluent endpoint.Builder for middleware assembly
-//   - NewJSONServer for zero-boilerplate HTTP handling
+//   - NewTypedJSONServer for type-safe HTTP handling
 //   - MetricsMiddleware for built-in request counters
 //   - Graceful shutdown
 //
@@ -87,10 +87,7 @@ func main() {
 
 	// ── Endpoint assembly via Builder ─────────────────────────────────────────
 	var metrics endpoint.Metrics
-	base := endpoint.Endpoint(func(ctx context.Context, req any) (any, error) {
-		return helloLogic(ctx, req.(helloRequest))
-	})
-	ep := endpoint.NewBuilder(base).
+	ep := endpoint.NewTypedBuilder(endpoint.TypedEndpoint[helloRequest, helloResponse](helloLogic)).
 		WithMetrics(&metrics).
 		WithErrorHandling("hello").
 		Use(endpoint.TimeoutMiddleware(5 * time.Second)).
@@ -101,11 +98,9 @@ func main() {
 	// ── HTTP handlers ─────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
 
-	// /hello — automatic JSON decode/encode via NewJSONServer
-	mux.Handle("/hello", server.NewJSONServer[helloRequest](
-		func(ctx context.Context, req helloRequest) (any, error) {
-			return ep(ctx, req)
-		},
+	// /hello — automatic JSON decode/encode via NewTypedJSONServer
+	mux.Handle("/hello", server.NewTypedJSONServer(
+		endpoint.Unwrap[helloRequest, helloResponse](ep),
 		server.ServerErrorEncoder(jsonErrorEncoder(logger)),
 	))
 
@@ -118,7 +113,7 @@ func main() {
 			snapshot.RequestCount,
 			snapshot.SuccessCount,
 			snapshot.ErrorCount,
-			avgMs(snapshot),
+			float64(snapshot.AverageDuration())/float64(time.Millisecond),
 		)
 	})
 
@@ -130,16 +125,22 @@ func main() {
 	// ── Graceful shutdown ─────────────────────────────────────────────────────
 	srv := &http.Server{Addr: *httpAddr, Handler: mux}
 
+	serveErr := make(chan error, 1)
 	go func() {
 		logger.Sugar().Infof("listening on %s", *httpAddr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Sugar().Fatalf("listen: %v", err)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serveErr <- err
 		}
 	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	select {
+	case <-signalCtx.Done():
+	case err := <-serveErr:
+		logger.Sugar().Errorf("listen: %v", err)
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -147,15 +148,6 @@ func main() {
 		logger.Sugar().Errorf("shutdown: %v", err)
 	}
 	logger.Sugar().Infof("stopped — total requests: %d", metrics.Snapshot().RequestCount)
-}
-
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-func avgMs(m endpoint.Metrics) float64 {
-	if m.RequestCount == 0 {
-		return 0
-	}
-	return float64(m.TotalDuration.Milliseconds()) / float64(m.RequestCount)
 }
 
 // jsonErrorEncoder maps known errors to appropriate HTTP status codes and
