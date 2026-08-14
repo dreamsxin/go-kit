@@ -326,8 +326,8 @@ func TestAddMultipleHeadersErrorEncoder(t *testing.T) {
 			t.Errorf("Header: unexpected header %s: %v", k, expect[k])
 		}
 	}
-	if b, _ := io.ReadAll(resp.Body); errStr != string(b) {
-		t.Errorf("ErrorEncoder: got: %q, expected: %q", b, errStr)
+	if b, _ := io.ReadAll(resp.Body); http.StatusText(http.StatusInternalServerError) != string(b) {
+		t.Errorf("ErrorEncoder: got: %q, expected redacted 500 body", b)
 	}
 }
 

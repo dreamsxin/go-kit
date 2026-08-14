@@ -254,6 +254,7 @@ HTTP integrations.
 | Package | Responsibility |
 | --- | --- |
 | `kit` | Small-service assembly and lifecycle |
+| `apperror` | Transport-neutral application error classification |
 | `endpoint` | Transport-independent endpoint and middleware composition |
 | `transport/http` | HTTP server and client adapters |
 | `integrations/grpc` | Optional gRPC server and client adapters |

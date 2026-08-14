@@ -100,8 +100,18 @@ func TestHTTP_Hello_EmptyName_Returns4xx(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 400 {
-		t.Errorf("expected 4xx, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+	var result struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Code != "hello.name_required" || result.Message != "name is required" {
+		t.Fatalf("error response = %#v", result)
 	}
 }
 

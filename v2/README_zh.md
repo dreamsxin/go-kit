@@ -244,6 +244,7 @@ HTTP 集成。
 | 包 | 职责 |
 | --- | --- |
 | `kit` | 小型服务装配和生命周期 |
+| `apperror` | 与 transport 无关的应用错误分类 |
 | `endpoint` | 与 transport 无关的 endpoint 和 middleware 组合 |
 | `transport/http` | HTTP server/client adapter |
 | `integrations/grpc` | 可选的 gRPC server/client adapter |

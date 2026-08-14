@@ -33,6 +33,7 @@ import (
 	"github.com/sony/gobreaker"
 	"golang.org/x/time/rate"
 
+	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
 	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
@@ -49,11 +50,15 @@ type HelloResponse struct {
 	Message string `json:"message"`
 }
 
-// ── 2. Pure business logic ────────────────────────────────────────────────────
+// ── 2. Transport-neutral business logic ──────────────────────────────────────
 
 func hello(_ context.Context, req HelloRequest) (any, error) {
 	if req.Name == "" {
-		return nil, fmt.Errorf("name is required")
+		return nil, apperror.New(
+			apperror.KindInvalidArgument,
+			"hello.name_required",
+			"name is required",
+		)
 	}
 	return HelloResponse{Message: "Hello, " + req.Name + "!"}, nil
 }

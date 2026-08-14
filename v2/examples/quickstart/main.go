@@ -23,13 +23,13 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/kit"
 )
 
@@ -43,11 +43,15 @@ type GreetResponse struct {
 	Message string `json:"message"`
 }
 
-// ── Pure business logic ───────────────────────────────────────────────────────
+// ── Transport-neutral business logic ─────────────────────────────────────────
 
 func greet(_ context.Context, req GreetRequest) (any, error) {
 	if req.Name == "" {
-		return nil, fmt.Errorf("name is required")
+		return nil, apperror.New(
+			apperror.KindInvalidArgument,
+			"greet.name_required",
+			"name is required",
+		)
 	}
 	return GreetResponse{Message: "Hello, " + req.Name + "!"}, nil
 }

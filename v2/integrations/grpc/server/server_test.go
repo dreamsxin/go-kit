@@ -5,6 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 )
 
@@ -52,8 +56,8 @@ func TestServeGRPC_DecodeError_DoesNotPanicWithoutExplicitErrorHandler(t *testin
 	)
 
 	_, _, err := s.ServeGRPC(context.Background(), struct{}{})
-	if err == nil || err.Error() != "decode failed" {
-		t.Fatalf("ServeGRPC() error = %v, want decode failed", err)
+	if status.Code(err) != codes.Internal || status.Convert(err).Message() != "internal error" {
+		t.Fatalf("ServeGRPC() error = %v, want redacted Internal", err)
 	}
 }
 
@@ -65,8 +69,8 @@ func TestServeGRPC_EndpointError_DoesNotPanicWithoutExplicitErrorHandler(t *test
 	)
 
 	_, _, err := s.ServeGRPC(context.Background(), struct{}{})
-	if err == nil || err.Error() != "endpoint failed" {
-		t.Fatalf("ServeGRPC() error = %v, want endpoint failed", err)
+	if status.Code(err) != codes.Internal || status.Convert(err).Message() != "internal error" {
+		t.Fatalf("ServeGRPC() error = %v, want redacted Internal", err)
 	}
 }
 
@@ -79,8 +83,37 @@ func TestServeGRPC_EndpointError_DoesNotPanicWithNilErrorHandlerOption(t *testin
 	)
 
 	_, _, err := s.ServeGRPC(context.Background(), struct{}{})
+	if status.Code(err) != codes.Internal || status.Convert(err).Message() != "internal error" {
+		t.Fatalf("ServeGRPC() error = %v, want redacted Internal", err)
+	}
+}
+
+func TestServeGRPC_MapsApplicationError(t *testing.T) {
+	s := NewServer(
+		func(context.Context, any) (any, error) {
+			return nil, apperror.New(apperror.KindNotFound, "user.not_found", "user not found")
+		},
+		func(context.Context, interface{}) (interface{}, error) { return "req", nil },
+		func(context.Context, interface{}) (interface{}, error) { return nil, nil },
+	)
+
+	_, _, err := s.ServeGRPC(context.Background(), struct{}{})
+	if status.Code(err) != codes.NotFound || status.Convert(err).Message() != "user not found" {
+		t.Fatalf("ServeGRPC() error = %v, want NotFound", err)
+	}
+}
+
+func TestServeGRPC_CustomErrorEncoder(t *testing.T) {
+	s := NewServer(
+		func(context.Context, any) (any, error) { return nil, errors.New("endpoint failed") },
+		func(context.Context, interface{}) (interface{}, error) { return "req", nil },
+		func(context.Context, interface{}) (interface{}, error) { return nil, nil },
+		ServerErrorEncoder(func(_ context.Context, err error) error { return err }),
+	)
+
+	_, _, err := s.ServeGRPC(context.Background(), struct{}{})
 	if err == nil || err.Error() != "endpoint failed" {
-		t.Fatalf("ServeGRPC() error = %v, want endpoint failed", err)
+		t.Fatalf("ServeGRPC() error = %v, want original error", err)
 	}
 }
 

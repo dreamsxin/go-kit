@@ -357,14 +357,14 @@ func TestServerFinalizer_AlwaysRuns(t *testing.T) {
 
 // ── server.DefaultErrorEncoder ───────────────────────────────────────────────
 
-func TestDefaultErrorEncoder_PlainText(t *testing.T) {
+func TestDefaultErrorEncoder_RedactsInternalError(t *testing.T) {
 	w := httptest.NewRecorder()
 	server.DefaultErrorEncoder(context.Background(), errors.New("plain error"), w)
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("status: got %d, want %d", w.Code, http.StatusInternalServerError)
 	}
-	if w.Body.String() != "plain error" {
-		t.Errorf("body: got %q, want %q", w.Body.String(), "plain error")
+	if w.Body.String() != http.StatusText(http.StatusInternalServerError) {
+		t.Errorf("body: got %q, want %q", w.Body.String(), http.StatusText(http.StatusInternalServerError))
 	}
 }
 
@@ -373,6 +373,9 @@ func TestDefaultErrorEncoder_StatusCoder(t *testing.T) {
 	server.DefaultErrorEncoder(context.Background(), extraStatusErr{code: http.StatusBadRequest}, w)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d, want %d", w.Code, http.StatusBadRequest)
+	}
+	if w.Body.String() != "status error" {
+		t.Errorf("body: got %q, want application error", w.Body.String())
 	}
 }
 

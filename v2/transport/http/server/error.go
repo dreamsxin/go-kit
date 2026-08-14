@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 )
@@ -89,27 +90,30 @@ func (e *HTTPError) Headers() http.Header {
 	return e.Header
 }
 
-// DefaultErrorEncoder writes a plain-text 500 response by default. Errors may
-// implement json.Marshaler, transporthttp.StatusCoder, or
-// transporthttp.Headerer to customize the response.
+// DefaultErrorEncoder writes a plain-text response. Internal errors are always
+// redacted. Errors may implement json.Marshaler, transporthttp.StatusCoder, or
+// transporthttp.Headerer to customize non-5xx responses.
 func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
-	contentType, body := "text/plain; charset=utf-8", []byte(err.Error())
-	if marshaler, ok := err.(json.Marshaler); ok {
-		if jsonBody, marshalErr := marshaler.MarshalJSON(); marshalErr == nil {
-			contentType, body = "application/json; charset=utf-8", jsonBody
+	status := httpStatus(err)
+	contentType := "text/plain; charset=utf-8"
+	body := []byte(http.StatusText(status))
+	if status < http.StatusInternalServerError && err != nil {
+		body = []byte(err.Error())
+		var marshaler json.Marshaler
+		if errors.As(err, &marshaler) {
+			if jsonBody, marshalErr := marshaler.MarshalJSON(); marshalErr == nil {
+				contentType, body = "application/json; charset=utf-8", jsonBody
+			}
 		}
 	}
 	w.Header().Set("Content-Type", contentType)
-	if headerer, ok := err.(transporthttp.Headerer); ok {
+	var headerer transporthttp.Headerer
+	if errors.As(err, &headerer) {
 		for key, values := range headerer.Headers() {
 			for _, value := range values {
 				w.Header().Add(key, value)
 			}
 		}
-	}
-	status := http.StatusInternalServerError
-	if statusCoder, ok := err.(transporthttp.StatusCoder); ok {
-		status = statusCoder.StatusCode()
 	}
 	w.WriteHeader(status)
 	_, _ = w.Write(body)
@@ -153,14 +157,7 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 		}
 	}
 
-	code := http.StatusInternalServerError
-	var sc transporthttp.StatusCoder
-	if errors.As(err, &sc) {
-		code = sc.StatusCode()
-	}
-	if code < 100 || code > 999 {
-		code = http.StatusInternalServerError
-	}
+	code := httpStatus(err)
 
 	message := http.StatusText(code)
 	if message == "" {
@@ -185,6 +182,46 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 		Message:   message,
 		RequestID: endpoint.RequestIDFromContext(ctx),
 	})
+}
+
+func httpStatus(err error) int {
+	var sc transporthttp.StatusCoder
+	if errors.As(err, &sc) {
+		if status := sc.StatusCode(); status >= 100 && status <= 999 {
+			return status
+		}
+	}
+
+	var kinder apperror.Kinder
+	if errors.As(err, &kinder) {
+		return statusForErrorKind(kinder.ErrorKind())
+	}
+	return http.StatusInternalServerError
+}
+
+func statusForErrorKind(kind apperror.Kind) int {
+	switch kind {
+	case apperror.KindInvalidArgument:
+		return http.StatusBadRequest
+	case apperror.KindUnauthenticated:
+		return http.StatusUnauthorized
+	case apperror.KindPermissionDenied:
+		return http.StatusForbidden
+	case apperror.KindNotFound:
+		return http.StatusNotFound
+	case apperror.KindAlreadyExists, apperror.KindConflict:
+		return http.StatusConflict
+	case apperror.KindFailedPrecondition:
+		return http.StatusPreconditionFailed
+	case apperror.KindResourceExhausted:
+		return http.StatusTooManyRequests
+	case apperror.KindUnavailable:
+		return http.StatusServiceUnavailable
+	case apperror.KindDeadlineExceeded:
+		return http.StatusGatewayTimeout
+	default:
+		return http.StatusInternalServerError
+	}
 }
 
 func defaultErrorCode(status int) string {

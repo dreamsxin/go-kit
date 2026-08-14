@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/transport"
 	"github.com/dreamsxin/go-kit/v2/transport/http/server"
@@ -155,8 +156,8 @@ func TestServer_NilErrorEncoderOption_FallsBackToDefault(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("want 500, got %d", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "endpoint fail") {
-		t.Errorf("want body to contain endpoint error, got %q", rec.Body.String())
+	if rec.Body.String() != http.StatusText(http.StatusInternalServerError) {
+		t.Errorf("want redacted body, got %q", rec.Body.String())
 	}
 }
 
@@ -355,6 +356,55 @@ func TestJSONErrorEncoder_UsesWrappedHTTPError(t *testing.T) {
 	}
 	if body["code"] != "user.email_taken" {
 		t.Errorf("code: got %q", body["code"])
+	}
+}
+
+func TestJSONErrorEncoder_MapsApplicationError(t *testing.T) {
+	rec := httptest.NewRecorder()
+	err := apperror.New(
+		apperror.KindInvalidArgument,
+		"request.name_required",
+		"name is required",
+	)
+	server.JSONErrorEncoder(context.Background(), err, rec)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+	var body server.ErrorResponse
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != "request.name_required" || body.Message != "name is required" {
+		t.Fatalf("body = %#v", body)
+	}
+}
+
+func TestJSONErrorEncoder_ApplicationErrorStatusMapping(t *testing.T) {
+	tests := []struct {
+		kind apperror.Kind
+		want int
+	}{
+		{apperror.KindInternal, http.StatusInternalServerError},
+		{apperror.KindInvalidArgument, http.StatusBadRequest},
+		{apperror.KindUnauthenticated, http.StatusUnauthorized},
+		{apperror.KindPermissionDenied, http.StatusForbidden},
+		{apperror.KindNotFound, http.StatusNotFound},
+		{apperror.KindAlreadyExists, http.StatusConflict},
+		{apperror.KindConflict, http.StatusConflict},
+		{apperror.KindFailedPrecondition, http.StatusPreconditionFailed},
+		{apperror.KindResourceExhausted, http.StatusTooManyRequests},
+		{apperror.KindUnavailable, http.StatusServiceUnavailable},
+		{apperror.KindDeadlineExceeded, http.StatusGatewayTimeout},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.kind), func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			server.JSONErrorEncoder(context.Background(), apperror.New(tt.kind, "test", "test"), rec)
+			if rec.Code != tt.want {
+				t.Fatalf("status: got %d, want %d", rec.Code, tt.want)
+			}
+		})
 	}
 }
 

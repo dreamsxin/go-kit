@@ -30,7 +30,7 @@ func ServerAfter(after ...ResponseFunc) ServerOption {
 }
 
 // ServerErrorEncoder sets the function used to encode errors into HTTP
-// responses.  The default encoder writes a plain-text body with status 500.
+// responses. The default encoder writes plain text and redacts 5xx details.
 func ServerErrorEncoder(ee ErrorEncoder) ServerOption {
 	return func(s *Server) { s.errorEncoder = ee }
 }

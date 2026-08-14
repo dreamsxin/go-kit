@@ -31,6 +31,12 @@ func ServerErrorHandler(errorHandler transport.ErrorHandler) ServerOption {
 	return func(s *Server) { s.errorHandler = errorHandler }
 }
 
+// ServerErrorEncoder sets the mapping used before an error is returned to a
+// gRPC client. The default maps apperror kinds and redacts unknown failures.
+func ServerErrorEncoder(errorEncoder ErrorEncoder) ServerOption {
+	return func(s *Server) { s.errorEncoder = errorEncoder }
+}
+
 // ServerFinalizer adds FinalizerFunc hooks that always run at the end of a call.
 func ServerFinalizer(f ...FinalizerFunc) ServerOption {
 	return func(s *Server) {

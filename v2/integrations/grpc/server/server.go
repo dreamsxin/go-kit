@@ -40,6 +40,7 @@ type Server struct {
 	after        []ResponseFunc
 	finalizer    []FinalizerFunc
 	errorHandler transport.ErrorHandler
+	errorEncoder ErrorEncoder
 }
 
 // NewServer constructs a gRPC Server for the given Endpoint.
@@ -57,12 +58,16 @@ func NewServer(
 		dec:          dec,
 		enc:          enc,
 		errorHandler: transport.NopErrorHandler,
+		errorEncoder: DefaultErrorEncoder,
 	}
 	for _, option := range options {
 		option(s)
 	}
 	if s.errorHandler == nil {
 		s.errorHandler = transport.NopErrorHandler
+	}
+	if s.errorEncoder == nil {
+		s.errorEncoder = DefaultErrorEncoder
 	}
 	return s
 }
@@ -94,12 +99,14 @@ func (s Server) ServeGRPC(ctx context.Context, req interface{}) (retctx context.
 	request, err = s.dec(ctx, req)
 	if err != nil {
 		s.handleError(ctx, err)
+		err = s.errorEncoder(ctx, err)
 		return ctx, nil, err
 	}
 
 	response, err = s.e(ctx, request)
 	if err != nil {
 		s.handleError(ctx, err)
+		err = s.errorEncoder(ctx, err)
 		return ctx, nil, err
 	}
 
@@ -111,12 +118,14 @@ func (s Server) ServeGRPC(ctx context.Context, req interface{}) (retctx context.
 	grpcResp, err = s.enc(ctx, response)
 	if err != nil {
 		s.handleError(ctx, err)
+		err = s.errorEncoder(ctx, err)
 		return ctx, nil, err
 	}
 
 	if len(mdHeader) > 0 {
 		if err = grpc.SendHeader(ctx, mdHeader); err != nil {
 			s.handleError(ctx, err)
+			err = s.errorEncoder(ctx, err)
 			return ctx, nil, err
 		}
 	}
@@ -124,6 +133,7 @@ func (s Server) ServeGRPC(ctx context.Context, req interface{}) (retctx context.
 	if len(mdTrailer) > 0 {
 		if err = grpc.SetTrailer(ctx, mdTrailer); err != nil {
 			s.handleError(ctx, err)
+			err = s.errorEncoder(ctx, err)
 			return ctx, nil, err
 		}
 	}

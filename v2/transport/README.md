@@ -87,6 +87,8 @@ Primary extension points:
 - `ServerBefore`
 - `ServerAfter`
 - `ServerFinalizer`
+- `ServerErrorHandler`
+- `ServerErrorEncoder`
 - `ServerErrorEncoder`
 - `ServerErrorHandler`
 
@@ -132,11 +134,13 @@ Decode errors returned by JSON request decoders carry HTTP 400 status metadata
 for `JSONErrorEncoder`.
 
 `JSONErrorEncoder` writes `code`, `message`, and optional `request_id` fields.
-Return `server.NewHTTPError` or implement `transporthttp.StatusCoder`,
-`transporthttp.ErrorCoder`, and `transporthttp.PublicMessager` on application errors
-when a route needs custom status, code, or public text. For unclassified 5xx
-errors, the encoder returns the HTTP status text instead of exposing the
-internal error string.
+Prefer `apperror.New` or `apperror.Wrap` in application code so the failure
+classification remains independent of HTTP. The HTTP transport maps application
+kinds to status codes and uses their stable code and public message. Low-level
+HTTP integrations may still return `server.NewHTTPError` or implement
+`transporthttp.StatusCoder`, `transporthttp.ErrorCoder`, and
+`transporthttp.PublicMessager`. Both built-in error encoders redact unclassified
+5xx details instead of exposing the internal error string.
 
 ## HTTP Client
 
@@ -209,6 +213,12 @@ Typical flow mirrors the HTTP server path:
 3. the endpoint is invoked
 4. response metadata can be written
 5. the response is encoded back to the gRPC caller
+
+The default error encoder preserves existing gRPC status errors, maps
+transport-neutral `apperror` kinds to gRPC codes, and redacts unknown failures
+as `codes.Internal`. Install `ServerErrorEncoder` only when an application needs
+a different wire-error policy; error handlers still receive the original error
+for logging and metrics.
 
 ## gRPC Client
 
