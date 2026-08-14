@@ -20,7 +20,7 @@ The maintained product line is the independent v2 module under [`v2/`](v2/):
 github.com/dreamsxin/go-kit/v2@v2.2.0
 ```
 
-`v2.2.0` is the release being published from `main`. It contains one narrowly
+`v2.2.0` is the current published release. It contains one narrowly
 approved SemVer exception: `endpoint.Metrics.Snapshot` now returns the copy-safe
 `MetricsSnapshot` value type. Existing v2 users must read the
 [migration guide](v2/MIGRATION.md) before upgrading. The earlier `v2.1.0`

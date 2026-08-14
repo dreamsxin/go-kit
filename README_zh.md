@@ -19,7 +19,7 @@ Service -> Endpoint -> Transport
 github.com/dreamsxin/go-kit/v2@v2.2.0
 ```
 
-`v2.2.0` 是正在从 `main` 发布的版本，包含一次严格限定且已批准的 SemVer
+`v2.2.0` 是当前已发布版本，包含一次严格限定且已批准的 SemVer
 例外：`endpoint.Metrics.Snapshot` 现在返回可安全复制的 `MetricsSnapshot`
 值类型。现有 v2 用户升级前必须阅读[迁移指南](v2/MIGRATION.md)；此前
 `v2.1.0` 的直接重构例外也继续记录在该文档中。

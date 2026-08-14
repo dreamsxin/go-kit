@@ -2,7 +2,7 @@
 
 ## Current Position
 
-v2.2.0 is the release currently being published for the independent module:
+v2.2.0 is the current published release of the independent module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
@@ -22,10 +22,10 @@ Its tag is the root tag `v2.2.0`, not `v2/v2.2.0`. A future `/v3` module would
 likewise use a root `v3.0.0` tag. v1 release history remains available through
 the immutable v1 tags and is not duplicated on `main`.
 
-The immutable `v2.0.0` baseline and the `v2.1.0` root release already resolve
-through the public Go proxy. The eight independently versioned nested modules
-listed in `RELEASE_MANIFEST.json` also resolve at `v0.1.0`. The manifest now
-tracks the phased `v2.2.0` and `v0.2.0` release.
+The immutable `v2.0.0` and `v2.1.0` releases remain available. The `v2.2.0`
+root release and all eight independently versioned nested modules listed in
+`RELEASE_MANIFEST.json` resolve through the public Go proxy; the nested modules
+are published at `v0.2.0`.
 
 The `v2.2.0` release contains a second, separately approved exception:
 `Metrics.Snapshot()` returns `MetricsSnapshot` rather than `Metrics`. This is

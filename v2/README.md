@@ -23,7 +23,7 @@ This directory is the independent Go module:
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.2.0` is the release being published from `main`. It contains one narrowly
+`v2.2.0` is the current published v2 release. It contains one narrowly
 approved SemVer exception: `endpoint.Metrics.Snapshot` now returns the
 lock-free, copy-safe `MetricsSnapshot` value type. Existing v2 users must follow
 [MIGRATION.md](MIGRATION.md) before upgrading. Other changes in this release are

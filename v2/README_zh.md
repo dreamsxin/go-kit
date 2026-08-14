@@ -22,7 +22,7 @@ v2 是独立 Go module：
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.2.0` 是正在从 `main` 发布的版本，包含一次严格限定且已批准的 SemVer
+`v2.2.0` 是当前已发布的 v2 版本，包含一次严格限定且已批准的 SemVer
 例外：`endpoint.Metrics.Snapshot` 现在返回不含锁且可安全复制的
 `MetricsSnapshot` 值类型。现有 v2 用户升级前必须先阅读
 [MIGRATION.md](MIGRATION.md)。本版本其他变化均为增量 API 或行为修复；此前
