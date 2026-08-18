@@ -58,6 +58,19 @@ func TestAllExamples(t *testing.T) {
 				{method: "POST", path: "/hello", body: `{"name":"Alice"}`, want: "Hello, Alice!"},
 			},
 		},
+		{
+			name: "auth",
+			path: "auth",
+			port: 8085,
+			run:  true,
+			smokeTests: []smokeTest{
+				{method: "POST", path: "/api/me", body: `{}`, wantStatus: http.StatusUnauthorized},
+				{method: "POST", path: "/api/me", body: `{}`, headers: map[string]string{"Authorization": "Bearer reader-key"}, want: "reader"},
+				{method: "GET", path: "/api/admin", headers: map[string]string{"Authorization": "Bearer reader-key"}, wantStatus: http.StatusForbidden},
+				{method: "GET", path: "/api/admin", headers: map[string]string{"Authorization": "Bearer admin-key"}, want: "welcome"},
+				{method: "GET", path: "/health", want: "ok"},
+			},
+		},
 	}
 
 	for _, tc := range examples {
@@ -122,12 +135,26 @@ type smokeTest struct {
 	path   string
 	body   string
 	want   string
+
+	// headers carries optional request headers, e.g. credentials.
+	headers map[string]string
+
+	// wantStatus defaults to http.StatusOK when zero.
+	wantStatus int
 }
 
 func (st smokeTest) run(t *testing.T, baseUrl string) {
 	url := baseUrl + st.path
 	req, _ := http.NewRequest(st.method, url, strings.NewReader(st.body))
 	req.Header.Set("Content-Type", "application/json")
+	for k, v := range st.headers {
+		req.Header.Set(k, v)
+	}
+
+	wantStatus := st.wantStatus
+	if wantStatus == 0 {
+		wantStatus = http.StatusOK
+	}
 
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Do(req)
@@ -137,8 +164,12 @@ func (st smokeTest) run(t *testing.T, baseUrl string) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("%s %s: want 200, got %d", st.method, st.path, resp.StatusCode)
+	if resp.StatusCode != wantStatus {
+		t.Errorf("%s %s: want %d, got %d", st.method, st.path, wantStatus, resp.StatusCode)
+		return
+	}
+	if st.want == "" {
+		return
 	}
 
 	var data map[string]any

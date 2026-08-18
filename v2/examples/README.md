@@ -16,6 +16,7 @@ after dropping the `./examples/` prefix.
 | `best_practice/` | Production patterns: metrics, circuit breaker, rate limit, graceful shutdown | `go run ./examples/best_practice` |
 | `middleware/` | Endpoint middleware: Chain, Builder, Failer, Timeout, Gobreaker, ErroringLimiter, DelayingLimiter | `go run ./examples/middleware` |
 | `httpclient/` | HTTP client: NewJSONClient, ClientBefore/After/Finalizer, SetClient | `go run ./examples/httpclient` |
+| `auth/` | Application-owned authentication and authorization middleware: Bearer keys, 401/403 via apperror, public health routes | `go run ./examples/auth` |
 | `interaction_policy/` | AI interaction runtime: MCP-style tool calls with authorization and audit hooks | `go run ./examples/interaction_policy` |
 | `mcp_basic/` | Minimal MCP server: single tool, `NewRuntime()`, `mcp.ListenAndServe` | `go run ./examples/mcp_basic` |
 | `mcp_full/` | Full MCP server: tools, resources, prompts, notifications, completions, SSE streaming | `go run ./examples/mcp_full` |
