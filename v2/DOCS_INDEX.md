@@ -18,6 +18,7 @@ v2 文档按任务组织。当前行为写入使用与架构文档；长期实�
 | Review dependency closure and the `v2.0.0` comparison | [DEPENDENCY_REPORT.md](DEPENDENCY_REPORT.md) |
 | Review the completed v2 architecture roadmap | [ROADMAP.md](ROADMAP.md) |
 | Prepare a service for production | [PRODUCTION.md](PRODUCTION.md) |
+| Review released changes and upgrade exceptions | [CHANGELOG.md](CHANGELOG.md), [MIGRATION.md](MIGRATION.md) |
 | Move from v1 to v2 | [MIGRATION.md](MIGRATION.md) |
 | Change or release the repository | [MAINTAINING.md](MAINTAINING.md), [RELEASE.md](RELEASE.md), and [RELEASE_MANIFEST.json](RELEASE_MANIFEST.json) |
 
@@ -31,6 +32,7 @@ v2 文档按任务组织。当前行为写入使用与架构文档；长期实�
 - [Zap observability adapter](integrations/zap/README.md)
 - [OpenTelemetry observability adapter](observability/otel/README.md)
 - [optional HTTP security middleware](security/http/README.md)
+- [Consul service discovery integration](integrations/consul/README.md)
 - [examples](examples/README.md)
 - [test tools](tools/README.md)
 

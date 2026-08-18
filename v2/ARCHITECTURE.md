@@ -214,12 +214,10 @@ framework branches for one application.
 
 ## Stability
 
-`v2.1.0` is the current published contract and the direct architecture refactor
-is complete. It was published under `/v2` as an explicitly documented SemVer
-exception from `v2.0.0`.
-
-The unreleased `main/v2` tree contains one additional approved exception:
-`Metrics.Snapshot()` returns the lock-free `MetricsSnapshot` value instead of a
-copy of the mutex-bearing collector. No other incompatibility is authorized by
-that exception. The change must remain prominent in [CHANGELOG.md](CHANGELOG.md),
-[MIGRATION.md](MIGRATION.md), and the next release notes.
+`v2.2.0` is the current published contract. It carries two explicitly approved
+and documented SemVer exceptions from `v2.0.0`: the `v2.1.0` direct
+architecture refactor, and `v2.2.0`'s `Metrics.Snapshot()` returning the
+lock-free `MetricsSnapshot` value instead of a copy of the mutex-bearing
+collector. Both exceptions are recorded in [CHANGELOG.md](CHANGELOG.md) and
+[MIGRATION.md](MIGRATION.md). Further incompatible changes require a new major
+version, not another exception.

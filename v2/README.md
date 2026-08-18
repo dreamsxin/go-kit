@@ -108,7 +108,8 @@ go mod tidy
 go run ./cmd
 ```
 
-Inspect the generated service:
+`go run ./cmd` blocks and serves until interrupted. Inspect the generated
+service from a second terminal while the server keeps running:
 
 ```bash
 cat .microgen/manifest.json

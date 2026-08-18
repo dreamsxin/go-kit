@@ -102,7 +102,8 @@ go mod tidy
 go run ./cmd
 ```
 
-检查生成服务：
+`go run ./cmd` 会阻塞并持续提供服务，直到被中断。保持服务运行，
+在另一个终端检查生成服务：
 
 ```bash
 cat .microgen/manifest.json
