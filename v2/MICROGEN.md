@@ -3,6 +3,13 @@
 `microgen` generates runnable Go services from a contract. It is the recommended
 entry point for a new service; runtime packages remain independently usable.
 
+This guide covers `microgen` `v0.2.0`, the independently versioned generator
+module installed by:
+
+```bash
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.0
+```
+
 ## Install
 
 From the repository root during v2 development:
@@ -73,15 +80,21 @@ opt-in through `-db`, and startup migration is disabled by default.
 
 | Option | Meaning |
 | --- | --- |
+| `-idl` | Path to the IDL file (`.go` or `.proto`) |
+| `-from-db` | Generate from database schema instead of an IDL file |
+| `-dsn` | Database DSN, required with `-from-db` |
+| `-dbname` | Database name, required with `-from-db` |
+| `-tables` | Comma-separated table names to introspect, `-from-db` only |
 | `-out` | Output directory |
 | `-import` | Generated Go module path |
+| `-service` | Generated service name; defaults to the first service in the contract |
 | `-protocols` | `http` or `http,grpc` |
 | `-prefix` | HTTP route prefix |
 | `-config` | Generate configuration support, default `false` |
 | `-config-mode` | `file`, `hybrid`, or `remote` |
 | `-remote-provider` | Remote provider; currently `consul` |
 | `-db` | Generate database runtime wiring, default `false` |
-| `-driver` | Generated database driver |
+| `-driver` | Database driver for `-from-db` and `-db`, default `mysql` |
 | `-model` | Generate model/repository output, default `false` |
 | `-docs` | Generate project documentation, default `true` |
 | `-tests` | Generate project tests |
@@ -279,8 +292,11 @@ schema mutation is intentional:
 ```text
 database.auto_migrate: true
 APP_DB_AUTO_MIGRATE=true
--auto-migrate
 ```
+
+The generated service binary also accepts the startup flag `-auto-migrate`
+(see its `-h` output); it is a flag of the generated `cmd` binary, not of
+`microgen` itself.
 
 Production schema changes should normally use a dedicated migration process.
 

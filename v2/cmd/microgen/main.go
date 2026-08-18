@@ -30,7 +30,6 @@ type config struct {
 	dbDSN     string
 	dbName    string
 	dbTables  []string
-	addTables []string
 
 	outputDir       string
 	ImportPath      string
@@ -81,7 +80,6 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 	dsn := fs.String("dsn", "", "Database DSN")
 	dbName := fs.String("dbname", "", "Database name")
 	tables := fs.String("tables", "", "Comma-separated table names")
-	addTables := fs.String("add-tables", "", "Comma-separated table names to append")
 
 	outputDir := fs.String("out", ".", "Output directory")
 	importPath := fs.String("import", "", "Go module import path")
@@ -119,7 +117,6 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 		dbDSN:           *dsn,
 		dbName:          *dbName,
 		dbTables:        splitComma(*tables),
-		addTables:       splitComma(*addTables),
 		outputDir:       *outputDir,
 		ImportPath:      *importPath,
 		protocols:       protos,
