@@ -181,6 +181,20 @@ context through service, endpoint, transport, discovery, and interaction calls;
 create spans at meaningful boundaries without creating a span for every small
 helper.
 
+For request correlation without a tracing backend, the core packages propagate
+the W3C `traceparent` header end to end:
+
+- Servers extract the incoming header with
+  `transport/http.ExtractTraceparent` as a `ServerBefore` hook;
+- `endpoint.TracingMiddleware` joins the caller's trace or mints a
+  W3C-conformant one;
+- Clients forward the active trace with `transport/http.InjectTraceparent`
+  as a client `Before` hook.
+
+`observability/otel` remains the right choice for full span trees; the core
+helpers keep trace IDs connected across service boundaries with no
+dependencies.
+
 ## Health
 
 - Liveness answers whether the process can continue running.

@@ -5,6 +5,20 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+### Added
+
+- W3C Trace Context propagation in the core packages: `endpoint.TraceContext`
+  with `ParseTraceparent`, and `transport/http` `ExtractTraceparent` /
+  `InjectTraceparent` RequestFuncs for servers and clients.
+  `endpoint.TracingMiddleware` now joins an incoming trace context under the
+  same trace ID and mints W3C-conformant 32-hex-character trace IDs otherwise.
+
+### Changed
+
+- Trace IDs minted by `endpoint.TracingMiddleware` are 32 lowercase hex
+  characters (W3C format) instead of 16. Existing callers that treat the ID
+  as an opaque string are unaffected.
+
 ## [2.2.0] - 2026-08-14
 
 This development cycle contains one explicitly approved, narrowly scoped v2

@@ -168,6 +168,13 @@ Core middleware in `endpoint`:
 - `TracingMiddleware`
 - `BackpressureMiddleware`
 
+`TracingMiddleware` speaks the W3C Trace Context format. It joins an incoming
+`TraceContext` (extracted from the `traceparent` header by
+`transport/http.ExtractTraceparent`) under the same trace ID, mints a
+W3C-conformant trace otherwise, and exposes the same ID through
+`TraceIDFromContext`. Outbound HTTP calls forward the active trace with
+`transport/http.InjectTraceparent`.
+
 Logging is provider-specific and lives outside the core package:
 
 ```go

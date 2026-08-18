@@ -1,6 +1,6 @@
 go-kit-v2 public API
 72ce4a3bbee6058c99ec6bba79e1e5db24871aed186f232700924ef79a69e8d6  github.com/dreamsxin/go-kit/v2/apperror
-de15be844facd86752e9610a03d4f24cc540b075abe46c3d1dcc46e6cd7072c9  github.com/dreamsxin/go-kit/v2/endpoint
+cbc36d748adf56b78b5748c18de82db259962b53189f546fd04108ea3d868a8d  github.com/dreamsxin/go-kit/v2/endpoint
 cfbf0adf38415f1d593ff8569e607f3625a85fbdacab043fd68bf333ee35e4c7  github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker
 8a32af03afce82a33a7707118d85448302962d2785b8fa358473cf8e86e86ba8  github.com/dreamsxin/go-kit/v2/integrations/consul
 30e5cde4b9773cf8cb28b59f6933137196b0ea3049bebc5b4f1cfc6c30e65b9a  github.com/dreamsxin/go-kit/v2/integrations/grpc
@@ -24,6 +24,6 @@ e6068fdd91bab058eced2dabe664307b7a3cb7677a852638174513532bb6fe35  github.com/dre
 162ee1bc4e3aac634909cf34656af7aa17749baf333b9a01a711eb68635aa058  github.com/dreamsxin/go-kit/v2/sd/retry/internal/backoff
 15f278692e71dc62a7213adcaf3f50d0cc892cdcc07f0ddd9a5d9265facea4df  github.com/dreamsxin/go-kit/v2/security/http
 2980b4bb86a570835fa54c09a082a5282ff94fac73de9966e85e911500b4c752  github.com/dreamsxin/go-kit/v2/transport
-146d8c8aeceb7ecedf2c8a3547404e36f86288e47f473797b6c0dcf21e536386  github.com/dreamsxin/go-kit/v2/transport/http
+c48e5e408b6483204e99abcae93836014f868a7f8476474f2670eb2b335fe518  github.com/dreamsxin/go-kit/v2/transport/http
 8d0eb919c832d012dd44e9542e34901c7de8d3f60294e8c700f0a023636014c6  github.com/dreamsxin/go-kit/v2/transport/http/client
 3c1a2946b92e2221bfab784ae4301c6b172c26f577abf39b6640b3daf6601950  github.com/dreamsxin/go-kit/v2/transport/http/server
