@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/dreamsxin/go-kit-examples/v2/profilesvc"
 )
@@ -25,7 +27,9 @@ func main() {
 
 	h := profilesvc.MakeHTTPHandler(s, logger.With("component", "HTTP"))
 
-	errs := make(chan error)
+	srv := &http.Server{Addr: *httpAddr, Handler: h}
+
+	errs := make(chan error, 1)
 	go func() {
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
@@ -35,8 +39,17 @@ func main() {
 	go func() {
 		logger.Info("transport started", "transport", "HTTP", "address", *httpAddr)
 
-		errs <- http.ListenAndServe(*httpAddr, h)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errs <- err
+		}
 	}()
 
-	logger.Info("exit", "reason", <-errs)
+	reason := <-errs
+	logger.Info("exit", "reason", reason)
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Error("graceful shutdown failed", "error", err)
+	}
 }

@@ -1,3 +1,38 @@
+// Package main demonstrates authorization and audit hooks on the go-kit
+// interaction runtime, exposed through the MCP Streamable HTTP transport.
+//
+// The runtime registers a single "echo" tool and installs two hooks:
+// an AuthorizationHook whose Authorizer allows only "echo", and an AuditHook
+// that records every allowed call to an in-memory sink. Tool calls outside the
+// allowlist are rejected before execution and never reach the audit sink.
+//
+// Run:
+//
+//	go run ./examples/interaction_policy
+//
+// Test with curl:
+//
+//	# Initialize a session (note the Mcp-Session-Id response header)
+//	curl -i -X POST http://localhost:8080/mcp \
+//	  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}'
+//
+//	# Complete the MCP lifecycle before sending requests
+//	curl -X POST http://localhost:8080/mcp \
+//	  -H 'Mcp-Session-Id: <sid>' \
+//	  -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+//
+//	# Call the allowed echo tool (audited: one before and one after record)
+//	curl -X POST http://localhost:8080/mcp \
+//	  -H 'Mcp-Session-Id: <sid>' \
+//	  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"echo","arguments":{"message":"hello"}}}'
+//
+//	# Call a tool outside the allowlist (rejected, produces no audit records)
+//	curl -X POST http://localhost:8080/mcp \
+//	  -H 'Mcp-Session-Id: <sid>' \
+//	  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"delete_all"}}'
+//
+//	# Review the captured audit records
+//	curl http://localhost:8080/audit
 package main
 
 import (

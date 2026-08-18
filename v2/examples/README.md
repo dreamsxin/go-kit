@@ -2,6 +2,10 @@
 
 A guided tour of the go-kit framework, from simplest to most complete.
 
+`examples/` is an independent module joined to the repository workspace. Run
+every command below from the `v2/` module directory, or from `v2/examples/`
+after dropping the `./examples/` prefix.
+
 ## Learning Path
 
 | Directory | What it shows | Run |
@@ -12,9 +16,9 @@ A guided tour of the go-kit framework, from simplest to most complete.
 | `best_practice/` | Production patterns: metrics, circuit breaker, rate limit, graceful shutdown | `go run ./examples/best_practice` |
 | `middleware/` | Endpoint middleware: Chain, Builder, Failer, Timeout, Gobreaker, ErroringLimiter, DelayingLimiter | `go run ./examples/middleware` |
 | `httpclient/` | HTTP client: NewJSONClient, ClientBefore/After/Finalizer, SetClient | `go run ./examples/httpclient` |
-| `interaction_policy/` | AI interaction runtime: MCP-style tool calls with authorization and audit hooks | `go test ./examples/interaction_policy/...` |
+| `interaction_policy/` | AI interaction runtime: MCP-style tool calls with authorization and audit hooks | `go run ./examples/interaction_policy` |
 | `mcp_basic/` | Minimal MCP server: single tool, `NewRuntime()`, `mcp.ListenAndServe` | `go run ./examples/mcp_basic` |
-| `mcp_full/` | Full MCP server: tools, resources, prompts, notifications, completions, SSE streaming | `go test ./examples/mcp_full/...` |
+| `mcp_full/` | Full MCP server: tools, resources, prompts, notifications, completions, SSE streaming | `go run ./examples/mcp_full` |
 | `sd/` | Service discovery: instance.Cache, Endpointer, RoundRobin, Retry, sd/client.NewEndpoint, InvalidateOnError | `go run ./examples/sd` |
 | `multisvc/` | IDL definition for two services in one package | (library) |
 | `profilesvc/` | Full CRUD service: Service → Endpoint → HTTP transport + Consul client | `go run ./examples/profilesvc/cmd/profilesvc` |
