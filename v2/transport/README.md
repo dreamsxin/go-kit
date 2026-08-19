@@ -39,6 +39,24 @@ Common helpers also live under:
 - `transport/http`
 - `integrations/grpc`
 
+## Pagination Convention
+
+List endpoints share one pagination contract from `transport/http`:
+`ParsePage` reads `?page=` and `?size=` (defaults 1 and 20, size capped at
+`MaxPageSize` = 100), returning an `endpoint.ValidationError` for malformed
+values that encodes as 400; `Page.Limit` and `Page.Offset` feed SQL windows
+directly; `NewPageResult` assembles the standard `items/total/page/size/
+has_next` response shape so clients and generated SDKs see one contract.
+
+```go
+page, err := transporthttp.ParsePage(r)
+if err != nil {
+    return err
+}
+rows, total := repo.List(ctx, page.Limit(), page.Offset())
+return transporthttp.NewPageResult(page, total, rows), nil
+```
+
 ## Hook Semantics
 
 Across HTTP and gRPC, client and server transports share the same high-level hook model even though their concrete function signatures are protocol-specific.
