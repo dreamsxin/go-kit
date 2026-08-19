@@ -5,8 +5,9 @@
 // transport shape. Prefer HandleJSONTyped for concrete response types,
 // HandleJSON for dynamic responses, and
 // HandleJSONEndpoint when you already have an endpoint.Endpoint. Use
-// Service.Handle and Service.HandleFunc only for raw HTTP integrations such as
-// static files, third-party handlers, probes, or custom protocol endpoints.
+// HandleSSE for Server-Sent Events streams. Use Service.Handle and
+// Service.HandleFunc only for raw HTTP integrations such as static files,
+// third-party handlers, probes, or custom protocol endpoints.
 //
 // Quickstart:
 //
