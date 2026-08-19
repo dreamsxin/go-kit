@@ -31,9 +31,14 @@ through the immutable v0 and v1 tags.
 - `examples/todosvc`: an end-to-end SQLite CRUD service with a CGO-free
   repository, `apperror` classification, path-parameter routes, and
   database closure during graceful shutdown.
+- Resilience middleware: `endpoint.Fallback` answers with a fallback
+  endpoint when the primary fails, and `endpoint.BulkheadMiddleware`
+  isolates concurrency per resource key; `ErrBackpressure` and the new
+  `ErrBulkheadFull` now encode as HTTP 429 instead of 500.
 - PRODUCTION.md gains Deployment (static containers, probe wiring,
-  termination-budget alignment, config injection) and Alerting (starter
-  alert set mapped to the documented metric signals) sections.
+  termination-budget alignment, config injection), Alerting (starter
+  alert set mapped to the documented metric signals), and Background
+  Jobs (directory structure and `kit.Lifecycle` wiring) sections.
 
 ### Changed
 

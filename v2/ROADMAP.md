@@ -503,6 +503,35 @@ Milestone 6 is complete only when all of the following are true:
 - The publication path and compatibility impact are explicitly approved and
   recorded before tagging.
 
+## Milestone 7 (Complete): User Workflow Coverage / 用户工作流覆盖
+
+Goal: close the gaps that pushed users outside the framework's request path
+or left production questions unanswered.
+
+- W3C Trace Context propagation: `endpoint.TraceContext`,
+  `ParseTraceparent`, and `transport/http` extract/inject RequestFuncs;
+  `TracingMiddleware` joins incoming traces and mints W3C-conformant IDs.
+- Streaming and non-JSON request support: `kit.HandleSSE`/`SSEWriter` for
+  Server-Sent Events with client-disconnect cancellation;
+  `server.ParseMultipartForm` and `server.WriteAttachment` for bounded file
+  upload and download.
+- Request conventions: `endpoint.Validatable`/`ValidationMiddleware` with
+  field-level errors encoded as 400; `transport/http` pagination contract
+  (`ParsePage`, `Page`, `PageResult[T]`).
+- Resilience middleware: `Fallback` for degradation answers and
+  per-key `BulkheadMiddleware` for concurrency isolation; rejection errors
+  encode as 429.
+- End-to-end examples: `examples/auth` (application-owned authentication and
+  authorization) and `examples/todosvc` (SQLite CRUD with graceful database
+  shutdown).
+- Production guidance: deployment (containers, probes, termination budgets),
+  alerting (starter alert set), and background job structure with
+  `kit.Lifecycle` wiring.
+
+Completed: every capability ships with focused tests, reviewed contract
+snapshots where exported APIs changed, and documentation in the owning
+document; the full multi-module verification suite passes.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria
