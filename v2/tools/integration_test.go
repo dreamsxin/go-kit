@@ -71,6 +71,19 @@ func TestAllExamples(t *testing.T) {
 				{method: "GET", path: "/health", want: "ok"},
 			},
 		},
+		{
+			name: "todosvc",
+			path: "todosvc",
+			port: 8086,
+			run:  true,
+			smokeTests: []smokeTest{
+				{method: "POST", path: "/todos", body: `{"title":"smoke test"}`, want: "smoke test"},
+				{method: "GET", path: "/todos", want: "smoke test"},
+				{method: "POST", path: "/todos/1/done", want: "done"},
+				{method: "GET", path: "/todos/999", wantStatus: http.StatusNotFound, want: "todo.not_found"},
+				{method: "DELETE", path: "/todos/1", wantStatus: http.StatusNoContent},
+			},
+		},
 	}
 
 	for _, tc := range examples {
