@@ -50,3 +50,17 @@ func TestWrappedValidationErrorEncodesAs400(t *testing.T) {
 		t.Fatalf("status: got %d, want 400", rec.Code)
 	}
 }
+
+func TestRejectionErrorsEncodeAs429(t *testing.T) {
+	cases := []error{
+		endpoint.ErrBackpressure,
+		endpoint.ErrBulkheadFull,
+	}
+	for _, err := range cases {
+		rec := httptest.NewRecorder()
+		server.JSONErrorEncoder(context.Background(), err, rec)
+		if rec.Code != http.StatusTooManyRequests {
+			t.Errorf("%v: status %d, want 429", err, rec.Code)
+		}
+	}
+}

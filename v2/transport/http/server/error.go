@@ -200,6 +200,9 @@ func httpStatus(err error) int {
 	if errors.As(err, &verr) {
 		return http.StatusBadRequest
 	}
+	if errors.Is(err, endpoint.ErrBackpressure) || errors.Is(err, endpoint.ErrBulkheadFull) {
+		return http.StatusTooManyRequests
+	}
 
 	var kinder apperror.Kinder
 	if errors.As(err, &kinder) {

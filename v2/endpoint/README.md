@@ -168,6 +168,8 @@ Core middleware in `endpoint`:
 - `TracingMiddleware`
 - `ValidationMiddleware`
 - `BackpressureMiddleware`
+- `Fallback`
+- `BulkheadMiddleware`
 
 `TracingMiddleware` speaks the W3C Trace Context format. It joins an incoming
 `TraceContext` (extracted from the `traceparent` header by
@@ -193,6 +195,20 @@ func (r CreateUserRequest) Validate() error {
 }
 
 ep := endpoint.NewBuilder(createUser).WithValidation().Build()
+```
+
+`Fallback` answers with a fallback endpoint when the primary fails, keeping
+the error away from callers while a dependency recovers. `BulkheadMiddleware`
+limits concurrency per resource key (tenant, dependency), so one slow key
+cannot consume the shared budget the way the global `BackpressureMiddleware`
+count can; both rejection errors encode as HTTP 429. Bulkhead keys must stay
+bounded, since each key owns a slot pool for the endpoint's lifetime:
+
+```go
+ep := endpoint.NewBuilder(callDependency).
+    WithBulkhead(20, func(req any) string { return req.(Request).TenantID }).
+    WithFallback(cachedResponse).
+    Build()
 ```
 
 Logging is provider-specific and lives outside the core package:
