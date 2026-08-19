@@ -10,6 +10,7 @@ mandatory changes and the sections below that describe them.
 | v1 (`v1.0.0`-`v1.6.0`) | Full migration: module path, lifecycle, registration, generated projects | This entire document |
 | v2 `2.0.0` | Package moves and removed convenience APIs (approved direct-refactor exception) | "Direct-Refactor Package Moves" and the following sections through "Interaction And MCP" |
 | v2 `2.1.0` | One narrow change: only code declaring `Metrics.Snapshot()` results as `endpoint.Metrics` must switch to `endpoint.MetricsSnapshot` | "v2.2.0 `Metrics.Snapshot` Compatibility Exception" |
+| v2 `2.2.0` | None; `v2.3.0` is backward compatible (additive capabilities and behavioral fixes) | [CHANGELOG.md](CHANGELOG.md) |
 
 All other changes in each release are additive or behavioral fixes; see
 [CHANGELOG.md](CHANGELOG.md) for the complete list.

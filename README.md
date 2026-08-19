@@ -17,22 +17,22 @@ Service -> Endpoint -> Transport
 The maintained product line is the independent v2 module under [`v2/`](v2/):
 
 ```text
-github.com/dreamsxin/go-kit/v2@v2.2.0
+github.com/dreamsxin/go-kit/v2@v2.3.0
 ```
 
-`v2.2.0` is the current published release. It contains one narrowly
-approved SemVer exception: `endpoint.Metrics.Snapshot` now returns the copy-safe
-`MetricsSnapshot` value type. Existing v2 users must read the
-[migration guide](v2/MIGRATION.md) before upgrading. The earlier `v2.1.0`
-direct-refactor exception remains documented there as well.
+`v2.3.0` is the release being published from `main`. It is backward
+compatible: the changes are additive capabilities and behavioral fixes, with
+no new SemVer exceptions. The historical `v2.1.0` direct-refactor and
+`v2.2.0` `Metrics.Snapshot` exceptions remain documented in the
+[migration guide](v2/MIGRATION.md).
 
 ## Start Here
 
 Install the core framework and generator:
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2@v2.2.0
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.0
+go get github.com/dreamsxin/go-kit/v2@v2.3.0
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.1
 ```
 
 Use the [v2 README](v2/README.md) for installation, component selection,

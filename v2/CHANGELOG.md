@@ -5,6 +5,8 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+## [2.3.0] - Release Candidate
+
 ### Added
 
 - W3C Trace Context propagation in the core packages: `endpoint.TraceContext`
@@ -45,6 +47,13 @@ through the immutable v0 and v1 tags.
 - Trace IDs minted by `endpoint.TracingMiddleware` are 32 lowercase hex
   characters (W3C format) instead of 16. Existing callers that treat the ID
   as an opaque string are unaffected.
+
+### Fixed
+
+- `microgen` no longer registers the `-add-tables` flag: it was parsed but
+  never consumed, misleading users into thinking extend mode could append
+  tables. MICROGEN.md now states the covered generator version and lists the
+  source-mode and `-service` options with defaults.
 
 ## [2.2.0] - 2026-08-14
 

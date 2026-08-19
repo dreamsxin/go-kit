@@ -786,7 +786,7 @@ func TestGenerateFull_GoMod_Created(t *testing.T) {
 	mustExist(t, goModPath)
 	mustContain(t, goModPath, "module example.com/myproject")
 	mustContain(t, goModPath, "go 1.25.8")
-	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2 v2.2.0")
+	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2 v2.3.0")
 	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker")
 	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/ratelimit")
 	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/zap")
@@ -828,7 +828,7 @@ func TestGenerateFull_GoMod_WithGRPCRequiresGRPCIntegration(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	mustContain(t, filepath.Join(outDir, "go.mod"), "github.com/dreamsxin/go-kit/v2/integrations/grpc v0.2.0")
+	mustContain(t, filepath.Join(outDir, "go.mod"), "github.com/dreamsxin/go-kit/v2/integrations/grpc v0.2.1")
 }
 
 func TestGenerateFull_GoMod_WithConfigUsesYAMLWithoutRemoteProviderBundle(t *testing.T) {

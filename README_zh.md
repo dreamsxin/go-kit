@@ -16,21 +16,20 @@ Service -> Endpoint -> Transport
 当前维护的产品线是 [`v2/`](v2/) 目录下的独立 v2 module：
 
 ```text
-github.com/dreamsxin/go-kit/v2@v2.2.0
+github.com/dreamsxin/go-kit/v2@v2.3.0
 ```
 
-`v2.2.0` 是当前已发布版本，包含一次严格限定且已批准的 SemVer
-例外：`endpoint.Metrics.Snapshot` 现在返回可安全复制的 `MetricsSnapshot`
-值类型。现有 v2 用户升级前必须阅读[迁移指南](v2/MIGRATION.md)；此前
-`v2.1.0` 的直接重构例外也继续记录在该文档中。
+`v2.3.0` 是本次从 `main` 发布的版本，完全向后兼容：全部为新增能力与
+行为修复，没有新的 SemVer 例外。历史上 `v2.1.0` 的直接重构例外和
+`v2.2.0` 的 `Metrics.Snapshot` 例外仍记录在[迁移指南](v2/MIGRATION.md)中。
 
 ## 开始使用
 
 安装核心框架和生成器：
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2@v2.2.0
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.0
+go get github.com/dreamsxin/go-kit/v2@v2.3.0
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.1
 ```
 
 安装、组件选择、代码生成、示例和开发命令统一以 [v2 README](v2/README_zh.md)

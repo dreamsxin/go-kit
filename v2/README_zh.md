@@ -22,11 +22,10 @@ v2 是独立 Go module：
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.2.0` 是当前已发布的 v2 版本，包含一次严格限定且已批准的 SemVer
-例外：`endpoint.Metrics.Snapshot` 现在返回不含锁且可安全复制的
-`MetricsSnapshot` 值类型。现有 v2 用户升级前必须先阅读
-[MIGRATION.md](MIGRATION.md)。本版本其他变化均为增量 API 或行为修复；此前
-`v2.1.0` 的直接重构例外也继续记录在迁移指南中。`main` 不再维护 v1，其源码
+`v2.3.0` 是本次从 `main` 发布的版本，完全向后兼容：全部为新增能力与
+行为修复，没有新的 SemVer 例外。历史上 `v2.1.0` 的直接重构例外与
+`v2.2.0` 的 `Metrics.Snapshot` 例外仍记录在
+[MIGRATION.md](MIGRATION.md) 中。`main` 不再维护 v1，其源码
 仍可通过不可变的 `v1.0.0` 至 `v1.6.0` 标签获取。
 
 需要 Go 1.25.8 或更高版本。
@@ -55,7 +54,7 @@ go -C v2 install ./cmd/microgen
 从独立版本 module 安装重构版生成器：
 
 ```bash
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.0
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.1
 ```
 
 生成器 CLI（包括 SQLite 结构读取）安装和运行均不依赖 CGO 或本地 C 编译器。
