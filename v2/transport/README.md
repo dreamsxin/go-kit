@@ -84,6 +84,14 @@ Recommended entry points:
 - `server.JSONErrorEncoder`
 - `server.NewHTTPError`
 - `server.WrapHTTPError`
+- `server.ParseMultipartForm` for bounded multipart/form-data uploads
+- `server.WriteAttachment` for file downloads
+
+`ParseMultipartForm` enforces a total body cap, a per-file cap, and the
+in-memory threshold before parts spill to temporary files; limit violations
+classify as 413 and malformed requests as 415/400 through the standard error
+encoders. `WriteAttachment` sets a sanitized `Content-Disposition` (RFC 2231
+for non-ASCII names) and derives the content type from the filename.
 
 Primary extension points:
 

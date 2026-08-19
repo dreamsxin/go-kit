@@ -26,4 +26,4 @@ e6068fdd91bab058eced2dabe664307b7a3cb7677a852638174513532bb6fe35  github.com/dre
 2980b4bb86a570835fa54c09a082a5282ff94fac73de9966e85e911500b4c752  github.com/dreamsxin/go-kit/v2/transport
 c48e5e408b6483204e99abcae93836014f868a7f8476474f2670eb2b335fe518  github.com/dreamsxin/go-kit/v2/transport/http
 8d0eb919c832d012dd44e9542e34901c7de8d3f60294e8c700f0a023636014c6  github.com/dreamsxin/go-kit/v2/transport/http/client
-3c1a2946b92e2221bfab784ae4301c6b172c26f577abf39b6640b3daf6601950  github.com/dreamsxin/go-kit/v2/transport/http/server
+3e5e95f2110987763aca1d32fbdc834f38ff34d23fd42a8c85715792d97cd51d  github.com/dreamsxin/go-kit/v2/transport/http/server
