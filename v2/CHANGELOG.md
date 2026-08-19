@@ -12,12 +12,28 @@ through the immutable v0 and v1 tags.
   `InjectTraceparent` RequestFuncs for servers and clients.
   `endpoint.TracingMiddleware` now joins an incoming trace context under the
   same trace ID and mints W3C-conformant 32-hex-character trace IDs otherwise.
+- `kit.HandleSSE` and `kit.SSEWriter` for Server-Sent Events streams with
+  per-event flushing and client-disconnect cancellation; named, JSON, and
+  multi-line data events, comment heartbeats, and retry hints.
+- `server.ParseMultipartForm` for bounded multipart/form-data uploads
+  (total-body, per-file, and in-memory caps; 413/415/400 classification) and
+  `server.WriteAttachment` for sanitized file downloads.
+- Request validation convention: `endpoint.Validatable`,
+  `endpoint.ValidationMiddleware`, and `endpoint.ValidationError` with
+  field-level failures; the HTTP error encoder maps them to 400 with the
+  stable code `bad_request.validation`.
+- Pagination convention in `transport/http`: `ParsePage` (defaults 1/20,
+  size capped at 100, invalid query values rejected as validation errors),
+  `Page.Limit/Offset`, and the generic `PageResult[T]` wire shape.
 - `examples/auth`: application-owned authentication and authorization
   middleware with Bearer API keys, 401/403 responses classified by
   `apperror`, and public health routes.
 - `examples/todosvc`: an end-to-end SQLite CRUD service with a CGO-free
   repository, `apperror` classification, path-parameter routes, and
   database closure during graceful shutdown.
+- PRODUCTION.md gains Deployment (static containers, probe wiring,
+  termination-budget alignment, config injection) and Alerting (starter
+  alert set mapped to the documented metric signals) sections.
 
 ### Changed
 

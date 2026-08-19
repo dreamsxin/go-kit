@@ -215,12 +215,79 @@ they are copied into context, responses, and logs. The default accepts common
 ASCII token characters up to 128 bytes. Use `WithRequestIDValidator` only when
 the deployment has a different trusted ID format.
 
+## Deployment
+
+The runtime is a static binary. Framework packages and the pure-Go SQLite
+driver need no CGO, so a two-stage container build ends in a minimal base:
+
+```dockerfile
+FROM golang:1.25 AS build
+WORKDIR /src
+COPY . .
+RUN CGO_ENABLED=0 go build -o /out/service ./cmd
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/service /service
+USER nonroot
+ENTRYPOINT ["/service"]
+```
+
+On Kubernetes, wire the health endpoints to probes and align the termination
+budget with the framework's shutdown timeout:
+
+- readinessProbe -> `/readyz`, livenessProbe -> `/livez`, both with short
+  periods and timeouts; readiness gates traffic during rollout;
+- `terminationGracePeriodSeconds` must exceed the kit shutdown timeout
+  (`kit.WithShutdownTimeout`, default 10s) plus the platform's load-balancer
+  deregistration delay, or in-flight requests are cut mid-shutdown;
+- the entry point already cancels `Service.Run` on `SIGTERM` (see
+  Lifecycle); add a `preStop` sleep only when the service mesh or ingress
+  keeps routing to the pod after the endpoint is deregistered;
+- prefer rolling updates with `maxUnavailable: 0` so readiness, not pod
+  deletion, controls traffic shifts.
+
+Inject configuration through the generated precedence chain (defaults ->
+local YAML -> optional remote config -> environment overrides ->
+validation). Environment variables are the container-native layer: every
+generated setting has an `APP_`-prefixed variable. `Config.Validate` runs
+before the listener binds, so a misconfigured deployment fails fast instead
+of serving degraded traffic.
+
+## Alerting
+
+Turn the Metrics signals above into alerts before scaling incidents, not
+after. A starter set:
+
+- **Error rate**: ratio of 5xx responses (or classified `internal` errors) to
+  total requests over 5 minutes; page when it exceeds 1% for two consecutive
+  windows. Alert on the ratio, not the count, so scaling does not create
+  false pages.
+- **Latency**: p99 endpoint duration above the product's stated budget for
+  10 minutes; warn at p95 to catch drift before paging.
+- **Retry exhaustion**: exhausted retries for a dependency indicate the
+  dependency, not the caller, is failing; page the owning service.
+- **Circuit breaker open**: a breaker held open for more than one minute
+  means the fallback path is carrying production traffic.
+- **Discovery churn**: instance-count drops or repeated discovery update
+  errors point at registrar, network, or health-check misconfiguration.
+- **Health flapping**: readiness failing intermittently while liveness stays
+  green isolates dependency trouble from process trouble.
+
+Keep alerts on ratios and durations, keep labels bounded (see Metrics), and
+route dependency-owned signals (retry exhaustion, breaker open) to the
+dependency's on-call, not the caller's.
+
 ## Pre-Deployment Checklist
 
 - Configuration validates in the deployment environment.
 - HTTP/gRPC limits and timeouts match the workload.
 - MCP write timeout supports long-lived responses when enabled.
 - Shutdown is exercised with `SIGTERM`.
+- Termination grace period exceeds the kit shutdown timeout plus
+  deregistration delay.
+- Readiness and liveness probes point at `/readyz` and `/livez`.
+- Starter alerts (error rate, latency, retry exhaustion, breaker state) are
+  defined and routed.
 - Retry is limited to classified, safe operations.
 - Database migration behavior is explicit.
 - Authentication and authorization are tested at protocol and business layers.
