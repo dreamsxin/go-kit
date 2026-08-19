@@ -166,6 +166,7 @@ Core middleware in `endpoint`:
 - `ErrorHandlingMiddleware`
 - `TimeoutMiddleware`
 - `TracingMiddleware`
+- `ValidationMiddleware`
 - `BackpressureMiddleware`
 
 `TracingMiddleware` speaks the W3C Trace Context format. It joins an incoming
@@ -174,6 +175,25 @@ Core middleware in `endpoint`:
 W3C-conformant trace otherwise, and exposes the same ID through
 `TraceIDFromContext`. Outbound HTTP calls forward the active trace with
 `transport/http.InjectTraceparent`.
+
+`ValidationMiddleware` calls `Validate() error` on requests that implement
+`Validatable` before business logic runs. `NewValidationError` and
+`ValidationError.Add` collect field-level failures; the HTTP transport maps
+`ValidationError` to 400 with the stable code `bad_request.validation`, and
+requests without a `Validate` method pass through unchanged:
+
+```go
+type CreateUserRequest struct{ Name string }
+
+func (r CreateUserRequest) Validate() error {
+    if r.Name == "" {
+        return endpoint.NewValidationError("name", "is required")
+    }
+    return nil
+}
+
+ep := endpoint.NewBuilder(createUser).WithValidation().Build()
+```
 
 Logging is provider-specific and lives outside the core package:
 

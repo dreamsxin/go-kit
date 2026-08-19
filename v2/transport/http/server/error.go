@@ -171,6 +171,10 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 	}
 
 	errorCode := defaultErrorCode(code)
+	var verr *endpoint.ValidationError
+	if errors.As(err, &verr) {
+		errorCode = "bad_request.validation"
+	}
 	var ec transporthttp.ErrorCoder
 	if errors.As(err, &ec) && ec.ErrorCode() != "" {
 		errorCode = ec.ErrorCode()
@@ -190,6 +194,11 @@ func httpStatus(err error) int {
 		if status := sc.StatusCode(); status >= 100 && status <= 999 {
 			return status
 		}
+	}
+
+	var verr *endpoint.ValidationError
+	if errors.As(err, &verr) {
+		return http.StatusBadRequest
 	}
 
 	var kinder apperror.Kinder
