@@ -24,6 +24,66 @@ if err := svc.Run(ctx); err != nil {
 Use bounded graceful shutdown. Treat listener bind errors and asynchronous
 server errors as startup/runtime failures instead of logging them and continuing.
 
+## Background Jobs
+
+Periodic work (cleanup, reconciliation, cache warmup) belongs in its own
+package beside the service layer, wired into the same lifecycle as the HTTP
+server so `SIGTERM` stops jobs with the process:
+
+```text
+service/
+├── cmd/main.go        # wire-up: kit.New(..., kit.WithLifecycle(runner))
+├── service/           # business logic; jobs call these methods
+├── repository/        # storage
+├── transport/         # HTTP handlers
+└── jobs/              # one file per job plus the lifecycle runner
+    ├── cleanup.go
+    └── runner.go
+```
+
+Jobs are callers of the service layer, not endpoints: they must not import
+transport packages, and their business logic stays in `service/` so HTTP
+handlers and jobs share one implementation. The runner implements
+`kit.Lifecycle`:
+
+```go
+type Job struct {
+    Name     string
+    Interval time.Duration
+    Run      func(ctx context.Context) error
+}
+
+type Runner struct {
+    Jobs []Job
+    // ... ticker bookkeeping
+}
+
+func (r *Runner) Start() error                         { /* start one goroutine per job */ }
+func (r *Runner) Errors() <-chan error                 { /* job panics and hard failures */ }
+func (r *Runner) Shutdown(ctx context.Context) error   { /* stop tickers, wait in-flight */ }
+```
+
+Attach it in `main`:
+
+```go
+runner := &jobs.Runner{Jobs: []jobs.Job{
+    {Name: "cleanup-expired", Interval: time.Hour, Run: svc.CleanupExpired},
+}}
+svc, err := kit.New(":8080", kit.WithLifecycle(runner))
+```
+
+Rules that keep jobs safe next to serving traffic:
+
+- each `Run` receives a context derived from shutdown, so cancellation
+  reaches the database and HTTP clients through the service layer;
+- a failing run is reported through `Errors()` and retried on the next tick;
+  the runner never launches an overlapping run of the same job;
+- intervals and job toggles belong in configuration, validated at startup,
+  so a deployment can disable a misbehaving job without a code change;
+- in generated projects, put the package under the same topology (for
+  example `jobs/` beside `service/`) and wire it in the user-owned
+  `cmd/main.go`; regeneration preserves user-owned files.
+
 ## HTTP Server
 
 Configure all of the following explicitly for the deployment:
