@@ -12,6 +12,12 @@ through the immutable v0 and v1 tags.
   `InjectTraceparent` RequestFuncs for servers and clients.
   `endpoint.TracingMiddleware` now joins an incoming trace context under the
   same trace ID and mints W3C-conformant 32-hex-character trace IDs otherwise.
+- `examples/auth`: application-owned authentication and authorization
+  middleware with Bearer API keys, 401/403 responses classified by
+  `apperror`, and public health routes.
+- `examples/todosvc`: an end-to-end SQLite CRUD service with a CGO-free
+  repository, `apperror` classification, path-parameter routes, and
+  database closure during graceful shutdown.
 
 ### Changed
 
