@@ -3,7 +3,7 @@ English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
-v2.3.0 is the release being published from `main` for the independent module:
+v2.3.0 is the current published release of the independent module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
@@ -17,14 +17,14 @@ of this release is recorded as Milestone 7 in [ROADMAP.md](ROADMAP.md).
 The published module is stored in the repository's `v2` major-version
 subdirectory, but consumers request normal module versions such as `v2.3.0`.
 Its tag is the root tag `v2.3.0`, not `v2/v2.3.0`. A future `/v3` module would
-likewise use a root `v3.0.0` tag. v1 release history remains available through
-the immutable v1 tags and is not duplicated on `main`.
+likewise use a root `v3.0.0` tag.
 
-The immutable `v2.0.0`, `v2.1.0`, and `v2.2.0` releases remain available.
-This release publishes the root `v2.3.0` tag and new `v0.2.1` tags for all
-eight independently versioned nested modules: `microgen` fixes the dead
-`-add-tables` flag, and the seven optional modules update their core
-requirement to `v2.3.0`.
+This release published the root `v2.3.0` tag and `v0.2.1` tags for all eight
+independently versioned nested modules: `microgen` fixes the dead
+`-add-tables` flag, and the seven optional modules are version-bump-only
+releases that keep their published `v2.2.0` core requirement, which remains
+compatible. The repository's workspace requirements already moved to `v2.3.0`
+in the nested-candidate commit, ahead of the next release cycle.
 
 ## Versioning
 
