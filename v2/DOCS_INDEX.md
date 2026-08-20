@@ -1,40 +1,58 @@
 # Documentation / 文档导航
 
+English | [简体中文](DOCS_INDEX_zh.md)
+
 The v2 documentation is task-oriented. Current behavior belongs in usage and
 architecture documents; the durable implementation sequence belongs only in
 `ROADMAP.md`. Temporary plans and session snapshots do not belong in the
 maintained documentation set.
 
-v2 文档按任务组织。当前行为写入使用与架构文档；长期实施顺序只写入
-`ROADMAP.md`，临时计划和会话快照不进入长期维护文档。
+## Quick Start
 
-## Start Here
+From zero to a running service in about fifteen minutes:
 
-| Goal | Document |
+| Step | Goal | Start here |
+| --- | --- | --- |
+| 1 | Install and generate a runnable service | [README: Generate A Service](README.md#generate-a-service) |
+| 2 | Understand what was generated and what you own | [MICROGEN.md](MICROGEN.md) |
+| 3 | Exercise the request path on runnable examples | [examples](examples/README.md) |
+| 4 | Compose a small service by hand | [README: Build With kit](README.md#build-with-kit) |
+
+## Component Tour
+
+Read in order to follow the request path from core to edge. Every guide is
+self-contained and assumes only the steps above.
+
+| Order | Component | Guide |
+| --- | --- | --- |
+| 1 | Endpoints, typed endpoints, and middleware composition | [endpoint](endpoint/README.md) |
+| 2 | HTTP transport: server, client, SSE, multipart, pagination, tracing propagation | [transport](transport/README.md) |
+| 3 | Service assembly: `kit`, health checks, lifecycle, Server-Sent Events | [README: Build With kit](README.md#build-with-kit) |
+| 4 | Resilience: validation, timeout, fallback, bulkhead, backpressure | [endpoint: Built-In Middleware](endpoint/README.md#built-in-middleware) |
+| 5 | Service discovery, balancing, and retry | [service discovery](sd/README.md) |
+| 6 | HTTP security: CORS, CSRF, security headers, IP policy | [security/http](security/http/README.md) |
+| 7 | Observability: slog, Zap, OpenTelemetry adapters | [slog](observability/slog/README.md), [otel](observability/otel/README.md), [zap](integrations/zap/README.md) |
+| 8 | AI interaction runtime and MCP Streamable HTTP | [interaction](interaction/README.md) |
+| 9 | Optional integrations: Consul, gRPC, circuit breaker, rate limiting | [consul](integrations/consul/README.md), [transport gRPC](transport/README.md) |
+
+## By Task
+
+| Task | Document |
 | --- | --- |
-| Generate or extend a service | [MICROGEN.md](MICROGEN.md) |
-| Build a small service with `kit` | [README.md](README.md#build-with-kit) / [中文](README_zh.md#使用-kit) |
-| Understand package boundaries | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| Review dependency closure and the `v2.0.0` comparison | [DEPENDENCY_REPORT.md](DEPENDENCY_REPORT.md) |
-| Review the completed v2 architecture roadmap | [ROADMAP.md](ROADMAP.md) |
 | Prepare a service for production | [PRODUCTION.md](PRODUCTION.md) |
-| Review released changes and upgrade exceptions | [CHANGELOG.md](CHANGELOG.md), [MIGRATION.md](MIGRATION.md) |
-| Move from v1 to v2 | [MIGRATION.md](MIGRATION.md) |
-| Change or release the repository | [MAINTAINING.md](MAINTAINING.md), [RELEASE.md](RELEASE.md), and [RELEASE_MANIFEST.json](RELEASE_MANIFEST.json) |
+| Review upgrade actions between releases | [MIGRATION.md](MIGRATION.md) |
+| Deep-dive the generator, extend mode, and contracts | [MICROGEN.md](MICROGEN.md) |
+| Understand package boundaries and extension rules | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Review released changes | [CHANGELOG.md](CHANGELOG.md) |
 
-## Package Guides
+## For Maintainers
 
-- [endpoint](endpoint/README.md)
-- [transport](transport/README.md)
-- [service discovery](sd/README.md)
-- [interaction](interaction/README.md)
-- [slog observability adapter](observability/slog/README.md)
-- [Zap observability adapter](integrations/zap/README.md)
-- [OpenTelemetry observability adapter](observability/otel/README.md)
-- [optional HTTP security middleware](security/http/README.md)
-- [Consul service discovery integration](integrations/consul/README.md)
-- [examples](examples/README.md)
-- [test tools](tools/README.md)
+| Task | Document |
+| --- | --- |
+| Change or release the repository | [MAINTAINING.md](MAINTAINING.md), [RELEASE.md](RELEASE.md), [RELEASE_MANIFEST.json](RELEASE_MANIFEST.json) |
+| Review the implementation sequence | [ROADMAP.md](ROADMAP.md) |
+| Review dependency closure | [DEPENDENCY_REPORT.md](DEPENDENCY_REPORT.md) |
+| Run verification tooling | [tools](tools/README.md) |
 
 ## Document Ownership
 
@@ -44,6 +62,8 @@ v2 文档按任务组织。当前行为写入使用与架构文档；长期实�
 - Contributor process: `MAINTAINING.md`, `RELEASE.md`.
 - Version history: `CHANGELOG.md`, `MIGRATION.md`.
 - Generated-project documentation is owned by `cmd/microgen/templates/readme.tmpl`.
+- Every maintained document has an English version and a `_zh.md` Chinese
+  version; both are updated together.
 
 When behavior changes, update the nearest authoritative document. Do not add a
 second roadmap, design draft, or status snapshot.

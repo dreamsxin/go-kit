@@ -1,4 +1,5 @@
 # Maintainer Guide
+English | [简体中文](MAINTAINING_zh.md)
 
 This guide defines the normal workflow for changing go-kit v2. Keep durable
 rules here, durable milestone order in [ROADMAP.md](ROADMAP.md), and temporary

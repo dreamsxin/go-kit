@@ -21,10 +21,9 @@ github.com/dreamsxin/go-kit/v2@v2.3.0
 ```
 
 `v2.3.0` is the release being published from `main`. It is backward
-compatible: the changes are additive capabilities and behavioral fixes, with
-no new SemVer exceptions. The historical `v2.1.0` direct-refactor and
-`v2.2.0` `Metrics.Snapshot` exceptions remain documented in the
-[migration guide](v2/MIGRATION.md).
+compatible: additive capabilities and behavioral fixes only. Per-release
+changes are recorded in the [changelog](v2/CHANGELOG.md); upgrade notes live
+in the [migration guide](v2/MIGRATION.md).
 
 ## Start Here
 
@@ -43,22 +42,9 @@ generation, examples, and development commands.
 - [v2 README](v2/README.md): user entry point
 - [Architecture](v2/ARCHITECTURE.md): package boundaries and extension model
 - [microgen](v2/MICROGEN.md): generator behavior and generated ownership
-- [Migration](v2/MIGRATION.md): v1 and v2.0.0 upgrade guidance
+- [Upgrade notes](v2/MIGRATION.md): upgrade actions between releases
 - [Production](v2/PRODUCTION.md): runtime, security, and observability guidance
 - [Release policy](v2/RELEASE.md): compatibility and release process
-
-## v1 Archive
-
-v1 is no longer maintained on `main`. Its complete source and documentation
-remain available through the immutable legacy tags; `v1.6.0` is the final v1
-release. Existing users can [browse the archived source](https://github.com/dreamsxin/go-kit/tree/v1.6.0)
-or continue to pin it:
-
-```bash
-go get github.com/dreamsxin/go-kit@v1.6.0
-```
-
-New development should use v2.
 
 ## Development
 

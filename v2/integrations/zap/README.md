@@ -1,4 +1,5 @@
 # Zap adapter
+English | [简体中文](README_zh.md)
 
 `integrations/zap` owns the Zap-specific endpoint logging middleware. The core
 `endpoint` package does not import Zap or the framework `log` package.

@@ -1,4 +1,5 @@
 # microgen User Guide
+English | [简体中文](MICROGEN_zh.md)
 
 `microgen` generates runnable Go services from a contract. It is the recommended
 entry point for a new service; runtime packages remain independently usable.

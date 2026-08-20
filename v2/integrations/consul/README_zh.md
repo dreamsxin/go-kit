@@ -1,8 +1,8 @@
-# Consul Integration
-English | [简体中文](README_zh.md)
+# Consul 集成
 
-`integrations/consul` is an independent provider module. It depends on the
-Consul SDK and the Go standard library, but not on the go-kit runtime module.
+[English](README.md) | 简体中文
+
+`integrations/consul` 是一个独立的 provider 模块。它依赖 Consul SDK 和 Go 标准库，但不依赖 go-kit 运行时模块。
 
 ```go
 package main
@@ -32,7 +32,4 @@ func main() {
 }
 ```
 
-`Instancer` publishes copied, immutable-by-convention snapshots and satisfies
-the core `sd.Instancer` contract structurally. Applications that use
-`sd/client` can pass it directly without an adapter. Provider lifecycle remains
-application owned: close discovery consumers before calling `Stop`.
+`Instancer` 发布经过拷贝的、按约定不可变（immutable-by-convention）的快照，并在结构上满足核心的 `sd.Instancer` 契约。使用 `sd/client` 的应用可以直接传入它，无需适配器。Provider 的生命周期仍由应用负责：请在调用 `Stop` 之前关闭所有服务发现消费方。

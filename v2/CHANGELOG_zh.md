@@ -1,0 +1,169 @@
+# 变更日志
+[English](CHANGELOG.md) | 简体中文
+
+所有重要的 v2 变更都记录在这里。旧历史仍可通过不可变的 v0 和 v1 标签获取。
+
+## [未发布]
+
+## [2.3.0] - Release Candidate
+
+### 新增
+
+- 核心包中的 W3C Trace Context 传播：带 `ParseTraceparent` 的 `endpoint.TraceContext`，以及 `transport/http` 中面向服务端和客户端的 `ExtractTraceparent` / `InjectTraceparent` RequestFunc。`endpoint.TracingMiddleware` 现在会在同一 trace ID 下加入传入的 trace 上下文，否则生成符合 W3C 的 32 个十六进制字符的 trace ID。
+- `kit.HandleSSE` 和 `kit.SSEWriter`，用于支持逐事件刷新和客户端断连取消的 Server-Sent Events 流；支持命名事件、JSON 事件和多行数据事件、注释心跳以及重试提示。
+- `server.ParseMultipartForm`，用于有界的 multipart/form-data 上传（总请求体、单文件和内存上限；413/415/400 分类），以及用于净化文件下载的 `server.WriteAttachment`。
+- 请求校验约定：带字段级失败的 `endpoint.Validatable`、`endpoint.ValidationMiddleware` 和 `endpoint.ValidationError`；HTTP 错误编码器将它们映射为 400 和稳定代码 `bad_request.validation`。
+- `transport/http` 中的分页约定：`ParsePage`（默认 1/20，页大小上限 100，无效查询值作为校验错误拒绝）、`Page.Limit/Offset` 和泛型 `PageResult[T]` 传输形状。
+- `examples/auth`：应用所有的认证与授权中间件，使用 Bearer API 密钥、由 `apperror` 分类的 401/403 响应以及公开的健康路由。
+- `examples/todosvc`：端到端 SQLite CRUD 服务，带无 CGO 的仓储、`apperror` 分类、路径参数路由，以及优雅关闭期间的数据库关闭。
+- 弹性中间件：`endpoint.Fallback` 在主端点失败时用回退端点应答，`endpoint.BulkheadMiddleware` 按资源键隔离并发；`ErrBackpressure` 和新的 `ErrBulkheadFull` 现在编码为 HTTP 429 而不是 500。
+- PRODUCTION.md 新增部署（静态容器、探针接线、终止预算对齐、配置注入）、告警（与文档化指标信号对应的入门告警集）和后台任务（目录结构及 `kit.Lifecycle` 接线）章节。
+
+### 变更
+
+- `endpoint.TracingMiddleware` 生成的 trace ID 是 32 个小写十六进制字符（W3C 格式），而不是 16 个。将该 ID 视为不透明字符串的现有调用方不受影响。
+
+### 修复
+
+- `microgen` 不再注册 `-add-tables` 标志：它此前被解析但从未被使用，误导用户以为 extend 模式可以追加表。MICROGEN.md 现在说明了所覆盖的生成器版本，并列出了源模式和 `-service` 选项及其默认值。
+
+## [2.2.0] - 2026-08-14
+
+本开发周期包含一个经明确批准、范围狭窄的 v2 SemVer 例外：`Metrics.Snapshot()` 现在返回 `MetricsSnapshot` 而不是 `Metrics`。迁移方法记录在 [MIGRATION_zh.md](MIGRATION_zh.md) 中。
+
+### 新增
+
+- 传输无关的 `apperror` 分类，具有一致的 HTTP 与 gRPC 映射，包括默认的 gRPC 错误编码器。
+- `kit` 和 `transport/http/server` 中面向具体请求与响应类型的完全类型化 JSON 装配辅助函数。
+- 带 `AverageDuration()` 的无锁 `endpoint.MetricsSnapshot` 值。
+- 有界的请求 ID 校验器选项，以及对调用方提供的请求 ID 的保守校验。
+- `config/custom.go` 中应用所有的生成配置扩展，包括在重新生成时保留的默认值、环境和校验钩子。
+
+### 变更
+
+- **已批准的 SemVer 例外：** `Metrics.Snapshot()` 返回 `MetricsSnapshot`。通过推断的局部变量进行字段访问不受影响；显式将结果声明为 `Metrics` 的代码必须更新其类型。
+- `microgen` 使用纯 Go 的 SQLite 内省驱动，因此安装和运行 CLI 不再需要 CGO 或 GCC。
+- 生成的演示客户端委托给生成的 Go SDK，而不是维护第二套 HTTP/gRPC 实现。
+- 健康检查并发执行，带单检查超时，并且每个命名检查最多允许一个进行中的调用。
+- 快速开始和组合示例使用类型化处理器，并通过进程生命周期传播监听器和关闭错误。
+- `main` 分支现在只包含维护中的 v2 产品线；旧 v1 源码和文档仍可通过不可变的发布标签获取。
+- 仓库根 README 现在是精简的 v2 入口，而不是重复的 v1 使用指南。
+
+### 修复
+
+- 默认的 HTTP 和 gRPC 错误编码器不再向客户端暴露未分类的内部错误消息，而已分类的应用错误保留稳定的公开代码和消息。
+- 并发健康探测不再累积串行延迟，也不再启动重叠的超时检查。
+- 示例指标读取使用原子快照，快照不再携带会触发 `go vet` copylock 失败的内部互斥锁。
+- 公开 API 快照收集忽略写入 stderr 的工具下载诊断信息。
+
+## [2.1.0] - 2026-08-14
+
+本版本是经明确批准的直接重构 v2 SemVer 例外。它与 `v2.0.0` 不保持源码兼容；升级之前请先阅读 [MIGRATION_zh.md](MIGRATION_zh.md)。
+
+### 新增
+
+- 可执行的架构依赖门禁，以及与已发布 `v2.0.0` 基线对比的经过评审的依赖闭包对比。
+- 提供者无关的 `kit.Lifecycle` 契约和用于多服务应用的可选 `kit/grpc` 组件。
+- 通过 `make verify-published-core` 和 `make verify-published` 对核心模块和所有独立版本化模块进行清单驱动的验证。
+- `transport/http/client.NewJSONClient` 的 4 MiB 默认成功响应上限，并为更大的契约提供显式构造函数。
+- 通过 `Runtime.ReleaseSession` 实现的由传输所有的交互会话释放。
+
+### 变更
+
+- 仓库所有者批准将直接的不兼容重构作为已记录的直接重构 SemVer 例外发布到 `/v2`；`v2.0.0` 保持不可变，已发布的根重构版本是 `v2.1.0`。
+- 根运行时模块现在没有第三方依赖。gRPC、Consul、Gobreaker、限流、Zap 和 OpenTelemetry 位于独立模块中。
+- `microgen` 实现包改为内部包，生成代码直接使用 `slog`，最小 HTTP 项目不再包含可选的提供者和数据库模块。
+- 推荐示例现在是使用 `kit` 的 `examples/quickstart`；显式的 endpoint/transport 接线位于 `examples/manual_composition`。
+- 核心 `kit` 是仅 HTTP 的装配层。带外部依赖的 endpoint 中间件通过 `kit.WithEndpointMiddleware` 显式安装。
+- HTTP 和 gRPC 传输默认使用空操作错误处理器；错误上报由应用通过 `observability/slog` 或 `integrations/zap` 适配器所有。
+- `microgen` 现在默认关闭 config、model/repository 和数据库运行时接线。`-from-db` 仍然总是生成内省的模型。
+- 完整重新生成会保留用户所有的服务实现、`cmd/main.go`、config YAML 和项目 README；endpoint 和 transport 产物在清单中被跟踪为生成器所有。
+- 生成的调试路由注册和路由打印改为可选，限流默认禁用，中间件超时来自配置，入站重试配置已被移除。
+- 生成的 HTTP 和 gRPC 监听器在开始服务之前绑定；生成的数据库句柄在关闭期间被检查并关闭。
+- MCP 工具调用复用绑定到 MCP 传输会话的运行时会话，该会话在 DELETE 或 TTL 到期时释放。
+- Go IDL 生成在遇到无效接口方法时失败，而不是静默省略该方法。
+
+### 修复
+
+- Consul 远程配置加载现在遵守其超时和响应大小限制，而不会把第二套基于 Viper 的提供者栈拉入生成的项目。
+- 文档记录的 v2 发布标签是 Go 模块解析所需的根 `v2.0.0` 标签；历史上错误的 `v2/v2.0.0` 标签已被移除。
+
+### 移除
+
+- `endpoint`、`transport/grpc` 和 `sd/consul` 下旧的提供者所有的包路径；请使用相应的独立集成模块。
+- `kit.WithGRPC`、`Service.GRPCServer`、`kit.WithRateLimit`、`kit.WithCircuitBreaker`、`kit.WithLogging` 以及根传输的 `NewLogErrorHandler` 便捷 API。
+- 无用的合并配置模板以及过时的 Swagger 2.0 Make 目标/工具。
+
+## [2.0.0] - 2026-07-20
+
+首个稳定的 v2 版本。导出的运行时 API、`microgen` CLI 与配置、生成物所有权以及文档记录的协议行为现在遵循 [RELEASE_zh.md](RELEASE_zh.md) 中的兼容性策略。
+
+### 新增
+
+- 独立的 `github.com/dreamsxin/go-kit/v2` 模块。
+- 返回错误的 `kit.New`、上下文驱动的 `Service.Run`、可配置的优雅关闭超时，以及用于显式 panic-on-invalid 初始化的 `kit.MustNew`。
+- 针对服务端、日志、数据库、中间件和远程提供者设置的最终生成配置校验。
+- 生成输出的确定性格式化和文本规范化。
+- 仓库范围的 UTF-8 校验，拒绝维护文本文件中的 BOM、无效字节序列和 Unicode 替换字符。
+- 使用 `go mod tidy` 和 `go test ./...` 的外部生成项目冒烟覆盖。
+- 生成的传输、客户端和 SDK 共享的 HTTP 路径/查询编解码器。
+- 直接从公共 `microgen` IR 生成 OpenAPI 3.1 和独立的 JSON Schema 2020-12 包。
+- 从同一 IR 生成的零运行时依赖 TypeScript Fetch 客户端，带严格编译器设置和外部类型检查覆盖。
+- 生成的传输、客户端和 SDK 共享的非 GET 路径参数编码与解码。
+- 带版本号的 `.microgen/manifest.json` 项目身份，包含源、能力、路由、服务、模型、中间件和生成器所有的产物元数据。
+- 针对 Go IDL、Protobuf 和数据库生成集成路径的 OpenAPI 3.1 解析器校验和 JSON Schema 2020-12 编译。
+- 用固定的 TypeScript 编译器对生成 SDK 进行类型检查的发布契约检查。
+- 生成的 Go 和 TypeScript SDK 的共享可执行 HTTP 行为覆盖，包括路径、查询、请求体、头部和非 2xx 错误。
+- 针对 Go IDL、Protobuf 和数据库生成路径的经过评审的确定性契约快照。
+- 可选的 `observability/slog` endpoint 日志，以及带应用所有的提供者初始化的独立 `observability/otel` 追踪/指标适配器。
+- 可选的标准库 `security/http` 中间件，用于可信代理和客户端 IP 解析、IP 策略、CORS、签名双重提交 CSRF 以及安全响应头。
+- `kit.WithHTTPMiddleware`，用于覆盖健康、endpoint、原生 HTTP 和生成路由的全服务级标准库中间件。
+- 针对经过评审的公开 API 漂移、维护的 Markdown 链接、模块 tidy 状态、专项竞态测试、vet 以及已提交 v2 范围整洁性的发布门禁。
+
+### 变更
+
+- `kit` 不再安装进程信号处理器，也不在服务生命周期中调用致命日志。
+- `Service.GRPCServer` 在未配置 gRPC 时返回错误。
+- 生成的配置优先级为：本地 YAML、可选远程配置、最终环境变量覆盖，然后是校验。
+- 服务发现注册同步返回其初始快照，并在不关闭消费方通道的情况下发布后续更新。
+- 内存交互提供者复制可变的资源、blob、模板、提示词和渲染参数。
+- 生成的 HTTP 服务器使用标准库 `http.ServeMux`；生成的 GET 客户端和服务器共享同一个带标签的查询契约，并且不发送 JSON 请求体。
+- 生成的 Go 客户端和 SDK 使用与服务端路由注册和 OpenAPI 输出相同的完整 HTTP 路径。
+- 生成的 OpenAPI 项目内嵌 Swagger UI 5 资产，并同时提供 `/openapi.json` 和 `/schema.json`，不依赖 CDN。
+- HTTP JSON 客户端超时的构造通过 `NewJSONClientWithTimeout` 显式完成。
+- 服务发现重试默认为一次尝试，并且在配置了额外尝试时只重试显式分类的瞬时错误。
+- 服务发现 endpoint 构造函数返回自有的 closer，并在启动后台工作之前校验必需的依赖和时序选项。
+- v2 文档以任务为导向，不再重复 v1 发布历史、临时路线图或会话快照。
+- Extend 扫描以项目清单作为主要能力来源，并在变更之前报告文件系统或所有权漂移。
+- 生成的 Go SDK 暴露带稳定状态码和响应体字段的 `APIError`，与 TypeScript SDK 错误契约对齐。
+- MCP Streamable HTTP 现在强制执行初始化生命周期、协议版本、浏览器 Origin 策略和客户端 sampling 能力。日志级别是会话范围的，服务器消息使用单一活动 SSE 流。
+- `kit` 和生成的 HTTP 服务器使用流安全的默认值，带有限的头部读取且无默认响应写截止时间。
+- Consul 注册器操作返回错误；instancer 关闭会取消并加入活动阻塞查询。
+- 生成的 Go SDK 以结构化方式解析 URL 并限制响应体大小。
+- 生成的仓储只接受从模型派生的排序字段。
+
+### 修复
+
+- 提示词渲染回调不再在持有提供者锁时运行。
+- Consul 重试等待响应关闭，重复的 `Stop` 调用是安全的。
+- Endpointer 关闭不再与已关闭通道上的生产者发送竞争。
+- Endpointer 关闭等待其更新循环，并释放端点缓存仍然持有的所有客户端资源。
+- 端点缓存不再就地排序调用方切片，也不再向调用方暴露其内部端点切片。
+- 生成的环境变量值在远程加载之后仍保持为最高优先级的配置来源。
+- 生成的 Go 文件在写入格式错误的部分文件之前使生成失败。
+- 追加服务和追加模型会刷新 OpenAPI、JSON Schema 和 TypeScript 客户端产物，而不是让生成的契约过期。
+- 服务、模型和中间件追加操作最后刷新项目清单，并拒绝存在未解决清单漂移的项目。
+- 从数据库派生的契约 IR 现在与生成的 Go IDL 在可选创建字段、更新字段、列表查询参数和响应 JSON 形状上一致。
+- HTTP 响应写入器拦截保留可选的流式接口，忽略重复的状态写入，并计入 `io.ReaderFrom` 的字节数。
+- 缓冲的 HTTP 客户端解码失败会关闭响应体并取消请求上下文。
+- gRPC 客户端在应用钩子的同时保留调用方提供的出站元数据。
+- MCP 工具触发的 sampling 现在使用来自请求上下文的传输会话，工具执行失败返回 `isError: true` 结果。
+
+### 移除
+
+- v2 文档中的 v1 兼容性声明和 v1.0/v1.6 发布规划。
+- 重复的架构、生成器设计、项目快照、路线图、稳定性、可观测性、安全和维护者文档。
+- 重复的 HandyBreaker 和内置 Hystrix 实现；Gobreaker 是核心中唯一的熔断器适配器。
+- 冗余的 `sd.NewEndpointCloser`；生命周期所有权是每个 `sd.NewEndpoint` 构造的一部分。
+- Swagger 2.0 注解输出、`swagger_host` 和 `APP_SWAGGER_HOST`；Swagger UI 现在读取生成的 `/openapi.json` 契约。
+- 非标准的 `microgen -skill` 选项、生成的 `skill/` 包、`/skill` 发现端点、仓库 AI `SKILL.md` 和专门的 skill 示例。OpenAPI/JSON Schema 仍是通用契约格式，而可选的交互运行时通过 MCP 暴露工具发现与执行。

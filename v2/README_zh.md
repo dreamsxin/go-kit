@@ -23,10 +23,8 @@ github.com/dreamsxin/go-kit/v2
 ```
 
 `v2.3.0` 是本次从 `main` 发布的版本，完全向后兼容：全部为新增能力与
-行为修复，没有新的 SemVer 例外。历史上 `v2.1.0` 的直接重构例外与
-`v2.2.0` 的 `Metrics.Snapshot` 例外仍记录在
-[MIGRATION.md](MIGRATION.md) 中。`main` 不再维护 v1，其源码
-仍可通过不可变的 `v1.0.0` 至 `v1.6.0` 标签获取。
+行为修复。各版本的变更记录在 [CHANGELOG.md](CHANGELOG.md)；升级说明见
+[MIGRATION.md](MIGRATION.md)。
 
 需要 Go 1.25.8 或更高版本。
 
@@ -59,12 +57,6 @@ go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.1
 
 生成器 CLI（包括 SQLite 结构读取）安装和运行均不依赖 CGO 或本地 C 编译器。
 只有在生成应用显式选择相应运行时数据库 adapter 时，应用本身才可能需要 CGO。
-
-`v2.0.0` 根 module 仍包含历史生成器，可以显式安装，但它生成的包结构遵循旧契约：
-
-```bash
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v2.0.0
-```
 
 创建 `idl.go`：
 
@@ -336,14 +328,15 @@ make release-check-clean
 
 ## 文档
 
-- [DOCS_INDEX.md](DOCS_INDEX.md)：文档导航
-- [MICROGEN.md](MICROGEN.md)：生成器使用与生成文件归属
-- [ARCHITECTURE.md](ARCHITECTURE.md)：包边界和扩展模型
-- [ROADMAP.md](ROADMAP.md)：v2 唯一实施路线图
-- [PRODUCTION.md](PRODUCTION.md)：运行、安全和可观测性指导
-- [MIGRATION.md](MIGRATION.md)：从 v1 迁移到 v2
-- [MAINTAINING.md](MAINTAINING.md)：仓库维护和验证流程
-- [examples/](examples/README.md)：可运行示例
+以下每份文档都有对应的中文 `*_zh.md` 版本；从
+[DOCS_INDEX.md](DOCS_INDEX_zh.md) 开始可以找到快速入门路径与组件导览。
+
+- [DOCS_INDEX.md](DOCS_INDEX_zh.md)：快速入门、组件导览、文档导航
+- [MICROGEN.md](MICROGEN_zh.md)：生成器使用与生成文件归属
+- [ARCHITECTURE.md](ARCHITECTURE_zh.md)：包边界和扩展模型
+- [PRODUCTION.md](PRODUCTION_zh.md)：运行、安全和可观测性指导
+- [MIGRATION.md](MIGRATION_zh.md)：版本间升级说明
+- [examples/](examples/README_zh.md)：可运行示例
 
 ## License
 

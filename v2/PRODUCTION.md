@@ -1,4 +1,5 @@
 # Production Guidance
+English | [简体中文](PRODUCTION_zh.md)
 
 This guide covers the framework-level checks needed before deploying a service.
 Application-specific authentication, authorization, data governance, and

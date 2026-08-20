@@ -1,4 +1,5 @@
 # Dependency Closure Report
+English | [简体中文](DEPENDENCY_REPORT_zh.md)
 
 This report captures the dependency closure after the direct v2 architecture
 refactor. The executable rules live in `tools/dependency_boundaries_test.go`;

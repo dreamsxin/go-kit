@@ -1,4 +1,5 @@
 # Architecture And Boundaries
+English | [简体中文](ARCHITECTURE_zh.md)
 
 This document defines the durable architecture of go-kit v2. It describes
 ownership and extension rules, not a temporary implementation roadmap.
@@ -214,11 +215,8 @@ framework branches for one application.
 
 ## Stability
 
-`v2.3.0` is the release being published from `main` and is backward
-compatible: additive capabilities and behavioral fixes only. The two
-explicitly approved and documented SemVer exceptions from `v2.0.0` remain the
-`v2.1.0` direct architecture refactor and `v2.2.0`'s `Metrics.Snapshot()`
-returning the lock-free `MetricsSnapshot` value instead of a copy of the
-mutex-bearing collector. Both exceptions are recorded in
-[CHANGELOG.md](CHANGELOG.md) and [MIGRATION.md](MIGRATION.md). Further
-incompatible changes require a new major version, not another exception.
+`v2.3.0` is the current contract. Releases within `/v2` are backward
+compatible: patch releases fix behavior and minor releases add capabilities.
+Incompatible changes require a new major module version. v2 does not carry
+deprecated forwarding APIs; documentation for earlier releases remains
+available through the immutable release tags.

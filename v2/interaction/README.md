@@ -1,4 +1,5 @@
 # interaction
+English | [简体中文](README_zh.md)
 
 Package for transport-neutral AI interaction runtime contracts.
 

@@ -1,4 +1,5 @@
 # slog adapter
+English | [简体中文](README_zh.md)
 
 `observability/slog` is an optional adapter for endpoint logging. It uses only
 the standard-library `log/slog` API and is independent of the Zap adapter.

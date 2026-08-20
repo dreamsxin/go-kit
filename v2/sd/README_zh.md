@@ -1,11 +1,11 @@
-# sd - Service Discovery
-English | [简体中文](README_zh.md)
+# sd - 服务发现
 
-The root `sd` package owns the protocol-neutral `Event`, `Instancer`,
-`Registrar`, `Balancer`, and `ErrNoEndpoints` contracts. Concrete components
-live in focused subpackages and can be used independently.
+[English](README.md) | 简体中文
 
-## Quick start (no Consul needed)
+根 `sd` 包拥有协议无关的 `Event`、`Instancer`、`Registrar`、`Balancer` 和
+`ErrNoEndpoints` 契约。具体组件位于职责聚焦的子包中，可以独立使用。
+
+## 快速开始（无需 Consul）
 
 ```go
 import (
@@ -34,7 +34,7 @@ defer closer.Close()
 resp, err := ep(ctx, request)
 ```
 
-## With Consul
+## 使用 Consul
 
 ```go
 import (
@@ -57,24 +57,23 @@ defer instancer.Stop()
 defer closer.Close() // runs first: deregister and close endpoint connections
 ```
 
-## Options
+## 选项
 
-| Option | Default | Description |
+| 选项 | 默认值 | 说明 |
 |--------|---------|-------------|
-| `WithMaxAttempts(n)` | 1 | Total attempts; must be at least 1 |
-| `WithTimeout(d)` | 500ms | Positive total budget including all retries |
-| `WithInvalidateOnError(d)` | disabled | Clear cache after SD error grace period |
+| `WithMaxAttempts(n)` | 1 | 总尝试次数；必须至少为 1 |
+| `WithTimeout(d)` | 500ms | 包含所有重试在内的正数总预算 |
+| `WithInvalidateOnError(d)` | disabled | 在 SD 错误宽限期之后清除缓存 |
 
-Invalid options and nil required dependencies return an error before any
-background goroutine starts.
+非法的选项以及为 nil 的必需依赖，会在任何后台 goroutine 启动之前返回错误。
 
-## Architecture
+## 架构
 
 ```
 Instancer  →  Endpointer  →  RoundRobin  →  Retry  →  Endpoint
 ```
 
-Each layer is independently usable:
+每一层都可以独立使用：
 
 ```go
 // Manual assembly (full control)
@@ -84,11 +83,10 @@ lb   := balancer.NewRoundRobin(ep)
 call := retry.Retry(3, 500*time.Millisecond, lb)
 ```
 
-For low-level assembly, cache invalidation is configured with
-`endpointer.InvalidateOnError`. The higher-level `client.NewEndpoint`
-constructor exposes the equivalent `client.WithInvalidateOnError` option.
+对于底层组装，缓存失效通过 `endpointer.InvalidateOnError` 配置。更高层的
+`client.NewEndpoint` 构造器暴露了等价的 `client.WithInvalidateOnError` 选项。
 
-## Retry strategies
+## 重试策略
 
 ```go
 // Fixed max attempts
@@ -106,16 +104,14 @@ retry.WithClassifier(time.Second, lb,
 )
 ```
 
-The default classifier retries explicit `Retryable() == true` errors and
-temporary no-endpoint conditions. Unknown and protocol errors are permanent.
-For gRPC, pass `integrations/grpc.Retryable` explicitly through
-`client.WithRetryable`; domain write safety remains an application decision.
+默认分类器会重试显式 `Retryable() == true` 的错误以及临时的无端点状况。
+未知错误和协议错误是永久性的。对于 gRPC，通过 `client.WithRetryable` 显式
+传入 `integrations/grpc.Retryable`；领域写入的安全性仍由应用自行决策。
 
-`Endpointer.Close` waits for its update loop and closes all resources returned
-by the endpoint factory. Treat the closer as part of the constructor contract,
-not as an optional cleanup hook.
+`Endpointer.Close` 会等待其更新循环结束，并关闭端点工厂返回的所有资源。
+应把 closer 视为构造器契约的一部分，而不是可选的清理钩子。
 
-## Consul registration
+## Consul 注册
 
 ```go
 registrar := consul.NewRegistrar(client, logger, "my-service", "10.0.0.1", 8080,
@@ -131,10 +127,10 @@ if err := registrar.Register(); err != nil {
 defer func() { _ = registrar.Deregister() }()
 ```
 
-`Instancer.Stop` cancels and joins the active Consul blocking query, so call it
-after endpoint-owned resources have been closed.
+`Instancer.Stop` 会取消并等待（join）活跃的 Consul 阻塞查询，因此要在端点
+持有的资源关闭之后再调用它。
 
-## See also
+## 另请参阅
 
-- `examples/sd/` — runnable demo of every sd component
-- `examples/profilesvc/client/` — Consul-backed client example
+- `examples/sd/` — 覆盖每个 sd 组件的可运行演示
+- `examples/profilesvc/client/` — 基于 Consul 的客户端示例

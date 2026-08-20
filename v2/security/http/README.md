@@ -1,4 +1,5 @@
 # Optional HTTP security middleware
+English | [简体中文](README_zh.md)
 
 `security/http` provides composable standard-library `http.Handler`
 middleware. It does not define authentication, authorization, identity, or

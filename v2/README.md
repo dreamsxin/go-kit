@@ -24,12 +24,9 @@ github.com/dreamsxin/go-kit/v2
 ```
 
 `v2.3.0` is the release being published from `main`. It is backward
-compatible: additive capabilities and behavioral fixes only, with no new
-SemVer exceptions. The historical `v2.1.0` direct-refactor and `v2.2.0`
-`Metrics.Snapshot` exceptions remain documented in
-[MIGRATION.md](MIGRATION.md). Legacy v1 source remains available
-through the immutable `v1.0.0` to `v1.6.0` tags and is no longer maintained on
-`main`.
+compatible: additive capabilities and behavioral fixes only. Per-release
+changes are recorded in [CHANGELOG.md](CHANGELOG.md); upgrade notes live in
+[MIGRATION.md](MIGRATION.md).
 
 Requires Go 1.25.8 or later.
 
@@ -64,13 +61,6 @@ go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.1
 The generator CLI, including SQLite schema introspection, installs and runs
 without CGO or a local C compiler. A generated application may still use a
 CGO-backed database driver when that runtime adapter is explicitly selected.
-
-The `v2.0.0` root module also contains the historical generator. It can still be
-installed explicitly, but its generated package graph follows the old contract:
-
-```bash
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v2.0.0
-```
 
 Create `idl.go`:
 
@@ -356,13 +346,15 @@ make release-check-clean
 
 ## Documentation
 
-- [DOCS_INDEX.md](DOCS_INDEX.md): documentation map
+Every document below also has a Chinese `*_zh.md` version; start from
+[DOCS_INDEX.md](DOCS_INDEX.md) for the quick-start path and the component
+tour.
+
+- [DOCS_INDEX.md](DOCS_INDEX.md): quick start, component tour, documentation map
 - [MICROGEN.md](MICROGEN.md): generator usage and generated ownership
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries and extension model
-- [ROADMAP.md](ROADMAP.md): authoritative v2 implementation sequence
 - [PRODUCTION.md](PRODUCTION.md): runtime, security, and observability guidance
-- [MIGRATION.md](MIGRATION.md): v1 to v2 migration
-- [MAINTAINING.md](MAINTAINING.md): repository workflow and validation
+- [MIGRATION.md](MIGRATION.md): upgrade notes between releases
 - [examples/](examples/README.md): runnable examples
 
 ## License

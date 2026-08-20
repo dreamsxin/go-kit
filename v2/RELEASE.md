@@ -1,4 +1,5 @@
 # v2 Release Policy
+English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
@@ -9,11 +10,9 @@ github.com/dreamsxin/go-kit/v2
 ```
 
 `v2.3.0` is backward compatible: additive capabilities and behavioral fixes
-only, with no new SemVer exceptions. The two historical exceptions remain
-documented in [CHANGELOG.md](CHANGELOG.md) and [MIGRATION.md](MIGRATION.md): the `v2.1.0`
-direct refactor and the `v2.2.0` `Metrics.Snapshot()` return-type correction.
-The capability scope of this release is recorded as Milestone 7 in
-[ROADMAP.md](ROADMAP.md).
+only. The historical record of earlier releases, including the two documented
+SemVer exceptions, lives in [CHANGELOG.md](CHANGELOG.md). The capability scope
+of this release is recorded as Milestone 7 in [ROADMAP.md](ROADMAP.md).
 
 The published module is stored in the repository's `v2` major-version
 subdirectory, but consumers request normal module versions such as `v2.3.0`.

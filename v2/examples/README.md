@@ -1,4 +1,5 @@
 # Examples
+English | [简体中文](README_zh.md)
 
 A guided tour of the go-kit framework, from simplest to most complete.
 
