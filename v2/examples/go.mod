@@ -3,7 +3,7 @@ module github.com/dreamsxin/go-kit-examples/v2
 go 1.25.8
 
 require (
-	github.com/dreamsxin/go-kit/v2 v2.2.0
+	github.com/dreamsxin/go-kit/v2 v2.3.0
 	github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker v0.2.0
 	github.com/dreamsxin/go-kit/v2/integrations/consul v0.2.0
 	github.com/dreamsxin/go-kit/v2/integrations/grpc v0.2.0
