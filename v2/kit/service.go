@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
 // Service is a ready-to-run HTTP microservice. Optional servers can be
@@ -24,6 +25,7 @@ type Service struct {
 	requestID          bool
 	requestIDValidator RequestIDValidator
 	jsonMaxBodyBytes   int64
+	jsonServerOptions  []httpserver.ServerOption
 	healthTimeout      time.Duration
 	livenessChecks     []namedHealthCheck
 	readinessChecks    []namedHealthCheck

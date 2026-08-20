@@ -80,6 +80,26 @@ func WithJSONMaxBodyBytes(maxBodyBytes int64) Option {
 	}
 }
 
+// WithJSONServerOptions applies the given server options to every JSON route
+// registered through HandleJSONTyped, HandleJSON, and HandleJSONEndpoint.
+//
+// Use it to define transport-level response assembly once for the whole
+// service, for example a response envelope with ServerResponseEncoder and a
+// matching error format with ServerErrorEncoder. Options passed to an
+// individual registration run after these and take precedence.
+func WithJSONServerOptions(opts ...httpserver.ServerOption) Option {
+	copied := append([]httpserver.ServerOption(nil), opts...)
+	return func(s *Service) error {
+		for i, option := range copied {
+			if option == nil {
+				return fmt.Errorf("JSON server option %d is nil", i)
+			}
+		}
+		s.jsonServerOptions = append(s.jsonServerOptions, copied...)
+		return nil
+	}
+}
+
 // WithLivenessCheck adds a check used by /livez and /health.
 func WithLivenessCheck(name string, check HealthCheck) Option {
 	return func(s *Service) error {

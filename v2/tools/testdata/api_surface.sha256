@@ -10,7 +10,7 @@ d195ef23d076965bfb351732b942c81c30b4b5fb4ac844b6fffb941541bd0913  github.com/dre
 76ab5668b10045b42ec58505f93ce37826adfbb7ca8e5178551c5b364c004078  github.com/dreamsxin/go-kit/v2/integrations/zap
 59b1611be66e7505ea18ce1a2fc00ab7d99e60fe1d8644e8bf44de1ad636adeb  github.com/dreamsxin/go-kit/v2/interaction
 5789e02728b58f8af8254c145e5d81c7fd0b306fa5443e99bf951865f3f1ac2e  github.com/dreamsxin/go-kit/v2/interaction/mcp
-5581b22dbde8bbb4cdebcb950a7a6f4d09d1628d76a6fef5357f02d2784e352e  github.com/dreamsxin/go-kit/v2/kit
+831b719539a96384ea173f0dcfd079156178a83d51314817a2d1b0305bacf575  github.com/dreamsxin/go-kit/v2/kit
 8e27237007a41c2b711dd1604f876b3e3d697e2f8c1e0492463664cdf0137c99  github.com/dreamsxin/go-kit/v2/kit/grpc
 f0b6e9faa8935f8b2700a6bb1538dcabb1ec05d0b2c6e79e0e56fb2153301476  github.com/dreamsxin/go-kit/v2/log
 79b32c4b155c6d836288ce38f81639356326c62c55813347d5e26bcc361d1099  github.com/dreamsxin/go-kit/v2/observability/otel
@@ -26,4 +26,4 @@ e6068fdd91bab058eced2dabe664307b7a3cb7677a852638174513532bb6fe35  github.com/dre
 2980b4bb86a570835fa54c09a082a5282ff94fac73de9966e85e911500b4c752  github.com/dreamsxin/go-kit/v2/transport
 6e0c53ef1937a4a107696137fb53b147050d5f45c32dac554dc93e8dbc8c2a37  github.com/dreamsxin/go-kit/v2/transport/http
 8d0eb919c832d012dd44e9542e34901c7de8d3f60294e8c700f0a023636014c6  github.com/dreamsxin/go-kit/v2/transport/http/client
-3e5e95f2110987763aca1d32fbdc834f38ff34d23fd42a8c85715792d97cd51d  github.com/dreamsxin/go-kit/v2/transport/http/server
+f0990cf63aa2fcf4fe196a60dbd082e3bf64fefe00b1c1c235ad771b31844bd8  github.com/dreamsxin/go-kit/v2/transport/http/server
