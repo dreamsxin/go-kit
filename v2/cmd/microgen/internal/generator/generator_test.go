@@ -828,7 +828,7 @@ func TestGenerateFull_GoMod_WithGRPCRequiresGRPCIntegration(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	mustContain(t, filepath.Join(outDir, "go.mod"), "github.com/dreamsxin/go-kit/v2/integrations/grpc v0.2.3")
+	mustContain(t, filepath.Join(outDir, "go.mod"), "github.com/dreamsxin/go-kit/v2/integrations/grpc v0.2.4")
 }
 
 func TestGenerateFull_GoMod_WithConfigUsesYAMLWithoutRemoteProviderBundle(t *testing.T) {
