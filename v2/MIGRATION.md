@@ -6,9 +6,9 @@ go-kit v2 follows semantic versioning. This page records the upgrade actions
 needed for the current release; the complete per-release change list lives in
 [CHANGELOG.md](CHANGELOG.md).
 
-## Upgrading To v2.4.0
+## Upgrading To v2.4.1
 
-`v2.4.0` is backward compatible: additive capabilities and behavioral fixes
+`v2.4.1` is backward compatible: additive capabilities and behavioral fixes
 only. No source changes are required.
 
 Behavioral notes worth reviewing when jumping from `v2.2.0`:

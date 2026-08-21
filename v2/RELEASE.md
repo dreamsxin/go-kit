@@ -145,15 +145,15 @@ go -C ./tools test . -run TestPublicAPISurfaceSnapshot -count=1 \
   -args -update-api-snapshot
 ```
 
-## v2.4.0 Multi-Module Release
+## v2.4.1 Multi-Module Release
 
 `RELEASE_MANIFEST.json` is the source of truth. The root and nested modules do
 not share one module version or one tag:
 
-- root runtime: `github.com/dreamsxin/go-kit/v2@v2.4.0`;
-- microgen and optional nested modules: independent `v0.2.2` releases
+- root runtime: `github.com/dreamsxin/go-kit/v2@v2.4.1`;
+- microgen and optional nested modules: independent `v0.2.3` releases
   (`microgen` for the dead `-add-tables` flag fix, published in `v0.2.1`; the optional modules for
-  the core requirement update to `v2.4.0`);
+  the core requirement update to `v2.4.1`);
 - examples and repository tools: not published as product modules.
 
 The release is deliberately phased because a nested module cannot require the
@@ -170,8 +170,8 @@ requirement while workspace tests exercise them against the local changes.
 3. Create and push only the root tag:
 
 ```bash
-git tag -a v2.4.0 -m "go-kit v2.4.0"
-git push origin v2.4.0
+git tag -a v2.4.1 -m "go-kit v2.4.1"
+git push origin v2.4.1
 make verify-published-core
 ```
 
@@ -180,7 +180,7 @@ make verify-published-core
 After the root module resolves publicly:
 
 1. Change the manifest phase to `nested-candidate`.
-2. Change every `dependsOnCore` module requirement from `v2.3.0` to `v2.4.0`.
+2. Change every `dependsOnCore` module requirement from `v2.4.0` to `v2.4.1`.
 3. Run `go mod tidy` and `GOWORK=off go test ./...` in every nested module.
 4. Commit and rerun the full Linux/Windows release workflow.
 5. Run `make release-check-clean`; it now requires the root tag and rejects
@@ -188,23 +188,23 @@ After the root module resolves publicly:
 6. Create the manifest tags from that verified commit:
 
 ```bash
-git tag -a v2/cmd/microgen/v0.2.2 -m "microgen v0.2.1"
-git tag -a v2/integrations/circuitbreaker/v0.2.2 -m "circuitbreaker v0.2.1"
-git tag -a v2/integrations/consul/v0.2.2 -m "consul integration v0.2.1"
-git tag -a v2/integrations/grpc/v0.2.2 -m "gRPC integration v0.2.1"
-git tag -a v2/integrations/ratelimit/v0.2.2 -m "rate-limit integration v0.2.1"
-git tag -a v2/integrations/zap/v0.2.2 -m "Zap integration v0.2.1"
-git tag -a v2/kit/grpc/v0.2.2 -m "kit gRPC component v0.2.1"
-git tag -a v2/observability/otel/v0.2.2 -m "OpenTelemetry integration v0.2.1"
+git tag -a v2/cmd/microgen/v0.2.3 -m "microgen v0.2.1"
+git tag -a v2/integrations/circuitbreaker/v0.2.3 -m "circuitbreaker v0.2.1"
+git tag -a v2/integrations/consul/v0.2.3 -m "consul integration v0.2.1"
+git tag -a v2/integrations/grpc/v0.2.3 -m "gRPC integration v0.2.1"
+git tag -a v2/integrations/ratelimit/v0.2.3 -m "rate-limit integration v0.2.1"
+git tag -a v2/integrations/zap/v0.2.3 -m "Zap integration v0.2.1"
+git tag -a v2/kit/grpc/v0.2.3 -m "kit gRPC component v0.2.1"
+git tag -a v2/observability/otel/v0.2.3 -m "OpenTelemetry integration v0.2.1"
 git push origin \
-  v2/cmd/microgen/v0.2.2 \
-  v2/integrations/circuitbreaker/v0.2.2 \
-  v2/integrations/consul/v0.2.2 \
-  v2/integrations/grpc/v0.2.2 \
-  v2/integrations/ratelimit/v0.2.2 \
-  v2/integrations/zap/v0.2.2 \
-  v2/kit/grpc/v0.2.2 \
-  v2/observability/otel/v0.2.2
+  v2/cmd/microgen/v0.2.3 \
+  v2/integrations/circuitbreaker/v0.2.3 \
+  v2/integrations/consul/v0.2.3 \
+  v2/integrations/grpc/v0.2.3 \
+  v2/integrations/ratelimit/v0.2.3 \
+  v2/integrations/zap/v0.2.3 \
+  v2/kit/grpc/v0.2.3 \
+  v2/observability/otel/v0.2.3
 make verify-published
 ```
 
