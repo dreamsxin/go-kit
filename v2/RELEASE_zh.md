@@ -3,17 +3,17 @@
 
 ## 当前状态
 
-v2.3.0 是以下独立模块的当前已发布版本：
+v2.4.0 是本次从 `main` 为以下独立模块发布的版本：
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.3.0` 向后兼容：仅包含增量能力与行为修复。早期版本的历史记录（包括两次已记录的 SemVer 例外）见 [CHANGELOG_zh.md](CHANGELOG_zh.md)。本次发布的能力范围记录为 [ROADMAP_zh.md](ROADMAP_zh.md) 中的里程碑 7。
+`v2.4.0` 向后兼容：仅包含增量能力与行为修复。早期版本的历史记录（包括两次已记录的 SemVer 例外）见 [CHANGELOG_zh.md](CHANGELOG_zh.md)。
 
-已发布模块存储在仓库的 `v2` 主版本子目录中，但使用方请求的是正常的模块版本，例如 `v2.3.0`。它的标签是根标签 `v2.3.0`，而不是 `v2/v2.3.0`。未来的 `/v3` 模块同样会使用根 `v3.0.0` 标签。
+已发布模块存储在仓库的 `v2` 主版本子目录中，但使用方请求的是正常的模块版本，例如 `v2.4.0`。它的标签是根标签 `v2.4.0`，而不是 `v2/v2.4.0`。未来的 `/v3` 模块同样会使用根 `v3.0.0` 标签。
 
-本次发布推送了根标签 `v2.3.0`，并为全部八个独立版本化的嵌套模块推送了 `v0.2.1` 标签：`microgen` 修复失效的 `-add-tables` 标志；七个可选模块为纯版本号提升发布，保留已发布的 `v2.2.0` 核心依赖（仍然兼容）。仓库工作区的依赖已在嵌套候选提交中升级为 `v2.3.0`，领先于下一个发布周期。
+本次发布推送根标签 `v2.4.0`，并为全部八个独立版本化的嵌套模块推送 `v0.2.2` 标签。`v0.2.2` 发布携带核心依赖升级到 `v2.4.0`：标签从嵌套候选提交创建，其中每个核心依赖模块都已要求 `v2.4.0`。已发布的 `v0.2.1` 可选模块仍是保留 `v2.2.0` 依赖的版本提升发布（保持兼容）。
 
 ## 版本策略
 
@@ -113,12 +113,12 @@ go -C ./tools test . -run TestPublicAPISurfaceSnapshot -count=1 \
   -args -update-api-snapshot
 ```
 
-## v2.3.0 多模块发布
+## v2.4.0 多模块发布
 
 `RELEASE_MANIFEST.json` 是唯一事实来源。根模块和嵌套模块不共享同一个模块版本或同一个标签：
 
-- 根运行时：`github.com/dreamsxin/go-kit/v2@v2.3.0`；
-- microgen 和可选嵌套模块：独立的 `v0.2.1` 发布（`microgen` 为失效的 `-add-tables` 标志修复；可选模块为核心依赖更新到 `v2.3.0`）；
+- 根运行时：`github.com/dreamsxin/go-kit/v2@v2.4.0`；
+- microgen 和可选嵌套模块：独立的 `v0.2.2` 发布（`microgen` 为失效的 `-add-tables` 标志修复；可选模块为核心依赖更新到 `v2.3.0`）；
 - 示例和仓库工具：不作为产品模块发布。
 
 发布有意分阶段进行，因为在根标签可通过 Go 模块解析获取之前，嵌套模块无法要求新的核心版本。
@@ -132,8 +132,8 @@ go -C ./tools test . -run TestPublicAPISurfaceSnapshot -count=1 \
 3. 仅创建并推送根标签：
 
 ```bash
-git tag -a v2.3.0 -m "go-kit v2.3.0"
-git push origin v2.3.0
+git tag -a v2.4.0 -m "go-kit v2.4.0"
+git push origin v2.4.0
 make verify-published-core
 ```
 
@@ -149,23 +149,23 @@ make verify-published-core
 6. 从该已验证提交创建清单标签：
 
 ```bash
-git tag -a v2/cmd/microgen/v0.2.1 -m "microgen v0.2.1"
-git tag -a v2/integrations/circuitbreaker/v0.2.1 -m "circuitbreaker v0.2.1"
-git tag -a v2/integrations/consul/v0.2.1 -m "consul integration v0.2.1"
-git tag -a v2/integrations/grpc/v0.2.1 -m "gRPC integration v0.2.1"
-git tag -a v2/integrations/ratelimit/v0.2.1 -m "rate-limit integration v0.2.1"
-git tag -a v2/integrations/zap/v0.2.1 -m "Zap integration v0.2.1"
-git tag -a v2/kit/grpc/v0.2.1 -m "kit gRPC component v0.2.1"
-git tag -a v2/observability/otel/v0.2.1 -m "OpenTelemetry integration v0.2.1"
+git tag -a v2/cmd/microgen/v0.2.2 -m "microgen v0.2.1"
+git tag -a v2/integrations/circuitbreaker/v0.2.2 -m "circuitbreaker v0.2.1"
+git tag -a v2/integrations/consul/v0.2.2 -m "consul integration v0.2.1"
+git tag -a v2/integrations/grpc/v0.2.2 -m "gRPC integration v0.2.1"
+git tag -a v2/integrations/ratelimit/v0.2.2 -m "rate-limit integration v0.2.1"
+git tag -a v2/integrations/zap/v0.2.2 -m "Zap integration v0.2.1"
+git tag -a v2/kit/grpc/v0.2.2 -m "kit gRPC component v0.2.1"
+git tag -a v2/observability/otel/v0.2.2 -m "OpenTelemetry integration v0.2.1"
 git push origin \
-  v2/cmd/microgen/v0.2.1 \
-  v2/integrations/circuitbreaker/v0.2.1 \
-  v2/integrations/consul/v0.2.1 \
-  v2/integrations/grpc/v0.2.1 \
-  v2/integrations/ratelimit/v0.2.1 \
-  v2/integrations/zap/v0.2.1 \
-  v2/kit/grpc/v0.2.1 \
-  v2/observability/otel/v0.2.1
+  v2/cmd/microgen/v0.2.2 \
+  v2/integrations/circuitbreaker/v0.2.2 \
+  v2/integrations/consul/v0.2.2 \
+  v2/integrations/grpc/v0.2.2 \
+  v2/integrations/ratelimit/v0.2.2 \
+  v2/integrations/zap/v0.2.2 \
+  v2/kit/grpc/v0.2.2 \
+  v2/observability/otel/v0.2.2
 make verify-published
 ```
 

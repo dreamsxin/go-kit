@@ -5,6 +5,8 @@
 
 ## [未发布]
 
+## [2.4.0] - Release Candidate
+
 ### 新增
 
 - 传输层响应组装：`server.ServerResponseEncoder` 覆盖 JSON 入口点的成功

@@ -6,6 +6,8 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+## [2.4.0] - Release Candidate
+
 ### Added
 
 - Transport-level response assembly: `server.ServerResponseEncoder` overrides

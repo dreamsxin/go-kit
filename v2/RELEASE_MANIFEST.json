@@ -1,79 +1,79 @@
 {
   "schemaVersion": 1,
-  "phase": "released",
-  "releaseDate": "2026-08-20",
-  "previousCoreVersion": "v2.2.0",
-  "coreVersion": "v2.3.0",
+  "phase": "core-candidate",
+  "releaseDate": "",
+  "previousCoreVersion": "v2.3.0",
+  "coreVersion": "v2.4.0",
   "modules": [
     {
       "directory": ".",
       "modulePath": "github.com/dreamsxin/go-kit/v2",
-      "version": "v2.3.0",
-      "tag": "v2.3.0",
+      "version": "v2.4.0",
+      "tag": "v2.4.0",
       "releaseOrder": 1,
       "dependsOnCore": false
     },
     {
       "directory": "cmd/microgen",
       "modulePath": "github.com/dreamsxin/go-kit/v2/cmd/microgen",
-      "version": "v0.2.1",
-      "tag": "v2/cmd/microgen/v0.2.1",
+      "version": "v0.2.2",
+      "tag": "v2/cmd/microgen/v0.2.2",
       "releaseOrder": 2,
       "dependsOnCore": false
     },
     {
       "directory": "integrations/circuitbreaker",
       "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker",
-      "version": "v0.2.1",
-      "tag": "v2/integrations/circuitbreaker/v0.2.1",
+      "version": "v0.2.2",
+      "tag": "v2/integrations/circuitbreaker/v0.2.2",
       "releaseOrder": 2,
       "dependsOnCore": true
     },
     {
       "directory": "integrations/consul",
       "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/consul",
-      "version": "v0.2.1",
-      "tag": "v2/integrations/consul/v0.2.1",
+      "version": "v0.2.2",
+      "tag": "v2/integrations/consul/v0.2.2",
       "releaseOrder": 2,
       "dependsOnCore": false
     },
     {
       "directory": "integrations/grpc",
       "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/grpc",
-      "version": "v0.2.1",
-      "tag": "v2/integrations/grpc/v0.2.1",
+      "version": "v0.2.2",
+      "tag": "v2/integrations/grpc/v0.2.2",
       "releaseOrder": 2,
       "dependsOnCore": true
     },
     {
       "directory": "integrations/ratelimit",
       "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/ratelimit",
-      "version": "v0.2.1",
-      "tag": "v2/integrations/ratelimit/v0.2.1",
+      "version": "v0.2.2",
+      "tag": "v2/integrations/ratelimit/v0.2.2",
       "releaseOrder": 2,
       "dependsOnCore": true
     },
     {
       "directory": "integrations/zap",
       "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/zap",
-      "version": "v0.2.1",
-      "tag": "v2/integrations/zap/v0.2.1",
+      "version": "v0.2.2",
+      "tag": "v2/integrations/zap/v0.2.2",
       "releaseOrder": 2,
       "dependsOnCore": true
     },
     {
       "directory": "kit/grpc",
       "modulePath": "github.com/dreamsxin/go-kit/v2/kit/grpc",
-      "version": "v0.2.1",
-      "tag": "v2/kit/grpc/v0.2.1",
+      "version": "v0.2.2",
+      "tag": "v2/kit/grpc/v0.2.2",
       "releaseOrder": 2,
       "dependsOnCore": false
     },
     {
       "directory": "observability/otel",
       "modulePath": "github.com/dreamsxin/go-kit/v2/observability/otel",
-      "version": "v0.2.1",
-      "tag": "v2/observability/otel/v0.2.1",
+      "version": "v0.2.2",
+      "tag": "v2/observability/otel/v0.2.2",
       "releaseOrder": 2,
       "dependsOnCore": true
     }

@@ -5,17 +5,17 @@
 go-kit v2 遵循语义化版本。本页记录当前版本所需的升级动作；每个版本的
 完整变更列表见 [CHANGELOG.md](CHANGELOG_zh.md)。
 
-## 升级到 v2.3.0
+## 升级到 v2.4.0
 
-`v2.3.0` 完全向后兼容：全部为新增能力与行为修复，无需修改源码。
+`v2.4.0` 完全向后兼容：全部为新增能力与行为修复，无需修改源码。
 
-升级时值得复核的两个行为变化：
+从 `v2.2.0` 跨版本升级时值得复核的行为变化：
 
 - `endpoint.TracingMiddleware` 生成的 trace ID 为 32 位小写十六进制字符
-  （W3C Trace Context 格式），不再是 16 位。把 ID 当作不透明字符串的
-  调用方不受影响。
-- `endpoint.ErrBackpressure` 与新增的 `endpoint.ErrBulkheadFull` 在 HTTP
-  中编码为 429，不再是 500。
+  （W3C Trace Context 格式），不再是 16 位（`v2.3.0` 变更）。把 ID 当作
+  不透明字符串的调用方不受影响。
+- `endpoint.ErrBackpressure` 与 `endpoint.ErrBulkheadFull` 在 HTTP 中编码为
+  429，不再是 500（`v2.3.0` 变更）。
 
 ## 兼容性策略
 
