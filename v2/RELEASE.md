@@ -18,7 +18,7 @@ subdirectory, but consumers request normal module versions such as `v2.4.0`.
 Its tag is the root tag `v2.4.0`, not `v2/v2.4.0`. A future `/v3` module would
 likewise use a root `v3.0.0` tag.
 
-This release publishes the root `v2.4.0` tag and `v0.2.2` tags for all eight
+This release published the root `v2.4.0` tag and `v0.2.2` tags for all eight
 independently versioned nested modules. The `v0.2.2` releases carry the core
 requirement update to `v2.4.0`: the tags are created from the nested-candidate
 commit in which every core-dependent module already requires `v2.4.0`. The

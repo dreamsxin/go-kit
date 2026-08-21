@@ -20,7 +20,7 @@ The maintained product line is the independent v2 module under [`v2/`](v2/):
 github.com/dreamsxin/go-kit/v2@v2.4.0
 ```
 
-`v2.4.0` is the release being published from `main`. It is backward
+`v2.4.0` is the current published release. It is backward
 compatible: additive capabilities and behavioral fixes only. Per-release
 changes are recorded in the [changelog](v2/CHANGELOG.md); upgrade notes live
 in the [migration guide](v2/MIGRATION.md).

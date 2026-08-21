@@ -19,7 +19,7 @@ Service -> Endpoint -> Transport
 github.com/dreamsxin/go-kit/v2@v2.4.0
 ```
 
-`v2.4.0` 是本次从 `main` 发布的版本，完全向后兼容：全部为新增能力与
+`v2.4.0` 是当前已发布版本，完全向后兼容：全部为新增能力与
 行为修复。各版本变更记录在[变更日志](v2/CHANGELOG.md)；升级说明见
 [升级指南](v2/MIGRATION_zh.md)。
 
