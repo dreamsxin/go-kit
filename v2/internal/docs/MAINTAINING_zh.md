@@ -5,7 +5,7 @@
 
 ## 编辑之前
 
-1. 阅读 [ARCHITECTURE_zh.md](ARCHITECTURE_zh.md) 了解包所有权。
+1. 阅读 [ARCHITECTURE_zh.md](../../ARCHITECTURE_zh.md) 了解包所有权。
 2. 阅读最近的包 README 和测试。
 3. 检查 `git status`，并保留工作树中不相关的变更。
 4. 判断该变更影响运行时 API、生成输出，还是两者皆有。
@@ -50,7 +50,7 @@ go test ./...
 5. 将同一生成测试运行两次，并验证第二次运行没有差异。
 6. 生成到模块之外的临时目录。
 7. 在该项目中运行 `go mod tidy` 和 `go test ./...`。
-8. 当用户工作流发生变化时，更新 [MICROGEN_zh.md](MICROGEN_zh.md) 和生成的 README 模板。
+8. 当用户工作流发生变化时，更新 [MICROGEN_zh.md](../../MICROGEN_zh.md) 和生成的 README 模板。
 
 命令：
 

@@ -111,7 +111,7 @@
 
 ## [2.0.0] - 2026-07-20
 
-首个稳定的 v2 版本。导出的运行时 API、`microgen` CLI 与配置、生成物所有权以及文档记录的协议行为现在遵循 [RELEASE_zh.md](RELEASE_zh.md) 中的兼容性策略。
+首个稳定的 v2 版本。导出的运行时 API、`microgen` CLI 与配置、生成物所有权以及文档记录的协议行为现在遵循 [RELEASE_zh.md](internal/docs/RELEASE_zh.md) 中的兼容性策略。
 
 ### 新增
 

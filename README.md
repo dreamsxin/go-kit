@@ -44,7 +44,7 @@ generation, examples, and development commands.
 - [microgen](v2/MICROGEN.md): generator behavior and generated ownership
 - [Upgrade notes](v2/MIGRATION.md): upgrade actions between releases
 - [Production](v2/PRODUCTION.md): runtime, security, and observability guidance
-- [Release policy](v2/RELEASE.md): compatibility and release process
+- [Release policy](v2/internal/docs/RELEASE.md): compatibility and release process
 
 ## Development
 

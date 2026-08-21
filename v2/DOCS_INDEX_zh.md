@@ -5,6 +5,10 @@
 v2 文档按任务组织。当前行为写入使用与架构文档；长期实施顺序只写入
 `ROADMAP.md`，临时计划和会话快照不进入长期维护文档。
 
+**从这里开始**：[MANUAL.md](MANUAL_zh.md) 是完整的使用手册，按
+「快速入门 -> 核心概念 -> 组件 -> 生产部署」组织。下面的表格是同一套
+文档的任务索引。
+
 ## 快速入门
 
 大约十五分钟，从零到一个可运行的服务：
@@ -48,17 +52,17 @@ v2 文档按任务组织。当前行为写入使用与架构文档；长期实�
 
 | 任务 | 文档 |
 | --- | --- |
-| 修改或发布仓库 | [MAINTAINING.md](MAINTAINING_zh.md)、[RELEASE.md](RELEASE_zh.md)、[RELEASE_MANIFEST.json](RELEASE_MANIFEST.json) |
-| 查看实施顺序 | [ROADMAP.md](ROADMAP_zh.md) |
-| 查看依赖闭包 | [DEPENDENCY_REPORT.md](DEPENDENCY_REPORT_zh.md) |
+| 修改或发布仓库 | [internal/docs/MAINTAINING.md](internal/docs/MAINTAINING_zh.md)、[internal/docs/RELEASE.md](internal/docs/RELEASE_zh.md)、[RELEASE_MANIFEST.json](RELEASE_MANIFEST.json) |
+| 查看实施顺序 | [internal/docs/ROADMAP.md](internal/docs/ROADMAP_zh.md) |
+| 查看依赖闭包 | [internal/docs/DEPENDENCY_REPORT.md](internal/docs/DEPENDENCY_REPORT_zh.md) |
 | 运行验证工具 | [tools](tools/README_zh.md) |
 
 ## 文档所有权
 
 - 面向用户的行为：`README*`、`MICROGEN.md`、各包指南。
-- 设计与范围：`ARCHITECTURE.md`、`DEPENDENCY_REPORT.md`、`PRODUCTION.md`。
-- 产品实施顺序：`ROADMAP.md`。
-- 贡献者流程：`MAINTAINING.md`、`RELEASE.md`。
+- 设计与范围：`ARCHITECTURE.md`、`internal/docs/DEPENDENCY_REPORT.md`、`PRODUCTION.md`。
+- 产品实施顺序：`internal/docs/ROADMAP.md`。
+- 贡献者流程：`internal/docs/MAINTAINING.md`、`internal/docs/RELEASE.md`。
 - 版本历史：`CHANGELOG.md`、`MIGRATION.md`。
 - 生成项目的文档由 `cmd/microgen/templates/readme.tmpl` 拥有。
 - 每份长期维护文档都有英文版和对应的 `_zh.md` 中文版，两者同步更新。

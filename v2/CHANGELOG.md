@@ -192,7 +192,7 @@ upgrading.
 
 First stable v2 release. Exported runtime APIs, the `microgen` CLI and
 configuration, generated ownership, and documented protocol behavior now follow
-the compatibility policy in [RELEASE.md](RELEASE.md).
+the compatibility policy in [RELEASE.md](internal/docs/RELEASE.md).
 
 ### Added
 

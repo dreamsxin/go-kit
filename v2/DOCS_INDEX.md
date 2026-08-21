@@ -7,6 +7,10 @@ architecture documents; the durable implementation sequence belongs only in
 `ROADMAP.md`. Temporary plans and session snapshots do not belong in the
 maintained documentation set.
 
+**Start here**: [MANUAL.md](MANUAL.md) is the complete user guide, organized
+as Quick Start -> Core Concepts -> Components -> Production. The tables below
+are the task index into the same documentation.
+
 ## Quick Start
 
 From zero to a running service in about fifteen minutes:
@@ -51,17 +55,17 @@ runnable example for the component.
 
 | Task | Document |
 | --- | --- |
-| Change or release the repository | [MAINTAINING.md](MAINTAINING.md), [RELEASE.md](RELEASE.md), [RELEASE_MANIFEST.json](RELEASE_MANIFEST.json) |
-| Review the implementation sequence | [ROADMAP.md](ROADMAP.md) |
-| Review dependency closure | [DEPENDENCY_REPORT.md](DEPENDENCY_REPORT.md) |
+| Change or release the repository | [internal/docs/MAINTAINING.md](internal/docs/MAINTAINING.md), [internal/docs/RELEASE.md](internal/docs/RELEASE.md), [RELEASE_MANIFEST.json](RELEASE_MANIFEST.json) |
+| Review the implementation sequence | [internal/docs/ROADMAP.md](internal/docs/ROADMAP.md) |
+| Review dependency closure | [internal/docs/DEPENDENCY_REPORT.md](internal/docs/DEPENDENCY_REPORT.md) |
 | Run verification tooling | [tools](tools/README.md) |
 
 ## Document Ownership
 
 - User-facing behavior: `README*`, `MICROGEN.md`, package guides.
-- Design and scope: `ARCHITECTURE.md`, `DEPENDENCY_REPORT.md`, `PRODUCTION.md`.
-- Product implementation sequence: `ROADMAP.md`.
-- Contributor process: `MAINTAINING.md`, `RELEASE.md`.
+- Design and scope: `ARCHITECTURE.md`, `internal/docs/DEPENDENCY_REPORT.md`, `PRODUCTION.md`.
+- Product implementation sequence: `internal/docs/ROADMAP.md`.
+- Contributor process: `internal/docs/MAINTAINING.md`, `internal/docs/RELEASE.md`.
 - Version history: `CHANGELOG.md`, `MIGRATION.md`.
 - Generated-project documentation is owned by `cmd/microgen/templates/readme.tmpl`.
 - Every maintained document has an English version and a `_zh.md` Chinese

@@ -11,7 +11,7 @@ github.com/dreamsxin/go-kit/v2
 
 `v2.4.0` is backward compatible: additive capabilities and behavioral fixes
 only. The historical record of earlier releases, including the two documented
-SemVer exceptions, lives in [CHANGELOG.md](CHANGELOG.md).
+SemVer exceptions, lives in [CHANGELOG.md](../../CHANGELOG.md).
 
 The published module is stored in the repository's `v2` major-version
 subdirectory, but consumers request normal module versions such as `v2.4.0`.

@@ -7,7 +7,7 @@ plans or progress notes in issues and pull requests.
 
 ## Before Editing
 
-1. Read [ARCHITECTURE.md](ARCHITECTURE.md) for package ownership.
+1. Read [ARCHITECTURE.md](../../ARCHITECTURE.md) for package ownership.
 2. Read the nearest package README and tests.
 3. Check `git status` and preserve unrelated worktree changes.
 4. Decide whether the change affects runtime APIs, generated output, or both.
@@ -60,7 +60,7 @@ the generated project is verified.
 5. Run the same generation test twice and verify the second run has no diff.
 6. Generate into a temporary directory outside the module.
 7. Run `go mod tidy` and `go test ./...` in that project.
-8. Update [MICROGEN.md](MICROGEN.md) and the generated README template when
+8. Update [MICROGEN.md](../../MICROGEN.md) and the generated README template when
    user workflow changes.
 
 Commands:

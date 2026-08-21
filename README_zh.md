@@ -42,7 +42,7 @@ go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.3
 - [microgen](v2/MICROGEN_zh.md)：生成器行为和生成文件归属
 - [升级说明](v2/MIGRATION_zh.md)：版本间升级动作
 - [生产指南](v2/PRODUCTION_zh.md)：运行、安全和可观测性
-- [发布规范](v2/RELEASE.md)：兼容性与发布流程
+- [发布规范](v2/internal/docs/RELEASE.md)：兼容性与发布流程
 
 ## 开发验证
 
