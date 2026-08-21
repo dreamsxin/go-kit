@@ -9,12 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sony/gobreaker"
-	"golang.org/x/time/rate"
-
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
-	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -28,12 +23,8 @@ func newManualCompositionServer(t *testing.T) (*httptest.Server, *endpoint.Metri
 				WithMetrics(&metrics).
 				WithErrorHandling("hello").
 				WithTimeout(5 * time.Second).
-				Use(circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(
-					gobreaker.Settings{Name: "hello-test"},
-				))).
-				Use(ratelimit.NewErroringLimiter(
-					rate.NewLimiter(rate.Every(time.Second), 100),
-				))
+				Use(endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(3)).Middleware()).
+				Use(endpoint.RateLimitMiddleware(newFixedRateLimiter(100)))
 		},
 		httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder),
 	)

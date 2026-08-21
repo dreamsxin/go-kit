@@ -6,9 +6,12 @@
 //   - endpoint.TimeoutMiddleware
 //   - endpoint.MetricsMiddleware
 //   - endpoint.ErrorHandlingMiddleware
-//   - circuitbreaker.Gobreaker   (sony/gobreaker)
-//   - ratelimit.NewErroringLimiter  — reject immediately when over limit
-//   - ratelimit.NewDelayingLimiter  — wait for a token (respects ctx deadline)
+//   - endpoint.NewCircuitBreaker — open after consecutive failures, probe to recover
+//   - endpoint.RateLimitMiddleware     — reject immediately when over limit
+//   - endpoint.DelayRateLimitMiddleware — wait for a token (respects ctx deadline)
+//
+// All middleware lives in the core endpoint package; no third-party modules
+// are required.
 //
 // Run:
 //
@@ -19,14 +22,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
-	"github.com/sony/gobreaker"
-	"golang.org/x/time/rate"
-
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
-	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
 )
 
 // ── Failer response ───────────────────────────────────────────────────────────
@@ -167,26 +166,26 @@ func main() {
 	_, err = timedEp(context.Background(), nil)
 	fmt.Printf("  timeout triggered: %v\n", err)
 
-	// ── 6. Gobreaker ──────────────────────────────────────────────────────────
-	fmt.Println("\n=== 6. circuitbreaker.Gobreaker ===")
-	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
-		Name:        "demo",
-		ReadyToTrip: func(c gobreaker.Counts) bool { return c.ConsecutiveFailures >= 3 },
-	})
+	// ── 6. CircuitBreaker ─────────────────────────────────────────────────────
+	fmt.Println("\n=== 6. endpoint.NewCircuitBreaker ===")
+	breaker := endpoint.NewCircuitBreaker(
+		endpoint.WithBreakerFailureThreshold(3),
+		endpoint.WithBreakerOpenTimeout(10*time.Second),
+	)
 	alwaysFail := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 		return nil, errors.New("backend down")
 	})
-	gbEp := circuitbreaker.Gobreaker(cb)(alwaysFail)
+	gbEp := breaker.Middleware()(alwaysFail)
 	for i := 0; i < 5; i++ {
 		_, err := gbEp(context.Background(), nil)
 		fmt.Printf("  call %d: %v\n", i+1, err)
 	}
 
-	// ── 7. ErroringLimiter ────────────────────────────────────────────────────
-	fmt.Println("\n=== 7. ratelimit.NewErroringLimiter ===")
+	// ── 7. RateLimitMiddleware ────────────────────────────────────────────────
+	fmt.Println("\n=== 7. endpoint.RateLimitMiddleware ===")
 	// burst=2: first 2 succeed, then rejected immediately
-	lim := rate.NewLimiter(0, 2)
-	errLimEp := ratelimit.NewErroringLimiter(lim)(endpoint.Nop)
+	lim := newDemoRateLimiter(2)
+	errLimEp := endpoint.RateLimitMiddleware(lim)(endpoint.Nop)
 	for i := 0; i < 4; i++ {
 		_, err := errLimEp(context.Background(), nil)
 		if err != nil {
@@ -196,11 +195,11 @@ func main() {
 		}
 	}
 
-	// ── 8. DelayingLimiter ────────────────────────────────────────────────────
-	fmt.Println("\n=== 8. ratelimit.NewDelayingLimiter ===")
+	// ── 8. DelayRateLimitMiddleware ───────────────────────────────────────────
+	fmt.Println("\n=== 8. endpoint.DelayRateLimitMiddleware ===")
 	// 1 token/second: first call instant, second must wait
-	delayLim := rate.NewLimiter(rate.Every(time.Second), 1)
-	delayEp := ratelimit.NewDelayingLimiter(delayLim)(endpoint.Nop)
+	delayLim := newDemoRateLimiter(1)
+	delayEp := endpoint.DelayRateLimitMiddleware(delayLim)(endpoint.Nop)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -209,4 +208,37 @@ func main() {
 	fmt.Printf("  second call (ctx deadline): %v\n", err)
 
 	fmt.Println("\nDone.")
+}
+
+// demoRateLimiter is a tiny fixed-burst token bucket for the example.
+type demoRateLimiter struct {
+	mu     sync.Mutex
+	tokens int
+}
+
+func newDemoRateLimiter(burst int) *demoRateLimiter {
+	return &demoRateLimiter{tokens: burst}
+}
+
+func (l *demoRateLimiter) Allow() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.tokens == 0 {
+		return false
+	}
+	l.tokens--
+	return true
+}
+
+func (l *demoRateLimiter) Wait(ctx context.Context) error {
+	for {
+		if l.Allow() {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
 }

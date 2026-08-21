@@ -10,34 +10,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sony/gobreaker"
-	"golang.org/x/time/rate"
-
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
-	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
 	"github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
-	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
-		Name:        "hello-test",
-		MaxRequests: 5,
-		Interval:    10 * time.Second,
-		Timeout:     5 * time.Second,
-		ReadyToTrip: func(c gobreaker.Counts) bool { return c.ConsecutiveFailures > 3 },
-	})
-	limiter := rate.NewLimiter(rate.Every(time.Second), 100)
+	breaker := endpoint.NewCircuitBreaker(
+		endpoint.WithBreakerFailureThreshold(3),
+		endpoint.WithBreakerOpenTimeout(5*time.Second),
+	)
+	limiter := newFixedRateLimiter(100)
 
 	var metrics endpoint.Metrics
 	ep := endpoint.NewTypedBuilder(endpoint.TypedEndpoint[helloRequest, helloResponse](helloLogic)).
 		WithMetrics(&metrics).
 		WithErrorHandling("hello").
 		Use(endpoint.TimeoutMiddleware(5 * time.Second)).
-		Use(circuitbreaker.Gobreaker(cb)).
-		Use(ratelimit.NewErroringLimiter(limiter)).
+		Use(breaker.Middleware()).
+		Use(endpoint.RateLimitMiddleware(limiter)).
 		Build()
 
 	mux := http.NewServeMux()
@@ -162,25 +154,22 @@ func TestHTTP_MetricsEndpoint(t *testing.T) {
 
 func TestRateLimit_Rejected(t *testing.T) {
 	// burst=1: second call is rejected
-	limiter := rate.NewLimiter(0, 1)
-	ep := ratelimit.NewErroringLimiter(limiter)(endpoint.Nop)
+	limiter := newFixedRateLimiter(1)
+	ep := endpoint.RateLimitMiddleware(limiter)(endpoint.Nop)
 
 	ep(context.Background(), nil) //nolint:errcheck — consumes token
 	_, err := ep(context.Background(), nil)
-	if !errors.Is(err, ratelimit.ErrLimited) {
-		t.Errorf("expected ErrLimited, got %v", err)
+	if !errors.Is(err, endpoint.ErrRateLimited) {
+		t.Errorf("expected ErrRateLimited, got %v", err)
 	}
 }
 
 func TestCircuitBreaker_Opens(t *testing.T) {
-	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
-		Name:        "test",
-		ReadyToTrip: func(c gobreaker.Counts) bool { return c.ConsecutiveFailures >= 2 },
-	})
+	cb := endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(2))
 	alwaysFail := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 		return nil, errors.New("fail")
 	})
-	ep := circuitbreaker.Gobreaker(cb)(alwaysFail)
+	ep := cb.Middleware()(alwaysFail)
 
 	// trigger open
 	for i := 0; i < 3; i++ {

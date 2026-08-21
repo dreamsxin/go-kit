@@ -200,7 +200,7 @@ func httpStatus(err error) int {
 	if errors.As(err, &verr) {
 		return http.StatusBadRequest
 	}
-	if errors.Is(err, endpoint.ErrBackpressure) || errors.Is(err, endpoint.ErrBulkheadFull) {
+	if errors.Is(err, endpoint.ErrBackpressure) || errors.Is(err, endpoint.ErrBulkheadFull) || errors.Is(err, endpoint.ErrCircuitOpen) || errors.Is(err, endpoint.ErrRateLimited) {
 		return http.StatusTooManyRequests
 	}
 

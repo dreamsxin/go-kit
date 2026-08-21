@@ -31,13 +31,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sony/gobreaker"
-	"golang.org/x/time/rate"
-
 	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
-	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -75,6 +70,8 @@ func main() {
 	var metrics endpoint.Metrics
 
 	// NewTypedJSONServerWithMiddleware wires business logic + middleware + HTTP in one call.
+	breaker := endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(3))
+	limiter := newFixedRateLimiter(100)
 	handler := httpserver.NewTypedJSONServerWithMiddleware(
 		hello,
 		func(b *endpoint.Builder) *endpoint.Builder {
@@ -82,12 +79,8 @@ func main() {
 				WithMetrics(&metrics).
 				WithErrorHandling("hello").
 				WithTimeout(5 * time.Second).
-				Use(circuitbreaker.Gobreaker(gobreaker.NewCircuitBreaker(
-					gobreaker.Settings{Name: "hello"},
-				))).
-				Use(ratelimit.NewErroringLimiter(
-					rate.NewLimiter(rate.Every(time.Second), 100),
-				))
+				Use(breaker.Middleware()).
+				Use(endpoint.RateLimitMiddleware(limiter))
 		},
 		httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder),
 	)
@@ -122,4 +115,44 @@ func main() {
 		logger.Error("shutdown failed", "err", err)
 	}
 	logger.Info("stopped", "total_requests", metrics.Snapshot().RequestCount)
+}
+
+// fixedRateLimiter is a per-second token bucket for the example.
+type fixedRateLimiter struct {
+	tokensPerSecond int64
+	current         int64
+	lastRefill      int64
+}
+
+func newFixedRateLimiter(perSecond int64) *fixedRateLimiter {
+	return &fixedRateLimiter{
+		tokensPerSecond: perSecond,
+		current:         perSecond,
+		lastRefill:      time.Now().UnixNano(),
+	}
+}
+
+func (l *fixedRateLimiter) Allow() bool {
+	if time.Now().UnixNano()-l.lastRefill >= int64(time.Second) {
+		l.current = l.tokensPerSecond
+		l.lastRefill = time.Now().UnixNano()
+	}
+	if l.current <= 0 {
+		return false
+	}
+	l.current--
+	return true
+}
+
+func (l *fixedRateLimiter) Wait(ctx context.Context) error {
+	for {
+		if l.Allow() {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
 }

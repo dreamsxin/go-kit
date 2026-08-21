@@ -55,6 +55,8 @@ func TestRejectionErrorsEncodeAs429(t *testing.T) {
 	cases := []error{
 		endpoint.ErrBackpressure,
 		endpoint.ErrBulkheadFull,
+		endpoint.ErrCircuitOpen,
+		endpoint.ErrRateLimited,
 	}
 	for _, err := range cases {
 		rec := httptest.NewRecorder()

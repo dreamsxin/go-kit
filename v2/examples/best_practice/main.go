@@ -26,16 +26,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
-	"github.com/sony/gobreaker"
 	"go.uber.org/zap"
-	"golang.org/x/time/rate"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
-	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
 	"github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -76,14 +73,11 @@ func main() {
 	defer logger.Sync() //nolint:errcheck
 
 	// ── Middleware components ─────────────────────────────────────────────────
-	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
-		Name:        "hello",
-		MaxRequests: 5,
-		Interval:    10 * time.Second,
-		Timeout:     5 * time.Second,
-		ReadyToTrip: func(c gobreaker.Counts) bool { return c.ConsecutiveFailures > 3 },
-	})
-	limiter := rate.NewLimiter(rate.Every(time.Second), 100)
+	breaker := endpoint.NewCircuitBreaker(
+		endpoint.WithBreakerFailureThreshold(3),
+		endpoint.WithBreakerOpenTimeout(5*time.Second),
+	)
+	limiter := newFixedRateLimiter(100) // 100 requests per second, burst of 100
 
 	// ── Endpoint assembly via Builder ─────────────────────────────────────────
 	var metrics endpoint.Metrics
@@ -91,8 +85,8 @@ func main() {
 		WithMetrics(&metrics).
 		WithErrorHandling("hello").
 		Use(endpoint.TimeoutMiddleware(5 * time.Second)).
-		Use(circuitbreaker.Gobreaker(cb)).
-		Use(ratelimit.NewErroringLimiter(limiter)).
+		Use(breaker.Middleware()).
+		Use(endpoint.RateLimitMiddleware(limiter)).
 		Build()
 
 	// ── HTTP handlers ─────────────────────────────────────────────────────────
@@ -150,13 +144,61 @@ func main() {
 	logger.Sugar().Infof("stopped — total requests: %d", metrics.Snapshot().RequestCount)
 }
 
+// fixedRateLimiter is a per-second token bucket for the example.
+type fixedRateLimiter struct {
+	tokensPerSecond int64
+	burst           int64
+	current         int64
+	lastRefill      int64 // unix nanoseconds
+}
+
+func newFixedRateLimiter(perSecond int64) *fixedRateLimiter {
+	return &fixedRateLimiter{
+		tokensPerSecond: perSecond,
+		burst:           perSecond,
+		current:         perSecond,
+		lastRefill:      time.Now().UnixNano(),
+	}
+}
+
+func (l *fixedRateLimiter) Allow() bool {
+	now := time.Now().UnixNano()
+	elapsed := now - atomic.LoadInt64(&l.lastRefill)
+	if elapsed >= int64(time.Second) {
+		atomic.StoreInt64(&l.current, l.tokensPerSecond)
+		atomic.StoreInt64(&l.lastRefill, now)
+	}
+	for {
+		cur := atomic.LoadInt64(&l.current)
+		if cur <= 0 {
+			return false
+		}
+		if atomic.CompareAndSwapInt64(&l.current, cur, cur-1) {
+			return true
+		}
+	}
+}
+
+func (l *fixedRateLimiter) Wait(ctx context.Context) error {
+	for {
+		if l.Allow() {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+}
+
 // jsonErrorEncoder maps known errors to appropriate HTTP status codes and
 // writes a JSON error body.
 func jsonErrorEncoder(logger *zap.Logger) func(context.Context, error, http.ResponseWriter) {
 	return func(_ context.Context, err error, w http.ResponseWriter) {
 		code := http.StatusInternalServerError
 		switch {
-		case errors.Is(err, ratelimit.ErrLimited):
+		case errors.Is(err, endpoint.ErrRateLimited):
 			code = http.StatusTooManyRequests
 		case errors.Is(err, errNameRequired):
 			code = http.StatusBadRequest

@@ -6,12 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sony/gobreaker"
-	"golang.org/x/time/rate"
-
 	"github.com/dreamsxin/go-kit/v2/endpoint"
-	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker"
-	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit"
 )
 
 func TestDivide_Success(t *testing.T) {
@@ -130,15 +125,12 @@ func TestTimeoutMiddleware_Triggers(t *testing.T) {
 	}
 }
 
-func TestGobreaker_OpensAfterFailures(t *testing.T) {
-	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
-		Name:        "test",
-		ReadyToTrip: func(c gobreaker.Counts) bool { return c.ConsecutiveFailures >= 3 },
-	})
+func TestCircuitBreaker_OpensAfterFailures(t *testing.T) {
+	cb := endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(3))
 	alwaysFail := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 		return nil, errors.New("backend down")
 	})
-	ep := circuitbreaker.Gobreaker(cb)(alwaysFail)
+	ep := cb.Middleware()(alwaysFail)
 
 	for i := 0; i < 3; i++ {
 		ep(context.Background(), nil) //nolint:errcheck
@@ -151,8 +143,8 @@ func TestGobreaker_OpensAfterFailures(t *testing.T) {
 
 func TestErroringLimiter_AllowsThenRejects(t *testing.T) {
 	// burst=2: first 2 succeed, then rejected
-	lim := rate.NewLimiter(0, 2)
-	ep := ratelimit.NewErroringLimiter(lim)(endpoint.Nop)
+	lim := newDemoRateLimiter(2)
+	ep := endpoint.RateLimitMiddleware(lim)(endpoint.Nop)
 
 	for i := 0; i < 2; i++ {
 		if _, err := ep(context.Background(), nil); err != nil {
@@ -160,14 +152,14 @@ func TestErroringLimiter_AllowsThenRejects(t *testing.T) {
 		}
 	}
 	_, err := ep(context.Background(), nil)
-	if !errors.Is(err, ratelimit.ErrLimited) {
-		t.Errorf("expected ErrLimited, got %v", err)
+	if !errors.Is(err, endpoint.ErrRateLimited) {
+		t.Errorf("expected ErrRateLimited, got %v", err)
 	}
 }
 
 func TestDelayingLimiter_ContextDeadline(t *testing.T) {
-	delayLim := rate.NewLimiter(rate.Every(time.Second), 1)
-	ep := ratelimit.NewDelayingLimiter(delayLim)(endpoint.Nop)
+	delayLim := newDemoRateLimiter(1)
+	ep := endpoint.DelayRateLimitMiddleware(delayLim)(endpoint.Nop)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
