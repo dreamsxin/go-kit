@@ -22,7 +22,7 @@ v2 是独立 Go module：
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.4.2` 是本次从 `main` 发布的版本，完全向后兼容：全部为新增能力与
+`v2.4.2` 是当前已发布版本，完全向后兼容：全部为新增能力与
 行为修复。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)；升级说明见
 [MIGRATION.md](MIGRATION_zh.md)。
 

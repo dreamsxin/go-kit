@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "phase": "nested-candidate",
-  "releaseDate": "",
+  "phase": "released",
+  "releaseDate": "2026-08-23",
   "previousCoreVersion": "v2.4.0",
   "coreVersion": "v2.4.2",
   "modules": [

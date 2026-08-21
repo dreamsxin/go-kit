@@ -6,7 +6,7 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
-## [2.4.2] - Release Candidate
+## [2.4.2] - 2026-08-23
 
 ## [2.4.1] - 2026-08-22
 
