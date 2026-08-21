@@ -1,63 +1,63 @@
 {
   "schemaVersion": 1,
-  "phase": "released",
-  "releaseDate": "2026-08-22",
+  "phase": "core-candidate",
+  "releaseDate": "",
   "previousCoreVersion": "v2.4.0",
-  "coreVersion": "v2.4.1",
+  "coreVersion": "v2.4.2",
   "modules": [
     {
       "directory": ".",
       "modulePath": "github.com/dreamsxin/go-kit/v2",
-      "version": "v2.4.1",
-      "tag": "v2.4.1",
+      "version": "v2.4.2",
+      "tag": "v2.4.2",
       "releaseOrder": 1,
       "dependsOnCore": false
     },
     {
       "directory": "cmd/microgen",
       "modulePath": "github.com/dreamsxin/go-kit/v2/cmd/microgen",
-      "version": "v0.2.3",
-      "tag": "v2/cmd/microgen/v0.2.3",
+      "version": "v0.2.4",
+      "tag": "v2/cmd/microgen/v0.2.4",
       "releaseOrder": 2,
       "dependsOnCore": false
     },
     {
       "directory": "integrations/consul",
       "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/consul",
-      "version": "v0.2.3",
-      "tag": "v2/integrations/consul/v0.2.3",
+      "version": "v0.2.4",
+      "tag": "v2/integrations/consul/v0.2.4",
       "releaseOrder": 2,
       "dependsOnCore": false
     },
     {
       "directory": "integrations/grpc",
       "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/grpc",
-      "version": "v0.2.3",
-      "tag": "v2/integrations/grpc/v0.2.3",
+      "version": "v0.2.4",
+      "tag": "v2/integrations/grpc/v0.2.4",
       "releaseOrder": 2,
       "dependsOnCore": true
     },
     {
       "directory": "integrations/zap",
       "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/zap",
-      "version": "v0.2.3",
-      "tag": "v2/integrations/zap/v0.2.3",
+      "version": "v0.2.4",
+      "tag": "v2/integrations/zap/v0.2.4",
       "releaseOrder": 2,
       "dependsOnCore": true
     },
     {
       "directory": "kit/grpc",
       "modulePath": "github.com/dreamsxin/go-kit/v2/kit/grpc",
-      "version": "v0.2.3",
-      "tag": "v2/kit/grpc/v0.2.3",
+      "version": "v0.2.4",
+      "tag": "v2/kit/grpc/v0.2.4",
       "releaseOrder": 2,
       "dependsOnCore": false
     },
     {
       "directory": "observability/otel",
       "modulePath": "github.com/dreamsxin/go-kit/v2/observability/otel",
-      "version": "v0.2.3",
-      "tag": "v2/observability/otel/v0.2.3",
+      "version": "v0.2.4",
+      "tag": "v2/observability/otel/v0.2.4",
       "releaseOrder": 2,
       "dependsOnCore": true
     }
