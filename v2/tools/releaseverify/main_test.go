@@ -23,7 +23,7 @@ func TestParseSuites(t *testing.T) {
 
 func TestPublishableModulesExcludeRepositoryOnlyModules(t *testing.T) {
 	got := sortedModuleNames(publishableModules("root"))
-	want := []string{"circuitbreaker", "consul", "core", "grpc", "kit-grpc", "microgen", "otel", "ratelimit", "zap"}
+	want := []string{"consul", "core", "grpc", "kit-grpc", "microgen", "otel", "zap"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("publishable modules = %v, want %v", got, want)
 	}

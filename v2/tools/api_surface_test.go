@@ -56,10 +56,8 @@ func publicRuntimePackages(t *testing.T, root string) []publicPackage {
 	t.Helper()
 	moduleRoots := []string{
 		root,
-		filepath.Join(root, "integrations", "circuitbreaker"),
 		filepath.Join(root, "integrations", "consul"),
 		filepath.Join(root, "integrations", "grpc"),
-		filepath.Join(root, "integrations", "ratelimit"),
 		filepath.Join(root, "integrations", "zap"),
 		filepath.Join(root, "kit", "grpc"),
 		filepath.Join(root, "observability", "otel"),

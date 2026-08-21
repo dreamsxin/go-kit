@@ -88,8 +88,6 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 			t.Fatalf("read generated minimal go.mod: %v", err)
 		}
 		for _, forbidden := range []string{
-			"integrations/circuitbreaker",
-			"integrations/ratelimit",
 			"github.com/sony/gobreaker",
 			"golang.org/x/time",
 			"gorm.io/gorm",
