@@ -19,19 +19,20 @@ v2 文档按任务组织。当前行为写入使用与架构文档；长期实�
 ## 组件导览
 
 按顺序阅读，沿着请求链路从核心到边缘。每份指南自成一体，只依赖上面的
-快速入门步骤。
+快速入门步骤；最后一列指向该组件的可运行示例。
 
-| 顺序 | 组件 | 指南 |
-| --- | --- | --- |
-| 1 | 端点、类型化端点与中间件组合 | [endpoint](endpoint/README_zh.md) |
-| 2 | HTTP 传输：server、client、SSE、multipart、分页、链路传播 | [transport](transport/README_zh.md) |
-| 3 | 服务组装：`kit`、健康检查、生命周期、Server-Sent Events | [README：使用 kit 构建](README_zh.md) |
-| 4 | 稳定性：校验、超时、降级兜底、舱壁隔离、背压 | [endpoint：内置中间件](endpoint/README_zh.md) |
-| 5 | 服务发现、负载均衡与重试 | [服务发现](sd/README_zh.md) |
-| 6 | HTTP 安全：CORS、CSRF、安全响应头、IP 策略 | [security/http](security/http/README_zh.md) |
-| 7 | 可观测性：slog、Zap、OpenTelemetry 适配器 | [slog](observability/slog/README_zh.md)、[otel](observability/otel/README_zh.md)、[zap](integrations/zap/README_zh.md) |
-| 8 | AI 交互运行时与 MCP Streamable HTTP | [interaction](interaction/README_zh.md) |
-| 9 | 可选集成：Consul、gRPC、熔断器、限流 | [consul](integrations/consul/README_zh.md)、[transport gRPC](transport/README_zh.md) |
+| 顺序 | 组件 | 指南 | 可运行示例 |
+| --- | --- | --- | --- |
+| 1 | 端点、类型化端点与中间件组合 | [endpoint](endpoint/README_zh.md) | [examples/middleware](examples/README_zh.md) |
+| 2 | HTTP 传输：server、client、SSE、multipart、分页、链路传播 | [transport](transport/README_zh.md) | [examples/quickstart](examples/README_zh.md) |
+| 3 | 服务组装：`kit`、健康检查、生命周期、Server-Sent Events | [README：使用 kit 构建](README_zh.md) | [examples/quickstart](examples/README_zh.md) |
+| 4 | 稳定性：校验、超时、降级兜底、舱壁隔离、背压 | [endpoint：内置中间件](endpoint/README_zh.md) | [examples/best_practice](examples/README_zh.md) |
+| 5 | 响应组装：传输边界的信封与错误格式 | [transport：组合与嵌套](transport/README_zh.md) | [examples/envelope](examples/README_zh.md) |
+| 6 | 服务发现、负载均衡与重试 | [服务发现](sd/README_zh.md) | [examples/sd](examples/README_zh.md) |
+| 7 | HTTP 安全：CORS、CSRF、安全响应头、IP 策略 | [security/http](security/http/README_zh.md) | [examples/auth](examples/README_zh.md) |
+| 8 | 可观测性：slog、Zap、OpenTelemetry 适配器 | [slog](observability/slog/README_zh.md)、[otel](observability/otel/README_zh.md)、[zap](integrations/zap/README_zh.md) | [PRODUCTION.md](PRODUCTION_zh.md) |
+| 9 | AI 交互运行时与 MCP Streamable HTTP | [interaction](interaction/README_zh.md) | [examples/mcp_basic](examples/README_zh.md) |
+| 10 | 可选集成：Consul、gRPC、熔断器、限流 | [consul](integrations/consul/README_zh.md)、[transport gRPC](transport/README_zh.md) | [examples/sd](examples/README_zh.md) |
 
 ## 按任务查找
 

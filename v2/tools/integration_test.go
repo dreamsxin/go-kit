@@ -72,6 +72,18 @@ func TestAllExamples(t *testing.T) {
 			},
 		},
 		{
+			name: "envelope",
+			path: "envelope",
+			port: 8087,
+			run:  true,
+			smokeTests: []smokeTest{
+				{method: "POST", path: "/hello", body: `{"name":"smoke"}`, want: "Hello, smoke!"},
+				{method: "POST", path: "/hello", body: `{"name":"smoke"}`, want: `"message":"ok"`},
+				{method: "POST", path: "/hello", body: `{"name":""}`, wantStatus: http.StatusBadRequest, want: "name is required"},
+				{method: "POST", path: "/raw", body: `{"name":"smoke"}`, want: "Hello, smoke!"},
+			},
+		},
+		{
 			name: "todosvc",
 			path: "todosvc",
 			port: 8086,

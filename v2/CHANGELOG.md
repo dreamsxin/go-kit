@@ -6,6 +6,20 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+### Added
+
+- Transport-level response assembly: `server.ServerResponseEncoder` overrides
+  the success encoder for the JSON entry points, and
+  `kit.WithJSONServerOptions` applies server options (envelope, error format,
+  hooks) to every JSON route in one place. Per-route options take precedence.
+- `examples/envelope`: response assembly at the transport boundary - business
+  handlers stay envelope-free while `{code, message, data}` and its matching
+  error format are defined once at assembly.
+- Documentation for composition and nesting: the transport guide explains
+  accumulating versus replacing components and how to combine body, path,
+  query, and multipart parsers; the endpoint guide documents the four
+  middleware flow-control patterns (short-circuit, branch, repeat, replace).
+
 ## [2.3.0] - 2026-08-20
 
 ### Added

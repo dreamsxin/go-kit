@@ -17,6 +17,7 @@
 | `middleware/` | endpoint 中间件：Chain、Builder、Failer、Timeout、Gobreaker、ErroringLimiter、DelayingLimiter | `go run ./examples/middleware` |
 | `httpclient/` | HTTP 客户端：NewJSONClient、ClientBefore/After/Finalizer、SetClient | `go run ./examples/httpclient` |
 | `auth/` | 应用自有的认证与授权中间件：Bearer 密钥、通过 apperror 返回 401/403、公开的健康检查路由 | `go run ./examples/auth` |
+| `envelope/` | 传输层响应组装：通过 `kit.WithJSONServerOptions` 一次定义信封与错误格式 | `go run ./examples/envelope` |
 | `todosvc/` | 数据库 CRUD 服务：SQLite 仓储、Service -> Endpoint -> HTTP、优雅关闭 | `go run ./examples/todosvc` |
 | `interaction_policy/` | AI 交互运行时：带授权与审计钩子的 MCP 风格工具调用 | `go run ./examples/interaction_policy` |
 | `mcp_basic/` | 最小 MCP 服务器：单个工具、`NewRuntime()`、`mcp.ListenAndServe` | `go run ./examples/mcp_basic` |

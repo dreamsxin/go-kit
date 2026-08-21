@@ -5,6 +5,17 @@
 
 ## [未发布]
 
+### 新增
+
+- 传输层响应组装：`server.ServerResponseEncoder` 覆盖 JSON 入口点的成功
+  响应编码器；`kit.WithJSONServerOptions` 把 server 选项（信封、错误格式、
+  钩子）一次性应用到全部 JSON 路由，单路由选项优先生效。
+- `examples/envelope`：传输边界的响应组装示例--业务 handler 不感知信封，
+  `{code, message, data}` 及配套错误格式在装配期一次定义。
+- 组合与嵌套文档：transport 指南解释累积式与替换式组件，以及 body、
+  路径、查询与 multipart 解析器的组合方式；endpoint 指南记录中间件的
+  四种流控模式（短路、分支、重复、替换）。
+
 ## [2.3.0] - 2026-08-20
 
 ### 新增

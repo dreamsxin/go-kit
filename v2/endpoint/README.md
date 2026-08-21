@@ -128,6 +128,53 @@ Middleware order remains important:
 
 - the first middleware passed to `Chain` is the outermost one
 
+## Middleware Flow Control
+
+The chain is fixed at construction, but a middleware owns everything that
+happens next: it receives the wrapped endpoint and decides per request how the
+rest of the chain runs. Four patterns cover the practical cases.
+
+**Short-circuit** - stop the chain and answer immediately. The built-in
+`ValidationMiddleware`, `BackpressureMiddleware`, and `BulkheadMiddleware` all
+do this:
+
+```go
+func requireTenant(next endpoint.Endpoint) endpoint.Endpoint {
+    return func(ctx context.Context, request any) (any, error) {
+        if tenantFromContext(ctx) == "" {
+            return nil, endpoint.NewValidationError("tenant", "is required")
+        }
+        return next(ctx, request)
+    }
+}
+```
+
+**Branch** - send the request somewhere else. `Fallback` is exactly this
+pattern: the fallback endpoint can itself be a fully middleware-built chain,
+so a branch can carry its own timeout and metrics:
+
+```go
+degraded := endpoint.NewBuilder(cachedResponse).
+    WithTimeout(time.Second).
+    Build()
+ep := endpoint.NewBuilder(primary).WithFallback(degraded).Build()
+```
+
+**Repeat** - call the rest of the chain again. `sd/retry` wraps `next` and
+invokes it per attempt with its own backoff and classification.
+
+**Replace** - wrap `next` with different behavior instead of calling it
+directly: `TimeoutMiddleware` runs `next` on a goroutine under a deadline,
+`MetricsMiddleware` observes its result. The wrapped endpoint stays opaque; a
+middleware never needs to know how deep the chain is.
+
+One thing middleware cannot do is rewire the chain of already-constructed
+routes at runtime - composition happens at assembly, which keeps request paths
+deterministic and testable. Per-route variation belongs at assembly time
+(`kit.WithEndpointMiddleware` for every route; build the endpoint with
+`endpoint.NewBuilder` and register it through `kit.HandleJSONEndpoint` when a
+single route needs its own chain).
+
 ## Typed Endpoints
 
 `TypedEndpoint[Req, Resp]` provides compile-time request and response typing while preserving the same runtime model.

@@ -126,6 +126,50 @@ ep = endpoint.Chain(
 
 - 传给 `Chain` 的第一个中间件位于最外层
 
+## 中间件流控
+
+链路在构造期固定，但中间件完全掌控接下来的走向：它拿到被包装的
+endpoint，并在每次请求时决定链路其余部分如何执行。四种模式覆盖了实际
+场景。
+
+**短路** - 终止链路并立即应答。内置的 `ValidationMiddleware`、
+`BackpressureMiddleware` 和 `BulkheadMiddleware` 都这样做：
+
+```go
+func requireTenant(next endpoint.Endpoint) endpoint.Endpoint {
+    return func(ctx context.Context, request any) (any, error) {
+        if tenantFromContext(ctx) == "" {
+            return nil, endpoint.NewValidationError("tenant", "is required")
+        }
+        return next(ctx, request)
+    }
+}
+```
+
+**分支** - 把请求送到别处。`Fallback` 正是这个模式：兜底 endpoint 本身
+可以是一条带完整中间件的链，因此分支可以拥有自己的超时与指标：
+
+```go
+degraded := endpoint.NewBuilder(cachedResponse).
+    WithTimeout(time.Second).
+    Build()
+ep := endpoint.NewBuilder(primary).WithFallback(degraded).Build()
+```
+
+**重复** - 再次调用链路的剩余部分。`sd/retry` 包装 `next` 并按尝试次数
+反复调用，带有自己的退避与错误分类。
+
+**替换** - 用不同行为包装 `next` 而不是直接调用它：
+`TimeoutMiddleware` 在 deadline 下于 goroutine 中运行 `next`，
+`MetricsMiddleware` 观察其结果。被包装的 endpoint 保持不透明，中间件
+不需要知道链路还有多深。
+
+中间件做不到的一件事，是在运行期改动已构造路由的链路--组装发生在装配
+期，这让请求路径确定且可测试。按路由的变化属于装配期
+（`kit.WithEndpointMiddleware` 作用于全部路由；某条路由需要自己的链时，
+用 `endpoint.NewBuilder` 构建 endpoint 并经 `kit.HandleJSONEndpoint`
+注册）。
+
 ## 类型化端点
 
 `TypedEndpoint[Req, Resp]` 在保持相同运行时模型的同时，提供编译期的请求与响应类型约束。

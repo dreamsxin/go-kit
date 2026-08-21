@@ -41,6 +41,57 @@ gRPC 是一个可选模块，包含两个公开区域：
 - `transport/http`
 - `integrations/grpc`
 
+## 组合与嵌套
+
+组件按两种明确的风格组合。
+
+**累积式** - 传多少个都可以，按添加顺序叠加：
+
+- `ServerBefore` / `ServerAfter` / `ServerFinalizer` 钩子（以及客户端的
+  `Before` / `After` / finalizer 等价物）按注册顺序执行；
+- endpoint 中间件（`endpoint.Chain`、`Builder.Use`、
+  `kit.WithEndpointMiddleware`）可以任意嵌套：第一个中间件在最外层，
+  被包装的 endpoint 本身也可以是一条链（例如 `Fallback` 的兜底端点可以
+  是一条带完整中间件的链）；
+- `security/http.Chain` 与 `kit.WithHTTPMiddleware` 以相同方式组合标准
+  `http.Handler` 中间件；
+- `kit.WithJSONServerOptions` 可以多次传入，其选项追加到每个 JSON 路由。
+
+**替换式** - 每条路由只有一个生效，最后设置者胜出：
+
+- 成功响应编码器（`server.ServerResponseEncoder`，默认
+  `EncodeJSONResponse`）；
+- 错误编码器（`server.ServerErrorEncoder`）；
+- 请求体解码器（构造时的 `DecodeRequestFunc`）。
+
+多重格式转换仍然可以组合，但发生在被安装的那一个函数内部：信封编码器
+可以自行序列化、后处理或委托其他逻辑。
+
+**组合多个请求解析器。** 一条路由只有一个 body 解码器，但 body、路径、
+查询与 multipart 输入可以在其中组合。共享的辅助函数从不同来源填充同一个
+请求结构体，且同名字段路径值优先于查询值：
+
+```go
+func decodeList(ctx context.Context, r *http.Request) (any, error) {
+    var req ListOrdersRequest          // form/json 标签映射查询与路径字段
+    if err := transporthttp.DecodeQueryRequest(r, &req); err != nil {
+        return nil, err                // 查询与路径都写入这里
+    }
+    if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+        return nil, err
+    }
+    page, err := transporthttp.ParsePage(r)
+    if err != nil {
+        return nil, err
+    }
+    req.Page = page
+    return req, nil
+}
+```
+
+文件上传以同样方式组合：在解码器内用 `server.ParseMultipartForm` 解析表单
+字段，再读取文件部分。
+
 ## 分页约定
 
 列表端点共享来自 `transport/http` 的同一个分页契约：

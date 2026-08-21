@@ -40,6 +40,59 @@ Common helpers also live under:
 - `transport/http`
 - `integrations/grpc`
 
+## Composition And Nesting
+
+Components compose in two clearly separated styles.
+
+**Accumulating** - pass as many as you need; they stack in the order added:
+
+- `ServerBefore` / `ServerAfter` / `ServerFinalizer` hooks (and the client
+  `Before` / `After` / finalizer equivalents) run in registration order;
+- endpoint middleware (`endpoint.Chain`, `Builder.Use`, `kit.WithEndpointMiddleware`)
+  nests arbitrarily: the first middleware is the outermost, and a wrapped
+  endpoint can itself be a chain (a `Fallback` endpoint, for example, can be a
+  fully middleware-built endpoint);
+- `security/http.Chain` and `kit.WithHTTPMiddleware` compose standard
+  `http.Handler` middleware the same way;
+- `kit.WithJSONServerOptions` may be passed several times; its options are
+  appended to every JSON route.
+
+**Replacing** - exactly one wins per route, the last one set:
+
+- the success response encoder (`server.ServerResponseEncoder`, default
+  `EncodeJSONResponse`);
+- the error encoder (`server.ServerErrorEncoder`);
+- the request body decoder (the constructor `DecodeRequestFunc`).
+
+Multiple format conversions still compose, but inside the one installed
+function: an envelope encoder can marshal, post-process, or delegate itself.
+
+**Combining request parsers.** A route has one body decoder, but body, path,
+query, and multipart inputs combine inside it. The shared helpers fill the
+same request struct from different sources, and path values take precedence
+over query values with the same field name:
+
+```go
+func decodeList(ctx context.Context, r *http.Request) (any, error) {
+    var req ListOrdersRequest          // form/json tags map query and path fields
+    if err := transporthttp.DecodeQueryRequest(r, &req); err != nil {
+        return nil, err                // query and path both land here
+    }
+    if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+        return nil, err
+    }
+    page, err := transporthttp.ParsePage(r)
+    if err != nil {
+        return nil, err
+    }
+    req.Page = page
+    return req, nil
+}
+```
+
+File uploads combine the same way: decode form fields with
+`server.ParseMultipartForm` inside the decoder, then read the file part.
+
 ## Pagination Convention
 
 List endpoints share one pagination contract from `transport/http`:

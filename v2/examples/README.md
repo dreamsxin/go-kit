@@ -18,6 +18,7 @@ after dropping the `./examples/` prefix.
 | `middleware/` | Endpoint middleware: Chain, Builder, Failer, Timeout, Gobreaker, ErroringLimiter, DelayingLimiter | `go run ./examples/middleware` |
 | `httpclient/` | HTTP client: NewJSONClient, ClientBefore/After/Finalizer, SetClient | `go run ./examples/httpclient` |
 | `auth/` | Application-owned authentication and authorization middleware: Bearer keys, 401/403 via apperror, public health routes | `go run ./examples/auth` |
+| `envelope/` | Transport-level response assembly: envelope and error format defined once via `kit.WithJSONServerOptions` | `go run ./examples/envelope` |
 | `todosvc/` | Database CRUD service: SQLite repository, Service -> Endpoint -> HTTP, graceful shutdown | `go run ./examples/todosvc` |
 | `interaction_policy/` | AI interaction runtime: MCP-style tool calls with authorization and audit hooks | `go run ./examples/interaction_policy` |
 | `mcp_basic/` | Minimal MCP server: single tool, `NewRuntime()`, `mcp.ListenAndServe` | `go run ./examples/mcp_basic` |
