@@ -213,6 +213,15 @@ typed := endpoint.Unwrap[HelloReq, HelloResp](
 - `BackpressureMiddleware`
 - `Fallback`
 - `BulkheadMiddleware`
+- `CircuitBreaker`
+- `RateLimitMiddleware`
+- `DelayRateLimitMiddleware`
+
+`CircuitBreaker` 是 endpoint 包内置的无依赖熔断器：连续失败会触发开启，
+开启期间用 `ErrCircuitOpen`（HTTP 429）拒绝调用，窗口过后的探测请求决定
+是否恢复。限流由 `RateLimitMiddleware`（拒绝）与 `DelayRateLimitMiddleware`
+（等待）承载，基于应用自有的 `RateLimiter` 契约；`ErrRateLimited` 同样
+编码为 429。
 
 `TracingMiddleware` 使用 W3C Trace Context 格式。它会在同一个 trace ID 下加入传入的
 `TraceContext`（由 `transport/http.ExtractTraceparent` 从 `traceparent` 头部提取），

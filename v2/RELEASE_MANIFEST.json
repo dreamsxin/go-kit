@@ -22,14 +22,6 @@
       "dependsOnCore": false
     },
     {
-      "directory": "integrations/circuitbreaker",
-      "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker",
-      "version": "v0.2.2",
-      "tag": "v2/integrations/circuitbreaker/v0.2.2",
-      "releaseOrder": 2,
-      "dependsOnCore": true
-    },
-    {
       "directory": "integrations/consul",
       "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/consul",
       "version": "v0.2.2",
@@ -42,14 +34,6 @@
       "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/grpc",
       "version": "v0.2.2",
       "tag": "v2/integrations/grpc/v0.2.2",
-      "releaseOrder": 2,
-      "dependsOnCore": true
-    },
-    {
-      "directory": "integrations/ratelimit",
-      "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/ratelimit",
-      "version": "v0.2.2",
-      "tag": "v2/integrations/ratelimit/v0.2.2",
       "releaseOrder": 2,
       "dependsOnCore": true
     },

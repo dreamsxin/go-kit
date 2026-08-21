@@ -218,6 +218,15 @@ Core middleware in `endpoint`:
 - `BackpressureMiddleware`
 - `Fallback`
 - `BulkheadMiddleware`
+- `CircuitBreaker`
+- `RateLimitMiddleware`
+- `DelayRateLimitMiddleware`
+
+`CircuitBreaker` is a dependency-free endpoint circuit breaker: consecutive
+failures trip it open, it rejects with `ErrCircuitOpen` (HTTP 429), and a
+probe after the open window decides recovery. Rate limiting ships as
+`RateLimitMiddleware` (reject) and `DelayRateLimitMiddleware` (wait) over the
+application-owned `RateLimiter` contract; `ErrRateLimited` also encodes as 429.
 
 `TracingMiddleware` speaks the W3C Trace Context format. It joins an incoming
 `TraceContext` (extracted from the `traceparent` header by
