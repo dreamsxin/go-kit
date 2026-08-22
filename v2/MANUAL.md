@@ -6,6 +6,10 @@ This manual is the complete user guide for go-kit v2, organized as Quick Start
 -> Core Concepts -> Components -> Production. Each chapter stands alone, but
 reading them in order builds the whole picture fastest.
 
+> [!TIP]
+> The [book](docs/index.md) expands this manual into topic chapters and
+> complete tutorials (CRUD, generation, authentication, MCP).
+
 ## Part 1: Quick Start
 
 **Goal: a running service in about fifteen minutes.**

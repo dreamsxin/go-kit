@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
@@ -63,6 +64,25 @@ func TestRejectionErrorsEncodeAs429(t *testing.T) {
 		server.JSONErrorEncoder(context.Background(), err, rec)
 		if rec.Code != http.StatusTooManyRequests {
 			t.Errorf("%v: status %d, want 429", err, rec.Code)
+		}
+	}
+}
+
+func TestHTTPStatusForErrorReusesFrameworkMapping(t *testing.T) {
+	cases := []struct {
+		err  error
+		want int
+	}{
+		{apperror.New(apperror.KindNotFound, "x", "missing"), http.StatusNotFound},
+		{apperror.New(apperror.KindInvalidArgument, "x", "bad"), http.StatusBadRequest},
+		{endpoint.NewValidationError("name", "required"), http.StatusBadRequest},
+		{endpoint.ErrRateLimited, http.StatusTooManyRequests},
+		{endpoint.ErrCircuitOpen, http.StatusTooManyRequests},
+		{errors.New("plain"), http.StatusInternalServerError},
+	}
+	for _, tc := range cases {
+		if got := server.HTTPStatusForError(tc.err); got != tc.want {
+			t.Errorf("%v: got %d, want %d", tc.err, got, tc.want)
 		}
 	}
 }

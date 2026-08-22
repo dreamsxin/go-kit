@@ -188,6 +188,15 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 	})
 }
 
+// HTTPStatusForError returns the HTTP status the built-in error encoders use
+// for err, honoring StatusCoder, ValidationError, the rejection errors
+// (ErrBackpressure, ErrBulkheadFull, ErrCircuitOpen, ErrRateLimited), and
+// apperror kinds. Custom error encoders should reuse it instead of
+// duplicating the mapping.
+func HTTPStatusForError(err error) int {
+	return httpStatus(err)
+}
+
 func httpStatus(err error) int {
 	var sc transporthttp.StatusCoder
 	if errors.As(err, &sc) {

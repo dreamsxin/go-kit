@@ -8,8 +8,9 @@ architecture documents; the durable implementation sequence belongs only in
 maintained documentation set.
 
 **Start here**: [MANUAL.md](MANUAL.md) is the complete user guide, organized
-as Quick Start -> Core Concepts -> Components -> Production. The tables below
-are the task index into the same documentation.
+as Quick Start -> Core Concepts -> Components -> Production. The
+[book](docs/index.md) expands it into topic chapters and complete tutorials.
+The tables below are the task index into the same documentation.
 
 ## Quick Start
 

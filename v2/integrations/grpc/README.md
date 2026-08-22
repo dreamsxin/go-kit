@@ -8,63 +8,82 @@ HTTP-only services do not pull gRPC dependencies.
 ## Install
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2/integrations/grpc@v0.2.2
+go get github.com/dreamsxin/go-kit/v2/integrations/grpc@v0.2.4
 ```
 
 ## Server
 
-Wrap an endpoint as a gRPC service method. Metadata flows into the request
-context; the error encoder maps application errors to gRPC status codes.
+Wrap an endpoint as a gRPC service method. Decode and encode functions map
+between protobuf messages and domain types; hooks shape metadata and errors.
 
 ```go
-server := grpcserver.NewServer(
-	ep,
-	grpcserver.DecodeProto[pb.HelloRequest],
-	grpcserver.EncodeProto[pb.HelloResponse],
-	grpcserver.ServerErrorEncoder(grpcserver.DefaultErrorEncoder),
-	grpcserver.ServerBefore(grpcserver.PopulateRequestContext),
+srv := grpcserver.NewServer(
+	sayHelloEndpoint,
+	func(_ context.Context, req any) (any, error) {
+		r := req.(*pb.HelloRequest)
+		return HelloRequest{Name: r.Name}, nil
+	},
+	func(_ context.Context, resp any) (any, error) {
+		r := resp.(HelloResponse)
+		return &pb.HelloReply{Message: r.Message}, nil
+	},
+	grpcserver.ServerBefore(myMetadataHook), // your metadata hooks
 )
 ```
 
-Register the server with the generated protobuf service registration:
+Attach the gRPC listener to a kit service through the `kit/grpc` lifecycle
+component:
 
 ```go
-pb.RegisterGreeterServer(grpcComponent.Server(), server)
+grpcComponent, err := kitgrpc.New(":8081")
+if err != nil {
+	return err
+}
+pb.RegisterGreeterServer(grpcComponent.Server(), srv)
+
+svc, err := kit.New(":8080", kit.WithLifecycle(grpcComponent))
 ```
 
-See `kit/grpc` for the lifecycle component that attaches the gRPC listener to
-a kit service.
+Errors are mapped to gRPC status codes through `DefaultErrorEncoder`, which
+classifies `apperror` kinds (NotFound, InvalidArgument, Unauthenticated, ...).
 
 ## Client
 
-Build an endpoint that calls a remote gRPC service. The client handles
-metadata, timeouts, and non-success statuses.
+Build an endpoint that calls a remote gRPC method:
 
 ```go
-client := grpcclient.NewClient(
+call := grpcclient.NewClient(
 	conn,
 	"hello.Greeter",
 	"SayHello",
-	grpcclient.EncodeProto[pb.HelloRequest],
-	grpcclient.DecodeProto[pb.HelloResponse],
-)
-ep := client.Endpoint()
+	func(_ context.Context, req any) (any, error) {
+		r := req.(HelloRequest)
+		return &pb.HelloRequest{Name: r.Name}, nil
+	},
+	func(_ context.Context, resp any) (any, error) {
+		r := resp.(*pb.HelloReply)
+		return HelloResponse{Message: r.Message}, nil
+	},
+	&pb.HelloReply{},
+).Endpoint()
 ```
 
-`grpcclient.NewClient` accepts interceptors for authentication, tracing, and
-metadata propagation.
+`ClientBefore`/`ClientAfter` hooks manage metadata; `ClientFinalizer` always
+runs for observability.
 
 ## Retry Classification
 
-`integrations/grpc.Retryable` classifies transient gRPC statuses for
-`sd/retry`. Pass it as the retryable classifier when composing retry over a
-gRPC client:
+`grpc.Retryable` classifies transient gRPC statuses (Unavailable,
+ResourceExhausted, Aborted) for `sd/retry`. Pass it as the retryable classifier
+when composing retry over a gRPC client:
 
 ```go
 call, closer, err := sdclient.NewEndpoint(instancer, factory, logger,
-	sdclient.WithRetryable(grpcclient.Retryable),
+	sdclient.WithRetryable(grpc.Retryable),
 )
 ```
 
-Unknown errors are permanent. The default classifier retries only explicit
-`Retryable() == true` errors and known transient gRPC codes.
+Unknown errors are permanent; only classified transient errors are retried.
+
+The runnable reference for servers, clients, and hooks is
+[examples/transport](../../examples/README.md).
