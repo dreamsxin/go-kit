@@ -5,6 +5,8 @@
 
 ## [未发布]
 
+## [2.5.1] - Release Candidate
+
 ### 新增
 
 - 双协议绑定：`transport.Binding[Req, Resp]` 承载一次构建好的中间件端点，

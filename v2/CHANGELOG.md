@@ -6,6 +6,8 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+## [2.5.1] - Release Candidate
+
 ### Added
 
 - Dual-protocol binding: `transport.Binding[Req, Resp]` carries one

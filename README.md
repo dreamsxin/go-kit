@@ -59,8 +59,8 @@ Full walkthrough: [getting started](v2/docs/getting-started.md).
 The maintained product line is the independent v2 module under [`v2/`](v2/):
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2@v2.5.0
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.7
+go get github.com/dreamsxin/go-kit/v2@v2.5.1
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.8
 ```
 
 `v2.4.3` is backward compatible: additive capabilities and behavioral fixes
