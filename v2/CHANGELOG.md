@@ -6,6 +6,8 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+## [2.4.4] - Release Candidate
+
 ### Added
 
 - Custom error-kind status mapping: `server.JSONErrorEncoderWithKindMapper`

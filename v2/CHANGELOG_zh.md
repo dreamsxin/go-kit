@@ -5,6 +5,8 @@
 
 ## [未发布]
 
+## [2.4.4] - Release Candidate
+
 ### 新增
 
 - 自定义错误种类状态码映射：`server.JSONErrorEncoderWithKindMapper` 先经

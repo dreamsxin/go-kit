@@ -57,8 +57,8 @@ kit.HandleJSONTyped(svc, "POST /greet", func(
 当前维护的产品线是 [`v2/`](v2/) 目录下的独立 v2 module：
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2@v2.4.3
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.5
+go get github.com/dreamsxin/go-kit/v2@v2.4.4
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.6
 ```
 
 `v2.4.3` 完全向后兼容：全部为新增能力与行为修复。
