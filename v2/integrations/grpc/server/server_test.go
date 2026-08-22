@@ -143,3 +143,53 @@ func TestServeGRPC_NilHooks_DoNotPanicAtRequestTime(t *testing.T) {
 		t.Fatalf("ServeGRPC() response = %v, want resp", resp)
 	}
 }
+
+type customKindError struct{ kind string }
+
+func (e customKindError) Error() string         { return e.kind }
+func (e customKindError) ErrorKindName() string { return e.kind }
+func (e customKindError) PublicMessage() string { return "public: " + e.kind }
+
+func TestErrorEncoderWithKindMapper(t *testing.T) {
+	encoder := ErrorEncoderWithKindMapper(func(k string) codes.Code {
+		if k == "payment_failed" {
+			return codes.FailedPrecondition
+		}
+		return codes.Code(99)
+	})
+
+	err := encoder(context.Background(), customKindError{kind: "payment_failed"})
+	st, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("want status error, got %v", err)
+	}
+	if st.Code() != codes.FailedPrecondition {
+		t.Errorf("code: got %v, want FailedPrecondition", st.Code())
+	}
+	if st.Message() != "public: payment_failed" {
+		t.Errorf("message: got %q", st.Message())
+	}
+
+	// Unknown kinds fall back to the built-in mapping.
+	err = encoder(context.Background(), customKindError{kind: "not_found"})
+	st, _ = status.FromError(err)
+	if st.Code() != codes.NotFound {
+		t.Errorf("built-in kind: got %v, want NotFound", st.Code())
+	}
+
+	// Unclassified errors stay internal.
+	err = encoder(context.Background(), errors.New("plain"))
+	st, _ = status.FromError(err)
+	if st.Code() != codes.Internal {
+		t.Errorf("unclassified: got %v, want Internal", st.Code())
+	}
+}
+
+func TestErrorEncoderWithKindMapper_Nil(t *testing.T) {
+	encoder := ErrorEncoderWithKindMapper(nil)
+	err := encoder(context.Background(), customKindError{kind: "not_found"})
+	st, _ := status.FromError(err)
+	if st.Code() != codes.NotFound {
+		t.Errorf("nil mapper should fall back, got %v", st.Code())
+	}
+}

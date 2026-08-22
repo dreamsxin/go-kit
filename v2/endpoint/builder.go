@@ -19,6 +19,7 @@ import (
 type Builder struct {
 	base        Endpoint
 	middlewares []Middleware
+	labels      []string
 }
 
 // NewBuilder creates a Builder wrapping the given base Endpoint.
@@ -36,7 +37,39 @@ func (b *Builder) Use(m Middleware) *Builder {
 		panic("middleware cannot be nil")
 	}
 	b.middlewares = append(b.middlewares, m)
+	b.labels = append(b.labels, "")
 	return b
+}
+
+// UseNamed is Use with a label recorded for Describe. Labeled middleware make
+// the assembled chain inspectable for debugging and startup logs.
+func (b *Builder) UseNamed(label string, m Middleware) *Builder {
+	if m == nil {
+		panic("middleware cannot be nil")
+	}
+	b.middlewares = append(b.middlewares, m)
+	b.labels = append(b.labels, label)
+	return b
+}
+
+// Describe returns the middleware labels in application order (outermost
+// first). Unlabeled middleware appear as "?". The description is for
+// debugging and startup logs; it does not affect runtime behavior.
+//
+//	ep := endpoint.NewBuilder(base).
+//	    UseNamed("timeout", endpoint.TimeoutMiddleware(5*time.Second)).
+//	    UseNamed("circuit_breaker", breaker.Middleware()).
+//	    Build()
+//	// log: "chain: timeout -> circuit_breaker -> <endpoint>"
+func (b *Builder) Describe() []string {
+	labels := make([]string, len(b.labels))
+	for i, label := range b.labels {
+		if label == "" {
+			label = "?"
+		}
+		labels[i] = label
+	}
+	return labels
 }
 
 // WithMetrics appends a MetricsMiddleware and returns the Metrics pointer so
@@ -45,18 +78,18 @@ func (b *Builder) Use(m Middleware) *Builder {
 //	var m endpoint.Metrics
 //	ep := endpoint.NewBuilder(base).WithMetrics(&m).Build()
 func (b *Builder) WithMetrics(m *Metrics) *Builder {
-	return b.Use(MetricsMiddleware(m))
+	return b.UseNamed("metrics", MetricsMiddleware(m))
 }
 
 // WithErrorHandling appends an ErrorHandlingMiddleware for the named operation.
 func (b *Builder) WithErrorHandling(operation string) *Builder {
-	return b.Use(ErrorHandlingMiddleware(operation))
+	return b.UseNamed("error_handling:"+operation, ErrorHandlingMiddleware(operation))
 }
 
 // WithTimeout appends a TimeoutMiddleware that cancels the context after d.
 // This is a shorthand for Use(TimeoutMiddleware(d)).
 func (b *Builder) WithTimeout(d time.Duration) *Builder {
-	return b.Use(TimeoutMiddleware(d))
+	return b.UseNamed("timeout", TimeoutMiddleware(d))
 }
 
 // Build applies all middlewares and returns the final Endpoint.

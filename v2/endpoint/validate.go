@@ -93,5 +93,5 @@ func ValidationMiddleware() Middleware {
 
 // WithValidation appends ValidationMiddleware to the Builder.
 func (b *Builder) WithValidation() *Builder {
-	return b.Use(ValidationMiddleware())
+	return b.UseNamed("validation", ValidationMiddleware())
 }

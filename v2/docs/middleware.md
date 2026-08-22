@@ -62,6 +62,23 @@ That keeps request paths deterministic and testable.
 `Fallback` and `BulkheadMiddleware` are Builder shortcuts
 (`WithFallback`, `WithBulkhead`); the rest are composed with `Use`.
 
+## Debugging the chain
+
+`Builder.Describe` returns the middleware chain in application order, so a
+startup log can print exactly what runs:
+
+```go
+b := endpoint.NewBuilder(createUser).
+    WithValidation().
+    UseNamed("auth", authMiddleware).
+    WithTimeout(5 * time.Second)
+log.Printf("chain: %s -> endpoint", strings.Join(b.Describe(), " -> "))
+// chain: validation -> auth -> timeout -> endpoint
+```
+
+The built-in `With*` shortcuts record labels automatically; custom middleware
+composed with `Use` appear as `?` unless labeled with `UseNamed`.
+
 ## Nesting
 
 A wrapped endpoint can itself be a chain. A fallback that carries its own

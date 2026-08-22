@@ -126,3 +126,56 @@ func TestJSONErrorEncoderWithKindMapper_NilMapper(t *testing.T) {
 		t.Fatalf("nil mapper should fall back, got %d", rec.Code)
 	}
 }
+
+type statusAndHeaderResponse struct {
+	Body string
+}
+
+func (r statusAndHeaderResponse) StatusCode() int { return http.StatusCreated }
+func (r statusAndHeaderResponse) Headers() http.Header {
+	return http.Header{"X-Custom": []string{"value"}}
+}
+
+func TestWrapJSONResponse_PreservesStatusAndHeaders(t *testing.T) {
+	encoder := server.WrapJSONResponse(func(response any) any {
+		return map[string]any{"code": 0, "data": response}
+	})
+
+	rec := httptest.NewRecorder()
+	if err := encoder(context.Background(), rec, statusAndHeaderResponse{Body: "created"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Code != http.StatusCreated {
+		t.Errorf("status: got %d, want 201 from the original response", rec.Code)
+	}
+	if got := rec.Header().Get("X-Custom"); got != "value" {
+		t.Errorf("header: got %q, want value", got)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["code"].(float64) != 0 {
+		t.Errorf("envelope code: got %v", body["code"])
+	}
+	data, _ := body["data"].(map[string]any)
+	if data["Body"] != "created" {
+		t.Errorf("envelope data: got %v", body["data"])
+	}
+}
+
+func TestWrapJSONResponse_NilWrapFallsBack(t *testing.T) {
+	encoder := server.WrapJSONResponse(nil)
+	rec := httptest.NewRecorder()
+	if err := encoder(context.Background(), rec, map[string]string{"a": "b"}); err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["a"] != "b" {
+		t.Errorf("nil wrap should encode as-is, got %v", body)
+	}
+}

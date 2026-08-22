@@ -57,6 +57,23 @@ HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.C
 `Fallback` 与 `BulkheadMiddleware` 是 Builder 快捷方式（`WithFallback`、
 `WithBulkhead`）；其余的用 `Use` 组合。
 
+## 调试链路
+
+`Builder.Describe` 按应用顺序返回中间件链，启动日志可以精确打印实际执行
+内容：
+
+```go
+b := endpoint.NewBuilder(createUser).
+    WithValidation().
+    UseNamed("auth", authMiddleware).
+    WithTimeout(5 * time.Second)
+log.Printf("chain: %s -> endpoint", strings.Join(b.Describe(), " -> "))
+// chain: validation -> auth -> timeout -> endpoint
+```
+
+内置 `With*` 快捷方式自动记录标签；用 `Use` 组合的自定义中间件显示为
+`?`，除非用 `UseNamed` 打标签。
+
 ## 嵌套
 
 被包裹的端点本身也可以是一条链。一个自带超时与指标的降级兜底：

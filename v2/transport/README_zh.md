@@ -92,6 +92,26 @@ func decodeList(ctx context.Context, r *http.Request) (any, error) {
 文件上传以同样方式组合：在解码器内用 `server.ParseMultipartForm` 解析表单
 字段，再读取文件部分。
 
+**启动期结构体校验。** 基于反射的查询解码在首个请求时才暴露不支持的
+字段类型。在装配期校验一次结构体，让错误在启动时快速失败：
+
+```go
+if err := transporthttp.ValidateQueryStruct[ListOrdersRequest](); err != nil {
+    return err
+}
+```
+
+**不重写编码器的信封组装。** `server.WrapJSONResponse` 包装响应值，同时
+保留原响应的 `StatusCoder` 与 `Headerer` 行为：
+
+```go
+kit.New(":8080", kit.WithJSONServerOptions(
+    server.ServerResponseEncoder(server.WrapJSONResponse(func(response any) any {
+        return envelope{Code: 0, Message: "ok", Data: response}
+    })),
+))
+```
+
 ## 分页约定
 
 列表端点共享来自 `transport/http` 的同一个分页契约：

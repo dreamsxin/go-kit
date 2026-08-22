@@ -6,6 +6,28 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+### Added
+
+- gRPC custom error-kind mapping: `grpcserver.ErrorEncoderWithKindMapper`
+  resolves the gRPC code through an application mapper first and falls back
+  to the built-in mapping; `grpcserver.CodeForErrorKind` exposes the built-in
+  mapping for composition.
+- MCP interaction error mapping: `mcp.RPCCodeForInteractionError` and
+  `mcp.ErrorMapperForInteraction` map the interaction sentinel errors to
+  JSON-RPC codes, so custom mappers build on a documented contract instead of
+  reverse-engineering the handler.
+- Response assembly combinator: `server.WrapJSONResponse` wraps the response
+  value (envelope, post-processing) while preserving the original response's
+  StatusCoder and Headerer behavior.
+- Middleware chain introspection: `endpoint.Builder.UseNamed` labels
+  middleware and `Builder.Describe` returns the chain in application order;
+  the built-in `With*` shortcuts record labels automatically. Startup logs
+  can now print the assembled chain.
+- Startup-time request validation: `transporthttp.ValidateQueryStruct[T]`
+  checks query/path request struct tags and supported field types at
+  assembly, surfacing unsupported types at startup instead of the first
+  request.
+
 ## [2.4.4] - 2026-08-22
 
 ### Added

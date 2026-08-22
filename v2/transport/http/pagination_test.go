@@ -4,7 +4,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
@@ -96,5 +98,46 @@ func TestNewPageResult(t *testing.T) {
 	last := transporthttp.NewPageResult(page, 20, items)
 	if last.HasNext {
 		t.Error("page 2 of 20 items with size 10 is the last page")
+	}
+}
+
+type validListRequest struct {
+	Status   string `form:"status"`
+	Page     int    `form:"page"`
+	Size     int    `form:"size"`
+	Since    time.Time
+	Interval time.Duration
+	Tags     []string `form:"tags"`
+}
+
+func TestValidateQueryStruct_Valid(t *testing.T) {
+	if err := transporthttp.ValidateQueryStruct[validListRequest](); err != nil {
+		t.Fatalf("valid request should pass: %v", err)
+	}
+}
+
+type invalidListRequest struct {
+	Status string `form:"status"`
+	Data   map[string]string
+}
+
+func TestValidateQueryStruct_RejectsUnsupportedTypes(t *testing.T) {
+	err := transporthttp.ValidateQueryStruct[invalidListRequest]()
+	if err == nil {
+		t.Fatal("expected validation error for map field")
+	}
+	if !strings.Contains(err.Error(), "Data") {
+		t.Errorf("error should name the field: %v", err)
+	}
+}
+
+type skippedFieldRequest struct {
+	Status  string `form:"status"`
+	Ignored func() `form:"-"`
+}
+
+func TestValidateQueryStruct_SkipsDashTaggedFields(t *testing.T) {
+	if err := transporthttp.ValidateQueryStruct[skippedFieldRequest](); err != nil {
+		t.Fatalf("skipped field should not fail validation: %v", err)
 	}
 }

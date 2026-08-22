@@ -41,7 +41,7 @@ func Fallback(fallback Endpoint) Middleware {
 
 // WithFallback appends a Fallback middleware to the Builder.
 func (b *Builder) WithFallback(fallback Endpoint) *Builder {
-	return b.Use(Fallback(fallback))
+	return b.UseNamed("fallback", Fallback(fallback))
 }
 
 // BulkheadMiddleware limits concurrent requests per resource key, so one
@@ -107,5 +107,5 @@ func BulkheadMiddleware(maxPerKey int, key func(request any) string) Middleware 
 
 // WithBulkhead appends a BulkheadMiddleware to the Builder.
 func (b *Builder) WithBulkhead(maxPerKey int, key func(request any) string) *Builder {
-	return b.Use(BulkheadMiddleware(maxPerKey, key))
+	return b.UseNamed("bulkhead", BulkheadMiddleware(maxPerKey, key))
 }

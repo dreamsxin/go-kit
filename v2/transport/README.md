@@ -93,6 +93,28 @@ func decodeList(ctx context.Context, r *http.Request) (any, error) {
 File uploads combine the same way: decode form fields with
 `server.ParseMultipartForm` inside the decoder, then read the file part.
 
+**Startup-time struct validation.** Reflection-based query decoding discovers
+unsupported field types at the first request. Validate the struct once at
+assembly so a bad tag or unsupported type fails fast:
+
+```go
+if err := transporthttp.ValidateQueryStruct[ListOrdersRequest](); err != nil {
+    return err
+}
+```
+
+**Envelopes without rewriting the encoder.** `server.WrapJSONResponse` wraps
+the response value while preserving the original response's `StatusCoder` and
+`Headerer` behavior:
+
+```go
+kit.New(":8080", kit.WithJSONServerOptions(
+    server.ServerResponseEncoder(server.WrapJSONResponse(func(response any) any {
+        return envelope{Code: 0, Message: "ok", Data: response}
+    })),
+))
+```
+
 ## Pagination Convention
 
 List endpoints share one pagination contract from `transport/http`:

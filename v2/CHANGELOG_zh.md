@@ -5,6 +5,23 @@
 
 ## [未发布]
 
+### 新增
+
+- gRPC 自定义错误种类映射：`grpcserver.ErrorEncoderWithKindMapper` 先经应用
+  映射解析 gRPC 状态码，未知 kind 回退内置映射；`grpcserver.CodeForErrorKind`
+  公开内置映射用于组合。
+- MCP 交互错误映射：`mcp.RPCCodeForInteractionError` 与
+  `mcp.ErrorMapperForInteraction` 把交互哨兵错误映射为 JSON-RPC 错误码，
+  自定义映射可以基于已记录的契约构建，而不必逆向 handler 实现。
+- 响应组装组合器：`server.WrapJSONResponse` 包装响应值（信封、后处理），
+  同时保留原响应的 StatusCoder 与 Headerer 行为。
+- 中间件链自省：`endpoint.Builder.UseNamed` 为中间件打标签，
+  `Builder.Describe` 按应用顺序返回整条链；内置 `With*` 快捷方式自动记录
+  标签。启动日志现在可以打印组装后的链路。
+- 启动期请求校验：`transporthttp.ValidateQueryStruct[T]` 在装配期检查
+  查询/路径请求结构体的标签与支持的字段类型，把不支持的类型从首个请求
+  前移到启动失败。
+
 ## [2.4.4] - 2026-08-22
 
 ### 新增

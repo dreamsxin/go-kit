@@ -570,6 +570,54 @@ func newError(code int, message, data string) *rpcError {
 	return &rpcError{Code: code, Message: message, Data: data}
 }
 
+// ─── interaction error mapping ──────────────────────────────────────────────
+
+// RPCCodeForInteractionError maps the interaction sentinel errors to their
+// JSON-RPC codes. Unknown errors map to -32603 (internal). Custom mappers use
+// it as the fallback.
+func RPCCodeForInteractionError(err error) int {
+	switch {
+	case errors.Is(err, interaction.ErrInvalidArgument):
+		return -32602
+	case errors.Is(err, interaction.ErrResourceNotFound):
+		return -32002
+	case errors.Is(err, interaction.ErrPromptNotFound):
+		return -32602
+	case errors.Is(err, interaction.ErrToolNotFound):
+		return -32602
+	case errors.Is(err, interaction.ErrUnauthorized):
+		return -32001
+	case errors.Is(err, interaction.ErrSessionNotFound), errors.Is(err, interaction.ErrSessionClosed):
+		return -32602
+	default:
+		return -32603
+	}
+}
+
+// ErrorMapperForInteraction maps an interaction error to a JSON-RPC error with
+// the built-in codes; the error message is used as data. Custom mappers build
+// on it or replace it.
+func ErrorMapperForInteraction(err error) *rpcError {
+	return newError(RPCCodeForInteractionError(err), messageForCode(RPCCodeForInteractionError(err)), err.Error())
+}
+
+func messageForCode(code int) string {
+	switch code {
+	case -32601:
+		return "method not found"
+	case -32602:
+		return "invalid argument"
+	case -32603:
+		return "internal error"
+	case -32001:
+		return "unauthorized"
+	case -32002:
+		return "resource not found"
+	default:
+		return "internal error"
+	}
+}
+
 // ─── wire types ──────────────────────────────────────────────────────────────
 
 type mcpSessionContextKey struct{}
