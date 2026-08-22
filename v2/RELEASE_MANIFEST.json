@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "phase": "core-candidate",
+  "phase": "nested-candidate",
   "releaseDate": "",
   "previousCoreVersion": "v2.5.1",
   "coreVersion": "v2.5.2",
