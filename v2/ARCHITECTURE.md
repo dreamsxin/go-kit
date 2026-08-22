@@ -215,7 +215,7 @@ framework branches for one application.
 
 ## Stability
 
-`v2.4.4` is the release being published from `main` and is the current contract. Releases within `/v2` are backward
+`v2.4.4` is the current published contract. Releases within `/v2` are backward
 compatible: patch releases fix behavior and minor releases add capabilities.
 Incompatible changes require a new major module version. v2 does not carry
 deprecated forwarding APIs; documentation for earlier releases remains
