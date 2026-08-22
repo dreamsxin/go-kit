@@ -17,10 +17,10 @@ Service -> Endpoint -> Transport
 The maintained product line is the independent v2 module under [`v2/`](v2/):
 
 ```text
-github.com/dreamsxin/go-kit/v2@v2.4.2
+github.com/dreamsxin/go-kit/v2@v2.4.3
 ```
 
-`v2.4.2` is the current published release. It is backward
+`v2.4.3` is the release being published from `main`. It is backward
 compatible: additive capabilities and behavioral fixes only. Per-release
 changes are recorded in the [changelog](v2/CHANGELOG.md); upgrade notes live
 in the [migration guide](v2/MIGRATION.md).
@@ -30,8 +30,8 @@ in the [migration guide](v2/MIGRATION.md).
 Install the core framework and generator:
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2@v2.4.2
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.4
+go get github.com/dreamsxin/go-kit/v2@v2.4.3
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.5
 ```
 
 Use the [v2 README](v2/README.md) for installation, component selection,

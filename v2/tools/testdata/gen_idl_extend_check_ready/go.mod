@@ -3,7 +3,7 @@ module example.com/gen_idl_extend_check_ready
 go 1.25.8
 
 require (
-	github.com/dreamsxin/go-kit/v2 v2.4.2
+	github.com/dreamsxin/go-kit/v2 v2.4.3
 	github.com/sony/gobreaker v1.0.0
 	golang.org/x/time v0.11.0
 	gorm.io/gorm v1.31.1

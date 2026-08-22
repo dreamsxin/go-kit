@@ -16,10 +16,10 @@ Service -> Endpoint -> Transport
 当前维护的产品线是 [`v2/`](v2/) 目录下的独立 v2 module：
 
 ```text
-github.com/dreamsxin/go-kit/v2@v2.4.2
+github.com/dreamsxin/go-kit/v2@v2.4.3
 ```
 
-`v2.4.2` 是当前已发布版本，完全向后兼容：全部为新增能力与
+`v2.4.3` 是本次从 `main` 发布的版本，完全向后兼容：全部为新增能力与
 行为修复。各版本变更记录在[变更日志](v2/CHANGELOG.md)；升级说明见
 [升级指南](v2/MIGRATION_zh.md)。
 
@@ -28,8 +28,8 @@ github.com/dreamsxin/go-kit/v2@v2.4.2
 安装核心框架和生成器：
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2@v2.4.2
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.4
+go get github.com/dreamsxin/go-kit/v2@v2.4.3
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.5
 ```
 
 安装、组件选择、代码生成、示例和开发命令统一以 [v2 README](v2/README_zh.md)
