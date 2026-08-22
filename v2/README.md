@@ -26,7 +26,7 @@ This directory is the independent Go module:
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.4.4` is the current published release. It is backward
+`v2.5.0` is the release being published from `main`. It is backward
 compatible: additive capabilities and behavioral fixes only. Per-release
 changes are recorded in [CHANGELOG.md](CHANGELOG.md); upgrade notes live in
 [MIGRATION.md](MIGRATION.md).
@@ -58,7 +58,7 @@ go -C v2 install ./cmd/microgen
 Install the refactored generator from its independently versioned module:
 
 ```bash
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.6
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.7
 ```
 
 The generator CLI, including SQLite schema introspection, installs and runs

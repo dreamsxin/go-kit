@@ -6,6 +6,8 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+## [2.5.0] - Release Candidate
+
 ### Added
 
 - gRPC custom error-kind mapping: `grpcserver.ErrorEncoderWithKindMapper`

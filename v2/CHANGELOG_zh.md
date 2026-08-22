@@ -5,6 +5,8 @@
 
 ## [未发布]
 
+## [2.5.0] - Release Candidate
+
 ### 新增
 
 - gRPC 自定义错误种类映射：`grpcserver.ErrorEncoderWithKindMapper` 先经应用
