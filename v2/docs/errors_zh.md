@@ -10,6 +10,8 @@ go-kit v2 将错误分类（业务）与错误编码（传输层）分离。本�
 `apperror` 在不引入任何传输层类型的情况下对失败进行分类：
 
 ```go
+import "github.com/dreamsxin/go-kit/v2/apperror"
+
 func (s todoService) Get(ctx context.Context, id int64) (Todo, error) {
 	if id <= 0 {
 		return Todo{}, apperror.New(
@@ -32,6 +34,34 @@ func (s todoService) Get(ctx context.Context, id int64) (Todo, error) {
 
 每个 `apperror.Error` 都携带一个稳定的机器可读 `code` 和一个公开 `message`；两者
 都可以安全地暴露给客户端。未分类的错误返回 500，且不泄露内部细节。
+
+### `apperror` 参考
+
+包路径为 `github.com/dreamsxin/go-kit/v2/apperror`，属于核心模块，无额外
+依赖：
+
+| API | 用途 |
+| --- | --- |
+| `New(kind, code, message)` | 创建带稳定 code 与公开 message 的分类错误 |
+| `Wrap(kind, code, message, cause)` | 同上，并保留底层原因供 `errors.Is/As` 使用 |
+| `Error.ErrorKind()` | 传输无关的错误种类 `Kind` |
+| `Error.ErrorCode()` | 稳定的机器可读 code |
+| `Error.PublicMessage()` | 可安全展示给客户端的 message |
+
+错误种类与 HTTP 状态码映射：
+
+| Kind | HTTP 状态码 |
+| --- | --- |
+| `KindInvalidArgument` | 400 |
+| `KindUnauthenticated` | 401 |
+| `KindPermissionDenied` | 403 |
+| `KindNotFound` | 404 |
+| `KindAlreadyExists`、`KindConflict` | 409 |
+| `KindFailedPrecondition` | 412 |
+| `KindResourceExhausted` | 429 |
+| `KindUnavailable` | 503 |
+| `KindDeadlineExceeded` | 504 |
+| `KindInternal` | 500 |
 
 ## 自动状态码映射
 

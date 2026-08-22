@@ -11,6 +11,8 @@ mapping, validation errors, and custom wire formats.
 `apperror` classifies failures without any transport types:
 
 ```go
+import "github.com/dreamsxin/go-kit/v2/apperror"
+
 func (s todoService) Get(ctx context.Context, id int64) (Todo, error) {
 	if id <= 0 {
 		return Todo{}, apperror.New(
@@ -34,6 +36,34 @@ func (s todoService) Get(ctx context.Context, id int64) (Todo, error) {
 Every `apperror.Error` carries a stable machine-readable `code` and a public
 `message`; both are safe to expose to clients. Unclassified errors return 500
 without leaking internals.
+
+### The `apperror` reference
+
+The package is `github.com/dreamsxin/go-kit/v2/apperror`, part of the core
+module with no extra dependency:
+
+| API | Purpose |
+| --- | --- |
+| `New(kind, code, message)` | create a classified error with a stable code and a public message |
+| `Wrap(kind, code, message, cause)` | same, preserving the underlying cause for `errors.Is/As` |
+| `Error.ErrorKind()` | the transport-neutral `Kind` |
+| `Error.ErrorCode()` | the stable machine-readable code |
+| `Error.PublicMessage()` | the message safe to show clients |
+
+Kinds and their HTTP mapping:
+
+| Kind | HTTP status |
+| --- | --- |
+| `KindInvalidArgument` | 400 |
+| `KindUnauthenticated` | 401 |
+| `KindPermissionDenied` | 403 |
+| `KindNotFound` | 404 |
+| `KindAlreadyExists`, `KindConflict` | 409 |
+| `KindFailedPrecondition` | 412 |
+| `KindResourceExhausted` | 429 |
+| `KindUnavailable` | 503 |
+| `KindDeadlineExceeded` | 504 |
+| `KindInternal` | 500 |
 
 ## Automatic status mapping
 

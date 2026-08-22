@@ -15,6 +15,9 @@ Service -> Endpoint -> Transport
 Use only the packages you need, or use `microgen` to generate a complete,
 runnable service from a Go interface, Protobuf contract, or database schema.
 
+**Read the [user manual](MANUAL.md) and the [book](docs/index.md) for the
+complete guide and tutorials.**
+
 ## Status
 
 This directory is the independent Go module:

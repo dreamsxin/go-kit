@@ -14,6 +14,8 @@ Service -> Endpoint -> Transport
 可以只选取需要的包，也可以用 `microgen` 从 Go 接口、Protobuf 契约或数据库
 结构生成完整的可运行服务。
 
+**阅读[使用手册](MANUAL_zh.md)与[书本](docs/index_zh.md)获取完整指南与教程。**
+
 ## 当前状态
 
 v2 是独立 Go module：
