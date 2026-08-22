@@ -26,7 +26,7 @@ This directory is the independent Go module:
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.5.0` is the release being published from `main`. It is backward
+`v2.5.0` is the current published release. It is backward
 compatible: additive capabilities and behavioral fixes only. Per-release
 changes are recorded in [CHANGELOG.md](CHANGELOG.md); upgrade notes live in
 [MIGRATION.md](MIGRATION.md).
