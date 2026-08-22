@@ -6,6 +6,17 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+### Added
+
+- Custom body formats over HTTP: `server.RawBodyCodec` and
+  `server.RawBodyCodecWithMaxBytes` turn two pure functions into the
+  transport codec (bounded body, preserved StatusCoder/Headerer), and
+  `server.TextErrorEncoder` keeps error responses in the route's format
+  instead of defaulting to JSON. apperror is optional on such routes; the
+  framework forces no error model.
+- `examples/customcodec`: a runnable custom-format service (length-prefixed
+  binary body over HTTP, format-matched error responses).
+
 ## [2.5.1] - 2026-08-22
 
 ### Added

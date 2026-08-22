@@ -5,6 +5,16 @@
 
 ## [未发布]
 
+### 新增
+
+- HTTP 上的自定义 body 格式：`server.RawBodyCodec` 与
+  `server.RawBodyCodecWithMaxBytes` 把两个纯函数变成传输编解码器（受限
+  请求体、保留 StatusCoder/Headerer），`server.TextErrorEncoder` 让错误
+  响应与路由格式一致，而不是默认 JSON。这类路由上的 apperror 是可选项；
+  框架不强制任何错误模型。
+- `examples/customcodec`：可运行的自定义格式服务（HTTP 上的长度前缀
+  二进制 body，错误响应同格式）。
+
 ## [2.5.1] - 2026-08-22
 
 ### 新增

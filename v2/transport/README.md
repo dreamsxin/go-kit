@@ -78,6 +78,35 @@ both protocols, because the binding carries the already-composed endpoint.
 The full runnable test (a real HTTP server plus a real gRPC server over
 bufconn, driven by one binding) is `integrations/grpc/dual_protocol_test.go`.
 
+## Custom Body Formats
+
+HTTP routes are not JSON-only. Two pure functions become the transport codec;
+the error encoder shares the content type so error responses match the format:
+
+```go
+decode, encode := server.RawBodyCodec(
+    unmarshalProto,   // func([]byte) (any, error)
+    marshalProto,     // func(any) ([]byte, error)
+    "application/x-protobuf",
+)
+svc.Handle("POST /shout", server.NewServer(ep, decode, encode,
+    server.ServerErrorEncoder(server.TextErrorEncoder("application/x-protobuf")),
+))
+```
+
+`RawBodyCodec` bounds the body (1 MiB by default, configurable) and preserves
+`StatusCoder`/`Headerer` on the response. `TextErrorEncoder` keeps 4xx
+messages public and 5xx opaque, in the route's format instead of JSON.
+`RawBodyCodecWithMaxBytes` takes an explicit limit.
+
+> [!NOTE]
+> apperror is optional here. A custom route can classify nothing and let its
+> own error encoder decide statuses and bodies; the framework does not force
+> any error model. apperror exists to make the common HTTP/gRPC mappings
+> automatic when you want them.
+
+The runnable walkthrough is [examples/customcodec](../examples/README.md).
+
 ## Composition And Nesting
 
 Components compose in two clearly separated styles.

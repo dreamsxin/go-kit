@@ -78,6 +78,34 @@ HTTP 侧无需额外工作，因为 `Binding.TypedEndpoint()` 返回 JSON 服务
 完整的可运行测试（一个真实 HTTP 服务器加一个 bufconn 上的真实 gRPC
 服务器，由同一个绑定驱动）见 `integrations/grpc/dual_protocol_test.go`。
 
+## 自定义 Body 格式
+
+HTTP 路由不是只能 JSON。两个纯函数即可构成传输编解码器；错误编码器
+共享同一内容类型，使错误响应与格式保持一致：
+
+```go
+decode, encode := server.RawBodyCodec(
+    unmarshalProto,   // func([]byte) (any, error)
+    marshalProto,     // func(any) ([]byte, error)
+    "application/x-protobuf",
+)
+svc.Handle("POST /shout", server.NewServer(ep, decode, encode,
+    server.ServerErrorEncoder(server.TextErrorEncoder("application/x-protobuf")),
+))
+```
+
+`RawBodyCodec` 限制请求体（默认 1 MiB，可配置），并保留响应上的
+`StatusCoder`/`Headerer` 行为。`TextErrorEncoder` 保持 4xx 消息公开、
+5xx 不透明，但以路由格式而非 JSON 输出。`RawBodyCodecWithMaxBytes` 接受
+显式上限。
+
+> [!NOTE]
+> 这里的 apperror 是可选项。自定义路由可以完全不做分类，让自己的错误
+> 编码器决定状态码与响应体；框架不强制任何错误模型。apperror 的存在是
+> 为了让常见的 HTTP/gRPC 映射在你需要时自动生效。
+
+可运行的演练见 [examples/customcodec](../examples/README_zh.md)。
+
 ## 组合与嵌套
 
 组件按两种明确的风格组合。

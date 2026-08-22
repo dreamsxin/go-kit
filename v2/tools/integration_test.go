@@ -84,6 +84,17 @@ func TestAllExamples(t *testing.T) {
 			},
 		},
 		{
+			name: "customcodec",
+			path: "customcodec",
+			port: 8088,
+			run:  true,
+			smokeTests: []smokeTest{
+				{method: "POST", path: "/shout", body: "\x05smoke", rawContentType: "application/x-custom", rawBody: true, want: "HELLO, smoke!"},
+				{method: "POST", path: "/shout", body: "", rawContentType: "application/x-custom", wantStatus: http.StatusBadRequest},
+				{method: "GET", path: "/health", want: "ok"},
+			},
+		},
+		{
 			name: "todosvc",
 			path: "todosvc",
 			port: 8086,
@@ -166,12 +177,22 @@ type smokeTest struct {
 
 	// wantStatus defaults to http.StatusOK when zero.
 	wantStatus int
+
+	// rawContentType overrides the JSON content type for non-JSON formats.
+	rawContentType string
+
+	// rawBody asserts the raw response bytes instead of JSON-decoding them.
+	rawBody bool
 }
 
 func (st smokeTest) run(t *testing.T, baseUrl string) {
 	url := baseUrl + st.path
 	req, _ := http.NewRequest(st.method, url, strings.NewReader(st.body))
-	req.Header.Set("Content-Type", "application/json")
+	contentType := st.rawContentType
+	if contentType == "" {
+		contentType = "application/json"
+	}
+	req.Header.Set("Content-Type", contentType)
 	for k, v := range st.headers {
 		req.Header.Set(k, v)
 	}
@@ -194,6 +215,14 @@ func (st smokeTest) run(t *testing.T, baseUrl string) {
 		return
 	}
 	if st.want == "" {
+		return
+	}
+
+	if st.rawBody {
+		raw, _ := io.ReadAll(resp.Body)
+		if !strings.Contains(string(raw), st.want) {
+			t.Errorf("%s %s: raw body %q does not contain %q", st.method, st.path, raw, st.want)
+		}
 		return
 	}
 
