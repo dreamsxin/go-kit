@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-const defaultGoKitVersion = "v2.5.1"
+const defaultGoKitVersion = "v2.5.2"
 
 // Normalize returns options with derived defaults filled in.
 func (opt Options) Normalize() Options {

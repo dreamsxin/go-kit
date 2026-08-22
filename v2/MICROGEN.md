@@ -4,11 +4,11 @@ English | [简体中文](MICROGEN_zh.md)
 `microgen` generates runnable Go services from a contract. It is the recommended
 entry point for a new service; runtime packages remain independently usable.
 
-This guide covers `microgen` `v0.2.8`, the independently versioned generator
+This guide covers `microgen` `v0.2.9`, the independently versioned generator
 module installed by:
 
 ```bash
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.8
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.9
 ```
 
 ## Install

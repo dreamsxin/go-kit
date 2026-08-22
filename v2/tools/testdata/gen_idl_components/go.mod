@@ -3,7 +3,7 @@ module example.com/gen_idl_components
 go 1.25.8
 
 require (
-	github.com/dreamsxin/go-kit/v2 v2.5.1
+	github.com/dreamsxin/go-kit/v2 v2.5.2
 	github.com/sony/gobreaker v1.0.0
 	github.com/swaggest/swgui v1.8.9
 	golang.org/x/time v0.15.0

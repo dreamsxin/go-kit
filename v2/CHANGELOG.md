@@ -6,6 +6,8 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+## [2.5.2] - Release Candidate
+
 ### Added
 
 - Custom body formats over HTTP: `server.RawBodyCodec` and

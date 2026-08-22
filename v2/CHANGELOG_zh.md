@@ -5,6 +5,8 @@
 
 ## [未发布]
 
+## [2.5.2] - Release Candidate
+
 ### 新增
 
 - HTTP 上的自定义 body 格式：`server.RawBodyCodec` 与
