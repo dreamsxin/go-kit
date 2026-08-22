@@ -96,29 +96,48 @@ func NewJSONClientWithMaxResponseBodyBytes[Resp any](method, rawURL string, maxR
 	if err != nil {
 		return nil, fmt.Errorf("NewJSONClient: invalid URL %q: %w", rawURL, err)
 	}
-	dec := func(_ context.Context, r *http.Response) (any, error) {
-		if r.StatusCode < http.StatusOK || r.StatusCode >= http.StatusMultipleChoices {
-			return nil, newHTTPStatusError(r)
-		}
-		body, err := io.ReadAll(io.LimitReader(r.Body, maxResponseBodyBytes+1))
-		if err != nil {
-			return nil, err
-		}
-		if int64(len(body)) > maxResponseBodyBytes {
-			return nil, &ResponseBodyTooLargeError{Limit: maxResponseBodyBytes}
-		}
-		var resp Resp
-		if err := json.Unmarshal(body, &resp); err != nil {
-			return nil, err
-		}
-		return resp, nil
-	}
+	dec := DecodeJSONResponseWithMaxBodyBytes[Resp](maxResponseBodyBytes)
 	encoder := EncodeJSONRequest
 	switch strings.ToUpper(method) {
 	case http.MethodGet, http.MethodHead:
 		encoder = EncodeQueryRequest
 	}
 	return NewClient(method, tgt, encoder, dec, options...).Endpoint(), nil
+}
+
+// DecodeJSONResponse is the default JSON response decoder used by
+// NewJSONClient. It rejects non-2xx responses with HTTPStatusError and caps
+// successful bodies at DefaultMaxJSONResponseBytes. Use it as a building
+// block when composing a custom client with NewExplicitClient, or wrap it to
+// change only part of the behavior.
+func DecodeJSONResponse[Resp any](_ context.Context, r *http.Response) (any, error) {
+	return decodeJSONResponse[Resp](r, DefaultMaxJSONResponseBytes)
+}
+
+// DecodeJSONResponseWithMaxBodyBytes is DecodeJSONResponse with an explicit
+// successful-body limit.
+func DecodeJSONResponseWithMaxBodyBytes[Resp any](maxResponseBodyBytes int64) DecodeResponseFunc {
+	return func(_ context.Context, r *http.Response) (any, error) {
+		return decodeJSONResponse[Resp](r, maxResponseBodyBytes)
+	}
+}
+
+func decodeJSONResponse[Resp any](r *http.Response, maxResponseBodyBytes int64) (any, error) {
+	if r.StatusCode < http.StatusOK || r.StatusCode >= http.StatusMultipleChoices {
+		return nil, newHTTPStatusError(r)
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxResponseBodyBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > maxResponseBodyBytes {
+		return nil, &ResponseBodyTooLargeError{Limit: maxResponseBodyBytes}
+	}
+	var resp Resp
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func newHTTPStatusError(r *http.Response) error {

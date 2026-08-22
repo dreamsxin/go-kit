@@ -121,6 +121,26 @@ func myErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 
 可运行的演练见 [examples/envelope](../examples/README_zh.md)。
 
+## 自定义错误种类与状态码
+
+应用可以定义自己的 `apperror.Kind` 值（kind 是字符串）。用
+`JSONErrorEncoderWithKindMapper` 一次性注册状态码映射；未知 kind 回退到
+内置映射：
+
+```go
+svc, err := kit.New(":8080", kit.WithJSONServerOptions(
+	server.ServerErrorEncoder(server.JSONErrorEncoderWithKindMapper(func(k apperror.Kind) int {
+		if k == "payment_failed" {
+			return http.StatusPaymentRequired
+		}
+		return 0 // 回退到内置映射
+	})),
+))
+```
+
+自定义编码器需要与内置映射组合而不是替换时，`server.HTTPStatusForErrorKind(kind)`
+公开内置映射。
+
 ## 经验法则
 
 - 业务代码用 `apperror` 分类；传输层映射状态码；绝不向客户端泄露内部细节。

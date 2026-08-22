@@ -232,6 +232,8 @@ HTTP。HTTP 传输层将应用错误类别映射到状态码，并使用其稳�
 - `client.NewJSONClientWithMaxResponseBodyBytes`
 - `client.NewJSONClientWithTimeout`
 - `client.EncodeJSONRequest`
+- `client.DecodeJSONResponse`
+- `client.DecodeJSONResponseWithMaxBodyBytes`
 
 `NewJSONClient` 将 GET/HEAD 请求编码为路径/查询参数，并将请求体保持为空。
 成功的 JSON 响应默认上限为 4 MiB；当需要刻意采用更大的契约时，使用
@@ -246,6 +248,10 @@ HTTP。HTTP 传输层将应用错误类别映射到状态码，并使用其稳�
 - 自定义请求编码器
 - 自定义响应解码器
 - 自定义 HTTP 客户端注入
+
+`DecodeJSONResponse` 是默认解码器的导出形式，使用 `NewExplicitClient` 组装
+自定义客户端（或在其外层包一层）时，可以复用同样的状态处理与响应体限制，
+而无需重新实现。
 
 最小示例：
 

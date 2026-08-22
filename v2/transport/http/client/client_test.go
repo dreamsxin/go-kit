@@ -512,3 +512,45 @@ func TestNewClient_PanicsOnNilEssentialParameters(t *testing.T) {
 		})
 	}
 }
+
+type decodeTestResp struct {
+	Message string `json:"message"`
+}
+
+func TestDecodeJSONResponse_ExportedBuildingBlock(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(`{"message":"ok"}`)),
+	}
+	v, err := httpclient.DecodeJSONResponse[decodeTestResp](context.Background(), resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.(decodeTestResp).Message != "ok" {
+		t.Errorf("decoded: %v", v)
+	}
+
+	// Non-2xx surfaces HTTPStatusError.
+	errResp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Status:     "400 Bad Request",
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader(`{"code":"bad"}`)),
+	}
+	_, err = httpclient.DecodeJSONResponse[decodeTestResp](context.Background(), errResp)
+	var statusErr *httpclient.HTTPStatusError
+	if !errors.As(err, &statusErr) || statusErr.StatusCode != http.StatusBadRequest {
+		t.Fatalf("want HTTPStatusError 400, got %v", err)
+	}
+}
+
+func TestDecodeJSONResponseWithMaxBodyBytes_LimitsBody(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(`{"message":"this is definitely longer than sixteen bytes"}`)),
+	}
+	_, err := httpclient.DecodeJSONResponseWithMaxBodyBytes[decodeTestResp](16)(context.Background(), resp)
+	if !errors.Is(err, httpclient.ErrResponseBodyTooLarge) {
+		t.Fatalf("want ErrResponseBodyTooLarge, got %v", err)
+	}
+}

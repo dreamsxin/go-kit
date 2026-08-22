@@ -86,3 +86,43 @@ func TestHTTPStatusForErrorReusesFrameworkMapping(t *testing.T) {
 		}
 	}
 }
+
+func TestJSONErrorEncoderWithKindMapper(t *testing.T) {
+	encoder := server.JSONErrorEncoderWithKindMapper(func(k apperror.Kind) int {
+		if k == "payment_failed" {
+			return http.StatusPaymentRequired
+		}
+		return 0
+	})
+
+	// Custom kind gets the custom status.
+	rec := httptest.NewRecorder()
+	err := apperror.New(apperror.Kind("payment_failed"), "payment.failed", "payment failed")
+	encoder(context.Background(), err, rec)
+	if rec.Code != http.StatusPaymentRequired {
+		t.Fatalf("status: got %d, want 402", rec.Code)
+	}
+
+	// Built-in kinds fall back to the default mapping.
+	rec2 := httptest.NewRecorder()
+	encoder(context.Background(), apperror.New(apperror.KindNotFound, "x", "missing"), rec2)
+	if rec2.Code != http.StatusNotFound {
+		t.Fatalf("built-in kind: got %d, want 404", rec2.Code)
+	}
+
+	// Unclassified errors stay 500 and opaque.
+	rec3 := httptest.NewRecorder()
+	encoder(context.Background(), errors.New("plain"), rec3)
+	if rec3.Code != http.StatusInternalServerError {
+		t.Fatalf("unclassified: got %d, want 500", rec3.Code)
+	}
+}
+
+func TestJSONErrorEncoderWithKindMapper_NilMapper(t *testing.T) {
+	encoder := server.JSONErrorEncoderWithKindMapper(nil)
+	rec := httptest.NewRecorder()
+	encoder(context.Background(), apperror.New(apperror.KindNotFound, "x", "missing"), rec)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("nil mapper should fall back, got %d", rec.Code)
+	}
+}

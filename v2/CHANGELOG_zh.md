@@ -5,6 +5,17 @@
 
 ## [未发布]
 
+### 新增
+
+- 自定义错误种类状态码映射：`server.JSONErrorEncoderWithKindMapper` 先经
+  应用映射解析 HTTP 状态码，未知 kind 回退到内置映射；
+  `server.HTTPStatusForErrorKind` 公开内置映射用于组合。应用现在可以在
+  不替换整个错误编码器的情况下，为自定义 `apperror.Kind` 定义自定义
+  状态码。
+- `client.DecodeJSONResponse` 与 `client.DecodeJSONResponseWithMaxBodyBytes`
+  导出默认 JSON 响应解码器，使用 `NewExplicitClient` 组装自定义客户端时
+  可复用相同的状态处理与响应体限制。
+
 ## [2.4.3] - 2026-08-22
 
 ## [2.4.2] - 2026-08-23

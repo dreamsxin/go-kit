@@ -237,6 +237,8 @@ Recommended entry points:
 - `client.NewJSONClientWithMaxResponseBodyBytes`
 - `client.NewJSONClientWithTimeout`
 - `client.EncodeJSONRequest`
+- `client.DecodeJSONResponse`
+- `client.DecodeJSONResponseWithMaxBodyBytes`
 
 `NewJSONClient` encodes GET/HEAD requests as path/query parameters and keeps the
 request body empty. Successful JSON responses are capped at 4 MiB by default;
@@ -252,6 +254,10 @@ Primary extension points:
 - custom request encoders
 - custom response decoders
 - custom HTTP client injection
+
+`DecodeJSONResponse` is the default decoder exported as a building block, so a
+custom client composed with `NewExplicitClient` (or a custom wrapper around it)
+reuses the same status handling and body limit instead of reimplementing them.
 
 Minimal example:
 

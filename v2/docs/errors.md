@@ -125,6 +125,27 @@ func myErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 
 The runnable walkthrough is [examples/envelope](../examples/README.md).
 
+## Custom error kinds with custom statuses
+
+The application can define its own `apperror.Kind` values (the kind is a
+string). Register the status mapping once with
+`JSONErrorEncoderWithKindMapper`; unknown kinds fall back to the built-in
+mapping:
+
+```go
+svc, err := kit.New(":8080", kit.WithJSONServerOptions(
+	server.ServerErrorEncoder(server.JSONErrorEncoderWithKindMapper(func(k apperror.Kind) int {
+		if k == "payment_failed" {
+			return http.StatusPaymentRequired
+		}
+		return 0 // fall back to the built-in mapping
+	})),
+))
+```
+
+`server.HTTPStatusForErrorKind(kind)` exposes the built-in mapping when a
+custom encoder wants to compose with it instead of replacing it.
+
 ## Rules of thumb
 
 - Business code classifies with `apperror`; transports map statuses; never

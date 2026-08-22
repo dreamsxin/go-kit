@@ -6,6 +6,18 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+### Added
+
+- Custom error-kind status mapping: `server.JSONErrorEncoderWithKindMapper`
+  resolves the HTTP status through an application mapper first and falls back
+  to the built-in mapping for unknown kinds;
+  `server.HTTPStatusForErrorKind` exposes the built-in mapping for
+  composition. Applications can now define their own `apperror.Kind` values
+  with custom statuses without replacing the whole error encoder.
+- `client.DecodeJSONResponse` and `client.DecodeJSONResponseWithMaxBodyBytes`
+  export the default JSON response decoder, so a custom client composed with
+  `NewExplicitClient` reuses the same status handling and body limit.
+
 ## [2.4.3] - 2026-08-22
 
 ## [2.4.2] - 2026-08-23

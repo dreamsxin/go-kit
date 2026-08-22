@@ -141,6 +141,86 @@ func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 //	server.NewJSONServer[Req](handler,
 //	    server.ServerErrorEncoder(server.JSONErrorEncoder),
 //	)
+//
+// JSONErrorEncoderWithKindMapper returns an ErrorEncoder like JSONErrorEncoder
+// but resolves the HTTP status through the given kind mapper first. The mapper
+// receives the classified apperror kind; return a non-positive status to fall
+// back to the built-in mapping. Unclassified and non-apperror errors still use
+// the built-in rules (StatusCoder, ValidationError, rejection errors).
+//
+// Use it when the application defines its own error kinds with custom
+// statuses:
+//
+//	server.ServerErrorEncoder(server.JSONErrorEncoderWithKindMapper(func(k apperror.Kind) int {
+//	    if k == "payment_failed" { return http.StatusPaymentRequired }
+//	    return 0 // fall back to the built-in mapping
+//	}))
+func JSONErrorEncoderWithKindMapper(mapper func(apperror.Kind) int) ErrorEncoder {
+	if mapper == nil {
+		return JSONErrorEncoder
+	}
+	return func(ctx context.Context, err error, w http.ResponseWriter) {
+		if status := statusWithMapper(err, mapper); status > 0 {
+			encodeJSONErrorWithStatus(ctx, err, w, status)
+			return
+		}
+		encodeJSONError(ctx, err, w)
+	}
+}
+
+func statusWithMapper(err error, mapper func(apperror.Kind) int) int {
+	var kinder apperror.Kinder
+	if !errors.As(err, &kinder) {
+		return 0
+	}
+	status := mapper(kinder.ErrorKind())
+	if status < 100 || status > 999 {
+		return 0
+	}
+	return status
+}
+
+func encodeJSONErrorWithStatus(ctx context.Context, err error, w http.ResponseWriter, status int) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	var h transporthttp.Headerer
+	if errors.As(err, &h) {
+		for k, vals := range h.Headers() {
+			for _, v := range vals {
+				w.Header().Add(k, v)
+			}
+		}
+	}
+
+	message := http.StatusText(status)
+	if message == "" {
+		message = "HTTP error"
+	}
+	var pm transporthttp.PublicMessager
+	if errors.As(err, &pm) && pm.PublicMessage() != "" {
+		message = pm.PublicMessage()
+	} else if status < http.StatusInternalServerError && err != nil {
+		message = err.Error()
+	}
+
+	errorCode := defaultErrorCode(status)
+	var verr *endpoint.ValidationError
+	if errors.As(err, &verr) {
+		errorCode = "bad_request.validation"
+	}
+	var ec transporthttp.ErrorCoder
+	if errors.As(err, &ec) && ec.ErrorCode() != "" {
+		errorCode = ec.ErrorCode()
+	}
+
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(ErrorResponse{
+		Code:      errorCode,
+		Message:   message,
+		RequestID: endpoint.RequestIDFromContext(ctx),
+	})
+}
+
 var JSONErrorEncoder ErrorEncoder = func(ctx context.Context, err error, w http.ResponseWriter) {
 	encodeJSONError(ctx, err, w)
 }
@@ -218,6 +298,12 @@ func httpStatus(err error) int {
 		return statusForErrorKind(kinder.ErrorKind())
 	}
 	return http.StatusInternalServerError
+}
+
+// HTTPStatusForErrorKind returns the HTTP status the built-in encoders use for
+// an apperror kind. Custom kind mappers fall back to it for unknown kinds.
+func HTTPStatusForErrorKind(kind apperror.Kind) int {
+	return statusForErrorKind(kind)
 }
 
 func statusForErrorKind(kind apperror.Kind) int {
