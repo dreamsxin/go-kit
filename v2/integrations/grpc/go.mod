@@ -3,7 +3,7 @@ module github.com/dreamsxin/go-kit/v2/integrations/grpc
 go 1.25.8
 
 require (
-	github.com/dreamsxin/go-kit/v2 v2.5.0
+	github.com/dreamsxin/go-kit/v2 v2.5.1
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
 )
