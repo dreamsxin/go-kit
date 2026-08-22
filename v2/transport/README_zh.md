@@ -41,6 +41,43 @@ gRPC 是一个可选模块，包含两个公开区域：
 - `transport/http`
 - `integrations/grpc`
 
+## 双协议绑定
+
+同一个业务 endpoint 可以同时服务 HTTP 与 gRPC，无需重复装配。
+`transport.Binding[Req, Resp]` 承载一次构建好的中间件端点；每个协议只
+拥有自己的线上编解码：
+
+```go
+binding := transport.Binding[HelloRequest, HelloResponse]{
+    Endpoint: endpoint.TypedEndpoint[HelloRequest, HelloResponse](sayHello).Wrap(),
+}
+
+// HTTP：一次调用完成严格类型化 JSON。
+kit.HandleJSONTyped(svc, "POST /hello", binding.TypedEndpoint())
+
+// gRPC：protobuf 编解码把线上消息映射为领域类型。
+srv := grpcserver.NewServer(
+    binding.Endpoint,
+    func(_ context.Context, m any) (any, error) {
+        r := m.(*pb.HelloRequest)
+        return HelloRequest{Name: r.Name}, nil
+    },
+    func(_ context.Context, resp any) (any, error) {
+        r := resp.(HelloResponse)
+        return &pb.HelloReply{Message: r.Message}, nil
+    },
+)
+pb.RegisterGreeterServer(grpcComponent.Server(), srv)
+```
+
+HTTP 侧无需额外工作，因为 `Binding.TypedEndpoint()` 返回 JSON 服务器接受
+的类型化端点。gRPC 侧是一次 `grpcserver.NewServer` 调用加两个 protobuf
+映射函数。同一条 endpoint 中间件链（超时、指标、熔断等）在两个协议上
+运行，因为绑定承载的是已组合好的端点。
+
+完整的可运行测试（一个真实 HTTP 服务器加一个 bufconn 上的真实 gRPC
+服务器，由同一个绑定驱动）见 `integrations/grpc/dual_protocol_test.go`。
+
 ## 组合与嵌套
 
 组件按两种明确的风格组合。

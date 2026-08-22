@@ -6,6 +6,14 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+### Added
+
+- Dual-protocol binding: `transport.Binding[Req, Resp]` carries one
+  middleware-built endpoint and serves HTTP and gRPC without duplicated
+  assembly. `Binding.TypedEndpoint()` feeds the typed JSON servers directly;
+  `grpcserver.NewServer` with the two protobuf mapping functions covers the
+  gRPC side. The same middleware chain runs on both protocols.
+
 ## [2.5.0] - 2026-08-22
 
 ### Added

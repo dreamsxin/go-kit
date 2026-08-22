@@ -40,6 +40,44 @@ Common helpers also live under:
 - `transport/http`
 - `integrations/grpc`
 
+## Dual-Protocol Binding
+
+One business endpoint can serve HTTP and gRPC without duplicated assembly.
+`transport.Binding[Req, Resp]` carries the middleware-built endpoint once;
+each protocol then owns only its wire codec:
+
+```go
+binding := transport.Binding[HelloRequest, HelloResponse]{
+    Endpoint: endpoint.TypedEndpoint[HelloRequest, HelloResponse](sayHello).Wrap(),
+}
+
+// HTTP: strict typed JSON in one call.
+kit.HandleJSONTyped(svc, "POST /hello", binding.TypedEndpoint())
+
+// gRPC: the protobuf-facing codec maps wire messages to the domain types.
+srv := grpcserver.NewServer(
+    binding.Endpoint,
+    func(_ context.Context, m any) (any, error) {
+        r := m.(*pb.HelloRequest)
+        return HelloRequest{Name: r.Name}, nil
+    },
+    func(_ context.Context, resp any) (any, error) {
+        r := resp.(HelloResponse)
+        return &pb.HelloReply{Message: r.Message}, nil
+    },
+)
+pb.RegisterGreeterServer(grpcComponent.Server(), srv)
+```
+
+The HTTP side needs no extra work because `Binding.TypedEndpoint()` returns
+the typed endpoint the JSON servers accept. The gRPC side is one
+`grpcserver.NewServer` call with the two protobuf mapping functions. The same
+`endpoint` middleware chain (timeout, metrics, circuit breaker, ...) runs on
+both protocols, because the binding carries the already-composed endpoint.
+
+The full runnable test (a real HTTP server plus a real gRPC server over
+bufconn, driven by one binding) is `integrations/grpc/dual_protocol_test.go`.
+
 ## Composition And Nesting
 
 Components compose in two clearly separated styles.

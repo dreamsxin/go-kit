@@ -5,6 +5,13 @@
 
 ## [未发布]
 
+### 新增
+
+- 双协议绑定：`transport.Binding[Req, Resp]` 承载一次构建好的中间件端点，
+  同时服务 HTTP 与 gRPC，无需重复装配。`Binding.TypedEndpoint()` 直接供
+  类型化 JSON 服务器使用；gRPC 侧用 `grpcserver.NewServer` 加两个 protobuf
+  映射函数即可。同一条中间件链在两个协议上运行。
+
 ## [2.5.0] - 2026-08-22
 
 ### 新增
