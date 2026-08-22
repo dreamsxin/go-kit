@@ -3,7 +3,7 @@ module github.com/dreamsxin/go-kit/v2/observability/otel
 go 1.25.8
 
 require (
-	github.com/dreamsxin/go-kit/v2 v2.4.4
+	github.com/dreamsxin/go-kit/v2 v2.5.0
 	go.opentelemetry.io/otel v1.39.0
 	go.opentelemetry.io/otel/metric v1.39.0
 	go.opentelemetry.io/otel/sdk v1.39.0
