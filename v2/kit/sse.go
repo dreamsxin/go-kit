@@ -2,132 +2,86 @@ package kit
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"log"
 	"net/http"
-	"strings"
+
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
-// SSEWriter writes Server-Sent Events to an HTTP response. The zero value is
-// not usable; HandleSSE creates one and passes it to the stream function.
+// HandleSSE registers a raw HTTP handler for a Server-Sent Events stream at
+// pattern. Like Service.Handle, this is an escape hatch: endpoint middleware
+// does not apply. Prefer HandleSSETyped for streams that should participate
+// in the service -> endpoint -> transport chain.
+func HandleSSE(s *Service, pattern string, handler http.Handler) {
+	s.Handle(pattern, handler)
+}
+
+// HandleSSETyped registers a typed Server-Sent Events stream at pattern. The
+// stream participates in the endpoint middleware chain: middleware installed
+// through WithEndpointMiddleware (request ID, tracing, metrics, timeout,
+// authentication) wraps the whole stream lifecycle as one request. Decode
+// failures happen before the SSE headers are written, so they map to regular
+// error responses; middleware rejections are rendered with the JSON error
+// encoder. Errors returned once streaming has started can only be reported
+// through the server error handler; see server.NewSSEServer for the hook
+// semantics.
 //
-// Methods are not safe for concurrent use: event writes from multiple
-// goroutines must be serialized by the caller.
-type SSEWriter struct {
-	w       http.ResponseWriter
-	flusher http.Flusher
-}
-
-// Data writes one unnamed data event. Multi-line data is written as one
-// "data:" line per line, as required by the SSE format.
-func (sw *SSEWriter) Data(data string) error {
-	return sw.writeEvent("", data)
-}
-
-// Event writes one named event.
-func (sw *SSEWriter) Event(name, data string) error {
-	return sw.writeEvent(name, data)
-}
-
-// EventJSON marshals v as JSON and writes it as one named event.
-func (sw *SSEWriter) EventJSON(name string, v any) error {
-	payload, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-	return sw.writeEvent(name, string(payload))
-}
-
-// Comment writes a comment line. Comments are ignored by clients and are the
-// standard keep-alive heartbeat for streams behind proxies that time out
-// idle connections.
-func (sw *SSEWriter) Comment(text string) error {
-	_, err := fmt.Fprintf(sw.w, ": %s\n", text)
-	if err != nil {
-		return err
-	}
-	sw.flusher.Flush()
-	return nil
-}
-
-// Retry advises clients to wait the given milliseconds before reconnecting
-// after a dropped connection.
-func (sw *SSEWriter) Retry(milliseconds int) error {
-	_, err := fmt.Fprintf(sw.w, "retry: %d\n", milliseconds)
-	if err != nil {
-		return err
-	}
-	sw.flusher.Flush()
-	return nil
-}
-
-func (sw *SSEWriter) writeEvent(name, data string) error {
-	var b strings.Builder
-	if name != "" {
-		b.WriteString("event: " + name + "\n")
-	}
-	for i, line := range strings.Split(data, "\n") {
-		if i > 0 {
-			b.WriteString("\n")
-		}
-		b.WriteString("data: " + line)
-	}
-	b.WriteString("\n\n")
-	if _, err := sw.w.Write([]byte(b.String())); err != nil {
-		return err
-	}
-	sw.flusher.Flush()
-	return nil
-}
-
-// HandleSSE registers a Server-Sent Events stream at pattern. The stream
-// function receives the request context, which is cancelled when the client
-// disconnects, and an SSEWriter that flushes after every event.
-//
-// HandleSSE is a raw HTTP escape hatch like Service.Handle: endpoint
-// middleware does not apply. The response has already started when the
-// stream function runs, so errors it returns can only be logged; emit a
-// terminal event when clients need to learn about a failure.
+// A timeout middleware bounds the total stream duration, so long-lived
+// streams should avoid or relax global deadlines.
 //
 // Example:
 //
-//	kit.HandleSSE(svc, "GET /events", func(ctx context.Context, w *kit.SSEWriter) error {
-//		ticker := time.NewTicker(time.Second)
-//		defer ticker.Stop()
-//		for i := 0; ; i++ {
-//			select {
-//			case <-ctx.Done():
-//				return nil
-//			case <-ticker.C:
-//				if err := w.EventJSON("progress", map[string]int{"step": i}); err != nil {
-//					return err
-//				}
-//			}
-//		}
-//	})
-func HandleSSE(s *Service, pattern string, stream func(ctx context.Context, w *SSEWriter) error) {
+//	kit.HandleSSETyped(svc, "GET /events",
+//	    func(ctx context.Context, req eventsRequest, w *server.SSEStream) error {
+//	        ticker := time.NewTicker(time.Second)
+//	        defer ticker.Stop()
+//	        for i := 0; ; i++ {
+//	            select {
+//	            case <-ctx.Done():
+//	                return nil
+//	            case <-ticker.C:
+//	                if err := w.EventJSON("progress", map[string]int{"step": i}); err != nil {
+//	                    return err
+//	                }
+//	            }
+//	        }
+//	    },
+//	    decodeEventsRequest,
+//	)
+func HandleSSETyped[Req any](
+	s *Service,
+	pattern string,
+	stream func(ctx context.Context, req Req, w *httpserver.SSEStream) error,
+	dec func(*http.Request) (Req, error),
+	opts ...httpserver.ServerOption,
+) {
 	if stream == nil {
 		panic("kit: SSE stream function cannot be nil")
 	}
-	s.Handle(pattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
-			return
-		}
+	if dec == nil {
+		panic("kit: SSE decode function cannot be nil")
+	}
+	handler := httpserver.NewSSEServerTyped(stream, dec, opts...)
+	s.Handle(pattern, s.sseMiddlewareHandler(handler))
+}
 
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		// Disable proxy response buffering (e.g. nginx) so events reach the
-		// client as they are written.
-		w.Header().Set("X-Accel-Buffering", "no")
-		w.WriteHeader(http.StatusOK)
-		flusher.Flush()
-
-		sse := &SSEWriter{w: w, flusher: flusher}
-		if err := stream(r.Context(), sse); err != nil {
-			log.Printf("kit: SSE stream %s ended with error: %v", r.URL.Path, err)
+// sseMiddlewareHandler wraps an SSE handler so service-level endpoint
+// middleware observes each stream as one request. The wrapped handler runs
+// inside the HTTP context prepared by Service.Handle, which carries the
+// request and response writer for the endpoint bridge.
+func (s *Service) sseMiddlewareHandler(handler http.Handler) http.Handler {
+	if len(s.middleware) == 0 {
+		return handler
+	}
+	base := endpoint.Endpoint(func(ctx context.Context, _ any) (any, error) {
+		request := requestFromContext(ctx)
+		handler.ServeHTTP(responseWriterFromContext(ctx), request.WithContext(ctx))
+		return struct{}{}, nil
+	})
+	wrapped := s.applyEndpointMiddleware(base)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, err := wrapped(r.Context(), nil); err != nil {
+			httpserver.JSONErrorEncoder(r.Context(), err, w)
 		}
-	}))
+	})
 }

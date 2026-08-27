@@ -378,7 +378,7 @@ git status --porcelain
 目标：弥合将用户推到框架请求路径之外、或让生产问题悬而未决的缺口。
 
 - W3C Trace Context 传播：`endpoint.TraceContext`、`ParseTraceparent` 以及 `transport/http` 的 extract/inject RequestFunc；`TracingMiddleware` 加入传入 trace 并生成符合 W3C 的 ID。
-- 流式与非 JSON 请求支持：用于 Server-Sent Events 的 `kit.HandleSSE`/`SSEWriter`，带客户端断连取消；用于有界文件上传和下载的 `server.ParseMultipartForm` 和 `server.WriteAttachment`。
+- 流式与非 JSON 请求支持：用于 Server-Sent Events 的 `server.NewSSEServer`/`SSEStream`（经 `kit.HandleSSETyped` 注册并套用 endpoint 中间件），带客户端断连取消；用于有界文件上传和下载的 `server.ParseMultipartForm` 和 `server.WriteAttachment`。
 - 请求约定：带字段级错误并编码为 400 的 `endpoint.Validatable`/`ValidationMiddleware`；`transport/http` 分页契约（`ParsePage`、`Page`、`PageResult[T]`）。
 - 弹性中间件：用于降级应答的 `Fallback` 和按键隔离并发的 `BulkheadMiddleware`；拒绝错误编码为 429。
 - 端到端示例：`examples/auth`（应用所有的认证与授权）和 `examples/todosvc`（带优雅数据库关闭的 SQLite CRUD）。

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+
+	"github.com/dreamsxin/go-kit/v2/apperror"
 )
 
 // Validatable is implemented by request types that validate themselves before
@@ -27,6 +29,19 @@ func (e FieldError) Error() string {
 // structured error bodies.
 type ValidationError struct {
 	Fields []FieldError
+}
+
+// ErrorKind classifies validation failures through the transport-neutral
+// apperror contract, so transports map them like any other
+// invalid-argument application error.
+func (e *ValidationError) ErrorKind() apperror.Kind {
+	return apperror.KindInvalidArgument
+}
+
+// ErrorKindName exposes the kind name for transports that use the minimal
+// apperror.KindNamer contract instead of importing apperror directly.
+func (e *ValidationError) ErrorKindName() string {
+	return string(e.ErrorKind())
 }
 
 // NewValidationError builds a ValidationError from one field/reason pair.

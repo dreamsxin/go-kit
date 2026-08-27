@@ -14,7 +14,7 @@
 | `basic/` | 中间件链的执行顺序 | `go test ./examples/basic/...` |
 | `manual_composition/` | 显式的 endpoint Builder + HTTP 传输层组合 | `go run ./examples/manual_composition` |
 | `best_practice/` | 生产级模式：指标、熔断器、限流、优雅关闭 | `go run ./examples/best_practice` |
-| `middleware/` | endpoint 中间件：Chain、Builder、Failer、Timeout、Gobreaker、ErroringLimiter、DelayingLimiter | `go run ./examples/middleware` |
+| `middleware/` | endpoint 中间件：Chain、Builder、Failer、Timeout、CircuitBreaker、RateLimit、DelayRateLimit | `go run ./examples/middleware` |
 | `httpclient/` | HTTP 客户端：NewJSONClient、ClientBefore/After/Finalizer、SetClient | `go run ./examples/httpclient` |
 | `auth/` | 应用自有的认证与授权中间件：Bearer 密钥、通过 apperror 返回 401/403、公开的健康检查路由 | `go run ./examples/auth` |
 | `envelope/` | 传输层响应组装：通过 `kit.WithJSONServerOptions` 一次定义信封与错误格式 | `go run ./examples/envelope` |
@@ -79,8 +79,8 @@ ep := endpoint.NewBuilder(base).
     WithMetrics(&metrics).
     WithErrorHandling("hello").
     Use(endpoint.TimeoutMiddleware(5 * time.Second)).
-    Use(circuitbreaker.Gobreaker(cb)).
-    Use(ratelimit.NewErroringLimiter(limiter)).
+    Use(endpoint.NewCircuitBreaker().Middleware()).
+    Use(endpoint.RateLimitMiddleware(limiter)).
     Build()
 ```
 

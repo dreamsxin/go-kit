@@ -22,6 +22,22 @@ type Lifecycle interface {
 	Shutdown(context.Context) error
 }
 
+// NamedLifecycle is a Lifecycle that reports a stable name used in startup,
+// asynchronous failure, and shutdown diagnostics. Components that do not
+// implement it are identified by their attachment index.
+type NamedLifecycle interface {
+	Lifecycle
+	Name() string
+}
+
+// ReadinessProvider is implemented by lifecycle components that warm up
+// asynchronously. Ready is bridged into the /readyz and /health readiness
+// checks, so the service only reports ready once every provider reports
+// ready. Ready must stop promptly when ctx is canceled.
+type ReadinessProvider interface {
+	Ready(ctx context.Context) error
+}
+
 // Run starts the configured servers and blocks until ctx is cancelled or a
 // server fails. Signal handling belongs to the calling main package.
 func (s *Service) Run(ctx context.Context) error {
@@ -77,7 +93,7 @@ func (s *Service) Start() error {
 			if startedComponents > 0 {
 				s.stopped = true
 			}
-			return errors.Join(fmt.Errorf("start lifecycle component %d: %w", i, err), cleanupErr)
+			return errors.Join(fmt.Errorf("start lifecycle component %s: %w", lifecycleLabel(i, component), err), cleanupErr)
 		}
 		startedComponents++
 	}
@@ -102,7 +118,7 @@ func (s *Service) Start() error {
 	for i, component := range s.lifecycles {
 		errors := component.Errors()
 		if errors != nil {
-			go s.watchLifecycle(i, errors, s.lifecycleDone)
+			go s.watchLifecycle(lifecycleLabel(i, component), errors, s.lifecycleDone)
 		}
 	}
 	return nil
@@ -124,14 +140,31 @@ func (s *Service) reportServeError(err error) {
 	}
 }
 
-func (s *Service) watchLifecycle(index int, errors <-chan error, done <-chan struct{}) {
-	select {
-	case err, ok := <-errors:
-		if ok && err != nil {
-			s.reportServeError(fmt.Errorf("lifecycle component %d: %w", index, err))
+func (s *Service) watchLifecycle(label string, errors <-chan error, done <-chan struct{}) {
+	for {
+		select {
+		case err, ok := <-errors:
+			if !ok {
+				return
+			}
+			if err != nil {
+				s.reportServeError(fmt.Errorf("lifecycle component %s: %w", label, err))
+			}
+		case <-done:
+			return
 		}
-	case <-done:
 	}
+}
+
+// lifecycleLabel names a component for diagnostics: the component's own name
+// when it implements NamedLifecycle, otherwise its attachment index.
+func lifecycleLabel(index int, component Lifecycle) string {
+	if named, ok := component.(NamedLifecycle); ok {
+		if name := named.Name(); name != "" {
+			return name
+		}
+	}
+	return fmt.Sprintf("%d", index)
 }
 
 // Shutdown gracefully stops the HTTP server and attached components.
@@ -168,7 +201,7 @@ func shutdownLifecycles(ctx context.Context, components []Lifecycle) error {
 	var result error
 	for i := len(components) - 1; i >= 0; i-- {
 		if err := components[i].Shutdown(ctx); err != nil {
-			result = errors.Join(result, fmt.Errorf("shutdown lifecycle component %d: %w", i, err))
+			result = errors.Join(result, fmt.Errorf("shutdown lifecycle component %s: %w", lifecycleLabel(i, components[i]), err))
 		}
 	}
 	return result

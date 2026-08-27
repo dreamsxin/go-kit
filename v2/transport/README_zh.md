@@ -238,8 +238,7 @@ return transporthttp.NewPageResult(page, total, rows), nil
 - `server.DefaultMaxJSONBodyBytes`
 - `server.EncodeJSONResponse`
 - `server.JSONErrorEncoder`
-- `server.NewHTTPError`
-- `server.WrapHTTPError`
+- `server.NewSSEServer` / `server.NewSSEServerTyped` 用于 Server-Sent Events 流
 - `server.ParseMultipartForm` 用于有界的 multipart/form-data 上传
 - `server.WriteAttachment` 用于文件下载
 
@@ -247,6 +246,20 @@ return transporthttp.NewPageResult(page, total, rows), nil
 和内存阈值；超限违规通过标准错误编码器归类为 413，格式错误的请求归类为
 415/400。`WriteAttachment` 设置经过净化的 `Content-Disposition`（非 ASCII
 名称使用 RFC 2231），并根据文件名推导内容类型。
+
+### Server-Sent Events 流
+
+`server.NewSSEServer` 与 `NewSSEServerTyped` 把流式处理器适配为
+`http.Handler`：`SSEStreamHandler` 拿到解码后的请求与事件写出器 `SSEStream`
+（方法集为 Data、Event、EventJSON、Comment、Retry）。钩子语义：
+
+- `ServerBefore` 在流启动前运行；
+- 解码函数在任何 SSE 头写出之前运行，解码失败经 ErrorEncoder 映射为常规错误响应（如 400）；
+- `ServerErrorHandler` 观察解码失败与流中途返回的错误；
+- `ServerFinalizer` 在流结束时总是运行；
+- `ServerAfter` 与 `ServerResponseEncoder` 不适用于流，会被忽略。
+
+与 endpoint 中间件组合时，一个流计为一次请求：指标计 1 次，超时中间件约束的是**总流时长**（长时流应避免或放宽全局超时），认证与校验在流启动前执行。流中途返回的错误无法到达客户端；需要告知客户端失败时，业务应自行发送终结事件。
 
 主要扩展点：
 
@@ -301,7 +314,7 @@ JSON 请求解码器返回的解码错误会为 `JSONErrorEncoder` 携带 HTTP 4
 `JSONErrorEncoder` 写入 `code`、`message` 和可选的 `request_id` 字段。在应用
 代码中优先使用 `apperror.New` 或 `apperror.Wrap`，使失败分类保持独立于
 HTTP。HTTP 传输层将应用错误类别映射到状态码，并使用其稳定代码与公开消息。
-底层 HTTP 集成仍可返回 `server.NewHTTPError`，或实现
+底层 HTTP 集成可实现
 `transporthttp.StatusCoder`、`transporthttp.ErrorCoder` 和
 `transporthttp.PublicMessager`。两个内置错误编码器都会对未分类的 5xx 细节
 进行脱敏，而不是暴露内部错误字符串。

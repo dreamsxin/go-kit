@@ -243,8 +243,7 @@ Recommended entry points:
 - `server.DefaultMaxJSONBodyBytes`
 - `server.EncodeJSONResponse`
 - `server.JSONErrorEncoder`
-- `server.NewHTTPError`
-- `server.WrapHTTPError`
+- `server.NewSSEServer` / `server.NewSSEServerTyped` for Server-Sent Events streams
 - `server.ParseMultipartForm` for bounded multipart/form-data uploads
 - `server.WriteAttachment` for file downloads
 
@@ -253,6 +252,30 @@ in-memory threshold before parts spill to temporary files; limit violations
 classify as 413 and malformed requests as 415/400 through the standard error
 encoders. `WriteAttachment` sets a sanitized `Content-Disposition` (RFC 2231
 for non-ASCII names) and derives the content type from the filename.
+
+### Server-Sent Events streams
+
+`server.NewSSEServer` and `NewSSEServerTyped` adapt a streaming handler to
+`http.Handler`: the `SSEStreamHandler` receives the decoded request and an
+`SSEStream` event writer (`Data`, `Event`, `EventJSON`, `Comment`, `Retry`).
+Hook semantics:
+
+- `ServerBefore` runs before the stream starts;
+- the decode function runs before any SSE headers are written, so decode
+  failures map to regular error responses (for example 400) through the
+  ErrorEncoder;
+- `ServerErrorHandler` observes decode failures and errors returned by the
+  stream handler after streaming began;
+- `ServerFinalizer` always runs when the stream ends;
+- `ServerAfter` and `ServerResponseEncoder` do not apply to streams and are
+  ignored.
+
+Composed with endpoint middleware, one stream counts as one request: metrics
+record one call, a timeout middleware bounds the total stream duration
+(long-lived streams should avoid or relax global deadlines), and
+authentication or validation runs before the stream starts. Errors returned
+after streaming began cannot reach the client; emit a terminal event when
+clients need to learn about a failure.
 
 Primary extension points:
 
@@ -310,7 +333,7 @@ for `JSONErrorEncoder`.
 Prefer `apperror.New` or `apperror.Wrap` in application code so the failure
 classification remains independent of HTTP. The HTTP transport maps application
 kinds to status codes and uses their stable code and public message. Low-level
-HTTP integrations may still return `server.NewHTTPError` or implement
+HTTP integrations may implement
 `transporthttp.StatusCoder`, `transporthttp.ErrorCoder`, and
 `transporthttp.PublicMessager`. Both built-in error encoders redact unclassified
 5xx details instead of exposing the internal error string.

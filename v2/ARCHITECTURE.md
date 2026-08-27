@@ -84,7 +84,8 @@ Transport packages adapt endpoints to protocols:
 - `integrations/grpc/server` and `integrations/grpc/client`.
 
 They own bounded decoding, response status handling, protocol metadata,
-streaming interfaces, and transport-specific errors. They do not decide whether
+streaming interfaces (including the Server-Sent Events server), and
+transport-specific errors. They do not decide whether
 a business operation is safe to retry.
 
 ### `sd`
@@ -113,10 +114,10 @@ callbacks while holding internal locks.
 
 ### `log`
 
-`log` is a deprecated standard-library compatibility facade for projects
-generated before the direct refactor. New applications use `log/slog` directly
-and opt into provider adapters explicitly. Libraries return errors; process
-entry points decide when to terminate.
+`log` was a deprecated standard-library compatibility facade for projects
+generated before the direct refactor and has been removed. Applications use
+`log/slog` directly and opt into provider adapters explicitly. Libraries
+return errors; process entry points decide when to terminate.
 
 ### Optional observability adapters
 
@@ -128,7 +129,14 @@ application-owned OpenTelemetry tracers and meters. These adapters do not log
 or record request/response payloads; operation names and application attributes
 must remain bounded.
 
-### Optional HTTP security
+### Optional security
+
+`security` defines transport-neutral subject contracts: the authenticated
+principal (`Subject`), `Authenticator`, subject context propagation, and
+endpoint middleware for coarse enforcement (`RequireAuthenticated`,
+`RequireRole`). Failures are classified through `apperror` so transports map
+them uniformly. Credential extraction and validation stay protocol specific
+and application owned.
 
 `security/http` wraps standard-library handlers with trusted-proxy resolution,
 client-IP policy, CORS, signed double-submit CSRF, and security headers. It is
@@ -158,8 +166,9 @@ Endpoint middleware and HTTP middleware are intentionally different:
 Endpoint middleware installed through `kit.WithEndpointMiddleware` applies to
 routes registered through `HandleJSON` or `HandleJSONEndpoint`. Raw handlers
 receive only explicitly installed HTTP middleware. Dependency-owning adapters
-such as Zap, Gobreaker, or token buckets are created by the application and
-passed through this generic option.
+such as Zap or token buckets are created by the application and
+passed through this generic option. Circuit breaking and rate limiting are
+built into the core `endpoint` package and hold no third-party dependencies.
 
 `kit.WithHTTPMiddleware` is the explicit whole-server boundary for standard
 `http.Handler` middleware. It wraps health, JSON endpoint, raw HTTP, and
@@ -197,6 +206,12 @@ main creates signal context
 Startup errors must be synchronous when possible. A service instance cannot be
 started twice or restarted after shutdown.
 
+Components may implement `kit.NamedLifecycle` to attach a stable name to
+startup, asynchronous failure, and shutdown diagnostics, and
+`kit.ReadinessProvider` to bridge asynchronous warm-up into the `/readyz` and
+`/health` readiness checks. Asynchronous component errors are reported to the
+service error channel until shutdown.
+
 Resource-owning constructors return a closer. Shutdown proceeds from consumers
 to providers: close endpoint/endpointer resources before stopping their
 Instancer, then close transports and process-level dependencies.
@@ -212,6 +227,47 @@ Prefer, in order:
 
 Avoid global registries, hidden goroutines, package-level process control, and
 framework branches for one application.
+
+## Module Dependency Layers
+
+```text
+L0 foundation (no third-party dependencies, independently usable)
+   apperror · endpoint · transport (root) · transport/http · sd ·
+   interaction · security
+
+L1 transport adapters (depend on L0)
+   transport/http/server · transport/http/client · security/http
+
+L2 assembly (depends on L0+L1)
+   kit · kit/grpc (independent module)
+
+L3 optional composition (independent packages, no new dependencies)
+   observability/slog · sd/client
+
+L4 independent modules (third-party dependencies, versioned separately)
+   observability/otel · integrations/zap · integrations/grpc ·
+   integrations/consul
+
+L5 build-time tooling (never enters the runtime dependency graph)
+   cmd/microgen
+```
+
+Dependencies point downward only. L0 packages must not import L2–L5.
+`sd` requires a caller-provided `Instancer` implementation (for example
+`integrations/consul`); `kit` is self-contained and starts its own HTTP
+server. `cmd/microgen` output depends on L0–L3 only.
+
+## Context Conventions
+
+- Every framework context key ships as an exported `WithXxx(ctx, v)` /
+  `XxxFromContext(ctx)` pair; key types are never exported.
+- Request correlation values (trace context, request ID) live in `endpoint`.
+  Protocol-native objects (`*http.Request`, response writers) live in the
+  transport layer and must not be read by endpoint or service code.
+- The authenticated principal travels through `security.WithSubject` /
+  `security.SubjectFromContext`.
+- Business values (user models, transactions) never occupy framework-reserved
+  keys; they move through request structures.
 
 ## Stability
 

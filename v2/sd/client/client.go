@@ -47,6 +47,7 @@ func WithRetryable(classifier retry.Classifier) Option {
 }
 
 // NewEndpoint composes an Endpointer, round-robin Balancer, and retry executor.
+// A nil logger falls back to slog.Default().
 func NewEndpoint(src sd.Instancer, factory endpointer.Factory, logger *slog.Logger, opts ...Option) (endpoint.Endpoint, io.Closer, error) {
 	options := Options{MaxAttempts: 1, Timeout: 500 * time.Millisecond}
 	for i, option := range opts {
@@ -55,7 +56,10 @@ func NewEndpoint(src sd.Instancer, factory endpointer.Factory, logger *slog.Logg
 		}
 		option(&options)
 	}
-	if err := validate(src, factory, logger, options); err != nil {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if err := validate(src, factory, options); err != nil {
 		return nil, nil, err
 	}
 
@@ -79,14 +83,12 @@ func NewEndpointWithDefaults(src sd.Instancer, factory endpointer.Factory, logge
 	)
 }
 
-func validate(src sd.Instancer, factory endpointer.Factory, logger *slog.Logger, options Options) error {
+func validate(src sd.Instancer, factory endpointer.Factory, options Options) error {
 	switch {
 	case isNil(src):
 		return fmt.Errorf("sd/client: instancer is nil")
 	case factory == nil:
 		return fmt.Errorf("sd/client: endpoint factory is nil")
-	case logger == nil:
-		return fmt.Errorf("sd/client: logger is nil")
 	case options.MaxAttempts < 1:
 		return fmt.Errorf("sd/client: max attempts must be at least 1")
 	case options.Timeout <= 0:

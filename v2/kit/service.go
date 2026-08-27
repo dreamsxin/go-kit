@@ -65,6 +65,13 @@ func New(addr string, opts ...Option) (*Service, error) {
 		}
 	}
 	s.serveErrors = make(chan error, len(s.lifecycles)+1)
+	for i, component := range s.lifecycles {
+		if provider, ok := component.(ReadinessProvider); ok {
+			check := provider.Ready
+			s.readinessChecks = append(s.readinessChecks,
+				newNamedHealthCheck("lifecycle:"+lifecycleLabel(i, component), check))
+		}
+	}
 	s.registerHealthEndpoints()
 	s.httpHandler = s.applyHTTPMiddleware(s.mux)
 	return s, nil

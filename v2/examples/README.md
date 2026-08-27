@@ -15,7 +15,7 @@ after dropping the `./examples/` prefix.
 | `basic/` | Middleware chain execution order | `go test ./examples/basic/...` |
 | `manual_composition/` | Explicit endpoint Builder + HTTP transport composition | `go run ./examples/manual_composition` |
 | `best_practice/` | Production patterns: metrics, circuit breaker, rate limit, graceful shutdown | `go run ./examples/best_practice` |
-| `middleware/` | Endpoint middleware: Chain, Builder, Failer, Timeout, Gobreaker, ErroringLimiter, DelayingLimiter | `go run ./examples/middleware` |
+| `middleware/` | Endpoint middleware: Chain, Builder, Failer, Timeout, CircuitBreaker, RateLimit, DelayRateLimit | `go run ./examples/middleware` |
 | `httpclient/` | HTTP client: NewJSONClient, ClientBefore/After/Finalizer, SetClient | `go run ./examples/httpclient` |
 | `auth/` | Application-owned authentication and authorization middleware: Bearer keys, 401/403 via apperror, public health routes | `go run ./examples/auth` |
 | `envelope/` | Transport-level response assembly: envelope and error format defined once via `kit.WithJSONServerOptions` | `go run ./examples/envelope` |
@@ -80,8 +80,8 @@ ep := endpoint.NewBuilder(base).
     WithMetrics(&metrics).
     WithErrorHandling("hello").
     Use(endpoint.TimeoutMiddleware(5 * time.Second)).
-    Use(circuitbreaker.Gobreaker(cb)).
-    Use(ratelimit.NewErroringLimiter(limiter)).
+    Use(endpoint.NewCircuitBreaker().Middleware()).
+    Use(endpoint.RateLimitMiddleware(limiter)).
     Build()
 ```
 

@@ -5,9 +5,10 @@
 // transport shape. Prefer HandleJSONTyped for concrete response types,
 // HandleJSON for dynamic responses, and
 // HandleJSONEndpoint when you already have an endpoint.Endpoint. Use
-// HandleSSE for Server-Sent Events streams. Use Service.Handle and
-// Service.HandleFunc only for raw HTTP integrations such as static files,
-// third-party handlers, probes, or custom protocol endpoints.
+// HandleSSETyped for Server-Sent Events streams protected by endpoint
+// middleware, or HandleSSE for raw streaming handlers. Use Service.Handle
+// and Service.HandleFunc only for raw HTTP integrations such as static
+// files, third-party handlers, probes, or custom protocol endpoints.
 //
 // Quickstart:
 //
@@ -26,9 +27,9 @@
 //
 //	svc, err := kit.New(":8080",
 //	    kit.WithEndpointMiddleware(
-//	        ratelimit.NewErroringLimiter(limiter),
-//	        circuitbreaker.Gobreaker(breaker),
-//	        zapadapter.LoggingMiddleware(logger, "request"),
+//	        endpoint.RateLimitMiddleware(limiter),
+//	        endpoint.NewCircuitBreaker().Middleware(),
+//	        slogadapter.LoggingMiddleware(logger, "request"),
 //	    ),
 //	    kit.WithTimeout(5*time.Second),
 //	    kit.WithRequestID(),

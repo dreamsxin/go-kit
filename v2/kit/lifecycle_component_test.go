@@ -3,6 +3,8 @@ package kit
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
@@ -93,5 +95,97 @@ func TestWithLifecycleRejectsTypedNil(t *testing.T) {
 	var component *recordingLifecycle
 	if _, err := New(":0", WithLifecycle(component)); err == nil {
 		t.Fatal("expected typed nil lifecycle error")
+	}
+}
+
+type namedComponent struct {
+	recordingLifecycle
+}
+
+func (c *namedComponent) Name() string { return c.name }
+
+func TestLifecycleAsyncErrorReportsComponentName(t *testing.T) {
+	var events []string
+	errorsChannel := make(chan error, 1)
+	component := &namedComponent{recordingLifecycle{name: "worker", events: &events, errors: errorsChannel}}
+	service := MustNew("127.0.0.1:0", WithLifecycle(component), WithShutdownTimeout(time.Second))
+	done := make(chan error, 1)
+	go func() {
+		done <- service.Run(context.Background())
+	}()
+
+	errorsChannel <- errors.New("serve failed")
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "lifecycle component worker") {
+			t.Fatalf("Run error = %v, want named component failure", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not stop after component failure")
+	}
+}
+
+func TestLifecycleWatchConsumesMultipleAsyncErrors(t *testing.T) {
+	var events []string
+	errorsChannel := make(chan error, 2)
+	component := &recordingLifecycle{name: "worker", events: &events, errors: errorsChannel}
+	service := MustNew("127.0.0.1:0", WithLifecycle(component))
+	if err := service.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer service.Shutdown(context.Background()) //nolint:errcheck
+
+	errorsChannel <- errors.New("first failure")
+	errorsChannel <- errors.New("second failure")
+
+	for _, want := range []string{"first failure", "second failure"} {
+		select {
+		case err := <-service.Errors():
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("reported error = %v, want %q", err, want)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("did not observe %q", want)
+		}
+	}
+}
+
+type readinessComponent struct {
+	namedComponent
+	ready chan struct{}
+}
+
+func (c *readinessComponent) Ready(ctx context.Context) error {
+	select {
+	case <-c.ready:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestReadinessProviderBridgedToReadyz(t *testing.T) {
+	var events []string
+	component := &readinessComponent{
+		namedComponent: namedComponent{recordingLifecycle{name: "warmer", events: &events}},
+		ready:          make(chan struct{}),
+	}
+	service := MustNew("127.0.0.1:0", WithLifecycle(component))
+
+	request := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	recorder := httptest.NewRecorder()
+	service.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("readyz before warmup = %d, want %d", recorder.Code, http.StatusServiceUnavailable)
+	}
+	if !strings.Contains(recorder.Body.String(), "lifecycle:warmer") {
+		t.Fatalf("readyz body = %s, want lifecycle:warmer check", recorder.Body.String())
+	}
+
+	close(component.ready)
+	recorder = httptest.NewRecorder()
+	service.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("readyz after warmup = %d, want %d", recorder.Code, http.StatusOK)
 	}
 }

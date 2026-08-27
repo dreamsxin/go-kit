@@ -51,6 +51,46 @@ func Wrap(kind Kind, code, message string, cause error) *Error {
 	return &Error{kind: normalizeKind(kind), code: code, message: message, cause: cause}
 }
 
+// WrapCause creates a classified application error with an empty public
+// message that preserves cause. Use it when the cause must stay internal
+// and only the kind and code should drive transport mapping.
+func WrapCause(kind Kind, code string, cause error) *Error {
+	return &Error{kind: normalizeKind(kind), code: code, cause: cause}
+}
+
+// Convenience constructors for the most common kinds. They keep call sites
+// short without hiding the transport-neutral classification.
+
+// InvalidArgument creates a KindInvalidArgument error (HTTP 400 / gRPC InvalidArgument).
+func InvalidArgument(code, message string) *Error {
+	return New(KindInvalidArgument, code, message)
+}
+
+// Unauthenticated creates a KindUnauthenticated error (HTTP 401 / gRPC Unauthenticated).
+func Unauthenticated(code, message string) *Error {
+	return New(KindUnauthenticated, code, message)
+}
+
+// PermissionDenied creates a KindPermissionDenied error (HTTP 403 / gRPC PermissionDenied).
+func PermissionDenied(code, message string) *Error {
+	return New(KindPermissionDenied, code, message)
+}
+
+// NotFound creates a KindNotFound error (HTTP 404 / gRPC NotFound).
+func NotFound(code, message string) *Error {
+	return New(KindNotFound, code, message)
+}
+
+// Conflict creates a KindConflict error (HTTP 409 / gRPC AlreadyExists-family).
+func Conflict(code, message string) *Error {
+	return New(KindConflict, code, message)
+}
+
+// Unavailable creates a KindUnavailable error (HTTP 503 / gRPC Unavailable).
+func Unavailable(code, message string) *Error {
+	return New(KindUnavailable, code, message)
+}
+
 func (e *Error) Error() string {
 	if e == nil {
 		return ""

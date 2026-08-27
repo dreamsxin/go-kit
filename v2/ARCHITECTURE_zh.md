@@ -78,7 +78,8 @@ Endpoint 中间件观察业务调用结果，不应从 HTTP 状态码或 gRPC �
 - `transport/http/server` 与 `transport/http/client`；
 - `integrations/grpc/server` 与 `integrations/grpc/client`。
 
-它们拥有受限解码、响应状态处理、协议元数据、流式接口与传输特有错误。
+它们拥有受限解码、响应状态处理、协议元数据、流式接口（含 Server-Sent
+Events 服务端）与传输特有错误。
 它们不决定一个业务操作是否可以安全重试。
 
 ### `sd`
@@ -103,8 +104,8 @@ Provider 实现必须复制调用方可变数据，并且不得在持有内部�
 
 ### `log`
 
-`log` 是已废弃的标准库兼容门面，服务于直接重构之前生成的项目。新应用
-直接使用 `log/slog` 并显式选择供应商适配器。库返回错误；进程入口决定
+`log` 曾是服务于直接重构之前生成项目的已废弃标准库兼容门面，现已移除。
+应用直接使用 `log/slog` 并显式选择供应商适配器。库返回错误；进程入口决定
 何时终止。
 
 ### 可选可观测性适配器
@@ -115,7 +116,12 @@ API。`integrations/zap` 拥有等价的 Zap 专用适配器，使核心包保�
 OpenTelemetry tracer 与 meter。这些适配器不记录请求/响应载荷；操作名和
 应用属性必须保持有界。
 
-### 可选 HTTP 安全
+### 可选安全
+
+`security` 定义传输中立的主体契约：已认证主体（`Subject`）、
+`Authenticator`、主体上下文传递，以及粗粒度强制的 endpoint 中间件
+（`RequireAuthenticated`、`RequireRole`）。失败统一通过 `apperror` 分类，
+由各传输一致映射。凭据提取与验证保持协议专属、应用自有。
 
 `security/http` 以可信代理解析、客户端 IP 策略、CORS、签名双提交 CSRF
 和安全响应头包装标准库 handler。它围绕传输 handler 组装，不改变 endpoint
@@ -140,8 +146,9 @@ Endpoint 中间件与 HTTP 中间件刻意区分：
 
 通过 `kit.WithEndpointMiddleware` 安装的 endpoint 中间件作用于经
 `HandleJSON` 或 `HandleJSONEndpoint` 注册的路由。原生 handler 只接收
-显式安装的 HTTP 中间件。持有依赖的适配器（如 Zap、Gobreaker、令牌桶）
-由应用创建并通过这个通用选项传入。
+显式安装的 HTTP 中间件。持有依赖的适配器（如 Zap、令牌桶）
+由应用创建并通过这个通用选项传入。熔断与限流已内置于核心 `endpoint`
+包，不持有第三方依赖。
 
 `kit.WithHTTPMiddleware` 是标准 `http.Handler` 中间件的显式全服务器
 边界。它包装健康检查、JSON endpoint、原生 HTTP 与生成路由，但不把 HTTP
@@ -174,6 +181,10 @@ main creates signal context
 
 启动错误应尽可能同步返回。服务实例不能被启动两次，停机后也不能重启。
 
+组件可以实现 `kit.NamedLifecycle`，为启动、异步故障与停机诊断提供稳定
+名称；实现 `kit.ReadinessProvider` 可把异步预热桥接到 `/readyz` 与
+`/health` 的就绪检查。组件的异步错误会持续汇报到服务错误通道直至停机。
+
 持有资源的构造函数返回 closer。停机按消费者到提供者的顺序进行：先关闭
 endpoint/endpointer 资源再停止其 Instancer，然后关闭传输与进程级依赖。
 
@@ -188,6 +199,43 @@ endpoint/endpointer 资源再停止其 Instancer，然后关闭传输与进程�
 
 避免全局注册表、隐藏 goroutine、包级进程控制，以及为单一应用加入框架
 分支。
+
+## 模块依赖层级
+
+```text
+L0 基础层（无第三方依赖，可独立使用）
+   apperror · endpoint · transport（根） · transport/http · sd ·
+   interaction · security
+
+L1 传输适配层（依赖 L0）
+   transport/http/server · transport/http/client · security/http
+
+L2 组装层（依赖 L0+L1）
+   kit · kit/grpc（独立 module）
+
+L3 可选组合（独立包，不引入新依赖）
+   observability/slog · sd/client
+
+L4 独立 module 扩展层（第三方依赖，独立版本演进）
+   observability/otel · integrations/zap · integrations/grpc ·
+   integrations/consul
+
+L5 构建期工具（不进运行时依赖图）
+   cmd/microgen
+```
+
+依赖只允许向下指向。L0 包不得导入 L2–L5。`sd` 需要调用方提供 `Instancer`
+实现（如 `integrations/consul`）；`kit` 自包含，自带 HTTP 服务器。
+`cmd/microgen` 的生成产物只依赖 L0–L3。
+
+## 上下文传递规范
+
+- 框架的每个 context 键都以成对的导出函数交付：`WithXxx(ctx, v)` /
+  `XxxFromContext(ctx)`；键类型本身永远不导出。
+- 请求关联值（trace 上下文、请求 ID）归 `endpoint`；协议原生对象
+  （`*http.Request`、响应写入器）归传输层，endpoint 与 service 层禁止读取。
+- 认证主体经 `security.WithSubject` / `security.SubjectFromContext` 传递。
+- 业务值（用户模型、事务句柄）不得占用框架保留键，一律通过请求结构体传递。
 
 ## 稳定性
 

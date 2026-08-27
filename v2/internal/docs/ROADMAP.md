@@ -512,8 +512,9 @@ or left production questions unanswered.
 - W3C Trace Context propagation: `endpoint.TraceContext`,
   `ParseTraceparent`, and `transport/http` extract/inject RequestFuncs;
   `TracingMiddleware` joins incoming traces and mints W3C-conformant IDs.
-- Streaming and non-JSON request support: `kit.HandleSSE`/`SSEWriter` for
-  Server-Sent Events with client-disconnect cancellation;
+- Streaming and non-JSON request support: `server.NewSSEServer`/`SSEStream`
+  (registered through `kit.HandleSSETyped` with endpoint middleware applied)
+  for Server-Sent Events with client-disconnect cancellation;
   `server.ParseMultipartForm` and `server.WriteAttachment` for bounded file
   upload and download.
 - Request conventions: `endpoint.Validatable`/`ValidationMiddleware` with

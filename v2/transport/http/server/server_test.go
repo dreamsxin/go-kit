@@ -319,9 +319,27 @@ func TestJSONErrorEncoder_RedactsInternalErrors(t *testing.T) {
 	}
 }
 
-func TestJSONErrorEncoder_HTTPErrorCodeAndMessage(t *testing.T) {
+// protocolError customizes transport behavior through the shared protocol
+// contracts (StatusCoder, ErrorCoder, PublicMessager, Headerer) instead of a
+// framework error type.
+type protocolError struct {
+	status  int
+	code    string
+	message string
+	cause   error
+	headers http.Header
+}
+
+func (e *protocolError) Error() string         { return e.message }
+func (e *protocolError) Unwrap() error         { return e.cause }
+func (e *protocolError) StatusCode() int       { return e.status }
+func (e *protocolError) ErrorCode() string     { return e.code }
+func (e *protocolError) PublicMessage() string { return e.message }
+func (e *protocolError) Headers() http.Header  { return e.headers }
+
+func TestJSONErrorEncoder_ProtocolErrorCodeAndMessage(t *testing.T) {
 	rec := httptest.NewRecorder()
-	err := server.NewHTTPError(http.StatusConflict, "user.email_taken", "email already exists")
+	err := &protocolError{status: http.StatusConflict, code: "user.email_taken", message: "email already exists"}
 	server.JSONErrorEncoder(context.Background(), err, rec)
 
 	if rec.Code != http.StatusConflict {
@@ -337,13 +355,13 @@ func TestJSONErrorEncoder_HTTPErrorCodeAndMessage(t *testing.T) {
 	}
 }
 
-func TestJSONErrorEncoder_UsesWrappedHTTPError(t *testing.T) {
+func TestJSONErrorEncoder_UsesWrappedProtocolError(t *testing.T) {
 	rec := httptest.NewRecorder()
-	err := fmt.Errorf("create user: %w", server.NewHTTPError(
-		http.StatusConflict,
-		"user.email_taken",
-		"email already exists",
-	))
+	err := fmt.Errorf("create user: %w", &protocolError{
+		status:  http.StatusConflict,
+		code:    "user.email_taken",
+		message: "email already exists",
+	})
 	server.JSONErrorEncoder(context.Background(), err, rec)
 
 	if rec.Code != http.StatusConflict {
@@ -408,13 +426,18 @@ func TestJSONErrorEncoder_ApplicationErrorStatusMapping(t *testing.T) {
 	}
 }
 
-func TestHTTPError_WrapsCauseAndHeaders(t *testing.T) {
+func TestProtocolError_PreservesCauseAndHeaders(t *testing.T) {
 	cause := errors.New("database unique constraint")
-	err := server.WrapHTTPError(http.StatusConflict, "user.email_taken", "email already exists", cause)
-	err.Header = http.Header{"X-Retryable": []string{"false"}}
+	err := &protocolError{
+		status:  http.StatusConflict,
+		code:    "user.email_taken",
+		message: "email already exists",
+		cause:   cause,
+		headers: http.Header{"X-Retryable": []string{"false"}},
+	}
 
 	if !errors.Is(err, cause) {
-		t.Fatal("wrapped HTTPError should preserve cause")
+		t.Fatal("protocol error should preserve cause")
 	}
 
 	rec := httptest.NewRecorder()

@@ -6,6 +6,62 @@ through the immutable v0 and v1 tags.
 
 ## [Unreleased]
 
+### Added
+
+- `security` root package: transport-neutral subject contracts for
+  authentication boundaries — `Subject`, `Authenticator`, `WithSubject` /
+  `SubjectFromContext`, and endpoint middleware `Middleware`,
+  `RequireAuthenticated` (401), `RequireRole` (403), all classified through
+  apperror so every transport maps them uniformly.
+- `kit.NamedLifecycle` and `kit.ReadinessProvider`: lifecycle components can
+  name themselves for startup/failure/shutdown diagnostics and bridge
+  asynchronous warm-up into the `/readyz` and `/health` readiness checks.
+- `apperror` convenience constructors: `InvalidArgument`, `Unauthenticated`,
+  `PermissionDenied`, `NotFound`, `Conflict`, `Unavailable`, and `WrapCause`
+  for cause-preserving errors without a public message.
+- `endpoint.ValidationError` implements `apperror.Kinder` and
+  `apperror.KindNamer`, so transports map validation failures through the
+  standard apperror path.
+- `sd/client.NewEndpoint` accepts a nil logger and falls back to
+  `slog.Default()`.
+- `slogadapter.NewTelemetry` assembles the built-in observability dimensions
+  into one middleware chain with the canonical order (tracing → metrics →
+  logging) and feeds one `endpoint.Metrics` collector; `Telemetry.Apply`
+  installs the chain on a Builder with stable labels.
+- Server-Sent Events moved to the transport layer: `server.NewSSEServer` and
+  `server.NewSSEServerTyped` adapt a streaming handler to `http.Handler`
+  with the standard Server hooks (ServerBefore, decode-before-headers,
+  ServerErrorHandler, ServerFinalizer); `kit.HandleSSETyped` registers typed
+  streams through the endpoint middleware chain, so authentication, tracing,
+  metrics, and validation now apply to streams. One stream counts as one
+  request; decode failures map to regular error responses.
+- ARCHITECTURE documents the module dependency layers (L0–L5) and context
+  key conventions.
+
+### Fixed
+
+- `kit` lifecycle watchers now consume asynchronous component errors until
+  shutdown; previously only the first error per component was reported.
+
+### Removed (breaking)
+
+- `server.HTTPError`, `server.NewHTTPError`, and `server.WrapHTTPError`.
+  Carrying an HTTP status out of the endpoint or service layer crossed the
+  layer boundary. Classify failures with `apperror` (transport-neutral, works
+  over gRPC too); protocol-specific customization remains available through
+  `transporthttp.StatusCoder`, `ErrorCoder`, `PublicMessager`, and `Headerer`.
+- The deprecated `log` compatibility facade. Use `log/slog` directly.
+- `kit.SSEWriter` and the stream-function signature of `kit.HandleSSE`.
+  Streaming now lives in the transport layer: use `server.SSEStream` (same
+  method set) with `kit.HandleSSETyped` (endpoint middleware applies) or
+  `kit.HandleSSE(s, pattern, http.Handler)` for raw streaming handlers.
+
+### Changed
+
+- Documentation now references the core `endpoint` circuit breaker and rate
+  limiter instead of the removed `integrations/circuitbreaker` and
+  `integrations/ratelimit` adapters.
+
 ## [2.5.2] - 2026-08-22
 
 ### Added

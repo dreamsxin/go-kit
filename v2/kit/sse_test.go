@@ -3,32 +3,67 @@ package kit_test
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/dreamsxin/go-kit/v2/apperror"
+	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/kit"
+	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
-func newSSEServer(t *testing.T, stream func(ctx context.Context, w *kit.SSEWriter) error) *httptest.Server {
-	t.Helper()
-	svc := kit.MustNew(":0")
-	kit.HandleSSE(svc, "GET /events", stream)
-	return httptest.NewServer(svc)
+type eventsRequest struct {
+	Channel string
 }
 
-func TestHandleSSE_WritesEventsAndHeaders(t *testing.T) {
-	srv := newSSEServer(t, func(_ context.Context, w *kit.SSEWriter) error {
-		if err := w.Event("greeting", "hello"); err != nil {
-			return err
+func decodeEvents(r *http.Request) (eventsRequest, error) {
+	channel := r.URL.Query().Get("channel")
+	if channel == "" {
+		return eventsRequest{}, apperror.InvalidArgument("stream.channel_required", "channel is required")
+	}
+	return eventsRequest{Channel: channel}, nil
+}
+
+type countingMiddleware struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (m *countingMiddleware) middleware() endpoint.Middleware {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request any) (any, error) {
+			m.mu.Lock()
+			m.calls++
+			m.mu.Unlock()
+			return next(ctx, request)
 		}
-		return w.EventJSON("progress", map[string]int{"step": 1})
-	})
+	}
+}
+
+func (m *countingMiddleware) count() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
+func TestHandleSSETyped_AppliesEndpointMiddleware(t *testing.T) {
+	counter := &countingMiddleware{}
+	svc := kit.MustNew("127.0.0.1:0", kit.WithEndpointMiddleware(counter.middleware()))
+	kit.HandleSSETyped(svc, "GET /events",
+		func(_ context.Context, req eventsRequest, w *httpserver.SSEStream) error {
+			return w.Event("channel", req.Channel)
+		},
+		decodeEvents,
+	)
+	srv := httptest.NewServer(svc)
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/events")
+	resp, err := http.Get(srv.URL + "/events?channel=builds")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,47 +72,62 @@ func TestHandleSSE_WritesEventsAndHeaders(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: got %d, want 200", resp.StatusCode)
 	}
-	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
-		t.Errorf("Content-Type: got %q", ct)
-	}
-	if cc := resp.Header.Get("Cache-Control"); cc != "no-cache" {
-		t.Errorf("Cache-Control: got %q", cc)
-	}
-
-	want := "event: greeting\ndata: hello\n\n" +
-		"event: progress\ndata: {\"step\":1}\n\n"
 	body, _ := io.ReadAll(resp.Body)
-	if string(body) != want {
-		t.Errorf("body:\n got %q\nwant %q", body, want)
+	if string(body) != "event: channel\ndata: builds\n\n" {
+		t.Fatalf("body = %q", body)
+	}
+	if counter.count() != 1 {
+		t.Fatalf("middleware calls = %d, want one per stream", counter.count())
 	}
 }
 
-func TestHandleSSE_MultiLineDataSplitsIntoDataLines(t *testing.T) {
-	srv := newSSEServer(t, func(_ context.Context, w *kit.SSEWriter) error {
-		return w.Data("first\nsecond")
-	})
-	defer srv.Close()
-
-	resp, err := http.Get(srv.URL + "/events")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	want := "data: first\ndata: second\n\n"
-	body, _ := io.ReadAll(resp.Body)
-	if string(body) != want {
-		t.Errorf("body:\n got %q\nwant %q", body, want)
-	}
-}
-
-func TestHandleSSE_CommentAndRetryLines(t *testing.T) {
-	srv := newSSEServer(t, func(_ context.Context, w *kit.SSEWriter) error {
-		if err := w.Comment("keep-alive"); err != nil {
-			return err
+func TestHandleSSETyped_MiddlewareRejectionBeforeStream(t *testing.T) {
+	streamCalled := false
+	reject := func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(_ context.Context, _ any) (any, error) {
+			return nil, apperror.Unauthenticated("auth.required", "credentials required")
 		}
-		return w.Retry(1500)
-	})
+	}
+	svc := kit.MustNew("127.0.0.1:0", kit.WithEndpointMiddleware(reject))
+	kit.HandleSSETyped(svc, "GET /events",
+		func(_ context.Context, _ eventsRequest, _ *httpserver.SSEStream) error {
+			streamCalled = true
+			return nil
+		},
+		decodeEvents,
+	)
+	srv := httptest.NewServer(svc)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/events?channel=builds")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status: got %d, want 401", resp.StatusCode)
+	}
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("error body is not JSON: %v", err)
+	}
+	if body["code"] != "auth.required" {
+		t.Fatalf("code = %q", body["code"])
+	}
+	if streamCalled {
+		t.Fatal("rejected request still started the stream")
+	}
+}
+
+func TestHandleSSETyped_DecodeFailureBeforeStream(t *testing.T) {
+	svc := kit.MustNew("127.0.0.1:0")
+	kit.HandleSSETyped(svc, "GET /events",
+		func(_ context.Context, _ eventsRequest, _ *httpserver.SSEStream) error { return nil },
+		decodeEvents,
+		httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder),
+	)
+	srv := httptest.NewServer(svc)
 	defer srv.Close()
 
 	resp, err := http.Get(srv.URL + "/events")
@@ -86,33 +136,63 @@ func TestHandleSSE_CommentAndRetryLines(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	want := ": keep-alive\nretry: 1500\n"
-	body, _ := io.ReadAll(resp.Body)
-	if string(body) != want {
-		t.Errorf("body:\n got %q\nwant %q", body, want)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d, want 400", resp.StatusCode)
+	}
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("error body is not JSON: %v", err)
+	}
+	if body["code"] != "stream.channel_required" {
+		t.Fatalf("code = %q", body["code"])
 	}
 }
 
-func TestHandleSSE_ClientDisconnectCancelsStream(t *testing.T) {
+func TestHandleSSE_RawBypassesEndpointMiddleware(t *testing.T) {
+	counter := &countingMiddleware{}
+	svc := kit.MustNew("127.0.0.1:0", kit.WithEndpointMiddleware(counter.middleware()))
+	kit.HandleSSE(svc, "GET /raw", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("raw"))
+	}))
+	srv := httptest.NewServer(svc)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/raw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if counter.count() != 0 {
+		t.Fatalf("middleware calls = %d, want none for raw streams", counter.count())
+	}
+}
+
+func TestHandleSSETyped_ClientDisconnectCancelsStream(t *testing.T) {
 	done := make(chan struct{})
-	srv := newSSEServer(t, func(ctx context.Context, w *kit.SSEWriter) error {
-		defer close(done)
-		ticker := time.NewTicker(10 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-ticker.C:
-				if err := w.Data("tick"); err != nil {
-					return err
+	svc := kit.MustNew("127.0.0.1:0")
+	kit.HandleSSETyped(svc, "GET /events",
+		func(ctx context.Context, _ eventsRequest, w *httpserver.SSEStream) error {
+			defer close(done)
+			ticker := time.NewTicker(10 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-ticker.C:
+					if err := w.Data("tick"); err != nil {
+						return err
+					}
 				}
 			}
-		}
-	})
+		},
+		decodeEvents,
+	)
+	srv := httptest.NewServer(svc)
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/events")
+	resp, err := http.Get(srv.URL + "/events?channel=builds")
 	if err != nil {
 		t.Fatal(err)
 	}

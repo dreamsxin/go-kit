@@ -39,3 +39,39 @@ func TestEmptyKindDefaultsToInternal(t *testing.T) {
 		t.Fatalf("kind = %q, want %q", err.ErrorKind(), apperror.KindInternal)
 	}
 }
+
+func TestConvenienceConstructors(t *testing.T) {
+	cases := []struct {
+		err  *apperror.Error
+		kind apperror.Kind
+	}{
+		{apperror.InvalidArgument("c", "m"), apperror.KindInvalidArgument},
+		{apperror.Unauthenticated("c", "m"), apperror.KindUnauthenticated},
+		{apperror.PermissionDenied("c", "m"), apperror.KindPermissionDenied},
+		{apperror.NotFound("c", "m"), apperror.KindNotFound},
+		{apperror.Conflict("c", "m"), apperror.KindConflict},
+		{apperror.Unavailable("c", "m"), apperror.KindUnavailable},
+	}
+	for _, tc := range cases {
+		if tc.err.ErrorKind() != tc.kind {
+			t.Fatalf("kind = %q, want %q", tc.err.ErrorKind(), tc.kind)
+		}
+		if tc.err.ErrorCode() != "c" || tc.err.PublicMessage() != "m" {
+			t.Fatalf("code/message = %q/%q", tc.err.ErrorCode(), tc.err.PublicMessage())
+		}
+	}
+}
+
+func TestWrapCauseKeepsCauseInternal(t *testing.T) {
+	cause := errors.New("connection refused")
+	err := apperror.WrapCause(apperror.KindUnavailable, "db.down", cause)
+	if !errors.Is(err, cause) {
+		t.Fatal("WrapCause does not preserve cause")
+	}
+	if err.PublicMessage() != "" {
+		t.Fatalf("public message = %q, want empty", err.PublicMessage())
+	}
+	if err.Error() != "db.down: connection refused" {
+		t.Fatalf("error string = %q", err.Error())
+	}
+}

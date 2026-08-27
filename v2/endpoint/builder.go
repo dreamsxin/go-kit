@@ -13,8 +13,8 @@ import (
 //
 //	ep := endpoint.NewBuilder(myEndpoint).
 //	    Use(loggingMiddleware).
-//	    Use(ratelimit.NewErroringLimiter(limiter)).
-//	    Use(circuitbreaker.Gobreaker(cb)).
+//	    Use(endpoint.RateLimitMiddleware(limiter)).
+//	    Use(endpoint.NewCircuitBreaker().Middleware()).
 //	    Build()
 type Builder struct {
 	base        Endpoint

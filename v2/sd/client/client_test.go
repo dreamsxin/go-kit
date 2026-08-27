@@ -131,7 +131,6 @@ func TestNewEndpoint_RejectsInvalidConfiguration(t *testing.T) {
 	}{
 		{name: "nil instancer", factory: nopFactory, logger: nopLogger(), want: "instancer is nil"},
 		{name: "nil factory", src: cache, logger: nopLogger(), want: "factory is nil"},
-		{name: "nil logger", src: cache, factory: nopFactory, want: "logger is nil"},
 		{name: "attempts", src: cache, factory: nopFactory, logger: nopLogger(), opts: []sdclient.Option{sdclient.WithMaxAttempts(0)}, want: "max attempts"},
 		{name: "timeout", src: cache, factory: nopFactory, logger: nopLogger(), opts: []sdclient.Option{sdclient.WithTimeout(0)}, want: "timeout"},
 		{name: "invalidation", src: cache, factory: nopFactory, logger: nopLogger(), opts: []sdclient.Option{sdclient.WithInvalidateOnError(-time.Second)}, want: "invalidate-on-error"},
@@ -148,6 +147,21 @@ func TestNewEndpoint_RejectsInvalidConfiguration(t *testing.T) {
 				t.Fatalf("error = %v, want %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestNewEndpoint_NilLoggerFallsBackToDefault(t *testing.T) {
+	cache := instance.NewCache()
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
+	time.Sleep(10 * time.Millisecond)
+
+	ep, closer, err := sdclient.NewEndpoint(cache, endpointer.Factory(nopFactory), nil)
+	if err != nil {
+		t.Fatalf("NewEndpoint with nil logger: %v", err)
+	}
+	t.Cleanup(func() { _ = closer.Close() })
+	if _, err := ep(context.Background(), nil); err != nil {
+		t.Fatalf("call with default logger: %v", err)
 	}
 }
 

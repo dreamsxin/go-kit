@@ -5,6 +5,40 @@
 
 ## [未发布]
 
+### 新增
+
+- `security` 根包：面向认证边界的传输中立主体契约 —— `Subject`、
+  `Authenticator`、`WithSubject` / `SubjectFromContext`，以及 endpoint 中间件
+  `Middleware`、`RequireAuthenticated`（401）、`RequireRole`（403），全部通过
+  apperror 分类，由各传输一致映射。
+- `kit.NamedLifecycle` 与 `kit.ReadinessProvider`：生命周期组件可为启动/
+  故障/停机诊断提供名称，并把异步预热桥接到 `/readyz` 与 `/health` 的
+  就绪检查。
+- `apperror` 快捷构造：`InvalidArgument`、`Unauthenticated`、
+  `PermissionDenied`、`NotFound`、`Conflict`、`Unavailable`，以及不携带公开
+  消息、保留原因的 `WrapCause`。
+- `endpoint.ValidationError` 实现 `apperror.Kinder` 与 `apperror.KindNamer`，
+  传输层经标准 apperror 路径映射校验失败。
+- `sd/client.NewEndpoint` 接受 nil logger，回退到 `slog.Default()`。
+- `slogadapter.NewTelemetry` 把内置可观测性维度装配为一条固定顺序的中间件链（tracing → metrics → logging），共用同一个 `endpoint.Metrics` 采集器；`Telemetry.Apply` 可将链安装到 Builder 并带稳定标签。
+- Server-Sent Events 下沉到传输层：`server.NewSSEServer` 与 `server.NewSSEServerTyped` 把流式处理器适配为 `http.Handler`，复用标准 Server 钩子（ServerBefore、头前解码、ServerErrorHandler、ServerFinalizer）；`kit.HandleSSETyped` 经 endpoint 中间件链注册类型化流，认证、追踪、指标与校验从此对流生效。一个流计为一次请求；解码失败映射为常规错误响应。
+- ARCHITECTURE 文档固化模块依赖层级（L0–L5）与 context 键规范。
+
+### 修复
+
+- `kit` 生命周期监视器现在持续消费组件的异步错误直至停机；此前每个组件只汇报第一个错误。
+
+### 移除（Breaking）
+
+- `server.HTTPError`、`server.NewHTTPError`、`server.WrapHTTPError`。
+  从 endpoint 或 service 层携带 HTTP 状态违反了分层边界。请使用 `apperror` 分类失败（传输中立，同样适用于 gRPC）；协议专属定制继续通过 `transporthttp.StatusCoder`、`ErrorCoder`、`PublicMessager`、`Headerer` 实现。
+- 已废弃的 `log` 兼容门面。请直接使用 `log/slog`。
+- `kit.SSEWriter` 与 `kit.HandleSSE` 的流函数签名。流式能力现位于传输层：使用 `server.SSEStream`（方法集不变）配合 `kit.HandleSSETyped`（套用 endpoint 中间件），或用 `kit.HandleSSE(s, pattern, http.Handler)` 注册原生流处理器。
+
+### 变更
+
+- 文档改为引用核心 `endpoint` 熔断器与限流器，不再引用已移除的 `integrations/circuitbreaker` 与 `integrations/ratelimit` 适配器。
+
 ## [2.5.2] - 2026-08-22
 
 ### 新增

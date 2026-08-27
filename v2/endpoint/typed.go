@@ -80,7 +80,7 @@ func Unwrap[Req, Resp any](ep Endpoint) TypedEndpoint[Req, Resp] {
 //
 //	ep := endpoint.NewTypedBuilder(myTypedEndpoint).
 //	    WithTimeout(5 * time.Second).
-//	    Use(circuitbreaker.Gobreaker(cb)).
+//	    Use(endpoint.NewCircuitBreaker().Middleware()).
 //	    Build()
 func NewTypedBuilder[Req, Resp any](te TypedEndpoint[Req, Resp]) *Builder {
 	return NewBuilder(te.Wrap())

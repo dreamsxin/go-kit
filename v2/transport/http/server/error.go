@@ -22,74 +22,6 @@ type ErrorResponse struct {
 	RequestID string `json:"request_id,omitempty"`
 }
 
-// HTTPError is a small helper for returning transport-aware errors from
-// endpoints without adopting a larger application error framework.
-type HTTPError struct {
-	Status  int
-	Code    string
-	Message string
-	Err     error
-	Header  http.Header
-}
-
-// NewHTTPError creates an HTTPError with a public message.
-func NewHTTPError(status int, code, message string) *HTTPError {
-	return &HTTPError{Status: status, Code: code, Message: message}
-}
-
-// WrapHTTPError creates an HTTPError that preserves an underlying cause.
-func WrapHTTPError(status int, code, message string, err error) *HTTPError {
-	return &HTTPError{Status: status, Code: code, Message: message, Err: err}
-}
-
-func (e *HTTPError) Error() string {
-	if e == nil {
-		return ""
-	}
-	if e.Message != "" {
-		return e.Message
-	}
-	if e.Err != nil {
-		return e.Err.Error()
-	}
-	return http.StatusText(e.StatusCode())
-}
-
-func (e *HTTPError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-	return e.Err
-}
-
-func (e *HTTPError) StatusCode() int {
-	if e == nil || e.Status <= 0 {
-		return http.StatusInternalServerError
-	}
-	return e.Status
-}
-
-func (e *HTTPError) ErrorCode() string {
-	if e == nil {
-		return ""
-	}
-	return e.Code
-}
-
-func (e *HTTPError) PublicMessage() string {
-	if e == nil {
-		return ""
-	}
-	return e.Message
-}
-
-func (e *HTTPError) Headers() http.Header {
-	if e == nil {
-		return nil
-	}
-	return e.Header
-}
-
 // DefaultErrorEncoder writes a plain-text response. Internal errors are always
 // redacted. Errors may implement json.Marshaler, transporthttp.StatusCoder, or
 // transporthttp.Headerer to customize non-5xx responses.
@@ -269,10 +201,11 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 }
 
 // HTTPStatusForError returns the HTTP status the built-in error encoders use
-// for err, honoring StatusCoder, ValidationError, the rejection errors
+// for err, honoring StatusCoder, the rejection errors
 // (ErrBackpressure, ErrBulkheadFull, ErrCircuitOpen, ErrRateLimited), and
-// apperror kinds. Custom error encoders should reuse it instead of
-// duplicating the mapping.
+// apperror kinds (endpoint.ValidationError classifies itself as
+// invalid_argument through apperror.Kinder). Custom error encoders should
+// reuse it instead of duplicating the mapping.
 func HTTPStatusForError(err error) int {
 	return httpStatus(err)
 }
@@ -285,10 +218,6 @@ func httpStatus(err error) int {
 		}
 	}
 
-	var verr *endpoint.ValidationError
-	if errors.As(err, &verr) {
-		return http.StatusBadRequest
-	}
 	if errors.Is(err, endpoint.ErrBackpressure) || errors.Is(err, endpoint.ErrBulkheadFull) || errors.Is(err, endpoint.ErrCircuitOpen) || errors.Is(err, endpoint.ErrRateLimited) {
 		return http.StatusTooManyRequests
 	}
