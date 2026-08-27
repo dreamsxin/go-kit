@@ -51,7 +51,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		mustExistFile(t, filepath.Join(outDir, "cmd", "main.go"))
 		mustExistFile(t, filepath.Join(outDir, "cmd", "custom_routes.go"))
 		mustContainFile(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/api/idl/userservice")
-		mustContainFile(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"schemaVersion": "microgen.project.v2"`)
+		mustContainFile(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"schemaVersion": "microgen.project.v3"`)
 		mustContainFile(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"routePrefix": "/api/idl"`)
 		mustContainFile(t, filepath.Join(outDir, "client", "userservice", "demo.go"), `svcSDK "example.com/gen_idl_integration/sdk/userservicesdk"`)
 		mustContainFile(t, filepath.Join(outDir, "sdk", "userservicesdk", "client.go"), "/api/idl/userservice")
@@ -113,13 +113,14 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 
 	import "net/http"
 
-	func registerCustomRoutes(r *http.ServeMux) []generatedRouteEntry {
+	func registerCustomRoutes(r *http.ServeMux) {
 		r.HandleFunc("GET /custom/ping", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(204)
 		})
-		return []generatedRouteEntry{
-			{Method: "GET", Path: "/custom/ping", Handler: "custom-ping"},
-		}
+	}
+
+	func customRouteDescriptions() []string {
+		return []string{"GET /custom/ping"}
 	}
 	`
 		if err := os.WriteFile(customRoutesPath, []byte(strings.TrimSpace(customRoutes)+"\n"), 0o644); err != nil {
@@ -178,13 +179,14 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 
 	import "net/http"
 
-	func registerCustomRoutes(r *http.ServeMux) []generatedRouteEntry {
+	func registerCustomRoutes(r *http.ServeMux) {
 		r.HandleFunc("GET /custom/ping", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusNoContent)
 		})
-		return []generatedRouteEntry{
-			{Method: "GET", Path: "/custom/ping", Handler: "custom-ping"},
-		}
+	}
+
+	func customRouteDescriptions() []string {
+		return []string{"GET /custom/ping"}
 	}
 	`
 		if err := os.WriteFile(customRoutesPath, []byte(strings.TrimSpace(customRoutes)+"\n"), 0o644); err != nil {

@@ -3,6 +3,7 @@ package main
 
 import (
 	"net/http"
+	"strings"
 {{- if .WithDB}}
 	"gorm.io/gorm"
 	"{{.ImportPath}}/model"
@@ -57,7 +58,7 @@ func (rt generatedRuntime) registerGRPCServices(server *grpc.Server) {
 }
 {{- end}}
 
-func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEntry, withOpenAPI, withDebug bool{{if .WithInteraction}}, withInteraction bool{{end}}) []generatedRouteEntry {
+func generatedRouteEntries(rt generatedRuntime, withOpenAPI, withDebug bool{{if .WithInteraction}}, withInteraction bool{{end}}) []generatedRouteEntry {
 	routes := []generatedRouteEntry{
 		{Method: "GET", Path: "/health", Handler: "health"},
 	}
@@ -65,7 +66,13 @@ func generatedRouteEntries(rt generatedRuntime, customRoutes []generatedRouteEnt
 		routes = append(routes, generatedRouteEntry{Method: "GET", Path: "/debug/routes", Handler: "debug"})
 	}
 	routes = append(routes, rt.routeEntries...)
-	routes = append(routes, customRoutes...)
+	for _, description := range customRouteDescriptions() {
+		method, routePath, found := strings.Cut(description, " ")
+		if !found {
+			method, routePath = "", method
+		}
+		routes = append(routes, generatedRouteEntry{Method: method, Path: routePath, Handler: "custom"})
+	}
 	if withOpenAPI {
 		routes = append(routes,
 			generatedRouteEntry{Method: "GET", Path: "/openapi.json", Handler: "openapi"},

@@ -20,6 +20,7 @@ func TestArchitectureDependencyGates(t *testing.T) {
 		{
 			name:         "endpoint",
 			pattern:      "./endpoint/...",
+			allowedExact: []string{coreModulePath + "/apperror"},
 			allowedTrees: []string{coreModulePath + "/endpoint"},
 		},
 		{
@@ -55,6 +56,11 @@ func TestArchitectureDependencyGates(t *testing.T) {
 			name:         "http security",
 			pattern:      "./security/http",
 			allowedTrees: []string{coreModulePath + "/security/http"},
+		},
+		{
+			name:         "security",
+			pattern:      "./security",
+			allowedExact: []string{coreModulePath + "/apperror", coreModulePath + "/endpoint"},
 		},
 		{
 			name:         "slog observability",
@@ -108,6 +114,11 @@ func TestEndpointHasOnlyStandardLibraryImports(t *testing.T) {
 	root := moduleRoot(t)
 	output := commandOutput(t, root, "go", "list", "-f", "{{join .Imports \"\\n\"}}", "./endpoint")
 	for _, importPath := range strings.Fields(string(output)) {
+		// apperror is the zero-dependency error classification package; it is
+		// the only framework package endpoint may import.
+		if importPath == coreModulePath+"/apperror" {
+			continue
+		}
 		if !isStandardLibraryImport(importPath) {
 			t.Errorf("endpoint imports non-standard package %q", importPath)
 		}

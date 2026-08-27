@@ -1,5 +1,5 @@
 source go
-940fbd944e8e506d3912fcb9c1ff7e1cc15ab1612bc34bf2f38b63fc2da153c9  .microgen/manifest.json
+c4f866acce67b70c54424cfe33f8a3f1690a58b7acd485177c189212d2b5688f  .microgen/manifest.json
 eaca71bbfa98553cef8ff334c69252d23caf0b1100f29664f7b82f9e3793b971  docs/openapi.json
 fd4b89a22e6820a9c835c508cc6ac9ddf824aa60081af146e592cc9e113901aa  docs/schema.json
 4d6e4040dc527084ae804a4d4b975bf315a1f108399125fcdb5e472be83eb132  idl.go

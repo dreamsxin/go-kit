@@ -107,7 +107,7 @@ Use `microgen -h` as the authoritative option list.
 ## Generated Project Manifest
 
 Every full generation writes `.microgen/manifest.json` with schema version
-`microgen.project.v2`. It is the primary identity and regeneration contract for
+`microgen.project.v3`. It is the primary identity and regeneration contract for
 the generated project and records:
 
 - source mode and Go module path;
@@ -123,6 +123,14 @@ it last, so a partial write cannot claim a completed generation.
 checks declared artifacts against the filesystem and ownership rules, and
 reports missing, undeclared, or type-mismatched output. Extend mutations are
 rejected while the manifest is missing or drift is present.
+
+Projects generated before `microgen.project.v3` still use the old
+`registerCustomRoutes` hook that returns generator-internal route entries.
+Extend refuses them with a migration hint: change `cmd/custom_routes.go` to
+`func registerCustomRoutes(r *http.ServeMux)` (register routes on the mux
+directly; move listing entries into `customRouteDescriptions() []string`),
+update any custom `cmd/main.go` accordingly, then rerun a full generation to
+refresh the manifest.
 
 ## API And Schema Contracts
 
@@ -343,7 +351,8 @@ the required ownership seams.
 
 - `service/<service>/service.go`
 - `endpoint/<service>/custom_chain.go`
-- `cmd/custom_routes.go`
+- `cmd/custom_routes.go` (standard-library contract: routes register on the
+  mux directly; `customRouteDescriptions` feeds the debug route listing)
 - local config values and application-specific integration packages
 
 ### Generator-owned

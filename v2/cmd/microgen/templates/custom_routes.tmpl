@@ -4,7 +4,17 @@ import "net/http"
 
 // registerCustomRoutes is the user-owned hook for project-specific HTTP routes.
 // Add handlers here; microgen will not overwrite this file on rerun.
-func registerCustomRoutes(r *http.ServeMux) []generatedRouteEntry {
+//
+// The hook is standard-library only: registrations write directly to the mux.
+// To surface custom routes in /debug/routes and the startup route listing,
+// describe them in customRouteDescriptions.
+func registerCustomRoutes(r *http.ServeMux) {
 	_ = r
+}
+
+// customRouteDescriptions is the user-owned hook describing custom routes for
+// the debug route listing (config mode). Return entries as "METHOD /path",
+// for example "GET /custom/ping".
+func customRouteDescriptions() []string {
 	return nil
 }

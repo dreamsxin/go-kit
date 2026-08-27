@@ -238,7 +238,7 @@ func TestPrintExtendCheckReport(t *testing.T) {
 		"Summary:",
 		"- Module: example.com/demo",
 		"- Overall status: ready",
-		"- Manifest: .microgen/manifest.json (microgen.project.v2)",
+		"- Manifest: .microgen/manifest.json (microgen.project.v3)",
 		"- Manifest status: valid",
 		"- Generated middleware: tracing",
 		"Compatibility Seams:",

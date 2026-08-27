@@ -61,6 +61,14 @@ through the immutable v0 and v1 tags.
 - Documentation now references the core `endpoint` circuit breaker and rate
   limiter instead of the removed `integrations/circuitbreaker` and
   `integrations/ratelimit` adapters.
+- microgen (breaking for generated projects): the user-owned
+  `cmd/custom_routes.go` hook is standard-library only now —
+  `func registerCustomRoutes(r *http.ServeMux)` registers routes directly and
+  `customRouteDescriptions() []string` ("METHOD /path" entries) feeds
+  `/debug/routes` and the startup route listing, replacing the old return of
+  generator-internal route entries. Generated projects write manifest schema
+  `microgen.project.v3`; extend rejects pre-v3 projects with an actionable
+  migration hint.
 
 ## [2.5.2] - 2026-08-22
 

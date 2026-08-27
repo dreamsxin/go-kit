@@ -104,7 +104,7 @@ microgen \
 ## 生成项目清单
 
 每次完整生成都会写入 `.microgen/manifest.json`，schema 版本为
-`microgen.project.v2`。它是生成项目的首要身份与再生成契约，记录：
+`microgen.project.v3`。它是生成项目的首要身份与再生成契约，记录：
 
 - 源模式与 Go module 路径；
 - 已启用的能力，以及配置模式、远程提供方与数据库驱动；
@@ -117,6 +117,12 @@ extend 操作最后刷新清单，因此不完整的写入不会声称完成了�
 `microgen extend -check -out .` 校验清单 schema 与 module 路径，把声明的
 产物与文件系统和所有权规则比对，报告缺失、未声明或类型不匹配的输出。
 清单缺失或存在漂移时，extend 变更会被拒绝。
+
+`microgen.project.v3` 之前生成的项目仍使用返回生成器内部路由条目的旧
+`registerCustomRoutes` 钩子。extend 会拒绝它们并给出迁移提示：把
+`cmd/custom_routes.go` 改为 `func registerCustomRoutes(r *http.ServeMux)`
+（直接在 mux 上注册路由；把清单条目移入 `customRouteDescriptions() []string`），
+同步更新自定义的 `cmd/main.go`，然后重新完整生成以刷新清单。
 
 ## API 与 Schema 契约
 
@@ -326,7 +332,8 @@ extend 模式更新新文件与生成器持有的聚合文件。追加服务或�
 
 - `service/<service>/service.go`
 - `endpoint/<service>/custom_chain.go`
-- `cmd/custom_routes.go`
+- `cmd/custom_routes.go`（标准库契约：路由直接注册到 mux；
+  `customRouteDescriptions` 为调试路由清单提供条目）
 - 本地配置值与应用特有的集成包
 
 ### 生成器持有

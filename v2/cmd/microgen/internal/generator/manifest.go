@@ -11,7 +11,12 @@ import (
 	"strings"
 )
 
-const ProjectManifestSchemaVersion = "microgen.project.v2"
+const ProjectManifestSchemaVersion = "microgen.project.v3"
+
+// legacyManifestSchemaVersion is the schema written before the custom-routes
+// hook became standard-library only. Extend mode reports an actionable
+// migration error for projects still on it.
+const legacyManifestSchemaVersion = "microgen.project.v2"
 
 // ProjectManifest records the generator-owned identity and capabilities of a
 // generated project. Extend mode treats it as the primary configuration source.
@@ -206,6 +211,9 @@ func readProjectManifest(manifestPath, modulePath string) (*ProjectManifest, err
 
 func validateProjectManifest(manifest ProjectManifest, modulePath string) error {
 	if manifest.SchemaVersion != ProjectManifestSchemaVersion {
+		if manifest.SchemaVersion == legacyManifestSchemaVersion {
+			return fmt.Errorf("unsupported schemaVersion %q: project predates the stdlib-only custom-routes hook; update cmd/custom_routes.go to `func registerCustomRoutes(r *http.ServeMux)` (register routes on the mux directly and move route entries into customRouteDescriptions), then rerun a full generation to refresh the manifest", manifest.SchemaVersion)
+		}
 		return fmt.Errorf("unsupported schemaVersion %q (want %q)", manifest.SchemaVersion, ProjectManifestSchemaVersion)
 	}
 	if manifest.ModulePath != modulePath {

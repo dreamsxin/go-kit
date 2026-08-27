@@ -38,6 +38,7 @@
 ### 变更
 
 - 文档改为引用核心 `endpoint` 熔断器与限流器，不再引用已移除的 `integrations/circuitbreaker` 与 `integrations/ratelimit` 适配器。
+- microgen（对生成项目 Breaking）：用户持有的 `cmd/custom_routes.go` 钩子现为纯标准库契约 —— `func registerCustomRoutes(r *http.ServeMux)` 直接在 mux 上注册路由，`customRouteDescriptions() []string`（“METHOD /path” 条目）为 `/debug/routes` 与启动路由清单提供条目，取代原来返回生成器内部路由条目的写法。生成项目写入清单 schema `microgen.project.v3`；extend 拒绝 v3 之前的项目并给出可执行的迁移提示。
 
 ## [2.5.2] - 2026-08-22
 

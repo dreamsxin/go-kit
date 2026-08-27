@@ -169,20 +169,18 @@ func main() {
 {{end}}
 
 	runtime.registerRoutes(r)
-{{if .WithConfig}}	customRoutes := registerCustomRoutes(r)
-{{else}}	registerCustomRoutes(r)
-{{end}}
+	registerCustomRoutes(r)
 
 {{if .WithConfig}}	if cfg.Debug.RoutesEnabled {
 		r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			_ = json.NewEncoder(w).Encode(generatedRouteEntries(runtime, customRoutes, {{if .WithOpenAPI}}true{{else}}false{{end}}, true{{if .WithInteraction}}, true{{end}}))
+			_ = json.NewEncoder(w).Encode(generatedRouteEntries(runtime, {{if .WithOpenAPI}}true{{else}}false{{end}}, true{{if .WithInteraction}}, true{{end}}))
 		})
 	}
 {{end}}
 
 {{if .WithConfig}}	if cfg.Debug.PrintRoutes {
-		allRoutes := generatedRouteEntries(runtime, customRoutes, {{if .WithOpenAPI}}true{{else}}false{{end}}, cfg.Debug.RoutesEnabled{{if .WithInteraction}}, true{{end}})
+		allRoutes := generatedRouteEntries(runtime, {{if .WithOpenAPI}}true{{else}}false{{end}}, cfg.Debug.RoutesEnabled{{if .WithInteraction}}, true{{end}})
 		printAllRoutes(logger, allRoutes)
 	}
 {{end}}
