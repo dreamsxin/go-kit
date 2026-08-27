@@ -28,7 +28,10 @@ kit.HandleJSONTyped(svc, "POST /greet", func(
 	return GreetResponse{Message: "Hello, " + req.Name + "!"}, nil
 })
 host, err := kit.NewHost(kit.WithLifecycle(svc))
-// health checks, graceful shutdown, and strict JSON come with the service
+if err != nil {
+	log.Fatal(err)
+}
+// host.Run(ctx) serves with health checks, graceful shutdown, and strict JSON
 ```
 
 Full walkthrough: [getting started](v2/docs/getting-started.md).
@@ -38,6 +41,7 @@ Full walkthrough: [getting started](v2/docs/getting-started.md).
 | Component | What it provides | Guide |
 | --- | --- | --- |
 | `endpoint` | typed endpoints, middleware (validation, timeout, circuit breaker, rate limit, fallback, bulkhead, tracing) | [guide](v2/endpoint/README.md) |
+| `apperror` | transport-neutral error classification mapped by every transport | [guide](v2/docs/errors.md) |
 | `transport/http` | JSON server/client, SSE, multipart, pagination, response envelopes | [guide](v2/transport/README.md) |
 | `kit` | service assembly, health checks, lifecycle | [guide](v2/README.md#build-with-kit) |
 | `sd` | service discovery, balancing, retry | [guide](v2/sd/README.md) |
