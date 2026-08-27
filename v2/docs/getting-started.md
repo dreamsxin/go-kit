@@ -8,7 +8,7 @@ HTTP requests, in about five minutes. All you need is Go 1.25.8 or later.
 ## Install
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2@v2.6.0
+go get github.com/dreamsxin/go-kit/v2@latest
 ```
 
 ## The first service

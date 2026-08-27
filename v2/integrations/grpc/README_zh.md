@@ -7,7 +7,7 @@
 ## 安装
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2/integrations/grpc@v0.2.4
+go get github.com/dreamsxin/go-kit/v2/integrations/grpc@latest
 ```
 
 ## 服务端

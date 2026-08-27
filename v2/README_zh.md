@@ -52,7 +52,7 @@ go -C v2 install ./cmd/microgen
 从独立版本 module 安装重构版生成器：
 
 ```bash
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.3.0
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 ```
 
 生成器 CLI（包括 SQLite 结构读取）安装和运行均不依赖 CGO 或本地 C 编译器。

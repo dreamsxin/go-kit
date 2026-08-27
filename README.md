@@ -64,8 +64,8 @@ Full walkthrough: [getting started](v2/docs/getting-started.md).
 The maintained product line is the independent v2 module under [`v2/`](v2/):
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2@v2.6.0
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.3.0
+go get github.com/dreamsxin/go-kit/v2@latest
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 ```
 
 `v2.6.0` is the architecture-evolution release: it contains intentional

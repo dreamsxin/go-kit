@@ -152,7 +152,9 @@ func TestReleaseManifestMatchesRepository(t *testing.T) {
 	for _, readme := range []string{"README.md", "README_zh.md"} {
 		path := filepath.Join(root, readme)
 		assertVersionText(t, path, manifest.CoreVersion)
-		assertVersionText(t, path, microgenModule.ModulePath+"@"+microgenModule.Version)
+		// Documentation installs the generator with @latest so it never drifts
+		// between releases.
+		assertVersionText(t, path, microgenModule.ModulePath+"@latest")
 	}
 	changelogVersion := strings.TrimPrefix(manifest.CoreVersion, "v")
 	changelogStatus := "Release Candidate"

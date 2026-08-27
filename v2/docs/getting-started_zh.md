@@ -8,7 +8,7 @@ Go 1.25.8 或更高版本。
 ## 安装
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2@v2.6.0
+go get github.com/dreamsxin/go-kit/v2@latest
 ```
 
 ## 第一个服务

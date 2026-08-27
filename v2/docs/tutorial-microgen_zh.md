@@ -8,7 +8,7 @@
 ## 1. 安装 microgen
 
 ```bash
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.4
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 ```
 
 ## 2. 编写契约

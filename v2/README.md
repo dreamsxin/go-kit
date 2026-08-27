@@ -58,7 +58,7 @@ go -C v2 install ./cmd/microgen
 Install the refactored generator from its independently versioned module:
 
 ```bash
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.3.0
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 ```
 
 The generator CLI, including SQLite schema introspection, installs and runs

@@ -62,8 +62,8 @@ if err != nil {
 当前维护的产品线是 [`v2/`](v2/) 目录下的独立 v2 module：
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2@v2.6.0
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.3.0
+go get github.com/dreamsxin/go-kit/v2@latest
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 ```
 
 `v2.6.0` 是架构进化版本：包含对装配层与错误模型的有意破坏性变更（见[变更日志](v2/CHANGELOG_zh.md)与[升级说明](v2/MIGRATION_zh.md)）。

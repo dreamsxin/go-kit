@@ -8,7 +8,7 @@ Go and TypeScript SDKs, OpenAPI, and the manifest that tracks ownership.
 ## 1. Install microgen
 
 ```bash
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.4
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 ```
 
 ## 2. Write the contract
