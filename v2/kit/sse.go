@@ -9,11 +9,11 @@ import (
 )
 
 // HandleSSE registers a raw HTTP handler for a Server-Sent Events stream at
-// pattern. Like Service.Handle, this is an escape hatch: endpoint middleware
-// does not apply. Prefer HandleSSETyped for streams that should participate
-// in the service -> endpoint -> transport chain.
-func HandleSSE(s *Service, pattern string, handler http.Handler) {
-	s.Handle(pattern, handler)
+// pattern. Like Handle, this is an escape hatch: endpoint middleware does
+// not apply. Prefer HandleSSETyped for streams that should participate in
+// the service -> endpoint -> transport chain.
+func (h *HTTP) HandleSSE(pattern string, handler http.Handler) {
+	h.Handle(pattern, handler)
 }
 
 // HandleSSETyped registers a typed Server-Sent Events stream at pattern. The
@@ -31,7 +31,7 @@ func HandleSSE(s *Service, pattern string, handler http.Handler) {
 //
 // Example:
 //
-//	kit.HandleSSETyped(svc, "GET /events",
+//	kit.HandleSSETyped(httpComponent, "GET /events",
 //	    func(ctx context.Context, req eventsRequest, w *server.SSEStream) error {
 //	        ticker := time.NewTicker(time.Second)
 //	        defer ticker.Stop()
@@ -49,7 +49,7 @@ func HandleSSE(s *Service, pattern string, handler http.Handler) {
 //	    decodeEventsRequest,
 //	)
 func HandleSSETyped[Req any](
-	s *Service,
+	h *HTTP,
 	pattern string,
 	stream func(ctx context.Context, req Req, w *httpserver.SSEStream) error,
 	dec func(*http.Request) (Req, error),
@@ -62,15 +62,15 @@ func HandleSSETyped[Req any](
 		panic("kit: SSE decode function cannot be nil")
 	}
 	handler := httpserver.NewSSEServerTyped(stream, dec, opts...)
-	s.Handle(pattern, s.sseMiddlewareHandler(handler))
+	h.Handle(pattern, h.sseMiddlewareHandler(handler))
 }
 
-// sseMiddlewareHandler wraps an SSE handler so service-level endpoint
+// sseMiddlewareHandler wraps an SSE handler so component-level endpoint
 // middleware observes each stream as one request. The wrapped handler runs
-// inside the HTTP context prepared by Service.Handle, which carries the
-// request and response writer for the endpoint bridge.
-func (s *Service) sseMiddlewareHandler(handler http.Handler) http.Handler {
-	if len(s.middleware) == 0 {
+// inside the HTTP context prepared by Handle, which carries the request and
+// response writer for the endpoint bridge.
+func (h *HTTP) sseMiddlewareHandler(handler http.Handler) http.Handler {
+	if len(h.middleware) == 0 {
 		return handler
 	}
 	base := endpoint.Endpoint(func(ctx context.Context, _ any) (any, error) {
@@ -78,7 +78,7 @@ func (s *Service) sseMiddlewareHandler(handler http.Handler) http.Handler {
 		handler.ServeHTTP(responseWriterFromContext(ctx), request.WithContext(ctx))
 		return struct{}{}, nil
 	})
-	wrapped := s.applyEndpointMiddleware(base)
+	wrapped := h.applyEndpointMiddleware(base)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := wrapped(r.Context(), nil); err != nil {
 			httpserver.JSONErrorEncoder(r.Context(), err, w)

@@ -101,10 +101,11 @@ svc.Handle("/api/admin", requireRole("admin")(adminHandler))
 ## 5. Assemble
 
 ```go
-svc, err := kit.New(":8080",
+svc, err := kit.NewHTTP(":8080",
 	kit.WithHTTPMiddleware(authenticate(apiKeys)),
 	kit.WithRequestID(),
 )
+host, err := kit.NewHost(kit.WithLifecycle(svc))
 ```
 
 Run it and try the four rows from the goal table:

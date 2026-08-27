@@ -80,7 +80,7 @@ func main() {
 	httpAddr := flag.String("http.addr", ":8080", "HTTP listen address")
 	flag.Parse()
 
-	svc, err := kit.New(*httpAddr, kit.WithRequestID())
+	svc, err := kit.NewHTTP(*httpAddr, kit.WithRequestID())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,9 +96,14 @@ func main() {
 
 	log.Println("customcodec example listening on", *httpAddr)
 
+	host, err := kit.NewHost(kit.WithLifecycle(svc))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := svc.Run(ctx); err != nil {
+	if err := host.Run(ctx); err != nil {
 		log.Fatal(err)
 	}
 }

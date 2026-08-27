@@ -123,7 +123,7 @@ func main() {
 	httpAddr := flag.String("http.addr", ":8080", "HTTP listen address")
 	flag.Parse()
 
-	svc, err := kit.New(*httpAddr,
+	svc, err := kit.NewHTTP(*httpAddr,
 		kit.WithRequestID(),
 		kit.WithTimeout(5*time.Second),
 		// Response assembly lives here, once, at the transport boundary.
@@ -146,9 +146,14 @@ func main() {
 
 	log.Println("envelope example listening on", *httpAddr)
 
+	host, err := kit.NewHost(kit.WithLifecycle(svc))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := svc.Run(ctx); err != nil {
+	if err := host.Run(ctx); err != nil {
 		log.Fatal(err)
 	}
 }

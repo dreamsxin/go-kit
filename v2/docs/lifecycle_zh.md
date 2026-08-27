@@ -2,8 +2,8 @@
 
 [English](lifecycle.md) | 简体中文
 
-`kit.Service` 在启动成功后拥有 HTTP 监听器与优雅停机。本页覆盖启动、停机、后台
-任务与可选服务器。
+`kit.Host` 编排生命周期组件，不拥有任何传输；`kit.HTTP` 组件拥有 HTTP 监听器。
+启动成功后由 Host 拥有优雅停机。本页覆盖启动、停机、后台任务与可选服务器。
 
 ## 启动与停机
 
@@ -11,21 +11,29 @@
 ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 defer stop()
 
-svc, err := kit.New(":8080", kit.WithShutdownTimeout(10*time.Second))
+svc, err := kit.NewHTTP(":8080")
 if err != nil {
 	return err
 }
 // register routes...
 
-if err := svc.Run(ctx); err != nil {
+host, err := kit.NewHost(
+	kit.WithLifecycle(svc),
+	kit.WithShutdownTimeout(10*time.Second),
+)
+if err != nil {
+	return err
+}
+
+if err := host.Run(ctx); err != nil {
 	return err
 }
 ```
 
-- `kit.New` 校验配置；启动失败是同步的。
-- `svc.Run(ctx)` 阻塞直到 context 被取消或某个服务器失败，然后在配置的截止时间
+- `kit.NewHTTP` 与 `kit.NewHost` 校验配置；启动失败是同步的。
+- `host.Run(ctx)` 阻塞直到 context 被取消或某个组件失败，然后在配置的截止时间
   内完成停机。
-- 服务在停机后不能重启。
+- Host 在停机后不能重启。
 
 ## 可选服务器
 
@@ -38,7 +46,7 @@ if err != nil {
 }
 pb.RegisterGreeterServer(grpcComponent.Server(), greeter)
 
-svc, err := kit.New(":8080", kit.WithLifecycle(grpcComponent))
+host, err := kit.NewHost(kit.WithLifecycle(svc, grpcComponent))
 ```
 
 组件按顺序启动，按相反顺序停机。
@@ -67,7 +75,7 @@ func (r *Runner) Shutdown(ctx context.Context) error { /* stop tickers, wait in-
 runner := &jobs.Runner{Jobs: []jobs.Job{
 	{Name: "cleanup-expired", Interval: time.Hour, Run: svc.CleanupExpired},
 }}
-svc, err := kit.New(":8080", kit.WithLifecycle(runner))
+host, err := kit.NewHost(kit.WithLifecycle(httpComponent, runner))
 ```
 
 让任务在流量服务旁边安全运行的规则：

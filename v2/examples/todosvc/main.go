@@ -265,7 +265,7 @@ func (l *storeLifecycle) Start() error                   { return nil }
 func (l *storeLifecycle) Errors() <-chan error           { return l.errs }
 func (l *storeLifecycle) Shutdown(context.Context) error { return l.store.close() }
 
-func registerRoutes(svc *kit.Service, todos todoService) {
+func registerRoutes(svc *kit.HTTP, todos todoService) {
 	// Body-shaped requests use the typed JSON path: service middleware
 	// (request ID, endpoint middleware) and strict decoding apply. The
 	// ServeMux method pattern keeps GET on the raw handler below.
@@ -346,10 +346,9 @@ func main() {
 	}
 	todos := todoService{store: store, now: time.Now}
 
-	svc, err := kit.New(*httpAddr,
+	svc, err := kit.NewHTTP(*httpAddr,
 		kit.WithRequestID(),
 		kit.WithTimeout(5*time.Second),
-		kit.WithLifecycle(&storeLifecycle{store: store}),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -358,7 +357,12 @@ func main() {
 	registerRoutes(svc, todos)
 
 	log.Println("todosvc example listening on", *httpAddr)
-	if err := svc.Run(ctx); err != nil {
+
+	host, err := kit.NewHost(kit.WithLifecycle(&storeLifecycle{store: store}, svc))
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := host.Run(ctx); err != nil {
 		log.Fatal(err)
 	}
 }

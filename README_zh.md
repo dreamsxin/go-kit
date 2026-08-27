@@ -17,7 +17,7 @@ Service -> Endpoint -> Transport
 ## 快速示例
 
 ```go
-svc, err := kit.New(":8080", kit.WithRequestID())
+svc, err := kit.NewHTTP(":8080", kit.WithRequestID())
 if err != nil {
 	log.Fatal(err)
 }
@@ -26,6 +26,7 @@ kit.HandleJSONTyped(svc, "POST /greet", func(
 ) (GreetResponse, error) {
 	return GreetResponse{Message: "Hello, " + req.Name + "!"}, nil
 })
+host, err := kit.NewHost(kit.WithLifecycle(svc))
 // 健康检查、优雅停机与严格 JSON 解码随服务自带
 ```
 

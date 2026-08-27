@@ -33,7 +33,8 @@
 - `server.HTTPError`、`server.NewHTTPError`、`server.WrapHTTPError`。
   从 endpoint 或 service 层携带 HTTP 状态违反了分层边界。请使用 `apperror` 分类失败（传输中立，同样适用于 gRPC）；协议专属定制继续通过 `transporthttp.StatusCoder`、`ErrorCoder`、`PublicMessager`、`Headerer` 实现。
 - 已废弃的 `log` 兼容门面。请直接使用 `log/slog`。
-- `kit.SSEWriter` 与 `kit.HandleSSE` 的流函数签名。流式能力现位于传输层：使用 `server.SSEStream`（方法集不变）配合 `kit.HandleSSETyped`（套用 endpoint 中间件），或用 `kit.HandleSSE(s, pattern, http.Handler)` 注册原生流处理器。
+- `kit.SSEWriter` 与 `kit.HandleSSE` 的流函数签名。流式能力现位于传输层：使用 `server.SSEStream`（方法集不变）配合 `kit.HandleSSETyped`（套用 endpoint 中间件），或用 `HTTP.HandleSSE` 方法注册原生流处理器。
+- `kit.Service`、`kit.New`、`kit.MustNew` 与 `Service.Run`（Breaking）。装配拆分为传输中立的 `kit.Host`（编排 `kit.Lifecycle` 组件）与拥有路由、健康检查和 HTTP 服务器的 `kit.HTTP` 组件。组件使用 `kit.NewHTTP` / `kit.MustNewHTTP`；进程使用 `kit.NewHost(kit.WithLifecycle(...))` + `Host.Run`。`HandleJSON*` 与 `HandleSSETyped` 接受 `*kit.HTTP`；`Handle`、`HandleFunc`、`HandleSSE` 成为 `*kit.HTTP` 的方法。纯 worker 或纯 gRPC 服务现在可以不经 HTTP 通过 Host 运行。
 
 ### 变更
 

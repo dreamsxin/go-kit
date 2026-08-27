@@ -164,7 +164,8 @@ reports filesystem drift and extend refuses mutations until drift is resolved.
 ## Build With `kit`
 
 `kit` is the shortest path that still preserves endpoint middleware and strict
-HTTP transport behavior:
+HTTP transport behavior. The transport-neutral `Host` runs lifecycle
+components; the `HTTP` component owns routes and serves them:
 
 ```go
 package main
@@ -189,7 +190,7 @@ type HelloResponse struct {
 }
 
 func main() {
-	svc, err := kit.New(":8080",
+	svc, err := kit.NewHTTP(":8080",
 		kit.WithRequestID(),
 		kit.WithTimeout(5*time.Second),
 	)
@@ -204,20 +205,27 @@ func main() {
 		return HelloResponse{Message: "Hello, " + req.Name}, nil
 	})
 
+	host, err := kit.NewHost(kit.WithLifecycle(svc))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
 		syscall.SIGTERM,
 	)
 	defer stop()
-	if err := svc.Run(ctx); err != nil {
+	if err := host.Run(ctx); err != nil {
 		log.Fatal(err)
 	}
 }
 ```
 
-`kit.New` validates options and returns errors. `Service.Run` follows the
-caller-owned context; process signal handling stays in `main`.
+`kit.NewHTTP` and `kit.NewHost` validate options and return errors.
+`Host.Run` follows the caller-owned context; process signal handling stays in
+`main`. A pure worker or gRPC-only service mounts its own components into a
+Host without any HTTP.
 
 Dependency-specific endpoint middleware is assembled explicitly. Circuit
 breaking and rate limiting are built into `endpoint` and hold no third-party
@@ -227,7 +235,7 @@ dependencies:
 breaker := endpoint.NewCircuitBreaker(
 	endpoint.WithBreakerFailureThreshold(5),
 )
-svc, err := kit.New(":8080", kit.WithEndpointMiddleware(
+svc, err := kit.NewHTTP(":8080", kit.WithEndpointMiddleware(
 	breaker.Middleware(),
 	endpoint.RateLimitMiddleware(limiter), // limiter implements endpoint.RateLimiter
 ))
@@ -242,7 +250,7 @@ if err != nil {
 	return err
 }
 pb.RegisterGreeterServer(grpcComponent.Server(), greeter)
-svc, err := kit.New(":8080", kit.WithLifecycle(grpcComponent))
+host, err := kit.NewHost(kit.WithLifecycle(svc, grpcComponent))
 ```
 
 The default HTTP server protects header reads with a 5-second timeout, limits
@@ -254,8 +262,8 @@ Use `kit.HandleJSONTyped` for concrete request and response types,
 `kit.HandleJSON` for intentionally dynamic responses, and
 `kit.HandleJSONEndpoint` for an existing endpoint. Register Server-Sent
 Events streams with `kit.HandleSSETyped` so endpoint middleware applies to
-the stream, or `kit.HandleSSE` for a raw streaming handler. Use
-`Service.Handle` and `Service.HandleFunc` only for raw HTTP integrations.
+the stream, or `HTTP.HandleSSE` for a raw streaming handler. Use
+`HTTP.Handle` and `HTTP.HandleFunc` only for raw HTTP integrations.
 
 `endpoint.Metrics` is the mutable collector used by middleware. Read it through
 `Snapshot()`, which returns a copyable `endpoint.MetricsSnapshot`; use

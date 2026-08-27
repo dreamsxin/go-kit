@@ -1,4 +1,4 @@
-// Package grpc provides an optional gRPC lifecycle component for kit.Service.
+// Package grpc provides an optional gRPC lifecycle component for kit.Host.
 package grpc
 
 import (
@@ -13,7 +13,7 @@ import (
 )
 
 // Component owns a gRPC server and implements kit.Lifecycle. Register services
-// through Server before attaching the component to a kit.Service.
+// through Server before attaching the component to a kit.Host.
 type Component struct {
 	addr   string
 	server *googlegrpc.Server

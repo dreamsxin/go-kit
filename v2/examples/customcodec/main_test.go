@@ -13,7 +13,7 @@ import (
 
 func newCustomCodecServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	svc := kit.MustNew(":0")
+	svc := kit.MustNewHTTP(":0")
 	decode, encode := server.RawBodyCodec(unmarshalCustom, marshalCustom, contentType)
 	svc.Handle("POST /shout", server.NewServer(
 		shout, decode, encode,

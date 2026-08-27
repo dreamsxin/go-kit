@@ -170,7 +170,7 @@ if err := transporthttp.ValidateQueryStruct[ListOrdersRequest](); err != nil {
 保留原响应的 `StatusCoder` 与 `Headerer` 行为：
 
 ```go
-kit.New(":8080", kit.WithJSONServerOptions(
+kit.NewHTTP(":8080", kit.WithJSONServerOptions(
     server.ServerResponseEncoder(server.WrapJSONResponse(func(response any) any {
         return envelope{Code: 0, Message: "ok", Data: response}
     })),

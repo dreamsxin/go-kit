@@ -2,9 +2,10 @@
 
 English | [简体中文](lifecycle_zh.md)
 
-`kit.Service` owns the HTTP listener and graceful shutdown after startup
-succeeds. This page covers startup, shutdown, background jobs, and optional
-servers.
+`kit.Host` orchestrates lifecycle components without owning any transport;
+the `kit.HTTP` component owns the HTTP listener. After startup succeeds the
+Host owns graceful shutdown. This page covers startup, shutdown, background
+jobs, and optional servers.
 
 ## Startup and shutdown
 
@@ -12,21 +13,30 @@ servers.
 ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 defer stop()
 
-svc, err := kit.New(":8080", kit.WithShutdownTimeout(10*time.Second))
+svc, err := kit.NewHTTP(":8080")
 if err != nil {
 	return err
 }
 // register routes...
 
-if err := svc.Run(ctx); err != nil {
+host, err := kit.NewHost(
+	kit.WithLifecycle(svc),
+	kit.WithShutdownTimeout(10*time.Second),
+)
+if err != nil {
+	return err
+}
+
+if err := host.Run(ctx); err != nil {
 	return err
 }
 ```
 
-- `kit.New` validates configuration; startup failures are synchronous.
-- `svc.Run(ctx)` blocks until the context is cancelled or a server fails, then
-  shuts down within the configured deadline.
-- A service cannot be restarted after shutdown.
+- `kit.NewHTTP` and `kit.NewHost` validate configuration; startup failures
+  are synchronous.
+- `host.Run(ctx)` blocks until the context is cancelled or a component fails,
+  then shuts down within the configured deadline.
+- A host cannot be restarted after shutdown.
 
 ## Optional servers
 
@@ -40,7 +50,7 @@ if err != nil {
 }
 pb.RegisterGreeterServer(grpcComponent.Server(), greeter)
 
-svc, err := kit.New(":8080", kit.WithLifecycle(grpcComponent))
+host, err := kit.NewHost(kit.WithLifecycle(svc, grpcComponent))
 ```
 
 Components start in order and shut down in reverse order.
@@ -69,7 +79,7 @@ func (r *Runner) Shutdown(ctx context.Context) error { /* stop tickers, wait in-
 runner := &jobs.Runner{Jobs: []jobs.Job{
 	{Name: "cleanup-expired", Interval: time.Hour, Run: svc.CleanupExpired},
 }}
-svc, err := kit.New(":8080", kit.WithLifecycle(runner))
+host, err := kit.NewHost(kit.WithLifecycle(httpComponent, runner))
 ```
 
 Rules that keep jobs safe next to serving traffic:

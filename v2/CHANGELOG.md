@@ -54,7 +54,15 @@ through the immutable v0 and v1 tags.
 - `kit.SSEWriter` and the stream-function signature of `kit.HandleSSE`.
   Streaming now lives in the transport layer: use `server.SSEStream` (same
   method set) with `kit.HandleSSETyped` (endpoint middleware applies) or
-  `kit.HandleSSE(s, pattern, http.Handler)` for raw streaming handlers.
+  the `HTTP.HandleSSE` method for raw streaming handlers.
+- `kit.Service`, `kit.New`, `kit.MustNew`, and `Service.Run` (breaking).
+  Assembly is now split into a transport-neutral `kit.Host` orchestrating
+  `kit.Lifecycle` components and a `kit.HTTP` component owning routes,
+  health checks, and the HTTP server. Use `kit.NewHTTP` / `kit.MustNewHTTP`
+  for the component and `kit.NewHost(kit.WithLifecycle(...))` + `Host.Run`
+  for the process. `HandleJSON*` and `HandleSSETyped` take `*kit.HTTP`;
+  `Handle`, `HandleFunc`, and `HandleSSE` are methods on `*kit.HTTP`. Pure
+  worker or gRPC-only services can now run through a Host without HTTP.
 
 ### Changed
 

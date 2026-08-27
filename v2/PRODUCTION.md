@@ -17,7 +17,7 @@ ctx, stop := signal.NotifyContext(
 )
 defer stop()
 
-if err := svc.Run(ctx); err != nil {
+if err := host.Run(ctx); err != nil {
 	return err
 }
 ```
@@ -33,7 +33,7 @@ server so `SIGTERM` stops jobs with the process:
 
 ```text
 service/
-├── cmd/main.go        # wire-up: kit.New(..., kit.WithLifecycle(runner))
+├── cmd/main.go        # wire-up: kit.NewHost(kit.WithLifecycle(http, runner))
 ├── service/           # business logic; jobs call these methods
 ├── repository/        # storage
 ├── transport/         # HTTP handlers
@@ -70,7 +70,7 @@ Attach it in `main`:
 runner := &jobs.Runner{Jobs: []jobs.Job{
     {Name: "cleanup-expired", Interval: time.Hour, Run: svc.CleanupExpired},
 }}
-svc, err := kit.New(":8080", kit.WithLifecycle(runner))
+host, err := kit.NewHost(kit.WithLifecycle(httpComponent, runner))
 ```
 
 Rules that keep jobs safe next to serving traffic:
@@ -301,7 +301,7 @@ budget with the framework's shutdown timeout:
 - `terminationGracePeriodSeconds` must exceed the kit shutdown timeout
   (`kit.WithShutdownTimeout`, default 10s) plus the platform's load-balancer
   deregistration delay, or in-flight requests are cut mid-shutdown;
-- the entry point already cancels `Service.Run` on `SIGTERM` (see
+- the entry point already cancels `Host.Run` on `SIGTERM` (see
   Lifecycle); add a `preStop` sleep only when the service mesh or ingress
   keeps routing to the pod after the endpoint is deregistered;
 - prefer rolling updates with `maxUnavailable: 0` so readiness, not pod

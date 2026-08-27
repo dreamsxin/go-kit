@@ -14,9 +14,9 @@ func TestKitInstallsSecurityMiddlewareAcrossRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewSecurityHeaders: %v", err)
 	}
-	service, err := kit.New(":0", kit.WithHTTPMiddleware(headers))
+	service, err := kit.NewHTTP(":0", kit.WithHTTPMiddleware(headers))
 	if err != nil {
-		t.Fatalf("kit.New: %v", err)
+		t.Fatalf("kit.NewHTTP: %v", err)
 	}
 	recorder := httptest.NewRecorder()
 	service.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/health", nil))

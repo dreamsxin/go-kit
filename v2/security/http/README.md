@@ -39,7 +39,7 @@ With `kit`, install the same policies once for health, JSON endpoint, raw HTTP,
 and generated routes:
 
 ```go
-service, err := kit.New(":8080",
+service, err := kit.NewHTTP(":8080",
     kit.WithHTTPMiddleware(proxy, headers, ipPolicy, cors, csrf),
 )
 ```

@@ -63,12 +63,12 @@ own listeners and graceful shutdown after startup succeeds:
 ```go
 ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 defer stop()
-if err := svc.Run(ctx); err != nil {
+if err := host.Run(ctx); err != nil {
     return err
 }
 ```
 
-Startup errors surface synchronously; a service cannot be restarted after
-shutdown. Optional components (background jobs, a gRPC listener) attach through
-`kit.Lifecycle` and share the same bounded shutdown. See
-[lifecycle](lifecycle.md).
+Startup errors surface synchronously; a host cannot be restarted after
+shutdown. Optional components (background jobs, a gRPC listener, the HTTP
+component) attach through `kit.Lifecycle` and share the same bounded shutdown.
+See [lifecycle](lifecycle.md).

@@ -175,7 +175,7 @@ the response value while preserving the original response's `StatusCoder` and
 `Headerer` behavior:
 
 ```go
-kit.New(":8080", kit.WithJSONServerOptions(
+kit.NewHTTP(":8080", kit.WithJSONServerOptions(
     server.ServerResponseEncoder(server.WrapJSONResponse(func(response any) any {
         return envelope{Code: 0, Message: "ok", Data: response}
     })),

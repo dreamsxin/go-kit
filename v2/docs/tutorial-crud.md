@@ -96,11 +96,11 @@ store, err := openTodoStore(ctx, *dbDSN)
 if err != nil {
 	log.Fatalf("open database: %v", err)
 }
-svc, err := kit.New(*httpAddr,
+svc, err := kit.NewHTTP(*httpAddr,
 	kit.WithRequestID(),
 	kit.WithTimeout(5*time.Second),
-	kit.WithLifecycle(&storeLifecycle{store: store}),
 )
+host, err := kit.NewHost(kit.WithLifecycle(&storeLifecycle{store: store}, svc))
 ```
 
 ## 6. Run it

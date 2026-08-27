@@ -1,4 +1,4 @@
-package kit
+package kit_test
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/dreamsxin/go-kit/v2/kit"
 )
 
 type recordingLifecycle struct {
@@ -37,12 +39,12 @@ func TestLifecycleComponentsStartAndStopInDependencyOrder(t *testing.T) {
 	var events []string
 	first := &recordingLifecycle{name: "first", events: &events}
 	second := &recordingLifecycle{name: "second", events: &events}
-	service := MustNew("127.0.0.1:0", WithLifecycle(first, second))
+	host := kit.MustNewHost(kit.WithLifecycle(first, second))
 
-	if err := service.Start(); err != nil {
+	if err := host.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	if err := service.Shutdown(context.Background()); err != nil {
+	if err := host.Shutdown(context.Background()); err != nil {
 		t.Fatalf("Shutdown: %v", err)
 	}
 
@@ -56,17 +58,17 @@ func TestLifecycleStartupFailureStopsPreviouslyStartedComponents(t *testing.T) {
 	var events []string
 	first := &recordingLifecycle{name: "first", events: &events}
 	second := &recordingLifecycle{name: "second", events: &events, startErr: errors.New("failed")}
-	service := MustNew("127.0.0.1:0", WithLifecycle(first, second))
+	host := kit.MustNewHost(kit.WithLifecycle(first, second))
 
-	if err := service.Start(); err == nil {
+	if err := host.Start(); err == nil {
 		t.Fatal("expected startup error")
 	}
 	want := []string{"start first", "start second", "stop first"}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("lifecycle events = %v, want %v", events, want)
 	}
-	if err := service.Start(); err == nil {
-		t.Fatal("expected service with cleaned-up components to reject restart")
+	if err := host.Start(); err == nil {
+		t.Fatal("expected host with cleaned-up components to reject restart")
 	}
 }
 
@@ -74,10 +76,10 @@ func TestLifecycleAsynchronousErrorStopsRun(t *testing.T) {
 	var events []string
 	errorsChannel := make(chan error, 1)
 	component := &recordingLifecycle{name: "worker", events: &events, errors: errorsChannel}
-	service := MustNew("127.0.0.1:0", WithLifecycle(component), WithShutdownTimeout(time.Second))
+	host := kit.MustNewHost(kit.WithLifecycle(component), kit.WithShutdownTimeout(time.Second))
 	done := make(chan error, 1)
 	go func() {
-		done <- service.Run(context.Background())
+		done <- host.Run(context.Background())
 	}()
 
 	errorsChannel <- errors.New("serve failed")
@@ -93,7 +95,7 @@ func TestLifecycleAsynchronousErrorStopsRun(t *testing.T) {
 
 func TestWithLifecycleRejectsTypedNil(t *testing.T) {
 	var component *recordingLifecycle
-	if _, err := New(":0", WithLifecycle(component)); err == nil {
+	if _, err := kit.NewHost(kit.WithLifecycle(component)); err == nil {
 		t.Fatal("expected typed nil lifecycle error")
 	}
 }
@@ -108,10 +110,10 @@ func TestLifecycleAsyncErrorReportsComponentName(t *testing.T) {
 	var events []string
 	errorsChannel := make(chan error, 1)
 	component := &namedComponent{recordingLifecycle{name: "worker", events: &events, errors: errorsChannel}}
-	service := MustNew("127.0.0.1:0", WithLifecycle(component), WithShutdownTimeout(time.Second))
+	host := kit.MustNewHost(kit.WithLifecycle(component), kit.WithShutdownTimeout(time.Second))
 	done := make(chan error, 1)
 	go func() {
-		done <- service.Run(context.Background())
+		done <- host.Run(context.Background())
 	}()
 
 	errorsChannel <- errors.New("serve failed")
@@ -129,18 +131,18 @@ func TestLifecycleWatchConsumesMultipleAsyncErrors(t *testing.T) {
 	var events []string
 	errorsChannel := make(chan error, 2)
 	component := &recordingLifecycle{name: "worker", events: &events, errors: errorsChannel}
-	service := MustNew("127.0.0.1:0", WithLifecycle(component))
-	if err := service.Start(); err != nil {
+	host := kit.MustNewHost(kit.WithLifecycle(component))
+	if err := host.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	defer service.Shutdown(context.Background()) //nolint:errcheck
+	defer host.Shutdown(context.Background()) //nolint:errcheck
 
 	errorsChannel <- errors.New("first failure")
 	errorsChannel <- errors.New("second failure")
 
 	for _, want := range []string{"first failure", "second failure"} {
 		select {
-		case err := <-service.Errors():
+		case err := <-host.Errors():
 			if !strings.Contains(err.Error(), want) {
 				t.Fatalf("reported error = %v, want %q", err, want)
 			}
@@ -164,17 +166,18 @@ func (c *readinessComponent) Ready(ctx context.Context) error {
 	}
 }
 
-func TestReadinessProviderBridgedToReadyz(t *testing.T) {
+func TestReadinessProviderBridgedToHTTPComponent(t *testing.T) {
 	var events []string
 	component := &readinessComponent{
 		namedComponent: namedComponent{recordingLifecycle{name: "warmer", events: &events}},
 		ready:          make(chan struct{}),
 	}
-	service := MustNew("127.0.0.1:0", WithLifecycle(component))
+	httpComponent := kit.MustNewHTTP("127.0.0.1:0")
+	kit.MustNewHost(kit.WithLifecycle(component, httpComponent))
 
 	request := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	recorder := httptest.NewRecorder()
-	service.ServeHTTP(recorder, request)
+	httpComponent.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusServiceUnavailable {
 		t.Fatalf("readyz before warmup = %d, want %d", recorder.Code, http.StatusServiceUnavailable)
 	}
@@ -184,8 +187,29 @@ func TestReadinessProviderBridgedToReadyz(t *testing.T) {
 
 	close(component.ready)
 	recorder = httptest.NewRecorder()
-	service.ServeHTTP(recorder, request)
+	httpComponent.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("readyz after warmup = %d, want %d", recorder.Code, http.StatusOK)
+	}
+}
+
+func TestHostRunsHTTPComponentEndToEnd(t *testing.T) {
+	httpComponent := kit.MustNewHTTP("127.0.0.1:0")
+	host := kit.MustNewHost(kit.WithLifecycle(httpComponent), kit.WithShutdownTimeout(time.Second))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- host.Run(ctx) }()
+
+	time.Sleep(50 * time.Millisecond) // let the listener come up
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not stop after cancellation")
 	}
 }

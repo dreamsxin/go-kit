@@ -48,16 +48,18 @@ Each layer owns one kind of decision:
 
 ### `kit`
 
-`kit` is a high-level assembly scaffold for small services. It composes the
-normal endpoint and HTTP transport packages. Optional servers are attached
-through the provider-neutral `kit.Lifecycle` contract.
+`kit` is a high-level assembly scaffold for small services. The
+transport-neutral `Host` orchestrates lifecycle components without owning any
+protocol; the `HTTP` component composes the normal endpoint and HTTP
+transport packages and mounts into a Host through the provider-neutral
+`kit.Lifecycle` contract.
 
-- `kit.New` validates configuration and returns an error.
-- `Service.Run(ctx)` follows a caller-owned context.
+- `kit.NewHTTP` and `kit.NewHost` validate configuration and return errors.
+- `Host.Run(ctx)` follows a caller-owned context.
 - `kit.HandleJSONTyped`, `kit.HandleJSON`, and `kit.HandleJSONEndpoint` preserve
   endpoint middleware; the typed entry point is preferred for concrete
   responses.
-- `Service.Handle` and `Service.HandleFunc` are raw HTTP escape hatches.
+- `HTTP.Handle` and `HTTP.HandleFunc` are raw HTTP escape hatches.
 - `kit/grpc` is an optional lifecycle component and is not imported by core
   `kit`.
 

@@ -18,7 +18,7 @@ runnable service from a Go interface, Protobuf contract, or database schema.
 ## Quick Example
 
 ```go
-svc, err := kit.New(":8080", kit.WithRequestID())
+svc, err := kit.NewHTTP(":8080", kit.WithRequestID())
 if err != nil {
 	log.Fatal(err)
 }
@@ -27,6 +27,7 @@ kit.HandleJSONTyped(svc, "POST /greet", func(
 ) (GreetResponse, error) {
 	return GreetResponse{Message: "Hello, " + req.Name + "!"}, nil
 })
+host, err := kit.NewHost(kit.WithLifecycle(svc))
 // health checks, graceful shutdown, and strict JSON come with the service
 ```
 

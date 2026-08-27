@@ -4,7 +4,7 @@
 
 业务逻辑就是一个 `(context, Request) -> (Response, error)` 的普通函数，因此大多数
 测试完全不需要服务器。HTTP 行为用 `httptest.NewServer` 覆盖，它直接接受一个
-`kit.Service`。
+`kit.HTTP` 组件。
 
 ## 单元测试业务逻辑
 
@@ -28,12 +28,12 @@ if !errors.As(err, &appErr) || appErr.ErrorKind() != apperror.KindInvalidArgumen
 
 ## 测试 HTTP 表面
 
-`kit.Service` 实现了 `http.Handler`，因此 `httptest.NewServer` 无需占用端口即可
+`kit.HTTP` 实现了 `http.Handler`，因此 `httptest.NewServer` 无需占用端口即可
 为其提供服务：
 
 ```go
 func TestHTTP_Greet(t *testing.T) {
-	svc := kit.MustNew(":0", kit.WithRequestID())
+	svc := kit.MustNewHTTP(":0", kit.WithRequestID())
 	kit.HandleJSONTyped(svc, "/greet", greet)
 
 	srv := httptest.NewServer(svc)
@@ -49,7 +49,7 @@ func TestHTTP_Greet(t *testing.T) {
 }
 ```
 
-`MustNew` 是测试专用构造函数；它在配置非法时 panic，这正是测试想要的。
+`MustNewHTTP` 是测试专用构造函数；它在配置非法时 panic，这正是测试想要的。
 
 ## 测试中间件链
 

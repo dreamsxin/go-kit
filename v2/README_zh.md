@@ -155,7 +155,8 @@ middleware 和生成器归属文件。扩展项目之前先执行
 
 ## 使用 `kit`
 
-`kit` 是保留 endpoint middleware 和严格 HTTP transport 行为的最短使用路径：
+`kit` 是保留 endpoint middleware 和严格 HTTP transport 行为的最短使用路径。
+传输中立的 `Host` 运行生命周期组件；`HTTP` 组件拥有路由并提供服务：
 
 ```go
 package main
@@ -180,7 +181,7 @@ type HelloResponse struct {
 }
 
 func main() {
-	svc, err := kit.New(":8080",
+	svc, err := kit.NewHTTP(":8080",
 		kit.WithRequestID(),
 		kit.WithTimeout(5*time.Second),
 	)
@@ -195,20 +196,24 @@ func main() {
 		return HelloResponse{Message: "Hello, " + req.Name}, nil
 	})
 
+	host, err := kit.NewHost(kit.WithLifecycle(svc))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
 		syscall.SIGTERM,
 	)
 	defer stop()
-	if err := svc.Run(ctx); err != nil {
+	if err := host.Run(ctx); err != nil {
 		log.Fatal(err)
 	}
 }
 ```
 
-`kit.New` 会校验 Option 并返回错误。`Service.Run` 跟随调用方提供的 context；
-系统信号监听应放在 `main` 中。
+`kit.NewHTTP` 与 `kit.NewHost` 会校验 Option 并返回错误。`Host.Run` 跟随调用方提供的 context；系统信号监听应放在 `main` 中。纯 worker 或纯 gRPC 服务可以直接把自己的组件挂载到 Host，无需任何 HTTP。
 
 带第三方依赖的 endpoint middleware 由应用显式装配。熔断与限流已内置于 `endpoint`，不持有第三方依赖：
 
@@ -216,7 +221,7 @@ func main() {
 breaker := endpoint.NewCircuitBreaker(
 	endpoint.WithBreakerFailureThreshold(5),
 )
-svc, err := kit.New(":8080", kit.WithEndpointMiddleware(
+svc, err := kit.NewHTTP(":8080", kit.WithEndpointMiddleware(
 	breaker.Middleware(),
 	endpoint.RateLimitMiddleware(limiter), // limiter 实现 endpoint.RateLimiter
 ))
@@ -231,7 +236,7 @@ if err != nil {
 	return err
 }
 pb.RegisterGreeterServer(grpcComponent.Server(), greeter)
-svc, err := kit.New(":8080", kit.WithLifecycle(grpcComponent))
+host, err := kit.NewHost(kit.WithLifecycle(svc, grpcComponent))
 ```
 
 默认 HTTP server 使用 5 秒 Header 读取超时、1 MiB Header 上限，并保持
@@ -241,8 +246,8 @@ svc, err := kit.New(":8080", kit.WithLifecycle(grpcComponent))
 请求和响应都有具体类型时使用 `kit.HandleJSONTyped`；有意返回动态响应时使用
 `kit.HandleJSON`；已有 endpoint 时使用 `kit.HandleJSONEndpoint`。
 Server-Sent Events 流使用 `kit.HandleSSETyped` 注册，使 endpoint 中间件对流生效；
-原生流处理器使用 `kit.HandleSSE`。
-`Service.Handle` 和 `Service.HandleFunc` 仅用于原生 HTTP 集成。
+原生流处理器使用 `HTTP.HandleSSE`。
+`HTTP.Handle` 和 `HTTP.HandleFunc` 仅用于原生 HTTP 集成。
 
 `endpoint.Metrics` 是 middleware 写入的可变采集器。并发读取必须通过
 `Snapshot()` 获取可复制的 `endpoint.MetricsSnapshot`，平均耗时使用

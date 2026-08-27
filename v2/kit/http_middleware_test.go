@@ -19,9 +19,9 @@ func TestWithHTTPMiddlewareAppliesToAllRoutesInOrder(t *testing.T) {
 			})
 		}
 	}
-	service, err := New(":0", WithHTTPMiddleware(middleware("first"), middleware("second")))
+	service, err := NewHTTP(":0", WithHTTPMiddleware(middleware("first"), middleware("second")))
 	if err != nil {
-		t.Fatalf("New: %v", err)
+		t.Fatalf("NewHTTP: %v", err)
 	}
 	service.HandleFunc("GET /raw", func(w http.ResponseWriter, _ *http.Request) {
 		order = append(order, "handler")
@@ -47,7 +47,7 @@ func TestWithHTTPMiddlewareAppliesToAllRoutesInOrder(t *testing.T) {
 }
 
 func TestWithHTTPMiddlewareRejectsNil(t *testing.T) {
-	if _, err := New(":0", WithHTTPMiddleware(nil)); err == nil {
+	if _, err := NewHTTP(":0", WithHTTPMiddleware(nil)); err == nil {
 		t.Fatal("expected nil HTTP middleware error")
 	}
 }

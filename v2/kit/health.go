@@ -34,21 +34,48 @@ type healthCheckResult struct {
 	Error  string `json:"error,omitempty"`
 }
 
-func (s *Service) registerHealthEndpoints() {
-	s.mux.HandleFunc("/health", s.healthHandler(appendHealthChecks(s.livenessChecks, s.readinessChecks)))
-	s.mux.HandleFunc("/livez", s.healthHandler(s.livenessChecks))
-	s.mux.HandleFunc("/readyz", s.healthHandler(s.readinessChecks))
+func (h *HTTP) registerHealthEndpoints() {
+	h.mux.HandleFunc("/health", h.healthHandler(healthScopeAll))
+	h.mux.HandleFunc("/livez", h.healthHandler(healthScopeLiveness))
+	h.mux.HandleFunc("/readyz", h.healthHandler(healthScopeReadiness))
 }
 
-func (s *Service) healthHandler(checks []namedHealthCheck) http.HandlerFunc {
+type healthScope int
+
+const (
+	healthScopeAll healthScope = iota
+	healthScopeLiveness
+	healthScopeReadiness
+)
+
+// snapshotChecks returns copies of the current checks for the scope. Checks
+// are read under the mutex because Host may bridge lifecycle readiness after
+// construction.
+func (h *HTTP) snapshotChecks(scope healthScope) []namedHealthCheck {
+	h.checksMu.Lock()
+	defer h.checksMu.Unlock()
+	var liveness, readiness []namedHealthCheck
+	switch scope {
+	case healthScopeAll:
+		liveness = append(liveness, h.livenessChecks...)
+		readiness = append(readiness, h.readinessChecks...)
+	case healthScopeLiveness:
+		liveness = append(liveness, h.livenessChecks...)
+	case healthScopeReadiness:
+		readiness = append(readiness, h.readinessChecks...)
+	}
+	return appendHealthChecks(liveness, readiness)
+}
+
+func (h *HTTP) healthHandler(scope healthScope) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		status, results := runHealthChecks(r.Context(), checks, s.healthTimeout)
+		status, results := runHealthChecks(r.Context(), h.snapshotChecks(scope), h.healthTimeout)
 		resp := healthResponse{
 			Status: status,
 			Checks: results,
 		}
-		if s.metrics != nil {
-			requests := s.metrics.Snapshot().RequestCount
+		if h.metrics != nil {
+			requests := h.metrics.Snapshot().RequestCount
 			resp.Requests = &requests
 		}
 

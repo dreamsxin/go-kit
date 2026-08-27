@@ -17,10 +17,10 @@ const MaxRequestIDLength = 128
 // RequestIDValidator decides whether a caller-supplied request ID is trusted.
 type RequestIDValidator func(string) bool
 
-func requestIDMiddleware(s *Service) endpoint.Middleware {
+func requestIDMiddleware(h *HTTP) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, req any) (any, error) {
-			requestID := requestIDFromContextOrHeader(ctx, s.requestIDValidator)
+			requestID := requestIDFromContextOrHeader(ctx, h.requestIDValidator)
 			ctx = endpoint.WithRequestID(ctx, requestID)
 			if rw := responseWriterFromContext(ctx); rw != nil {
 				rw.Header().Set(requestIDHeader, requestID)

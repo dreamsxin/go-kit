@@ -4,7 +4,7 @@ English | [简体中文](testing_zh.md)
 
 Business logic is a plain function of `(context, Request) -> (Response, error)`,
 so most tests need no server at all. HTTP behavior is covered with
-`httptest.NewServer`, which accepts a `kit.Service` directly.
+`httptest.NewServer`, which accepts a `kit.HTTP` component directly.
 
 ## Unit-testing business logic
 
@@ -28,12 +28,12 @@ if !errors.As(err, &appErr) || appErr.ErrorKind() != apperror.KindInvalidArgumen
 
 ## Testing the HTTP surface
 
-`kit.Service` implements `http.Handler`, so `httptest.NewServer` serves it
+`kit.HTTP` implements `http.Handler`, so `httptest.NewServer` serves it
 without touching a port:
 
 ```go
 func TestHTTP_Greet(t *testing.T) {
-	svc := kit.MustNew(":0", kit.WithRequestID())
+	svc := kit.MustNewHTTP(":0", kit.WithRequestID())
 	kit.HandleJSONTyped(svc, "/greet", greet)
 
 	srv := httptest.NewServer(svc)
@@ -49,8 +49,8 @@ func TestHTTP_Greet(t *testing.T) {
 }
 ```
 
-`MustNew` is the test constructor; it panics on invalid configuration, which
-is exactly what a test wants.
+`MustNewHTTP` is the test constructor; it panics on invalid configuration,
+which is exactly what a test wants.
 
 ## Testing middleware chains
 

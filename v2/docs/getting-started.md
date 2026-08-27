@@ -37,7 +37,7 @@ type GreetResponse struct {
 }
 
 func main() {
-	svc, err := kit.New(":8080", kit.WithRequestID())
+	svc, err := kit.NewHTTP(":8080", kit.WithRequestID())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -48,9 +48,14 @@ func main() {
 		return GreetResponse{Message: "Hello, " + req.Name + "!"}, nil
 	})
 
+	host, err := kit.NewHost(kit.WithLifecycle(svc))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := svc.Run(ctx); err != nil {
+	if err := host.Run(ctx); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -71,12 +76,14 @@ process state for free.
 
 ## What just happened
 
-- `kit.New` validated the configuration and registered `/health`, `/livez`,
+- `kit.NewHTTP` validated the configuration and registered `/health`, `/livez`,
   and `/readyz`.
 - `HandleJSONTyped` registered a typed JSON route: the request body is decoded
   strictly (unknown fields and extra data are rejected), and the response is
   encoded as JSON with the matching status.
-- `svc.Run(ctx)` started the server and shut it down gracefully on `SIGTERM`.
+- `kit.NewHost` attached the HTTP component to a transport-neutral lifecycle
+  host; `host.Run(ctx)` started the server and shut it down gracefully on
+  `SIGTERM`.
 
 ## Next steps
 

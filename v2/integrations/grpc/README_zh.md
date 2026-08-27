@@ -38,7 +38,7 @@ if err != nil {
 }
 pb.RegisterGreeterServer(grpcComponent.Server(), srv)
 
-svc, err := kit.New(":8080", kit.WithLifecycle(grpcComponent))
+host, err := kit.NewHost(kit.WithLifecycle(httpComponent, grpcComponent))
 ```
 
 错误经 `DefaultErrorEncoder` 映射为 gRPC 状态码，它分类 `apperror` 种类

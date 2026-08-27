@@ -23,15 +23,15 @@ func JSONTyped[Req, Resp any](handler func(ctx context.Context, req Req) (Resp, 
 	)
 }
 
-// HandleJSON registers a typed JSON endpoint on a Service.
+// HandleJSON registers a typed JSON endpoint on an HTTP component.
 //
-// It is the recommended high-level path for small services: Service
-// middleware wraps the business endpoint, then the HTTP transport decodes and
-// encodes JSON exactly once. This keeps the same service -> endpoint ->
+// It is the recommended high-level path for small services: component
+// middleware wraps the business endpoint, then the HTTP transport decodes
+// and encodes JSON exactly once. This keeps the same service -> endpoint ->
 // transport boundary as generated projects while avoiding boilerplate. JSON
 // decoding is strict by default.
 func HandleJSON[Req any](
-	s *Service,
+	h *HTTP,
 	pattern string,
 	handler func(ctx context.Context, req Req) (any, error),
 	options ...httpserver.ServerOption,
@@ -40,13 +40,13 @@ func HandleJSON[Req any](
 		panic("kit: JSON handler cannot be nil")
 	}
 	ep := endpoint.TypedEndpoint[Req, any](handler).Wrap()
-	HandleJSONEndpoint[Req](s, pattern, ep, options...)
+	HandleJSONEndpoint[Req](h, pattern, ep, options...)
 }
 
 // HandleJSONTyped registers a JSON endpoint with compile-time request and
 // response types. Prefer it for new handlers that return a concrete response.
 func HandleJSONTyped[Req, Resp any](
-	s *Service,
+	h *HTTP,
 	pattern string,
 	handler func(ctx context.Context, req Req) (Resp, error),
 	options ...httpserver.ServerOption,
@@ -54,26 +54,26 @@ func HandleJSONTyped[Req, Resp any](
 	if handler == nil {
 		panic("kit: JSON handler cannot be nil")
 	}
-	HandleJSONEndpoint[Req](s, pattern, endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), options...)
+	HandleJSONEndpoint[Req](h, pattern, endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), options...)
 }
 
 // HandleJSONEndpoint registers an already-built endpoint.Endpoint as a strict
-// JSON route on a Service, preserving the normal endpoint middleware and HTTP
-// transport chain.
+// JSON route on an HTTP component, preserving the normal endpoint middleware
+// and HTTP transport chain.
 func HandleJSONEndpoint[Req any](
-	s *Service,
+	h *HTTP,
 	pattern string,
 	ep endpoint.Endpoint,
 	options ...httpserver.ServerOption,
 ) {
-	if s == nil {
-		panic("kit: Service cannot be nil")
+	if h == nil {
+		panic("kit: HTTP component cannot be nil")
 	}
 	if ep == nil {
 		panic("kit: JSON endpoint cannot be nil")
 	}
-	ep = s.applyEndpointMiddleware(ep)
-	routeOptions := append(append([]httpserver.ServerOption(nil), s.jsonServerOptions...), options...)
-	h := httpserver.NewStrictJSONEndpoint[Req](ep, s.jsonMaxBodyBytes, routeOptions...)
-	s.mux.Handle(pattern, s.withHTTPContext(h))
+	ep = h.applyEndpointMiddleware(ep)
+	routeOptions := append(append([]httpserver.ServerOption(nil), h.jsonServerOptions...), options...)
+	handler := httpserver.NewStrictJSONEndpoint[Req](ep, h.jsonMaxBodyBytes, routeOptions...)
+	h.mux.Handle(pattern, h.withHTTPContext(handler))
 }

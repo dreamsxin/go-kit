@@ -99,7 +99,7 @@ The JSON entry points accept a custom error encoder per route; with `kit`,
 install one for every route at assembly:
 
 ```go
-kit.New(":8080", kit.WithJSONServerOptions(
+kit.NewHTTP(":8080", kit.WithJSONServerOptions(
 	server.ServerErrorEncoder(myErrorEncoder),
 ))
 ```
@@ -133,7 +133,7 @@ string). Register the status mapping once with
 mapping:
 
 ```go
-svc, err := kit.New(":8080", kit.WithJSONServerOptions(
+svc, err := kit.NewHTTP(":8080", kit.WithJSONServerOptions(
 	server.ServerErrorEncoder(server.JSONErrorEncoderWithKindMapper(func(k apperror.Kind) int {
 		if k == "payment_failed" {
 			return http.StatusPaymentRequired

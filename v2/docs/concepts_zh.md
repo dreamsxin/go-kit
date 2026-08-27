@@ -59,10 +59,10 @@ return Todo{}, apperror.New(apperror.KindNotFound, "todo.not_found", "todo not f
 ```go
 ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 defer stop()
-if err := svc.Run(ctx); err != nil {
+if err := host.Run(ctx); err != nil {
     return err
 }
 ```
 
-启动错误同步浮现；服务在停机后不能重启。可选组件（后台任务、gRPC 监听器）通过
-`kit.Lifecycle` 挂载，并共享同一段有边界的停机过程。参见[生命周期](lifecycle_zh.md)。
+启动错误同步浮现；Host 在停机后不能重启。可选组件（后台任务、gRPC 监听器、
+HTTP 组件）通过 `kit.Lifecycle` 挂载，并共享同一段有边界的停机过程。参见[生命周期](lifecycle_zh.md)。

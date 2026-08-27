@@ -37,7 +37,7 @@ type GreetResponse struct {
 }
 
 func main() {
-	svc, err := kit.New(":8080", kit.WithRequestID())
+	svc, err := kit.NewHTTP(":8080", kit.WithRequestID())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -48,9 +48,14 @@ func main() {
 		return GreetResponse{Message: "Hello, " + req.Name + "!"}, nil
 	})
 
+	host, err := kit.NewHost(kit.WithLifecycle(svc))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := svc.Run(ctx); err != nil {
+	if err := host.Run(ctx); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -70,10 +75,11 @@ curl http://localhost:8080/health
 
 ## 刚才发生了什么
 
-- `kit.New` 校验了配置并注册了 `/health`、`/livez` 和 `/readyz`。
+- `kit.NewHTTP` 校验了配置并注册了 `/health`、`/livez` 和 `/readyz`。
 - `HandleJSONTyped` 注册了一个类型化 JSON 路由：请求体被严格解码（未知字段和
   多余数据都会被拒绝），响应以匹配的状态码编码为 JSON。
-- `svc.Run(ctx)` 启动了服务器，并在收到 `SIGTERM` 时将其优雅停机。
+- `kit.NewHost` 把 HTTP 组件挂载到传输中立的生命周期 Host；`host.Run(ctx)`
+  启动了服务器，并在收到 `SIGTERM` 时将其优雅停机。
 
 ## 下一步
 

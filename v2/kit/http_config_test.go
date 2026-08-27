@@ -23,20 +23,20 @@ func TestWithHTTPServerConfig(t *testing.T) {
 		IdleTimeout:       30 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}
-	svc := MustNew(":0", WithHTTPServerConfig(want))
-	if svc.httpConfig != want {
-		t.Fatalf("http config: got %#v, want %#v", svc.httpConfig, want)
+	h := MustNewHTTP(":0", WithHTTPServerConfig(want))
+	if h.httpConfig != want {
+		t.Fatalf("http config: got %#v, want %#v", h.httpConfig, want)
 	}
 }
 
-func TestNewUsesStreamingSafeHTTPDefaults(t *testing.T) {
-	svc := MustNew(":0")
+func TestNewHTTPUsesStreamingSafeDefaults(t *testing.T) {
+	h := MustNewHTTP(":0")
 	want := DefaultHTTPServerConfig()
-	if svc.httpConfig != want {
-		t.Fatalf("http config: got %#v, want %#v", svc.httpConfig, want)
+	if h.httpConfig != want {
+		t.Fatalf("http config: got %#v, want %#v", h.httpConfig, want)
 	}
-	if svc.httpConfig.WriteTimeout != 0 {
-		t.Fatalf("WriteTimeout = %v, want 0 for streaming responses", svc.httpConfig.WriteTimeout)
+	if h.httpConfig.WriteTimeout != 0 {
+		t.Fatalf("WriteTimeout = %v, want 0 for streaming responses", h.httpConfig.WriteTimeout)
 	}
 }
 
@@ -50,75 +50,74 @@ func TestWithHTTPServerConfigRejectsNegativeValues(t *testing.T) {
 	}
 	for _, config := range tests {
 		t.Run("invalid", func(t *testing.T) {
-			if _, err := New(":0", WithHTTPServerConfig(config)); err == nil {
+			if _, err := NewHTTP(":0", WithHTTPServerConfig(config)); err == nil {
 				t.Fatal("expected invalid HTTP server config error")
 			}
 		})
 	}
 }
 
-func TestNewRejectsInvalidBaseConfiguration(t *testing.T) {
-	if _, err := New(""); err == nil {
+func TestNewHTTPRejectsInvalidBaseConfiguration(t *testing.T) {
+	if _, err := NewHTTP(""); err == nil {
 		t.Fatal("expected empty HTTP address error")
 	}
-	if _, err := New(":0", nil); err == nil {
+	if _, err := NewHTTP(":0", nil); err == nil {
 		t.Fatal("expected nil option error")
 	}
 }
 
-func TestServiceErrors(t *testing.T) {
-	svc := MustNew(":0")
+func TestHTTPErrors(t *testing.T) {
+	h := MustNewHTTP(":0")
 	want := errors.New("serve failed")
-	svc.reportServeError(want)
+	h.reportServeError(want)
 	select {
-	case got := <-svc.Errors():
+	case got := <-h.Errors():
 		if !errors.Is(got, want) {
 			t.Fatalf("error: got %v, want %v", got, want)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for service error")
+		t.Fatal("timed out waiting for serve error")
 	}
 }
 
-func TestStartClosesHTTPListenerWhenLifecycleStartFails(t *testing.T) {
-	svc := MustNew(":0", WithLifecycle(failingLifecycle{err: errors.New("start failed")}))
-	if err := svc.Start(); err == nil {
+func TestHostStartFailsWhenComponentStartFails(t *testing.T) {
+	host := MustNewHost(WithLifecycle(failingLifecycle{err: errors.New("start failed")}))
+	if err := host.Start(); err == nil {
 		t.Fatal("expected lifecycle start error")
 	}
-	if svc.srv != nil {
-		t.Fatal("HTTP server should not start when lifecycle startup fails")
+}
+
+func TestHTTPStartAfterFailedHostStart(t *testing.T) {
+	h := MustNewHTTP("127.0.0.1:0")
+	host := MustNewHost(WithLifecycle(h, failingLifecycle{err: errors.New("start failed")}))
+	if err := host.Start(); err == nil {
+		t.Fatal("expected lifecycle start error")
+	}
+	h.lifecycleMu.Lock()
+	started := h.started
+	h.lifecycleMu.Unlock()
+	if started {
+		t.Fatal("HTTP component should not stay started when a later component fails")
 	}
 }
 
-func TestRunStopsOnContextCancellation(t *testing.T) {
-	svc := MustNew(":0", WithShutdownTimeout(time.Second))
+func TestHostRunStopsOnContextCancellation(t *testing.T) {
+	host := MustNewHost(WithShutdownTimeout(time.Second))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := svc.Run(ctx); err != nil {
+	if err := host.Run(ctx); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 }
 
-func TestRunReturnsAsynchronousServeError(t *testing.T) {
-	svc := MustNew(":0", WithShutdownTimeout(time.Second))
-	want := errors.New("serve failed")
+func TestHostRunReturnsAsynchronousComponentError(t *testing.T) {
+	worker := failingLifecycle{}
+	host := MustNewHost(WithLifecycle(worker), WithShutdownTimeout(time.Second))
+	want := errors.New("component failed")
 	done := make(chan error, 1)
-	go func() { done <- svc.Run(context.Background()) }()
+	go func() { done <- host.Run(context.Background()) }()
 
-	deadline := time.Now().Add(time.Second)
-	for {
-		svc.lifecycleMu.Lock()
-		started := svc.started
-		svc.lifecycleMu.Unlock()
-		if started {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("service did not start")
-		}
-		time.Sleep(time.Millisecond)
-	}
-	svc.reportServeError(want)
+	host.reportServeError(want)
 
 	select {
 	case err := <-done:
@@ -126,22 +125,38 @@ func TestRunReturnsAsynchronousServeError(t *testing.T) {
 			t.Fatalf("Run error: got %v, want %v", err, want)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("Run did not stop after serve error")
+		t.Fatal("Run did not stop after component error")
 	}
 }
 
-func TestServiceCannotStartTwiceOrRestart(t *testing.T) {
-	svc := MustNew(":0")
-	if err := svc.Start(); err != nil {
+func TestHostCannotStartTwiceOrRestart(t *testing.T) {
+	host := MustNewHost()
+	if err := host.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	if err := svc.Start(); err == nil {
+	if err := host.Start(); err == nil {
 		t.Fatal("expected second Start to fail")
 	}
-	if err := svc.Shutdown(context.Background()); err != nil {
+	if err := host.Shutdown(context.Background()); err != nil {
 		t.Fatalf("Shutdown: %v", err)
 	}
-	if err := svc.Start(); err == nil {
+	if err := host.Start(); err == nil {
+		t.Fatal("expected restart after Shutdown to fail")
+	}
+}
+
+func TestHTTPCannotStartTwiceOrRestart(t *testing.T) {
+	h := MustNewHTTP(":0")
+	if err := h.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if err := h.Start(); err == nil {
+		t.Fatal("expected second Start to fail")
+	}
+	if err := h.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown: %v", err)
+	}
+	if err := h.Start(); err == nil {
 		t.Fatal("expected restart after Shutdown to fail")
 	}
 }

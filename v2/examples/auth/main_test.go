@@ -14,7 +14,7 @@ import (
 
 func newAuthServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	svc := kit.MustNew(":0", kit.WithHTTPMiddleware(authenticate(apiKeys)))
+	svc := kit.MustNewHTTP(":0", kit.WithHTTPMiddleware(authenticate(apiKeys)))
 
 	type meRequest struct{}
 	kit.HandleJSONTyped(svc, "/api/me", func(ctx context.Context, _ meRequest) (identity, error) {

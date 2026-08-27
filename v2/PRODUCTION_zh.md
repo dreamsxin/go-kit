@@ -17,7 +17,7 @@ ctx, stop := signal.NotifyContext(
 )
 defer stop()
 
-if err := svc.Run(ctx); err != nil {
+if err := host.Run(ctx); err != nil {
 	return err
 }
 ```
@@ -32,7 +32,7 @@ HTTP 服务器相同的生命周期，使 `SIGTERM` 随进程一起停止任务�
 
 ```text
 service/
-├── cmd/main.go        # 接线：kit.New(..., kit.WithLifecycle(runner))
+├── cmd/main.go        # 接线：kit.NewHost(kit.WithLifecycle(http, runner))
 ├── service/           # 业务逻辑；任务调用这些方法
 ├── repository/        # 存储
 ├── transport/         # HTTP handler
@@ -68,7 +68,7 @@ func (r *Runner) Shutdown(ctx context.Context) error   { /* 停止 ticker，等�
 runner := &jobs.Runner{Jobs: []jobs.Job{
     {Name: "cleanup-expired", Interval: time.Hour, Run: svc.CleanupExpired},
 }}
-svc, err := kit.New(":8080", kit.WithLifecycle(runner))
+host, err := kit.NewHost(kit.WithLifecycle(httpComponent, runner))
 ```
 
 让任务与线上流量安全共存的规则：
@@ -277,7 +277,7 @@ ENTRYPOINT ["/service"]
 - `terminationGracePeriodSeconds` 必须大于 kit 停机超时
   （`kit.WithShutdownTimeout`，默认 10 秒）加上平台负载均衡器注销延迟，
   否则在途请求会在停机途中被切断；
-- 入口已经在 `SIGTERM` 时取消 `Service.Run`（见生命周期）；仅当服务网格
+- 入口已经在 `SIGTERM` 时取消 `Host.Run`（见生命周期）；仅当服务网格
   或 ingress 在端点注销后仍向 Pod 路由流量时才添加 `preStop` sleep；
 - 滚动更新优先使用 `maxUnavailable: 0`，让就绪状态而非 Pod 删除控制
   流量切换。

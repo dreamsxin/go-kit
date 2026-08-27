@@ -96,7 +96,7 @@ JSON 入口点允许按路由传入自定义错误编码器；使用 `kit` 时�
 安装一个：
 
 ```go
-kit.New(":8080", kit.WithJSONServerOptions(
+kit.NewHTTP(":8080", kit.WithJSONServerOptions(
 	server.ServerErrorEncoder(myErrorEncoder),
 ))
 ```
@@ -128,7 +128,7 @@ func myErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 内置映射：
 
 ```go
-svc, err := kit.New(":8080", kit.WithJSONServerOptions(
+svc, err := kit.NewHTTP(":8080", kit.WithJSONServerOptions(
 	server.ServerErrorEncoder(server.JSONErrorEncoderWithKindMapper(func(k apperror.Kind) int {
 		if k == "payment_failed" {
 			return http.StatusPaymentRequired

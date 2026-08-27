@@ -98,10 +98,11 @@ svc.Handle("/api/admin", requireRole("admin")(adminHandler))
 ## 5. 装配
 
 ```go
-svc, err := kit.New(":8080",
+svc, err := kit.NewHTTP(":8080",
 	kit.WithHTTPMiddleware(authenticate(apiKeys)),
 	kit.WithRequestID(),
 )
+host, err := kit.NewHost(kit.WithLifecycle(svc))
 ```
 
 运行它，并尝试目标表格中的四行：

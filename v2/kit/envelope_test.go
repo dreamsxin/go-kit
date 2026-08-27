@@ -38,7 +38,7 @@ func encodeAPIError(_ context.Context, err error, w http.ResponseWriter) {
 }
 
 func TestWithJSONServerOptions_AppliesToAllRoutes(t *testing.T) {
-	svc := kit.MustNew(":0",
+	svc := kit.MustNewHTTP(":0",
 		kit.WithJSONServerOptions(
 			server.ServerResponseEncoder(encodeAPIResponse),
 			server.ServerErrorEncoder(encodeAPIError),
@@ -90,7 +90,7 @@ func TestWithJSONServerOptions_AppliesToAllRoutes(t *testing.T) {
 }
 
 func TestWithJSONServerOptions_RouteOptionsTakePrecedence(t *testing.T) {
-	svc := kit.MustNew(":0",
+	svc := kit.MustNewHTTP(":0",
 		kit.WithJSONServerOptions(
 			server.ServerResponseEncoder(encodeAPIResponse),
 		),

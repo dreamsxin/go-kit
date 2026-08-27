@@ -48,14 +48,13 @@ Transport request
 
 ### `kit`
 
-`kit` 是面向小型服务的高层组装脚手架，组合标准的 endpoint 与 HTTP
-transport 包。可选服务器通过供应商中立的 `kit.Lifecycle` 契约接入。
+`kit` 是面向小型服务的高层组装脚手架。传输中立的 `Host` 编排生命周期组件，不拥有任何协议；`HTTP` 组件组合标准的 endpoint 与 HTTP transport 包，并通过供应商中立的 `kit.Lifecycle` 契约挂载到 Host。
 
-- `kit.New` 校验配置并返回错误。
-- `Service.Run(ctx)` 跟随调用方持有的 context。
+- `kit.NewHTTP` 与 `kit.NewHost` 校验配置并返回错误。
+- `Host.Run(ctx)` 跟随调用方持有的 context。
 - `kit.HandleJSONTyped`、`kit.HandleJSON` 和 `kit.HandleJSONEndpoint`
   保留 endpoint 中间件；具体响应类型优先使用类型化入口。
-- `Service.Handle` 和 `Service.HandleFunc` 是原生 HTTP 逃生口。
+- `HTTP.Handle` 和 `HTTP.HandleFunc` 是原生 HTTP 逃生口。
 - `kit/grpc` 是可选的生命周期组件，核心 `kit` 不导入它。
 
 不应仅为减少几行 endpoint 接线代码就把应用路由挪到原生 HTTP handler。

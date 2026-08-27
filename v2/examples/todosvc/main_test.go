@@ -32,7 +32,7 @@ func newTodoServer(t *testing.T) *httptest.Server {
 	}
 	t.Cleanup(func() { _ = store.close() })
 
-	svc := kit.MustNew(":0", kit.WithRequestID(), kit.WithTimeout(5*time.Second))
+	svc := kit.MustNewHTTP(":0", kit.WithRequestID(), kit.WithTimeout(5*time.Second))
 	registerRoutes(svc, todoService{store: store, now: time.Now})
 	return httptest.NewServer(svc)
 }

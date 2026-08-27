@@ -37,7 +37,7 @@ handler := httpsecurity.Chain(
 在 `kit` 中，为健康检查、JSON 端点、原生 HTTP 以及生成的路由一次性安装同一组策略即可：
 
 ```go
-service, err := kit.New(":8080",
+service, err := kit.NewHTTP(":8080",
     kit.WithHTTPMiddleware(proxy, headers, ipPolicy, cors, csrf),
 )
 ```

@@ -53,7 +53,7 @@ func (m *countingMiddleware) count() int {
 
 func TestHandleSSETyped_AppliesEndpointMiddleware(t *testing.T) {
 	counter := &countingMiddleware{}
-	svc := kit.MustNew("127.0.0.1:0", kit.WithEndpointMiddleware(counter.middleware()))
+	svc := kit.MustNewHTTP("127.0.0.1:0", kit.WithEndpointMiddleware(counter.middleware()))
 	kit.HandleSSETyped(svc, "GET /events",
 		func(_ context.Context, req eventsRequest, w *httpserver.SSEStream) error {
 			return w.Event("channel", req.Channel)
@@ -88,7 +88,7 @@ func TestHandleSSETyped_MiddlewareRejectionBeforeStream(t *testing.T) {
 			return nil, apperror.Unauthenticated("auth.required", "credentials required")
 		}
 	}
-	svc := kit.MustNew("127.0.0.1:0", kit.WithEndpointMiddleware(reject))
+	svc := kit.MustNewHTTP("127.0.0.1:0", kit.WithEndpointMiddleware(reject))
 	kit.HandleSSETyped(svc, "GET /events",
 		func(_ context.Context, _ eventsRequest, _ *httpserver.SSEStream) error {
 			streamCalled = true
@@ -121,7 +121,7 @@ func TestHandleSSETyped_MiddlewareRejectionBeforeStream(t *testing.T) {
 }
 
 func TestHandleSSETyped_DecodeFailureBeforeStream(t *testing.T) {
-	svc := kit.MustNew("127.0.0.1:0")
+	svc := kit.MustNewHTTP("127.0.0.1:0")
 	kit.HandleSSETyped(svc, "GET /events",
 		func(_ context.Context, _ eventsRequest, _ *httpserver.SSEStream) error { return nil },
 		decodeEvents,
@@ -150,8 +150,8 @@ func TestHandleSSETyped_DecodeFailureBeforeStream(t *testing.T) {
 
 func TestHandleSSE_RawBypassesEndpointMiddleware(t *testing.T) {
 	counter := &countingMiddleware{}
-	svc := kit.MustNew("127.0.0.1:0", kit.WithEndpointMiddleware(counter.middleware()))
-	kit.HandleSSE(svc, "GET /raw", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	svc := kit.MustNewHTTP("127.0.0.1:0", kit.WithEndpointMiddleware(counter.middleware()))
+	svc.HandleSSE("GET /raw", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("raw"))
 	}))
 	srv := httptest.NewServer(svc)
@@ -170,7 +170,7 @@ func TestHandleSSE_RawBypassesEndpointMiddleware(t *testing.T) {
 
 func TestHandleSSETyped_ClientDisconnectCancelsStream(t *testing.T) {
 	done := make(chan struct{})
-	svc := kit.MustNew("127.0.0.1:0")
+	svc := kit.MustNewHTTP("127.0.0.1:0")
 	kit.HandleSSETyped(svc, "GET /events",
 		func(ctx context.Context, _ eventsRequest, w *httpserver.SSEStream) error {
 			defer close(done)

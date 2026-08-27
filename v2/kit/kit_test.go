@@ -30,13 +30,13 @@ func helloHandler(_ context.Context, req helloReq) (any, error) {
 	return helloResp{Message: "Hello, " + req.Name + "!"}, nil
 }
 
-// newSvc creates a Service with /hello registered and returns an httptest.Server.
+// newSvc creates an HTTP component with /hello registered and returns an httptest.Server.
 // This mirrors the recommended kit.HandleJSON pattern.
-func newSvc(t *testing.T, opts ...kit.Option) (*kit.Service, *httptest.Server) {
+func newSvc(t *testing.T, opts ...kit.Option) (*kit.HTTP, *httptest.Server) {
 	t.Helper()
-	svc := kit.MustNew(":0", opts...)
+	svc := kit.MustNewHTTP(":0", opts...)
 	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
-	ts := httptest.NewServer(svc) // Service implements http.Handler
+	ts := httptest.NewServer(svc) // HTTP implements http.Handler
 	t.Cleanup(ts.Close)
 	return svc, ts
 }
@@ -45,7 +45,7 @@ func newSvc(t *testing.T, opts ...kit.Option) (*kit.Service, *httptest.Server) {
 
 // TestReadme_QuickStart verifies the exact pattern shown in README.md works.
 func TestReadme_QuickStart(t *testing.T) {
-	svc := kit.MustNew(":0")
+	svc := kit.MustNewHTTP(":0")
 	kit.HandleJSON[helloReq](svc, "/hello", func(_ context.Context, req helloReq) (any, error) {
 		return helloResp{Message: "Hello, " + req.Name + "!"}, nil
 	})
@@ -81,7 +81,7 @@ func TestReadme_WithMiddleware(t *testing.T) {
 		}
 	}
 
-	svc := kit.MustNew(":0",
+	svc := kit.MustNewHTTP(":0",
 		kit.WithEndpointMiddleware(middleware),
 		kit.WithTimeout(5*time.Second),
 		kit.WithRequestID(),
@@ -112,8 +112,8 @@ func TestReadme_WithMiddleware(t *testing.T) {
 
 // ── Service implements http.Handler ──────────────────────────────────────────
 
-func TestService_ImplementsHTTPHandler(t *testing.T) {
-	svc := kit.MustNew(":0")
+func TestHTTP_ImplementsHTTPHandler(t *testing.T) {
+	svc := kit.MustNewHTTP(":0")
 	var _ http.Handler = svc // compile-time check
 }
 
@@ -455,7 +455,7 @@ func TestKitJSON_MultipleRequests(t *testing.T) {
 // ── Handle / HandleFunc ───────────────────────────────────────────────────────
 
 func TestService_Handle(t *testing.T) {
-	svc := kit.MustNew(":0")
+	svc := kit.MustNewHTTP(":0")
 	svc.Handle("/hello", kit.JSON[helloReq](helloHandler))
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -472,7 +472,7 @@ func TestService_Handle(t *testing.T) {
 }
 
 func TestService_HandleFunc(t *testing.T) {
-	svc := kit.MustNew(":0")
+	svc := kit.MustNewHTTP(":0")
 	svc.HandleFunc("/ping", func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("pong")) //nolint:errcheck
 	})
@@ -491,7 +491,7 @@ func TestService_HandleFunc(t *testing.T) {
 
 func TestService_HandleFunc_DoesNotApplyEndpointMiddleware(t *testing.T) {
 	var m endpoint.Metrics
-	svc := kit.MustNew(":0", kit.WithMetrics(&m))
+	svc := kit.MustNewHTTP(":0", kit.WithMetrics(&m))
 	svc.HandleFunc("/plain", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "plain failure", http.StatusInternalServerError)
 	})
@@ -514,7 +514,7 @@ func TestService_HandleFunc_DoesNotApplyEndpointMiddleware(t *testing.T) {
 // ── HandleJSON ───────────────────────────────────────────────────────────────
 
 func TestService_HandleJSON(t *testing.T) {
-	svc := kit.MustNew(":0")
+	svc := kit.MustNewHTTP(":0")
 	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -531,7 +531,7 @@ func TestService_HandleJSON(t *testing.T) {
 }
 
 func TestService_HandleJSONTyped(t *testing.T) {
-	svc := kit.MustNew(":0")
+	svc := kit.MustNewHTTP(":0")
 	kit.HandleJSONTyped(svc, "/hello", func(_ context.Context, req helloReq) (helloResp, error) {
 		return helloResp{Message: "Hello, " + req.Name + "!"}, nil
 	})
@@ -575,7 +575,7 @@ func TestJSONTyped(t *testing.T) {
 
 func TestService_HandleJSON_AppliesEndpointMiddlewareToBusinessErrors(t *testing.T) {
 	var m endpoint.Metrics
-	svc := kit.MustNew(":0", kit.WithMetrics(&m))
+	svc := kit.MustNewHTTP(":0", kit.WithMetrics(&m))
 	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -603,7 +603,7 @@ func TestService_HandleJSON_AppliesEndpointMiddlewareToBusinessErrors(t *testing
 
 func TestService_HandleJSON_UsesStrictDecode(t *testing.T) {
 	called := false
-	svc := kit.MustNew(":0")
+	svc := kit.MustNewHTTP(":0")
 	kit.HandleJSON[helloReq](svc, "/hello", func(_ context.Context, _ helloReq) (any, error) {
 		called = true
 		return helloResp{Message: "ok"}, nil
@@ -625,7 +625,7 @@ func TestService_HandleJSON_UsesStrictDecode(t *testing.T) {
 }
 
 func TestService_HandleJSON_WithRequestID(t *testing.T) {
-	svc := kit.MustNew(":0", kit.WithRequestID())
+	svc := kit.MustNewHTTP(":0", kit.WithRequestID())
 	kit.HandleJSON[helloReq](svc, "/id", func(ctx context.Context, req helloReq) (any, error) {
 		return map[string]string{
 			"id":      endpoint.RequestIDFromContext(ctx),
@@ -664,7 +664,7 @@ func TestService_HandleJSON_WithRequestID(t *testing.T) {
 // ── Start / Shutdown ──────────────────────────────────────────────────────────
 
 func TestService_StartShutdown(t *testing.T) {
-	svc := kit.MustNew(":0")
+	svc := kit.MustNewHTTP(":0")
 	if err := svc.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -676,7 +676,7 @@ func TestService_StartShutdown(t *testing.T) {
 }
 
 func TestService_ShutdownWithoutStart(t *testing.T) {
-	svc := kit.MustNew(":0")
+	svc := kit.MustNewHTTP(":0")
 	if err := svc.Shutdown(context.Background()); err != nil {
 		t.Errorf("Shutdown without Start: %v", err)
 	}
@@ -704,7 +704,7 @@ func TestService_WithMetrics_TracksRequests(t *testing.T) {
 // ── WithTimeout ───────────────────────────────────────────────────────────────
 
 func TestService_WithTimeout_CancelsSlowHandler(t *testing.T) {
-	svc := kit.MustNew(":0", kit.WithTimeout(20*time.Millisecond))
+	svc := kit.MustNewHTTP(":0", kit.WithTimeout(20*time.Millisecond))
 	kit.HandleJSON[helloReq](svc, "/slow", func(ctx context.Context, _ helloReq) (any, error) {
 		select {
 		case <-time.After(5 * time.Second):
@@ -730,7 +730,7 @@ func TestService_WithTimeout_CancelsSlowHandler(t *testing.T) {
 // ── WithRequestID ─────────────────────────────────────────────────────────────
 
 func TestService_WithRequestID(t *testing.T) {
-	svc := kit.MustNew(":0", kit.WithRequestID())
+	svc := kit.MustNewHTTP(":0", kit.WithRequestID())
 	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -750,7 +750,7 @@ func TestService_WithRequestID(t *testing.T) {
 }
 
 func TestService_WithRequestID_PreservesIncomingHeader(t *testing.T) {
-	svc := kit.MustNew(":0", kit.WithRequestID())
+	svc := kit.MustNewHTTP(":0", kit.WithRequestID())
 	kit.HandleJSON[helloReq](svc, "/id", func(ctx context.Context, req helloReq) (any, error) {
 		return map[string]string{
 			"id":      endpoint.RequestIDFromContext(ctx),
@@ -787,7 +787,7 @@ func TestService_WithRequestID_PreservesIncomingHeader(t *testing.T) {
 }
 
 func TestService_WithRequestID_RejectsInvalidIncomingHeader(t *testing.T) {
-	svc := kit.MustNew(":0", kit.WithRequestID())
+	svc := kit.MustNewHTTP(":0", kit.WithRequestID())
 	kit.HandleJSON[helloReq](svc, "/id", func(ctx context.Context, _ helloReq) (any, error) {
 		return map[string]string{"id": endpoint.RequestIDFromContext(ctx)}, nil
 	})
@@ -812,7 +812,7 @@ func TestService_WithRequestID_RejectsInvalidIncomingHeader(t *testing.T) {
 }
 
 func TestService_WithRequestIDValidator_IsOrderIndependent(t *testing.T) {
-	svc := kit.MustNew(":0",
+	svc := kit.MustNewHTTP(":0",
 		kit.WithRequestID(),
 		kit.WithRequestIDValidator(func(id string) bool { return id == "tenant/request" }),
 	)
@@ -858,7 +858,7 @@ func TestDefaultRequestIDValidator(t *testing.T) {
 }
 
 func TestKitOptions_ReturnErrorsForInvalidConfiguration(t *testing.T) {
-	tests := []struct {
+	httpTests := []struct {
 		name   string
 		option kit.Option
 	}{
@@ -869,10 +869,6 @@ func TestKitOptions_ReturnErrorsForInvalidConfiguration(t *testing.T) {
 		{
 			name:   "endpoint middleware nil",
 			option: kit.WithEndpointMiddleware(nil),
-		},
-		{
-			name:   "lifecycle component nil",
-			option: kit.WithLifecycle(nil),
 		},
 		{
 			name:   "json max body bytes negative",
@@ -902,15 +898,33 @@ func TestKitOptions_ReturnErrorsForInvalidConfiguration(t *testing.T) {
 			name:   "request ID validator nil",
 			option: kit.WithRequestIDValidator(nil),
 		},
+	}
+
+	for _, tt := range httpTests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := kit.NewHTTP(":0", tt.option); err == nil {
+				t.Fatal("expected invalid option error")
+			}
+		})
+	}
+
+	hostTests := []struct {
+		name   string
+		option kit.HostOption
+	}{
+		{
+			name:   "lifecycle component nil",
+			option: kit.WithLifecycle(nil),
+		},
 		{
 			name:   "shutdown timeout <= 0",
 			option: kit.WithShutdownTimeout(0),
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range hostTests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := kit.New(":0", tt.option); err == nil {
+			if _, err := kit.NewHost(tt.option); err == nil {
 				t.Fatal("expected invalid option error")
 			}
 		})
@@ -952,7 +966,7 @@ func TestThreeLayer_ServiceEndpointTransport(t *testing.T) {
 	// Endpoint + Transport layer — kit.HandleJSON registers the service method
 	// and applies service-level middleware (metrics, timeout, etc.)
 	var m endpoint.Metrics
-	service := kit.MustNew(":0", kit.WithMetrics(&m))
+	service := kit.MustNewHTTP(":0", kit.WithMetrics(&m))
 	kit.HandleJSON[createUserReq](service, "/users", func(ctx context.Context, req createUserReq) (any, error) {
 		return svc.CreateUser(ctx, req)
 	})

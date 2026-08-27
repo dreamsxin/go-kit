@@ -13,7 +13,7 @@ import (
 
 func newEnvelopeServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	svc := kit.MustNew(":0",
+	svc := kit.MustNewHTTP(":0",
 		kit.WithJSONServerOptions(
 			server.ServerResponseEncoder(encodeAPIResponse),
 			server.ServerErrorEncoder(encodeAPIError),

@@ -14,7 +14,7 @@ import (
 
 func newTestService(t *testing.T) *httptest.Server {
 	t.Helper()
-	svc := kit.MustNew(":0",
+	svc := kit.MustNewHTTP(":0",
 		kit.WithRequestID(),
 		kit.WithTimeout(5*time.Second),
 	)
