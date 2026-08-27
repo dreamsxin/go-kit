@@ -186,10 +186,19 @@ func TestReadinessProviderBridgedToHTTPComponent(t *testing.T) {
 	}
 
 	close(component.ready)
-	recorder = httptest.NewRecorder()
-	httpComponent.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("readyz after warmup = %d, want %d", recorder.Code, http.StatusOK)
+	// The timed-out first check releases its gate asynchronously; poll until
+	// readyz reports ok.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		recorder = httptest.NewRecorder()
+		httpComponent.ServeHTTP(recorder, request)
+		if recorder.Code == http.StatusOK {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("readyz after warmup = %d, want %d", recorder.Code, http.StatusOK)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 
