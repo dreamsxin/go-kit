@@ -7,10 +7,10 @@ architecture documents; the durable implementation sequence belongs only in
 `ROADMAP.md`. Temporary plans and session snapshots do not belong in the
 maintained documentation set.
 
-**Start here**: [MANUAL.md](MANUAL.md) is the complete user guide, organized
-as Quick Start -> Core Concepts -> Components -> Production. The
-[book](docs/index.md) expands it into topic chapters and complete tutorials.
-The tables below are the task index into the same documentation.
+**Start here**: the [book](docs/index.md) is the complete guide — topic
+chapters and complete tutorials organized as Quick Start -> Core Concepts ->
+Components -> Production. The tables below are the task index into the same
+documentation.
 
 ## Quick Start
 
@@ -40,7 +40,7 @@ runnable example for the component.
 | 7 | HTTP security: CORS, CSRF, security headers, IP policy | [security/http](security/http/README.md) | [examples/auth](examples/README.md) |
 | 8 | Observability: slog, Zap, OpenTelemetry adapters | [slog](observability/slog/README.md), [otel](observability/otel/README.md), [zap](integrations/zap/README.md) | [PRODUCTION.md](PRODUCTION.md) |
 | 9 | AI interaction runtime and MCP Streamable HTTP | [interaction](interaction/README.md) | [examples/mcp_basic](examples/README.md) |
-| 10 | Optional integrations: Consul, gRPC, circuit breaker, rate limiting | [consul](integrations/consul/README.md), [transport gRPC](transport/README.md) | [examples/sd](examples/README.md) |
+| 10 | Optional integrations: Consul, gRPC (circuit breaking and rate limiting are built into `endpoint`) | [consul](integrations/consul/README.md), [transport gRPC](transport/README.md) | [examples/sd](examples/README.md) |
 
 ## By Task
 

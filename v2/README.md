@@ -15,8 +15,8 @@ Service -> Endpoint -> Transport
 Use only the packages you need, or use `microgen` to generate a complete,
 runnable service from a Go interface, Protobuf contract, or database schema.
 
-**Read the [user manual](MANUAL.md) and the [book](docs/index.md) for the
-complete guide and tutorials.**
+**Read the [book](docs/index.md) for the complete guide and tutorials; the
+[documentation index](DOCS_INDEX.md) maps every document by task.**
 
 ## Status
 
@@ -368,10 +368,20 @@ make release-check-clean
 
 ## Documentation
 
-Every document below also has a Chinese `*_zh.md` version; start from
-[DOCS_INDEX.md](DOCS_INDEX.md) for the quick-start path and the component
-tour.
+Every document below also has a Chinese `*_zh.md` version. The book under
+`docs/` is the complete guide; [DOCS_INDEX.md](DOCS_INDEX.md) maps every
+document by task.
 
+- [Book](docs/index.md): the complete guide
+  - Tutorials: [getting started](docs/getting-started.md),
+    [a CRUD service](docs/tutorial-crud.md),
+    [generating a service](docs/tutorial-microgen.md),
+    [authentication](docs/tutorial-auth.md),
+    [an MCP server](docs/tutorial-mcp.md)
+  - Chapters: [core concepts](docs/concepts.md),
+    [error handling](docs/errors.md), [middleware](docs/middleware.md),
+    [lifecycle](docs/lifecycle.md), [configuration](docs/configuration.md),
+    [testing](docs/testing.md)
 - [DOCS_INDEX.md](DOCS_INDEX.md): quick start, component tour, documentation map
 - [MICROGEN.md](MICROGEN.md): generator usage and generated ownership
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries and extension model

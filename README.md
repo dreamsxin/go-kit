@@ -49,9 +49,8 @@ Full walkthrough: [getting started](v2/docs/getting-started.md).
 
 ## Documentation
 
-- [User manual](v2/MANUAL.md): the complete guide
-- [Book](v2/docs/index.md): topic chapters and complete tutorials (CRUD,
-  generation, authentication, MCP)
+- [Book](v2/docs/index.md): the complete guide — topic chapters and complete
+  tutorials (getting started, CRUD, generation, authentication, MCP)
 - [Examples](v2/examples/README.md): runnable services for every component
 - [Production](v2/PRODUCTION.md): deployment, alerting, background jobs
 - [Upgrade notes](v2/MIGRATION.md), [Changelog](v2/CHANGELOG.md)

@@ -5,9 +5,7 @@
 v2 文档按任务组织。当前行为写入使用与架构文档；长期实施顺序只写入
 `ROADMAP.md`，临时计划和会话快照不进入长期维护文档。
 
-**从这里开始**：[MANUAL.md](MANUAL_zh.md) 是完整的使用手册，按
-「快速入门 -> 核心概念 -> 组件 -> 生产部署」组织。[书本](docs/index_zh.md)
-将其展开为主题章节与完整教程。下面的表格是同一套文档的任务索引。
+**从这里开始**：[书本](docs/index_zh.md)是完整指南——主题章节与完整教程，按「快速入门 -> 核心概念 -> 组件 -> 生产部署」组织。下面的表格是同一套文档的任务索引。
 
 ## 快速入门
 
@@ -36,7 +34,7 @@ v2 文档按任务组织。当前行为写入使用与架构文档；长期实�
 | 7 | HTTP 安全：CORS、CSRF、安全响应头、IP 策略 | [security/http](security/http/README_zh.md) | [examples/auth](examples/README_zh.md) |
 | 8 | 可观测性：slog、Zap、OpenTelemetry 适配器 | [slog](observability/slog/README_zh.md)、[otel](observability/otel/README_zh.md)、[zap](integrations/zap/README_zh.md) | [PRODUCTION.md](PRODUCTION_zh.md) |
 | 9 | AI 交互运行时与 MCP Streamable HTTP | [interaction](interaction/README_zh.md) | [examples/mcp_basic](examples/README_zh.md) |
-| 10 | 可选集成：Consul、gRPC、熔断器、限流 | [consul](integrations/consul/README_zh.md)、[transport gRPC](transport/README_zh.md) | [examples/sd](examples/README_zh.md) |
+| 10 | 可选集成：Consul、gRPC（熔断与限流已内置于 `endpoint`） | [consul](integrations/consul/README_zh.md)、[transport gRPC](transport/README_zh.md) | [examples/sd](examples/README_zh.md) |
 
 ## 按任务查找
 

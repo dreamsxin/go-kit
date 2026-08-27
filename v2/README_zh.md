@@ -14,7 +14,7 @@ Service -> Endpoint -> Transport
 可以只选取需要的包，也可以用 `microgen` 从 Go 接口、Protobuf 契约或数据库
 结构生成完整的可运行服务。
 
-**阅读[使用手册](MANUAL_zh.md)与[书本](docs/index_zh.md)获取完整指南与教程。**
+**阅读[书本](docs/index_zh.md)获取完整指南与教程；[文档导航](DOCS_INDEX_zh.md)按任务索引全部文档。**
 
 ## 当前状态
 
@@ -340,9 +340,17 @@ make release-check-clean
 
 ## 文档
 
-以下每份文档都有对应的中文 `*_zh.md` 版本；从
-[DOCS_INDEX.md](DOCS_INDEX_zh.md) 开始可以找到快速入门路径与组件导览。
+以下每份文档都有对应的中文 `*_zh.md` 版本。`docs/` 下的书本是完整指南；
+[文档导航](DOCS_INDEX_zh.md)按任务索引全部文档。
 
+- [书本](docs/index_zh.md)：完整指南
+  - 教程：[快速上手](docs/getting-started_zh.md)、
+    [CRUD 服务](docs/tutorial-crud_zh.md)、
+    [生成服务](docs/tutorial-microgen_zh.md)、
+    [认证](docs/tutorial-auth_zh.md)、[MCP 服务器](docs/tutorial-mcp_zh.md)
+  - 章节：[核心概念](docs/concepts_zh.md)、[错误处理](docs/errors_zh.md)、
+    [中间件](docs/middleware_zh.md)、[生命周期](docs/lifecycle_zh.md)、
+    [配置](docs/configuration_zh.md)、[测试](docs/testing_zh.md)
 - [DOCS_INDEX.md](DOCS_INDEX_zh.md)：快速入门、组件导览、文档导航
 - [MICROGEN.md](MICROGEN_zh.md)：生成器使用与生成文件归属
 - [ARCHITECTURE.md](ARCHITECTURE_zh.md)：包边界和扩展模型

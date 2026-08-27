@@ -48,8 +48,7 @@ host, err := kit.NewHost(kit.WithLifecycle(svc))
 
 ## 文档
 
-- [使用手册](v2/MANUAL_zh.md)：完整使用指南
-- [书本](v2/docs/index_zh.md)：主题章节与完整教程（CRUD、生成、认证、MCP）
+- [书本](v2/docs/index_zh.md)：完整指南——主题章节与完整教程（快速上手、CRUD、生成、认证、MCP）
 - [示例](v2/examples/README_zh.md)：每个组件的可运行服务
 - [生产指南](v2/PRODUCTION_zh.md)：部署、告警、后台任务
 - [升级说明](v2/MIGRATION_zh.md)、[变更日志](v2/CHANGELOG_zh.md)
