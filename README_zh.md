@@ -40,6 +40,7 @@ kit.HandleJSONTyped(svc, "POST /greet", func(
 | `kit` | 服务组装、健康检查、生命周期 | [指南](v2/README_zh.md) |
 | `sd` | 服务发现、负载均衡、重试 | [指南](v2/sd/README_zh.md) |
 | `interaction` | AI 工具运行时与 MCP Streamable HTTP | [指南](v2/interaction/README_zh.md) |
+| `security` | 传输中立的认证主体契约与 endpoint 层强制 | [指南](v2/ARCHITECTURE_zh.md#可选安全) |
 | `security/http` | CORS、CSRF、安全响应头、IP 策略 | [指南](v2/security/http/README_zh.md) |
 | `observability` | slog 与 OpenTelemetry 适配器 | [指南](v2/observability/slog/README_zh.md) |
 | `microgen` | 项目生成，带 Go/TS SDK 与 OpenAPI | [指南](v2/MICROGEN_zh.md) |
@@ -61,7 +62,7 @@ go get github.com/dreamsxin/go-kit/v2@v2.5.2
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.9
 ```
 
-`v2.4.3` 完全向后兼容：全部为新增能力与行为修复。
+`v2.5.2` 完全向后兼容：全部为新增能力与行为修复。
 
 ## 开发验证
 

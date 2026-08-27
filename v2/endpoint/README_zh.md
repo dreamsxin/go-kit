@@ -64,12 +64,12 @@ type Middleware func(Endpoint) Endpoint
 - `ErrorHandlingMiddleware`
 - `TracingMiddleware`
 - `BackpressureMiddleware`
+- `NewCircuitBreaker`
+- `RateLimitMiddleware` / `DelayRateLimitMiddleware`
 - `Unwrap`
 
 相关扩展包：
 
-- `integrations/circuitbreaker`
-- `integrations/ratelimit`
 - `observability/slog`
 - `integrations/zap`
 
@@ -86,8 +86,8 @@ ep := endpoint.NewBuilder(base).
     WithMetrics(&metrics).
     WithErrorHandling("CreateUser").
     WithTimeout(5 * time.Second).
-    Use(circuitbreaker.Gobreaker(cb)).
-    Use(ratelimit.NewErroringLimiter(limiter)).
+    Use(endpoint.NewCircuitBreaker().Middleware()).
+    Use(endpoint.RateLimitMiddleware(limiter)).
     Build()
 
 snapshot := metrics.Snapshot()
@@ -185,7 +185,7 @@ var ep endpoint.TypedEndpoint[HelloReq, HelloResp] =
 typed := endpoint.Unwrap[HelloReq, HelloResp](
     endpoint.NewTypedBuilder(ep).
         WithTimeout(5 * time.Second).
-        Use(circuitbreaker.Gobreaker(cb)).
+        Use(endpoint.NewCircuitBreaker().Middleware()).
         Build(),
 )
 ```
@@ -265,15 +265,12 @@ ep = zapadapter.LoggingMiddleware(logger, "CreateUser")(ep)
 // Or use observability/slog with a standard-library slog.Logger.
 ```
 
-这使核心 `endpoint` 的导入图仅限于 Go 标准库。
+这使核心 `endpoint` 的导入图仅限于 Go 标准库与零依赖的 `apperror` 包。
 
-专用中间件包：
+熔断与限流已内置于核心包，不持有第三方依赖：
 
-- `integrations/circuitbreaker`
-  - `Gobreaker`
-- `integrations/ratelimit`
-  - `NewErroringLimiter`
-  - `NewDelayingLimiter`
+- `NewCircuitBreaker`（`.Middleware()`）在熔断开启时用 `ErrCircuitOpen` 拒绝调用，并通过探测请求恢复。
+- `RateLimitMiddleware` 超限时用 `ErrRateLimited` 拒绝；`DelayRateLimitMiddleware` 等待令牌，并遵循 context 取消。限流器实现 `RateLimiter` 契约，由应用持有。
 
 ## 什么属于 `endpoint`
 

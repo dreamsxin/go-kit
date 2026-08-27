@@ -41,6 +41,7 @@ Full walkthrough: [getting started](v2/docs/getting-started.md).
 | `kit` | service assembly, health checks, lifecycle | [guide](v2/README.md#build-with-kit) |
 | `sd` | service discovery, balancing, retry | [guide](v2/sd/README.md) |
 | `interaction` | AI tool runtime and MCP Streamable HTTP | [guide](v2/interaction/README.md) |
+| `security` | transport-neutral authentication subjects and endpoint enforcement | [guide](v2/ARCHITECTURE.md#optional-security) |
 | `security/http` | CORS, CSRF, security headers, IP policy | [guide](v2/security/http/README.md) |
 | `observability` | slog and OpenTelemetry adapters | [guide](v2/observability/slog/README.md) |
 | `microgen` | project generation with Go/TS SDKs and OpenAPI | [guide](v2/MICROGEN.md) |
@@ -63,7 +64,7 @@ go get github.com/dreamsxin/go-kit/v2@v2.5.2
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.9
 ```
 
-`v2.4.3` is backward compatible: additive capabilities and behavioral fixes
+`v2.5.2` is backward compatible: additive capabilities and behavioral fixes
 only.
 
 ## Development

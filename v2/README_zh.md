@@ -210,12 +210,15 @@ func main() {
 `kit.New` 会校验 Option 并返回错误。`Service.Run` 跟随调用方提供的 context；
 系统信号监听应放在 `main` 中。
 
-带第三方依赖的 endpoint middleware 由应用显式装配：
+带第三方依赖的 endpoint middleware 由应用显式装配。熔断与限流已内置于 `endpoint`，不持有第三方依赖：
 
 ```go
-limiter := rate.NewLimiter(100, 100)
+breaker := endpoint.NewCircuitBreaker(
+	endpoint.WithBreakerFailureThreshold(5),
+)
 svc, err := kit.New(":8080", kit.WithEndpointMiddleware(
-	ratelimit.NewErroringLimiter(limiter),
+	breaker.Middleware(),
+	endpoint.RateLimitMiddleware(limiter), // limiter 实现 endpoint.RateLimiter
 ))
 ```
 
@@ -237,6 +240,8 @@ svc, err := kit.New(":8080", kit.WithLifecycle(grpcComponent))
 
 请求和响应都有具体类型时使用 `kit.HandleJSONTyped`；有意返回动态响应时使用
 `kit.HandleJSON`；已有 endpoint 时使用 `kit.HandleJSONEndpoint`。
+Server-Sent Events 流使用 `kit.HandleSSETyped` 注册，使 endpoint 中间件对流生效；
+原生流处理器使用 `kit.HandleSSE`。
 `Service.Handle` 和 `Service.HandleFunc` 仅用于原生 HTTP 集成。
 
 `endpoint.Metrics` 是 middleware 写入的可变采集器。并发读取必须通过
@@ -258,8 +263,8 @@ svc, err := kit.New(":8080", kit.WithLifecycle(grpcComponent))
 | `sd/client` | 可选的发现、负载均衡和重试装配入口 |
 | `interaction` | tool、resource、prompt、session 和策略 hook |
 | `interaction/mcp` | MCP Streamable HTTP adapter |
-| `log` | 已弃用的标准库日志兼容层 |
-| `observability/slog` | 可选的标准库 `slog` endpoint 日志适配器 |
+| `security` | 传输中立的认证主体契约与 endpoint 层强制 |
+| `observability/slog` | 可选的标准库 `slog` endpoint 日志适配器与遥测装配 |
 | `integrations/zap` | 可选的 Zap endpoint 日志适配器 |
 | `observability/otel` | 可选的 OpenTelemetry endpoint 追踪和指标模块 |
 | `security/http` | 可选的可信代理/IP、CORS、CSRF 和安全 Header |
@@ -278,7 +283,8 @@ MCP 客户端必须使用协议版本 `2025-06-18` 初始化，随后发送
 IAM、Outbox、任务平台、对象存储、Secret 平台和完整事务框架等业务平台能力。
 
 可选观测适配器将 provider 的创建、资源、导出器、采样和关闭责任保留在
-应用装配层。`observability/slog` 只使用标准库，`integrations/zap` 负责当前
+应用装配层。`observability/slog` 只使用标准库，并提供 `NewTelemetry` 装配
+tracing → metrics → logging 的固定顺序链；`integrations/zap` 负责当前
 Zap 集成，`observability/otel` 是独立 module；核心 `endpoint` 不导入这些
 provider。可以使用以下命令验证观测适配器：
 
@@ -288,8 +294,9 @@ make test-observability
 
 面向浏览器的服务可以组合 [`security/http`](security/http/README.md) 中的
 标准库 middleware。配置在应用装配阶段校验，`kit.WithHTTPMiddleware` 可以将
-策略安装到服务全部路由；认证和授权仍由应用负责。使用 `make test-security`
-验证该包。
+策略安装到服务全部路由；`security` 包负责在层间传递已认证主体并提供粗粒度
+的 endpoint 强制（`RequireAuthenticated`、`RequireRole`），凭据提取仍由应用
+在协议边界完成。使用 `make test-security` 验证该包。
 
 ## 配置
 

@@ -219,12 +219,17 @@ func main() {
 `kit.New` validates options and returns errors. `Service.Run` follows the
 caller-owned context; process signal handling stays in `main`.
 
-Dependency-specific endpoint middleware is assembled explicitly:
+Dependency-specific endpoint middleware is assembled explicitly. Circuit
+breaking and rate limiting are built into `endpoint` and hold no third-party
+dependencies:
 
 ```go
-limiter := rate.NewLimiter(100, 100)
+breaker := endpoint.NewCircuitBreaker(
+	endpoint.WithBreakerFailureThreshold(5),
+)
 svc, err := kit.New(":8080", kit.WithEndpointMiddleware(
-	ratelimit.NewErroringLimiter(limiter),
+	breaker.Middleware(),
+	endpoint.RateLimitMiddleware(limiter), // limiter implements endpoint.RateLimiter
 ))
 ```
 
@@ -247,8 +252,10 @@ responses are not terminated unexpectedly. Override the complete policy with
 
 Use `kit.HandleJSONTyped` for concrete request and response types,
 `kit.HandleJSON` for intentionally dynamic responses, and
-`kit.HandleJSONEndpoint` for an existing endpoint. Use `Service.Handle` and
-`Service.HandleFunc` only for raw HTTP integrations.
+`kit.HandleJSONEndpoint` for an existing endpoint. Register Server-Sent
+Events streams with `kit.HandleSSETyped` so endpoint middleware applies to
+the stream, or `kit.HandleSSE` for a raw streaming handler. Use
+`Service.Handle` and `Service.HandleFunc` only for raw HTTP integrations.
 
 `endpoint.Metrics` is the mutable collector used by middleware. Read it through
 `Snapshot()`, which returns a copyable `endpoint.MetricsSnapshot`; use
@@ -269,8 +276,8 @@ Use `kit.HandleJSONTyped` for concrete request and response types,
 | `sd/client` | Optional discovery, balancing, and retry composition |
 | `interaction` | Tools, resources, prompts, sessions, and policy hooks |
 | `interaction/mcp` | MCP Streamable HTTP adapter |
-| `log` | Deprecated standard-library logging compatibility facade |
-| `observability/slog` | Optional standard-library `slog` endpoint logging |
+| `security` | Transport-neutral authentication subjects and endpoint enforcement |
+| `observability/slog` | Optional standard-library `slog` endpoint logging and telemetry assembly |
 | `integrations/zap` | Optional Zap endpoint logging adapter |
 | `observability/otel` | Optional OpenTelemetry endpoint tracing and metrics module |
 | `security/http` | Optional trusted-proxy/IP, CORS, CSRF, and security headers |
@@ -292,10 +299,11 @@ outbox workflows, job platforms, object storage, secret platforms, and complete
 transaction frameworks.
 
 Optional observability adapters keep provider ownership in application
-assembly. `observability/slog` uses only the standard library,
-`integrations/zap` owns the current Zap integration, and `observability/otel`
-is a separate module. The core `endpoint` package imports none of these
-providers. Test the adapters with:
+assembly. `observability/slog` uses only the standard library and ships
+`NewTelemetry`, which assembles the canonical tracing → metrics → logging
+chain; `integrations/zap` owns the current Zap integration, and
+`observability/otel` is a separate module. The core `endpoint` package
+imports none of these providers. Test the adapters with:
 
 ```bash
 make test-observability
@@ -304,8 +312,11 @@ make test-observability
 Browser-facing services can compose the standard-library middleware in
 [`security/http`](security/http/README.md). Configuration is validated during
 assembly, and `kit.WithHTTPMiddleware` can install it across every service
-route. Authentication/authorization remain application concerns. Test the
-package with `make test-security`.
+route. The `security` package carries the authenticated subject across
+layers and enforces coarse endpoint-level requirements
+(`RequireAuthenticated`, `RequireRole`); credential extraction stays
+application owned at the protocol boundary. Test the package with
+`make test-security`.
 
 ## Configuration
 

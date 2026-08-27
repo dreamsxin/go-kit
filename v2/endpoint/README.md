@@ -63,12 +63,12 @@ For most services, these are the main entry points:
 - `ErrorHandlingMiddleware`
 - `TracingMiddleware`
 - `BackpressureMiddleware`
+- `NewCircuitBreaker`
+- `RateLimitMiddleware` / `DelayRateLimitMiddleware`
 - `Unwrap`
 
 Related extension packages:
 
-- `integrations/circuitbreaker`
-- `integrations/ratelimit`
 - `observability/slog`
 - `integrations/zap`
 
@@ -85,8 +85,8 @@ ep := endpoint.NewBuilder(base).
     WithMetrics(&metrics).
     WithErrorHandling("CreateUser").
     WithTimeout(5 * time.Second).
-    Use(circuitbreaker.Gobreaker(cb)).
-    Use(ratelimit.NewErroringLimiter(limiter)).
+    Use(endpoint.NewCircuitBreaker().Middleware()).
+    Use(endpoint.RateLimitMiddleware(limiter)).
     Build()
 
 snapshot := metrics.Snapshot()
@@ -190,7 +190,7 @@ var ep endpoint.TypedEndpoint[HelloReq, HelloResp] =
 typed := endpoint.Unwrap[HelloReq, HelloResp](
     endpoint.NewTypedBuilder(ep).
         WithTimeout(5 * time.Second).
-        Use(circuitbreaker.Gobreaker(cb)).
+        Use(endpoint.NewCircuitBreaker().Middleware()).
         Build(),
 )
 ```
@@ -275,15 +275,18 @@ ep = zapadapter.LoggingMiddleware(logger, "CreateUser")(ep)
 // Or use observability/slog with a standard-library slog.Logger.
 ```
 
-This keeps the core `endpoint` import graph limited to the Go standard library.
+This keeps the core `endpoint` import graph limited to the Go standard
+library and the zero-dependency `apperror` package.
 
-Specialized middleware packages:
+Circuit breaking and rate limiting are built into the core package and hold
+no third-party dependencies:
 
-- `integrations/circuitbreaker`
-  - `Gobreaker`
-- `integrations/ratelimit`
-  - `NewErroringLimiter`
-  - `NewDelayingLimiter`
+- `NewCircuitBreaker` (`.Middleware()`) rejects calls with `ErrCircuitOpen`
+  while open and probes to recover.
+- `RateLimitMiddleware` rejects over-limit requests with `ErrRateLimited`;
+  `DelayRateLimitMiddleware` waits for a token and honors context
+  cancellation. Limiters implement the `RateLimiter` contract and stay
+  application owned.
 
 ## What Belongs In `endpoint`
 
