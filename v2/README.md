@@ -26,10 +26,10 @@ This directory is the independent Go module:
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.5.2` is the current published release. It is backward
-compatible: additive capabilities and behavioral fixes only. Per-release
-changes are recorded in [CHANGELOG.md](CHANGELOG.md); upgrade notes live in
-[MIGRATION.md](MIGRATION.md).
+`v2.6.0` is the current published release. It is the architecture-evolution
+release and contains intentional breaking changes to the assembly layer and
+error model; see [MIGRATION.md](MIGRATION.md) for the upgrade path.
+Per-release changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 Requires Go 1.25.8 or later.
 
@@ -58,7 +58,7 @@ go -C v2 install ./cmd/microgen
 Install the refactored generator from its independently versioned module:
 
 ```bash
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.9
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.3.0
 ```
 
 The generator CLI, including SQLite schema introspection, installs and runs

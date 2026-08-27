@@ -4,7 +4,7 @@ English | [简体中文](CHANGELOG_zh.md)
 All notable v2 changes are recorded here. Legacy history remains available
 through the immutable v0 and v1 tags.
 
-## [Unreleased]
+## [2.6.0] - 2026-08-27
 
 ### Added
 

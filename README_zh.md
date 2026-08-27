@@ -59,11 +59,11 @@ host, err := kit.NewHost(kit.WithLifecycle(svc))
 当前维护的产品线是 [`v2/`](v2/) 目录下的独立 v2 module：
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2@v2.5.2
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.9
+go get github.com/dreamsxin/go-kit/v2@v2.6.0
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.3.0
 ```
 
-`v2.5.2` 完全向后兼容：全部为新增能力与行为修复。
+`v2.6.0` 是架构进化版本：包含对装配层与错误模型的有意破坏性变更（见[变更日志](v2/CHANGELOG_zh.md)与[升级说明](v2/MIGRATION_zh.md)）。
 
 ## 开发验证
 

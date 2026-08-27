@@ -61,12 +61,13 @@ Full walkthrough: [getting started](v2/docs/getting-started.md).
 The maintained product line is the independent v2 module under [`v2/`](v2/):
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2@v2.5.2
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.9
+go get github.com/dreamsxin/go-kit/v2@v2.6.0
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.3.0
 ```
 
-`v2.5.2` is backward compatible: additive capabilities and behavioral fixes
-only.
+`v2.6.0` is the architecture-evolution release: it contains intentional
+breaking changes to the assembly layer and error model (see
+[CHANGELOG](v2/CHANGELOG.md) and [MIGRATION](v2/MIGRATION.md)).
 
 ## Development
 

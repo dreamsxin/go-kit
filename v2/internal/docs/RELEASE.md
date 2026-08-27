@@ -3,15 +3,19 @@ English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
-v2.4.0 is the release being published from `main` for the independent module:
+v2.6.0 is the release being published from `main` for the independent module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.4.0` is backward compatible: additive capabilities and behavioral fixes
-only. The historical record of earlier releases, including the two documented
-SemVer exceptions, lives in [CHANGELOG.md](../../CHANGELOG.md).
+`v2.6.0` is the approved architecture-evolution release: the assembly layer
+(`kit.Service` split into `kit.Host` + `kit.HTTP`), the error model
+(`server.HTTPError` removed), and the generated custom-routes hook changed
+incompatibly by explicit approval. Nested modules publish `v0.3.0` tags; the
+core-dependent ones require `v2.6.0`. The historical record of earlier
+releases, including the documented SemVer exceptions, lives in
+[CHANGELOG.md](../../CHANGELOG.md).
 
 The published module is stored in the repository's `v2` major-version
 subdirectory, but consumers request normal module versions such as `v2.4.0`.
@@ -38,7 +42,10 @@ exceptions:
 The approved exceptions are limited to:
 
 - the direct refactor delivered in `v2.1.0`;
-- the `v2.2.0` `Metrics.Snapshot() -> MetricsSnapshot` return-type correction.
+- the `v2.2.0` `Metrics.Snapshot() -> MetricsSnapshot` return-type correction;
+- the `v2.6.0` architecture evolution (assembly split into `kit.Host` +
+  `kit.HTTP`, `server.HTTPError` removal, `log` facade removal, SSE moved to
+  the transport layer, stdlib-only generated custom-routes hook).
 
 Neither exception authorizes unrelated breaking changes. Any further
 incompatibility requires a new major module path unless separately approved and

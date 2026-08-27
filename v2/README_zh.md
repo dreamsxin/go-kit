@@ -24,9 +24,7 @@ v2 是独立 Go module：
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.5.2` 是当前已发布版本，完全向后兼容：全部为新增能力与
-行为修复。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)；升级说明见
-[MIGRATION.md](MIGRATION_zh.md)。
+`v2.6.0` 是当前已发布版本。它是架构进化版本，包含对装配层与错误模型的有意破坏性变更；升级路径见 [MIGRATION.md](MIGRATION_zh.md)。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)。
 
 需要 Go 1.25.8 或更高版本。
 
@@ -54,7 +52,7 @@ go -C v2 install ./cmd/microgen
 从独立版本 module 安装重构版生成器：
 
 ```bash
-go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.2.9
+go install github.com/dreamsxin/go-kit/v2/cmd/microgen@v0.3.0
 ```
 
 生成器 CLI（包括 SQLite 结构读取）安装和运行均不依赖 CGO 或本地 C 编译器。

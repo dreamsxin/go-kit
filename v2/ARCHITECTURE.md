@@ -273,8 +273,10 @@ server. `cmd/microgen` output depends on L0–L3 only.
 
 ## Stability
 
-`v2.5.2` is the current published contract. Releases within `/v2` are backward
-compatible: patch releases fix behavior and minor releases add capabilities.
-Incompatible changes require a new major module version. v2 does not carry
-deprecated forwarding APIs; documentation for earlier releases remains
-available through the immutable release tags.
+`v2.6.0` is the current published contract. It is the approved
+architecture-evolution release: the assembly layer (`kit.Service` split into
+`kit.Host` + `kit.HTTP`), the error model (`server.HTTPError` removed), and
+the generated custom-routes hook changed incompatibly by explicit approval;
+the exceptions are recorded in the release policy. Later patch releases fix
+behavior and minor releases add capabilities. Further incompatible changes
+require a new major module version unless separately approved.
