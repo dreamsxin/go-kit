@@ -14,6 +14,12 @@ through the immutable v0 and v1 tags.
   `WithEndpointMiddleware`.
 - MIGRATION documents the construct mapping and recommended order for moving
   legacy go-kit (v0/v1 style) codebases to v2.
+- `server.AccessLogMiddleware`: standard-library access logging at the
+  transport boundary (method, path, status, bytes, duration, trace ID);
+  install with `kit.WithHTTPMiddleware`.
+- The middleware chapter documents where each cross-cutting concern (logging,
+  tracing, metrics, errors) belongs across the service, endpoint, and
+  transport layers.
 
 ## [2.6.0] - 2026-08-27
 

@@ -2,8 +2,10 @@
 
 English | [简体中文](middleware_zh.md)
 
-Middleware is the only extension point of the endpoint layer. This page covers
-composition order, the built-in catalog, and the four flow-control patterns.
+Middleware is the primary extension point of the endpoint layer; the HTTP
+boundary has its own `http.Handler` middleware. This page covers composition
+order, the built-in catalog, the four flow-control patterns, and where each
+cross-cutting concern belongs across the layers.
 
 ## Composition
 
@@ -21,12 +23,36 @@ ep := endpoint.NewBuilder(createUser).
 ```
 
 Service-wide middleware for every route goes through `kit.WithEndpointMiddleware`;
-a single route with its own chain is built with `endpoint.NewBuilder` and
-registered through `kit.HandleJSONEndpoint`.
+a single route with its own chain uses `kit.HandleJSONTypedWithMiddleware`, or
+is built with `endpoint.NewBuilder` and registered through
+`kit.HandleJSONEndpoint`.
 
 HTTP middleware is a separate boundary: `kit.WithHTTPMiddleware` and
 `security/http.Chain` compose standard `http.Handler` middleware and wrap every
 route including health checks.
+
+## Cross-cutting concerns by layer
+
+Logging, tracing, metrics, and error handling have one canonical home per
+layer:
+
+| Concern | Service layer | Endpoint layer | Transport layer |
+| --- | --- | --- | --- |
+| Logging | stays clean; reads correlation IDs from the context | `slogadapter.LoggingMiddleware`, `integrations/zap`, or `slogadapter.NewTelemetry` | `server.AccessLogMiddleware` for protocol facts; `ServerErrorHandler` records failures |
+| Tracing | the context carries trace and request IDs | `TracingMiddleware` (W3C correlation), `oteladapter.TracingMiddleware` (spans) | `transporthttp.ExtractTraceparent` / `InjectTraceparent` header propagation |
+| Metrics | — | `MetricsMiddleware`, `oteladapter.NewMetrics` | access-log status/bytes; `ServerFinalizer` hooks |
+| Errors | returns `apperror` classifications | `ErrorHandlingMiddleware` attaches the operation name; `ValidationMiddleware` short-circuits | `ErrorEncoder` maps kinds to statuses; `ErrorHandler` observes |
+
+Placement rules:
+
+- The service layer stays pure: cross-cutting behavior is applied by the
+  endpoint middleware that wraps it. Service code reads correlation IDs from
+  the context and returns `apperror`-classified failures.
+- The endpoint layer is the canonical home for business-level logging,
+  tracing, metrics, and error decoration — it sees decoded requests, business
+  responses, and business errors.
+- The transport layer owns protocol facts: access logs, status mapping, and
+  header propagation. It never re-interprets business results.
 
 ## Flow control
 

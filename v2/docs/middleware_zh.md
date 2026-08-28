@@ -2,7 +2,7 @@
 
 [English](middleware.md) | 简体中文
 
-中间件是端点层唯一的扩展点。本页覆盖组合顺序、内置目录与四种流控模式。
+中间件是端点层的主要扩展点；HTTP 边界另有自己的 `http.Handler` 中间件。本页覆盖组合顺序、内置目录、四种流控模式，以及各横切关注点在哪一层安放。
 
 ## 组合
 
@@ -19,11 +19,29 @@ ep := endpoint.NewBuilder(createUser).
     Build()
 ```
 
-作用于每条路由的服务级中间件通过 `kit.WithEndpointMiddleware` 安装；拥有自己链的
-单个路由用 `endpoint.NewBuilder` 构建，并通过 `kit.HandleJSONEndpoint` 注册。
+作用于每条路由的服务级中间件通过 `kit.WithEndpointMiddleware` 安装；拥有自己链的单个路由使用 `kit.HandleJSONTypedWithMiddleware`，或用 `endpoint.NewBuilder` 构建后通过 `kit.HandleJSONEndpoint` 注册。
 
 HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.Chain` 组合
 标准的 `http.Handler` 中间件，包裹包括健康检查在内的每一条路由。
+
+## 按层安放的横切关注点
+
+日志、追踪、指标与错误处理在每一层都有一个规范位置：
+
+| 关注点 | Service 层 | Endpoint 层 | Transport 层 |
+| --- | --- | --- | --- |
+| 日志 | 保持纯净；从 context 读关联 ID | `slogadapter.LoggingMiddleware`、`integrations/zap` 或 `slogadapter.NewTelemetry` | `server.AccessLogMiddleware` 记录协议事实；`ServerErrorHandler` 记录失败 |
+| 追踪 | context 携带 trace 与请求 ID | `TracingMiddleware`（W3C 关联）、`oteladapter.TracingMiddleware`（span） | `transporthttp.ExtractTraceparent` / `InjectTraceparent` 头传播 |
+| 指标 | — | `MetricsMiddleware`、`oteladapter.NewMetrics` | 访问日志的状态码/字节数；`ServerFinalizer` 钩子 |
+| 错误 | 返回 `apperror` 分类 | `ErrorHandlingMiddleware` 附操作名；`ValidationMiddleware` 短路 | `ErrorEncoder` 映射状态码；`ErrorHandler` 观察 |
+
+安放规则：
+
+- Service 层保持纯净：横切行为由包裹它的 endpoint 中间件应用。服务代码从
+  context 读关联 ID，返回 `apperror` 分类的失败。
+- Endpoint 层是业务级日志、追踪、指标与错误装饰的规范位置——它能看到解码后
+  的请求、业务响应与业务错误。
+- Transport 层拥有协议事实：访问日志、状态码映射与头传播。它绝不重新解读业务结果。
 
 ## 流控
 
