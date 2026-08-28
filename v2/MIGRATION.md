@@ -6,6 +6,43 @@ go-kit v2 follows semantic versioning. This page records the upgrade actions
 needed for the current release; the complete per-release change list lives in
 [CHANGELOG.md](CHANGELOG.md).
 
+## Migrating From Legacy go-kit (v0/v1 Style)
+
+Codebases built on the old go-kit style (`github.com/go-kit/kit`: per-route
+`transport/http.NewServer` with decode/encode function pairs, `endpoint.Set`
+structs, `NewGRPCServer`/`NewGRPCClient` assembly blocks) map to v2
+constructs like this:
+
+| Legacy construct | go-kit v2 equivalent |
+| --- | --- |
+| `httptransport.NewServer(ep, decode, encode, opts...)` per route | `kit.HandleJSONTyped` / `kit.HandleJSONWithMiddleware`; `server.NewServer` for custom codecs |
+| Per-route decode/encode function pairs | Typed handlers need no codecs; `server.RawBodyCodec` covers custom wire formats |
+| `endpoint.Set` struct wiring | Route registration on the `kit.HTTP` component; microgen-generated `endpoints.go` |
+| `NewGRPCServer` / grpc handler struct | `integrations/grpc` server + `transport.Binding` (one endpoint serves HTTP and gRPC) |
+| `NewGRPCClient` endpoint blocks | `integrations/grpc/client`; `sd/client` composes discovery, balancing, and retry |
+| `jwt.HTTPToContext()` / `jwt.GRPCToContext()` | `security` subject contract + application-owned credential extraction at the protocol boundary |
+| `opentracing.HTTPToContext` / `TraceClient` | `endpoint.TracingMiddleware` (W3C) or `observability/otel` |
+| `ratelimit.NewErroringLimiter` | Built-in `endpoint.RateLimitMiddleware` |
+| `switch err.Error() {...}` status mapping | `apperror` classification; transports map kinds; `JSONErrorEncoderWithKindMapper` for custom statuses |
+| `Err string` response fields (error-as-string over the wire) | Return errors; `endpoint.Failer` when a proto message must carry the failure |
+| Hand-written proto↔domain mappers | Generated transports (`microgen` from `.proto`) |
+
+Pitfalls the legacy style is prone to, fixed by design in v2:
+
+- **Silent middleware drift**: per-method middleware applied by copy-paste or
+  comment toggles leaves routes without rate limiting or tracing without any
+  signal. In v2 middleware is declared once at component level or explicitly
+  per route, and chains are introspectable via `endpoint.Builder.Describe()`.
+- **Error classification loss**: errors serialized as strings lose their kind
+  across the wire. `apperror` kinds survive across HTTP and gRPC.
+- **Mapper drift**: hand-written proto↔domain converters drift from the
+  schema over time; generated codecs stay in sync with the contract.
+
+Recommended migration order: move one service at a time; start with typed
+JSON handlers (`kit`), then replace error-string conventions with `apperror`,
+then collapse duplicate HTTP/gRPC assemblies into `transport.Binding`, and
+finally let `microgen` own regenerated transports.
+
 ## Upgrading To v2.6.0
 
 `v2.6.0` is the approved architecture-evolution release and contains

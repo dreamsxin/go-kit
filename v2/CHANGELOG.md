@@ -12,6 +12,8 @@ through the immutable v0 and v1 tags.
   `HandleJSONTypedWithMiddleware` compose per-route middleware closest to the
   handler, inside the component-level chain installed through
   `WithEndpointMiddleware`.
+- MIGRATION documents the construct mapping and recommended order for moving
+  legacy go-kit (v0/v1 style) codebases to v2.
 
 ## [2.6.0] - 2026-08-27
 

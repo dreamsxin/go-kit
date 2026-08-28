@@ -5,6 +5,34 @@
 go-kit v2 遵循语义化版本。本页记录当前版本所需的升级动作；每个版本的
 完整变更列表见 [CHANGELOG.md](CHANGELOG_zh.md)。
 
+## 从旧版 go-kit（v0/v1 风格）迁移
+
+基于旧版 go-kit 风格（`github.com/go-kit/kit`：每路由
+`transport/http.NewServer` + 解码/编码函数对、`endpoint.Set` 结构、
+`NewGRPCServer`/`NewGRPCClient` 装配块）的代码库，构造映射如下：
+
+| 旧版构造 | go-kit v2 等价物 |
+| --- | --- |
+| 每路由 `httptransport.NewServer(ep, decode, encode, opts...)` | `kit.HandleJSONTyped` / `kit.HandleJSONWithMiddleware`；自定义编解码用 `server.NewServer` |
+| 每路由解码/编码函数对 | 类型化处理器无需编解码；自定义线上格式用 `server.RawBodyCodec` |
+| `endpoint.Set` 结构装配 | 在 `kit.HTTP` 组件上注册路由；microgen 生成的 `endpoints.go` |
+| `NewGRPCServer` / grpc handler 结构 | `integrations/grpc` 服务端 + `transport.Binding`（一个端点同时服务 HTTP 与 gRPC） |
+| `NewGRPCClient` 端点块 | `integrations/grpc/client`；`sd/client` 一次装配发现、均衡与重试 |
+| `jwt.HTTPToContext()` / `jwt.GRPCToContext()` | `security` 主体契约 + 应用在协议边界自有的凭据提取 |
+| `opentracing.HTTPToContext` / `TraceClient` | `endpoint.TracingMiddleware`（W3C）或 `observability/otel` |
+| `ratelimit.NewErroringLimiter` | 内置 `endpoint.RateLimitMiddleware` |
+| `switch err.Error() {...}` 状态码映射 | `apperror` 分类；各传输映射种类；自定义状态用 `JSONErrorEncoderWithKindMapper` |
+| 响应中的 `Err string` 字段（错误字符串化传输） | 直接返回错误；proto 消息必须携带失败时用 `endpoint.Failer` |
+| 手写 proto↔领域映射器 | 生成传输（`microgen` 从 `.proto` 生成） |
+
+旧版风格易犯、而 v2 从设计上消除的坑：
+
+- **中间件静默漂移**：每方法中间件靠复制粘贴或注释开关应用，会让路由在毫无信号的情况下丢失限流或追踪。v2 中间件在组件级一次声明或按路由显式声明，链可经 `endpoint.Builder.Describe()` 自省。
+- **错误分类丢失**：字符串化的错误跨线丢失种类；`apperror` 种类在 HTTP 与 gRPC 间保留。
+- **映射器漂移**：手写 proto↔领域转换器随时间与 schema 漂移；生成的编解码与契约保持同步。
+
+推荐迁移顺序：逐个服务迁移；先从类型化 JSON 处理器（`kit`）入手，再把错误字符串约定替换为 `apperror`，然后把重复的 HTTP/gRPC 装配收敛到 `transport.Binding`，最后让 `microgen` 接管再生成的传输。
+
 ## 升级到 v2.6.0
 
 `v2.6.0` 是经批准的架构进化版本，包含有意的破坏性变更。需要修改源码：

@@ -10,6 +10,7 @@
 - `kit` 路由级 endpoint 中间件：`HandleJSONWithMiddleware` 与
   `HandleJSONTypedWithMiddleware` 把路由级中间件组合在处理器最近处，位于
   `WithEndpointMiddleware` 安装的组件级链之内。
+- MIGRATION 记录从旧版 go-kit（v0/v1 风格）迁移到 v2 的构造映射与推荐顺序。
 
 ## [2.6.0] - 2026-08-27
 
