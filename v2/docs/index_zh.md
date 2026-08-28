@@ -29,6 +29,7 @@
 - [配置](configuration_zh.md)：生成的配置优先级与自定义配置段
 - [测试](testing_zh.md)：测试端点与服务
 - [排障](troubleshooting_zh.md)：按症状排查故障——请求关联、状态码、数据库、日志、调试开关
+- [自定义](customization_zh.md)：自定义日志存储、编写自定义中间件、定制错误处理
 
 ## 组件参考
 

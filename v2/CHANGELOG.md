@@ -25,6 +25,10 @@ through the immutable v0 and v1 tags.
   sources of 429), startup failures, readiness failures, database pool
   settings, logging configuration, and debug switches. The configuration
   chapter gains a full generated-sections reference.
+- New customization chapter (en/zh): choosing log destinations (file
+  storage, multi-writer, rotation guidance), writing custom endpoint and HTTP
+  middleware with installation scopes, and an error-customization decision
+  guide.
 
 ## [2.6.0] - 2026-08-27
 

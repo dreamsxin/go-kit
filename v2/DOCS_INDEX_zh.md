@@ -40,6 +40,7 @@ v2 文档按任务组织。当前行为写入使用与架构文档；长期实�
 
 | 任务 | 文档 |
 | --- | --- |
+| 自定义日志、中间件或错误 | [docs/customization_zh.md](docs/customization_zh.md) |
 | 排查服务或请求故障 | [docs/troubleshooting_zh.md](docs/troubleshooting_zh.md) |
 | 准备服务的生产部署 | [PRODUCTION.md](PRODUCTION_zh.md) |
 | 查看版本间升级动作 | [MIGRATION.md](MIGRATION_zh.md) |

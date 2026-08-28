@@ -46,6 +46,7 @@ runnable example for the component.
 
 | Task | Document |
 | --- | --- |
+| Customize logging, middleware, or errors | [docs/customization.md](docs/customization.md) |
 | Diagnose a failing service or request | [docs/troubleshooting.md](docs/troubleshooting.md) |
 | Prepare a service for production | [PRODUCTION.md](PRODUCTION.md) |
 | Review upgrade actions between releases | [MIGRATION.md](MIGRATION.md) |

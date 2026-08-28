@@ -36,6 +36,8 @@ Cross-cutting flows that span more than one package:
 - [Testing](testing.md): testing endpoints and services
 - [Troubleshooting](troubleshooting.md): symptom-based failure diagnosis —
   request correlation, status codes, database, logging, debug switches
+- [Customization](customization.md): custom log destinations, writing custom
+  middleware, and tailoring error handling
 
 ## Component References
 
