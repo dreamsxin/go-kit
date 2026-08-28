@@ -34,6 +34,8 @@ Cross-cutting flows that span more than one package:
 - [Configuration](configuration.md): generated config precedence and custom
   sections
 - [Testing](testing.md): testing endpoints and services
+- [Troubleshooting](troubleshooting.md): symptom-based failure diagnosis —
+  request correlation, status codes, database, logging, debug switches
 
 ## Component References
 

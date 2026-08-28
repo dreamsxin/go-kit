@@ -13,6 +13,7 @@
 - MIGRATION 记录从旧版 go-kit（v0/v1 风格）迁移到 v2 的构造映射与推荐顺序。
 - `server.AccessLogMiddleware`：传输边界的标准库访问日志（方法、路径、状态码、字节数、耗时、trace ID），经 `kit.WithHTTPMiddleware` 安装。
 - 中间件章节记录各横切关注点（日志、追踪、指标、错误）在 service、endpoint、transport 三层的规范位置。
+- 新增排障章节（双语）：按症状排查——request_id/trace_id 请求关联、状态码成因（含 429 的四种来源）、启动失败、就绪失败、数据库连接池设置、日志配置与调试开关。配置章节新增完整的生成配置段参考。
 
 ## [2.6.0] - 2026-08-27
 

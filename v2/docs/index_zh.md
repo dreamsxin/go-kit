@@ -28,6 +28,7 @@
 - [生命周期](lifecycle_zh.md)：启动、优雅停机、后台任务
 - [配置](configuration_zh.md)：生成的配置优先级与自定义配置段
 - [测试](testing_zh.md)：测试端点与服务
+- [排障](troubleshooting_zh.md)：按症状排查故障——请求关联、状态码、数据库、日志、调试开关
 
 ## 组件参考
 

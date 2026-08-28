@@ -46,6 +46,7 @@ runnable example for the component.
 
 | Task | Document |
 | --- | --- |
+| Diagnose a failing service or request | [docs/troubleshooting.md](docs/troubleshooting.md) |
 | Prepare a service for production | [PRODUCTION.md](PRODUCTION.md) |
 | Review upgrade actions between releases | [MIGRATION.md](MIGRATION.md) |
 | Deep-dive the generator, extend mode, and contracts | [MICROGEN.md](MICROGEN.md) |

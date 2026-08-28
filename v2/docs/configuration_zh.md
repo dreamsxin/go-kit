@@ -52,6 +52,22 @@ func (c *Config) ApplyEnv() {
 YAML 与远程配置会合并进 `custom`；`SetDefaults`、`ApplyEnv` 与 `Validate` 提供
 显式钩子。全量重新生成绝不会覆盖此文件。
 
+## 生成配置段
+
+生成的 `Config` 包含以下配置段；键为 YAML 字段，最终环境变量覆盖遵循上文的 `APP_` 前缀：
+
+| 配置段 | 键 | 用途 |
+| --- | --- | --- |
+| `server` | `http_addr`、`grpc_addr`、`read_timeout`、`read_header_timeout`、`write_timeout`、`graceful_shutdown_timeout` | 监听与超时；流式场景 `write_timeout` 保持 `0` |
+| `logging` | `level`、`format` | slog 级别与格式（`json` 或 `console`） |
+| `database` | `driver`、`dsn`、`auto_migrate`、`max_open_conns`、`max_idle_conns`、`conn_max_lifetime` | 连接与连接池调优 |
+| `middleware` | `timeout` | 生成的端点中间件 |
+| `debug` | `routes_enabled`、`print_routes` | 路由调试开关 |
+| `remote` | `enabled`、`provider`、`endpoint`、`namespace`、`group`、`data_id`、`timeout`、`fallback_to_local` | 远程配置源 |
+| `custom` | 应用自定义 | 应用自有配置段 |
+
+这些设置相关的故障症状见[排障指南](troubleshooting_zh.md)。
+
 ## 模式
 
 | 模式 | 行为 |

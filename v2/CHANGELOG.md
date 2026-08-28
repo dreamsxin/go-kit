@@ -20,6 +20,11 @@ through the immutable v0 and v1 tags.
 - The middleware chapter documents where each cross-cutting concern (logging,
   tracing, metrics, errors) belongs across the service, endpoint, and
   transport layers.
+- New troubleshooting chapter (en/zh): symptom-based diagnosis — request
+  correlation by request_id/trace_id, status-code causes (including the four
+  sources of 429), startup failures, readiness failures, database pool
+  settings, logging configuration, and debug switches. The configuration
+  chapter gains a full generated-sections reference.
 
 ## [2.6.0] - 2026-08-27
 
