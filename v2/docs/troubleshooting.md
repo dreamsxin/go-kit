@@ -109,6 +109,10 @@ which protections are armed for a route.
 - Generated services build the logger from `logging.level` and
   `logging.format` (`json` or `console`); `APP_LOG_LEVEL` / `APP_LOG_FORMAT`
   override at deploy time. Levels are standard `log/slog` levels.
+- Log output goes to **stdout by design** — there is no log-path setting.
+  For file storage build your own `slog.Handler` (see
+  [Production: log destinations](../PRODUCTION.md#log-destinations-and-file-storage));
+  rotation is application owned.
 - Business lines come from `slogadapter.LoggingMiddleware` (or
   `integrations/zap`); protocol lines come from
   `server.AccessLogMiddleware`. Both carry `request_id` / `trace_id` when the

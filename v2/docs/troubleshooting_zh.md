@@ -99,6 +99,7 @@ host, _ := kit.NewHost(kit.WithLifecycle(svc))
 - 生成服务的日志器由 `logging.level` 与 `logging.format`（`json` 或
   `console`）构建；部署时用 `APP_LOG_LEVEL` / `APP_LOG_FORMAT` 覆盖。
   级别是标准 `log/slog` 级别。
+- 日志按设计输出到 **stdout**——没有日志路径配置项。需要文件存储时自建 `slog.Handler`（见[生产指南：日志输出目标](../PRODUCTION_zh.md#日志输出目标与文件存储)）；轮转由应用持有。
 - 业务日志行来自 `slogadapter.LoggingMiddleware`（或 `integrations/zap`）；
   协议日志行来自 `server.AccessLogMiddleware`。对应中间件运行时两者都携带
   `request_id` / `trace_id`。

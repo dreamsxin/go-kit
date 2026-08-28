@@ -203,6 +203,25 @@ Bearer 的 API 或 MCP POST 路由，除非这些路由有意使用浏览器 coo
 endpoint 结果、耗时与关联 ID，不记录载荷；应用仍自行选择 `slog.Handler`
 与级别。
 
+### 日志输出目标与文件存储
+
+生成服务按设计将结构化日志写到 stdout（12-factor）：容器或节点采集器负责后续处理。框架故意不提供日志路径配置项——文件路径、轮转与留存属于应用或部署决策。
+
+需要文件存储时，自建 `slog.Handler` 并把日志器传给适配器——任何 `slog.Handler` 实现都可用：
+
+```go
+file, err := os.OpenFile("service.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+if err != nil {
+	return err
+}
+logger := slog.New(slog.NewJSONHandler(file, &slog.HandlerOptions{Level: slog.LevelInfo}))
+// 接入适配器：
+//   slogadapter.LoggingMiddleware(logger, op)
+//   slogadapter.NewErrorHandler(logger)
+```
+
+生成项目中 `cmd/main.go` 归用户所有：在那里修改日志器构造（或在 `config/custom.go` 钩子里构建日志器），而不是修改生成文件。轮转与投递仍由应用持有。
+
 ## 指标
 
 业务调用在 endpoint 边界测量，协议细节在传输边界测量。推荐信号包括：

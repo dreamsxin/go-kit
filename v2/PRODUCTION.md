@@ -218,6 +218,31 @@ For standard-library logging, use the optional
 endpoint outcome, duration, and correlation IDs without recording payloads;
 the application still selects the `slog.Handler` and level.
 
+### Log destinations and file storage
+
+Generated services write structured logs to stdout by design (12-factor):
+the container or node collector owns what happens to them. There is no
+log-path setting in the framework on purpose — file paths, rotation, and
+retention are application or deployment decisions.
+
+For file storage, build your own `slog.Handler` and pass the logger into the
+adapters — any `slog.Handler` implementation works:
+
+```go
+file, err := os.OpenFile("service.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+if err != nil {
+	return err
+}
+logger := slog.New(slog.NewJSONHandler(file, &slog.HandlerOptions{Level: slog.LevelInfo}))
+// plug into the adapters:
+//   slogadapter.LoggingMiddleware(logger, op)
+//   slogadapter.NewErrorHandler(logger)
+```
+
+In generated projects, `cmd/main.go` is user-owned: change the logger
+construction there (or build the logger in a `config/custom.go` hook) instead
+of editing generated files. Rotation and shipping stay application owned.
+
 ## Metrics
 
 Measure at the endpoint boundary for business calls and at the transport boundary
