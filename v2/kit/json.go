@@ -57,6 +57,48 @@ func HandleJSONTyped[Req, Resp any](
 	HandleJSONEndpoint[Req](h, pattern, endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), options...)
 }
 
+// HandleJSONWithMiddleware registers a JSON route whose endpoint is wrapped
+// with route-local middleware before the component-level chain. Route
+// middleware composes closest to the handler; middleware installed through
+// WithEndpointMiddleware wraps outside it. Use it for per-route concerns
+// such as a route-specific rate limiter or audit hook.
+func HandleJSONWithMiddleware[Req any](
+	h *HTTP,
+	pattern string,
+	handler func(ctx context.Context, req Req) (any, error),
+	middleware func(*endpoint.Builder) *endpoint.Builder,
+	options ...httpserver.ServerOption,
+) {
+	if handler == nil {
+		panic("kit: JSON handler cannot be nil")
+	}
+	if middleware == nil {
+		panic("kit: route middleware cannot be nil")
+	}
+	ep := middleware(endpoint.NewBuilder(endpoint.TypedEndpoint[Req, any](handler).Wrap())).Build()
+	HandleJSONEndpoint[Req](h, pattern, ep, options...)
+}
+
+// HandleJSONTypedWithMiddleware is the typed variant of
+// HandleJSONWithMiddleware: compile-time request and response types plus
+// route-local endpoint middleware.
+func HandleJSONTypedWithMiddleware[Req, Resp any](
+	h *HTTP,
+	pattern string,
+	handler func(ctx context.Context, req Req) (Resp, error),
+	middleware func(*endpoint.Builder) *endpoint.Builder,
+	options ...httpserver.ServerOption,
+) {
+	if handler == nil {
+		panic("kit: JSON handler cannot be nil")
+	}
+	if middleware == nil {
+		panic("kit: route middleware cannot be nil")
+	}
+	ep := middleware(endpoint.NewTypedBuilder(endpoint.TypedEndpoint[Req, Resp](handler))).Build()
+	HandleJSONEndpoint[Req](h, pattern, ep, options...)
+}
+
 // HandleJSONEndpoint registers an already-built endpoint.Endpoint as a strict
 // JSON route on an HTTP component, preserving the normal endpoint middleware
 // and HTTP transport chain.

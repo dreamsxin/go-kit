@@ -243,6 +243,8 @@ host, err := kit.NewHost(kit.WithLifecycle(svc, grpcComponent))
 
 请求和响应都有具体类型时使用 `kit.HandleJSONTyped`；有意返回动态响应时使用
 `kit.HandleJSON`；已有 endpoint 时使用 `kit.HandleJSONEndpoint`。
+需要路由级中间件时使用 `kit.HandleJSONTypedWithMiddleware` 或
+`kit.HandleJSONWithMiddleware`；路由中间件组合在组件级中间件链之内。
 Server-Sent Events 流使用 `kit.HandleSSETyped` 注册，使 endpoint 中间件对流生效；
 原生流处理器使用 `HTTP.HandleSSE`。
 `HTTP.Handle` 和 `HTTP.HandleFunc` 仅用于原生 HTTP 集成。

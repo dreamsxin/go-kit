@@ -40,7 +40,7 @@ Cross-cutting flows that span more than one package:
 Package guides own the detailed API reference for each component:
 
 - [endpoint](../endpoint/README.md), [transport](../transport/README.md),
-  [kit](../README.md#build-with-kit), [service discovery](../sd/README.md),
+  [kit](../README.md#build-with-kit), [sd](../sd/README.md),
   [interaction](../interaction/README.md), [security](../security/http/README.md),
   [observability](../observability/slog/README.md),
   [integrations](../integrations/consul/README.md),

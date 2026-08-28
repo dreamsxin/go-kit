@@ -4,6 +4,15 @@ English | [简体中文](CHANGELOG_zh.md)
 All notable v2 changes are recorded here. Legacy history remains available
 through the immutable v0 and v1 tags.
 
+## [Unreleased]
+
+### Added
+
+- Route-level endpoint middleware in `kit`: `HandleJSONWithMiddleware` and
+  `HandleJSONTypedWithMiddleware` compose per-route middleware closest to the
+  handler, inside the component-level chain installed through
+  `WithEndpointMiddleware`.
+
 ## [2.6.0] - 2026-08-27
 
 ### Added

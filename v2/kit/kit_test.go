@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -551,6 +552,62 @@ func TestService_HandleJSONTyped(t *testing.T) {
 	if result.Message != "Hello, Typed!" {
 		t.Fatalf("message: got %q, want %q", result.Message, "Hello, Typed!")
 	}
+}
+
+func TestHandleJSONTypedWithMiddleware_RouteInsideComponent(t *testing.T) {
+	var order []string
+	componentMW := func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, req any) (any, error) {
+			order = append(order, "component")
+			return next(ctx, req)
+		}
+	}
+	svc := kit.MustNewHTTP(":0", kit.WithEndpointMiddleware(componentMW))
+
+	routeMW := func(b *endpoint.Builder) *endpoint.Builder {
+		return b.Use(func(next endpoint.Endpoint) endpoint.Endpoint {
+			return func(ctx context.Context, req any) (any, error) {
+				order = append(order, "route")
+				return next(ctx, req)
+			}
+		})
+	}
+
+	type pingRequest struct{}
+	kit.HandleJSONTypedWithMiddleware(svc, "/ping", func(_ context.Context, _ pingRequest) (string, error) {
+		order = append(order, "handler")
+		return "pong", nil
+	}, routeMW)
+
+	srv := httptest.NewServer(svc)
+	defer srv.Close()
+
+	resp, err := http.Post(srv.URL+"/ping", "application/json", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	want := []string{"component", "route", "handler"}
+	if !reflect.DeepEqual(order, want) {
+		t.Fatalf("middleware order = %v, want %v", order, want)
+	}
+}
+
+func TestHandleJSONWithMiddleware_NilMiddlewarePanics(t *testing.T) {
+	svc := kit.MustNewHTTP(":0")
+	type pingRequest struct{}
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for nil route middleware")
+		}
+	}()
+	kit.HandleJSONWithMiddleware(svc, "/ping", func(_ context.Context, _ pingRequest) (any, error) {
+		return "pong", nil
+	}, nil)
 }
 
 func TestJSONTyped(t *testing.T) {

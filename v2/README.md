@@ -260,9 +260,11 @@ responses are not terminated unexpectedly. Override the complete policy with
 
 Use `kit.HandleJSONTyped` for concrete request and response types,
 `kit.HandleJSON` for intentionally dynamic responses, and
-`kit.HandleJSONEndpoint` for an existing endpoint. Register Server-Sent
-Events streams with `kit.HandleSSETyped` so endpoint middleware applies to
-the stream, or `HTTP.HandleSSE` for a raw streaming handler. Use
+`kit.HandleJSONEndpoint` for an existing endpoint. For per-route middleware,
+use `kit.HandleJSONTypedWithMiddleware` or `kit.HandleJSONWithMiddleware`;
+route middleware composes inside the component-level chain. Register
+Server-Sent Events streams with `kit.HandleSSETyped` so endpoint middleware
+applies to the stream, or `HTTP.HandleSSE` for a raw streaming handler. Use
 `HTTP.Handle` and `HTTP.HandleFunc` only for raw HTTP integrations.
 
 `endpoint.Metrics` is the mutable collector used by middleware. Read it through

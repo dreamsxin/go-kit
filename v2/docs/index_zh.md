@@ -34,7 +34,7 @@
 各包指南拥有对应组件的详细 API 参考：
 
 - [endpoint](../endpoint/README_zh.md)、[transport](../transport/README_zh.md)、
-  [kit](../README_zh.md)、[服务发现](../sd/README_zh.md)、
+  [kit](../README_zh.md#使用-kit)、[sd](../sd/README_zh.md)、
   [interaction](../interaction/README_zh.md)、[security](../security/http/README_zh.md)、
   [observability](../observability/slog/README_zh.md)、
   [integrations](../integrations/consul/README_zh.md)、

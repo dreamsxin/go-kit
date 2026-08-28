@@ -3,6 +3,14 @@
 
 所有重要的 v2 变更都记录在这里。旧历史仍可通过不可变的 v0 和 v1 标签获取。
 
+## [未发布]
+
+### 新增
+
+- `kit` 路由级 endpoint 中间件：`HandleJSONWithMiddleware` 与
+  `HandleJSONTypedWithMiddleware` 把路由级中间件组合在处理器最近处，位于
+  `WithEndpointMiddleware` 安装的组件级链之内。
+
 ## [2.6.0] - 2026-08-27
 
 ### 新增
