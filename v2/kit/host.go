@@ -172,9 +172,9 @@ func (h *Host) Start() error {
 	h.started = true
 
 	for i, component := range h.components {
-		errors := component.Errors()
-		if errors != nil {
-			go h.watchLifecycle(lifecycleLabel(i, component), errors, h.lifecycleDone)
+		componentErrors := component.Errors()
+		if componentErrors != nil {
+			go h.watchLifecycle(lifecycleLabel(i, component), componentErrors, h.lifecycleDone)
 		}
 	}
 	return nil
@@ -192,10 +192,10 @@ func (h *Host) reportServeError(err error) {
 	}
 }
 
-func (h *Host) watchLifecycle(label string, errors <-chan error, done <-chan struct{}) {
+func (h *Host) watchLifecycle(label string, componentErrors <-chan error, done <-chan struct{}) {
 	for {
 		select {
-		case err, ok := <-errors:
+		case err, ok := <-componentErrors:
 			if !ok {
 				return
 			}

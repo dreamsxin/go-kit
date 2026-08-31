@@ -72,8 +72,7 @@ func (s *grpcBindingServer[Req, Resp]) ServeGRPC(ctx context.Context, request an
 	}
 	domain, ok := resp.(Resp)
 	if !ok {
-		var zero Resp
-		return ctx, nil, &endpoint.TypeAssertError{Got: resp, Want: zero}
+		return ctx, nil, endpoint.NewTypeAssertError[Resp](resp)
 	}
 	out, err := s.encode(ctx, domain)
 	if err != nil {

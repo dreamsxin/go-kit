@@ -58,8 +58,14 @@ func WrapCause(kind Kind, code string, cause error) *Error {
 	return &Error{kind: normalizeKind(kind), code: code, cause: cause}
 }
 
-// Convenience constructors for the most common kinds. They keep call sites
-// short without hiding the transport-neutral classification.
+// Convenience constructors, one per kind. They keep call sites short without
+// hiding the transport-neutral classification.
+
+// Internal creates a KindInternal error (HTTP 500 / gRPC Internal). The
+// message stays opaque to clients because the transports redact 5xx bodies.
+func Internal(code, message string) *Error {
+	return New(KindInternal, code, message)
+}
 
 // InvalidArgument creates a KindInvalidArgument error (HTTP 400 / gRPC InvalidArgument).
 func InvalidArgument(code, message string) *Error {
@@ -81,14 +87,39 @@ func NotFound(code, message string) *Error {
 	return New(KindNotFound, code, message)
 }
 
-// Conflict creates a KindConflict error (HTTP 409 / gRPC AlreadyExists-family).
+// AlreadyExists creates a KindAlreadyExists error (HTTP 409 / gRPC AlreadyExists).
+func AlreadyExists(code, message string) *Error {
+	return New(KindAlreadyExists, code, message)
+}
+
+// Conflict creates a KindConflict error (HTTP 409 / gRPC Aborted). Use it for
+// concurrent-update conflicts; use AlreadyExists when a unique resource is
+// being created twice.
 func Conflict(code, message string) *Error {
 	return New(KindConflict, code, message)
+}
+
+// FailedPrecondition creates a KindFailedPrecondition error
+// (HTTP 412 / gRPC FailedPrecondition).
+func FailedPrecondition(code, message string) *Error {
+	return New(KindFailedPrecondition, code, message)
+}
+
+// ResourceExhausted creates a KindResourceExhausted error
+// (HTTP 429 / gRPC ResourceExhausted).
+func ResourceExhausted(code, message string) *Error {
+	return New(KindResourceExhausted, code, message)
 }
 
 // Unavailable creates a KindUnavailable error (HTTP 503 / gRPC Unavailable).
 func Unavailable(code, message string) *Error {
 	return New(KindUnavailable, code, message)
+}
+
+// DeadlineExceeded creates a KindDeadlineExceeded error
+// (HTTP 504 / gRPC DeadlineExceeded).
+func DeadlineExceeded(code, message string) *Error {
+	return New(KindDeadlineExceeded, code, message)
 }
 
 func (e *Error) Error() string {

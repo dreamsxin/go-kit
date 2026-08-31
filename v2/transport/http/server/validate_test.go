@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
@@ -78,12 +81,37 @@ func TestHTTPStatusForErrorReusesFrameworkMapping(t *testing.T) {
 		{endpoint.NewValidationError("name", "required"), http.StatusBadRequest},
 		{endpoint.ErrRateLimited, http.StatusTooManyRequests},
 		{endpoint.ErrCircuitOpen, http.StatusTooManyRequests},
+		{context.DeadlineExceeded, http.StatusGatewayTimeout},
+		{fmt.Errorf("call dependency: %w", context.DeadlineExceeded), http.StatusGatewayTimeout},
+		{apperror.Wrap(apperror.KindUnavailable, "dep.down", "dependency unavailable", context.DeadlineExceeded), http.StatusServiceUnavailable},
 		{errors.New("plain"), http.StatusInternalServerError},
 	}
 	for _, tc := range cases {
 		if got := server.HTTPStatusForError(tc.err); got != tc.want {
 			t.Errorf("%v: got %d, want %d", tc.err, got, tc.want)
 		}
+	}
+}
+
+func TestTimeoutMiddlewareEncodesAs504(t *testing.T) {
+	slow := func(ctx context.Context, _ any) (any, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	ep := endpoint.NewBuilder(slow).WithTimeout(time.Millisecond).Build()
+
+	_, err := ep(context.Background(), nil)
+	if err == nil {
+		t.Fatal("want timeout error, got nil")
+	}
+
+	rec := httptest.NewRecorder()
+	server.JSONErrorEncoder(context.Background(), err, rec)
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("status: got %d, want 504", rec.Code)
+	}
+	if body := rec.Body.String(); strings.Contains(body, "context deadline exceeded") {
+		t.Errorf("body leaks internal detail: %s", body)
 	}
 }
 

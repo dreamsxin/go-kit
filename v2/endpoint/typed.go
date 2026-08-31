@@ -3,6 +3,7 @@ package endpoint
 import (
 	"context"
 	"fmt"
+	"reflect"
 )
 
 // TypedEndpoint is a type-safe variant of Endpoint that eliminates runtime
@@ -40,8 +41,7 @@ func (te TypedEndpoint[Req, Resp]) Wrap() Endpoint {
 	return func(ctx context.Context, request any) (any, error) {
 		typed, ok := request.(Req)
 		if !ok {
-			var zero Req
-			return nil, &TypeAssertError{Got: request, Want: zero}
+			return nil, NewTypeAssertError[Req](request)
 		}
 		return te(ctx, typed)
 	}
@@ -67,7 +67,7 @@ func Unwrap[Req, Resp any](ep Endpoint) TypedEndpoint[Req, Resp] {
 		typed, ok := resp.(Resp)
 		if !ok {
 			var zero Resp
-			return zero, &TypeAssertError{Got: resp, Want: zero}
+			return zero, NewTypeAssertError[Resp](resp)
 		}
 		return typed, nil
 	}
@@ -89,13 +89,21 @@ func NewTypedBuilder[Req, Resp any](te TypedEndpoint[Req, Resp]) *Builder {
 // TypeAssertError is returned when a wrapped endpoint request or unwrapped
 // endpoint response cannot be asserted to the expected type.
 type TypeAssertError struct {
-	Got  any
-	Want any
+	// Got is the value that failed the assertion.
+	Got any
+	// Want is the type the endpoint expected. It records a type rather than a
+	// zero value so interface and pointer targets still report a usable name.
+	Want reflect.Type
+}
+
+// NewTypeAssertError reports that got could not be asserted to Want.
+func NewTypeAssertError[Want any](got any) *TypeAssertError {
+	return &TypeAssertError{Got: got, Want: reflect.TypeFor[Want]()}
 }
 
 func (e *TypeAssertError) Error() string {
 	return "endpoint: type assertion failed: " +
-		typeName(e.Got) + " is not " + typeName(e.Want)
+		typeName(e.Got) + " is not " + wantTypeName(e.Want)
 }
 
 func typeName(v any) string {
@@ -103,4 +111,11 @@ func typeName(v any) string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("%T", v)
+}
+
+func wantTypeName(t reflect.Type) string {
+	if t == nil {
+		return "<unknown>"
+	}
+	return t.String()
 }

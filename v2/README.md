@@ -267,9 +267,10 @@ Server-Sent Events streams with `kit.HandleSSETyped` so endpoint middleware
 applies to the stream, or `HTTP.HandleSSE` for a raw streaming handler. Use
 `HTTP.Handle` and `HTTP.HandleFunc` only for raw HTTP integrations.
 
-`endpoint.Metrics` is the mutable collector used by middleware. Read it through
-`Snapshot()`, which returns a copyable `endpoint.MetricsSnapshot`; use
-`AverageDuration()` for the mean request duration.
+`endpoint.Metrics` is the collector middleware writes into. Its counters are
+unexported and guarded internally; read them through `Snapshot()`, which
+returns a copyable `endpoint.MetricsSnapshot`, and use `AverageDuration()` for
+the mean request duration.
 
 ## Components
 

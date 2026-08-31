@@ -140,7 +140,7 @@ func newPlainWriter() *plainWriter {
 	return &plainWriter{headers: http.Header{}, code: http.StatusOK}
 }
 
-func (w *plainWriter) Header() http.Header        { return w.headers }
+func (w *plainWriter) Header() http.Header         { return w.headers }
 func (w *plainWriter) Write(p []byte) (int, error) { return w.body.Write(p) }
 func (w *plainWriter) WriteHeader(code int)        { w.code = code }
 

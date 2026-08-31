@@ -202,10 +202,11 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 
 // HTTPStatusForError returns the HTTP status the built-in error encoders use
 // for err, honoring StatusCoder, the rejection errors
-// (ErrBackpressure, ErrBulkheadFull, ErrCircuitOpen, ErrRateLimited), and
+// (ErrBackpressure, ErrBulkheadFull, ErrCircuitOpen, ErrRateLimited),
 // apperror kinds (endpoint.ValidationError classifies itself as
-// invalid_argument through apperror.Kinder). Custom error encoders should
-// reuse it instead of duplicating the mapping.
+// invalid_argument through apperror.Kinder), and unclassified
+// context.DeadlineExceeded (504). Custom error encoders should reuse it
+// instead of duplicating the mapping.
 func HTTPStatusForError(err error) int {
 	return httpStatus(err)
 }
@@ -225,6 +226,14 @@ func httpStatus(err error) int {
 	var kinder apperror.Kinder
 	if errors.As(err, &kinder) {
 		return statusForErrorKind(kinder.ErrorKind())
+	}
+
+	// An unclassified context deadline maps like apperror.KindDeadlineExceeded
+	// so TimeoutMiddleware and an explicitly classified timeout agree on 504,
+	// matching the canonical DEADLINE_EXCEEDED -> 504 mapping the gRPC adapter
+	// already uses. Explicit classification still wins over this fallback.
+	if errors.Is(err, context.DeadlineExceeded) {
+		return http.StatusGatewayTimeout
 	}
 	return http.StatusInternalServerError
 }

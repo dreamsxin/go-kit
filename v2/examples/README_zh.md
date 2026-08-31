@@ -10,7 +10,7 @@
 
 | 目录 | 展示内容 | 运行 |
 |-----------|--------------|-----|
-| `quickstart/` | 推荐的 kit API：`kit.New` + `kit.HandleJSONTyped` + `svc.Run` | `go run ./examples/quickstart` |
+| `quickstart/` | 推荐的 kit API：`kit.NewHTTP` + `kit.HandleJSONTyped` + `kit.NewHost` / `host.Run` | `go run ./examples/quickstart` |
 | `basic/` | 中间件链的执行顺序 | `go test ./examples/basic/...` |
 | `manual_composition/` | 显式的 endpoint Builder + HTTP 传输层组合 | `go run ./examples/manual_composition` |
 | `best_practice/` | 生产级模式：指标、熔断器、限流、优雅关闭 | `go run ./examples/best_practice` |
@@ -32,24 +32,24 @@
 ## 快速开始
 
 ```bash
-# Recommended kit service
+# 推荐的 kit 服务
 go run ./examples/quickstart
 curl -X POST http://localhost:8080/greet \
      -H "Content-Type: application/json" \
      -d '{"name":"world"}'
 
-# Lower-level component composition
+# 更底层的组件组合
 go run ./examples/manual_composition
 curl -X POST http://localhost:8080/hello \
      -H "Content-Type: application/json" \
      -d '{"name":"world"}'
 
-# Best-practice service (metrics + circuit breaker + rate limit)
+# 最佳实践服务（指标 + 熔断 + 限流）
 go run ./examples/best_practice
 curl -X POST http://localhost:8080/hello -H "Content-Type: application/json" -d '{"name":"Alice"}'
 curl http://localhost:8080/metrics
 
-# Full profile service
+# 完整的 profile 服务
 go run ./examples/profilesvc/cmd/profilesvc
 curl -X POST http://localhost:8080/profiles/ \
      -H "Content-Type: application/json" \
@@ -62,7 +62,7 @@ curl http://localhost:8080/profiles/1
 ### 1. 业务逻辑保持纯净
 
 ```go
-// No framework imports — easy to test
+// 不导入任何框架包 —— 易于测试
 func helloLogic(_ context.Context, req helloRequest) (helloResponse, error) {
     if req.Name == "" {
         return helloResponse{}, errors.New("name is required")
@@ -87,7 +87,7 @@ ep := endpoint.NewBuilder(base).
 ### 3. 类型安全的 HTTP handler
 
 ```go
-// Automatic JSON decode/encode with concrete request and response types.
+// 用具体的请求与响应类型自动完成 JSON 解码/编码。
 typed := endpoint.Unwrap[helloRequest, helloResponse](ep)
 mux.Handle("/hello", server.NewTypedJSONServer(typed))
 ```
@@ -95,7 +95,7 @@ mux.Handle("/hello", server.NewTypedJSONServer(typed))
 ### 4. 一行完成服务发现
 
 ```go
-// Consul → Endpointer → RoundRobin → Retry, all wired automatically
+// Consul → Endpointer → RoundRobin → Retry，全部自动装配
 ep, closer, err := sdclient.NewEndpoint(instancer, factory, logger,
     sdclient.WithMaxAttempts(3),
     sdclient.WithTimeout(500*time.Millisecond),
@@ -107,7 +107,7 @@ defer closer.Close()
 ## 运行全部示例测试
 
 ```bash
-go test ./examples/...                # compile + unit tests
-go test ./tools/... -run TestAll      # integration smoke tests
-make verify                           # full validation (runtime + microgen + integration)
+go test ./examples/...                # 编译 + 单元测试
+go test ./tools/... -run TestAll      # 集成冒烟测试
+make verify                           # 完整校验（运行时 + microgen + 集成）
 ```

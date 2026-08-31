@@ -124,7 +124,7 @@ npx --yes --package typescript@7.0.2 tsc -p sdk/typescript/tsconfig.json
 `service/helloservice/service.go`。
 
 生成配置、gRPC、数据库反向生成、interaction/MCP 和 extend 模式详见
-[MICROGEN.md](MICROGEN.md)。
+[MICROGEN.md](MICROGEN_zh.md)。
 
 ## 生成文件归属
 
@@ -249,9 +249,9 @@ Server-Sent Events 流使用 `kit.HandleSSETyped` 注册，使 endpoint 中间�
 原生流处理器使用 `HTTP.HandleSSE`。
 `HTTP.Handle` 和 `HTTP.HandleFunc` 仅用于原生 HTTP 集成。
 
-`endpoint.Metrics` 是 middleware 写入的可变采集器。并发读取必须通过
-`Snapshot()` 获取可复制的 `endpoint.MetricsSnapshot`，平均耗时使用
-`AverageDuration()`。
+`endpoint.Metrics` 是 middleware 写入的采集器。它的计数器不导出且由内部锁
+保护，唯一的读取路径是 `Snapshot()`，返回可复制的
+`endpoint.MetricsSnapshot`；平均耗时使用 `AverageDuration()`。
 
 ## 组件
 
@@ -284,7 +284,7 @@ MCP 客户端必须使用协议版本 `2025-06-18` 初始化，随后发送
 采样请求。带 `Origin` 的浏览器请求只允许同源或
 `StreamableHandler.AllowedOrigins` 中显式允许的来源。
 
-包边界和扩展规则见 [ARCHITECTURE.md](ARCHITECTURE.md)。框架核心明确不包含
+包边界和扩展规则见 [ARCHITECTURE.md](ARCHITECTURE_zh.md)。框架核心明确不包含
 IAM、Outbox、任务平台、对象存储、Secret 平台和完整事务框架等业务平台能力。
 
 可选观测适配器将 provider 的创建、资源、导出器、采样和关闭责任保留在
@@ -297,7 +297,7 @@ provider。可以使用以下命令验证观测适配器：
 make test-observability
 ```
 
-面向浏览器的服务可以组合 [`security/http`](security/http/README.md) 中的
+面向浏览器的服务可以组合 [`security/http`](security/http/README_zh.md) 中的
 标准库 middleware。配置在应用装配阶段校验，`kit.WithHTTPMiddleware` 可以将
 策略安装到服务全部路由；`security` 包负责在层间传递已认证主体并提供粗粒度
 的 endpoint 强制（`RequireAuthenticated`、`RequireRole`），凭据提取仍由应用

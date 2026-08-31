@@ -38,19 +38,16 @@ Business errors are classified with `apperror`:
 return Todo{}, apperror.New(apperror.KindNotFound, "todo.not_found", "todo not found")
 ```
 
-| Kind | HTTP status | gRPC code |
-| --- | --- | --- |
-| `KindInvalidArgument` | 400 | InvalidArgument |
-| `KindUnauthenticated` | 401 | Unauthenticated |
-| `KindPermissionDenied` | 403 | PermissionDenied |
-| `KindNotFound` | 404 | NotFound |
-| `KindAlreadyExists`, `KindConflict` | 409 | AlreadyExists / Aborted |
-| `KindResourceExhausted` | 429 | ResourceExhausted |
-| unclassified | 500 | Unknown (opaque to clients) |
+A kind is the only thing business code says about a failure; each transport
+turns it into a protocol status — `KindNotFound` becomes HTTP 404 and gRPC
+`NotFound`, `KindDeadlineExceeded` becomes 504 and `DeadlineExceeded`, and so
+on. The complete kind table for both transports lives in
+[error handling](errors.md#the-apperror-reference).
 
 > [!NOTE]
-> Unclassified errors never leak internal details to clients. Only errors
-> classified with `apperror` carry a public message.
+> Unclassified errors never leak internal details to clients: they encode as
+> 500 with a redacted message. Only errors classified with `apperror` carry a
+> public message.
 
 The full flow, including custom error formats, is covered in
 [error handling](errors.md).

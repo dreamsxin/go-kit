@@ -247,6 +247,8 @@ ep := endpoint.NewBuilder(createUser).WithValidation().Build()
 ```
 
 `Fallback` 在主端点失败时以降级兜底端点应答，在依赖恢复期间把错误挡在调用方之外。
+调用方 context 已结束时它跳过兜底——取消不是依赖故障；兜底也失败时它合并两个
+错误，主故障原因仍可通过 `errors.Is` 取到。
 `BulkheadMiddleware` 按资源键（租户、依赖）限制并发，这样一个慢的键无法像全局
 `BackpressureMiddleware` 计数那样耗尽共享预算；两种拒绝错误都编码为 HTTP 429。
 舱壁隔离的键必须保持有界，因为每个键在端点的生命周期内都占有一个槽位池：

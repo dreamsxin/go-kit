@@ -44,29 +44,45 @@ func (s todoService) Get(ctx context.Context, id int64) (Todo, error) {
 | --- | --- |
 | `New(kind, code, message)` | 创建带稳定 code 与公开 message 的分类错误 |
 | `Wrap(kind, code, message, cause)` | 同上，并保留底层原因供 `errors.Is/As` 使用 |
+| `WrapCause(kind, code, cause)` | 同上但不带公开 message，用于原因必须留在内部的场景 |
 | `Error.ErrorKind()` | 传输无关的错误种类 `Kind` |
 | `Error.ErrorCode()` | 稳定的机器可读 code |
 | `Error.PublicMessage()` | 可安全展示给客户端的 message |
 
-错误种类与 HTTP 状态码映射：
+每个 kind 还有同名构造函数——`NotFound(code, message)`、
+`DeadlineExceeded(code, message)` 等——用于缩短调用点。
 
-| Kind | HTTP 状态码 |
-| --- | --- |
-| `KindInvalidArgument` | 400 |
-| `KindUnauthenticated` | 401 |
-| `KindPermissionDenied` | 403 |
-| `KindNotFound` | 404 |
-| `KindAlreadyExists`、`KindConflict` | 409 |
-| `KindFailedPrecondition` | 412 |
-| `KindResourceExhausted` | 429 |
-| `KindUnavailable` | 503 |
-| `KindDeadlineExceeded` | 504 |
-| `KindInternal` | 500 |
+错误种类与传输层映射。本表是内置映射的唯一来源，传输层实现分别是
+`server.HTTPStatusForErrorKind` 与 `grpcserver.CodeForErrorKind`：
+
+| Kind | HTTP 状态码 | gRPC 码 |
+| --- | --- | --- |
+| `KindInvalidArgument` | 400 | InvalidArgument |
+| `KindUnauthenticated` | 401 | Unauthenticated |
+| `KindPermissionDenied` | 403 | PermissionDenied |
+| `KindNotFound` | 404 | NotFound |
+| `KindAlreadyExists` | 409 | AlreadyExists |
+| `KindConflict` | 409 | Aborted |
+| `KindFailedPrecondition` | 412 | FailedPrecondition |
+| `KindResourceExhausted` | 429 | ResourceExhausted |
+| `KindInternal` | 500 | Internal |
+| `KindUnavailable` | 503 | Unavailable |
+| `KindDeadlineExceeded` | 504 | DeadlineExceeded |
+| 未分类 | 500 | Internal（对客户端不透明） |
+
+有两组错误不经分类也会被映射：
+
+- endpoint 层的拒绝错误（`ErrRateLimited`、`ErrCircuitOpen`、
+  `ErrBulkheadFull`、`ErrBackpressure`）编码为 429。
+- 未分类的 `context.DeadlineExceeded`——也就是端点超时时
+  `TimeoutMiddleware` 暴露出来的错误——编码为 504，与 `KindDeadlineExceeded`
+  一致。显式分类优先：包裹了超时原因的 `apperror` 仍按自己的 kind 映射。
 
 ## 自动状态码映射
 
-传输层把 kind 映射为状态码：HTTP 400/401/403/404/409/429/500 以及对应的 gRPC 码。
-参见[核心概念](concepts_zh.md)中的表格。
+传输层按上表把 kind 映射为状态码；业务代码不接触任何协议类型。
+`server.HTTPStatusForError` 暴露完整规则（含 `StatusCoder`、拒绝错误与
+context 超时），自定义编码器应复用它而不是重复实现。
 
 默认的 JSON 错误体为：
 

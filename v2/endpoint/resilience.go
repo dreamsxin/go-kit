@@ -22,19 +22,39 @@ var ErrCircuitOpen = errors.New("circuit breaker open")
 // fallback receives the same context and request, so it can distinguish
 // callers if needed.
 //
+// Two rules keep degradation honest:
+//   - A cancelled or expired context is not a dependency failure. The primary
+//     error is returned unchanged rather than spending the fallback on a
+//     caller that already gave up.
+//   - When the fallback fails too, both errors are joined so the primary cause
+//     stays diagnosable through errors.Is and errors.As.
+//
+// It panics when fallback is nil so misassembly fails at startup rather than
+// on the first failing request.
+//
 // Example:
 //
 //	ep := endpoint.NewBuilder(recommend).
 //	    WithFallback(defaultRecommendations).
 //	    Build()
 func Fallback(fallback Endpoint) Middleware {
+	if fallback == nil {
+		panic("endpoint: fallback endpoint cannot be nil")
+	}
 	return func(next Endpoint) Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			resp, err := next(ctx, request)
 			if err == nil {
 				return resp, nil
 			}
-			return fallback(ctx, request)
+			if ctx.Err() != nil {
+				return resp, err
+			}
+			fallbackResp, fallbackErr := fallback(ctx, request)
+			if fallbackErr != nil {
+				return fallbackResp, errors.Join(err, fallbackErr)
+			}
+			return fallbackResp, nil
 		}
 	}
 }

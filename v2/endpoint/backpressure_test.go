@@ -46,7 +46,7 @@ func TestBackpressureMiddleware_RejectsOverLimit(t *testing.T) {
 	}
 
 	time.Sleep(20 * time.Millisecond) // let goroutines start
-	close(ready)                       // unblock slow endpoint
+	close(ready)                      // unblock slow endpoint
 	wg.Wait()
 	close(errs)
 

@@ -37,12 +37,18 @@ func BackpressureMiddleware(max int64) Middleware {
 // InFlightMiddleware is like BackpressureMiddleware but also exposes the
 // current in-flight count via the provided pointer.  Useful for metrics.
 //
+// It panics when counter is nil so misassembly fails at startup rather than on
+// the first request.
+//
 // Example:
 //
 //	var inflight int64
 //	ep = endpoint.InFlightMiddleware(100, &inflight)(ep)
 //	// inflight is updated atomically on every call
 func InFlightMiddleware(max int64, counter *int64) Middleware {
+	if counter == nil {
+		panic("endpoint: in-flight counter cannot be nil")
+	}
 	return func(next Endpoint) Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			cur := atomic.AddInt64(counter, 1)

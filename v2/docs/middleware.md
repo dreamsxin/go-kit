@@ -74,7 +74,7 @@ That keeps request paths deterministic and testable.
 | Middleware | Behavior | Rejection |
 | --- | --- | --- |
 | `ValidationMiddleware` | validates `Validatable` requests | 400 `bad_request.validation` |
-| `TimeoutMiddleware` | bounded endpoint duration | 500 deadline exceeded |
+| `TimeoutMiddleware` | bounded endpoint duration | 504 gateway timeout |
 | `MetricsMiddleware` | request count and duration | never rejects |
 | `ErrorHandlingMiddleware` | wraps endpoint errors with the operation name | never rejects |
 | `TracingMiddleware` | W3C trace context propagation | never rejects |
@@ -82,7 +82,7 @@ That keeps request paths deterministic and testable.
 | `CircuitBreaker` | consecutive failures trip the breaker, probe closes it | 429 |
 | `RateLimitMiddleware` | reject over-limit requests | 429 |
 | `DelayRateLimitMiddleware` | wait for a token instead of rejecting | context error |
-| `Fallback` | answer with a fallback endpoint on failure | never rejects |
+| `Fallback` | answer with a fallback endpoint on failure | joins both errors when the fallback fails too |
 | `BulkheadMiddleware` | per-key concurrency isolation | 429 |
 
 `Fallback` and `BulkheadMiddleware` are Builder shortcuts

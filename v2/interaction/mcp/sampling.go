@@ -37,14 +37,14 @@ type ModelPreferences struct {
 
 // CreateMessageRequest is the params of a sampling/createMessage request.
 type CreateMessageRequest struct {
-	Messages          []SamplingMessage `json:"messages"`
-	ModelPreferences  *ModelPreferences `json:"modelPreferences,omitempty"`
-	SystemPrompt      string            `json:"systemPrompt,omitempty"`
-	IncludeContext    string            `json:"includeContext,omitempty"` // "none"|"thisServer"|"allServers"
-	Temperature       float64           `json:"temperature,omitempty"`
-	MaxTokens         int               `json:"maxTokens"`
-	StopSequences     []string          `json:"stopSequences,omitempty"`
-	Metadata          map[string]any    `json:"metadata,omitempty"`
+	Messages         []SamplingMessage `json:"messages"`
+	ModelPreferences *ModelPreferences `json:"modelPreferences,omitempty"`
+	SystemPrompt     string            `json:"systemPrompt,omitempty"`
+	IncludeContext   string            `json:"includeContext,omitempty"` // "none"|"thisServer"|"allServers"
+	Temperature      float64           `json:"temperature,omitempty"`
+	MaxTokens        int               `json:"maxTokens"`
+	StopSequences    []string          `json:"stopSequences,omitempty"`
+	Metadata         map[string]any    `json:"metadata,omitempty"`
 }
 
 // CreateMessageResult is the result of a sampling/createMessage request.

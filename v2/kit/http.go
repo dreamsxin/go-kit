@@ -17,12 +17,12 @@ import (
 // Host to run it alongside other components, or start it directly for
 // single-component services.
 //
-//	http, err := kit.NewHTTP(":8080", kit.WithRequestID())
+//	component, err := kit.NewHTTP(":8080", kit.WithRequestID())
 //	if err != nil {
 //	    return err
 //	}
-//	http.HandleJSONTyped("/hello", handler)
-//	host, err := kit.NewHost(kit.WithLifecycle(http))
+//	kit.HandleJSONTyped(component, "POST /hello", handler)
+//	host, err := kit.NewHost(kit.WithLifecycle(component))
 type HTTP struct {
 	addr               string
 	mux                *http.ServeMux
@@ -37,16 +37,16 @@ type HTTP struct {
 	jsonServerOptions  []httpserver.ServerOption
 	healthTimeout      time.Duration
 
-	checksMu       sync.Mutex
-	livenessChecks []namedHealthCheck
+	checksMu        sync.Mutex
+	livenessChecks  []namedHealthCheck
 	readinessChecks []namedHealthCheck
 
-	lifecycleMu     sync.Mutex
-	srv             *http.Server
-	serveErrors     chan error
-	lifecycleDone   chan struct{}
-	started         bool
-	stopped         bool
+	lifecycleMu   sync.Mutex
+	srv           *http.Server
+	serveErrors   chan error
+	lifecycleDone chan struct{}
+	started       bool
+	stopped       bool
 }
 
 // Option configures an HTTP component.

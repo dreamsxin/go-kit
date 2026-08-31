@@ -11,7 +11,7 @@ after dropping the `./examples/` prefix.
 
 | Directory | What it shows | Run |
 |-----------|--------------|-----|
-| `quickstart/` | Recommended kit API: `kit.New` + `kit.HandleJSONTyped` + `svc.Run` | `go run ./examples/quickstart` |
+| `quickstart/` | Recommended kit API: `kit.NewHTTP` + `kit.HandleJSONTyped` + `kit.NewHost` / `host.Run` | `go run ./examples/quickstart` |
 | `basic/` | Middleware chain execution order | `go test ./examples/basic/...` |
 | `manual_composition/` | Explicit endpoint Builder + HTTP transport composition | `go run ./examples/manual_composition` |
 | `best_practice/` | Production patterns: metrics, circuit breaker, rate limit, graceful shutdown | `go run ./examples/best_practice` |

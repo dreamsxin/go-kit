@@ -46,29 +46,48 @@ module with no extra dependency:
 | --- | --- |
 | `New(kind, code, message)` | create a classified error with a stable code and a public message |
 | `Wrap(kind, code, message, cause)` | same, preserving the underlying cause for `errors.Is/As` |
+| `WrapCause(kind, code, cause)` | same with no public message, when the cause must stay internal |
 | `Error.ErrorKind()` | the transport-neutral `Kind` |
 | `Error.ErrorCode()` | the stable machine-readable code |
 | `Error.PublicMessage()` | the message safe to show clients |
 
-Kinds and their HTTP mapping:
+Every kind also has a same-named constructor — `NotFound(code, message)`,
+`DeadlineExceeded(code, message)`, and so on — for shorter call sites.
 
-| Kind | HTTP status |
-| --- | --- |
-| `KindInvalidArgument` | 400 |
-| `KindUnauthenticated` | 401 |
-| `KindPermissionDenied` | 403 |
-| `KindNotFound` | 404 |
-| `KindAlreadyExists`, `KindConflict` | 409 |
-| `KindFailedPrecondition` | 412 |
-| `KindResourceExhausted` | 429 |
-| `KindUnavailable` | 503 |
-| `KindDeadlineExceeded` | 504 |
-| `KindInternal` | 500 |
+Kinds and their transport mapping. This table is the single source for the
+built-in mapping; the transports derive it from
+`server.HTTPStatusForErrorKind` and `grpcserver.CodeForErrorKind`:
+
+| Kind | HTTP status | gRPC code |
+| --- | --- | --- |
+| `KindInvalidArgument` | 400 | InvalidArgument |
+| `KindUnauthenticated` | 401 | Unauthenticated |
+| `KindPermissionDenied` | 403 | PermissionDenied |
+| `KindNotFound` | 404 | NotFound |
+| `KindAlreadyExists` | 409 | AlreadyExists |
+| `KindConflict` | 409 | Aborted |
+| `KindFailedPrecondition` | 412 | FailedPrecondition |
+| `KindResourceExhausted` | 429 | ResourceExhausted |
+| `KindInternal` | 500 | Internal |
+| `KindUnavailable` | 503 | Unavailable |
+| `KindDeadlineExceeded` | 504 | DeadlineExceeded |
+| unclassified | 500 | Internal (opaque to clients) |
+
+Two error groups are mapped without being classified:
+
+- The endpoint rejection errors (`ErrRateLimited`, `ErrCircuitOpen`,
+  `ErrBulkheadFull`, `ErrBackpressure`) encode as 429.
+- An unclassified `context.DeadlineExceeded` — what `TimeoutMiddleware`
+  surfaces when an endpoint runs out of time — encodes as 504, matching
+  `KindDeadlineExceeded`. Explicit classification wins: an `apperror` that
+  wraps a deadline keeps its own kind.
 
 ## Automatic status mapping
 
-The transports map kinds to statuses: HTTP 400/401/403/404/409/429/500 and the
-matching gRPC codes. See the table in [core concepts](concepts.md#error-classification).
+The transports map kinds to statuses with the table above; no business code
+touches protocol types. `server.HTTPStatusForError` exposes the whole rule set
+(including `StatusCoder`, rejection errors, and context deadlines) so custom
+encoders reuse it instead of duplicating it.
 
 The default JSON error body is:
 

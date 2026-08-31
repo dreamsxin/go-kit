@@ -25,11 +25,11 @@ import (
 var templateFS embed.FS
 
 type config struct {
-	idlPath   string
-	fromDB    bool
-	dbDSN     string
-	dbName    string
-	dbTables  []string
+	idlPath  string
+	fromDB   bool
+	dbDSN    string
+	dbName   string
+	dbTables []string
 
 	outputDir       string
 	ImportPath      string

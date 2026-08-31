@@ -44,11 +44,17 @@ func (f RateLimiterFunc) Wait(ctx context.Context) error {
 // Use DelayRateLimitMiddleware when over-limit requests should wait for a
 // token instead of failing.
 //
+// It panics when limit is nil so misassembly fails at startup rather than on
+// the first request.
+//
 // Example:
 //
 //	limiter := ratelimit.New(20) // application-owned bucket
 //	ep = endpoint.NewBuilder(createUser).Use(endpoint.RateLimitMiddleware(limiter)).Build()
 func RateLimitMiddleware(limit RateLimiter) Middleware {
+	if limit == nil {
+		panic("endpoint: rate limiter cannot be nil")
+	}
 	return func(next Endpoint) Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			if !limit.Allow() {
@@ -60,8 +66,12 @@ func RateLimitMiddleware(limit RateLimiter) Middleware {
 }
 
 // DelayRateLimitMiddleware throttles requests over the limit by waiting for
-// the limiter; context cancellation aborts the wait.
+// the limiter; context cancellation aborts the wait. It panics when limit is
+// nil.
 func DelayRateLimitMiddleware(limit RateLimiter) Middleware {
+	if limit == nil {
+		panic("endpoint: rate limiter cannot be nil")
+	}
 	return func(next Endpoint) Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			if err := limit.Wait(ctx); err != nil {

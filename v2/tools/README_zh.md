@@ -9,6 +9,7 @@
 - `integration_test.go`：共享的进程与示例冒烟测试辅助工具。
 - `microgen_*_test.go`：CLI、生成、运行时、配置、扩展、Proto 以及数据库的集成测试。
 - `readme_quickstart_test.go`：生成 README 的工作流检查。
+- `documentation_links_test.go`、`documentation_api_test.go`：markdown 链接与锚点解析，以及文档中提到的每个框架符号是否真实存在。
 - `testdata/`：生成项目的测试夹具与源码契约。
 
 ## 运行测试
@@ -16,10 +17,10 @@
 在 v2 模块下：
 
 ```bash
-# All integration tests.
+# 全部集成测试。
 go test ./tools -count=1
 
-# CLI and generated-project flows.
+# CLI 与生成项目流程。
 go test ./tools -run 'TestMicrogen' -count=1
 
 ```

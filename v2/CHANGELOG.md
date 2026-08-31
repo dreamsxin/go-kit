@@ -30,6 +30,65 @@ through the immutable v0 and v1 tags.
   middleware with installation scopes, and an error-customization decision
   guide.
 
+### Changed
+
+- HTTP error encoders map an unclassified `context.DeadlineExceeded` to 504
+  instead of 500, so an endpoint timeout from `TimeoutMiddleware` agrees with
+  `apperror.KindDeadlineExceeded` and with the gRPC adapter, which already
+  mapped context deadlines to `DeadlineExceeded`. Explicit classification
+  still wins: an `apperror` wrapping a deadline keeps its own kind. Clients
+  that treated an endpoint timeout as 500 must accept 504.
+- `Fallback` no longer runs the fallback endpoint when the caller's context is
+  already cancelled or expired, and joins the primary and fallback errors when
+  the fallback fails too. Previously the primary cause was discarded.
+- Middleware constructors that require a dependency — `MetricsMiddleware`,
+  `RateLimitMiddleware`, `DelayRateLimitMiddleware`, `Fallback`,
+  `InFlightMiddleware` — now panic on nil at assembly time instead of on the
+  first request, matching `NewBuilder` and `Chain`.
+- `NewCircuitBreaker` normalizes non-positive settings to the exported
+  defaults, so `WithBreakerFailureThreshold(0)` selects 5 as documented rather
+  than tripping on the first failure.
+- The complete kind-to-status table now lives only in the error-handling
+  chapter (`docs/errors.md`), which gained the gRPC column and the
+  non-classified mappings (rejection errors, context deadlines); core concepts
+  links to it instead of repeating a partial copy.
+- `make verify` gained a `test-fmt` gate that fails when any Go file is not
+  gofmt-formatted, and the repository is now fully formatted.
+
+### Fixed
+
+- `WithBreakerSuccessThreshold` had no effect: the half-open state closed the
+  breaker on the first successful probe regardless of the configured
+  threshold. The breaker now counts consecutive probe successes and resets the
+  count when a probe fails or the breaker reopens.
+- `make test-runtime` referenced the removed `./log` package and the removed
+  `integrations/circuitbreaker` and `integrations/ratelimit` modules, which
+  broke `make test` and `make verify`.
+
+### Removed
+
+- **Breaking:** the exported counter fields on `endpoint.Metrics`
+  (`RequestCount`, `ErrorCount`, `SuccessCount`, `TotalDuration`,
+  `LastRequestTime`). They allowed unsynchronized reads of state guarded by an
+  internal mutex. Read metrics through `Snapshot()`, whose
+  `MetricsSnapshot` keeps the same field names. See MIGRATION.md.
+- **Breaking:** `endpoint.TypeAssertError.Want` is a `reflect.Type` instead of
+  a zero value, so interface and pointer targets report a usable type name.
+  Construct it with the new `endpoint.NewTypeAssertError[T](got)`.
+- `endpoint/metrics_prometheus.go`, a `//go:build ignore` file whose body was
+  entirely commented out. Use `observability/otel` for metric export.
+
+### Added
+
+- `apperror` convenience constructors for the remaining kinds: `Internal`,
+  `AlreadyExists`, `FailedPrecondition`, `ResourceExhausted`, and
+  `DeadlineExceeded`. Every kind now has a same-named constructor.
+- `endpoint.DefaultBreakerFailureThreshold`, `DefaultBreakerSuccessThreshold`,
+  and `DefaultBreakerOpenTimeout` expose the circuit breaker defaults.
+- `tools/documentation_api_test.go` verifies that every framework symbol the
+  documentation names is still declared by its package, catching removed-API
+  references the curated blacklist misses.
+
 ## [2.6.0] - 2026-08-27
 
 ### Added

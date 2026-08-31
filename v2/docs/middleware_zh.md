@@ -61,7 +61,7 @@ HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.C
 | 中间件 | 行为 | 拒绝方式 |
 | --- | --- | --- |
 | `ValidationMiddleware` | 校验 `Validatable` 请求 | 400 `bad_request.validation` |
-| `TimeoutMiddleware` | 限制端点执行时长 | 500 deadline exceeded |
+| `TimeoutMiddleware` | 限制端点执行时长 | 504 gateway timeout |
 | `MetricsMiddleware` | 请求计数与耗时 | 从不拒绝 |
 | `ErrorHandlingMiddleware` | 用操作名包装端点错误 | 从不拒绝 |
 | `TracingMiddleware` | W3C trace context 传播 | 从不拒绝 |
@@ -69,7 +69,7 @@ HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.C
 | `CircuitBreaker` | 连续失败使熔断器跳闸，探针使其闭合 | 429 |
 | `RateLimitMiddleware` | 拒绝超限请求（限流） | 429 |
 | `DelayRateLimitMiddleware` | 等待令牌而非拒绝 | context 错误 |
-| `Fallback` | 失败时用降级兜底端点应答 | 从不拒绝 |
+| `Fallback` | 失败时用降级兜底端点应答 | 兜底也失败时合并两个错误 |
 | `BulkheadMiddleware` | 按 key 的并发隔离（舱壁隔离） | 429 |
 
 `Fallback` 与 `BulkheadMiddleware` 是 Builder 快捷方式（`WithFallback`、

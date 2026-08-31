@@ -151,8 +151,7 @@ func NewSSEServerTyped[Req any](
 		func(ctx context.Context, request any, s *SSEStream) error {
 			typed, ok := request.(Req)
 			if !ok {
-				var zero Req
-				return &endpoint.TypeAssertError{Got: request, Want: zero}
+				return endpoint.NewTypeAssertError[Req](request)
 			}
 			return stream(ctx, typed, s)
 		},

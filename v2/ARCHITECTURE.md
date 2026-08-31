@@ -72,8 +72,9 @@ few lines of endpoint wiring.
 library middleware composition, timeout, and metrics. Provider-specific
 logging, rate limiting, and circuit breaking remain explicit adapters.
 
-`Metrics` is a mutable collector owned by middleware. Concurrent readers use
-`Snapshot()`, which returns the lock-free, copyable `MetricsSnapshot` value.
+`Metrics` is the collector owned by middleware. Its counters are unexported and
+guarded internally, so the only read path is `Snapshot()`, which returns the
+lock-free, copyable `MetricsSnapshot` value.
 
 Endpoint middleware observes business call results. It should not infer errors
 from HTTP status codes or gRPC wire details.

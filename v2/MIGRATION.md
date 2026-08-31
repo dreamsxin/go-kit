@@ -43,6 +43,42 @@ JSON handlers (`kit`), then replace error-string conventions with `apperror`,
 then collapse duplicate HTTP/gRPC assemblies into `transport.Binding`, and
 finally let `microgen` own regenerated transports.
 
+## Upgrading From v2.6.0 (Unreleased)
+
+Two source changes and one behavior change:
+
+1. `endpoint.Metrics` counter fields are unexported. Read through `Snapshot()`,
+   which keeps the same field names:
+
+   ```go
+   // before
+   count := metrics.RequestCount
+
+   // after
+   count := metrics.Snapshot().RequestCount
+   ```
+
+2. `endpoint.TypeAssertError.Want` is a `reflect.Type`. Build the error with the
+   generic constructor instead of a composite literal:
+
+   ```go
+   // before
+   var zero Req
+   return &endpoint.TypeAssertError{Got: request, Want: zero}
+
+   // after
+   return endpoint.NewTypeAssertError[Req](request)
+   ```
+
+3. An endpoint timeout now encodes as HTTP 504 instead of 500, matching
+   `apperror.KindDeadlineExceeded` and the gRPC adapter. Clients and alerting
+   rules that treated an endpoint timeout as a 500 must accept 504.
+
+`Fallback` also stops running the fallback for an already-cancelled caller and
+joins both errors when the fallback fails; no source change is required, but
+callers that relied on the fallback masking every failure will now see the
+primary cause.
+
 ## Upgrading To v2.6.0
 
 `v2.6.0` is the approved architecture-evolution release and contains

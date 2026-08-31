@@ -36,19 +36,14 @@ Transport request
 return Todo{}, apperror.New(apperror.KindNotFound, "todo.not_found", "todo not found")
 ```
 
-| Kind | HTTP 状态码 | gRPC 码 |
-| --- | --- | --- |
-| `KindInvalidArgument` | 400 | InvalidArgument |
-| `KindUnauthenticated` | 401 | Unauthenticated |
-| `KindPermissionDenied` | 403 | PermissionDenied |
-| `KindNotFound` | 404 | NotFound |
-| `KindAlreadyExists`、`KindConflict` | 409 | AlreadyExists / Aborted |
-| `KindResourceExhausted` | 429 | ResourceExhausted |
-| 未分类 | 500 | Unknown（对客户端不透明） |
+业务代码对一次失败只需表达 kind，由各传输层翻译成协议状态：`KindNotFound`
+对应 HTTP 404 与 gRPC `NotFound`，`KindDeadlineExceeded` 对应 504 与
+`DeadlineExceeded`，以此类推。两种传输的完整 kind 映射表见
+[错误处理](errors_zh.md#apperror-参考)。
 
 > [!NOTE]
-> 未分类的错误绝不会向客户端泄露内部细节。只有用 `apperror` 分类的错误才携带
-> 公开消息。
+> 未分类的错误绝不会向客户端泄露内部细节：它们编码为 500 且消息已脱敏。只有
+> 用 `apperror` 分类的错误才携带公开消息。
 
 完整流程（包括自定义错误格式）见[错误处理](errors_zh.md)。
 

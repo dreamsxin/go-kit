@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"go/format"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,9 +39,60 @@ func main() {
 			fail("usage: makeguard proto <proto-dir>")
 		}
 		runProto(os.Args[2])
+	case "gofmt":
+		if len(os.Args) != 3 {
+			fail("usage: makeguard gofmt <root>")
+		}
+		runGofmt(os.Args[2])
 	default:
 		fail("unknown command: %s", os.Args[1])
 	}
+}
+
+// runGofmt reports every Go file under root whose contents differ from
+// gofmt output. Generated fixtures under testdata are excluded because the
+// generation tests own them.
+func runGofmt(root string) {
+	var unformatted []string
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case "testdata", "node_modules", ".git":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".go" {
+			return nil
+		}
+		source, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		formatted, err := format.Source(source)
+		if err != nil {
+			// Unparsable files are the compiler's problem, not gofmt's.
+			return nil
+		}
+		if !bytes.Equal(source, formatted) {
+			unformatted = append(unformatted, filepath.ToSlash(path))
+		}
+		return nil
+	})
+	if err != nil {
+		fail("scan %q: %v", root, err)
+	}
+	if len(unformatted) == 0 {
+		return
+	}
+	sort.Strings(unformatted)
+	for _, path := range unformatted {
+		fmt.Fprintln(os.Stderr, path)
+	}
+	fail("%d file(s) are not gofmt-formatted; run: gofmt -w .", len(unformatted))
 }
 
 func runProto(root string) {

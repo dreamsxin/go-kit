@@ -33,6 +33,39 @@ go-kit v2 遵循语义化版本。本页记录当前版本所需的升级动作�
 
 推荐迁移顺序：逐个服务迁移；先从类型化 JSON 处理器（`kit`）入手，再把错误字符串约定替换为 `apperror`，然后把重复的 HTTP/gRPC 装配收敛到 `transport.Binding`，最后让 `microgen` 接管再生成的传输。
 
+## 从 v2.6.0 升级（未发布）
+
+两处源码改动、一处行为改动：
+
+1. `endpoint.Metrics` 的计数字段不再导出。改为通过 `Snapshot()` 读取，字段名
+   保持不变：
+
+   ```go
+   // 之前
+   count := metrics.RequestCount
+
+   // 之后
+   count := metrics.Snapshot().RequestCount
+   ```
+
+2. `endpoint.TypeAssertError.Want` 改为 `reflect.Type`。请用泛型构造函数而不是
+   复合字面量创建该错误：
+
+   ```go
+   // 之前
+   var zero Req
+   return &endpoint.TypeAssertError{Got: request, Want: zero}
+
+   // 之后
+   return endpoint.NewTypeAssertError[Req](request)
+   ```
+
+3. 端点超时现在编码为 HTTP 504 而不是 500，与 `apperror.KindDeadlineExceeded`
+   及 gRPC 适配器一致。此前把端点超时当作 500 的客户端与告警规则需要接受 504。
+
+`Fallback` 还会在调用方已取消时跳过兜底，并在兜底也失败时合并两个错误。这不需要
+改源码，但此前依赖兜底掩盖全部失败的调用方现在会看到主故障原因。
+
 ## 升级到 v2.6.0
 
 `v2.6.0` 是经批准的架构进化版本，包含有意的破坏性变更。需要修改源码：

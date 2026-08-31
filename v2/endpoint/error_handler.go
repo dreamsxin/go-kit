@@ -29,7 +29,7 @@ func (e *ErrorWrapper) Unwrap() error {
 //	if errors.As(err, &ew) { ... }
 func ErrorHandlingMiddleware(operation string) Middleware {
 	return func(next Endpoint) Endpoint {
-		return func(ctx context.Context, request interface{}) (interface{}, error) {
+		return func(ctx context.Context, request any) (any, error) {
 			response, err := next(ctx, request)
 			if err != nil {
 				return nil, &ErrorWrapper{

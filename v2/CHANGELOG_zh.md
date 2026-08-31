@@ -16,6 +16,57 @@
 - 新增排障章节（双语）：按症状排查——request_id/trace_id 请求关联、状态码成因（含 429 的四种来源）、启动失败、就绪失败、数据库连接池设置、日志配置与调试开关。配置章节新增完整的生成配置段参考。
 - 新增自定义章节（双语）：选择日志去向（文件存储、多目标写入、轮转指引）、编写自定义端点与 HTTP 中间件及安装位置表、错误自定义决策表。
 
+### 变更
+
+- HTTP 错误编码器把未分类的 `context.DeadlineExceeded` 映射为 504 而不再是
+  500，使 `TimeoutMiddleware` 造成的端点超时与 `apperror.KindDeadlineExceeded`
+  以及 gRPC 适配器（本就把 context 超时映射为 `DeadlineExceeded`）保持一致。
+  显式分类仍然优先：包裹了超时原因的 `apperror` 按自己的 kind 映射。此前把端点
+  超时当作 500 处理的客户端需要接受 504。
+- `Fallback` 在调用方 context 已取消或已过期时不再执行兜底端点；兜底也失败时
+  合并主错误与兜底错误。此前主故障原因会被丢弃。
+- 需要依赖的中间件构造函数——`MetricsMiddleware`、`RateLimitMiddleware`、
+  `DelayRateLimitMiddleware`、`Fallback`、`InFlightMiddleware`——现在在装配期
+  对 nil 触发 panic，而不是延迟到第一个请求，与 `NewBuilder`、`Chain` 一致。
+- `NewCircuitBreaker` 把非正数设置归一化为导出的默认值，因此
+  `WithBreakerFailureThreshold(0)` 按文档选择 5，而不是首次失败即熔断。
+- 完整的 kind→状态码映射表现在只保留在错误处理章节（`docs/errors_zh.md`），
+  并补上 gRPC 列与不经分类的映射（拒绝错误、context 超时）；核心概念改为链接
+  过去，不再重复一份不完整的副本。
+- `make verify` 新增 `test-fmt` 关卡，任何 Go 文件不符合 gofmt 即失败；仓库已
+  全量格式化。
+
+### 修复
+
+- `WithBreakerSuccessThreshold` 此前完全无效：half-open 状态下第一次探测成功
+  就闭合熔断器，忽略配置的阈值。现在会累计连续探测成功次数，并在探测失败或
+  熔断器重新打开时清零。
+- `make test-runtime` 引用了已删除的 `./log` 包以及已删除的
+  `integrations/circuitbreaker`、`integrations/ratelimit` 模块，导致
+  `make test` 与 `make verify` 无法完成。
+
+### 移除
+
+- **破坏性：** `endpoint.Metrics` 的导出计数字段（`RequestCount`、
+  `ErrorCount`、`SuccessCount`、`TotalDuration`、`LastRequestTime`）。它们允许
+  在不加锁的情况下读取由内部 mutex 保护的状态。请通过 `Snapshot()` 读取，
+  `MetricsSnapshot` 保留了相同的字段名。迁移方法见 MIGRATION_zh.md。
+- **破坏性：** `endpoint.TypeAssertError.Want` 改为 `reflect.Type` 而不再是零
+  值，因此接口与指针目标也能给出可用的类型名。请使用新的
+  `endpoint.NewTypeAssertError[T](got)` 构造。
+- `endpoint/metrics_prometheus.go`：一个 `//go:build ignore` 且函数体整体被注
+  释掉的文件。指标导出请使用 `observability/otel`。
+
+### 新增
+
+- `apperror` 补齐其余 kind 的便捷构造：`Internal`、`AlreadyExists`、
+  `FailedPrecondition`、`ResourceExhausted`、`DeadlineExceeded`。现在每个 kind
+  都有同名构造函数。
+- `endpoint.DefaultBreakerFailureThreshold`、`DefaultBreakerSuccessThreshold`、
+  `DefaultBreakerOpenTimeout` 导出熔断器默认值。
+- `tools/documentation_api_test.go` 校验文档中提到的每个框架符号是否仍被其所在
+  包声明，捕获人工黑名单会漏掉的已删除 API 引用。
+
 ## [2.6.0] - 2026-08-27
 
 ### 新增

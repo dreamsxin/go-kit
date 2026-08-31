@@ -13,6 +13,11 @@ import (
 
 var markdownLinkPattern = regexp.MustCompile(`!?\[[^\]]*\]\(([^)]+)\)`)
 
+// inlineCodePattern matches inline code spans. They are removed before link
+// scanning so that generic call syntax such as NewTypeAssertError[T](got) is
+// not mistaken for a markdown link.
+var inlineCodePattern = regexp.MustCompile("`[^`\n]*`")
+
 var removedDocumentationReferences = []string{
 	"github.com/dreamsxin/go-kit/v2/transport/grpc",
 	"github.com/dreamsxin/go-kit/v2/endpoint/circuitbreaker",
@@ -110,7 +115,7 @@ func TestDocumentationLinksResolve(t *testing.T) {
 		}
 		content := stripFencedCode(string(data))
 		anchors[path] = markdownAnchors(content)
-		for _, match := range markdownLinkPattern.FindAllStringSubmatch(content, -1) {
+		for _, match := range markdownLinkPattern.FindAllStringSubmatch(inlineCodePattern.ReplaceAllString(content, ""), -1) {
 			target := strings.TrimSpace(strings.Trim(match[1], "<>"))
 			if fields := strings.Fields(target); len(fields) > 0 {
 				target = fields[0]

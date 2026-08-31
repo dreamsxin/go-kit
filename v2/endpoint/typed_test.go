@@ -9,7 +9,7 @@ import (
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 )
 
-type addReq  struct{ A, B int }
+type addReq struct{ A, B int }
 type addResp struct{ Sum int }
 
 var addTyped endpoint.TypedEndpoint[addReq, addResp] = func(_ context.Context, req addReq) (addResp, error) {

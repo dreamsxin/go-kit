@@ -18,16 +18,26 @@ const (
 	BreakerHalfOpen
 )
 
+// Default circuit breaker settings. NewCircuitBreaker falls back to these for
+// any non-positive setting.
+const (
+	DefaultBreakerFailureThreshold = 5
+	DefaultBreakerSuccessThreshold = 1
+	DefaultBreakerOpenTimeout      = time.Minute
+)
+
 // BreakerSettings configures the endpoint circuit breaker.
 type BreakerSettings struct {
 	// FailureThreshold is the number of consecutive endpoint failures that
-	// trips the breaker into the open state. Zero selects 5.
+	// trips the breaker into the open state. Non-positive selects
+	// DefaultBreakerFailureThreshold.
 	FailureThreshold int
 	// SuccessThreshold is the number of consecutive probing successes that
-	// closes the breaker again. Zero selects 1.
+	// closes the breaker again. Non-positive selects
+	// DefaultBreakerSuccessThreshold.
 	SuccessThreshold int
 	// OpenTimeout is the time the breaker stays open before a probe is
-	// allowed through. Zero selects one minute.
+	// allowed through. Non-positive selects DefaultBreakerOpenTimeout.
 	OpenTimeout time.Duration
 }
 
@@ -53,19 +63,21 @@ func WithBreakerOpenTimeout(d time.Duration) BreakerOption {
 
 // CircuitBreaker is a dependency-free endpoint circuit breaker middleware.
 // It rejects calls while open with ErrCircuitOpen; the half-open state lets a
-// single probe through to test recovery. Timeouts and cancellations of the
-// caller are unchanged; the breaker observes only endpoint errors.
+// single probe through at a time until SuccessThreshold consecutive probes
+// succeed. Timeouts and cancellations of the caller are unchanged; the breaker
+// observes only endpoint errors.
 //
 // Example:
 //
 //	breaker := endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(3))
-//	ep = endpoint.NewBuilder(callDependency).Use(breaker).Build()
+//	ep := endpoint.NewBuilder(callDependency).Use(breaker.Middleware()).Build()
 type CircuitBreaker struct {
 	settings BreakerSettings
 
 	mu            sync.Mutex
 	state         BreakerState
 	failures      int
+	successes     int
 	probeInFlight bool
 	openedAt      time.Time
 	now           func() time.Time
@@ -73,16 +85,22 @@ type CircuitBreaker struct {
 
 // NewCircuitBreaker constructs a circuit breaker with the default settings
 // (5 consecutive failures, 1 minute open window, 1 probing success to close).
+// Non-positive settings fall back to those defaults.
 func NewCircuitBreaker(options ...BreakerOption) *CircuitBreaker {
-	settings := BreakerSettings{
-		FailureThreshold: 5,
-		SuccessThreshold: 1,
-		OpenTimeout:      time.Minute,
-	}
+	var settings BreakerSettings
 	for _, option := range options {
 		if option != nil {
 			option(&settings)
 		}
+	}
+	if settings.FailureThreshold < 1 {
+		settings.FailureThreshold = DefaultBreakerFailureThreshold
+	}
+	if settings.SuccessThreshold < 1 {
+		settings.SuccessThreshold = DefaultBreakerSuccessThreshold
+	}
+	if settings.OpenTimeout <= 0 {
+		settings.OpenTimeout = DefaultBreakerOpenTimeout
 	}
 	return &CircuitBreaker{settings: settings, now: time.Now}
 }
@@ -119,8 +137,9 @@ func (cb *CircuitBreaker) beforeRequest() error {
 		if cb.now().Sub(cb.openedAt) < cb.settings.OpenTimeout {
 			return ErrCircuitOpen
 		}
-		// Window elapsed: one probe may pass.
+		// Window elapsed: probing may begin.
 		cb.state = BreakerHalfOpen
+		cb.successes = 0
 		cb.probeInFlight = true
 		return nil
 	case BreakerHalfOpen:
@@ -143,8 +162,7 @@ func (cb *CircuitBreaker) afterRequest(err error) {
 		if err != nil {
 			cb.failures++
 			if cb.failures >= cb.settings.FailureThreshold {
-				cb.state = BreakerOpen
-				cb.openedAt = cb.now()
+				cb.trip()
 			}
 		} else {
 			cb.failures = 0
@@ -152,11 +170,23 @@ func (cb *CircuitBreaker) afterRequest(err error) {
 	case BreakerHalfOpen:
 		cb.probeInFlight = false
 		if err != nil {
-			cb.state = BreakerOpen
-			cb.openedAt = cb.now()
-		} else {
+			cb.trip()
+			return
+		}
+		cb.successes++
+		if cb.successes >= cb.settings.SuccessThreshold {
 			cb.state = BreakerClosed
 			cb.failures = 0
+			cb.successes = 0
 		}
 	}
+}
+
+// trip moves the breaker to the open state and starts a new open window.
+// The caller must hold cb.mu.
+func (cb *CircuitBreaker) trip() {
+	cb.state = BreakerOpen
+	cb.openedAt = cb.now()
+	cb.successes = 0
+	cb.probeInFlight = false
 }

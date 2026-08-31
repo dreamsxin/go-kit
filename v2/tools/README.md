@@ -9,6 +9,8 @@ Integration and documentation probes for the v2 framework and `microgen`.
 - `microgen_*_test.go`: CLI, generation, runtime, config, extend, Proto, and
   database integration tests.
 - `readme_quickstart_test.go`: generated README workflow checks.
+- `documentation_links_test.go`, `documentation_api_test.go`: markdown link and
+  anchor resolution, plus existence of every framework symbol the docs name.
 - `testdata/`: generated-project fixtures and source contracts.
 
 ## Run Tests
