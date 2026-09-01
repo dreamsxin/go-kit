@@ -26,10 +26,11 @@ This directory is the independent Go module:
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.6.0` is the current published release. It is the architecture-evolution
-release and contains intentional breaking changes to the assembly layer and
-error model; see [MIGRATION.md](MIGRATION.md) for the upgrade path.
-Per-release changes are recorded in [CHANGELOG.md](CHANGELOG.md).
+`v2.7.0` is the release being published. It unifies error classification across
+server and client transports and contains approved breaking changes to
+admission-control statuses and to relayed upstream errors; see
+[MIGRATION.md](MIGRATION.md) for the upgrade path. Per-release changes are
+recorded in [CHANGELOG.md](CHANGELOG.md).
 
 Requires Go 1.25.8 or later.
 

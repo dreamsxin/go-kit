@@ -3,31 +3,33 @@ English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
-v2.6.0 is the release being published from `main` for the independent module:
+v2.7.0 is the release being published from `main` for the independent module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.6.0` is the approved architecture-evolution release: the assembly layer
-(`kit.Service` split into `kit.Host` + `kit.HTTP`), the error model
-(`server.HTTPError` removed), and the generated custom-routes hook changed
-incompatibly by explicit approval. Nested modules publish `v0.3.0` tags; the
-core-dependent ones require `v2.6.0`. The historical record of earlier
-releases, including the documented SemVer exceptions, lives in
-[CHANGELOG.md](../../CHANGELOG.md).
+`v2.7.0` is the approved error-contract release: one classification serves both
+directions, so a client call composes with the same middleware and the same
+mapping tables as a server endpoint. It carries approved breaking changes: local
+admission-control rejections answer 503 instead of 429, `RateLimiterFunc` became
+`RateLimiterFuncs`, and a relayed client error keeps the upstream status and
+code instead of degrading to 500. Nested modules publish `v0.4.0` tags; the
+core-dependent ones require `v2.7.0` from the nested-candidate commit onward.
+The historical record of earlier releases, including the documented SemVer
+exceptions, lives in [CHANGELOG.md](../../CHANGELOG.md).
 
 The published module is stored in the repository's `v2` major-version
 subdirectory, but consumers request normal module versions such as `v2.4.0`.
 Its tag is the root tag `v2.4.0`, not `v2/v2.4.0`. A future `/v3` module would
 likewise use a root `v3.0.0` tag.
 
-This release published the root `v2.4.0` tag and `v0.2.2` tags for all eight
-independently versioned nested modules. The `v0.2.2` releases carry the core
-requirement update to `v2.4.0`: the tags are created from the nested-candidate
-commit in which every core-dependent module already requires `v2.4.0`. The
-published `v0.2.1` optional modules remain version-bump releases with their
-`v2.2.0` requirement, which stays compatible.
+The `v2.4.0` release published the root `v2.4.0` tag and `v0.2.2` tags for all
+eight independently versioned nested modules. The `v0.2.2` releases carry the
+core requirement update to `v2.4.0`: the tags are created from the
+nested-candidate commit in which every core-dependent module already requires
+`v2.4.0`. The published `v0.2.1` optional modules remain version-bump releases
+with their `v2.2.0` requirement, which stays compatible.
 
 ## Versioning
 
@@ -45,7 +47,10 @@ The approved exceptions are limited to:
 - the `v2.2.0` `Metrics.Snapshot() -> MetricsSnapshot` return-type correction;
 - the `v2.6.0` architecture evolution (assembly split into `kit.Host` +
   `kit.HTTP`, `server.HTTPError` removal, `log` facade removal, SSE moved to
-  the transport layer, stdlib-only generated custom-routes hook).
+  the transport layer, stdlib-only generated custom-routes hook);
+- the `v2.7.0` error-contract unification (local admission-control rejections
+  answer 503, the `RateLimiterFunc` to `RateLimiterFuncs` rename, and relayed
+  client errors keeping the upstream status and code).
 
 Neither exception authorizes unrelated breaking changes. Any further
 incompatibility requires a new major module path unless separately approved and

@@ -43,7 +43,7 @@ JSON handlers (`kit`), then replace error-string conventions with `apperror`,
 then collapse duplicate HTTP/gRPC assemblies into `transport.Binding`, and
 finally let `microgen` own regenerated transports.
 
-## Upgrading From v2.6.0 (Unreleased)
+## Upgrading To v2.7.0
 
 Three source changes:
 
@@ -162,6 +162,7 @@ Behavioral notes worth reviewing when jumping from `v2.2.0`:
   backward compatible within `/v2`.
 - Incompatible changes require a new major module version, except approved
   and recorded deviations: the `v2.1.0` direct refactor, the `v2.2.0`
-  metrics return-type fix, and the `v2.6.0` architecture evolution.
+  metrics return-type fix, the `v2.6.0` architecture evolution, and the
+  `v2.7.0` error-contract unification.
 - v2 does not carry deprecated forwarding APIs. Documentation for earlier
   releases remains available through the immutable release tags.
