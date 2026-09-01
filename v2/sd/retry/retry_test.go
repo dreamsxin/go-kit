@@ -239,6 +239,68 @@ func TestRetryWithCallback_ReplacesError(t *testing.T) {
 	}
 }
 
+// ── Request-aware balancing ───────────────────────────────────────────────────
+
+// requestBalancer records the request handed to EndpointFor. Selection happens
+// on a goroutine inside retry, so the request travels back over a channel.
+type requestBalancer struct {
+	requests chan any
+}
+
+func (b *requestBalancer) Endpoint() (endpoint.Endpoint, error) {
+	return nil, errors.New("Endpoint was called instead of EndpointFor")
+}
+
+func (b *requestBalancer) EndpointFor(_ context.Context, request any) (endpoint.Endpoint, error) {
+	b.requests <- request
+	return func(_ context.Context, _ any) (any, error) { return "ok", nil }, nil
+}
+
+func TestRetry_PassesRequestToRequestBalancer(t *testing.T) {
+	lb := &requestBalancer{requests: make(chan any, 1)}
+	ep := retry.Retry(1, time.Second, lb)
+
+	resp, err := ep(context.Background(), "tenant-9")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp != "ok" {
+		t.Fatalf("got %v, want ok", resp)
+	}
+	select {
+	case request := <-lb.requests:
+		if request != "tenant-9" {
+			t.Fatalf("balancer received %v, want tenant-9", request)
+		}
+	default:
+		t.Fatal("EndpointFor was never called")
+	}
+}
+
+// A balancer that only implements sd.Balancer must keep working unchanged.
+type plainBalancer struct {
+	calls chan struct{}
+}
+
+func (b *plainBalancer) Endpoint() (endpoint.Endpoint, error) {
+	b.calls <- struct{}{}
+	return func(_ context.Context, _ any) (any, error) { return "ok", nil }, nil
+}
+
+func TestRetry_FallsBackToEndpointForPlainBalancer(t *testing.T) {
+	lb := &plainBalancer{calls: make(chan struct{}, 1)}
+	ep := retry.Retry(1, time.Second, lb)
+
+	if _, err := ep(context.Background(), "tenant-9"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	select {
+	case <-lb.calls:
+	default:
+		t.Fatal("Endpoint was never called")
+	}
+}
+
 // ── RetryError ────────────────────────────────────────────────────────────────
 
 func TestRetryError_ErrorString_Single(t *testing.T) {

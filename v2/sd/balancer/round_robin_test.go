@@ -21,7 +21,7 @@ func echoFactory(addr string) (endpoint.Endpoint, io.Closer, error) {
 	return ep, io.NopCloser(nil), nil
 }
 
-func newEndpointer(t *testing.T, addrs ...string) endpointer.Endpointer {
+func newEndpointer(t *testing.T, addrs ...string) endpointer.InstanceEndpointer {
 	t.Helper()
 	cache := instance.NewCache()
 	ep := endpointer.NewEndpointer(cache, endpointer.Factory(echoFactory), nopLogger)

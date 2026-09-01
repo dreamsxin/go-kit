@@ -125,7 +125,7 @@ func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callba
 }
 
 func call(ctx context.Context, balancer sd.Balancer, request any, responses chan<- any, errorsChannel chan<- error) {
-	selected, err := balancer.Endpoint()
+	selected, err := selectEndpoint(ctx, balancer, request)
 	if err == nil {
 		var response any
 		response, err = selected(ctx, request)
@@ -135,6 +135,15 @@ func call(ctx context.Context, balancer sd.Balancer, request any, responses chan
 		}
 	}
 	errorsChannel <- err
+}
+
+// selectEndpoint prefers the request-aware contract so strategies that key on
+// request content, such as consistent hashing, receive the request they need.
+func selectEndpoint(ctx context.Context, balancer sd.Balancer, request any) (endpoint.Endpoint, error) {
+	if keyed, ok := balancer.(sd.RequestBalancer); ok {
+		return keyed.EndpointFor(ctx, request)
+	}
+	return balancer.Endpoint()
 }
 
 // DefaultClassifier retries only errors that explicitly opt in and temporary

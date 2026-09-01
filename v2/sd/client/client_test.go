@@ -10,6 +10,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/balancer"
 	sdclient "github.com/dreamsxin/go-kit/v2/sd/client"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
@@ -189,6 +190,92 @@ func TestNewEndpoint_CloserReleasesFactoryResources(t *testing.T) {
 	_, err = ep(context.Background(), nil)
 	if !errors.Is(err, endpointer.ErrCacheClosed) {
 		t.Fatalf("call after Close error = %v, want ErrCacheClosed", err)
+	}
+}
+
+// ── WithBalancer ──────────────────────────────────────────────────────────────
+
+func TestNewEndpoint_WithBalancerReplacesRoundRobin(t *testing.T) {
+	cache := instance.NewCache()
+	cache.Update(sd.Event{Instances: []string{"a:80", "b:80", "c:80"}})
+	time.Sleep(10 * time.Millisecond)
+
+	// Weighting every instance but one to zero proves the supplied balancer is
+	// the one making the decision, not the default round robin.
+	ep := newTestEndpoint(t, cache,
+		sdclient.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
+			return balancer.NewWeightedRandom(set, func(addr string) int {
+				if addr == "b:80" {
+					return 1
+				}
+				return 0
+			})
+		}),
+	)
+
+	for i := 0; i < 10; i++ {
+		resp, err := ep(context.Background(), nil)
+		if err != nil {
+			t.Fatalf("call %d: %v", i, err)
+		}
+		if resp != "b:80" {
+			t.Fatalf("call %d selected %v, want b:80", i, resp)
+		}
+	}
+}
+
+// The consistent-hash strategy only works end to end if retry prefers the
+// request-aware contract, so this also covers the sd/retry wiring.
+func TestNewEndpoint_WithConsistentHashRoutesByKey(t *testing.T) {
+	cache := instance.NewCache()
+	cache.Update(sd.Event{Instances: []string{"a:80", "b:80", "c:80"}})
+	time.Sleep(10 * time.Millisecond)
+
+	ep := newTestEndpoint(t, cache,
+		sdclient.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
+			return balancer.NewConsistentHash(set, func(_ context.Context, request any) string {
+				key, _ := request.(string)
+				return key
+			})
+		}),
+	)
+
+	first, err := ep(context.Background(), "tenant-42")
+	if err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+	for i := 0; i < 20; i++ {
+		again, err := ep(context.Background(), "tenant-42")
+		if err != nil {
+			t.Fatalf("call %d: %v", i, err)
+		}
+		if again != first {
+			t.Fatalf("key moved from %v to %v", first, again)
+		}
+	}
+}
+
+func TestNewEndpoint_RejectsNilBalancerFactory(t *testing.T) {
+	cache := instance.NewCache()
+	_, closer, err := sdclient.NewEndpoint(cache, endpointer.Factory(nopFactory), nopLogger(),
+		sdclient.WithBalancer(nil))
+	if closer != nil {
+		t.Fatal("invalid construction returned a closer")
+	}
+	if err == nil || !strings.Contains(err.Error(), "balancer factory is nil") {
+		t.Fatalf("error = %v, want a nil balancer factory error", err)
+	}
+}
+
+func TestNewEndpoint_RejectsBalancerFactoryReturningNil(t *testing.T) {
+	cache := instance.NewCache()
+	_, closer, err := sdclient.NewEndpoint(cache, endpointer.Factory(nopFactory), nopLogger(),
+		sdclient.WithBalancer(func(endpointer.InstanceEndpointer) sd.Balancer { return nil }))
+	if closer != nil {
+		t.Fatal("invalid construction returned a closer")
+	}
+	if err == nil || !strings.Contains(err.Error(), "balancer factory returned nil") {
+		t.Fatalf("error = %v, want a nil balancer error", err)
 	}
 }
 

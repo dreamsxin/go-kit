@@ -64,13 +64,63 @@ defer closer.Close() // runs first: deregister and close endpoint connections
 | `WithMaxAttempts(n)` | 1 | 总尝试次数；必须至少为 1 |
 | `WithTimeout(d)` | 500ms | 包含所有重试在内的正数总预算 |
 | `WithInvalidateOnError(d)` | disabled | 在 SD 错误宽限期之后清除缓存 |
+| `WithBalancer(f)` | 轮询 | 替换选择策略 |
 
 非法的选项以及为 nil 的必需依赖，会在任何后台 goroutine 启动之前返回错误。
+
+## 选择策略
+
+`sd.Balancer` 是扩展点；`sd/balancer` 内置了四种策略。
+
+| 策略 | 构造器 | 依据 | 适用场景 |
+|----------|-------------|----------|-------------|
+| 轮询 | `balancer.NewRoundRobin` | 原子计数器 | 默认；实例同质、单一客户端 |
+| 随机 | `balancer.NewRandom` | 均匀抽样 | 多个客户端共享同一实例集合，计数器会步调一致 |
+| 加权随机 | `balancer.NewWeightedRandom` | 调用方为每个实例给出的权重 | 容量不一致、灰度比例、摘除某个实例 |
+| 一致性哈希 | `balancer.NewConsistentHash` | 请求键的哈希 | 缓存亲和性或按实体保序 |
+
+```go
+// 均匀随机
+client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
+	return balancer.NewRandom(set)
+})
+
+// 加权：容量来自实例元数据，权重为 0 即可摘除实例，
+// 无需等待服务发现把它摘掉。
+client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
+	return balancer.NewWeightedRandom(set, func(instance string) int {
+		return weights[instance]
+	})
+})
+
+// 一致性哈希：只要实例还在集合中，同一租户的请求就始终落到同一实例。
+client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
+	return balancer.NewConsistentHash(set, func(_ context.Context, request any) string {
+		return request.(*GetProfileRequest).TenantID
+	}, balancer.WithReplicas(200))
+})
+```
+
+加权与哈希策略需要知道端点由哪个实例生成，因此它们接收
+`endpointer.InstanceEndpointer` 而不是更窄的 `endpointer.Endpointer`。
+`endpointer.NewEndpointer` 返回的就是前者。
+
+选型之前有两点行为值得了解：
+
+- 当端点存在但所有权重都不大于 0 时，加权随机返回 `sd.ErrNoEndpoints`。
+  这属于"可选实例不足"，默认重试分类器会把它当作临时状况。
+- 一致性哈希走 `sd.RequestBalancer`（请求感知契约），`sd/retry` 会自动优先
+  使用它。直接调用 `Endpoint()` 没有请求可用于计算键，会退化为随机选择，
+  因此无键请求不会被固定到某一个实例。
+
+重试会在每次尝试时重新选择实例，因此失败的实例不会被重试——除非负载均衡器
+再次把它选出来。对一致性哈希而言这是有意的：在集合不变的前提下，同一个键
+始终解析到同一个实例。
 
 ## 架构
 
 ```
-Instancer  →  Endpointer  →  RoundRobin  →  Retry  →  Endpoint
+Instancer  →  Endpointer  →  Balancer  →  Retry  →  Endpoint
 ```
 
 每一层都可以独立使用：

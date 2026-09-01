@@ -4,6 +4,36 @@ English | [简体中文](CHANGELOG_zh.md)
 All notable v2 changes are recorded here. Legacy history remains available
 through the immutable v0 and v1 tags.
 
+## [Unreleased]
+
+### Added
+
+- Three more selection strategies in `sd/balancer`, so round robin is no longer
+  the only option: `NewRandom` (uniform draw, avoids the lockstep a shared
+  counter causes across many clients), `NewWeightedRandom` (probability
+  proportional to a caller-supplied weight; weight zero drains an instance
+  without waiting for service discovery), and `NewConsistentHash` (a virtual-node
+  ring, `WithReplicas`, `DefaultReplicas`, so keys move only when their owning
+  instance leaves).
+- `sdclient.WithBalancer` replaces the selection strategy. Previously
+  `sd/client.NewEndpoint` hardcoded round robin and a custom balancer meant
+  bypassing the constructor and wiring `endpointer`, the balancer, and
+  `sd/retry` by hand.
+- `sd.RequestBalancer`, the request-aware selection contract. `sd/retry` prefers
+  `EndpointFor(ctx, request)` when a balancer implements it and falls back to
+  `Endpoint()` otherwise, which is what lets consistent hashing see the key it
+  routes on.
+- `endpointer.InstanceEndpoint` and `endpointer.InstanceEndpointer` report which
+  instance produced each endpoint. Weighted and hash strategies need that
+  identity; round robin and random do not and still accept `endpointer.Endpointer`.
+
+### Changed
+
+- `endpointer.NewEndpointer` now declares `InstanceEndpointer` as its return
+  type instead of `Endpointer`. Existing call sites keep compiling because the
+  new interface embeds the old one; only code that stores the constructor in a
+  `func(...) Endpointer` variable needs an update.
+
 ## [2.7.0] - 2026-09-01
 
 ### Added

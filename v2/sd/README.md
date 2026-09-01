@@ -64,14 +64,67 @@ defer closer.Close() // runs first: deregister and close endpoint connections
 | `WithMaxAttempts(n)` | 1 | Total attempts; must be at least 1 |
 | `WithTimeout(d)` | 500ms | Positive total budget including all retries |
 | `WithInvalidateOnError(d)` | disabled | Clear cache after SD error grace period |
+| `WithBalancer(f)` | round robin | Replace the selection strategy |
 
 Invalid options and nil required dependencies return an error before any
 background goroutine starts.
 
+## Selection strategies
+
+`sd.Balancer` is the extension point; `sd/balancer` ships four strategies.
+
+| Strategy | Constructor | Picks by | Use it when |
+|----------|-------------|----------|-------------|
+| Round robin | `balancer.NewRoundRobin` | atomic counter | Default; uniform instances, one client |
+| Random | `balancer.NewRandom` | uniform draw | Many clients share one instance set and lockstep counters would synchronise |
+| Weighted random | `balancer.NewWeightedRandom` | caller-supplied weight per instance | Heterogeneous capacity, canary shares, draining an instance |
+| Consistent hash | `balancer.NewConsistentHash` | hash of a request key | Cache affinity or per-entity ordering |
+
+```go
+// Uniform random
+client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
+	return balancer.NewRandom(set)
+})
+
+// Weighted: capacity from instance metadata, zero drains an instance without
+// waiting for service discovery to withdraw it.
+client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
+	return balancer.NewWeightedRandom(set, func(instance string) int {
+		return weights[instance]
+	})
+})
+
+// Consistent hash: every request for one tenant lands on the same instance
+// for as long as that instance stays in the set.
+client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
+	return balancer.NewConsistentHash(set, func(_ context.Context, request any) string {
+		return request.(*GetProfileRequest).TenantID
+	}, balancer.WithReplicas(200))
+})
+```
+
+Weighted and hash strategies need to know which instance produced an endpoint,
+so they take `endpointer.InstanceEndpointer` rather than the narrower
+`endpointer.Endpointer`. `endpointer.NewEndpointer` already returns it.
+
+Two behaviours are worth knowing before you pick one:
+
+- Weighted random reports `sd.ErrNoEndpoints` when endpoints exist but every
+  weight is zero or below. That is a selectable-instance shortage, and the
+  default retry classifier treats it as temporary.
+- Consistent hash routes through `sd.RequestBalancer`, the request-aware
+  contract. `sd/retry` prefers it automatically. Calling `Endpoint()` directly
+  has no request to key on and falls back to a random pick, so an unkeyed
+  request is never pinned to one instance.
+
+Retry re-selects on every attempt, so a failed instance is not retried unless
+the balancer hands it back. With consistent hashing that is intentional: the
+same key resolves to the same instance until the set changes.
+
 ## Architecture
 
 ```
-Instancer  →  Endpointer  →  RoundRobin  →  Retry  →  Endpoint
+Instancer  →  Endpointer  →  Balancer  →  Retry  →  Endpoint
 ```
 
 Each layer is independently usable:

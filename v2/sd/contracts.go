@@ -2,6 +2,7 @@
 package sd
 
 import (
+	"context"
 	"errors"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
@@ -33,6 +34,15 @@ type Registrar interface {
 // Balancer selects an endpoint from a dynamic endpoint set.
 type Balancer interface {
 	Endpoint() (endpoint.Endpoint, error)
+}
+
+// RequestBalancer selects an endpoint using the in-flight request. Strategies
+// that key on request content, such as consistent hashing, implement it in
+// addition to Balancer; executors that hold the request should prefer
+// EndpointFor and fall back to Endpoint.
+type RequestBalancer interface {
+	Balancer
+	EndpointFor(ctx context.Context, request any) (endpoint.Endpoint, error)
 }
 
 // ErrNoEndpoints indicates that a balancer currently has no endpoint to select.

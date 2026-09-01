@@ -17,10 +17,18 @@ type Endpointer interface {
 	Endpoints() ([]endpoint.Endpoint, error)
 }
 
+// InstanceEndpointer also reports the instance address behind each endpoint.
+// Weighted and hash-based balancers require this identity; round-robin and
+// random do not, so they accept the narrower Endpointer.
+type InstanceEndpointer interface {
+	Endpointer
+	InstanceEndpoints() ([]InstanceEndpoint, error)
+}
+
 // NewEndpointer creates an Endpointer that subscribes to src and builds
 // Endpoints using f.  It starts a background goroutine to process events;
 // call Close() on the returned value to stop it.
-func NewEndpointer(src sd.Instancer, f Factory, logger *slog.Logger, options ...Option) Endpointer {
+func NewEndpointer(src sd.Instancer, f Factory, logger *slog.Logger, options ...Option) InstanceEndpointer {
 	opts := Options{}
 	for _, opt := range options {
 		opt(&opts)
@@ -75,4 +83,9 @@ func (de *DefaultEndpointer) Close() error {
 
 func (de *DefaultEndpointer) Endpoints() ([]endpoint.Endpoint, error) {
 	return de.cache.Endpoints()
+}
+
+// InstanceEndpoints reports the active endpoints with their instance addresses.
+func (de *DefaultEndpointer) InstanceEndpoints() ([]InstanceEndpoint, error) {
+	return de.cache.InstanceEndpoints()
 }

@@ -3,6 +3,30 @@
 
 所有重要的 v2 变更都记录在这里。旧历史仍可通过不可变的 v0 和 v1 标签获取。
 
+## [未发布]
+
+### 新增
+
+- `sd/balancer` 新增三种选择策略，轮询不再是唯一选项：`NewRandom`（均匀抽样，
+  避免多客户端共享计数器导致的步调一致）、`NewWeightedRandom`（按调用方给出的
+  权重成比例选择；权重为 0 即可摘除实例，无需等待服务发现）、
+  `NewConsistentHash`（虚拟节点哈希环，配合 `WithReplicas`、`DefaultReplicas`，
+  只有归属实例离开时对应的键才会迁移）。
+- `sdclient.WithBalancer` 用于替换选择策略。此前 `sd/client.NewEndpoint` 把轮询
+  硬编码，想换策略只能绕开构造器，手工串接 `endpointer`、负载均衡器与 `sd/retry`。
+- `sd.RequestBalancer`：请求感知的选择契约。当负载均衡器实现它时，`sd/retry`
+  优先调用 `EndpointFor(ctx, request)`，否则回退到 `Endpoint()`——一致性哈希正是
+  依靠这一点才能拿到用于路由的键。
+- `endpointer.InstanceEndpoint` 与 `endpointer.InstanceEndpointer` 会报告每个端点
+  由哪个实例生成。加权与哈希策略需要这个身份信息；轮询和随机不需要，仍然接收
+  `endpointer.Endpointer`。
+
+### 变更
+
+- `endpointer.NewEndpointer` 的返回类型声明由 `Endpointer` 改为
+  `InstanceEndpointer`。由于新接口内嵌了旧接口，现有调用点无需改动；只有把该
+  构造器赋值给 `func(...) Endpointer` 变量的代码需要调整。
+
 ## [2.7.0] - 2026-09-01
 
 ### 新增

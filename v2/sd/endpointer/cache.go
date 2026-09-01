@@ -16,6 +16,15 @@ import (
 // when non-nil, is owned by Cache and released when the instance disappears.
 type Factory func(instance string) (endpoint.Endpoint, io.Closer, error)
 
+// InstanceEndpoint pairs a discovered instance address with the endpoint the
+// Factory built for it. Balancers that need instance identity, such as
+// weighted or hash-based strategies, select over these instead of bare
+// endpoints.
+type InstanceEndpoint struct {
+	Instance string
+	Endpoint endpoint.Endpoint
+}
+
 // Options controls cache invalidation after service-discovery errors.
 type Options struct {
 	InvalidateOnError bool
@@ -49,7 +58,7 @@ type Cache struct {
 	factory            Factory
 	cache              map[string]endpointCloser
 	err                error
-	endpoints          []endpoint.Endpoint
+	instances          []InstanceEndpoint
 	logger             *slog.Logger
 	invalidateDeadline time.Time
 	timeNow            func() time.Time
@@ -136,22 +145,36 @@ func (c *Cache) updateCacheLocked(instances []string) []io.Closer {
 		}
 	}
 
-	endpoints := make([]endpoint.Endpoint, 0, len(cache))
+	endpoints := make([]InstanceEndpoint, 0, len(cache))
 	for _, instance := range instances {
 		item, ok := cache[instance]
 		if !ok {
 			continue
 		}
-		endpoints = append(endpoints, item.Endpoint)
+		endpoints = append(endpoints, InstanceEndpoint{Instance: instance, Endpoint: item.Endpoint})
 	}
 
-	c.endpoints = endpoints
+	c.instances = endpoints
 	c.cache = cache
 	return stale
 }
 
 // Endpoints returns a snapshot of the active endpoints.
 func (c *Cache) Endpoints() ([]endpoint.Endpoint, error) {
+	instances, err := c.InstanceEndpoints()
+	if err != nil {
+		return nil, err
+	}
+	endpoints := make([]endpoint.Endpoint, len(instances))
+	for i, item := range instances {
+		endpoints[i] = item.Endpoint
+	}
+	return endpoints, nil
+}
+
+// InstanceEndpoints returns a snapshot of the active endpoints together with
+// the instance address each one was built from, ordered by address.
+func (c *Cache) InstanceEndpoints() ([]InstanceEndpoint, error) {
 	c.mtx.RLock()
 	if c.closed {
 		c.mtx.RUnlock()
@@ -159,9 +182,9 @@ func (c *Cache) Endpoints() ([]endpoint.Endpoint, error) {
 	}
 
 	if c.err == nil || c.timeNow().Before(c.invalidateDeadline) {
-		endpoints := append([]endpoint.Endpoint(nil), c.endpoints...)
+		instances := append([]InstanceEndpoint(nil), c.instances...)
 		c.mtx.RUnlock()
-		return endpoints, nil
+		return instances, nil
 	}
 	c.mtx.RUnlock()
 
@@ -171,9 +194,9 @@ func (c *Cache) Endpoints() ([]endpoint.Endpoint, error) {
 		return nil, ErrCacheClosed
 	}
 	if c.err == nil || c.timeNow().Before(c.invalidateDeadline) {
-		endpoints := append([]endpoint.Endpoint(nil), c.endpoints...)
+		instances := append([]InstanceEndpoint(nil), c.instances...)
 		c.mtx.Unlock()
-		return endpoints, nil
+		return instances, nil
 	}
 
 	stale := c.updateCacheLocked(nil)
@@ -198,7 +221,7 @@ func (c *Cache) Close() error {
 		}
 	}
 	c.cache = map[string]endpointCloser{}
-	c.endpoints = nil
+	c.instances = nil
 	c.err = ErrCacheClosed
 	c.mtx.Unlock()
 	return closeEndpointClosers(closers)

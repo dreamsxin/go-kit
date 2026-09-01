@@ -15,12 +15,18 @@ import (
 	"github.com/dreamsxin/go-kit/v2/sd/retry"
 )
 
+// BalancerFactory builds the Balancer that selects among discovered endpoints.
+// It receives the live endpoint set, so a factory may pick any strategy in
+// sd/balancer or supply its own.
+type BalancerFactory func(endpointer.InstanceEndpointer) sd.Balancer
+
 // Options controls NewEndpoint.
 type Options struct {
 	MaxAttempts       int
 	Timeout           time.Duration
 	InvalidateOnError time.Duration
 	Retryable         retry.Classifier
+	Balancer          BalancerFactory
 }
 
 // Option configures NewEndpoint.
@@ -46,10 +52,24 @@ func WithRetryable(classifier retry.Classifier) Option {
 	return func(options *Options) { options.Retryable = classifier }
 }
 
-// NewEndpoint composes an Endpointer, round-robin Balancer, and retry executor.
+// WithBalancer replaces the default round-robin selection strategy.
+//
+//	client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
+//		return balancer.NewConsistentHash(set, tenantKey)
+//	})
+func WithBalancer(factory BalancerFactory) Option {
+	return func(options *Options) { options.Balancer = factory }
+}
+
+// NewEndpoint composes an Endpointer, a Balancer, and a retry executor. The
+// Balancer defaults to round robin; override it with WithBalancer.
 // A nil logger falls back to slog.Default().
 func NewEndpoint(src sd.Instancer, factory endpointer.Factory, logger *slog.Logger, opts ...Option) (endpoint.Endpoint, io.Closer, error) {
-	options := Options{MaxAttempts: 1, Timeout: 500 * time.Millisecond}
+	options := Options{
+		MaxAttempts: 1,
+		Timeout:     500 * time.Millisecond,
+		Balancer:    defaultBalancer,
+	}
 	for i, option := range opts {
 		if option == nil {
 			return nil, nil, fmt.Errorf("sd/client: option %d is nil", i)
@@ -68,7 +88,13 @@ func NewEndpoint(src sd.Instancer, factory endpointer.Factory, logger *slog.Logg
 		endpointerOptions = append(endpointerOptions, endpointer.InvalidateOnError(options.InvalidateOnError))
 	}
 	endpointSet := endpointer.NewEndpointer(src, factory, logger, endpointerOptions...)
-	balanced := balancer.NewRoundRobin(endpointSet)
+	balanced := options.Balancer(endpointSet)
+	if balanced == nil {
+		// The endpointer already started its update goroutine, so release it
+		// before reporting the misconfiguration.
+		_ = endpointSet.Close()
+		return nil, nil, fmt.Errorf("sd/client: balancer factory returned nil")
+	}
 	call := retry.WithClassifier(options.Timeout, balanced, attemptLimit(options.MaxAttempts), options.Retryable)
 	return call, endpointSet, nil
 }
@@ -83,12 +109,18 @@ func NewEndpointWithDefaults(src sd.Instancer, factory endpointer.Factory, logge
 	)
 }
 
+func defaultBalancer(set endpointer.InstanceEndpointer) sd.Balancer {
+	return balancer.NewRoundRobin(set)
+}
+
 func validate(src sd.Instancer, factory endpointer.Factory, options Options) error {
 	switch {
 	case isNil(src):
 		return fmt.Errorf("sd/client: instancer is nil")
 	case factory == nil:
 		return fmt.Errorf("sd/client: endpoint factory is nil")
+	case options.Balancer == nil:
+		return fmt.Errorf("sd/client: balancer factory is nil")
 	case options.MaxAttempts < 1:
 		return fmt.Errorf("sd/client: max attempts must be at least 1")
 	case options.Timeout <= 0:

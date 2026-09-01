@@ -26,6 +26,8 @@ var documentedPackageAliases = map[string]string{
 	"grpcserver":    filepath.Join("integrations", "grpc", "server"),
 	"transporthttp": filepath.Join("transport", "http"),
 	"sdclient":      filepath.Join("sd", "client"),
+	"balancer":      filepath.Join("sd", "balancer"),
+	"endpointer":    filepath.Join("sd", "endpointer"),
 	"security":      "security",
 	"interaction":   "interaction",
 	"mcp":           filepath.Join("interaction", "mcp"),

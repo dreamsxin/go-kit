@@ -185,6 +185,87 @@ func TestDefaultEndpointer_CloseReleasesEndpointResources(t *testing.T) {
 	}
 }
 
+// ── InstanceEndpoints ─────────────────────────────────────────────────────────
+
+func TestInstanceEndpoints_PairsAddressWithItsEndpoint(t *testing.T) {
+	cache := instance.NewCache()
+	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
+
+	cache.Update(sd.Event{Instances: []string{"c:80", "a:80", "b:80"}})
+	time.Sleep(20 * time.Millisecond)
+
+	instances, err := ep.InstanceEndpoints()
+	if err != nil {
+		t.Fatalf("InstanceEndpoints: %v", err)
+	}
+	want := []string{"a:80", "b:80", "c:80"}
+	if len(instances) != len(want) {
+		t.Fatalf("got %d instances, want %d", len(instances), len(want))
+	}
+	for i, item := range instances {
+		if item.Instance != want[i] {
+			t.Fatalf("instance %d = %q, want %q", i, item.Instance, want[i])
+		}
+		// echoFactory returns the address it was built with, so a mismatch
+		// here means an endpoint was paired with the wrong instance.
+		resp, err := item.Endpoint(context.Background(), nil)
+		if err != nil {
+			t.Fatalf("call %s: %v", item.Instance, err)
+		}
+		if resp != item.Instance {
+			t.Fatalf("instance %q is paired with the endpoint for %v", item.Instance, resp)
+		}
+	}
+}
+
+func TestInstanceEndpoints_MatchesEndpointsOrder(t *testing.T) {
+	cache := instance.NewCache()
+	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
+	t.Cleanup(func() { _ = ep.Close() })
+
+	cache.Update(sd.Event{Instances: []string{"b:80", "a:80"}})
+	time.Sleep(20 * time.Millisecond)
+
+	eps, err := ep.Endpoints()
+	if err != nil {
+		t.Fatalf("Endpoints: %v", err)
+	}
+	instances, err := ep.InstanceEndpoints()
+	if err != nil {
+		t.Fatalf("InstanceEndpoints: %v", err)
+	}
+	if len(eps) != len(instances) {
+		t.Fatalf("Endpoints returned %d, InstanceEndpoints returned %d", len(eps), len(instances))
+	}
+	for i := range eps {
+		plain, err := eps[i](context.Background(), nil)
+		if err != nil {
+			t.Fatalf("call %d: %v", i, err)
+		}
+		paired, err := instances[i].Endpoint(context.Background(), nil)
+		if err != nil {
+			t.Fatalf("call %d: %v", i, err)
+		}
+		if plain != paired {
+			t.Fatalf("position %d: Endpoints has %v, InstanceEndpoints has %v", i, plain, paired)
+		}
+	}
+}
+
+func TestInstanceEndpoints_AfterCloseReportsCacheClosed(t *testing.T) {
+	cache := instance.NewCache()
+	cache.Update(sd.Event{Instances: []string{"svc:80"}})
+	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
+
+	if err := ep.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if _, err := ep.InstanceEndpoints(); !errors.Is(err, endpointer.ErrCacheClosed) {
+		t.Fatalf("InstanceEndpoints after Close error = %v, want ErrCacheClosed", err)
+	}
+}
+
 type closerFunc func() error
 
 func (f closerFunc) Close() error { return f() }
