@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "phase": "core-candidate",
+  "phase": "nested-candidate",
   "previousCoreVersion": "v2.6.0",
   "coreVersion": "v2.7.0",
   "modules": [
