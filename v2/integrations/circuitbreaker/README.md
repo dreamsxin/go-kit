@@ -19,7 +19,9 @@ ep := endpoint.NewBuilder(callDependency).Use(breaker.Middleware()).Build()
 ```
 
 The breaker rejects calls with `ErrCircuitOpen` while open and lets one probe
-through after the window. `ErrCircuitOpen` encodes as HTTP 429.
+through after the window. `ErrCircuitOpen` classifies itself as
+`apperror.KindUnavailable`, so it encodes as HTTP 503 with the remaining open
+window reported as `Retry-After`.
 
 ## Settings
 

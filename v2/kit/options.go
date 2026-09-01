@@ -181,15 +181,35 @@ func WithTimeout(d time.Duration) Option {
 	}
 }
 
-// WithMetrics attaches a Metrics collector.
-// The /health endpoint includes the request count when this option is set.
+// WithMetrics attaches the built-in in-memory Metrics collector. Each route is
+// recorded under its own pattern, so Metrics.SnapshotFor("POST /users") reports
+// that route alone while Metrics.Snapshot reports the total. The /health
+// endpoint includes the total request count when this option is set.
+//
+// Use WithRecorder to report the same observations to an external metrics
+// backend.
 func WithMetrics(m *endpoint.Metrics) Option {
 	return func(h *HTTP) error {
 		if m == nil {
 			return fmt.Errorf("metrics cannot be nil")
 		}
 		h.metrics = m
-		h.middleware = append(h.middleware, endpoint.MetricsMiddleware(m))
+		h.recorders = append(h.recorders, m)
+		return nil
+	}
+}
+
+// WithRecorder reports every endpoint call to the given recorders, labeled with
+// the route pattern. Use it to bridge the framework to Prometheus,
+// OpenTelemetry, or any other metrics backend.
+func WithRecorder(recorders ...endpoint.Recorder) Option {
+	return func(h *HTTP) error {
+		for i, recorder := range recorders {
+			if recorder == nil {
+				return fmt.Errorf("recorder %d is nil", i)
+			}
+		}
+		h.recorders = append(h.recorders, recorders...)
 		return nil
 	}
 }

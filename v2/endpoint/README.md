@@ -59,12 +59,13 @@ For most services, these are the main entry points:
 - `NewTypedBuilder`
 - `Chain`
 - `TimeoutMiddleware`
-- `MetricsMiddleware`
+- `RecordingMiddleware` / `MetricsMiddleware`
 - `ErrorHandlingMiddleware`
 - `TracingMiddleware`
 - `BackpressureMiddleware`
 - `NewCircuitBreaker`
 - `RateLimitMiddleware` / `DelayRateLimitMiddleware`
+- `RetryMiddleware`
 - `Unwrap`
 
 Related extension packages:
@@ -82,21 +83,25 @@ Example:
 var metrics endpoint.Metrics
 
 ep := endpoint.NewBuilder(base).
-    WithMetrics(&metrics).
+    WithRecording("POST /users", &metrics).
     WithErrorHandling("CreateUser").
     WithTimeout(5 * time.Second).
-    Use(endpoint.NewCircuitBreaker().Middleware()).
-    Use(endpoint.RateLimitMiddleware(limiter)).
+    WithCircuitBreaker(endpoint.NewCircuitBreaker()).
+    WithRateLimit(limiter).
     Build()
 
-snapshot := metrics.Snapshot()
+snapshot := metrics.SnapshotFor("POST /users")
 fmt.Println(snapshot.RequestCount, snapshot.ErrorCount, snapshot.AverageDuration())
 ```
 
-Use `Snapshot` for every concurrent read. It returns `MetricsSnapshot`, a
-lock-free value that is safe to copy. The collector's exported fields remain
-available for source compatibility, but reading them while middleware is
-updating the collector is a data race.
+Read the collector through `Snapshot` (total), `SnapshotFor` (one operation), or
+`Operations` (the recorded labels). Each returns a detached value that is safe
+to copy; the collector's own counters are unexported and guarded internally.
+
+To export the same observations elsewhere, implement `endpoint.Recorder` and
+pass it to `RecordingMiddleware` alongside — or instead of — the in-memory
+collector. `Metrics` deliberately keeps only counters and a duration total;
+histograms and time series belong to a metrics backend.
 
 Why prefer the builder:
 
@@ -210,6 +215,7 @@ Type assertion note:
 
 Core middleware in `endpoint`:
 
+- `RecordingMiddleware`
 - `MetricsMiddleware`
 - `ErrorHandlingMiddleware`
 - `TimeoutMiddleware`
@@ -221,12 +227,24 @@ Core middleware in `endpoint`:
 - `CircuitBreaker`
 - `RateLimitMiddleware`
 - `DelayRateLimitMiddleware`
+- `RetryMiddleware`
 
 `CircuitBreaker` is a dependency-free endpoint circuit breaker: consecutive
-failures trip it open, it rejects with `ErrCircuitOpen` (HTTP 429), and a
-probe after the open window decides recovery. Rate limiting ships as
-`RateLimitMiddleware` (reject) and `DelayRateLimitMiddleware` (wait) over the
-application-owned `RateLimiter` contract; `ErrRateLimited` also encodes as 429.
+failures trip it open, it rejects with `ErrCircuitOpen` (HTTP 503, with the
+remaining open window reported as `Retry-After`), and a probe after the open
+window decides recovery. Rate limiting ships as `RateLimitMiddleware` (reject)
+and `DelayRateLimitMiddleware` (wait) over the application-owned `RateLimiter`
+contract; `ErrRateLimited` encodes as 429 because the caller exceeded its quota.
+
+`RetryMiddleware` repeats transient failures with exponential backoff and full
+jitter. Its default classifier retries `apperror.KindUnavailable` and errors
+that classify themselves through `interface{ Retryable() bool }` — never
+context errors, local rejections, or unclassified errors — a retry hint on the
+error (`RetryAfterReporter`) overrides the schedule up to `MaxRetryAfterHint`,
+and the caller owns idempotency. A transport client is an `Endpoint` too, so the
+same stack applies to outbound calls:
+`transport/http/client.HTTPStatusError` classifies itself by status code and
+reports the server's `Retry-After`.
 
 `TracingMiddleware` speaks the W3C Trace Context format. It joins an incoming
 `TraceContext` (extracted from the `traceparent` header by
@@ -261,7 +279,7 @@ failure — and joins both errors when the fallback fails too, so the primary
 cause stays reachable through `errors.Is`. `BulkheadMiddleware`
 limits concurrency per resource key (tenant, dependency), so one slow key
 cannot consume the shared budget the way the global `BackpressureMiddleware`
-count can; both rejection errors encode as HTTP 429. Bulkhead keys must stay
+count can; both rejection errors encode as HTTP 503. Bulkhead keys must stay
 bounded, since each key owns a slot pool for the endpoint's lifetime:
 
 ```go
@@ -281,8 +299,8 @@ ep = zapadapter.LoggingMiddleware(logger, "CreateUser")(ep)
 This keeps the core `endpoint` import graph limited to the Go standard
 library and the zero-dependency `apperror` package.
 
-Circuit breaking and rate limiting are built into the core package and hold
-no third-party dependencies:
+Circuit breaking, rate limiting, and retrying are built into the core package
+and hold no third-party dependencies:
 
 - `NewCircuitBreaker` (`.Middleware()`) rejects calls with `ErrCircuitOpen`
   while open and probes to recover.
@@ -290,6 +308,11 @@ no third-party dependencies:
   `DelayRateLimitMiddleware` waits for a token and honors context
   cancellation. Limiters implement the `RateLimiter` contract and stay
   application owned.
+- `RetryMiddleware` repeats transient failures with backoff; the classifier and
+  the schedule are replaceable.
+
+Every rejection error classifies itself through `apperror`, so HTTP and gRPC
+derive the same status from it without special-casing the sentinel values.
 
 ## What Belongs In `endpoint`
 

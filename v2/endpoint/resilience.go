@@ -6,14 +6,6 @@ import (
 	"sync"
 )
 
-// ErrBulkheadFull is returned when a bulkhead's per-key concurrency limit is
-// reached and the request context gives up waiting.
-var ErrBulkheadFull = errors.New("bulkhead full")
-
-// ErrCircuitOpen is returned by CircuitBreaker while the breaker rejects
-// calls.
-var ErrCircuitOpen = errors.New("circuit breaker open")
-
 // Fallback returns a Middleware that answers with the fallback endpoint when
 // the wrapped endpoint fails. Successful calls never touch the fallback.
 //

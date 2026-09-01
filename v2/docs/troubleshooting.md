@@ -69,25 +69,29 @@ servers are created, so config problems never hide behind runtime logs.
 | 403 | authorization rejected (`KindPermissionDenied`) | `security.RequireRole` / application policy |
 | 404 | route or method mismatch | Go mux patterns are method-aware (`"POST /x"` ≠ `"GET /x"`); check `/debug/routes` |
 | 409 / 412 | `KindConflict` / `KindFailedPrecondition` | business state conflict |
-| 429 | one of four protections fired | see the next section |
+| 429 | rate limiting rejected the caller | check the limiter budget; `Retry-After` reports the wait when the limiter knows it |
+| 499 | the client disconnected or cancelled | `KindCanceled` or an unclassified `context.Canceled` — not a server fault |
 | 500 | unclassified error | internals are redacted from the response — inspect logs via the error handler |
-| 503 / 504 | `KindUnavailable` / `KindDeadlineExceeded` | downstream dependency or `TimeoutMiddleware` |
+| 501 | `KindUnimplemented` | the route exists but the operation is not built |
+| 503 | `KindUnavailable`, or one of three load-shedding protections | see the next section |
+| 504 | `KindDeadlineExceeded` or `TimeoutMiddleware` | downstream dependency too slow |
 
-## Which protection returned 429?
+## Which protection rejected the request?
 
-Four endpoint middlewares reject with 429. Distinguish them by what is
-configured and what the metrics show:
+Rate limiting answers 429 (the caller exceeded its quota). The other three
+protections answer 503, because the service is shedding load. Distinguish them
+by what is configured and what the metrics show:
 
-| Source | Middleware | Signal |
-| --- | --- | --- |
-| Rate limiting | `RateLimitMiddleware` | steady over-limit traffic; check the limiter budget |
-| Circuit breaker | `CircuitBreaker` | opens after consecutive failures — the real problem is the failing dependency; breaker `State()` shows open/half-open |
-| Bulkhead | `BulkheadMiddleware` | one key saturates its concurrency slot |
-| Backpressure | `BackpressureMiddleware` | global in-flight cap; the whole service is saturated |
+| Source | Middleware | Status | Signal |
+| --- | --- | --- | --- |
+| Rate limiting | `RateLimitMiddleware` | 429 | steady over-limit traffic; check the limiter budget |
+| Circuit breaker | `CircuitBreaker` | 503 | opens after consecutive failures — the real problem is the failing dependency; breaker `State()` shows open/half-open, and `Retry-After` reports the open window |
+| Bulkhead | `BulkheadMiddleware` | 503 | one key saturates its concurrency slot |
+| Backpressure | `BackpressureMiddleware` | 503 | global in-flight cap; the whole service is saturated |
 
-`endpoint.Metrics.Snapshot()` counts errors per chain;
-`endpoint.Builder.Describe()` prints the chain order at startup so you know
-which protections are armed for a route.
+`endpoint.Metrics.SnapshotFor(pattern)` counts errors per route,
+`Snapshot()` the total, and `endpoint.Builder.Describe()` prints the chain order
+at startup so you know which protections are armed for a route.
 
 ## Database problems (generated services)
 

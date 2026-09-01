@@ -35,7 +35,7 @@ go-kit v2 遵循语义化版本。本页记录当前版本所需的升级动作�
 
 ## 从 v2.6.0 升级（未发布）
 
-两处源码改动、一处行为改动：
+三处源码改动：
 
 1. `endpoint.Metrics` 的计数字段不再导出。改为通过 `Snapshot()` 读取，字段名
    保持不变：
@@ -60,11 +60,31 @@ go-kit v2 遵循语义化版本。本页记录当前版本所需的升级动作�
    return endpoint.NewTypeAssertError[Req](request)
    ```
 
-3. 端点超时现在编码为 HTTP 504 而不是 500，与 `apperror.KindDeadlineExceeded`
-   及 gRPC 适配器一致。此前把端点超时当作 500 的客户端与告警规则需要接受 504。
+3. `endpoint.RateLimiterFunc` 改名为 `RateLimiterFuncs`。只有类型名变了，字段
+   保持不变：
 
-`Fallback` 还会在调用方已取消时跳过兜底，并在兜底也失败时合并两个错误。这不需要
-改源码，但此前依赖兜底掩盖全部失败的调用方现在会看到主故障原因。
+   ```go
+   // 之前
+   limiter := endpoint.RateLimiterFunc{AllowFn: bucket.Allow}
+
+   // 之后
+   limiter := endpoint.RateLimiterFuncs{AllowFn: bucket.Allow}
+   ```
+
+不需要改源码但需要注意的行为变更：
+
+- 端点超时现在编码为 HTTP 504 而不是 500，与 `apperror.KindDeadlineExceeded`
+  及 gRPC 适配器一致。客户端断连（`context.Canceled`）现在编码为 499 而不是
+  500。此前把这两者当作 500 的客户端与告警规则需要更新。
+- `ErrCircuitOpen`、`ErrBulkheadFull`、`ErrBackpressure` 现在编码为 HTTP 503
+  而不是 429，因为它们自带 `apperror.KindUnavailable` 分类。`ErrRateLimited`
+  仍为 429。在 gRPC 上这四个错误此前都表现为 `Internal`，现在会带上真实的码。
+  请更新客户端重试策略以及任何把熔断计为 429 的看板。
+- `kit.WithMetrics` 会用路由 pattern 标注每次观测，并运行在链的最外层。
+  `metrics.Snapshot()` 仍然给出总量，但现在也会计入被限流或熔断拒绝的请求；
+  按路由的数据用 `metrics.SnapshotFor(pattern)` 读取。
+- `Fallback` 会在调用方已取消时跳过兜底，并在兜底也失败时合并两个错误，因此
+  此前依赖兜底掩盖全部失败的调用方现在会看到主故障原因。
 
 ## 升级到 v2.6.0
 

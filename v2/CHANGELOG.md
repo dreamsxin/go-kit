@@ -4,7 +4,7 @@ English | [简体中文](CHANGELOG_zh.md)
 All notable v2 changes are recorded here. Legacy history remains available
 through the immutable v0 and v1 tags.
 
-## [Unreleased]
+## [2.7.0] - 2026-09-01
 
 ### Added
 
@@ -21,17 +21,96 @@ through the immutable v0 and v1 tags.
   tracing, metrics, errors) belongs across the service, endpoint, and
   transport layers.
 - New troubleshooting chapter (en/zh): symptom-based diagnosis — request
-  correlation by request_id/trace_id, status-code causes (including the four
-  sources of 429), startup failures, readiness failures, database pool
-  settings, logging configuration, and debug switches. The configuration
-  chapter gains a full generated-sections reference.
+  correlation by request_id/trace_id, status-code causes (including which
+  protection rejected a request), startup failures, readiness failures,
+  database pool settings, logging configuration, and debug switches. The
+  configuration chapter gains a full generated-sections reference.
 - New customization chapter (en/zh): choosing log destinations (file
   storage, multi-writer, rotation guidance), writing custom endpoint and HTTP
   middleware with installation scopes, and an error-customization decision
   guide.
+- `endpoint.Recorder` and `endpoint.Observation`: a metrics extension point.
+  `RecordingMiddleware(operation, recorders...)` times each call and reports it
+  under an operation label, so a Prometheus or OpenTelemetry bridge is an
+  interface implementation instead of a fork of the middleware.
+  `endpoint.Metrics` implements `Recorder` and gained `SnapshotFor` and
+  `Operations` for per-operation numbers alongside the existing total.
+- `kit.WithRecorder` registers external recorders, and both it and
+  `kit.WithMetrics` label every observation with the route pattern, so
+  `metrics.SnapshotFor("POST /users")` reports one route.
+- `endpoint.RetryMiddleware` (Builder: `WithRetry`): retries transient failures
+  with exponential backoff and full jitter. `DefaultRetryable` retries
+  `apperror.KindUnavailable` and errors that classify themselves through
+  `interface{ Retryable() bool }`, never context errors, local rejections, or
+  unclassified errors; `WithRetryable` and `WithRetryBackoff` replace either
+  policy. A retry hint carried by the error overrides the schedule, capped by
+  `endpoint.MaxRetryAfterHint`.
+- `client.HTTPStatusError` classifies itself, so a client endpoint composes with
+  the same middleware as a server endpoint. It implements `apperror.Kinder` by
+  mapping the response status back to a kind (exported as
+  `client.KindForStatus`) and `endpoint.RetryAfterReporter` by parsing the
+  `Retry-After` response header (delay-seconds and HTTP-date). `WithRetry` on a
+  client endpoint now works without a custom classifier, and a relayed upstream
+  503 keeps its status instead of degrading to 500.
+- `grpc.StatusError`, `grpc.ClassifyError`, and `grpc.KindNameForCode` give the
+  gRPC client the same treatment: the client wraps a failed `Invoke` so the
+  error reports a kind name, `Retryable`, and the `google.rpc.RetryInfo` delay,
+  while `status.FromError` and `status.Code` keep working.
+- `grpcserver.NewErrorEncoder` with `WithKindMapper` and `WithErrorDomain`
+  replaces the growing set of encoder constructors with one options-based
+  factory. The stable application code now travels in a `google.rpc.ErrorInfo`
+  detail (AIP-193) alongside the existing `RetryInfo`, so a gRPC hop no longer
+  drops the code the way the HTTP body always carried it.
+  `ErrorEncoderWithKindMapper` stays as shorthand.
+- `grpc.StatusError.ErrorCode` and `ErrorDomain` read that `ErrorInfo` back, and
+  `client.HTTPStatusError.ErrorCode` parses the JSON body's `code`. Both satisfy
+  `transport/http.ErrorCoder`, so relaying an upstream error unchanged reproduces
+  the upstream code instead of a status-derived name. The upstream message is
+  deliberately not relayed as a public message.
+- `endpoint.RetryAfterReporter`, `endpoint.RetryAfterError`, and
+  `endpoint.NewRetryAfterError`: a transport-neutral retry hint. HTTP encoders
+  emit `Retry-After`; the gRPC encoder attaches `google.rpc.RetryInfo`. An open
+  circuit breaker reports the time left in its open window, and a `RateLimiter`
+  that implements the interface has its delay attached to `ErrRateLimited`.
+- `apperror.KindCanceled` (HTTP 499 / gRPC Canceled) and
+  `apperror.KindUnimplemented` (HTTP 501 / gRPC Unimplemented), with matching
+  constructors. `server.StatusClientClosedRequest` names the non-standard 499.
+- Builder shortcuts for the rest of the catalog: `WithRateLimit`,
+  `WithDelayRateLimit`, `WithCircuitBreaker`, `WithRecording`, `WithRetry`.
 
 ### Changed
 
+- **Breaking:** the endpoint rejection errors now classify themselves through
+  `apperror`, and the HTTP encoders no longer special-case them.
+  `ErrRateLimited` stays 429 (`KindResourceExhausted`), but `ErrCircuitOpen`,
+  `ErrBulkheadFull`, and `ErrBackpressure` became 503 (`KindUnavailable`)
+  instead of 429: load shedding is a server condition, not a caller quota
+  problem, which is how Envoy and Resilience4j report it. The gRPC adapter
+  previously mapped all four to `Internal` and now agrees with HTTP. Clients
+  that treated a tripped breaker as 429 must accept 503.
+- **Breaking:** `endpoint.RateLimiterFunc` is now `RateLimiterFuncs`. It is a
+  struct of two functions, not a function type, so the plural name matches what
+  it is and the `XxxFunc` convention keeps meaning "function type".
+- **Breaking:** a `client.HTTPStatusError` returned unchanged from a handler now
+  encodes as the upstream status (a dependency's 404 answers 404) instead of
+  500, because the error classifies itself. Translate upstream failures
+  deliberately —
+  `apperror.WrapCause(apperror.KindUnavailable, "upstream.users", err)` — when
+  they mean something else to your own callers.
+- The HTTP error encoders resolve the error kind through `apperror.KindNamer`
+  when `apperror.Kinder` is absent, so a module that classifies structurally to
+  avoid importing `apperror` — the gRPC integration, for one — maps to the right
+  status instead of 500. The gRPC encoder already worked this way.
+- HTTP error encoders map an unclassified `context.Canceled` to 499 instead of
+  500, so a client disconnect stays out of the 5xx rate. The gRPC adapter
+  already mapped it to `Canceled`.
+- `kit.WithMetrics` installs the collector as a route-labeled recorder placed
+  outermost in the chain rather than as a middleware in option order, so it now
+  also counts requests that a rate limit or a breaker rejects.
+- `DecodeRequestFunc`, `EncodeResponseFunc`, `EncodeRequestFunc`,
+  `DecodeResponseFunc`, `ServeGRPC`, and `Interceptor` spell their dynamic
+  parameters `any` instead of `interface{}`. The types are identical; no call
+  site changes.
 - HTTP error encoders map an unclassified `context.DeadlineExceeded` to 504
   instead of 500, so an endpoint timeout from `TimeoutMiddleware` agrees with
   `apperror.KindDeadlineExceeded` and with the gRPC adapter, which already

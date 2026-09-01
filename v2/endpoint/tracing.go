@@ -241,8 +241,3 @@ func isAllZero(s string) bool {
 func (b *Builder) WithTracing() *Builder {
 	return b.UseNamed("tracing", TracingMiddleware())
 }
-
-// WithBackpressure appends BackpressureMiddleware with the given concurrency limit.
-func (b *Builder) WithBackpressure(max int64) *Builder {
-	return b.UseNamed("backpressure", BackpressureMiddleware(max))
-}

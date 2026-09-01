@@ -12,8 +12,8 @@ import (
 // typically is added at creation time of the grpc-go server.
 // Like this: `grpc.NewServer(grpc.UnaryInterceptor(kitgrpc.Interceptor))`
 func Interceptor(
-	ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler,
-) (resp interface{}, err error) {
+	ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler,
+) (resp any, err error) {
 	ctx = context.WithValue(ctx, transportgrpc.ContextKeyRequestMethod, info.FullMethod)
 	return handler(ctx, req)
 }

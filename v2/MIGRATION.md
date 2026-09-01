@@ -45,7 +45,7 @@ finally let `microgen` own regenerated transports.
 
 ## Upgrading From v2.6.0 (Unreleased)
 
-Two source changes and one behavior change:
+Three source changes:
 
 1. `endpoint.Metrics` counter fields are unexported. Read through `Snapshot()`,
    which keeps the same field names:
@@ -70,14 +70,35 @@ Two source changes and one behavior change:
    return endpoint.NewTypeAssertError[Req](request)
    ```
 
-3. An endpoint timeout now encodes as HTTP 504 instead of 500, matching
-   `apperror.KindDeadlineExceeded` and the gRPC adapter. Clients and alerting
-   rules that treated an endpoint timeout as a 500 must accept 504.
+3. `endpoint.RateLimiterFunc` is now `RateLimiterFuncs`. Only the type name
+   changed; the fields are the same:
 
-`Fallback` also stops running the fallback for an already-cancelled caller and
-joins both errors when the fallback fails; no source change is required, but
-callers that relied on the fallback masking every failure will now see the
-primary cause.
+   ```go
+   // before
+   limiter := endpoint.RateLimiterFunc{AllowFn: bucket.Allow}
+
+   // after
+   limiter := endpoint.RateLimiterFuncs{AllowFn: bucket.Allow}
+   ```
+
+Behavior changes that need no source edit but do need attention:
+
+- An endpoint timeout now encodes as HTTP 504 instead of 500, matching
+  `apperror.KindDeadlineExceeded` and the gRPC adapter. A client disconnect
+  (`context.Canceled`) now encodes as 499 instead of 500. Clients and alerting
+  rules that treated either as a 500 must be updated.
+- `ErrCircuitOpen`, `ErrBulkheadFull`, and `ErrBackpressure` now encode as HTTP
+  503 instead of 429, because they classify themselves as
+  `apperror.KindUnavailable`. `ErrRateLimited` stays 429. Over gRPC all four
+  previously surfaced as `Internal` and now carry their real codes. Update
+  client retry policy and any dashboard that counted a tripped breaker as 429.
+- `kit.WithMetrics` labels each observation with the route pattern and runs
+  outermost in the chain. `metrics.Snapshot()` still reports the total, but it
+  now also counts requests rejected by a rate limit or a breaker; per-route
+  numbers come from `metrics.SnapshotFor(pattern)`.
+- `Fallback` stops running the fallback for an already-cancelled caller and
+  joins both errors when the fallback fails, so callers that relied on the
+  fallback masking every failure will now see the primary cause.
 
 ## Upgrading To v2.6.0
 

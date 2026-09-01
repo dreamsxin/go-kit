@@ -27,7 +27,7 @@ import (
 // Handler is the gRPC server-side interface implemented by Server.
 // Register it with a *grpc.Server using the generated pb.Register* function.
 type Handler interface {
-	ServeGRPC(ctx context.Context, request interface{}) (context.Context, interface{}, error)
+	ServeGRPC(ctx context.Context, request any) (context.Context, any, error)
 }
 
 // Server wraps an Endpoint and implements Handler.
@@ -72,7 +72,7 @@ func NewServer(
 	return s
 }
 
-func (s Server) ServeGRPC(ctx context.Context, req interface{}) (retctx context.Context, resp interface{}, err error) {
+func (s Server) ServeGRPC(ctx context.Context, req any) (retctx context.Context, resp any, err error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		md = metadata.MD{}
@@ -91,9 +91,9 @@ func (s Server) ServeGRPC(ctx context.Context, req interface{}) (retctx context.
 	}
 
 	var (
-		request  interface{}
-		response interface{}
-		grpcResp interface{}
+		request  any
+		response any
+		grpcResp any
 	)
 
 	request, err = s.dec(ctx, req)

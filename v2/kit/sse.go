@@ -62,15 +62,15 @@ func HandleSSETyped[Req any](
 		panic("kit: SSE decode function cannot be nil")
 	}
 	handler := httpserver.NewSSEServerTyped(stream, dec, opts...)
-	h.Handle(pattern, h.sseMiddlewareHandler(handler))
+	h.Handle(pattern, h.sseMiddlewareHandler(pattern, handler))
 }
 
 // sseMiddlewareHandler wraps an SSE handler so component-level endpoint
 // middleware observes each stream as one request. The wrapped handler runs
 // inside the HTTP context prepared by Handle, which carries the request and
 // response writer for the endpoint bridge.
-func (h *HTTP) sseMiddlewareHandler(handler http.Handler) http.Handler {
-	if len(h.middleware) == 0 {
+func (h *HTTP) sseMiddlewareHandler(pattern string, handler http.Handler) http.Handler {
+	if len(h.middleware) == 0 && len(h.recorders) == 0 {
 		return handler
 	}
 	base := endpoint.Endpoint(func(ctx context.Context, _ any) (any, error) {
@@ -78,7 +78,7 @@ func (h *HTTP) sseMiddlewareHandler(handler http.Handler) http.Handler {
 		handler.ServeHTTP(responseWriterFromContext(ctx), request.WithContext(ctx))
 		return struct{}{}, nil
 	})
-	wrapped := h.applyEndpointMiddleware(base)
+	wrapped := h.applyEndpointMiddleware(pattern, base)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, err := wrapped(r.Context(), nil); err != nil {
 			httpserver.JSONErrorEncoder(r.Context(), err, w)

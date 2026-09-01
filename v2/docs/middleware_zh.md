@@ -13,9 +13,9 @@
 ep := endpoint.NewBuilder(createUser).
     WithValidation().
     WithTimeout(5 * time.Second).
-    WithMetrics(&metrics).
-    Use(endpoint.RateLimitMiddleware(limiter)).
-    Use(breaker.Middleware()).
+    WithRecording("POST /users", &metrics).
+    WithRateLimit(limiter).
+    WithCircuitBreaker(breaker).
     Build()
 ```
 
@@ -32,7 +32,7 @@ HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.C
 | --- | --- | --- | --- |
 | 日志 | 保持纯净；从 context 读关联 ID | `slogadapter.LoggingMiddleware`、`integrations/zap` 或 `slogadapter.NewTelemetry` | `server.AccessLogMiddleware` 记录协议事实；`ServerErrorHandler` 记录失败 |
 | 追踪 | context 携带 trace 与请求 ID | `TracingMiddleware`（W3C 关联）、`oteladapter.TracingMiddleware`（span） | `transporthttp.ExtractTraceparent` / `InjectTraceparent` 头传播 |
-| 指标 | — | `MetricsMiddleware`、`oteladapter.NewMetrics` | 访问日志的状态码/字节数；`ServerFinalizer` 钩子 |
+| 指标 | — | `RecordingMiddleware` 搭配任意 `Recorder`、`oteladapter.NewMetrics` | 访问日志的状态码/字节数；`ServerFinalizer` 钩子 |
 | 错误 | 返回 `apperror` 分类 | `ErrorHandlingMiddleware` 附操作名；`ValidationMiddleware` 短路 | `ErrorEncoder` 映射状态码；`ErrorHandler` 观察 |
 
 安放规则：
@@ -51,8 +51,8 @@ HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.C
 | --- | --- | --- |
 | 短路 | 不调用 `next` 直接应答 | validation、bulkhead、backpressure |
 | 分支 | 把请求发送到另一个端点 | `Fallback` |
-| 重复 | 带退避再次调用 `next` | `sd/retry` |
-| 替换 | 用不同行为包裹 `next` | `TimeoutMiddleware`、`MetricsMiddleware` |
+| 重复 | 带退避再次调用 `next` | `RetryMiddleware`、`sd/retry` |
+| 替换 | 用不同行为包裹 `next` | `TimeoutMiddleware`、`RecordingMiddleware` |
 
 链在构造时固定；中间件不能在运行时重接路由。这让请求路径保持确定且可测试。
 
@@ -62,18 +62,67 @@ HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.C
 | --- | --- | --- |
 | `ValidationMiddleware` | 校验 `Validatable` 请求 | 400 `bad_request.validation` |
 | `TimeoutMiddleware` | 限制端点执行时长 | 504 gateway timeout |
-| `MetricsMiddleware` | 请求计数与耗时 | 从不拒绝 |
+| `RecordingMiddleware` | 把每次调用上报给一个或多个 `Recorder` | 从不拒绝 |
+| `MetricsMiddleware` | 无标签的内存计数 | 从不拒绝 |
 | `ErrorHandlingMiddleware` | 用操作名包装端点错误 | 从不拒绝 |
 | `TracingMiddleware` | W3C trace context 传播 | 从不拒绝 |
-| `BackpressureMiddleware` | 全局在途请求上限（背压） | 429 |
-| `CircuitBreaker` | 连续失败使熔断器跳闸，探针使其闭合 | 429 |
-| `RateLimitMiddleware` | 拒绝超限请求（限流） | 429 |
+| `BackpressureMiddleware` | 全局在途请求上限（背压） | 503 unavailable |
+| `CircuitBreaker` | 连续失败使熔断器跳闸，探针使其闭合 | 503 unavailable + `Retry-After` |
+| `RateLimitMiddleware` | 拒绝超限请求（限流） | 429 too many requests |
 | `DelayRateLimitMiddleware` | 等待令牌而非拒绝 | context 错误 |
+| `RetryMiddleware` | 对瞬时失败带退避重试 | 返回最后一次错误 |
 | `Fallback` | 失败时用降级兜底端点应答 | 兜底也失败时合并两个错误 |
-| `BulkheadMiddleware` | 按 key 的并发隔离（舱壁隔离） | 429 |
+| `BulkheadMiddleware` | 按 key 的并发隔离（舱壁隔离） | 503 unavailable |
 
-`Fallback` 与 `BulkheadMiddleware` 是 Builder 快捷方式（`WithFallback`、
-`WithBulkhead`）；其余的用 `Use` 组合。
+限流用 429，因为是调用方超出了自己的配额；熔断跳闸、舱壁占满与背压用 503，
+因为此时是服务在卸载负载。完整映射见 [错误处理](errors_zh.md)。
+
+目录中的每个中间件都有 Builder 快捷方式（`WithValidation`、`WithTimeout`、
+`WithRecording`、`WithRateLimit`、`WithCircuitBreaker`、`WithRetry`、
+`WithFallback`、`WithBulkhead`、`WithBackpressure`、`WithTracing`、
+`WithErrorHandling`），因此 `Use` 只在自定义中间件时才需要。
+
+## 重试瞬时失败
+
+`RetryMiddleware` 在错误可重试时重复调用。默认分类器重试
+`apperror.KindUnavailable`，以及通过 `interface{ Retryable() bool }` 自行分类的
+错误；它不重试 context 错误、本地拒绝（熔断跳闸、限流、舱壁、背压）以及未分类
+错误。默认退避为指数退避加全抖动；若错误自带重试提示（`RetryAfterReporter`，
+HTTP 客户端会从 `Retry-After` 响应头填充），该提示优先于本地退避。
+
+幂等性由调用方负责——只包裹重复调用安全的端点。把重试放在熔断器内侧，这样
+依赖故障只会让熔断器跳闸一次，而不是每次尝试都记一次：
+
+```go
+ep := endpoint.NewBuilder(callDependency).
+    WithCircuitBreaker(breaker).
+    WithRetry(3).
+    Build()
+```
+
+同一套组合也适用于对外调用，因为客户端本身就是 endpoint，见
+[错误处理](errors_zh.md)。
+
+## 记录指标
+
+`RecordingMiddleware` 为每次调用计时，并把 `endpoint.Observation`（操作名、
+耗时、错误）交给每个 `endpoint.Recorder`。实现 `Recorder` 即可对接 Prometheus
+或 OpenTelemetry；内置的 `endpoint.Metrics` 收集器按操作维度保存内存计数并同时
+维护总量。
+
+`kit.WithMetrics` 与 `kit.WithRecorder` 会自动完成接线，并用路由 pattern 作为
+每条路由的标签：
+
+```go
+var metrics endpoint.Metrics
+component, err := kit.NewHTTP(":8080",
+    kit.WithMetrics(&metrics),
+    kit.WithRecorder(promRecorder),
+)
+// metrics.SnapshotFor("POST /users") 只报告该路由。
+```
+
+记录位于最外层，因此被限流或熔断拒绝的请求同样会被计入。
 
 ## 调试链路
 

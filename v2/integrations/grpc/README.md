@@ -46,6 +46,21 @@ host, err := kit.NewHost(kit.WithLifecycle(httpComponent, grpcComponent))
 
 Errors are mapped to gRPC status codes through `DefaultErrorEncoder`, which
 classifies `apperror` kinds (NotFound, InvalidArgument, Unauthenticated, ...).
+The stable application code travels in a `google.rpc.ErrorInfo` detail and a
+retry hint in `google.rpc.RetryInfo`, so neither is lost the way a status code
+alone would lose them. `NewErrorEncoder` configures both concerns:
+
+```go
+grpcserver.ServerErrorEncoder(grpcserver.NewErrorEncoder(
+	grpcserver.WithErrorDomain("greeter.example.com"),
+	grpcserver.WithKindMapper(func(kind string) codes.Code {
+		if kind == "payment_failed" {
+			return codes.FailedPrecondition
+		}
+		return codes.Code(99) // invalid: fall back to the built-in mapping
+	}),
+))
+```
 
 ## Client
 
@@ -71,7 +86,27 @@ call := grpcclient.NewClient(
 `ClientBefore`/`ClientAfter` hooks manage metadata; `ClientFinalizer` always
 runs for observability.
 
-## Retry Classification
+## Error Classification And Retry
+
+The client wraps every failed `Invoke` in `grpc.StatusError`. It stays a gRPC
+error — `status.FromError` and `status.Code` keep working — and adds the
+framework contracts: `ErrorKindName` maps the code to a transport-neutral kind
+(`grpc.KindNameForCode`, the inverse of `grpcserver.CodeForErrorKind`), `Retryable`
+reports whether the code is transient, `ErrorCode`/`ErrorDomain` read the
+`google.rpc.ErrorInfo` detail so the upstream application code is not lost, and
+`RetryAfter` reads the `google.rpc.RetryInfo` detail. A gRPC client endpoint
+therefore composes with the core middleware with no extra wiring:
+
+```go
+ep := endpoint.NewBuilder(call.Endpoint()).
+    WithCircuitBreaker(breaker).
+    WithRetry(3). // Unavailable/ResourceExhausted/Aborted, honoring RetryInfo
+    Build()
+```
+
+Translate before relaying: a dependency's `NotFound` would otherwise make your
+own handler answer 404 —
+`apperror.WrapCause(apperror.KindUnavailable, "upstream.greeter", err)`.
 
 `grpc.Retryable` classifies transient gRPC statuses (Unavailable,
 ResourceExhausted, Aborted) for `sd/retry`. Pass it as the retryable classifier

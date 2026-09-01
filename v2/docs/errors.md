@@ -68,26 +68,131 @@ built-in mapping; the transports derive it from
 | `KindConflict` | 409 | Aborted |
 | `KindFailedPrecondition` | 412 | FailedPrecondition |
 | `KindResourceExhausted` | 429 | ResourceExhausted |
+| `KindCanceled` | 499 | Canceled |
 | `KindInternal` | 500 | Internal |
+| `KindUnimplemented` | 501 | Unimplemented |
 | `KindUnavailable` | 503 | Unavailable |
 | `KindDeadlineExceeded` | 504 | DeadlineExceeded |
 | unclassified | 500 | Internal (opaque to clients) |
 
-Two error groups are mapped without being classified:
+499 is the non-standard "Client Closed Request" status from nginx, also used by
+gRPC-gateway. `server.StatusClientClosedRequest` names it. It keeps client
+disconnects out of the 5xx rate.
 
-- The endpoint rejection errors (`ErrRateLimited`, `ErrCircuitOpen`,
-  `ErrBulkheadFull`, `ErrBackpressure`) encode as 429.
-- An unclassified `context.DeadlineExceeded` — what `TimeoutMiddleware`
-  surfaces when an endpoint runs out of time — encodes as 504, matching
-  `KindDeadlineExceeded`. Explicit classification wins: an `apperror` that
-  wraps a deadline keeps its own kind.
+The endpoint rejection errors classify themselves, so both transports derive
+the same meaning from them:
+
+| Rejection error | Kind | HTTP status |
+| --- | --- | --- |
+| `ErrRateLimited` | `KindResourceExhausted` | 429 |
+| `ErrCircuitOpen` | `KindUnavailable` | 503 |
+| `ErrBulkheadFull` | `KindUnavailable` | 503 |
+| `ErrBackpressure` | `KindUnavailable` | 503 |
+
+Rate limiting blames the caller's quota (429); a tripped breaker or a shed load
+means the service or its dependency is unavailable (503), the same distinction
+Envoy and Resilience4j make.
+
+Unclassified context errors map like their kinds, so a timeout or a disconnect
+reads the same whether the endpoint classified it or not:
+
+- `context.DeadlineExceeded` — what `TimeoutMiddleware` surfaces — encodes as
+  504, like `KindDeadlineExceeded`.
+- `context.Canceled` encodes as 499, like `KindCanceled`.
+
+Explicit classification wins: an `apperror` that wraps a context error keeps
+its own kind.
+
+### Retry hints
+
+An error can tell the client how long to wait by implementing
+`endpoint.RetryAfterReporter`. `endpoint.NewRetryAfterError(err, delay)` adds
+the hint without changing the error's identity, so `errors.Is` and the
+classification still work.
+
+The HTTP encoders turn it into a `Retry-After` header (seconds, rounded up);
+the gRPC encoder attaches `google.rpc.RetryInfo` to the status. An open circuit
+breaker reports the time left in its open window automatically, and a
+`RateLimiter` that implements `RetryAfterReporter` has its delay attached to
+`ErrRateLimited`.
+
+`RetryMiddleware` reads the same contract in the other direction: when the
+failure reports a hint, that hint replaces the local backoff schedule, capped by
+`endpoint.MaxRetryAfterHint` so a hostile peer cannot park a caller that has no
+deadline of its own.
+
+### Client-side classification
+
+A client call is an endpoint, so the same middleware has to understand its
+errors. `client.HTTPStatusError` classifies itself: it implements
+`apperror.Kinder` by mapping the response status back to a kind
+(`client.KindForStatus`), and `RetryAfterReporter` by parsing the `Retry-After`
+response header (both delay-seconds and HTTP-date forms). One consequence is
+that `WithRetry` works on a client endpoint with no custom classifier:
+
+```go
+call, _ := client.NewJSONClient[UserResp](http.MethodGet, "https://api/users/1")
+ep := endpoint.NewBuilder(call).
+    WithTimeout(2 * time.Second).
+    WithCircuitBreaker(breaker).
+    WithRetry(3). // 503/502 retried, 400/404 not, server Retry-After honored
+    Build()
+```
+
+Translate deliberately before returning an upstream error to your own callers.
+An unchanged upstream `KindNotFound` makes your handler answer 404 for a
+dependency's missing record:
+
+```go
+if _, err := call(ctx, req); err != nil {
+    return apperror.WrapCause(apperror.KindUnavailable, "upstream.users", err)
+}
+```
+
+The gRPC client is symmetric: it wraps a failed call in `grpc.StatusError`,
+which maps the code to a kind (`grpc.KindNameForCode`) and reports the
+`google.rpc.RetryInfo` delay, while `status.FromError` keeps working.
+
+`DefaultRetryable` also honors the optional `interface{ Retryable() bool }`
+contract, which lets a custom client error decide for itself. Precedence is:
+context errors and local admission-control rejections are never retried, then
+`Retryable()`, then `apperror.KindUnavailable`.
+
+## The stable code, not the status, identifies the failure
+
+A status code is a coarse channel — a few dozen values that cannot carry
+business meaning and cannot evolve. The stable application code does that job,
+so every transport carries it out of band from the status:
+
+- HTTP: in the body, as `{"code": "user.missing", ...}`.
+- gRPC: in a `google.rpc.ErrorInfo` detail, as `reason`, following AIP-193.
+  `NewErrorEncoder(WithErrorDomain("users.example.com"))` sets the `domain` that
+  owns those codes.
+
+Both client sides read it back, so the code survives a relay instead of
+degrading into a status-derived name:
+
+- `client.HTTPStatusError.ErrorCode()` parses the JSON body.
+- `grpc.StatusError.ErrorCode()` reads the `ErrorInfo` reason, and
+  `ErrorDomain()` its domain.
+
+Because `HTTPStatusError` and `StatusError` satisfy
+`transport/http.ErrorCoder`, an unchanged relay reproduces the upstream code:
+
+```go
+// upstream answers 404 {"code":"user.missing"}
+// this service answers 404 {"code":"user.missing"} too
+```
+
+The upstream *message* is deliberately not relayed as a public message: it
+belongs to another service's contract. Set your own with `PublicMessage`.
 
 ## Automatic status mapping
 
 The transports map kinds to statuses with the table above; no business code
 touches protocol types. `server.HTTPStatusForError` exposes the whole rule set
-(including `StatusCoder`, rejection errors, and context deadlines) so custom
-encoders reuse it instead of duplicating it.
+(including `StatusCoder` and unclassified context errors) so custom encoders
+reuse it instead of duplicating it.
 
 The default JSON error body is:
 

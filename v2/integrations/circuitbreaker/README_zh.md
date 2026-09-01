@@ -18,7 +18,8 @@ ep := endpoint.NewBuilder(callDependency).Use(breaker.Middleware()).Build()
 ```
 
 熔断器开启时用 `ErrCircuitOpen` 拒绝调用，窗口过后放行一个探测请求。
-`ErrCircuitOpen` 在 HTTP 中编码为 429。
+`ErrCircuitOpen` 自带 `apperror.KindUnavailable` 分类，因此在 HTTP 中编码为
+503，并把开窗剩余时间作为 `Retry-After` 上报。
 
 ## 设置
 

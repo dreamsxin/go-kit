@@ -28,7 +28,7 @@ type RateLimiter interface {
 }
 ```
 
-固定窗口桶或令牌桶由应用持有。`RateLimiterFunc` 适配器让普通函数也能
+固定窗口桶或令牌桶由应用持有。`RateLimiterFuncs` 适配器让普通函数也能
 作为限流器。
 
 ## 分布式限流

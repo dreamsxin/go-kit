@@ -49,7 +49,7 @@ func NewExplicitClient(req EncodeRequestFunc, dec DecodeResponseFunc, options ..
 }
 
 func (c Client) Endpoint() endpoint.Endpoint {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
+	return func(ctx context.Context, request any) (any, error) {
 		ctx, cancel := context.WithCancel(ctx)
 
 		var (

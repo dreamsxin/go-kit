@@ -77,7 +77,7 @@ func NewClient(
 }
 
 func (c Client) Endpoint() endpoint.Endpoint {
-	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+	return func(ctx context.Context, request any) (response any, err error) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
@@ -111,7 +111,10 @@ func (c Client) Endpoint() endpoint.Endpoint {
 			ctx, c.method, req, grpcReply, grpc.Header(&header),
 			grpc.Trailer(&trailer),
 		); err != nil {
-			return nil, err
+			// Classify the status so the shared endpoint middleware (retry,
+			// circuit breaker, logging) and the HTTP encoders read it the same
+			// way they read a server-side error.
+			return nil, transportgrpc.ClassifyError(err)
 		}
 
 		ctx = context.WithValue(ctx, transportgrpc.ContextKeyResponseHeaders, header)

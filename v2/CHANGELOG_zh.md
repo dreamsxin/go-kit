@@ -3,7 +3,7 @@
 
 所有重要的 v2 变更都记录在这里。旧历史仍可通过不可变的 v0 和 v1 标签获取。
 
-## [未发布]
+## [2.7.0] - 2026-09-01
 
 ### 新增
 
@@ -13,11 +13,74 @@
 - MIGRATION 记录从旧版 go-kit（v0/v1 风格）迁移到 v2 的构造映射与推荐顺序。
 - `server.AccessLogMiddleware`：传输边界的标准库访问日志（方法、路径、状态码、字节数、耗时、trace ID），经 `kit.WithHTTPMiddleware` 安装。
 - 中间件章节记录各横切关注点（日志、追踪、指标、错误）在 service、endpoint、transport 三层的规范位置。
-- 新增排障章节（双语）：按症状排查——request_id/trace_id 请求关联、状态码成因（含 429 的四种来源）、启动失败、就绪失败、数据库连接池设置、日志配置与调试开关。配置章节新增完整的生成配置段参考。
+- 新增排障章节（双语）：按症状排查——request_id/trace_id 请求关联、状态码成因（含请求被哪种保护拒绝）、启动失败、就绪失败、数据库连接池设置、日志配置与调试开关。配置章节新增完整的生成配置段参考。
 - 新增自定义章节（双语）：选择日志去向（文件存储、多目标写入、轮转指引）、编写自定义端点与 HTTP 中间件及安装位置表、错误自定义决策表。
+- `endpoint.Recorder` 与 `endpoint.Observation`：指标扩展点。
+  `RecordingMiddleware(operation, recorders...)` 为每次调用计时并按操作标签
+  上报，因此对接 Prometheus 或 OpenTelemetry 只需实现一个接口，不必再改中间件。
+  `endpoint.Metrics` 实现了 `Recorder`，并新增 `SnapshotFor` 与 `Operations`
+  用于读取按操作维度的数据，总量读取方式不变。
+- `kit.WithRecorder` 注册外部 recorder；它与 `kit.WithMetrics` 都会用路由
+  pattern 标注每次观测，因此 `metrics.SnapshotFor("POST /users")` 只报告该路由。
+- `endpoint.RetryMiddleware`（Builder：`WithRetry`）：以指数退避加全抖动重试
+  瞬时失败。`DefaultRetryable` 重试 `apperror.KindUnavailable` 以及通过
+  `interface{ Retryable() bool }` 自行分类的错误，不重试 context 错误、本地拒绝
+  与未分类错误；`WithRetryable` 与 `WithRetryBackoff` 可分别替换这两项策略。
+  错误自带的重试提示优先于退避计划，上限为 `endpoint.MaxRetryAfterHint`。
+- `client.HTTPStatusError` 现在自带分类，因此客户端 endpoint 可与服务端 endpoint
+  共用同一套中间件。它通过把响应状态码反查为 kind（导出为
+  `client.KindForStatus`）实现 `apperror.Kinder`，并通过解析 `Retry-After` 响应头
+  （秒数与 HTTP-date 两种形式）实现 `endpoint.RetryAfterReporter`。客户端 endpoint
+  上的 `WithRetry` 不再需要自定义分类器；转发上游 503 时也会保持状态码，而不再退化
+  为 500。
+- `grpc.StatusError`、`grpc.ClassifyError` 与 `grpc.KindNameForCode` 让 gRPC
+  客户端获得同等能力：客户端会包装失败的 `Invoke`，使错误上报 kind 名称、
+  `Retryable` 与 `google.rpc.RetryInfo` 中的延迟，同时 `status.FromError` 与
+  `status.Code` 照常可用。
+- `grpcserver.NewErrorEncoder` 配合 `WithKindMapper` 与 `WithErrorDomain`，用一个
+  基于 option 的工厂取代不断增长的编码器构造函数。稳定业务码现在按 AIP-193 放在
+  `google.rpc.ErrorInfo` detail 中（与既有的 `RetryInfo` 并列），因此 gRPC 这一跳
+  不再像以前那样丢掉业务码——HTTP 消息体一直是携带它的。
+  `ErrorEncoderWithKindMapper` 保留为简写。
+- `grpc.StatusError.ErrorCode` 与 `ErrorDomain` 把该 `ErrorInfo` 读回，
+  `client.HTTPStatusError.ErrorCode` 解析 JSON 消息体中的 `code`。两者都满足
+  `transport/http.ErrorCoder`，因此原样转发上游错误会复现上游业务码，而不是按状态码
+  生成的名字。上游 message 有意不作为可公开消息转发。
+- `endpoint.RetryAfterReporter`、`endpoint.RetryAfterError` 与
+  `endpoint.NewRetryAfterError`：传输无关的重试提示。HTTP 编码器写出
+  `Retry-After`，gRPC 编码器附加 `google.rpc.RetryInfo`。熔断器打开时上报开窗
+  剩余时间；实现了该接口的 `RateLimiter` 的延迟会附加到 `ErrRateLimited`。
+- `apperror.KindCanceled`（HTTP 499 / gRPC Canceled）与
+  `apperror.KindUnimplemented`（HTTP 501 / gRPC Unimplemented），以及对应构造
+  函数。`server.StatusClientClosedRequest` 为非标准的 499 提供命名常量。
+- 补齐目录中其余中间件的 Builder 快捷方式：`WithRateLimit`、
+  `WithDelayRateLimit`、`WithCircuitBreaker`、`WithRecording`、`WithRetry`。
 
 ### 变更
 
+- **破坏性：** endpoint 层的拒绝错误现在通过 `apperror` 自带分类，HTTP 编码器
+  不再对它们做特殊处理。`ErrRateLimited` 仍是 429（`KindResourceExhausted`），
+  但 `ErrCircuitOpen`、`ErrBulkheadFull`、`ErrBackpressure` 从 429 改为 503
+  （`KindUnavailable`）：卸载负载是服务端状况，不是调用方配额问题，Envoy 与
+  Resilience4j 也是这样表达的。gRPC 适配器此前把这四个错误全部映射为
+  `Internal`，现在与 HTTP 一致。此前把熔断当作 429 处理的客户端需要接受 503。
+- **破坏性：** `endpoint.RateLimiterFunc` 改名为 `RateLimiterFuncs`。它是两个
+  函数组成的结构体而非函数类型，复数名称更贴合其形态，也让 `XxxFunc` 约定继续
+  表示"函数类型"。
+- **破坏性：** 从 handler 原样返回的 `client.HTTPStatusError` 现在按上游状态码
+  编码（依赖返回 404 就回 404），不再一律 500，因为该错误已自带分类。当上游失败
+  对你的调用方含义不同时，请显式转译：
+  `apperror.WrapCause(apperror.KindUnavailable, "upstream.users", err)`。
+- HTTP 错误编码器在缺少 `apperror.Kinder` 时改用 `apperror.KindNamer` 解析错误
+  kind，因此为避免依赖 `apperror` 而采用结构式分类的模块（例如 gRPC 集成）会映射到
+  正确状态码，而不再一律 500。gRPC 编码器本就是这样工作的。
+- HTTP 错误编码器把未分类的 `context.Canceled` 映射为 499 而不再是 500，使
+  客户端断连不再计入 5xx。gRPC 适配器本就把它映射为 `Canceled`。
+- `kit.WithMetrics` 现在把收集器作为带路由标签的 recorder 安装在链的最外层，
+  而不是按 option 顺序插入中间件，因此被限流或熔断拒绝的请求同样会被计入。
+- `DecodeRequestFunc`、`EncodeResponseFunc`、`EncodeRequestFunc`、
+  `DecodeResponseFunc`、`ServeGRPC` 与 `Interceptor` 的动态参数改写为 `any`
+  而非 `interface{}`。两者类型完全相同，调用点无需改动。
 - HTTP 错误编码器把未分类的 `context.DeadlineExceeded` 映射为 504 而不再是
   500，使 `TimeoutMiddleware` 造成的端点超时与 `apperror.KindDeadlineExceeded`
   以及 gRPC 适配器（本就把 context 超时映射为 `DeadlineExceeded`）保持一致。

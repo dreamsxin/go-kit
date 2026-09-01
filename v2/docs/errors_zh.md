@@ -65,24 +65,118 @@ func (s todoService) Get(ctx context.Context, id int64) (Todo, error) {
 | `KindConflict` | 409 | Aborted |
 | `KindFailedPrecondition` | 412 | FailedPrecondition |
 | `KindResourceExhausted` | 429 | ResourceExhausted |
+| `KindCanceled` | 499 | Canceled |
 | `KindInternal` | 500 | Internal |
+| `KindUnimplemented` | 501 | Unimplemented |
 | `KindUnavailable` | 503 | Unavailable |
 | `KindDeadlineExceeded` | 504 | DeadlineExceeded |
 | 未分类 | 500 | Internal（对客户端不透明） |
 
-有两组错误不经分类也会被映射：
+499 是 nginx 的非标准状态码 "Client Closed Request"，gRPC-gateway 也用它。
+常量为 `server.StatusClientClosedRequest`。用它可以把客户端断连排除在 5xx
+错误率之外。
 
-- endpoint 层的拒绝错误（`ErrRateLimited`、`ErrCircuitOpen`、
-  `ErrBulkheadFull`、`ErrBackpressure`）编码为 429。
-- 未分类的 `context.DeadlineExceeded`——也就是端点超时时
-  `TimeoutMiddleware` 暴露出来的错误——编码为 504，与 `KindDeadlineExceeded`
-  一致。显式分类优先：包裹了超时原因的 `apperror` 仍按自己的 kind 映射。
+endpoint 层的拒绝错误自带分类，因此两种传输从它们得到一致的语义：
+
+| 拒绝错误 | Kind | HTTP 状态码 |
+| --- | --- | --- |
+| `ErrRateLimited` | `KindResourceExhausted` | 429 |
+| `ErrCircuitOpen` | `KindUnavailable` | 503 |
+| `ErrBulkheadFull` | `KindUnavailable` | 503 |
+| `ErrBackpressure` | `KindUnavailable` | 503 |
+
+限流是调用方超出了自己的配额（429）；熔断打开或过载卸载说明服务或其依赖不可用
+（503）。Envoy 与 Resilience4j 做的是同样的区分。
+
+未分类的 context 错误按对应 kind 映射，这样超时和断连无论是否显式分类都表现
+一致：
+
+- `context.DeadlineExceeded`——即 `TimeoutMiddleware` 暴露出来的错误——编码为
+  504，与 `KindDeadlineExceeded` 一致。
+- `context.Canceled` 编码为 499，与 `KindCanceled` 一致。
+
+显式分类优先：包裹了 context 错误的 `apperror` 仍按自己的 kind 映射。
+
+### 重试提示
+
+错误可以通过实现 `endpoint.RetryAfterReporter` 告知客户端需要等待多久。
+`endpoint.NewRetryAfterError(err, delay)` 在不改变错误身份的前提下附加该提示，
+`errors.Is` 与分类信息都保持可用。
+
+HTTP 编码器会把它写成 `Retry-After` 头（单位秒，向上取整）；gRPC 编码器会在
+status 上附加 `google.rpc.RetryInfo`。熔断器打开时会自动上报开窗剩余时间；
+实现了 `RetryAfterReporter` 的 `RateLimiter` 的延迟会被附加到 `ErrRateLimited`
+上。
+
+`RetryMiddleware` 反向读取同一契约：错误带提示时，该提示取代本地退避计划，并以
+`endpoint.MaxRetryAfterHint` 封顶，避免恶意对端把没有自带 deadline 的调用方长
+时间挂住。
+
+### 客户端分类
+
+客户端调用本身就是 endpoint，因此同一套中间件必须能理解它的错误。
+`client.HTTPStatusError` 自己完成分类：通过把响应状态码反查为 kind
+（`client.KindForStatus`）实现 `apperror.Kinder`，通过解析 `Retry-After` 响应头
+（同时支持秒数与 HTTP-date 两种形式）实现 `RetryAfterReporter`。由此 `WithRetry`
+无需自定义分类器即可用于客户端 endpoint：
+
+```go
+call, _ := client.NewJSONClient[UserResp](http.MethodGet, "https://api/users/1")
+ep := endpoint.NewBuilder(call).
+    WithTimeout(2 * time.Second).
+    WithCircuitBreaker(breaker).
+    WithRetry(3). // 重试 503/502，不重试 400/404，并遵循服务端的 Retry-After
+    Build()
+```
+
+把上游错误返回给自己的调用方之前要显式转译。原样透传上游的 `KindNotFound` 会让
+你的 handler 因为依赖缺记录而回 404：
+
+```go
+if _, err := call(ctx, req); err != nil {
+    return apperror.WrapCause(apperror.KindUnavailable, "upstream.users", err)
+}
+```
+
+gRPC 客户端是对称的：失败调用会被包装为 `grpc.StatusError`，它把状态码映射为 kind
+（`grpc.KindNameForCode`）并上报 `google.rpc.RetryInfo` 中的延迟，同时
+`status.FromError` 照常可用。
+
+`DefaultRetryable` 同时识别可选契约 `interface{ Retryable() bool }`，让自定义客户端
+错误自行决定。优先级为：context 错误与本地准入拒绝永不重试，其次 `Retryable()`，
+最后 `apperror.KindUnavailable`。
+
+## 标识失败的是稳定业务码，不是状态码
+
+状态码是粗粒度信道——只有几十个取值，承载不了业务语义，也无法演进。这份工作由稳定
+业务码承担，因此每种传输都在状态码之外单独携带它：
+
+- HTTP：放在消息体里，形如 `{"code": "user.missing", ...}`。
+- gRPC：按 AIP-193 放在 `google.rpc.ErrorInfo` detail 的 `reason` 字段。
+  `NewErrorEncoder(WithErrorDomain("users.example.com"))` 设置这些码所属的 `domain`。
+
+两侧客户端都会把它读回来，于是转发时业务码不会退化成按状态码生成的名字：
+
+- `client.HTTPStatusError.ErrorCode()` 解析 JSON 消息体。
+- `grpc.StatusError.ErrorCode()` 读取 `ErrorInfo` 的 reason，`ErrorDomain()` 读取其
+  domain。
+
+由于 `HTTPStatusError` 与 `StatusError` 都满足 `transport/http.ErrorCoder`，原样转发
+会复现上游的业务码：
+
+```go
+// 上游返回 404 {"code":"user.missing"}
+// 本服务同样返回 404 {"code":"user.missing"}
+```
+
+上游的 *message* 有意不作为可公开消息转发：它属于另一个服务的契约。要对外说明请用
+`PublicMessage` 写自己的。
 
 ## 自动状态码映射
 
 传输层按上表把 kind 映射为状态码；业务代码不接触任何协议类型。
-`server.HTTPStatusForError` 暴露完整规则（含 `StatusCoder`、拒绝错误与
-context 超时），自定义编码器应复用它而不是重复实现。
+`server.HTTPStatusForError` 暴露完整规则（含 `StatusCoder` 与未分类的 context
+错误），自定义编码器应复用它而不是重复实现。
 
 默认的 JSON 错误体为：
 

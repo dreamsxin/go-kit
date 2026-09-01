@@ -19,6 +19,8 @@ const (
 	KindResourceExhausted  Kind = "resource_exhausted"
 	KindUnavailable        Kind = "unavailable"
 	KindDeadlineExceeded   Kind = "deadline_exceeded"
+	KindCanceled           Kind = "canceled"
+	KindUnimplemented      Kind = "unimplemented"
 )
 
 // Kinder is implemented by errors that expose a transport-neutral Kind.
@@ -120,6 +122,19 @@ func Unavailable(code, message string) *Error {
 // (HTTP 504 / gRPC DeadlineExceeded).
 func DeadlineExceeded(code, message string) *Error {
 	return New(KindDeadlineExceeded, code, message)
+}
+
+// Canceled creates a KindCanceled error (HTTP 499 / gRPC Canceled). Use it
+// when the caller went away; the 499 status follows the nginx and
+// gRPC-gateway convention and keeps client disconnects out of the 5xx rate.
+func Canceled(code, message string) *Error {
+	return New(KindCanceled, code, message)
+}
+
+// Unimplemented creates a KindUnimplemented error
+// (HTTP 501 / gRPC Unimplemented).
+func Unimplemented(code, message string) *Error {
+	return New(KindUnimplemented, code, message)
 }
 
 func (e *Error) Error() string {

@@ -60,12 +60,13 @@ type Middleware func(Endpoint) Endpoint
 - `NewTypedBuilder`
 - `Chain`
 - `TimeoutMiddleware`
-- `MetricsMiddleware`
+- `RecordingMiddleware` / `MetricsMiddleware`
 - `ErrorHandlingMiddleware`
 - `TracingMiddleware`
 - `BackpressureMiddleware`
 - `NewCircuitBreaker`
 - `RateLimitMiddleware` / `DelayRateLimitMiddleware`
+- `RetryMiddleware`
 - `Unwrap`
 
 相关扩展包：
@@ -83,18 +84,24 @@ builder API 是组合端点行为的推荐默认方式。
 var metrics endpoint.Metrics
 
 ep := endpoint.NewBuilder(base).
-    WithMetrics(&metrics).
+    WithRecording("POST /users", &metrics).
     WithErrorHandling("CreateUser").
     WithTimeout(5 * time.Second).
-    Use(endpoint.NewCircuitBreaker().Middleware()).
-    Use(endpoint.RateLimitMiddleware(limiter)).
+    WithCircuitBreaker(endpoint.NewCircuitBreaker()).
+    WithRateLimit(limiter).
     Build()
 
-snapshot := metrics.Snapshot()
+snapshot := metrics.SnapshotFor("POST /users")
 fmt.Println(snapshot.RequestCount, snapshot.ErrorCount, snapshot.AverageDuration())
 ```
 
-每次并发读取都应使用 `Snapshot`。它返回 `MetricsSnapshot`，一个可以安全复制的无锁值。收集器的导出字段仍保留可用以保持源码兼容，但在中间件更新收集器时读取它们会构成数据竞争。
+读取收集器有三个入口：`Snapshot`（总量）、`SnapshotFor`（单个操作）、
+`Operations`（已记录的标签）。它们都返回可安全复制的分离值；收集器自身的计数
+字段未导出，由内部加锁保护。
+
+若要把同一批观测导出到别处，实现 `endpoint.Recorder` 并把它与内存收集器一起
+（或替代它）传给 `RecordingMiddleware`。`Metrics` 有意只保存计数与耗时总量；
+直方图与时间序列属于指标后端的职责。
 
 为什么优先选择 builder：
 
@@ -205,6 +212,7 @@ typed := endpoint.Unwrap[HelloReq, HelloResp](
 
 `endpoint` 中的核心中间件：
 
+- `RecordingMiddleware`
 - `MetricsMiddleware`
 - `ErrorHandlingMiddleware`
 - `TimeoutMiddleware`
@@ -216,12 +224,22 @@ typed := endpoint.Unwrap[HelloReq, HelloResp](
 - `CircuitBreaker`
 - `RateLimitMiddleware`
 - `DelayRateLimitMiddleware`
+- `RetryMiddleware`
 
 `CircuitBreaker` 是 endpoint 包内置的无依赖熔断器：连续失败会触发开启，
-开启期间用 `ErrCircuitOpen`（HTTP 429）拒绝调用，窗口过后的探测请求决定
-是否恢复。限流由 `RateLimitMiddleware`（拒绝）与 `DelayRateLimitMiddleware`
-（等待）承载，基于应用自有的 `RateLimiter` 契约；`ErrRateLimited` 同样
-编码为 429。
+开启期间用 `ErrCircuitOpen`（HTTP 503，并把开窗剩余时间作为 `Retry-After`
+上报）拒绝调用，窗口过后的探测请求决定是否恢复。限流由
+`RateLimitMiddleware`（拒绝）与 `DelayRateLimitMiddleware`（等待）承载，
+基于应用自有的 `RateLimiter` 契约；`ErrRateLimited` 编码为 429，因为这是
+调用方超出了自己的配额。
+
+`RetryMiddleware` 以指数退避加全抖动重试瞬时失败。默认分类器重试
+`apperror.KindUnavailable`，以及通过 `interface{ Retryable() bool }` 自行分类的
+错误——不重试 context 错误、本地拒绝与未分类错误；错误自带的重试提示
+（`RetryAfterReporter`）优先于退避计划，上限为 `MaxRetryAfterHint`；幂等性由调用方
+负责。传输层客户端同样是 `Endpoint`，因此同一套组合也适用于对外调用：
+`transport/http/client.HTTPStatusError` 按状态码自我分类，并上报服务端的
+`Retry-After`。
 
 `TracingMiddleware` 使用 W3C Trace Context 格式。它会在同一个 trace ID 下加入传入的
 `TraceContext`（由 `transport/http.ExtractTraceparent` 从 `traceparent` 头部提取），
@@ -250,7 +268,7 @@ ep := endpoint.NewBuilder(createUser).WithValidation().Build()
 调用方 context 已结束时它跳过兜底——取消不是依赖故障；兜底也失败时它合并两个
 错误，主故障原因仍可通过 `errors.Is` 取到。
 `BulkheadMiddleware` 按资源键（租户、依赖）限制并发，这样一个慢的键无法像全局
-`BackpressureMiddleware` 计数那样耗尽共享预算；两种拒绝错误都编码为 HTTP 429。
+`BackpressureMiddleware` 计数那样耗尽共享预算；两种拒绝错误都编码为 HTTP 503。
 舱壁隔离的键必须保持有界，因为每个键在端点的生命周期内都占有一个槽位池：
 
 ```go
@@ -269,10 +287,14 @@ ep = zapadapter.LoggingMiddleware(logger, "CreateUser")(ep)
 
 这使核心 `endpoint` 的导入图仅限于 Go 标准库与零依赖的 `apperror` 包。
 
-熔断与限流已内置于核心包，不持有第三方依赖：
+熔断、限流与重试已内置于核心包，不持有第三方依赖：
 
 - `NewCircuitBreaker`（`.Middleware()`）在熔断开启时用 `ErrCircuitOpen` 拒绝调用，并通过探测请求恢复。
 - `RateLimitMiddleware` 超限时用 `ErrRateLimited` 拒绝；`DelayRateLimitMiddleware` 等待令牌，并遵循 context 取消。限流器实现 `RateLimiter` 契约，由应用持有。
+- `RetryMiddleware` 对瞬时失败带退避重试；分类器与退避策略均可替换。
+
+所有拒绝错误都通过 `apperror` 自带分类，因此 HTTP 与 gRPC 无需对这些 sentinel
+值做特殊处理即可得到一致的状态。
 
 ## 什么属于 `endpoint`
 

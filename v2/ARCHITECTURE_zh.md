@@ -64,8 +64,10 @@ Transport request
 `endpoint` 定义与传输无关的请求函数，以及标准库中间件组合、超时与指标。
 供应商相关的日志、限流与熔断保持为显式适配器。
 
-`Metrics` 是由中间件持有的采集器。它的计数器不导出且由内部锁保护，唯一的
-读取路径是 `Snapshot()`，它返回无锁、可复制的 `MetricsSnapshot` 值。
+`Recorder` 是指标扩展点：`RecordingMiddleware` 把每次调用的 `Observation`
+（操作名、耗时、错误）交给它，任何后端桥接都只是该接口的一个实现。`Metrics`
+是内置的内存采集器，其计数器不导出且由内部锁保护，读取入口为 `Snapshot()`、
+`SnapshotFor(operation)` 与 `Operations()`，都返回无锁、可复制的值。
 
 Endpoint 中间件观察业务调用结果，不应从 HTTP 状态码或 gRPC 线上细节
 推断错误。

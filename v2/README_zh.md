@@ -249,9 +249,10 @@ Server-Sent Events 流使用 `kit.HandleSSETyped` 注册，使 endpoint 中间�
 原生流处理器使用 `HTTP.HandleSSE`。
 `HTTP.Handle` 和 `HTTP.HandleFunc` 仅用于原生 HTTP 集成。
 
-`endpoint.Metrics` 是 middleware 写入的采集器。它的计数器不导出且由内部锁
-保护，唯一的读取路径是 `Snapshot()`，返回可复制的
-`endpoint.MetricsSnapshot`；平均耗时使用 `AverageDuration()`。
+`endpoint.Metrics` 是 `RecordingMiddleware` 写入的内置采集器。它的计数器不导出
+且由内部锁保护，读取入口为 `Snapshot()`（总量）、`SnapshotFor(operation)`
+（单条路由）与 `Operations()`；平均耗时使用 `AverageDuration()`。要把同一批观测
+导出到外部后端，实现 `endpoint.Recorder` 并通过 `kit.WithRecorder` 注册。
 
 ## 组件
 

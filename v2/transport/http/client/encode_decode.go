@@ -15,15 +15,15 @@ import (
 // EncodeRequestFunc encodes a domain request value into an *http.Request.
 // The req parameter may be nil; implementations should create a new request
 // in that case.
-type EncodeRequestFunc func(context.Context, *http.Request, interface{}) (*http.Request, error)
+type EncodeRequestFunc func(context.Context, *http.Request, any) (*http.Request, error)
 
 // DecodeResponseFunc decodes an *http.Response into a domain response value.
-type DecodeResponseFunc func(context.Context, *http.Response) (response interface{}, err error)
+type DecodeResponseFunc func(context.Context, *http.Response) (response any, err error)
 
 // EncodeJSONRequest JSON-encodes the request body and sets Content-Type to
 // application/json. If the request implements transporthttp.Headerer, those
 // headers are also added.
-func EncodeJSONRequest(c context.Context, req *http.Request, request interface{}) (*http.Request, error) {
+func EncodeJSONRequest(c context.Context, req *http.Request, request any) (*http.Request, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
@@ -36,7 +36,7 @@ func EncodeJSONRequest(c context.Context, req *http.Request, request interface{}
 
 // EncodeQueryRequest encodes request fields into URL path placeholders and
 // query parameters. It does not create an HTTP request body.
-func EncodeQueryRequest(_ context.Context, req *http.Request, request interface{}) (*http.Request, error) {
+func EncodeQueryRequest(_ context.Context, req *http.Request, request any) (*http.Request, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
@@ -55,7 +55,7 @@ func EncodeQueryRequest(_ context.Context, req *http.Request, request interface{
 	return req, nil
 }
 
-func applyRequestHeaders(req *http.Request, request interface{}) {
+func applyRequestHeaders(req *http.Request, request any) {
 	if headerer, ok := request.(transporthttp.Headerer); ok {
 		headers := headerer.Headers()
 		for k := range headers {

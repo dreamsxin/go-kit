@@ -2,12 +2,8 @@ package endpoint
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 )
-
-// ErrBackpressure is returned when the concurrency limit is exceeded.
-var ErrBackpressure = errors.New("too many concurrent requests")
 
 // BackpressureMiddleware returns a Middleware that limits the number of
 // concurrent in-flight requests to max.  When the limit is reached, new
@@ -32,6 +28,11 @@ func BackpressureMiddleware(max int64) Middleware {
 			return next(ctx, request)
 		}
 	}
+}
+
+// WithBackpressure appends a BackpressureMiddleware to the Builder.
+func (b *Builder) WithBackpressure(max int64) *Builder {
+	return b.UseNamed("backpressure", BackpressureMiddleware(max))
 }
 
 // InFlightMiddleware is like BackpressureMiddleware but also exposes the

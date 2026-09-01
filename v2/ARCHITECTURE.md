@@ -72,9 +72,12 @@ few lines of endpoint wiring.
 library middleware composition, timeout, and metrics. Provider-specific
 logging, rate limiting, and circuit breaking remain explicit adapters.
 
-`Metrics` is the collector owned by middleware. Its counters are unexported and
-guarded internally, so the only read path is `Snapshot()`, which returns the
-lock-free, copyable `MetricsSnapshot` value.
+`Recorder` is the metrics extension point: `RecordingMiddleware` hands every
+call an `Observation` (operation, duration, error), and any backend bridge is an
+implementation of that interface. `Metrics` is the built-in in-memory collector.
+Its counters are unexported and guarded internally, so the read paths are
+`Snapshot()`, `SnapshotFor(operation)`, and `Operations()`, each returning
+lock-free, copyable values.
 
 Endpoint middleware observes business call results. It should not infer errors
 from HTTP status codes or gRPC wire details.

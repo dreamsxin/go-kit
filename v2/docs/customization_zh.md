@@ -143,8 +143,64 @@ svc, err := kit.NewHTTP(":8080",
 | 分类业务失败 | `apperror.New/Wrap(kind, code, message)` | service 层 |
 | 校验请求字段 | `endpoint.Validatable` + `WithValidation()` | 请求类型 + builder |
 | 自定义种类 + 自定义状态码 | `server.JSONErrorEncoderWithKindMapper`（HTTP）/ `grpcserver.ErrorEncoderWithKindMapper`（gRPC） | 装配处 |
-| 自定义线上格式/信封 | `server.ServerErrorEncoder` | 装配处 |
+| 自定义线上格式/信封 | `server.ServerErrorEncoder` + `server.ServerResponseEncoder` | 装配处 |
+| 所有 JSON 路由统一信封 | `kit.WithJSONServerOptions` | 装配处 |
 | 与内置映射组合 | `server.HTTPStatusForError` / `HTTPStatusForErrorKind` | 自定义编码器 |
 
 经验法则：在 service 层用 `apperror` 分类；业务代码绝不返回协议类型；4xx 携
 带公开消息，5xx 保持不透明；重试决策属于调用方，只重试已分类且幂等的失败。
+
+### 用 `{code, msg, data}` 信封包装响应
+
+有些团队规范要求固定信封与数字业务码。两个钩子即可覆盖——成功路径用
+`server.ServerResponseEncoder`，错误路径用 `server.ServerErrorEncoder`——再用
+`kit.WithJSONServerOptions` 一次性装到所有 JSON 路由上：
+
+```go
+type envelope struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data any    `json:"data,omitempty"`
+}
+
+func encodeEnvelope(_ context.Context, w http.ResponseWriter, response any) error {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	return json.NewEncoder(w).Encode(envelope{Code: 0, Msg: "ok", Data: response})
+}
+
+func encodeEnvelopeError(ctx context.Context, err error, w http.ResponseWriter) {
+	status := server.HTTPStatusForError(err) // 复用框架映射
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status) // 状态码仍然写在头上
+	_ = json.NewEncoder(w).Encode(envelope{
+		Code: businessCode(err, status),
+		Msg:  publicMessage(err, status),
+	})
+}
+
+svc := kit.MustNewHTTP(":8080", kit.WithJSONServerOptions(
+	server.ServerResponseEncoder(encodeEnvelope),
+	server.ServerErrorEncoder(encodeEnvelopeError),
+))
+```
+
+路由级 option 覆盖服务级，因此需要保持裸格式的路由，给 `kit.HandleJSON*` 传
+`server.ServerResponseEncoder(server.EncodeJSONResponse)` 即可。
+
+三件必须做对的事：
+
+- **状态码留在头上。** `HTTPStatusForError` 给出的就是内置编码器用的那套映射，
+  含 `StatusCoder`、apperror kind 与 context 错误。回 `200 {"code": 40401}` 会
+  同时打坏缓存、网关重试、`WithRetry`、5xx 告警与负载均衡健康检查——它们只看状态码。
+- **数字码从分类推导，不要从状态码推导。** 用一张表把
+  `transporthttp.ErrorCoder`（`apperror` 的稳定码）映射到你的数字空间；service 层的
+  `apperror` 不动。
+- **5xx 必须脱敏。** `status >= 500` 时不要回显 `err.Error()`，按 `JSONErrorEncoder`
+  的做法给固定文案。
+
+一个取舍：`client.HTTPStatusError.ErrorCode()` 读的是消息体里字符串型的 `code`，
+因此数字信封会让服务间自动透传业务码失效。基于状态码的分类、重试与 `Retry-After`
+处理都照常工作，只有业务码需要你自己做一次转译。
+
+流式路由不适用：信封无法包裹 SSE 流，`HandleSSE` 自行写帧。
+

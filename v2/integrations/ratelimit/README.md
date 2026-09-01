@@ -31,7 +31,9 @@ type RateLimiter interface {
 ```
 
 A fixed-window bucket or token bucket is application owned. The
-`RateLimiterFunc` adapter lets plain functions act as a limiter.
+`RateLimiterFuncs` adapter lets plain functions act as a limiter. A limiter that
+also implements `endpoint.RetryAfterReporter` has its delay attached to
+`ErrRateLimited`, which the HTTP transport emits as `Retry-After`.
 
 ## Distributed Rate Limiting
 

@@ -55,19 +55,39 @@ func TestWrappedValidationErrorEncodesAs400(t *testing.T) {
 	}
 }
 
-func TestRejectionErrorsEncodeAs429(t *testing.T) {
-	cases := []error{
-		endpoint.ErrBackpressure,
-		endpoint.ErrBulkheadFull,
-		endpoint.ErrCircuitOpen,
-		endpoint.ErrRateLimited,
+func TestRejectionErrorsEncodeByClassification(t *testing.T) {
+	cases := []struct {
+		err  error
+		want int
+	}{
+		{endpoint.ErrBackpressure, http.StatusServiceUnavailable},
+		{endpoint.ErrBulkheadFull, http.StatusServiceUnavailable},
+		{endpoint.ErrCircuitOpen, http.StatusServiceUnavailable},
+		{endpoint.ErrRateLimited, http.StatusTooManyRequests},
 	}
-	for _, err := range cases {
+	for _, tc := range cases {
 		rec := httptest.NewRecorder()
-		server.JSONErrorEncoder(context.Background(), err, rec)
-		if rec.Code != http.StatusTooManyRequests {
-			t.Errorf("%v: status %d, want 429", err, rec.Code)
+		server.JSONErrorEncoder(context.Background(), tc.err, rec)
+		if rec.Code != tc.want {
+			t.Errorf("%v: status %d, want %d", tc.err, rec.Code, tc.want)
 		}
+	}
+}
+
+func TestRetryAfterErrorEmitsHeader(t *testing.T) {
+	err := endpoint.NewRetryAfterError(endpoint.ErrCircuitOpen, 2500*time.Millisecond)
+
+	rec := httptest.NewRecorder()
+	server.JSONErrorEncoder(context.Background(), err, rec)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status: got %d, want 503", rec.Code)
+	}
+	if got := rec.Header().Get("Retry-After"); got != "3" {
+		t.Errorf("Retry-After: got %q, want 3", got)
+	}
+	if !errors.Is(err, endpoint.ErrCircuitOpen) {
+		t.Error("wrapping must preserve errors.Is identity")
 	}
 }
 
@@ -78,17 +98,48 @@ func TestHTTPStatusForErrorReusesFrameworkMapping(t *testing.T) {
 	}{
 		{apperror.New(apperror.KindNotFound, "x", "missing"), http.StatusNotFound},
 		{apperror.New(apperror.KindInvalidArgument, "x", "bad"), http.StatusBadRequest},
+		{apperror.Canceled("x", "caller went away"), server.StatusClientClosedRequest},
+		{apperror.Unimplemented("x", "not built yet"), http.StatusNotImplemented},
 		{endpoint.NewValidationError("name", "required"), http.StatusBadRequest},
 		{endpoint.ErrRateLimited, http.StatusTooManyRequests},
-		{endpoint.ErrCircuitOpen, http.StatusTooManyRequests},
+		{endpoint.ErrCircuitOpen, http.StatusServiceUnavailable},
+		{endpoint.NewRetryAfterError(endpoint.ErrRateLimited, time.Second), http.StatusTooManyRequests},
 		{context.DeadlineExceeded, http.StatusGatewayTimeout},
 		{fmt.Errorf("call dependency: %w", context.DeadlineExceeded), http.StatusGatewayTimeout},
+		{context.Canceled, server.StatusClientClosedRequest},
+		{fmt.Errorf("read body: %w", context.Canceled), server.StatusClientClosedRequest},
 		{apperror.Wrap(apperror.KindUnavailable, "dep.down", "dependency unavailable", context.DeadlineExceeded), http.StatusServiceUnavailable},
 		{errors.New("plain"), http.StatusInternalServerError},
 	}
 	for _, tc := range cases {
 		if got := server.HTTPStatusForError(tc.err); got != tc.want {
 			t.Errorf("%v: got %d, want %d", tc.err, got, tc.want)
+		}
+	}
+}
+
+// structurallyClassifiedError mimics an optional module that classifies through
+// the minimal KindNamer contract instead of importing apperror, such as the gRPC
+// integration's client errors.
+type structurallyClassifiedError struct{ kind string }
+
+func (e structurallyClassifiedError) Error() string         { return e.kind }
+func (e structurallyClassifiedError) ErrorKindName() string { return e.kind }
+
+func TestHTTPStatusForErrorHonorsKindNamer(t *testing.T) {
+	cases := []struct {
+		kind string
+		want int
+	}{
+		{"unavailable", http.StatusServiceUnavailable},
+		{"not_found", http.StatusNotFound},
+		{"resource_exhausted", http.StatusTooManyRequests},
+		{"unknown_to_the_framework", http.StatusInternalServerError},
+	}
+	for _, tc := range cases {
+		err := structurallyClassifiedError{kind: tc.kind}
+		if got := server.HTTPStatusForError(err); got != tc.want {
+			t.Errorf("kind %q: got %d, want %d", tc.kind, got, tc.want)
 		}
 	}
 }

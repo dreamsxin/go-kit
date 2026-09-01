@@ -30,6 +30,7 @@ type HTTP struct {
 	httpMiddleware     []func(http.Handler) http.Handler
 	middleware         []endpoint.Middleware
 	metrics            *endpoint.Metrics
+	recorders          []endpoint.Recorder
 	httpConfig         HTTPServerConfig
 	requestID          bool
 	requestIDValidator RequestIDValidator
@@ -195,11 +196,18 @@ func (h *HTTP) HandleFunc(pattern string, fn http.HandlerFunc) {
 	h.Handle(pattern, fn)
 }
 
-func (h *HTTP) applyEndpointMiddleware(base endpoint.Endpoint) endpoint.Endpoint {
-	if len(h.middleware) == 0 {
+// applyEndpointMiddleware wraps base with the component-level endpoint
+// middleware. Recording is applied outermost and labeled with operation, so
+// each route reports its own numbers and the measurement covers the whole
+// chain, including rejections from rate limiting or a circuit breaker.
+func (h *HTTP) applyEndpointMiddleware(operation string, base endpoint.Endpoint) endpoint.Endpoint {
+	if len(h.middleware) == 0 && len(h.recorders) == 0 {
 		return base
 	}
 	b := endpoint.NewBuilder(base)
+	if len(h.recorders) > 0 {
+		b = b.WithRecording(operation, h.recorders...)
+	}
 	for _, mw := range h.middleware {
 		b = b.Use(mw)
 	}

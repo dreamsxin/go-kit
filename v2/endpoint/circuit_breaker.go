@@ -126,6 +126,15 @@ func (cb *CircuitBreaker) State() BreakerState {
 	return cb.state
 }
 
+// WithCircuitBreaker appends breaker.Middleware to the Builder. It panics when
+// breaker is nil so misassembly fails at startup.
+func (b *Builder) WithCircuitBreaker(breaker *CircuitBreaker) *Builder {
+	if breaker == nil {
+		panic("endpoint: circuit breaker cannot be nil")
+	}
+	return b.UseNamed("circuit_breaker", breaker.Middleware())
+}
+
 func (cb *CircuitBreaker) beforeRequest() error {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
@@ -135,7 +144,7 @@ func (cb *CircuitBreaker) beforeRequest() error {
 		return nil
 	case BreakerOpen:
 		if cb.now().Sub(cb.openedAt) < cb.settings.OpenTimeout {
-			return ErrCircuitOpen
+			return cb.openRejection()
 		}
 		// Window elapsed: probing may begin.
 		cb.state = BreakerHalfOpen
@@ -151,6 +160,13 @@ func (cb *CircuitBreaker) beforeRequest() error {
 	default:
 		return ErrCircuitOpen
 	}
+}
+
+// openRejection reports ErrCircuitOpen with the time left in the open window,
+// so transports can emit a Retry-After hint. The caller must hold cb.mu.
+func (cb *CircuitBreaker) openRejection() error {
+	remaining := cb.settings.OpenTimeout - cb.now().Sub(cb.openedAt)
+	return NewRetryAfterError(ErrCircuitOpen, remaining)
 }
 
 func (cb *CircuitBreaker) afterRequest(err error) {

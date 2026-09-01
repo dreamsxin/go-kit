@@ -171,7 +171,7 @@ func TestNewCircuitBreaker_NonPositiveSettingsUseDefaults(t *testing.T) {
 
 func TestRateLimitMiddleware_RejectsOverLimit(t *testing.T) {
 	calls := 0
-	limiter := endpoint.RateLimiterFunc{
+	limiter := endpoint.RateLimiterFuncs{
 		AllowFn: func() bool { return calls == 0 },
 	}
 	ep := endpoint.RateLimitMiddleware(limiter)(
@@ -190,7 +190,7 @@ func TestRateLimitMiddleware_RejectsOverLimit(t *testing.T) {
 }
 
 func TestDelayRateLimitMiddleware_WaitsAndAbortsOnCancel(t *testing.T) {
-	limiter := endpoint.RateLimiterFunc{
+	limiter := endpoint.RateLimiterFuncs{
 		WaitFn: func(ctx context.Context) error {
 			select {
 			case <-ctx.Done():

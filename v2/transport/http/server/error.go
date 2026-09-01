@@ -4,13 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 )
+
+// StatusClientClosedRequest is the non-standard 499 status used when the caller
+// disconnects or cancels before the response is written. It follows the nginx
+// and gRPC-gateway convention and keeps client disconnects out of the 5xx rate.
+const StatusClientClosedRequest = 499
 
 // ErrorEncoder writes an endpoint or transport error to an HTTP response.
 type ErrorEncoder func(ctx context.Context, err error, w http.ResponseWriter)
@@ -28,7 +35,7 @@ type ErrorResponse struct {
 func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 	status := httpStatus(err)
 	contentType := "text/plain; charset=utf-8"
-	body := []byte(http.StatusText(status))
+	body := []byte(statusText(status))
 	if status < http.StatusInternalServerError && err != nil {
 		body = []byte(err.Error())
 		var marshaler json.Marshaler
@@ -47,6 +54,7 @@ func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 			}
 		}
 	}
+	applyRetryAfter(w, err)
 	w.WriteHeader(status)
 	_, _ = w.Write(body)
 }
@@ -101,15 +109,29 @@ func JSONErrorEncoderWithKindMapper(mapper func(apperror.Kind) int) ErrorEncoder
 }
 
 func statusWithMapper(err error, mapper func(apperror.Kind) int) int {
-	var kinder apperror.Kinder
-	if !errors.As(err, &kinder) {
+	kind, ok := errorKind(err)
+	if !ok {
 		return 0
 	}
-	status := mapper(kinder.ErrorKind())
+	status := mapper(kind)
 	if status < 100 || status > 999 {
 		return 0
 	}
 	return status
+}
+
+// errorKind reads the classification from either the typed apperror.Kinder
+// contract or the minimal apperror.KindNamer contract.
+func errorKind(err error) (apperror.Kind, bool) {
+	var kinder apperror.Kinder
+	if errors.As(err, &kinder) {
+		return kinder.ErrorKind(), true
+	}
+	var namer apperror.KindNamer
+	if errors.As(err, &namer) {
+		return apperror.Kind(namer.ErrorKindName()), true
+	}
+	return "", false
 }
 
 func encodeJSONErrorWithStatus(ctx context.Context, err error, w http.ResponseWriter, status int) {
@@ -124,7 +146,7 @@ func encodeJSONErrorWithStatus(ctx context.Context, err error, w http.ResponseWr
 		}
 	}
 
-	message := http.StatusText(status)
+	message := statusText(status)
 	if message == "" {
 		message = "HTTP error"
 	}
@@ -145,6 +167,7 @@ func encodeJSONErrorWithStatus(ctx context.Context, err error, w http.ResponseWr
 		errorCode = ec.ErrorCode()
 	}
 
+	applyRetryAfter(w, err)
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(ErrorResponse{
 		Code:      errorCode,
@@ -171,7 +194,7 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 
 	code := httpStatus(err)
 
-	message := http.StatusText(code)
+	message := statusText(code)
 	if message == "" {
 		message = "HTTP error"
 	}
@@ -192,6 +215,7 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 		errorCode = ec.ErrorCode()
 	}
 
+	applyRetryAfter(w, err)
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(ErrorResponse{
 		Code:      errorCode,
@@ -201,12 +225,11 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 }
 
 // HTTPStatusForError returns the HTTP status the built-in error encoders use
-// for err, honoring StatusCoder, the rejection errors
-// (ErrBackpressure, ErrBulkheadFull, ErrCircuitOpen, ErrRateLimited),
-// apperror kinds (endpoint.ValidationError classifies itself as
-// invalid_argument through apperror.Kinder), and unclassified
-// context.DeadlineExceeded (504). Custom error encoders should reuse it
-// instead of duplicating the mapping.
+// for err, honoring StatusCoder, apperror kinds (through either apperror.Kinder
+// or the minimal apperror.KindNamer contract; the endpoint rejection errors and
+// endpoint.ValidationError classify themselves), and unclassified context
+// errors (context.DeadlineExceeded is 504, context.Canceled is 499). Custom
+// error encoders should reuse it instead of duplicating the mapping.
 func HTTPStatusForError(err error) int {
 	return httpStatus(err)
 }
@@ -219,21 +242,18 @@ func httpStatus(err error) int {
 		}
 	}
 
-	if errors.Is(err, endpoint.ErrBackpressure) || errors.Is(err, endpoint.ErrBulkheadFull) || errors.Is(err, endpoint.ErrCircuitOpen) || errors.Is(err, endpoint.ErrRateLimited) {
-		return http.StatusTooManyRequests
+	if kind, ok := errorKind(err); ok {
+		return statusForErrorKind(kind)
 	}
 
-	var kinder apperror.Kinder
-	if errors.As(err, &kinder) {
-		return statusForErrorKind(kinder.ErrorKind())
-	}
-
-	// An unclassified context deadline maps like apperror.KindDeadlineExceeded
-	// so TimeoutMiddleware and an explicitly classified timeout agree on 504,
-	// matching the canonical DEADLINE_EXCEEDED -> 504 mapping the gRPC adapter
-	// already uses. Explicit classification still wins over this fallback.
-	if errors.Is(err, context.DeadlineExceeded) {
+	// Unclassified context errors map like their apperror kinds so a timeout
+	// or a client disconnect reads the same whether the endpoint classified it
+	// or not. Explicit classification still wins over these fallbacks.
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
 		return http.StatusGatewayTimeout
+	case errors.Is(err, context.Canceled):
+		return StatusClientClosedRequest
 	}
 	return http.StatusInternalServerError
 }
@@ -264,13 +284,47 @@ func statusForErrorKind(kind apperror.Kind) int {
 		return http.StatusServiceUnavailable
 	case apperror.KindDeadlineExceeded:
 		return http.StatusGatewayTimeout
+	case apperror.KindCanceled:
+		return StatusClientClosedRequest
+	case apperror.KindUnimplemented:
+		return http.StatusNotImplemented
 	default:
 		return http.StatusInternalServerError
 	}
 }
 
+// statusText is http.StatusText extended with the non-standard statuses this
+// package emits, so error bodies never fall back to a generic message.
+func statusText(status int) string {
+	if status == StatusClientClosedRequest {
+		return "Client Closed Request"
+	}
+	return http.StatusText(status)
+}
+
+// applyRetryAfter emits a Retry-After header when the error knows how long the
+// client should wait. An explicit Headerer value already on the response wins.
+func applyRetryAfter(w http.ResponseWriter, err error) {
+	if w.Header().Get("Retry-After") != "" {
+		return
+	}
+	var reporter endpoint.RetryAfterReporter
+	if !errors.As(err, &reporter) {
+		return
+	}
+	after := reporter.RetryAfter()
+	if after <= 0 {
+		return
+	}
+	seconds := int(math.Ceil(after.Seconds()))
+	if seconds < 1 {
+		seconds = 1
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(seconds))
+}
+
 func defaultErrorCode(status int) string {
-	text := http.StatusText(status)
+	text := statusText(status)
 	if text == "" {
 		return "http_error"
 	}

@@ -16,9 +16,9 @@ order; the first middleware is the outermost:
 ep := endpoint.NewBuilder(createUser).
     WithValidation().
     WithTimeout(5 * time.Second).
-    WithMetrics(&metrics).
-    Use(endpoint.RateLimitMiddleware(limiter)).
-    Use(breaker.Middleware()).
+    WithRecording("POST /users", &metrics).
+    WithRateLimit(limiter).
+    WithCircuitBreaker(breaker).
     Build()
 ```
 
@@ -40,7 +40,7 @@ layer:
 | --- | --- | --- | --- |
 | Logging | stays clean; reads correlation IDs from the context | `slogadapter.LoggingMiddleware`, `integrations/zap`, or `slogadapter.NewTelemetry` | `server.AccessLogMiddleware` for protocol facts; `ServerErrorHandler` records failures |
 | Tracing | the context carries trace and request IDs | `TracingMiddleware` (W3C correlation), `oteladapter.TracingMiddleware` (spans) | `transporthttp.ExtractTraceparent` / `InjectTraceparent` header propagation |
-| Metrics | — | `MetricsMiddleware`, `oteladapter.NewMetrics` | access-log status/bytes; `ServerFinalizer` hooks |
+| Metrics | — | `RecordingMiddleware` with any `Recorder`, `oteladapter.NewMetrics` | access-log status/bytes; `ServerFinalizer` hooks |
 | Errors | returns `apperror` classifications | `ErrorHandlingMiddleware` attaches the operation name; `ValidationMiddleware` short-circuits | `ErrorEncoder` maps kinds to statuses; `ErrorHandler` observes |
 
 Placement rules:
@@ -63,8 +63,8 @@ of the chain runs. Four patterns cover the practical cases:
 | --- | --- | --- |
 | Short-circuit | Answer without calling `next` | validation, bulkhead, backpressure |
 | Branch | Send the request to a different endpoint | `Fallback` |
-| Repeat | Call `next` again with backoff | `sd/retry` |
-| Replace | Wrap `next` with different behavior | `TimeoutMiddleware`, `MetricsMiddleware` |
+| Repeat | Call `next` again with backoff | `RetryMiddleware`, `sd/retry` |
+| Replace | Wrap `next` with different behavior | `TimeoutMiddleware`, `RecordingMiddleware` |
 
 The chain is fixed at construction; middleware cannot rewire routes at runtime.
 That keeps request paths deterministic and testable.
@@ -75,18 +75,74 @@ That keeps request paths deterministic and testable.
 | --- | --- | --- |
 | `ValidationMiddleware` | validates `Validatable` requests | 400 `bad_request.validation` |
 | `TimeoutMiddleware` | bounded endpoint duration | 504 gateway timeout |
-| `MetricsMiddleware` | request count and duration | never rejects |
+| `RecordingMiddleware` | reports each call to one or more `Recorder`s | never rejects |
+| `MetricsMiddleware` | unlabeled in-memory counters | never rejects |
 | `ErrorHandlingMiddleware` | wraps endpoint errors with the operation name | never rejects |
 | `TracingMiddleware` | W3C trace context propagation | never rejects |
-| `BackpressureMiddleware` | global in-flight cap | 429 |
-| `CircuitBreaker` | consecutive failures trip the breaker, probe closes it | 429 |
-| `RateLimitMiddleware` | reject over-limit requests | 429 |
+| `BackpressureMiddleware` | global in-flight cap | 503 unavailable |
+| `CircuitBreaker` | consecutive failures trip the breaker, probe closes it | 503 unavailable + `Retry-After` |
+| `RateLimitMiddleware` | reject over-limit requests | 429 too many requests |
 | `DelayRateLimitMiddleware` | wait for a token instead of rejecting | context error |
+| `RetryMiddleware` | repeat transient failures with backoff | returns the last error |
 | `Fallback` | answer with a fallback endpoint on failure | joins both errors when the fallback fails too |
-| `BulkheadMiddleware` | per-key concurrency isolation | 429 |
+| `BulkheadMiddleware` | per-key concurrency isolation | 503 unavailable |
 
-`Fallback` and `BulkheadMiddleware` are Builder shortcuts
-(`WithFallback`, `WithBulkhead`); the rest are composed with `Use`.
+Rate limiting rejects with 429 because the caller exceeded its quota; a tripped
+breaker, a full bulkhead, and backpressure reject with 503 because the service
+is shedding load. See [errors](errors.md) for the full mapping.
+
+Every middleware in the catalog has a Builder shortcut (`WithValidation`,
+`WithTimeout`, `WithRecording`, `WithRateLimit`, `WithCircuitBreaker`,
+`WithRetry`, `WithFallback`, `WithBulkhead`, `WithBackpressure`,
+`WithTracing`, `WithErrorHandling`), so `Use` is only needed for custom
+middleware.
+
+## Retrying transient failures
+
+`RetryMiddleware` repeats a call while the error is retryable. The default
+classifier retries `apperror.KindUnavailable` and any error that classifies
+itself through `interface{ Retryable() bool }`; it never retries context
+errors, local rejections (a tripped breaker, rate limit, bulkhead,
+backpressure), or unclassified errors. The default schedule is exponential
+backoff with full jitter, and a retry hint reported by the error
+(`RetryAfterReporter`, which the HTTP client fills from the `Retry-After`
+response header) takes precedence over it.
+
+The caller owns idempotency — only wrap endpoints where a repeat is safe. Put
+retry inside the breaker so a failing dependency trips it once, not once per
+attempt:
+
+```go
+ep := endpoint.NewBuilder(callDependency).
+    WithCircuitBreaker(breaker).
+    WithRetry(3).
+    Build()
+```
+
+The same stack works for outbound calls, because a client is an endpoint too;
+see [errors](errors.md#client-side-classification).
+
+## Recording metrics
+
+`RecordingMiddleware` times each call and hands an `endpoint.Observation`
+(operation, duration, error) to every `endpoint.Recorder`. Implement `Recorder`
+to bridge to Prometheus or OpenTelemetry; the built-in `endpoint.Metrics`
+collector keeps in-memory counters per operation plus a total.
+
+`kit.WithMetrics` and `kit.WithRecorder` wire this automatically and label each
+route with its pattern:
+
+```go
+var metrics endpoint.Metrics
+component, err := kit.NewHTTP(":8080",
+    kit.WithMetrics(&metrics),
+    kit.WithRecorder(promRecorder),
+)
+// metrics.SnapshotFor("POST /users") reports that route alone.
+```
+
+Recording is applied outermost, so it also measures requests that a rate limit
+or a breaker rejects.
 
 ## Debugging the chain
 

@@ -2,15 +2,15 @@ package endpoint
 
 import (
 	"context"
-	"errors"
 )
-
-// ErrRateLimited is returned when the rate limiter rejects the request.
-var ErrRateLimited = errors.New("rate limit exceeded")
 
 // RateLimiter admits or delays requests. Implementations such as a token
 // bucket are application owned; the endpoint package defines only the
 // contract and the two middleware adapters.
+//
+// A RateLimiter may also implement RetryAfterReporter. RateLimitMiddleware
+// then attaches the reported delay to ErrRateLimited so transports can emit a
+// Retry-After hint.
 type RateLimiter interface {
 	// Allow reports whether a request may proceed immediately.
 	Allow() bool
@@ -18,14 +18,15 @@ type RateLimiter interface {
 	Wait(ctx context.Context) error
 }
 
-// RateLimiterFunc adapts a function pair to RateLimiter.
-type RateLimiterFunc struct {
+// RateLimiterFuncs adapts a pair of functions to RateLimiter. A nil field
+// behaves as an unlimited limiter for that operation.
+type RateLimiterFuncs struct {
 	AllowFn func() bool
 	WaitFn  func(ctx context.Context) error
 }
 
 // Allow implements RateLimiter.
-func (f RateLimiterFunc) Allow() bool {
+func (f RateLimiterFuncs) Allow() bool {
 	if f.AllowFn == nil {
 		return true
 	}
@@ -33,7 +34,7 @@ func (f RateLimiterFunc) Allow() bool {
 }
 
 // Wait implements RateLimiter.
-func (f RateLimiterFunc) Wait(ctx context.Context) error {
+func (f RateLimiterFuncs) Wait(ctx context.Context) error {
 	if f.WaitFn == nil {
 		return nil
 	}
@@ -58,7 +59,7 @@ func RateLimitMiddleware(limit RateLimiter) Middleware {
 	return func(next Endpoint) Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			if !limit.Allow() {
-				return nil, ErrRateLimited
+				return nil, withReportedRetryAfter(ErrRateLimited, limit)
 			}
 			return next(ctx, request)
 		}
@@ -80,4 +81,14 @@ func DelayRateLimitMiddleware(limit RateLimiter) Middleware {
 			return next(ctx, request)
 		}
 	}
+}
+
+// WithRateLimit appends a RateLimitMiddleware to the Builder.
+func (b *Builder) WithRateLimit(limit RateLimiter) *Builder {
+	return b.UseNamed("rate_limit", RateLimitMiddleware(limit))
+}
+
+// WithDelayRateLimit appends a DelayRateLimitMiddleware to the Builder.
+func (b *Builder) WithDelayRateLimit(limit RateLimiter) *Builder {
+	return b.UseNamed("delay_rate_limit", DelayRateLimitMiddleware(limit))
 }

@@ -12,7 +12,7 @@ import (
 type RequestFunc func(context.Context, *http.Request) context.Context
 
 func makeCreateRequestFunc(method string, target *url.URL, enc EncodeRequestFunc) EncodeRequestFunc {
-	return func(ctx context.Context, req *http.Request, request interface{}) (*http.Request, error) {
+	return func(ctx context.Context, req *http.Request, request any) (*http.Request, error) {
 		if req == nil {
 			_req, err := http.NewRequest(method, target.String(), nil)
 			if err != nil {

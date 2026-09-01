@@ -65,23 +65,28 @@ host, _ := kit.NewHost(kit.WithLifecycle(svc))
 | 403 | 授权拒绝（`KindPermissionDenied`） | `security.RequireRole` / 应用策略 |
 | 404 | 路由或方法不匹配 | Go mux 模式区分方法（`"POST /x"` ≠ `"GET /x"`）；查 `/debug/routes` |
 | 409 / 412 | `KindConflict` / `KindFailedPrecondition` | 业务状态冲突 |
-| 429 | 四种保护之一触发 | 见下一节 |
+| 429 | 限流拒绝了调用方 | 核对限流器预算；限流器已知等待时长时会带 `Retry-After` |
+| 499 | 客户端断连或取消 | `KindCanceled` 或未分类的 `context.Canceled`——不是服务端故障 |
 | 500 | 未分类错误 | 响应中内部细节已脱敏——经错误处理器查日志 |
-| 503 / 504 | `KindUnavailable` / `KindDeadlineExceeded` | 下游依赖或 `TimeoutMiddleware` |
+| 501 | `KindUnimplemented` | 路由存在但操作尚未实现 |
+| 503 | `KindUnavailable`，或三种卸载负载的保护之一 | 见下一节 |
+| 504 | `KindDeadlineExceeded` 或 `TimeoutMiddleware` | 下游依赖过慢 |
 
-## 429 是哪种保护触发的？
+## 请求是被哪种保护拒绝的？
 
-四种端点中间件都以 429 拒绝。用配置内容与指标区分：
+限流返回 429（调用方超出了自己的配额）。另外三种保护返回 503，因为此时是服务
+在卸载负载。用配置内容与指标区分：
 
-| 来源 | 中间件 | 判别信号 |
-| --- | --- | --- |
-| 限流 | `RateLimitMiddleware` | 持续超量流量；核对限流器预算 |
-| 熔断 | `CircuitBreaker` | 连续失败后开启——真正的问题是失败的依赖；熔断器 `State()` 显示 open/half-open |
-| 舱壁 | `BulkheadMiddleware` | 某个 key 占满了它的并发槽 |
-| 背压 | `BackpressureMiddleware` | 全局在途上限；整个服务已饱和 |
+| 来源 | 中间件 | 状态码 | 判别信号 |
+| --- | --- | --- | --- |
+| 限流 | `RateLimitMiddleware` | 429 | 持续超量流量；核对限流器预算 |
+| 熔断 | `CircuitBreaker` | 503 | 连续失败后开启——真正的问题是失败的依赖；熔断器 `State()` 显示 open/half-open，`Retry-After` 给出开窗剩余时间 |
+| 舱壁 | `BulkheadMiddleware` | 503 | 某个 key 占满了它的并发槽 |
+| 背压 | `BackpressureMiddleware` | 503 | 全局在途上限；整个服务已饱和 |
 
-`endpoint.Metrics.Snapshot()` 按链统计错误；`endpoint.Builder.Describe()`
-在启动时打印链顺序，可以确认某条路由装配了哪些保护。
+`endpoint.Metrics.SnapshotFor(pattern)` 按路由统计错误，`Snapshot()` 给出总量；
+`endpoint.Builder.Describe()` 在启动时打印链顺序，可以确认某条路由装配了哪些
+保护。
 
 ## 数据库问题（生成服务）
 
