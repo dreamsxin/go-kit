@@ -5,7 +5,13 @@
 根 `sd` 包拥有协议无关的契约——`Instance`、`Event`、`Instancer`、`Registrar`、
 `Balancer`、`Match` 与 `ErrNoEndpoints`——以及各层共用的标签读取函数。具体组件
 位于职责聚焦的子包中，可以独立使用：`sd/instance`、`sd/endpointer`、
-`sd/selector`、`sd/balancer`、`sd/retry`、`sd/feedback`、`sd/client`。
+`sd/selector`、`sd/balancer`、`sd/retry`、`sd/feedback`、`sd/health`、
+`sd/client`。
+
+本文是这些包的 API 参考。若想了解它们如何组合成一条完整的出向链路——每一层的
+归属、`Pick`/`Done`/`Outcome` 的生命周期、provider 选择、长连接、关闭顺序以及
+排障对照表——请阅读[服务发现与路由](../docs/service-discovery_zh.md)。
+
 
 ## 快速开始（无需 Consul）
 
@@ -395,9 +401,8 @@ ep := endpointer.NewEndpointer(checked, factory, logger)
 两个有意的选择：实例在首次探测完成前按健康对待（用
 `WithInitiallyHealthy(false)` 反转）；而当**所有实例都已探测过**且无一通过时，
 checker 会原样发布未经检查的集合而不是空集——探针自己坏了不能把整个服务变成
-黑洞。这两者不冲突：fail-open 要求每个实例都真的有过探测结果，所以配合
-`WithInitiallyHealthy(false)` 时，第一轮探测落地之前什么都不会发布。
-`Close` 停止探测并从上游注销，但不会关闭上游。
+黑洞。fail-open 只有在每个实例都真的有过探测结果后才生效，因此未探测实例会保持隐藏，
+已经通过探测的实例仍可继续使用。`Close` 停止探测并从上游注销，但不会关闭上游。
 
 
 
@@ -410,11 +415,10 @@ Instancer → [health.Check] → Endpointer → [Filter] → Balancer → Retry 
                                               feedback.Table + Ejector
 ```
 
+两条装配路径，共用一套策略；不自己发请求的调用方到第一行为止。每一层各自拥有
+什么、不该拥有什么，见
+[服务发现与路由](../docs/service-discovery_zh.md#请求链路)。
 
-两条装配路径，共用一套策略。每一层只有一件事要做：instancer 监听注册中心，
-endpointer 把实例变成端点（factory 在这里决定如何连接），可选的过滤器收窄
-集合，策略挑一个，retry 决定要不要再挑一次，调用的结果再回灌进下一次选择
-所读的表。不自己发请求的调用方到第一行为止。
 
 ```go
 // Manual assembly (full control)
@@ -481,5 +485,7 @@ defer func() { _ = registrar.Deregister() }()
 
 ## 另请参阅
 
+- [服务发现与路由](../docs/service-discovery_zh.md) — 这些包如何组合，以及生产
+  与排障建议
 - `examples/sd/` — 覆盖每个 sd 组件的可运行演示
 - `examples/profilesvc/client/` — 基于 Consul 的客户端示例

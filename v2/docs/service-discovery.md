@@ -1,0 +1,357 @@
+# Service Discovery And Routing
+
+English | [简体中文](service-discovery_zh.md)
+
+This chapter explains the outbound request path when a service has more than
+one backend. The package guides answer what each package exports; this chapter
+answers how to assemble discovery, endpoint construction, selection, feedback,
+health checks, retry, and shutdown as one system.
+
+## The request path
+
+```text
+Consul / etcd / another registry
+    -> Instancer snapshot
+    -> optional health.Check
+    -> Endpointer + Factory
+    -> selector filters and strategy
+    -> Balancer.Pick
+    -> endpoint call
+    -> Picked.Done(Outcome)
+    -> retry or the next selection
+```
+
+The registry publishes snapshots, not live load metrics. `sd.Instance` carries
+an address and static metadata such as zone, protocol, version, weight, or
+draining state. Dynamic measurements stay in the process that issues calls.
+
+The ownership rules are deliberately separate:
+
+| Layer | Owns | Does not own |
+| --- | --- | --- |
+| `sd.Instancer` | snapshots and provider watch lifecycle | endpoint connections |
+| `sd/health` | active probes and probe state | registry lifecycle |
+| `sd/endpointer` | endpoint factories and factory resources | selection policy |
+| `sd/selector` | filters and selection strategies | endpoint construction |
+| `sd/balancer` | identity-preserving endpoint selection | source ownership |
+| `sd/feedback` | local measurements and ejection policy | registry writes |
+| `sd/retry` | attempt policy and backoff | business retry safety |
+
+## The core contracts
+
+An instancer publishes an immutable-by-convention `sd.Event` and must implement
+`Close`:
+
+```go
+type Instancer interface {
+    Register(chan Event) Event
+    Deregister(chan Event)
+    Close() error
+}
+```
+
+An endpoint balancer receives the request on every pick and returns the selected
+identity together with a completion callback:
+
+```go
+type Balancer interface {
+    Pick(ctx context.Context, request any) (Picked, error)
+    Close() error
+}
+
+type Picked struct {
+    Instance Instance
+    Endpoint endpoint.Endpoint
+    Done     Done
+}
+
+type Outcome struct {
+    Err     error
+    Latency time.Duration
+    Bytes   int64
+}
+```
+
+Call `Done` exactly once after the endpoint returns. Implementations supplied
+by go-kit make the callback idempotent, so an adapter may safely use `defer`.
+`Bytes` is an application-defined total. The generic retry layer cannot infer
+it from opaque request and response values; a protocol adapter or bridge that
+counts traffic should fill it.
+
+The instance-only selector has the same feedback half of the contract:
+
+```go
+instance, done, err := pick.Select(ctx, request)
+if err != nil {
+    return err
+}
+started := time.Now()
+err = dial(instance.Address)
+done(sd.Outcome{Err: err, Latency: time.Since(started)})
+```
+
+This matters for table-backed strategies. Dropping `done` leaves the selected
+instance permanently in flight and makes least-request and health decisions
+wrong over time.
+
+## A minimal assembly
+
+For a fixed or already-created instancer, `sd/client` is the shortest path:
+
+```go
+factory := endpointer.Factory(func(instance sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+    return makeClientEndpoint(instance.Address), nil, nil
+})
+
+call, resources, err := client.NewEndpoint(instancer, factory, logger,
+    client.WithMaxAttempts(3),
+    client.WithTimeout(500*time.Millisecond),
+)
+if err != nil {
+    return err
+}
+defer resources.Close()
+
+response, err := call(ctx, request)
+```
+
+`NewEndpoint` defaults to round robin. `resources.Close` closes the balancer
+first and the endpointer second. The instancer remains owned by the caller and
+must be closed after its consumers:
+
+```go
+defer instancer.Close() //nolint:errcheck
+defer resources.Close() // runs first
+```
+
+For full control, assemble the layers explicitly:
+
+```go
+set := endpointer.NewEndpointer(instancer, factory, logger)
+defer set.Close()
+
+strategy := selector.RoundRobin()
+lb := balancer.New(set, strategy)
+defer lb.Close()
+
+call := retry.Retry(3, 500*time.Millisecond, lb)
+```
+
+## Filtering and lifecycle state
+
+Static metadata filters belong at the source or endpoint-set boundary:
+
+```go
+local := endpointer.Filter(set, sd.MetadataEquals("zone", "cn-north-1a"))
+preferred := endpointer.Prefer(set, sd.MetadataEquals("zone", "cn-north-1a"))
+```
+
+`Filter` fails when the subset is empty. `Prefer` falls back to the complete
+set. Both are re-evaluated when the endpoint set is read.
+
+Dynamic policies use `selector.Filtered`, which receives the candidate set on
+every pick:
+
+```go
+strategy := selector.Filtered(
+    selector.RoundRobin(),
+    sd.Keep(sd.Serving()),
+)
+lb := balancer.New(set, strategy)
+```
+
+`sd.StateKey` is `"state"`; `sd.StateDraining` means an instance remains
+registered but must receive no new work. Existing connections are not closed by
+service discovery. Draining is a registration property, not a feedback sample.
+
+## Choosing a strategy
+
+| Need | Strategy | Notes |
+| --- | --- | --- |
+| even distribution | `selector.RoundRobin` | one atomic counter |
+| independent random distribution | `selector.Random` | avoids client lockstep |
+| static capacity weights | `selector.WeightedRandom` | zero weight drains an instance |
+| measured or reported score | `selector.Scored` | highest score wins |
+| local in-flight fairness | `Table.LeastRequest` | power of two choices |
+| request affinity | `selector.ConsistentHash` | request is always available |
+
+The endpoint constructors are thin wrappers around the same selector strategies:
+`balancer.NewRoundRobin`, `NewRandom`, `NewWeightedRandom`, `NewScored`, and
+`NewConsistentHash`. Use `balancer.New(set, strategy)` when composing filters,
+feedback, or a custom strategy.
+
+`selector.NewRanker` is not in the table because it is not a `Strategy`: it
+answers "which N" rather than "which one", so it has no place in a pick. See
+[Feedback and passive ejection](#feedback-and-passive-ejection).
+
+## Feedback and passive ejection
+
+`feedback.Table` is process-local. It records EWMA latency, error rate, bytes,
+in-flight calls, and the first time an address entered the table. It never
+writes a sample to the registry.
+
+Use one table for the policies that should agree about the same traffic:
+
+```go
+table := feedback.NewTable()
+ejector := feedback.NewEjector(table, feedback.EjectionPolicy{
+    MaxErrorRate: 0.5,
+    MinSamples:   5,
+})
+
+following := feedback.Follow(instancer, table, ejector)
+defer following.Close()
+
+strategy := table.Wrap(selector.Filtered(
+    selector.Scored(table.Score()),
+    ejector.Filter(),
+))
+lb := balancer.New(set, strategy)
+```
+
+`feedback.Follow` retains state against the full discovery snapshot. Do not
+retain against an already filtered candidate set: doing so would erase the
+measurements that caused an instance to be ejected.
+
+An ejector removes unhealthy candidates according to error rate, latency, and
+in-flight thresholds. Ejection expires after `BaseDuration`, backs off for
+repeat offenders up to `MaxDuration`, and resets the measurements that caused
+the ejection. `MaxEjectionPercent` defaults to 50%; when the whole pool looks
+bad, panic mode keeps the unchecked candidate set available.
+
+Least request is the same composition without an endpoint-specific constructor:
+
+```go
+strategy := table.LeastRequest(selector.WithChoices(2))
+lb := balancer.New(set, strategy)
+```
+
+For an external load report, use `selector.Scored` directly. For a caller that
+needs a shortlist rather than one pick, use `selector.NewRanker`:
+
+```go
+ranker := selector.NewRanker(instances, table.Score(), ejector.Filter())
+top, err := ranker.Rank(ctx, 3)
+```
+
+## Slow start
+
+New instances are cold: they may have empty caches, unwarmed JIT code, or an
+empty connection pool. `selector.SlowStart` decorates a weight function and
+ramps it up over a window:
+
+```go
+weight := selector.SlowStart(
+    selector.MetadataWeight("weight", 1),
+    table.FirstSeen(),
+    30*time.Second,
+)
+strategy := table.Wrap(selector.WeightedRandom(weight))
+```
+
+The ramp floors at one so a warming instance is not starved. Use a discovery
+timestamp source when the ramp must begin when the instance enters the snapshot,
+rather than when it receives its first call.
+
+## Active health checks
+
+Passive feedback cannot see an instance that receives no traffic. `health.Check`
+decorates an instancer and probes each address with bounded concurrency:
+
+```go
+checked := health.Check(instancer,
+    health.TCPProbe(2*time.Second),
+    health.WithInterval(10*time.Second),
+    health.WithUnhealthyThreshold(3),
+)
+defer checked.Close()
+
+set := endpointer.NewEndpointer(checked, factory, logger)
+defer set.Close()
+```
+
+`health.HTTPProbe` treats responses below 400 as healthy. Thresholds are
+consecutive results. By default an instance is healthy until its first probe
+completes; `WithInitiallyHealthy(false)` keeps each unprobed instance out of the
+published set while already-passed instances can continue serving. If every
+instance has produced a result and none passes, the checker publishes the
+unchecked set instead of turning a broken probe into an outage. A custom Probe
+must return when its context is cancelled because `Checker.Close` waits for
+active probes.
+
+## Providers
+
+Consul and etcd are independent modules. They satisfy the same `sd.Instancer`
+shape and do not enter the dependency closure of generic discovery packages.
+
+```go
+consulInstancer := consul.NewInstancer(consulClient, logger, "users", true)
+defer consulInstancer.Close() //nolint:errcheck
+
+etcdInstancer := etcd.NewInstancer(etcdClient, logger, "users")
+defer etcdInstancer.Close() //nolint:errcheck
+```
+
+Consul uses health-passing service entries and can carry static labels through
+service metadata. The etcd provider stores one leased registration per instance,
+renews it, and resumes prefix watching from the last revision after a watch
+disconnect. See the provider guides for registration options and operational
+requirements.
+
+## Long-lived connections
+
+An L4 balancer chooses once when a connection is opened. Requests carried by a
+long-lived tunnel remain pinned to that backend. For bridge or gateway traffic,
+the useful outcome is therefore connection duration, dial error, and bytes
+relayed, not only unary request latency:
+
+```go
+picked, err := lb.Pick(ctx, dialRequest)
+if err != nil {
+    return err
+}
+started := time.Now()
+conn, err := dial(picked.Instance.Address)
+if err != nil {
+    picked.Done(sd.Outcome{Err: err, Latency: time.Since(started)})
+    return err
+}
+
+bytes, err := proxy(conn)
+picked.Done(sd.Outcome{
+    Err:     err,
+    Latency: time.Since(started),
+    Bytes:   bytes,
+})
+```
+
+The endpoint layer does not assume connection semantics; the bridge adapter is
+responsible for deciding when the connection outcome is complete.
+
+## Shutdown and troubleshooting
+
+Close consumers before their sources:
+
+```text
+retry call stops
+ -> balancer.Close
+ -> endpointer.Close
+ -> selector / feedback followers close
+ -> health.Check.Close
+ -> Instancer.Close
+```
+
+Common symptoms:
+
+| Symptom | Check |
+| --- | --- |
+| no endpoint | discovery snapshot, endpoint factory errors, filters, zero weights |
+| one instance receives all traffic | missing `Done`, stale in-flight table, or a score that excludes peers |
+| all instances disappear | active probe configuration, ejection panic threshold, discovery error handling |
+| retries repeat the same backend | consistent hash is intentionally sticky; use a different strategy if failover is required |
+| shutdown hangs | a custom Probe or endpoint closer is ignoring context or taking too long |
+| table grows over deployments | call `feedback.Follow` with the full discovery instancer |
+
+Retry classification remains an application decision. `sd/retry` records
+`retry.Attempt{Address, Err, Latency}` for completed failures, but it cannot
+decide whether a business operation is safe to repeat.

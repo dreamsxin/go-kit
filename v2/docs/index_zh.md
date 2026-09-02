@@ -23,6 +23,8 @@
 跨越多个包的横向流程：
 
 - [核心概念](concepts_zh.md)：请求路径、错误分类、生命周期归属
+- [服务发现与路由](service-discovery_zh.md)：发现快照、端点选择、反馈、健康检查、
+  provider 与长连接
 - [错误处理](errors_zh.md)：`apperror`、传输层映射、端到端的自定义错误格式
 - [中间件](middleware_zh.md)：组合、流控与内置目录
 - [生命周期](lifecycle_zh.md)：启动、优雅停机、后台任务
@@ -37,9 +39,11 @@
 
 - [endpoint](../endpoint/README_zh.md)、[transport](../transport/README_zh.md)、
   [kit](../README_zh.md#使用-kit)、[sd](../sd/README_zh.md)、
+  [feedback](service-discovery_zh.md#反馈与被动摘除)、[health](service-discovery_zh.md#主动健康检查)、
   [interaction](../interaction/README_zh.md)、[security](../security/http/README_zh.md)、
   [observability](../observability/slog/README_zh.md)、
   [integrations](../integrations/consul/README_zh.md)、
+  [etcd](../integrations/etcd/README_zh.md)、
   [microgen](../MICROGEN_zh.md)
 
 ## 生产环境

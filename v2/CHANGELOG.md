@@ -120,6 +120,13 @@ through the immutable v0 and v1 tags.
 - `sd.Match` and the label predicates `sd.MetadataEquals`, `sd.MetadataIn`,
   `sd.MetadataMatches`, `sd.HasMetadata`, `sd.And`, `sd.Or`, and `sd.Not`, so
   the endpoint layer and the instance layer filter with one set of predicates.
+- New service discovery chapter (en/zh), `docs/service-discovery.md`: the
+  outbound path end to end, what each layer owns and does not own, the
+  `Pick`/`Done`/`Outcome` lifecycle, strategy choice, feedback and ejection,
+  slow start, active probes, provider choice, long-lived connections, shutdown
+  order, and a symptom-based troubleshooting table. `sd/README.md` keeps the API
+  reference and links to it rather than repeating the reasoning; `feedback`,
+  `health`, and etcd now have navigation entries of their own.
 
 ### Changed
 

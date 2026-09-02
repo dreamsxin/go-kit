@@ -26,6 +26,8 @@ Cross-cutting flows that span more than one package:
 
 - [Core concepts](concepts.md): the request path, error classification,
   lifecycle ownership
+- [Service discovery and routing](service-discovery.md): discovery snapshots,
+  endpoint selection, feedback, health checks, providers, and long-lived calls
 - [Error handling](errors.md): `apperror`, transport mapping, custom error
   formats end to end
 - [Middleware](middleware.md): composition, flow control, and the built-in
@@ -45,9 +47,12 @@ Package guides own the detailed API reference for each component:
 
 - [endpoint](../endpoint/README.md), [transport](../transport/README.md),
   [kit](../README.md#build-with-kit), [sd](../sd/README.md),
+  [feedback](service-discovery.md#feedback-and-passive-ejection),
+  [health](service-discovery.md#active-health-checks),
   [interaction](../interaction/README.md), [security](../security/http/README.md),
   [observability](../observability/slog/README.md),
   [integrations](../integrations/consul/README.md),
+  [etcd](../integrations/etcd/README.md),
   [microgen](../MICROGEN.md)
 
 ## Production

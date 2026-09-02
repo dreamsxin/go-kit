@@ -91,6 +91,11 @@
 - 新增 `sd.Match` 及标签断言 `sd.MetadataEquals`、`sd.MetadataIn`、
   `sd.MetadataMatches`、`sd.HasMetadata`、`sd.And`、`sd.Or`、`sd.Not`，
   端点层与实例层共用同一套断言。
+- 新增服务发现章节（中英双语）`docs/service-discovery.md`：端到端的出向链路、
+  每一层拥有与不拥有什么、`Pick`/`Done`/`Outcome` 生命周期、策略选择、反馈与
+  摘除、慢启动、主动探测、provider 选择、长连接、关闭顺序，以及按症状排查的
+  对照表。`sd/README.md` 保留 API 参考并链接到该章节，不再重复其中的推理；
+  `feedback`、`health` 与 etcd 现在各自有了导航入口。
 
 ### 变更
 

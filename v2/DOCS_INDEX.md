@@ -33,14 +33,14 @@ runnable example for the component.
 | --- | --- | --- | --- |
 | 1 | Endpoints, typed endpoints, and middleware composition | [endpoint](endpoint/README.md) | [examples/middleware](examples/README.md) |
 | 2 | HTTP transport: server, client, SSE, multipart, pagination, tracing propagation | [transport](transport/README.md) | [examples/quickstart](examples/README.md) |
-| 3 | Service assembly: `kit`, health checks, lifecycle, Server-Sent Events | [README: Build With kit](README.md#build-with-kit) | [examples/quickstart](examples/README.md) |
+| 3 | Service assembly: `kit`, application health endpoints, lifecycle, Server-Sent Events | [README: Build With kit](README.md#build-with-kit) | [examples/quickstart](examples/README.md) |
 | 4 | Resilience: validation, timeout, fallback, bulkhead, backpressure | [endpoint: Built-In Middleware](endpoint/README.md#built-in-middleware) | [examples/best_practice](examples/README.md) |
 | 5 | Response assembly: envelopes and error formats at the transport boundary | [transport: Composition And Nesting](transport/README.md#composition-and-nesting) | [examples/envelope](examples/README.md) |
-| 6 | Service discovery, balancing, and retry | [service discovery](sd/README.md) | [examples/sd](examples/README.md) |
+| 6 | Service discovery, balancing, feedback, and retry | [service discovery](docs/service-discovery.md) | [examples/sd](examples/README.md) |
 | 7 | HTTP security: CORS, CSRF, security headers, IP policy | [security/http](security/http/README.md) | [examples/auth](examples/README.md) |
 | 8 | Observability: slog, Zap, OpenTelemetry adapters | [slog](observability/slog/README.md), [otel](observability/otel/README.md), [zap](integrations/zap/README.md) | [PRODUCTION.md](PRODUCTION.md) |
 | 9 | AI interaction runtime and MCP Streamable HTTP | [interaction](interaction/README.md) | [examples/mcp_basic](examples/README.md) |
-| 10 | Optional integrations: Consul, gRPC (circuit breaking and rate limiting are built into `endpoint`) | [consul](integrations/consul/README.md), [transport gRPC](transport/README.md) | [examples/sd](examples/README.md) |
+| 10 | Optional integrations: Consul, etcd, gRPC (circuit breaking and rate limiting are built into `endpoint`) | [consul](integrations/consul/README.md), [etcd](integrations/etcd/README.md), [transport gRPC](transport/README.md) | [examples/sd](examples/README.md) |
 
 ## By Task
 

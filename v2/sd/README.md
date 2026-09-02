@@ -5,7 +5,15 @@ The root `sd` package owns the protocol-neutral contracts — `Instance`, `Event
 `Instancer`, `Registrar`, `Balancer`, `Match`, and `ErrNoEndpoints` — plus the
 label readers every layer shares. Concrete components live in focused
 subpackages and can be used independently: `sd/instance`, `sd/endpointer`,
-`sd/selector`, `sd/balancer`, `sd/retry`, `sd/feedback`, `sd/client`.
+`sd/selector`, `sd/balancer`, `sd/retry`, `sd/feedback`, `sd/health`,
+`sd/client`.
+
+This guide is the API reference for those packages. For how they compose into
+one outbound path — ownership per layer, the `Pick`/`Done`/`Outcome` lifecycle,
+provider choice, long-lived connections, shutdown order, and a troubleshooting
+table — read
+[Service discovery and routing](../docs/service-discovery.md).
+
 
 ## Quick start (no Consul needed)
 
@@ -428,10 +436,9 @@ Two deliberate choices: an instance is treated as healthy until its first probe
 completes (`WithInitiallyHealthy(false)` to invert), and once every instance has
 been probed and none passed, the checker republishes the unchecked set rather
 than an empty one — a probe that is itself broken must not black-hole the
-service. The two do not fight: the fail-open requires an actual result from
-every instance, so with `WithInitiallyHealthy(false)` nothing is published until
-the first round lands. `Close` stops the probes and deregisters from the source
-without closing it.
+service. The fail-open applies only after every instance has produced a result,
+so unprobed instances stay hidden while already-passed instances remain usable.
+`Close` stops the probes and deregisters from the source without closing it.
 
 
 
@@ -444,13 +451,9 @@ Instancer → [health.Check] → Endpointer → [Filter] → Balancer → Retry 
                                               feedback.Table + Ejector
 ```
 
-
-Two assemblies, one set of strategies. Each layer has a single job: the
-instancer watches the registry, the endpointer turns instances into endpoints
-(the seam where the factory decides how to connect), an optional filter narrows
-the set, the strategy picks one, retry decides whether to pick again, and the
-outcome of the call flows back into the table the next pick reads. Callers
-that never issue the call themselves stop at the first line.
+Two assemblies, one set of strategies; callers that never issue the call
+themselves stop at the first line. What each layer owns, and what it must not,
+is in [Service discovery and routing](../docs/service-discovery.md#the-request-path).
 
 ```go
 // Manual assembly (full control)
@@ -459,6 +462,7 @@ defer ep.Close()
 lb   := balancer.NewRoundRobin(ep)
 call := retry.Retry(3, 500*time.Millisecond, lb)
 ```
+
 
 For low-level assembly, cache invalidation is configured with
 `endpointer.InvalidateOnError`. The higher-level `client.NewEndpoint`
@@ -521,5 +525,8 @@ after endpoint-owned resources have been closed.
 
 ## See also
 
+- [Service discovery and routing](../docs/service-discovery.md) — how these
+  packages compose, and the production and troubleshooting guidance
 - `examples/sd/` — runnable demo of every sd component
 - `examples/profilesvc/client/` — Consul-backed client example
+
