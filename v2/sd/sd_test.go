@@ -52,6 +52,11 @@ func (m *mockInstancer) Deregister(ch chan sd.Event) {
 	m.subscribers = subs
 }
 
+func (m *mockInstancer) Close() error {
+	m.Stop()
+	return nil
+}
+
 func (m *mockInstancer) Stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -78,8 +83,8 @@ func instanceEndpoint(instance string) endpoint.Endpoint {
 }
 
 func newFactory() endpointer.Factory {
-	return func(instance string) (endpoint.Endpoint, io.Closer, error) {
-		return instanceEndpoint(instance), io.NopCloser(nil), nil
+	return func(instance sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+		return instanceEndpoint(instance.Address), io.NopCloser(nil), nil
 	}
 }
 
@@ -108,7 +113,7 @@ func TestEndpointer_ReceivesInstances(t *testing.T) {
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
 	t.Cleanup(func() { _ = ep.Close() })
 
-	inst.Broadcast(sd.Event{Instances: []string{"host1:80", "host2:80"}})
+	inst.Broadcast(sd.Event{Instances: sd.Addresses("host1:80", "host2:80")})
 	time.Sleep(20 * time.Millisecond) // let the goroutine process
 
 	endpoints, err := ep.Endpoints()
@@ -125,10 +130,10 @@ func TestEndpointer_UpdateInstances(t *testing.T) {
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
 	t.Cleanup(func() { _ = ep.Close() })
 
-	inst.Broadcast(sd.Event{Instances: []string{"a:80", "b:80", "c:80"}})
+	inst.Broadcast(sd.Event{Instances: sd.Addresses("a:80", "b:80", "c:80")})
 	time.Sleep(20 * time.Millisecond)
 
-	inst.Broadcast(sd.Event{Instances: []string{"a:80"}})
+	inst.Broadcast(sd.Event{Instances: sd.Addresses("a:80")})
 	time.Sleep(20 * time.Millisecond)
 
 	endpoints, _ := ep.Endpoints()
@@ -139,14 +144,14 @@ func TestEndpointer_UpdateInstances(t *testing.T) {
 
 func TestEndpointer_FactoryError(t *testing.T) {
 	factoryErr := errors.New("factory fail")
-	badFactory := func(instance string) (endpoint.Endpoint, io.Closer, error) {
+	badFactory := func(instance sd.Instance) (endpoint.Endpoint, io.Closer, error) {
 		return nil, nil, factoryErr
 	}
 	inst := &mockInstancer{}
 	ep := endpointer.NewEndpointer(inst, badFactory, newLogger(t))
 	t.Cleanup(func() { _ = ep.Close() })
 
-	inst.Broadcast(sd.Event{Instances: []string{"bad:80"}})
+	inst.Broadcast(sd.Event{Instances: sd.Addresses("bad:80")})
 	time.Sleep(20 * time.Millisecond)
 
 	endpoints, err := ep.Endpoints()
@@ -166,7 +171,7 @@ func TestRoundRobin_NoEndpoints(t *testing.T) {
 	t.Cleanup(func() { _ = ep.Close() })
 	rr := balancer.NewRoundRobin(ep)
 
-	_, err := rr.Endpoint()
+	_, err := rr.Pick(context.Background(), nil)
 	if !errors.Is(err, sd.ErrNoEndpoints) {
 		t.Errorf("want ErrNoEndpoints, got %v", err)
 	}
@@ -177,16 +182,17 @@ func TestRoundRobin_SingleEndpoint(t *testing.T) {
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
 	t.Cleanup(func() { _ = ep.Close() })
 
-	inst.Broadcast(sd.Event{Instances: []string{"only:80"}})
+	inst.Broadcast(sd.Event{Instances: sd.Addresses("only:80")})
 	time.Sleep(20 * time.Millisecond)
 
 	rr := balancer.NewRoundRobin(ep)
 	for i := 0; i < 5; i++ {
-		e, err := rr.Endpoint()
+		picked, err := rr.Pick(context.Background(), nil)
 		if err != nil {
 			t.Fatalf("Endpoint[%d]: unexpected error: %v", i, err)
 		}
-		resp, _ := e(context.Background(), nil)
+		resp, callErr := picked.Endpoint(context.Background(), nil)
+		picked.Done(sd.Outcome{Err: callErr})
 		if resp != "only:80" {
 			t.Errorf("Endpoint[%d]: want 'only:80', got %v", i, resp)
 		}
@@ -194,7 +200,7 @@ func TestRoundRobin_SingleEndpoint(t *testing.T) {
 }
 
 func TestRoundRobin_Distributes(t *testing.T) {
-	instances := []string{"svc1:80", "svc2:80", "svc3:80"}
+	instances := sd.Addresses("svc1:80", "svc2:80", "svc3:80")
 	inst := &mockInstancer{}
 	ep := endpointer.NewEndpointer(inst, newFactory(), newLogger(t))
 	t.Cleanup(func() { _ = ep.Close() })
@@ -206,16 +212,17 @@ func TestRoundRobin_Distributes(t *testing.T) {
 	counts := map[string]int{}
 	n := 9
 	for i := 0; i < n; i++ {
-		e, err := rr.Endpoint()
+		picked, err := rr.Pick(context.Background(), nil)
 		if err != nil {
 			t.Fatalf("Endpoint[%d]: %v", i, err)
 		}
-		resp, _ := e(context.Background(), nil)
+		resp, callErr := picked.Endpoint(context.Background(), nil)
+		picked.Done(sd.Outcome{Err: callErr})
 		counts[resp.(string)]++
 	}
 	for _, inst := range instances {
-		if counts[inst] != n/len(instances) {
-			t.Errorf("instance %q: want %d calls, got %d", inst, n/len(instances), counts[inst])
+		if counts[inst.Address] != n/len(instances) {
+			t.Errorf("instance %q: want %d calls, got %d", inst.Address, n/len(instances), counts[inst.Address])
 		}
 	}
 }
@@ -225,12 +232,16 @@ func TestRoundRobin_Distributes(t *testing.T) {
 // fixedBalancer always returns the same endpoint.
 type fixedBalancer struct{ ep endpoint.Endpoint }
 
-func (f fixedBalancer) Endpoint() (endpoint.Endpoint, error) { return f.ep, nil }
+func (f fixedBalancer) Pick(context.Context, any) (sd.Picked, error) {
+	return sd.Picked{Endpoint: f.ep, Done: func(sd.Outcome) {}}, nil
+}
+func (f fixedBalancer) Close() error { return nil }
 
 // errorBalancer always returns an error.
 type errorBalancer struct{ err error }
 
-func (e errorBalancer) Endpoint() (endpoint.Endpoint, error) { return nil, e.err }
+func (e errorBalancer) Pick(context.Context, any) (sd.Picked, error) { return sd.Picked{}, e.err }
+func (e errorBalancer) Close() error                                 { return nil }
 
 // countingBalancer counts calls and fails until a threshold is met.
 type countingBalancer struct {
@@ -239,15 +250,16 @@ type countingBalancer struct {
 	threshold int
 }
 
-func (c *countingBalancer) Endpoint() (endpoint.Endpoint, error) {
+func (c *countingBalancer) Pick(context.Context, any) (sd.Picked, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.calls++
 	if c.calls >= c.threshold {
-		return endpoint.Nop, nil
+		return sd.Picked{Endpoint: endpoint.Nop, Done: func(sd.Outcome) {}}, nil
 	}
-	return nil, retryableTestError{errors.New("not yet")}
+	return sd.Picked{}, retryableTestError{errors.New("not yet")}
 }
+func (c *countingBalancer) Close() error { return nil }
 
 func TestRetry_SuccessFirstTry(t *testing.T) {
 	want := "result"
@@ -288,8 +300,8 @@ func TestRetry_ExhaustsMaxAttempts(t *testing.T) {
 	if !errors.As(err, &retErr) {
 		t.Fatalf("expected RetryError, got %T: %v", err, err)
 	}
-	if len(retErr.RawErrors) == 0 {
-		t.Error("RetryError.RawErrors should not be empty")
+	if len(retErr.Attempts) == 0 {
+		t.Error("RetryError.Attempts should not be empty")
 	}
 }
 

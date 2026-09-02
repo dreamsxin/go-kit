@@ -77,9 +77,15 @@ func (s *Instancer) Stop() {
 	s.wg.Wait()
 }
 
+// Close implements the service-discovery lifecycle contract.
+func (s *Instancer) Close() error {
+	s.Stop()
+	return nil
+}
+
 func (s *Instancer) loop(lastIndex uint64) {
 	var (
-		instances []string
+		instances []Instance
 		err       error
 		d         time.Duration = 10 * time.Millisecond
 		index     uint64
@@ -140,7 +146,7 @@ func nextDelay(delay time.Duration) time.Duration {
 }
 
 // 获取实例列表
-func (s *Instancer) getInstances(ctx context.Context, lastIndex uint64) ([]string, uint64, error) {
+func (s *Instancer) getInstances(ctx context.Context, lastIndex uint64) ([]Instance, uint64, error) {
 	tag := ""
 	if len(s.tags) > 0 {
 		tag = s.tags[0]
@@ -195,14 +201,31 @@ ENTRIES:
 	return es
 }
 
-func makeInstances(entries []*consul.ServiceEntry) []string {
-	instances := make([]string, len(entries))
+func makeInstances(entries []*consul.ServiceEntry) []Instance {
+	instances := make([]Instance, len(entries))
 	for i, entry := range entries {
 		addr := entry.Node.Address
 		if entry.Service.Address != "" {
 			addr = entry.Service.Address
 		}
-		instances[i] = fmt.Sprintf("%s:%d", addr, entry.Service.Port)
+		instances[i] = Instance{
+			Address:  fmt.Sprintf("%s:%d", addr, entry.Service.Port),
+			Metadata: metadataFor(entry),
+		}
 	}
 	return instances
+}
+
+// metadataFor lifts the service Meta a registration reported into instance
+// labels. Tags stay out: they are a set, not key/value pairs, and NewInstancer
+// already filters on them server-side.
+func metadataFor(entry *consul.ServiceEntry) map[string]any {
+	if len(entry.Service.Meta) == 0 {
+		return nil
+	}
+	metadata := make(map[string]any, len(entry.Service.Meta))
+	for key, value := range entry.Service.Meta {
+		metadata[key] = value
+	}
+	return metadata
 }

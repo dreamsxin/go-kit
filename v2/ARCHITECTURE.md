@@ -97,13 +97,16 @@ a business operation is safe to retry.
 ### `sd`
 
 The root `sd` package owns provider-neutral discovery contracts.
-`sd/endpointer`, `sd/balancer`, and `sd/retry` are independently usable runtime
-components; `sd/client` is their optional convenience composition. Updates are
-snapshots, not mutable caller-owned slices. Cancellation interrupts both calls
-and retry backoff. Constructors return explicit closers for subscription
+`sd/endpointer`, `sd/balancer`, `sd/retry`, and `sd/feedback` are independently
+usable runtime components; `sd/client` is their optional convenience
+composition. Updates are snapshots, not mutable caller-owned slices. A
+`Balancer.Pick` returns a `Picked` identity plus `Done(Outcome)`, so retry and
+other callers can feed per-instance results into local feedback without writing
+live metrics to the registry. Cancellation interrupts both calls and retry
+backoff. `Instancer.Close` and constructor-returned closers own subscription
 goroutines and factory-created client connections. Protocol retry classification
-belongs to the protocol adapter, not generic discovery. Consul support lives in
-the independent `integrations/consul` module.
+belongs to the protocol adapter, not generic discovery. Consul and etcd support
+live in independent integration modules.
 
 ### `interaction`
 

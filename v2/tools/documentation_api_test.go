@@ -27,6 +27,8 @@ var documentedPackageAliases = map[string]string{
 	"transporthttp": filepath.Join("transport", "http"),
 	"sdclient":      filepath.Join("sd", "client"),
 	"balancer":      filepath.Join("sd", "balancer"),
+	"feedback":      filepath.Join("sd", "feedback"),
+	"selector":      filepath.Join("sd", "selector"),
 	"endpointer":    filepath.Join("sd", "endpointer"),
 	"security":      "security",
 	"interaction":   "interaction",

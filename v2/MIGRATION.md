@@ -43,7 +43,127 @@ JSON handlers (`kit`), then replace error-string conventions with `apperror`,
 then collapse duplicate HTTP/gRPC assemblies into `transport.Binding`, and
 finally let `microgen` own regenerated transports.
 
+## Upgrading To Unreleased (sd instance metadata)
+
+Service discovery now carries labels, not just addresses. Three source changes,
+all mechanical.
+
+1. `sd.Event.Instances` is `[]sd.Instance`. When there are no labels to report,
+   `sd.Addresses` builds the snapshot:
+
+   ```go
+   // before
+   cache.Update(sd.Event{Instances: []string{"host1:8080", "host2:8080"}})
+
+   // after
+   cache.Update(sd.Event{Instances: sd.Addresses("host1:8080", "host2:8080")})
+
+   // with labels
+   cache.Update(sd.Event{Instances: []sd.Instance{
+       {Address: "host1:8080", Metadata: map[string]any{"zone": "a", "weight": 5}},
+   }})
+   ```
+
+2. `endpointer.Factory` receives the whole instance, so it can honour the labels
+   that decide how to connect:
+
+   ```go
+   // before
+   func(instance string) (endpoint.Endpoint, io.Closer, error) {
+       return newClient(instance), nil, nil
+   }
+
+   // after
+   func(instance sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+       return newClient(instance.Address), nil, nil
+   }
+   ```
+
+3. `balancer.NewWeightedRandom` takes a `balancer.WeightFunc`:
+
+   ```go
+   // before
+   balancer.NewWeightedRandom(set, func(instance string) int { return weights[instance] })
+
+   // after
+   balancer.NewWeightedRandom(set, func(instance sd.Instance) int { return weights[instance.Address] })
+
+   // or read the weight the registration reported
+   balancer.NewWeightedRandom(set, balancer.MetadataWeight(balancer.DefaultWeightKey, 1))
+   ```
+
+Custom `sd.Instancer` implementations publish `[]sd.Instance`; the field layout
+is otherwise unchanged, and the aliases stay anonymous structs so provider
+modules can keep mirroring them structurally without importing core.
+
+If you already used subset filtering, the predicates moved to the root `sd`
+package so the new instance layer can share them, and the two decorators were
+renamed to match `selector.Filter` / `selector.Prefer`:
+
+```go
+// before
+endpointer.Subset(set, endpointer.MetadataEquals("zone", "a"))
+endpointer.PreferSubset(set, endpointer.MetadataEquals("zone", "a"))
+
+// after
+endpointer.Filter(set, sd.MetadataEquals("zone", "a"))
+endpointer.Prefer(set, sd.MetadataEquals("zone", "a"))
+```
+
+`Match`, `MetadataIn`, `MetadataMatches`, `HasMetadata`, `And`, `Or`, and `Not`
+moved the same way. Behaviour is unchanged: `Filter` fails when nothing matches,
+`Prefer` falls back to the full set.
+
+The selection contract is now deliberately unified. `sd.Balancer` exposes
+`Pick(ctx, request) (sd.Picked, error)` and `Close`; `Endpoint`, `EndpointFor`,
+and `RequestBalancer` are removed. `sd.Picked` carries the selected instance and
+endpoint plus a `Done(sd.Outcome)` callback that must run after every call.
+`selector.Strategy` likewise uses one `Pick(ctx, request, instances)` method;
+there is no `RequestStrategy`/`PickFor` pair. `retry.Error.Attempts` records the
+address and latency for each failed attempt. `sd.Instancer` now also requires
+`Close() error`.
+
+`sd/feedback.Table` is the in-process result table for EWMA latency, error rate,
+bytes, and in-flight counts. Use `Table.Wrap`, `Table.Score`,
+`Table.LeastRequest`, or `Table.Healthy` to connect local observations to
+strategy selection and passive ejection; it does not write live signals back to
+the registry.
+
+Two things to get right when adopting it:
+
+```go
+// before
+lb := balancer.NewLeastRequest(set, balancer.WithTable(table))
+strategy := table.Wrap(selector.Scored(table.Score()))
+healthy := table.Healthy(policy)          // was an sd.Match
+
+// after
+lb := balancer.NewLeastRequest(set, table)                // nil for a private table
+following := table.Follow(instancer)                      // drop replaced addresses
+defer following.Close()
+strategy := table.Wrap(selector.Filtered(selector.Scored(table.Score()),
+	table.Healthy(policy)))                                // now an sd.InstanceFilter
+```
+
+`Table.Healthy` is an `sd.InstanceFilter` because its ejection cap is a decision
+about the whole candidate set. Call `Table.Follow(instancer)` — or
+`Table.Retain(snapshot)` yourself — or the table keeps one entry per address it
+has ever seen, which grows with every rolling deployment.
+
+
+Behavior changes that need no source edit but do need attention:
+
+- A metadata-only change is a change. Subscribers are notified when an instance
+  is relabelled even though the address set is identical. The endpointer reuses
+  the live endpoint in that case, so no reconnect happens.
+- A snapshot containing the same address twice now yields one endpoint. The
+  duplicate is dropped instead of replacing the first entry and leaking its
+  closer.
+- With Consul, service `Meta` is surfaced as `Instance.Metadata`. Tags are not:
+  they remain a filtering input for `TagsInstancerOptions`.
+
 ## Upgrading To v2.7.0
+
 
 Three source changes:
 

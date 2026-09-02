@@ -7,25 +7,94 @@
 
 ### 新增
 
-- `sd/balancer` 新增三种选择策略，轮询不再是唯一选项：`NewRandom`（均匀抽样，
-  避免多客户端共享计数器导致的步调一致）、`NewWeightedRandom`（按调用方给出的
+- `sd/balancer` 新增四种选择策略，轮询不再是唯一选项：`NewRandom`（均匀抽样，
+  避免多客户端共享计数器导致的步调一致）、`NewWeightedRandom`（按每个实例的
   权重成比例选择；权重为 0 即可摘除实例，无需等待服务发现）、
-  `NewConsistentHash`（虚拟节点哈希环，配合 `WithReplicas`、`DefaultReplicas`，
-  只有归属实例离开时对应的键才会迁移）。
+  `NewLeastRequest`（按在途请求数，二选一 P2C，配合 `WithChoices`、
+  `DefaultChoices`）、`NewConsistentHash`（虚拟节点哈希环，配合 `WithReplicas`、
+  `DefaultReplicas`，只有归属实例离开时对应的键才会迁移）。
 - `sdclient.WithBalancer` 用于替换选择策略。此前 `sd/client.NewEndpoint` 把轮询
   硬编码，想换策略只能绕开构造器，手工串接 `endpointer`、负载均衡器与 `sd/retry`。
-- `sd.RequestBalancer`：请求感知的选择契约。当负载均衡器实现它时，`sd/retry`
-  优先调用 `EndpointFor(ctx, request)`，否则回退到 `Endpoint()`——一致性哈希正是
-  依靠这一点才能拿到用于路由的键。
+- `sd.Outcome`、`sd.Done` 与 `sd.Picked`：每次 `Balancer.Pick(ctx, request)` 都会
+  返回被选实例、端点和完成回调，retry 与直接调用方可以将时延、错误、字节数
+  回灌到选择策略。
 - `endpointer.InstanceEndpoint` 与 `endpointer.InstanceEndpointer` 会报告每个端点
-  由哪个实例生成。加权与哈希策略需要这个身份信息；轮询和随机不需要，仍然接收
-  `endpointer.Endpointer`。
+  由哪个实例生成。加权、最少请求与哈希策略需要这个身份信息；轮询和随机不需要，
+  仍然接收 `endpointer.Endpointer`。
+- 实例元数据：`sd.Instance` 在 `Address` 之外新增 `Metadata map[string]any`，
+  于是注册方可以上报静态标签（可用区、版本、协议、能力、权重、租户），
+  服务发现侧可以据此选择。`sd.Addresses` 用于从裸地址构造快照，适合测试、
+  本地开发以及不提供标签的注册中心。
+- `sd.MetadataString`、`sd.MetadataInt`、`sd.MetadataBool` 对标签值做类型归一，
+  因此按 `5` 书写的断言也能匹配注册中心返回的 `"5"`。
+- `sd/endpointer` 新增子集过滤，对齐 Envoy 的 subset load balancer：`Filter`
+  （不回退）与 `Prefer`（过滤结果为空时回退到全集），断言来自 `sd` 包。
+  就近路由是组合出来的，而不是给每个策略都做一个可用区变体。
+- `balancer.WeightFunc`、`balancer.MetadataWeight` 与 `balancer.DefaultWeightKey`
+  从注册标签中读取权重。
+- `consul.MetaRegistrarOptions` 在注册时上报静态标签，Consul instancer 会把每个
+  条目的服务 `Meta` 还原成 `Instance.Metadata`；只改元数据也会作为变更广播。
+  实时负载不进 catalog：由 `NewLeastRequest` 在进程内度量。
+- 新增 `sd/selector` 包：面向实例快照的选择策略，与端点无关。包含
+  `Strategy.Pick(ctx, request, instances)`、`RoundRobin`、`Random`、
+  `WeightedRandom`、`Scored`、`LeastRequest`、`ConsistentHash` 六种策略，`Static`、
+  `Subscribe`、`Filter`、`Prefer` 四种数据源，以及用于绑定的 `New`/`Select`。只需要地址的
+  调用方——自己拨号的代理、回答"我该连哪台"的 API——装配这一层即可，完全不运行
+  端点工厂，也就不会为没人调用的实例建连接。
+- `balancer.New(source, strategy)` 把任意 `selector.Strategy` 变成
+  `sd.Balancer`，自定义策略无需重复实现端点查找即可被 `sd/client` 与 `sd/retry`
+  使用；请求始终通过同一个策略方法传入。
+- `sd/feedback.Table` 记录 EWMA 时延、错误率、字节数和在途请求，
+  `Table.Score`、`Table.Load`、`Table.LeastRequest`、`Table.Healthy` 与
+  `Table.Wrap` 将本地观测接入评分、最少请求与被动摘除。
+  `Table.Follow(instancer)` 与 `Table.Retain(instances)` 会丢弃已离开服务发现的
+  地址的测量数据，使长期运行的表规模等于服务规模，而不是部署历史的规模。
+- 新增 `sd.InstanceFilter` 与 `sd.Keep(match)`，以及
+  `selector.Filtered(strategy, filters...)`：为无法按单个实例判定的策略提供
+  集合级过滤契约。被动健康检查必须先知道"这一摘会摘掉多少"才能决定摘不摘，
+  因此 `Table.Healthy` 返回 `InstanceFilter`，其摘除上限按当次候选集计算。
+- `balancer.NewScored` 与 `selector.Scored` 按调用方给出的分数选择，是本进程并未
+  亲自度量的负载信号的接入点：实例推送的报告、ORCA/LRS 式带外上报，或任何本地
+  表。返回 `false` 表示排除该实例，无需再写一个断言即可表达硬过滤。
+- 新增 `sd.Match` 及标签断言 `sd.MetadataEquals`、`sd.MetadataIn`、
+  `sd.MetadataMatches`、`sd.HasMetadata`、`sd.And`、`sd.Or`、`sd.Not`，
+  端点层与实例层共用同一套断言。
 
 ### 变更
 
-- `endpointer.NewEndpointer` 的返回类型声明由 `Endpointer` 改为
-  `InstanceEndpointer`。由于新接口内嵌了旧接口，现有调用点无需改动；只有把该
-  构造器赋值给 `func(...) Endpointer` 变量的代码需要调整。
+- **破坏性变更：** `sd.Event.Instances` 的类型由 `[]string` 改为 `[]sd.Instance`。
+  没有标签需要上报时，用 `sd.Addresses("host:port", ...)` 构造快照。
+- **破坏性变更：** `endpointer.Factory` 的参数由字符串地址改为 `sd.Instance`，
+  使 factory 能够遵循决定"如何连接"的标签——scheme、TLS、协议。地址读
+  `instance.Address`。
+- **破坏性变更：** `balancer.NewWeightedRandom` 的第二个参数由 `func(string) int`
+  改为 `balancer.WeightFunc`（`func(sd.Instance) int`）。
+- **破坏性变更：** 子集断言从 `sd/endpointer` 移到根 `sd` 包，因为端点层与新的
+  实例层都要读它：`endpointer.Match` → `sd.Match`，
+  `endpointer.MetadataEquals` → `sd.MetadataEquals`，`MetadataIn`、
+  `MetadataMatches`、`HasMetadata`、`And`、`Or`、`Not` 同理。
+  `endpointer.Subset` 与 `endpointer.PreferSubset` 改名为 `endpointer.Filter`
+  与 `endpointer.Prefer`，与 `selector.Filter`、`selector.Prefer` 对齐：同一个
+  操作不该在两层有两个名字。
+- **破坏性变更：** `sd.Balancer` 改为 `Pick(ctx, request) (sd.Picked, error)` 并
+  增加 `Close`；删除 `Endpoint`、`EndpointFor` 与 `RequestBalancer`。
+- **破坏性变更：** `sd.Instancer` 增加 `Close() error`。
+- **破坏性变更：** `balancer.NewLeastRequest(source, table, options...)` 显式接收
+  反馈表；传 `nil` 表示使用私有表。移除 `WithTable` 与 `WithFeedback`——共享的
+  测量流是参数，不是选项。最少请求本身下移为
+  `selector.LeastRequest(load, options...)`，实例层也能用它。
+- **破坏性变更：** `feedback.Table.Healthy` 的返回类型由 `sd.Match` 改为
+  `sd.InstanceFilter`，且摘除上限按候选集计算，而不再按表里出现过的所有地址计算。
+  请把它交给 `selector.Filtered`。移除重复命名 `feedback.Policy` 与
+  `Table.Done`，改用 `HealthPolicy` 与 `Track`。
+- `sd/balancer` 现在是 `sd/selector` 之上的薄层：加权、评分与哈希策略都住在
+  selector，balancer 只补上端点查找。均衡器策略相关 API 保留——`WeightFunc`、
+  `KeyFunc`、`ConsistentHashOption`、`DefaultWeightKey`、`DefaultReplicas`、
+  `MetadataWeight`、`WithReplicas` 现在是 selector 对应物的别名或转发。轮询与
+  随机仍直接读端点，因为它们不需要实例身份。
+- 当实例只是改了标签时，endpointer 缓存会复用活跃端点，因此重新打标签不会重连；
+  同一快照中的重复地址会被跳过，避免泄漏首个端点的 closer。
+- `endpointer.NewEndpointer` 的返回类型声明为 `InstanceEndpointer`。
 
 ## [2.7.0] - 2026-09-01
 

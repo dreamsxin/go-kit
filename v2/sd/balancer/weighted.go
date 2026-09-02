@@ -1,17 +1,26 @@
 package balancer
 
 import (
-	"math/rand/v2"
-
-	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/sd"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
+	"github.com/dreamsxin/go-kit/v2/sd/selector"
 )
 
 // WeightFunc reports the relative capacity of a discovered instance. Instances
 // weighted zero or below are never selected, which is how a caller drains one
 // without waiting for service discovery to withdraw it.
-type WeightFunc func(instance string) int
+type WeightFunc = selector.WeightFunc
+
+// DefaultWeightKey is the metadata label MetadataWeight reads. It matches the
+// convention used by Envoy and Nomad for a per-endpoint load-balancing weight.
+const DefaultWeightKey = selector.DefaultWeightKey
+
+// MetadataWeight reads the weight an instance reported when it registered,
+// falling back to fallback when the label is absent or unparsable. Registries
+// deliver labels as strings, so "10" and 10 both work.
+func MetadataWeight(key string, fallback int) WeightFunc {
+	return selector.MetadataWeight(key, fallback)
+}
 
 // NewWeightedRandom selects an instance with probability proportional to its
 // weight. Selection is stateless, so a changing instance set never leaves the
@@ -22,50 +31,5 @@ type WeightFunc func(instance string) int
 // NewWeightedRandom panics on a nil weight function, which is a programming
 // error rather than a runtime condition.
 func NewWeightedRandom(source endpointer.InstanceEndpointer, weight WeightFunc) sd.Balancer {
-	if weight == nil {
-		panic("balancer: nil weight function")
-	}
-	return &weightedRandom{source: source, weight: weight}
-}
-
-type weightedRandom struct {
-	source endpointer.InstanceEndpointer
-	weight WeightFunc
-}
-
-func (w *weightedRandom) Endpoint() (endpoint.Endpoint, error) {
-	instances, err := w.source.InstanceEndpoints()
-	if err != nil {
-		return nil, err
-	}
-	if len(instances) == 0 {
-		return nil, sd.ErrNoEndpoints
-	}
-
-	// Weights are read once per selection so a weight function backed by
-	// changing metadata cannot make the running total disagree with the scan
-	// that follows it.
-	weights := make([]int, len(instances))
-	total := 0
-	for i, item := range instances {
-		if weight := w.weight(item.Instance); weight > 0 {
-			weights[i] = weight
-			total += weight
-		}
-	}
-	if total <= 0 {
-		return nil, sd.ErrNoEndpoints
-	}
-
-	target := rand.N(total)
-	for i, weight := range weights {
-		if weight <= 0 {
-			continue
-		}
-		if target < weight {
-			return instances[i].Endpoint, nil
-		}
-		target -= weight
-	}
-	return nil, sd.ErrNoEndpoints
+	return New(source, selector.WeightedRandom(weight))
 }

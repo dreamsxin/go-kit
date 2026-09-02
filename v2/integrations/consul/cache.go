@@ -1,14 +1,22 @@
 package consul
 
 import (
+	"maps"
+	"reflect"
 	"sort"
 	"sync"
 )
 
-// Event mirrors the protocol-neutral discovery snapshot structurally, without
-// coupling this provider module to a specific core module version.
+// Instance and Event mirror the protocol-neutral discovery snapshot
+// structurally, without coupling this provider module to a specific core
+// module version.
+type Instance = struct {
+	Address  string
+	Metadata map[string]any
+}
+
 type Event = struct {
-	Instances []string
+	Instances []Instance
 	Err       error
 }
 
@@ -24,9 +32,9 @@ func newEventCache() *eventCache {
 
 func (c *eventCache) Update(event Event) {
 	event = copyEvent(event)
-	if event.Instances != nil {
-		sort.Strings(event.Instances)
-	}
+	sort.Slice(event.Instances, func(i, j int) bool {
+		return event.Instances[i].Address < event.Instances[j].Address
+	})
 
 	c.mu.Lock()
 	if eventsEqual(c.state, event) {
@@ -79,7 +87,11 @@ func sendLatest(ch chan Event, event Event) {
 }
 
 func copyEvent(event Event) Event {
-	event.Instances = append([]string(nil), event.Instances...)
+	instances := make([]Instance, len(event.Instances))
+	for i, item := range event.Instances {
+		instances[i] = Instance{Address: item.Address, Metadata: maps.Clone(item.Metadata)}
+	}
+	event.Instances = instances
 	return event
 }
 
@@ -88,7 +100,12 @@ func eventsEqual(a, b Event) bool {
 		return false
 	}
 	for i := range a.Instances {
-		if a.Instances[i] != b.Instances[i] {
+		if a.Instances[i].Address != b.Instances[i].Address {
+			return false
+		}
+		// A relabelled instance is a change: consumers filter on labels, so
+		// swallowing the update would leave them routing on stale ones.
+		if !maps.EqualFunc(a.Instances[i].Metadata, b.Instances[i].Metadata, reflect.DeepEqual) {
 			return false
 		}
 	}

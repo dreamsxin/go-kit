@@ -134,8 +134,9 @@ Unknown business errors should not be assumed transient.
 Discovery subscribers receive immutable snapshots. Consumers should use buffered
 update channels and must deregister or close their endpointer during shutdown.
 `sd/client.NewEndpoint` returns `(endpoint, closer, error)`; treat the closer as owned
-runtime state. Close it before stopping the Instancer so subscriptions are
-removed and factory-created client connections are released.
+runtime state. Close it before calling `Instancer.Close` so subscriptions are
+removed and factory-created client connections are released. Every
+`Balancer.Pick` must be paired with `Picked.Done` after the endpoint returns.
 
 The built-in default retry classifier retries only explicit
 `Retryable() == true` errors, no-endpoint discovery errors, and known transient

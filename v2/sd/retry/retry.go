@@ -13,31 +13,57 @@ import (
 	"github.com/dreamsxin/go-kit/v2/sd/retry/internal/backoff"
 )
 
+// Attempt records one completed selection and call. Address is empty when
+// selection failed before an instance could be identified.
+type Attempt struct {
+	Address string
+	Err     error
+	Latency time.Duration
+}
+
 // Error is returned when retry attempts are exhausted.
 type Error struct {
-	RawErrors []error
-	Final     error
+	Attempts []Attempt
+	Final    error
 }
 
 func (e Error) Error() string {
-	if len(e.RawErrors) == 0 {
+	if len(e.Attempts) == 0 {
 		if e.Final != nil {
 			return e.Final.Error()
 		}
 		return "retry failed without an error"
 	}
-	var suffix string
-	if len(e.RawErrors) > 1 {
-		previous := make([]string, len(e.RawErrors)-1)
-		for i := range previous {
-			previous[i] = e.RawErrors[i].Error()
+	// Attempts are attributed to the instance that produced them: a retry
+	// history is only actionable if it says which endpoint failed.
+	described := make([]string, 0, len(e.Attempts))
+	for _, attempt := range e.Attempts {
+		if attempt.Err != nil {
+			described = append(described, describe(attempt.Address, attempt.Err))
 		}
-		suffix = fmt.Sprintf(" (previously: %s)", strings.Join(previous, "; "))
 	}
-	if e.Final == nil {
-		return fmt.Sprintf("%v%s", e.RawErrors[len(e.RawErrors)-1], suffix)
+	if len(described) == 0 {
+		if e.Final != nil {
+			return e.Final.Error()
+		}
+		return "retry failed without an error"
 	}
-	return fmt.Sprintf("%v%s", e.Final, suffix)
+	last := described[len(described)-1]
+	if e.Final != nil {
+		// Final replaces the error of the final attempt but not its address.
+		last = describe(e.Attempts[len(e.Attempts)-1].Address, e.Final)
+	}
+	if len(described) == 1 {
+		return last
+	}
+	return fmt.Sprintf("%s (previously: %s)", last, strings.Join(described[:len(described)-1], "; "))
+}
+
+func describe(address string, err error) string {
+	if address == "" {
+		return err.Error()
+	}
+	return address + ": " + err.Error()
 }
 
 // Unwrap exposes the final failure for errors.Is and errors.As.
@@ -45,8 +71,10 @@ func (e Error) Unwrap() error {
 	if e.Final != nil {
 		return e.Final
 	}
-	if len(e.RawErrors) > 0 {
-		return e.RawErrors[len(e.RawErrors)-1]
+	for i := len(e.Attempts) - 1; i >= 0; i-- {
+		if e.Attempts[i].Err != nil {
+			return e.Attempts[i].Err
+		}
 	}
 	return nil
 }
@@ -92,27 +120,33 @@ func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callba
 		callContext, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
-		responses := make(chan any, 1)
-		errorsChannel := make(chan error, 1)
+		resultChannel := make(chan attemptResult, 1)
 		result := Error{}
 		delay := 10 * time.Millisecond
 
 		for attempt := 1; ; attempt++ {
-			go call(callContext, balancer, request, responses, errorsChannel)
+			go call(callContext, balancer, request, resultChannel)
 
 			select {
 			case <-callContext.Done():
 				return nil, callContext.Err()
-			case response := <-responses:
-				return response, nil
-			case callErr := <-errorsChannel:
-				result.RawErrors = append(result.RawErrors, callErr)
-				keepTrying, replacement := callback(attempt, callErr)
-				if replacement != nil {
-					callErr = replacement
+			case completed := <-resultChannel:
+				result.Attempts = append(result.Attempts, Attempt{
+					Address: completed.address,
+					Err:     completed.err,
+					Latency: completed.latency,
+				})
+				if completed.err == nil {
+					return completed.response, nil
 				}
-				if !keepTrying || !classifier(callErr) {
-					result.Final = callErr
+
+				keepTrying, replacement := callback(attempt, completed.err)
+				received := completed.err
+				if replacement != nil {
+					received = replacement
+				}
+				if !keepTrying || !classifier(received) {
+					result.Final = received
 					return nil, result
 				}
 				if err := sleep(callContext, delay); err != nil {
@@ -124,26 +158,41 @@ func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callba
 	}
 }
 
-func call(ctx context.Context, balancer sd.Balancer, request any, responses chan<- any, errorsChannel chan<- error) {
-	selected, err := selectEndpoint(ctx, balancer, request)
-	if err == nil {
-		var response any
-		response, err = selected(ctx, request)
-		if err == nil {
-			responses <- response
-			return
-		}
-	}
-	errorsChannel <- err
+type attemptResult struct {
+	response any
+	address  string
+	err      error
+	latency  time.Duration
 }
 
-// selectEndpoint prefers the request-aware contract so strategies that key on
-// request content, such as consistent hashing, receive the request they need.
-func selectEndpoint(ctx context.Context, balancer sd.Balancer, request any) (endpoint.Endpoint, error) {
-	if keyed, ok := balancer.(sd.RequestBalancer); ok {
-		return keyed.EndpointFor(ctx, request)
+func call(ctx context.Context, balancer sd.Balancer, request any, results chan<- attemptResult) {
+	started := time.Now()
+	picked, err := balancer.Pick(ctx, request)
+	if err != nil {
+		results <- attemptResult{err: err, latency: time.Since(started)}
+		return
 	}
-	return balancer.Endpoint()
+	if picked.Endpoint == nil {
+		err = errors.New("retry: balancer returned nil endpoint")
+	} else {
+		endpointStarted := time.Now()
+		var response any
+		response, err = picked.Endpoint(ctx, request)
+		if picked.Done != nil {
+			picked.Done(sd.Outcome{Err: err, Latency: time.Since(endpointStarted)})
+		}
+		results <- attemptResult{
+			response: response,
+			address:  picked.Instance.Address,
+			err:      err,
+			latency:  time.Since(started),
+		}
+		return
+	}
+	if picked.Done != nil {
+		picked.Done(sd.Outcome{Err: err, Latency: time.Since(started)})
+	}
+	results <- attemptResult{address: picked.Instance.Address, err: err, latency: time.Since(started)}
 }
 
 // DefaultClassifier retries only errors that explicitly opt in and temporary

@@ -5,6 +5,7 @@ use (
 	./cmd/microgen
 	./examples
 	./integrations/consul
+	./integrations/etcd
 	./integrations/grpc
 	./integrations/zap
 	./kit/grpc

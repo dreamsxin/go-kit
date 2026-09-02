@@ -34,7 +34,7 @@ func (transientError) Retryable() bool { return true }
 func newBalancer(t *testing.T, factory endpointer.Factory) sd.Balancer {
 	t.Helper()
 	cache := instance.NewCache()
-	cache.Update(sd.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("svc:80")})
 	time.Sleep(20 * time.Millisecond)
 	ep := endpointer.NewEndpointer(cache, factory, nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
@@ -44,7 +44,7 @@ func newBalancer(t *testing.T, factory endpointer.Factory) sd.Balancer {
 // ── Retry ─────────────────────────────────────────────────────────────────────
 
 func TestRetry_SucceedsOnFirstAttempt(t *testing.T) {
-	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ sd.Instance) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) { return "ok", nil })
 		return ep, io.NopCloser(nil), nil
 	})
@@ -62,7 +62,7 @@ func TestRetry_SucceedsOnFirstAttempt(t *testing.T) {
 
 func TestRetry_SucceedsAfterFailures(t *testing.T) {
 	attempts := 0
-	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ sd.Instance) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			attempts++
 			if attempts < 3 {
@@ -85,7 +85,7 @@ func TestRetry_SucceedsAfterFailures(t *testing.T) {
 }
 
 func TestRetry_ExceedsMax(t *testing.T) {
-	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ sd.Instance) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			return nil, transientError{errors.New("always fails")}
 		})
@@ -102,7 +102,7 @@ func TestRetry_ExceedsMax(t *testing.T) {
 
 func TestRetry_DoesNotRetryNonRetryableError(t *testing.T) {
 	attempts := 0
-	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ sd.Instance) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			attempts++
 			return nil, permanentError{errors.New("validation failed")}
@@ -122,7 +122,7 @@ func TestRetry_DoesNotRetryNonRetryableError(t *testing.T) {
 }
 
 func TestRetry_ContextCancelled(t *testing.T) {
-	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ sd.Instance) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(ctx context.Context, _ any) (any, error) {
 			time.Sleep(50 * time.Millisecond)
 			return nil, transientError{errors.New("slow fail")}
@@ -141,7 +141,7 @@ func TestRetry_ContextCancelled(t *testing.T) {
 }
 
 func TestRetry_BackoffStopsOnContextCancel(t *testing.T) {
-	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ sd.Instance) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			return nil, transientError{errors.New("transient")}
 		})
@@ -190,7 +190,7 @@ func TestDefaultClassifierKnownTransientErrors(t *testing.T) {
 
 func TestRetryWithCallback_StopsOnFalse(t *testing.T) {
 	calls := 0
-	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ sd.Instance) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			calls++
 			return nil, errors.New("fail")
@@ -215,7 +215,7 @@ func TestRetryWithCallback_StopsOnFalse(t *testing.T) {
 
 func TestRetryWithCallback_ReplacesError(t *testing.T) {
 	replacement := errors.New("replaced")
-	f := endpointer.Factory(func(_ string) (endpoint.Endpoint, io.Closer, error) {
+	f := endpointer.Factory(func(_ sd.Instance) (endpoint.Endpoint, io.Closer, error) {
 		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 			return nil, errors.New("original")
 		})
@@ -239,25 +239,22 @@ func TestRetryWithCallback_ReplacesError(t *testing.T) {
 	}
 }
 
-// ── Request-aware balancing ───────────────────────────────────────────────────
+// ── Request propagation ──────────────────────────────────────────────────────
 
-// requestBalancer records the request handed to EndpointFor. Selection happens
+// keyedBalancer records the request handed to Pick. Selection happens
 // on a goroutine inside retry, so the request travels back over a channel.
-type requestBalancer struct {
+type keyedBalancer struct {
 	requests chan any
 }
 
-func (b *requestBalancer) Endpoint() (endpoint.Endpoint, error) {
-	return nil, errors.New("Endpoint was called instead of EndpointFor")
-}
-
-func (b *requestBalancer) EndpointFor(_ context.Context, request any) (endpoint.Endpoint, error) {
+func (b *keyedBalancer) Pick(_ context.Context, request any) (sd.Picked, error) {
 	b.requests <- request
-	return func(_ context.Context, _ any) (any, error) { return "ok", nil }, nil
+	return sd.Picked{Endpoint: func(_ context.Context, _ any) (any, error) { return "ok", nil }, Done: func(sd.Outcome) {}}, nil
 }
+func (*keyedBalancer) Close() error { return nil }
 
-func TestRetry_PassesRequestToRequestBalancer(t *testing.T) {
-	lb := &requestBalancer{requests: make(chan any, 1)}
+func TestRetry_PassesRequestToBalancer(t *testing.T) {
+	lb := &keyedBalancer{requests: make(chan any, 1)}
 	ep := retry.Retry(1, time.Second, lb)
 
 	resp, err := ep(context.Background(), "tenant-9")
@@ -273,21 +270,22 @@ func TestRetry_PassesRequestToRequestBalancer(t *testing.T) {
 			t.Fatalf("balancer received %v, want tenant-9", request)
 		}
 	default:
-		t.Fatal("EndpointFor was never called")
+		t.Fatal("Pick was never called")
 	}
 }
 
-// A balancer that only implements sd.Balancer must keep working unchanged.
+// A plain balancer receives the request through the same common contract.
 type plainBalancer struct {
 	calls chan struct{}
 }
 
-func (b *plainBalancer) Endpoint() (endpoint.Endpoint, error) {
+func (b *plainBalancer) Pick(_ context.Context, _ any) (sd.Picked, error) {
 	b.calls <- struct{}{}
-	return func(_ context.Context, _ any) (any, error) { return "ok", nil }, nil
+	return sd.Picked{Endpoint: func(_ context.Context, _ any) (any, error) { return "ok", nil }, Done: func(sd.Outcome) {}}, nil
 }
+func (*plainBalancer) Close() error { return nil }
 
-func TestRetry_FallsBackToEndpointForPlainBalancer(t *testing.T) {
+func TestRetry_PassesRequestToPlainBalancer(t *testing.T) {
 	lb := &plainBalancer{calls: make(chan struct{}, 1)}
 	ep := retry.Retry(1, time.Second, lb)
 
@@ -305,7 +303,7 @@ func TestRetry_FallsBackToEndpointForPlainBalancer(t *testing.T) {
 
 func TestRetryError_ErrorString_Single(t *testing.T) {
 	e := retry.Error{
-		RawErrors: []error{errors.New("only error")},
+		Attempts: []retry.Attempt{{Err: errors.New("only error")}},
 	}
 	if e.Error() != "only error" {
 		t.Errorf("Error(): got %q, want %q", e.Error(), "only error")
@@ -314,14 +312,45 @@ func TestRetryError_ErrorString_Single(t *testing.T) {
 
 func TestRetryError_ErrorString_Multiple(t *testing.T) {
 	e := retry.Error{
-		RawErrors: []error{errors.New("first"), errors.New("second")},
+		Attempts: []retry.Attempt{{Err: errors.New("first")}, {Err: errors.New("second")}},
 	}
 	got := e.Error()
-	if got == "" {
-		t.Error("Error() should not be empty")
+	if got != "second (previously: first)" {
+		t.Errorf("Error(): got %q", got)
 	}
-	// should contain "previously"
-	if len(got) < 10 {
-		t.Errorf("Error() too short: %q", got)
+}
+
+// A retry history is only actionable if it says which instance produced each
+// failure, so the addresses recorded on the attempts must reach the message.
+func TestRetryError_ErrorStringAttributesFailuresToInstances(t *testing.T) {
+	e := retry.Error{
+		Attempts: []retry.Attempt{
+			{Address: "10.0.0.1:80", Err: errors.New("connection refused")},
+			{Address: "10.0.0.2:80", Err: errors.New("timeout")},
+		},
+	}
+	want := "10.0.0.2:80: timeout (previously: 10.0.0.1:80: connection refused)"
+	if got := e.Error(); got != want {
+		t.Errorf("Error():\n got %q\nwant %q", got, want)
+	}
+}
+
+// A replaced final error keeps the address of the attempt it replaces.
+func TestRetryError_FinalErrorKeepsTheLastAddress(t *testing.T) {
+	e := retry.Error{
+		Attempts: []retry.Attempt{{Address: "10.0.0.9:80", Err: errors.New("timeout")}},
+		Final:    errors.New("gave up"),
+	}
+	if got := e.Error(); got != "10.0.0.9:80: gave up" {
+		t.Errorf("Error(): got %q", got)
+	}
+}
+
+// Selection can fail before any instance is known; the message must not invent
+// an attribution for it.
+func TestRetryError_ErrorStringOmitsUnknownAddresses(t *testing.T) {
+	e := retry.Error{Attempts: []retry.Attempt{{Err: errors.New("no endpoints available")}}}
+	if got := e.Error(); got != "no endpoints available" {
+		t.Errorf("Error(): got %q", got)
 	}
 }

@@ -16,8 +16,9 @@ import (
 
 var nopLogger = slog.New(slog.DiscardHandler)
 
-func echoFactory(addr string) (endpoint.Endpoint, io.Closer, error) {
-	ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) { return addr, nil })
+func echoFactory(instance sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+	address := instance.Address
+	ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) { return address, nil })
 	return ep, io.NopCloser(nil), nil
 }
 
@@ -27,7 +28,7 @@ func newEndpointer(t *testing.T, addrs ...string) endpointer.InstanceEndpointer 
 	ep := endpointer.NewEndpointer(cache, endpointer.Factory(echoFactory), nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 	if len(addrs) > 0 {
-		cache.Update(sd.Event{Instances: addrs})
+		cache.Update(sd.Event{Instances: sd.Addresses(addrs...)})
 		time.Sleep(20 * time.Millisecond)
 	}
 	return ep
@@ -38,7 +39,7 @@ func newEndpointer(t *testing.T, addrs ...string) endpointer.InstanceEndpointer 
 func TestRoundRobin_NoEndpoints(t *testing.T) {
 	ep := newEndpointer(t)
 	lb := balancer.NewRoundRobin(ep)
-	_, err := lb.Endpoint()
+	_, err := lb.Pick(context.Background(), nil)
 	if err == nil {
 		t.Error("expected error with no endpoints")
 	}
@@ -49,11 +50,7 @@ func TestRoundRobin_SingleEndpoint(t *testing.T) {
 	lb := balancer.NewRoundRobin(ep)
 
 	for i := 0; i < 3; i++ {
-		e, err := lb.Endpoint()
-		if err != nil {
-			t.Fatalf("Endpoint() error: %v", err)
-		}
-		resp, _ := e(context.Background(), nil)
+		resp := callPicked(t, pick(t, lb, nil), nil)
 		if resp != "only:80" {
 			t.Errorf("got %v, want only:80", resp)
 		}
@@ -66,11 +63,7 @@ func TestRoundRobin_DistributesEvenly(t *testing.T) {
 
 	counts := map[string]int{}
 	for i := 0; i < 6; i++ {
-		e, err := lb.Endpoint()
-		if err != nil {
-			t.Fatalf("Endpoint() error: %v", err)
-		}
-		resp, _ := e(context.Background(), nil)
+		resp := callPicked(t, pick(t, lb, nil), nil)
 		counts[resp.(string)]++
 	}
 	if counts["A:80"] != 3 || counts["B:80"] != 3 {
@@ -84,11 +77,7 @@ func TestRoundRobin_ThreeEndpoints_Cycles(t *testing.T) {
 
 	seen := map[string]bool{}
 	for i := 0; i < 6; i++ {
-		e, err := lb.Endpoint()
-		if err != nil {
-			t.Fatalf("Endpoint() error: %v", err)
-		}
-		resp, _ := e(context.Background(), nil)
+		resp := callPicked(t, pick(t, lb, nil), nil)
 		seen[resp.(string)] = true
 	}
 	if len(seen) != 3 {

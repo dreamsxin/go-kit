@@ -30,6 +30,14 @@
       "dependsOnCore": false
     },
     {
+      "directory": "integrations/etcd",
+      "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/etcd",
+      "version": "v0.1.0",
+      "tag": "v2/integrations/etcd/v0.1.0",
+      "releaseOrder": 2,
+      "dependsOnCore": false
+    },
+    {
       "directory": "integrations/grpc",
       "modulePath": "github.com/dreamsxin/go-kit/v2/integrations/grpc",
       "version": "v0.4.0",

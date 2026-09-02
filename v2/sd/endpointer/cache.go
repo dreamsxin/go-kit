@@ -14,16 +14,24 @@ import (
 
 // Factory creates an endpoint for a discovered service instance. The closer,
 // when non-nil, is owned by Cache and released when the instance disappears.
-type Factory func(instance string) (endpoint.Endpoint, io.Closer, error)
+// The whole instance is passed, not just its address, so a factory can honour
+// registration labels that decide how to connect — scheme, tls, protocol.
+type Factory func(instance sd.Instance) (endpoint.Endpoint, io.Closer, error)
 
-// InstanceEndpoint pairs a discovered instance address with the endpoint the
-// Factory built for it. Balancers that need instance identity, such as
-// weighted or hash-based strategies, select over these instead of bare
-// endpoints.
+// InstanceEndpoint pairs a discovered instance with the endpoint the Factory
+// built for it. Balancers that need instance identity or labels, such as
+// weighted, subset, or hash-based strategies, select over these instead of
+// bare endpoints.
 type InstanceEndpoint struct {
-	Instance string
+	Instance sd.Instance
 	Endpoint endpoint.Endpoint
 }
+
+// Address is the discovered address of this instance.
+func (i InstanceEndpoint) Address() string { return i.Instance.Address }
+
+// Metadata returns the labels the instance reported when it registered.
+func (i InstanceEndpoint) Metadata() map[string]any { return i.Instance.Metadata }
 
 // Options controls cache invalidation after service-discovery errors.
 type Options struct {
@@ -108,50 +116,55 @@ func (c *Cache) Update(event sd.Event) {
 	c.mtx.Unlock()
 }
 
-func (c *Cache) updateCacheLocked(instances []string) []io.Closer {
-	instances = append([]string(nil), instances...)
-	sort.Strings(instances)
+func (c *Cache) updateCacheLocked(instances []sd.Instance) []io.Closer {
+	instances = append([]sd.Instance(nil), instances...)
+	sort.Slice(instances, func(i, j int) bool {
+		return instances[i].Address < instances[j].Address
+	})
 
 	cache := make(map[string]endpointCloser, len(instances))
 	stale := make([]io.Closer, 0, len(c.cache))
+	endpoints := make([]InstanceEndpoint, 0, len(instances))
 	for _, instance := range instances {
-		if item, ok := c.cache[instance]; ok {
-			cache[instance] = item
-			delete(c.cache, instance)
+		if _, duplicate := cache[instance.Address]; duplicate {
+			// Building a second endpoint for the same address would leak the
+			// first, because the cache holds one closer per address.
+			c.logger.Debug("duplicate instance in snapshot", "instance", instance.Address)
+			continue
+		}
+		if item, ok := c.cache[instance.Address]; ok {
+			// Labels can change without the address changing. Reuse the live
+			// endpoint and publish the new labels; rebuilding would drop a
+			// working connection over a relabel.
+			cache[instance.Address] = item
+			delete(c.cache, instance.Address)
+			endpoints = append(endpoints, InstanceEndpoint{Instance: instance, Endpoint: item.Endpoint})
 			continue
 		}
 
 		service, closer, err := c.factory(instance)
 		if err != nil {
-			c.logger.Debug("create endpoint failed", "instance", instance, "err", err)
+			c.logger.Debug("create endpoint failed", "instance", instance.Address, "err", err)
 			if closer != nil {
 				stale = append(stale, closer)
 			}
 			continue
 		}
 		if service == nil {
-			c.logger.Debug("create endpoint failed", "instance", instance, "err", "factory returned nil endpoint")
+			c.logger.Debug("create endpoint failed", "instance", instance.Address, "err", "factory returned nil endpoint")
 			if closer != nil {
 				stale = append(stale, closer)
 			}
 			continue
 		}
-		cache[instance] = endpointCloser{Endpoint: service, Closer: closer}
+		cache[instance.Address] = endpointCloser{Endpoint: service, Closer: closer}
+		endpoints = append(endpoints, InstanceEndpoint{Instance: instance, Endpoint: service})
 	}
 
 	for _, item := range c.cache {
 		if item.Closer != nil {
 			stale = append(stale, item.Closer)
 		}
-	}
-
-	endpoints := make([]InstanceEndpoint, 0, len(cache))
-	for _, instance := range instances {
-		item, ok := cache[instance]
-		if !ok {
-			continue
-		}
-		endpoints = append(endpoints, InstanceEndpoint{Instance: instance, Endpoint: item.Endpoint})
 	}
 
 	c.instances = endpoints

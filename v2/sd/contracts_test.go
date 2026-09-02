@@ -9,7 +9,7 @@ import (
 
 func TestEvent(t *testing.T) {
 	sentinel := errors.New("discovery unavailable")
-	event := sd.Event{Instances: []string{"a:80", "b:80"}, Err: sentinel}
+	event := sd.Event{Instances: sd.Addresses("a:80", "b:80"), Err: sentinel}
 	if len(event.Instances) != 2 || !errors.Is(event.Err, sentinel) {
 		t.Fatalf("unexpected event: %+v", event)
 	}

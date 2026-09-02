@@ -90,6 +90,7 @@ func maintainedModules(root string) []module {
 		{name: "microgen", dir: filepath.Join(root, "cmd", "microgen")},
 		{name: "examples", dir: filepath.Join(root, "examples")},
 		{name: "consul", dir: filepath.Join(root, "integrations", "consul")},
+		{name: "etcd", dir: filepath.Join(root, "integrations", "etcd")},
 		{name: "grpc", dir: filepath.Join(root, "integrations", "grpc")},
 		{name: "zap", dir: filepath.Join(root, "integrations", "zap")},
 		{name: "kit-grpc", dir: filepath.Join(root, "kit", "grpc")},

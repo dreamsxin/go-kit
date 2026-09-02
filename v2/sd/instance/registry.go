@@ -1,6 +1,10 @@
 package instance
 
-import "github.com/dreamsxin/go-kit/v2/sd"
+import (
+	"maps"
+
+	"github.com/dreamsxin/go-kit/v2/sd"
+)
 
 // registry stores event listeners and broadcasts events to all of them.
 type registry map[chan sd.Event]struct{}
@@ -47,8 +51,10 @@ func copyEvent(e sd.Event) sd.Event {
 	if e.Instances == nil {
 		return e
 	}
-	instances := make([]string, len(e.Instances))
-	copy(instances, e.Instances)
+	instances := make([]sd.Instance, len(e.Instances))
+	for i, item := range e.Instances {
+		instances[i] = sd.Instance{Address: item.Address, Metadata: maps.Clone(item.Metadata)}
+	}
 	e.Instances = instances
 	return e
 }

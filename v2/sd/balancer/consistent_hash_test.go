@@ -26,7 +26,7 @@ func newUpdatableEndpointer(t *testing.T, addrs ...string) (*instance.Cache, end
 
 func updateInstances(t *testing.T, cache *instance.Cache, addrs ...string) {
 	t.Helper()
-	cache.Update(sd.Event{Instances: addrs})
+	cache.Update(sd.Event{Instances: sd.Addresses(addrs...)})
 	time.Sleep(20 * time.Millisecond)
 }
 
@@ -37,13 +37,16 @@ func requestKey(_ context.Context, request any) string {
 	return key
 }
 
-func routeKey(t *testing.T, lb sd.RequestBalancer, key string) string {
+func routeKey(t *testing.T, lb sd.Balancer, key string) string {
 	t.Helper()
-	selected, err := lb.EndpointFor(context.Background(), key)
+	selected, err := lb.Pick(context.Background(), key)
 	if err != nil {
-		t.Fatalf("EndpointFor(%q) error: %v", key, err)
+		t.Fatalf("Pick(%q) error: %v", key, err)
 	}
-	resp, err := selected(context.Background(), key)
+	resp, err := selected.Endpoint(context.Background(), key)
+	if selected.Done != nil {
+		selected.Done(sd.Outcome{Err: err})
+	}
 	if err != nil {
 		t.Fatalf("call error: %v", err)
 	}
@@ -61,11 +64,8 @@ func TestConsistentHash_NilKeyFunctionPanics(t *testing.T) {
 
 func TestConsistentHash_NoEndpoints(t *testing.T) {
 	lb := balancer.NewConsistentHash(newEndpointer(t), requestKey)
-	if _, err := lb.EndpointFor(context.Background(), "tenant-1"); !errors.Is(err, sd.ErrNoEndpoints) {
-		t.Fatalf("EndpointFor error = %v, want ErrNoEndpoints", err)
-	}
-	if _, err := lb.Endpoint(); !errors.Is(err, sd.ErrNoEndpoints) {
-		t.Fatalf("Endpoint error = %v, want ErrNoEndpoints", err)
+	if _, err := lb.Pick(context.Background(), "tenant-1"); !errors.Is(err, sd.ErrNoEndpoints) {
+		t.Fatalf("Pick error = %v, want ErrNoEndpoints", err)
 	}
 }
 
@@ -167,7 +167,7 @@ func TestConsistentHash_EmptyKeyFallsBackToRandom(t *testing.T) {
 	}
 }
 
-func TestConsistentHash_EndpointWithoutRequestFallsBackToRandom(t *testing.T) {
+func TestConsistentHash_EmptyRequestFallsBackToRandom(t *testing.T) {
 	lb := balancer.NewConsistentHash(newEndpointer(t, "A:80", "B:80", "C:80"), requestKey)
 
 	seen := map[string]bool{}
@@ -175,7 +175,7 @@ func TestConsistentHash_EndpointWithoutRequestFallsBackToRandom(t *testing.T) {
 		seen[selectAddress(t, lb)] = true
 	}
 	if len(seen) != 3 {
-		t.Fatalf("expected Endpoint() to spread over all 3 instances, got %v", seen)
+		t.Fatalf("expected empty requests to spread over all 3 instances, got %v", seen)
 	}
 }
 
@@ -211,7 +211,7 @@ func TestConsistentHash_PropagatesSourceError(t *testing.T) {
 	}
 
 	lb := balancer.NewConsistentHash(source, requestKey)
-	if _, err := lb.EndpointFor(context.Background(), "tenant-1"); err == nil {
+	if _, err := lb.Pick(context.Background(), "tenant-1"); err == nil {
 		t.Fatal("expected the closed endpointer error to propagate")
 	}
 }

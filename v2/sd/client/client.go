@@ -2,10 +2,12 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
@@ -96,7 +98,7 @@ func NewEndpoint(src sd.Instancer, factory endpointer.Factory, logger *slog.Logg
 		return nil, nil, fmt.Errorf("sd/client: balancer factory returned nil")
 	}
 	call := retry.WithClassifier(options.Timeout, balanced, attemptLimit(options.MaxAttempts), options.Retryable)
-	return call, endpointSet, nil
+	return call, &resources{balancer: balanced, endpoints: endpointSet}, nil
 }
 
 // NewEndpointWithDefaults uses one attempt, a 500ms total timeout, and a five
@@ -147,4 +149,20 @@ func isNil(value any) bool {
 
 func attemptLimit(max int) retry.Callback {
 	return func(attempt int, _ error) (bool, error) { return attempt < max, nil }
+}
+
+type resources struct {
+	balancer  sd.Balancer
+	endpoints io.Closer
+	once      sync.Once
+	err       error
+}
+
+func (r *resources) Close() error {
+	r.once.Do(func() {
+		balancerErr := r.balancer.Close()
+		endpointErr := r.endpoints.Close()
+		r.err = errors.Join(balancerErr, endpointErr)
+	})
+	return r.err
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/dreamsxin/go-kit-examples/v2/profilesvc"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/integrations/consul"
+	"github.com/dreamsxin/go-kit/v2/sd"
 	sdclient "github.com/dreamsxin/go-kit/v2/sd/client"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
 )
@@ -99,8 +100,8 @@ func (r *clientResources) Close() error {
 }
 
 func factoryFor(makeEndpoint func(profilesvc.Service) endpoint.Endpoint) endpointer.Factory {
-	return func(instance string) (endpoint.Endpoint, io.Closer, error) {
-		svc, err := profilesvc.MakeClientEndpoints(instance)
+	return func(instance sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+		svc, err := profilesvc.MakeClientEndpoints(instance.Address)
 		if err != nil {
 			return nil, nil, err
 		}

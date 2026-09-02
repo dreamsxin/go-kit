@@ -33,6 +33,114 @@ go-kit v2 遵循语义化版本。本页记录当前版本所需的升级动作�
 
 推荐迁移顺序：逐个服务迁移；先从类型化 JSON 处理器（`kit`）入手，再把错误字符串约定替换为 `apperror`，然后把重复的 HTTP/gRPC 装配收敛到 `transport.Binding`，最后让 `microgen` 接管再生成的传输。
 
+## 升级到未发布版本（sd 实例元数据）
+
+服务发现现在携带标签，而不只是地址。需要改三处源码，都很机械。
+
+1. `sd.Event.Instances` 的类型变为 `[]sd.Instance`。没有标签要上报时，用
+   `sd.Addresses` 构造快照：
+
+   ```go
+   // 之前
+   cache.Update(sd.Event{Instances: []string{"host1:8080", "host2:8080"}})
+
+   // 之后
+   cache.Update(sd.Event{Instances: sd.Addresses("host1:8080", "host2:8080")})
+
+   // 带标签
+   cache.Update(sd.Event{Instances: []sd.Instance{
+       {Address: "host1:8080", Metadata: map[string]any{"zone": "a", "weight": 5}},
+   }})
+   ```
+
+2. `endpointer.Factory` 收到的是整个实例，因此可以遵循决定"如何连接"的标签：
+
+   ```go
+   // 之前
+   func(instance string) (endpoint.Endpoint, io.Closer, error) {
+       return newClient(instance), nil, nil
+   }
+
+   // 之后
+   func(instance sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+       return newClient(instance.Address), nil, nil
+   }
+   ```
+
+3. `balancer.NewWeightedRandom` 接收 `balancer.WeightFunc`：
+
+   ```go
+   // 之前
+   balancer.NewWeightedRandom(set, func(instance string) int { return weights[instance] })
+
+   // 之后
+   balancer.NewWeightedRandom(set, func(instance sd.Instance) int { return weights[instance.Address] })
+
+   // 或者直接读注册方上报的权重
+   balancer.NewWeightedRandom(set, balancer.MetadataWeight(balancer.DefaultWeightKey, 1))
+   ```
+
+自定义的 `sd.Instancer` 实现改为发布 `[]sd.Instance`；除此之外字段结构不变，
+类型别名仍是匿名结构体，因此 provider 模块可以继续在结构上镜像它们，无需依赖
+核心模块。
+
+如果你已经在用子集过滤，断言移到了根 `sd` 包以便新的实例层共用，同时两个装饰器
+改名，与 `selector.Filter` / `selector.Prefer` 对齐：
+
+```go
+// 之前
+endpointer.Subset(set, endpointer.MetadataEquals("zone", "a"))
+endpointer.PreferSubset(set, endpointer.MetadataEquals("zone", "a"))
+
+// 之后
+endpointer.Filter(set, sd.MetadataEquals("zone", "a"))
+endpointer.Prefer(set, sd.MetadataEquals("zone", "a"))
+```
+
+`Match`、`MetadataIn`、`MetadataMatches`、`HasMetadata`、`And`、`Or`、`Not`
+同样移动。行为不变：`Filter` 无匹配即失败，`Prefer` 无匹配时回退到全集。
+
+选择契约现在统一。`sd.Balancer` 暴露
+`Pick(ctx, request) (sd.Picked, error)` 与 `Close`；删除 `Endpoint`、
+`EndpointFor` 和 `RequestBalancer`。`sd.Picked` 携带被选中的实例、端点以及
+每次调用结束后必须执行的 `Done(sd.Outcome)`。`selector.Strategy` 同样统一为
+`Pick(ctx, request, instances)`，不再有 `RequestStrategy`/`PickFor` 双接口。
+`retry.Error.Attempts` 会记录每次失败尝试的地址与时延。`sd.Instancer` 现在也
+要求 `Close() error`。
+
+`sd/feedback.Table` 是进程内结果表，记录 EWMA 时延、错误率、字节数和在途请求。
+使用 `Table.Wrap`、`Table.Score`、`Table.LeastRequest` 或 `Table.Healthy` 将本地
+观测接入策略选择与被动摘除；它不会把实时信号写回注册中心。
+
+接入时有两处必须改对：
+
+```go
+// 之前
+lb := balancer.NewLeastRequest(set, balancer.WithTable(table))
+strategy := table.Wrap(selector.Scored(table.Score()))
+healthy := table.Healthy(policy)          // 曾经是 sd.Match
+
+// 之后
+lb := balancer.NewLeastRequest(set, table)                // 传 nil 使用私有表
+following := table.Follow(instancer)                      // 丢弃被替换的地址
+defer following.Close()
+strategy := table.Wrap(selector.Filtered(selector.Scored(table.Score()),
+	table.Healthy(policy)))                                // 现在是 sd.InstanceFilter
+```
+
+`Table.Healthy` 之所以是 `sd.InstanceFilter`，是因为它的摘除上限是对整个候选集的
+判定。务必调用 `Table.Follow(instancer)`——或自己调用 `Table.Retain(snapshot)`——
+否则表会为见过的每个地址各留一条记录，并随每次滚动发布持续增长。
+
+不需要改源码但需要注意的行为变更：
+
+- 只改元数据也算变更。即使地址集合完全相同，重新打标签也会通知订阅方；
+  此时 endpointer 会复用活跃端点，不会重连。
+- 同一快照中出现两次的地址现在只产生一个端点。重复项被丢弃，而不是覆盖首个
+  条目并泄漏它的 closer。
+- 在 Consul 中，服务的 `Meta` 会呈现为 `Instance.Metadata`；Tags 不会，它仍然是
+  `TagsInstancerOptions` 的过滤输入。
+
 ## 升级到 v2.7.0
 
 三处源码改动：

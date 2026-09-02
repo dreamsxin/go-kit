@@ -17,9 +17,10 @@ import (
 	"log/slog"
 )
 
-func nopFactory(addr string) (endpoint.Endpoint, io.Closer, error) {
+func nopFactory(instance sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+	address := instance.Address
 	ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
-		return addr, nil
+		return address, nil
 	})
 	return ep, io.NopCloser(nil), nil
 }
@@ -44,7 +45,7 @@ func newTestEndpoint(t *testing.T, cache *instance.Cache, opts ...sdclient.Optio
 
 func TestNewEndpoint_CallsInstance(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(sd.Event{Instances: []string{"host:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("host:80")})
 	time.Sleep(10 * time.Millisecond)
 
 	ep := newTestEndpoint(t, cache)
@@ -59,7 +60,7 @@ func TestNewEndpoint_CallsInstance(t *testing.T) {
 
 func TestNewEndpoint_RoundRobin(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(sd.Event{Instances: []string{"a:80", "b:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("a:80", "b:80")})
 	time.Sleep(10 * time.Millisecond)
 
 	ep := newTestEndpoint(t, cache,
@@ -82,7 +83,7 @@ func TestNewEndpoint_RoundRobin(t *testing.T) {
 
 func TestNewEndpoint_WithOptions(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(sd.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("svc:80")})
 	time.Sleep(10 * time.Millisecond)
 
 	ep := newTestEndpoint(t, cache,
@@ -103,7 +104,7 @@ func TestNewEndpoint_WithOptions(t *testing.T) {
 
 func TestNewEndpointWithDefaults(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(sd.Event{Instances: []string{"default:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("default:80")})
 	time.Sleep(10 * time.Millisecond)
 
 	ep, closer, err := sdclient.NewEndpointWithDefaults(cache, endpointer.Factory(nopFactory), nopLogger())
@@ -153,7 +154,7 @@ func TestNewEndpoint_RejectsInvalidConfiguration(t *testing.T) {
 
 func TestNewEndpoint_NilLoggerFallsBackToDefault(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(sd.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("svc:80")})
 	time.Sleep(10 * time.Millisecond)
 
 	ep, closer, err := sdclient.NewEndpoint(cache, endpointer.Factory(nopFactory), nil)
@@ -168,9 +169,9 @@ func TestNewEndpoint_NilLoggerFallsBackToDefault(t *testing.T) {
 
 func TestNewEndpoint_CloserReleasesFactoryResources(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(sd.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("svc:80")})
 	closed := false
-	factory := endpointer.Factory(func(string) (endpoint.Endpoint, io.Closer, error) {
+	factory := endpointer.Factory(func(sd.Instance) (endpoint.Endpoint, io.Closer, error) {
 		return endpoint.Nop, closerFunc(func() error {
 			closed = true
 			return nil
@@ -197,15 +198,15 @@ func TestNewEndpoint_CloserReleasesFactoryResources(t *testing.T) {
 
 func TestNewEndpoint_WithBalancerReplacesRoundRobin(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(sd.Event{Instances: []string{"a:80", "b:80", "c:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("a:80", "b:80", "c:80")})
 	time.Sleep(10 * time.Millisecond)
 
 	// Weighting every instance but one to zero proves the supplied balancer is
 	// the one making the decision, not the default round robin.
 	ep := newTestEndpoint(t, cache,
 		sdclient.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
-			return balancer.NewWeightedRandom(set, func(addr string) int {
-				if addr == "b:80" {
+			return balancer.NewWeightedRandom(set, func(instance sd.Instance) int {
+				if instance.Address == "b:80" {
 					return 1
 				}
 				return 0
@@ -228,7 +229,7 @@ func TestNewEndpoint_WithBalancerReplacesRoundRobin(t *testing.T) {
 // request-aware contract, so this also covers the sd/retry wiring.
 func TestNewEndpoint_WithConsistentHashRoutesByKey(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(sd.Event{Instances: []string{"a:80", "b:80", "c:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("a:80", "b:80", "c:80")})
 	time.Sleep(10 * time.Millisecond)
 
 	ep := newTestEndpoint(t, cache,

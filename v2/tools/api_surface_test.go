@@ -57,6 +57,7 @@ func publicRuntimePackages(t *testing.T, root string) []publicPackage {
 	moduleRoots := []string{
 		root,
 		filepath.Join(root, "integrations", "consul"),
+		filepath.Join(root, "integrations", "etcd"),
 		filepath.Join(root, "integrations", "grpc"),
 		filepath.Join(root, "integrations", "zap"),
 		filepath.Join(root, "kit", "grpc"),

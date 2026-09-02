@@ -8,31 +8,121 @@ through the immutable v0 and v1 tags.
 
 ### Added
 
-- Three more selection strategies in `sd/balancer`, so round robin is no longer
+- Four more selection strategies in `sd/balancer`, so round robin is no longer
   the only option: `NewRandom` (uniform draw, avoids the lockstep a shared
   counter causes across many clients), `NewWeightedRandom` (probability
-  proportional to a caller-supplied weight; weight zero drains an instance
-  without waiting for service discovery), and `NewConsistentHash` (a virtual-node
-  ring, `WithReplicas`, `DefaultReplicas`, so keys move only when their owning
-  instance leaves).
+  proportional to a weight per instance; weight zero drains an instance
+  without waiting for service discovery), `NewLeastRequest` (in-flight count
+  with power-of-two-choices, `WithChoices`, `DefaultChoices`), and
+  `NewConsistentHash` (a virtual-node ring, `WithReplicas`, `DefaultReplicas`,
+  so keys move only when their owning instance leaves).
 - `sdclient.WithBalancer` replaces the selection strategy. Previously
   `sd/client.NewEndpoint` hardcoded round robin and a custom balancer meant
   bypassing the constructor and wiring `endpointer`, the balancer, and
   `sd/retry` by hand.
-- `sd.RequestBalancer`, the request-aware selection contract. `sd/retry` prefers
-  `EndpointFor(ctx, request)` when a balancer implements it and falls back to
-  `Endpoint()` otherwise, which is what lets consistent hashing see the key it
-  routes on.
+- `sd.Outcome`, `sd.Done`, and `sd.Picked`: every `Balancer.Pick(ctx, request)`
+  returns the selected instance, endpoint, and a completion callback so retry
+  and direct callers can feed latency, errors, and bytes back into selection.
 - `endpointer.InstanceEndpoint` and `endpointer.InstanceEndpointer` report which
-  instance produced each endpoint. Weighted and hash strategies need that
-  identity; round robin and random do not and still accept `endpointer.Endpointer`.
+  instance produced each endpoint. Weighted, least-request, and hash strategies
+  need that identity; round robin and random do not and still accept
+  `endpointer.Endpointer`.
+- Instance metadata: `sd.Instance` now carries `Metadata map[string]any`
+  alongside `Address`, so registrations can report static labels (zone, version,
+  protocol, capability, weight, tenant) and discovery can select on them.
+  `sd.Addresses` builds a snapshot from bare addresses for tests, local
+  development, and registries that expose no labels.
+- `sd.MetadataString`, `sd.MetadataInt`, and `sd.MetadataBool` coerce label
+  values, so a predicate written against `5` still matches the `"5"` a registry
+  returns.
+- Subset filtering in `sd/endpointer`, modelled on Envoy's subset load balancer:
+  `Filter` (no fallback) and `Prefer` (fall back to the full set when the
+  filtered set is empty), driven by the `sd` predicates. Zone-aware routing is
+  composition, not a zone-aware variant of every strategy.
+- `balancer.WeightFunc`, `balancer.MetadataWeight`, and
+  `balancer.DefaultWeightKey` read a weight from registration labels.
+- `consul.MetaRegistrarOptions` reports static labels with the registration, and
+  the Consul instancer lifts each entry's service `Meta` into
+  `Instance.Metadata`. A metadata-only change is broadcast as a change. Live
+  load stays out of the catalog: `NewLeastRequest` measures it in process.
+- New `sd/selector` package: selection strategies over instance snapshots,
+  independent of endpoints. `Strategy.Pick(ctx, request, instances)`,
+  the strategies `RoundRobin`, `Random`, `WeightedRandom`, `Scored`,
+  `LeastRequest`, and `ConsistentHash`, the sources `Static`, `Subscribe`,
+  `Filter`, and `Prefer`, and `New`/`Select` to bind them. Callers that only need
+  an address — a proxy that dials the instance itself, an API that answers "where
+  should I connect?" — assemble this and never run an endpoint factory, so no
+  connection is built for an instance nobody calls.
+- `balancer.New(source, strategy)` turns any `selector.Strategy` into a
+  `sd.Balancer`, so a custom strategy is usable by `sd/client` and `sd/retry`
+  without reimplementing endpoint lookup. Request data is always passed through
+  the one strategy method.
+- `sd/feedback.Table` records EWMA latency/error rate, bytes, and in-flight
+  calls. `Table.Score`, `Table.Load`, `Table.LeastRequest`, `Table.Healthy`, and
+  `Table.Wrap` connect local measurements to scored selection, least-request
+  selection, and passive outlier exclusion. `Table.Follow(instancer)` and
+  `Table.Retain(instances)` drop measurements for addresses that have left
+  discovery, so a long-running table stays the size of the service rather than
+  the size of its deployment history.
+- `sd.InstanceFilter` and `sd.Keep(match)`, plus `selector.Filtered(strategy,
+  filters...)`: a set-level filter contract for policies that cannot be decided
+  per instance. Passive health checking needs to know how much of the pool it is
+  about to remove before it removes any of it, so `Table.Healthy` returns an
+  `InstanceFilter` and its ejection cap is measured against the candidates in
+  hand.
+- `balancer.NewScored` and `selector.Scored` select on a caller-supplied score,
+  the seam for load signals this process did not measure: a report the
+  instances push, ORCA/LRS style out-of-band reporting, or any local table.
+  Returning `false` excludes an instance, which expresses a hard filter without
+  a second predicate.
+- `sd.Match` and the label predicates `sd.MetadataEquals`, `sd.MetadataIn`,
+  `sd.MetadataMatches`, `sd.HasMetadata`, `sd.And`, `sd.Or`, and `sd.Not`, so
+  the endpoint layer and the instance layer filter with one set of predicates.
 
 ### Changed
 
-- `endpointer.NewEndpointer` now declares `InstanceEndpointer` as its return
-  type instead of `Endpointer`. Existing call sites keep compiling because the
-  new interface embeds the old one; only code that stores the constructor in a
-  `func(...) Endpointer` variable needs an update.
+- **Breaking:** `sd.Event.Instances` is `[]sd.Instance` instead of `[]string`.
+  Build snapshots with `sd.Addresses("host:port", ...)` when there are no labels
+  to report.
+- **Breaking:** `endpointer.Factory` takes `sd.Instance` instead of a string
+  address, so a factory can honour the labels that decide how to connect —
+  scheme, TLS, protocol. Read the address as `instance.Address`.
+- **Breaking:** `balancer.NewWeightedRandom` takes `balancer.WeightFunc`
+  (`func(sd.Instance) int`) instead of `func(string) int`.
+- **Breaking:** the subset predicates moved from `sd/endpointer` to the root
+  `sd` package, because both the endpoint layer and the new instance layer read
+  them: `endpointer.Match` → `sd.Match`, `endpointer.MetadataEquals` →
+  `sd.MetadataEquals`, and likewise for `MetadataIn`, `MetadataMatches`,
+  `HasMetadata`, `And`, `Or`, and `Not`. `endpointer.Subset` and
+  `endpointer.PreferSubset` are now `endpointer.Filter` and `endpointer.Prefer`,
+  matching `selector.Filter` and `selector.Prefer`: the same operation should not
+  have two names at two layers.
+- **Breaking:** `sd.Balancer` now exposes `Pick(ctx, request) (sd.Picked, error)`
+  and `Close`; `Endpoint`/`EndpointFor` and `RequestBalancer` are removed.
+  `sd.Picked.Done` receives `sd.Outcome` after every call, preserving instance
+  identity for feedback and retry attribution.
+- **Breaking:** `sd.Instancer` now exposes `Close() error`.
+- **Breaking:** `balancer.NewLeastRequest(source, table, options...)` takes the
+  feedback table explicitly; pass `nil` for a private one. `WithTable` and
+  `WithFeedback` are removed — a shared measurement stream is a parameter, not an
+  option. Least request itself moved to `selector.LeastRequest(load, options...)`
+  so the instance layer can use it too.
+- **Breaking:** `feedback.Table.Healthy` returns `sd.InstanceFilter` instead of
+  `sd.Match`, and its ejection cap is computed over the candidate set rather than
+  every address the table has ever seen. Feed it to `selector.Filtered`. The
+  duplicate names `feedback.Policy` and `Table.Done` are removed; use
+  `HealthPolicy` and `Track`.
+ - `sd/balancer` is now a thin layer over `sd/selector`: the weighted, scored,
+  and hash strategies live there and the balancer adds endpoint lookup. The
+  public balancer API keeps `WeightFunc`, `KeyFunc`,
+  `ConsistentHashOption`, `DefaultWeightKey`, `DefaultReplicas`,
+  `MetadataWeight`, and `WithReplicas` now alias or forward to the selector
+  equivalents. Round robin and random still read endpoints directly, since they
+  need no instance identity.
+- The endpointer cache reuses a live endpoint when only an instance's labels
+  change, so relabelling does not reconnect, and skips duplicate addresses in a
+  snapshot rather than leaking the first endpoint's closer.
+- `endpointer.NewEndpointer` declares `InstanceEndpointer` as its return type.
 
 ## [2.7.0] - 2026-09-01
 

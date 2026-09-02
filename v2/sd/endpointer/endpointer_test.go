@@ -16,9 +16,10 @@ import (
 
 var nopLogger = slog.New(slog.DiscardHandler)
 
-var echoFactory = endpointer.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
+var echoFactory = endpointer.Factory(func(instance sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+	address := instance.Address
 	ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
-		return addr, nil
+		return address, nil
 	})
 	return ep, io.NopCloser(nil), nil
 })
@@ -42,7 +43,7 @@ func TestNewEndpointer_ReceivesInstances(t *testing.T) {
 	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 
-	cache.Update(sd.Event{Instances: []string{"a:80", "b:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("a:80", "b:80")})
 	time.Sleep(20 * time.Millisecond)
 
 	eps, err := ep.Endpoints()
@@ -59,10 +60,10 @@ func TestNewEndpointer_UpdateInstances(t *testing.T) {
 	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 
-	cache.Update(sd.Event{Instances: []string{"a:80", "b:80", "c:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("a:80", "b:80", "c:80")})
 	time.Sleep(20 * time.Millisecond)
 
-	cache.Update(sd.Event{Instances: []string{"a:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("a:80")})
 	time.Sleep(20 * time.Millisecond)
 
 	eps, err := ep.Endpoints()
@@ -75,11 +76,12 @@ func TestNewEndpointer_UpdateInstances(t *testing.T) {
 }
 
 func TestNewEndpointer_FactoryError_SkipsInstance(t *testing.T) {
-	failFactory := endpointer.Factory(func(addr string) (endpoint.Endpoint, io.Closer, error) {
-		if addr == "bad:80" {
+	failFactory := endpointer.Factory(func(instance sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+		address := instance.Address
+		if address == "bad:80" {
 			return nil, nil, errors.New("factory error")
 		}
-		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) { return addr, nil })
+		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) { return address, nil })
 		return ep, io.NopCloser(nil), nil
 	})
 
@@ -87,7 +89,7 @@ func TestNewEndpointer_FactoryError_SkipsInstance(t *testing.T) {
 	ep := endpointer.NewEndpointer(cache, failFactory, nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 
-	cache.Update(sd.Event{Instances: []string{"good:80", "bad:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("good:80", "bad:80")})
 	time.Sleep(20 * time.Millisecond)
 
 	eps, err := ep.Endpoints()
@@ -107,7 +109,7 @@ func TestNewEndpointer_WithInvalidateOnError(t *testing.T) {
 	)
 	t.Cleanup(func() { _ = ep.Close() })
 
-	cache.Update(sd.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("svc:80")})
 	time.Sleep(20 * time.Millisecond)
 
 	// healthy
@@ -141,8 +143,8 @@ func TestDefaultEndpointer_CloseIsIdempotentAndSafeDuringUpdate(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		for i := 0; i < 100; i++ {
-			cache.Update(sd.Event{Instances: []string{"svc:80"}})
-			cache.Update(sd.Event{Instances: []string{"svc2:80"}})
+			cache.Update(sd.Event{Instances: sd.Addresses("svc:80")})
+			cache.Update(sd.Event{Instances: sd.Addresses("svc2:80")})
 		}
 		close(done)
 	}()
@@ -165,9 +167,9 @@ func TestDefaultEndpointer_CloseIsIdempotentAndSafeDuringUpdate(t *testing.T) {
 
 func TestDefaultEndpointer_CloseReleasesEndpointResources(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(sd.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("svc:80")})
 	closed := make(chan struct{})
-	factory := endpointer.Factory(func(string) (endpoint.Endpoint, io.Closer, error) {
+	factory := endpointer.Factory(func(sd.Instance) (endpoint.Endpoint, io.Closer, error) {
 		return endpoint.Nop, closerFunc(func() error {
 			close(closed)
 			return nil
@@ -192,7 +194,7 @@ func TestInstanceEndpoints_PairsAddressWithItsEndpoint(t *testing.T) {
 	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 
-	cache.Update(sd.Event{Instances: []string{"c:80", "a:80", "b:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("c:80", "a:80", "b:80")})
 	time.Sleep(20 * time.Millisecond)
 
 	instances, err := ep.InstanceEndpoints()
@@ -204,17 +206,17 @@ func TestInstanceEndpoints_PairsAddressWithItsEndpoint(t *testing.T) {
 		t.Fatalf("got %d instances, want %d", len(instances), len(want))
 	}
 	for i, item := range instances {
-		if item.Instance != want[i] {
-			t.Fatalf("instance %d = %q, want %q", i, item.Instance, want[i])
+		if item.Address() != want[i] {
+			t.Fatalf("instance %d = %q, want %q", i, item.Address(), want[i])
 		}
 		// echoFactory returns the address it was built with, so a mismatch
 		// here means an endpoint was paired with the wrong instance.
 		resp, err := item.Endpoint(context.Background(), nil)
 		if err != nil {
-			t.Fatalf("call %s: %v", item.Instance, err)
+			t.Fatalf("call %s: %v", item.Address(), err)
 		}
-		if resp != item.Instance {
-			t.Fatalf("instance %q is paired with the endpoint for %v", item.Instance, resp)
+		if resp != item.Address() {
+			t.Fatalf("instance %q is paired with the endpoint for %v", item.Address(), resp)
 		}
 	}
 }
@@ -224,7 +226,7 @@ func TestInstanceEndpoints_MatchesEndpointsOrder(t *testing.T) {
 	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
 	t.Cleanup(func() { _ = ep.Close() })
 
-	cache.Update(sd.Event{Instances: []string{"b:80", "a:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("b:80", "a:80")})
 	time.Sleep(20 * time.Millisecond)
 
 	eps, err := ep.Endpoints()
@@ -255,7 +257,7 @@ func TestInstanceEndpoints_MatchesEndpointsOrder(t *testing.T) {
 
 func TestInstanceEndpoints_AfterCloseReportsCacheClosed(t *testing.T) {
 	cache := instance.NewCache()
-	cache.Update(sd.Event{Instances: []string{"svc:80"}})
+	cache.Update(sd.Event{Instances: sd.Addresses("svc:80")})
 	ep := endpointer.NewEndpointer(cache, echoFactory, nopLogger)
 
 	if err := ep.Close(); err != nil {

@@ -127,7 +127,8 @@ host, err := kit.NewHost(kit.WithLifecycle(httpComponent, runner))
 发现订阅者收到不可变快照。消费者应使用缓冲更新 channel，并必须在停机时
 注销或关闭自己的 endpointer。`sd/client.NewEndpoint` 返回
 `(endpoint, closer, error)`；把 closer 当作持有的运行时状态，在停止
-Instancer 之前关闭它，使订阅被移除、工厂创建的客户端连接被释放。
+Instancer.Close 之前关闭它，使订阅被移除、工厂创建的客户端连接被释放。
+每次 `Balancer.Pick` 都必须在端点返回后配对调用 `Picked.Done`。
 
 内置默认重试分类器只重试显式 `Retryable() == true` 的错误、无 endpoint 的
 发现错误和已知的瞬态 gRPC 状态。未知错误视为永久错误。生产调用方仍应优先

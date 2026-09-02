@@ -11,7 +11,7 @@ import (
 
 func TestRandom_NoEndpoints(t *testing.T) {
 	lb := balancer.NewRandom(newEndpointer(t))
-	if _, err := lb.Endpoint(); !errors.Is(err, sd.ErrNoEndpoints) {
+	if _, err := lb.Pick(context.Background(), nil); !errors.Is(err, sd.ErrNoEndpoints) {
 		t.Fatalf("Endpoint() error = %v, want ErrNoEndpoints", err)
 	}
 }
@@ -20,11 +20,7 @@ func TestRandom_SingleEndpoint(t *testing.T) {
 	lb := balancer.NewRandom(newEndpointer(t, "only:80"))
 
 	for i := 0; i < 5; i++ {
-		selected, err := lb.Endpoint()
-		if err != nil {
-			t.Fatalf("Endpoint() error: %v", err)
-		}
-		resp, _ := selected(context.Background(), nil)
+		resp := callPicked(t, pick(t, lb, nil), nil)
 		if resp != "only:80" {
 			t.Fatalf("got %v, want only:80", resp)
 		}
@@ -36,11 +32,7 @@ func TestRandom_SelectsOnlyKnownEndpoints(t *testing.T) {
 
 	known := map[string]bool{"A:80": true, "B:80": true, "C:80": true}
 	for i := 0; i < 50; i++ {
-		selected, err := lb.Endpoint()
-		if err != nil {
-			t.Fatalf("Endpoint() error: %v", err)
-		}
-		resp, _ := selected(context.Background(), nil)
+		resp := callPicked(t, pick(t, lb, nil), nil)
 		if !known[resp.(string)] {
 			t.Fatalf("selected unknown endpoint %v", resp)
 		}
@@ -54,11 +46,7 @@ func TestRandom_ReachesEveryEndpoint(t *testing.T) {
 
 	seen := map[string]bool{}
 	for i := 0; i < 200; i++ {
-		selected, err := lb.Endpoint()
-		if err != nil {
-			t.Fatalf("Endpoint() error: %v", err)
-		}
-		resp, _ := selected(context.Background(), nil)
+		resp := callPicked(t, pick(t, lb, nil), nil)
 		seen[resp.(string)] = true
 	}
 	if len(seen) != 3 {
@@ -73,7 +61,7 @@ func TestRandom_PropagatesSourceError(t *testing.T) {
 	}
 
 	lb := balancer.NewRandom(source)
-	if _, err := lb.Endpoint(); err == nil {
+	if _, err := lb.Pick(context.Background(), nil); err == nil {
 		t.Fatal("expected the closed endpointer error to propagate")
 	}
 }

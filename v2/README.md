@@ -300,7 +300,7 @@ observations, implement `endpoint.Recorder` and register it with
 The `sd/client` constructors return both a callable endpoint and an owned
 closer. Handle the construction error and close the endpoint resources before
 stopping the underlying instancer. Consul registration and deregistration return
-errors, and `Instancer.Stop` cancels and joins the active blocking query.
+errors, and `Instancer.Close` cancels and joins the active blocking query.
 
 MCP clients must initialize with protocol version `2025-06-18`, send
 `notifications/initialized`, and declare `sampling` before the server may issue

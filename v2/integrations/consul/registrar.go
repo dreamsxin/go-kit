@@ -40,6 +40,27 @@ func CheckRegistrarOptions(check *stdconsul.AgentServiceCheck) RegistrarOption {
 	}
 }
 
+// MetaRegistrarOptions reports static labels with the registration, which is
+// what discovery consumers filter and weight on: zone, version, protocol,
+// capability, weight, tenant.
+//
+// Keep live load out of here. Consul rewrites the catalog on every change and
+// every consumer would still read a stale number; balancers that need live
+// signals measure them in process instead.
+func MetaRegistrarOptions(meta map[string]string) RegistrarOption {
+	return func(r *Registrar) {
+		if len(meta) == 0 {
+			return
+		}
+		if r.registration.Meta == nil {
+			r.registration.Meta = make(map[string]string, len(meta))
+		}
+		for key, value := range meta {
+			r.registration.Meta[key] = value
+		}
+	}
+}
+
 func NewRegistrar(client Client, logger *slog.Logger, name string, address string, port int, options ...RegistrarOption) *Registrar {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)

@@ -278,7 +278,7 @@ Server-Sent Events 流使用 `kit.HandleSSETyped` 注册，使 endpoint 中间�
 
 `sd/client` 构造函数会同时返回可调用 endpoint 和资源 closer。调用方必须处理构造
 错误，并在停止底层 instancer 之前关闭 endpoint 资源。Consul 注册和注销会返回
-错误，`Instancer.Stop` 会取消并等待正在执行的阻塞查询退出。
+错误，`Instancer.Close` 会取消并等待正在执行的阻塞查询退出。
 
 MCP 客户端必须使用协议版本 `2025-06-18` 初始化，随后发送
 `notifications/initialized`；只有声明 `sampling` capability 后，服务端才能发起
