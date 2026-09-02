@@ -174,6 +174,30 @@ through the immutable v0 and v1 tags.
   snapshot rather than leaking the first endpoint's closer.
 - `endpointer.NewEndpointer` declares `InstanceEndpointer` as its return type.
 
+### Fixed
+
+- **Breaking:** `selector.Selector.Select` and the package-level
+  `selector.Select` return `(sd.Instance, sd.Done, error)`. The instance layer
+  discarded the strategy's callback, so a table-backed strategy used through
+  `selector.New` counted every selection as permanently in flight: the instance
+  looked saturated to least-request and scored selection for the rest of the
+  process, `Table.Reset` does not clear in-flight by design, and `Table.Retain`
+  could never drop the entry. The callback is now forwarded, is never nil on
+  success, and is idempotent, so `defer done(outcome)` is safe.
+- `sd/health` no longer defeats `WithInitiallyHealthy(false)`. The fail-open that
+  republishes the unchecked set now requires every instance to have produced a
+  probe result; at startup nothing had been probed, so the option published
+  exactly the instances it was asked to hide.
+- `feedback.Table` closes its entry lifecycle. An address that left discovery
+  while a call was in flight was kept until the next snapshot arrived and stayed
+  forever if none did; the last completion now drops it. A retired address that
+  returns to discovery keeps its measurements.
+- `sd/health` probes on a fixed worker pool instead of one goroutine per
+  instance per round, and stops feeding the pool as soon as `Close` cancels.
+  `health.Probe` now documents that it must return on context cancellation,
+  since `Close` waits for the round in flight.
+
+
 ## [2.7.0] - 2026-09-01
 
 ### Added

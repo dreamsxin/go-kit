@@ -169,6 +169,24 @@ weight := selector.SlowStart(selector.MetadataWeight("weight", 1), table.FirstSe
 排空现在有了明确的标签约定：把注册信息里的 `sd.StateKey` 设为
 `sd.StateDraining`，并用 `sd.Keep(sd.Serving())` 过滤。
 
+`selector.Select` 现在会返回完成回调，与均衡器早已放进 `sd.Picked.Done` 的
+是同一件事：
+
+```go
+// 之前
+instance, err := pick.Select(ctx, request)
+
+// 之后
+instance, done, err := pick.Select(ctx, request)
+if err != nil { return err }
+started := time.Now()
+err = dial(instance.Address)
+done(sd.Outcome{Err: err, Latency: time.Since(started)})
+```
+
+回调在成功时永不为 nil，且幂等。即使策略看起来无状态也请上报结果——实例层
+此前会丢掉它，导致任何基于反馈表的策略把每次选择永久计为在途。
+
 不需要改源码但需要注意的行为变更：
 
 - 只改元数据也算变更。即使地址集合完全相同，重新打标签也会通知订阅方；

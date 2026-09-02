@@ -62,13 +62,16 @@ type Table struct {
 }
 
 type entry struct {
-	// samples, latencyNS, errorRate, bytes and firstSeen are guarded by
-	// Table.mu.
+	// samples, latencyNS, errorRate, bytes, firstSeen and retired are guarded
+	// by Table.mu.
 	samples   uint64
 	latencyNS float64
 	errorRate float64
 	bytes     int64
 	firstSeen time.Time
+	// retired marks an address Retain wanted to drop but could not, because a
+	// call was still in flight. The last completion deletes it.
+	retired bool
 
 	// inflight is read and written outside the lock, including by callbacks
 	// that outlive a Retain, so it carries its own synchronisation.
@@ -141,8 +144,26 @@ func (t *Table) Track(instance sd.Instance) sd.Done {
 	return func(outcome sd.Outcome) {
 		once.Do(func() {
 			t.Observe(instance, outcome)
-			item.inflight.Add(-1)
+			if item.inflight.Add(-1) == 0 {
+				t.release(instance.Address, item)
+			}
 		})
+	}
+}
+
+// release drops an address that Retain marked as gone and could not delete
+// because a call was still in flight. Without it, an instance that leaves
+// discovery mid-call keeps its entry until the next snapshot arrives — and if
+// the set never changes again, forever.
+func (t *Table) release(address string, item *entry) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if !item.retired || item.inflight.Load() > 0 {
+		return
+	}
+	// Compare identities: a re-registered address may already own a new entry.
+	if t.items[address] == item {
+		delete(t.items, address)
 	}
 }
 
@@ -170,8 +191,9 @@ func (t *Table) Reset(instance sd.Instance) {
 
 // Retain drops measurements for addresses outside instances, which is what
 // keeps a long-running table the size of the service rather than the size of
-// its deployment history. Entries with calls still in flight are kept until
-// those calls report.
+// its deployment history. An address with calls still in flight is marked
+// instead, and its last completion deletes it, so the lifecycle closes even if
+// no further snapshot ever arrives.
 //
 // Pass the discovery snapshot, never a filtered candidate set: dropping an
 // instance that a health filter just ejected would erase the very measurements
@@ -194,9 +216,13 @@ func (t *Table) Retain(instances []sd.Instance) {
 	defer t.mu.Unlock()
 	for address, item := range t.items {
 		if _, wanted := keep[address]; wanted {
+			// A re-registered address is live again, so an earlier retirement
+			// must not outlive it.
+			item.retired = false
 			continue
 		}
 		if item.inflight.Load() > 0 {
+			item.retired = true
 			continue
 		}
 		delete(t.items, address)

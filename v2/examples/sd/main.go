@@ -307,11 +307,15 @@ func demo7_Selector() {
 	pick := selector.New(local, selector.RoundRobin())
 
 	for i := 0; i < 3; i++ {
-		chosen, err := pick.Select(context.Background(), nil)
+		chosen, done, err := pick.Select(context.Background(), nil)
 		if err != nil {
 			fmt.Printf("  select: %v\n", err)
 			return
 		}
+		// Every selection reports its result, even here where the strategy
+		// keeps no state: it is the same callback a feedback table needs to
+		// release the call it just counted.
+		done(sd.Outcome{})
 		fmt.Printf("  call %d → %s (zone %v)\n", i+1, chosen.Address, chosen.Metadata["zone"])
 	}
 
@@ -324,11 +328,12 @@ func demo7_Selector() {
 		score, known := load[item.Address]
 		return -score, known // lower load, higher score
 	}))
-	chosen, err := byLoad.Select(context.Background(), nil)
+	chosen, done, err := byLoad.Select(context.Background(), nil)
 	if err != nil {
 		fmt.Printf("  select by load: %v\n", err)
 		return
 	}
+	done(sd.Outcome{})
 	fmt.Printf("  least loaded → %s\n", chosen.Address)
 }
 

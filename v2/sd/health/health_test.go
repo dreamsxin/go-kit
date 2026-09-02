@@ -209,6 +209,45 @@ func TestCheck_HidesNewInstancesUntilTheyPassWhenAskedTo(t *testing.T) {
 	waitForAddresses(t, checker, "cold:80", "warm:80")
 }
 
+// The fail-open for "everything failed" must not fire before anything has been
+// probed, or WithInitiallyHealthy(false) defeats itself at startup: nothing is
+// healthy yet, so republishing the unchecked set would publish exactly the
+// instances the option asks to hide.
+func TestCheck_DoesNotFailOpenBeforeTheFirstProbeCompletes(t *testing.T) {
+	release := make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+
+	entered := make(chan string, 2)
+	blocking := health.Probe(func(_ context.Context, target sd.Instance) error {
+		entered <- target.Address
+		<-release
+		return errors.New("down")
+	})
+
+	checker := health.Check(source(t, "a:80", "b:80"), blocking,
+		health.WithInterval(time.Hour),
+		health.WithInitiallyHealthy(false),
+		health.WithConcurrency(2))
+	// Cleanups run last in first out, so the probes are released before Close
+	// waits for them.
+	t.Cleanup(func() { _ = checker.Close() })
+	t.Cleanup(unblock)
+
+	// Check publishes on the initial snapshot, before any probe has answered.
+	if got := addressesOf(checker.Register(nil)); len(got) != 0 {
+		t.Fatalf("published %v before the first probe, want nothing", got)
+	}
+
+	<-entered
+	<-entered
+	unblock()
+
+	// Now every instance has been probed and every probe failed, which is the
+	// case the fail-open exists for.
+	waitForAddresses(t, checker, "a:80", "b:80")
+}
+
 func TestCheck_StopsProbingAndUnsubscribesOnClose(t *testing.T) {
 	probes := newProbeTable()
 	cache := source(t, "a:80")

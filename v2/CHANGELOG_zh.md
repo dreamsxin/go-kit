@@ -135,6 +135,25 @@
   同一快照中的重复地址会被跳过，避免泄漏首个端点的 closer。
 - `endpointer.NewEndpointer` 的返回类型声明为 `InstanceEndpointer`。
 
+### 修复
+
+- **破坏性变更：** `selector.Selector.Select` 与包级 `selector.Select` 改为返回
+  `(sd.Instance, sd.Done, error)`。此前实例层丢弃了策略返回的回调，导致基于
+  反馈表的策略在 `selector.New` 路径下把每次选择都永久计为在途：该实例在最少
+  请求与评分选择里从此显得满载，`Table.Reset` 按设计不清在途计数，`Table.Retain`
+  也永远无法回收这条记录。现在回调会被转发，成功时永不为 nil，且幂等，因此
+  `defer done(outcome)` 是安全的。
+- `sd/health` 不再让 `WithInitiallyHealthy(false)` 形同虚设。发布未检查全集的
+  fail-open 现在要求每个实例都已产生过探测结果；此前在启动瞬间尚无任何探测结果，
+  于是这个选项恰好发布了它本该隐藏的实例。
+- `feedback.Table` 补齐了条目的生命周期闭环。实例带着在途调用离开服务发现时，
+  其记录此前要等下一份快照才会被清理，若此后再无快照就永久留存；现在最后一次
+  完成回调会删除它。已退休的地址若重新出现在服务发现里，测量数据会被保留。
+- `sd/health` 改用固定 worker pool 探测，不再每轮为每个实例创建 goroutine，并在
+  `Close` 取消后立即停止投喂任务。`health.Probe` 的文档现在明确要求它必须在
+  context 取消时返回，因为 `Close` 会等待正在进行的这一轮。
+
+
 ## [2.7.0] - 2026-09-01
 
 ### 新增

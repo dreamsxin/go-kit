@@ -35,6 +35,10 @@ const (
 )
 
 // Probe reports whether one instance is serving. A nil error means healthy.
+//
+// A Probe must return when its context is cancelled. Close cancels the context
+// and waits for the round in flight, so a Probe that ignores cancellation makes
+// Close block for as long as that probe takes. TCPProbe and HTTPProbe honour it.
 type Probe func(ctx context.Context, instance sd.Instance) error
 
 // TCPProbe connects to the instance address and closes it again. It proves the
@@ -130,6 +134,10 @@ func WithHealthyThreshold(successes int) Option {
 // would have nothing to call for one probe interval after startup, turning a
 // restart into an outage. A gateway in front of slow-starting backends may
 // prefer false.
+//
+// With false, the checker publishes an empty set until the first probes land —
+// including at startup. The fail-open in publish does not override this,
+// because it only applies once every instance has actually been probed.
 func WithInitiallyHealthy(healthy bool) Option {
 	return func(c *Checker) {
 		c.initiallyHealthy = healthy
@@ -181,7 +189,12 @@ type Checker struct {
 }
 
 type state struct {
-	healthy   bool
+	healthy bool
+	// probed records whether this instance has produced a probe result yet.
+	// "Not measured" and "measured and failing" must not be confused: the
+	// fail-open in publish is about a broken probe, and an instance nobody has
+	// probed yet is no evidence of that.
+	probed    bool
 	successes int
 	failures  int
 }
@@ -302,20 +315,37 @@ func (c *Checker) round() {
 		return
 	}
 
-	slots := make(chan struct{}, c.concurrency)
-	var wg sync.WaitGroup
-	for _, target := range targets {
-		wg.Add(1)
-		go func(target sd.Instance) {
-			defer wg.Done()
-			slots <- struct{}{}
-			defer func() { <-slots }()
-
-			ctx, cancel := context.WithTimeout(c.ctx, c.timeout)
-			defer cancel()
-			c.record(target, c.probe(ctx, target))
-		}(target)
+	// A fixed pool rather than one goroutine per instance: with a large
+	// service the difference is thousands of goroutines parked on a semaphore
+	// every interval. Cancellation stops the feed, so Close does not wait for
+	// probes that have not started.
+	workers := c.concurrency
+	if workers > len(targets) {
+		workers = len(targets)
 	}
+	queue := make(chan sd.Instance)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for target := range queue {
+				ctx, cancel := context.WithTimeout(c.ctx, c.timeout)
+				c.record(target, c.probe(ctx, target))
+				cancel()
+			}
+		}()
+	}
+
+feeding:
+	for _, target := range targets {
+		select {
+		case queue <- target:
+		case <-c.ctx.Done():
+			break feeding
+		}
+	}
+	close(queue)
 	wg.Wait()
 
 	if c.ctx.Err() != nil {
@@ -333,6 +363,7 @@ func (c *Checker) record(target sd.Instance, err error) {
 		// The instance left discovery while its probe was in flight.
 		return
 	}
+	current.probed = true
 
 	if err != nil {
 		current.successes = 0
@@ -357,8 +388,13 @@ func (c *Checker) record(target sd.Instance, err error) {
 func (c *Checker) publish() {
 	c.mu.Lock()
 	healthy := make([]sd.Instance, 0, len(c.snapshot))
+	everyoneProbed := true
 	for _, target := range c.snapshot {
-		if current := c.states[target.Address]; current != nil && current.healthy {
+		current := c.states[target.Address]
+		if current == nil || !current.probed {
+			everyoneProbed = false
+		}
+		if current != nil && current.healthy {
 			healthy = append(healthy, target)
 		}
 	}
@@ -366,12 +402,17 @@ func (c *Checker) publish() {
 	snapshot := append([]sd.Instance(nil), c.snapshot...)
 	c.mu.Unlock()
 
-	// Nothing answering usually means the probe itself is wrong — a firewall, a
-	// path that moved — rather than every instance being down. Publishing an
-	// empty set in that case turns a monitoring fault into an outage, so the
-	// unchecked set is published instead. Same reasoning as the ejection cap in
-	// sd/feedback.
-	if total > 0 && len(healthy) == 0 {
+	// Every probed instance failing usually means the probe itself is wrong — a
+	// firewall, a path that moved — rather than every instance being down.
+	// Publishing an empty set in that case turns a monitoring fault into an
+	// outage, so the unchecked set is published instead. Same reasoning as the
+	// ejection cap in sd/feedback.
+	//
+	// This requires every instance to have been probed. Otherwise
+	// WithInitiallyHealthy(false) would defeat itself: at startup nothing is
+	// healthy yet, and republishing the unchecked set is exactly the behaviour
+	// that option exists to prevent.
+	if total > 0 && len(healthy) == 0 && everyoneProbed {
 		c.logger.Warn("no instance passed health checks, publishing the unchecked set", "instances", total)
 		c.cache.Update(sd.Event{Instances: snapshot})
 		return

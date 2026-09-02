@@ -307,10 +307,11 @@ func TestSelector_PicksInstanceWithoutEndpoints(t *testing.T) {
 	pick := selector.New(local, selector.RoundRobin())
 
 	for i := 0; i < 3; i++ {
-		chosen, err := pick.Select(context.Background(), nil)
+		chosen, done, err := pick.Select(context.Background(), nil)
 		if err != nil {
 			t.Fatalf("Select %d: %v", i+1, err)
 		}
+		done(sd.Outcome{})
 		if chosen.Address != "local-A:80" {
 			t.Fatalf("selected %q, want the only z1 instance", chosen.Address)
 		}

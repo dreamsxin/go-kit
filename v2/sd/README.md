@@ -253,11 +253,23 @@ defer instances.Close()
 pool := selector.Prefer(instances, sd.MetadataEquals("zone", "cn-north-1a"))
 pick := selector.New(pool, selector.WeightedRandom(selector.MetadataWeight("", 1)))
 
-instance, err := pick.Select(ctx, request)   // sd.Instance: address plus labels
+instance, done, err := pick.Select(ctx, request)   // sd.Instance: address plus labels
+if err != nil { return err }
+started := time.Now()
+err = dial(instance.Address)
+done(sd.Outcome{Err: err, Latency: time.Since(started)})
 ```
+
+`Select` returns the same completion callback the balancer puts in
+`sd.Picked.Done`, for the same reason: a strategy that keeps state per call has
+to learn how that call ended. It is never nil and is safe to call twice, so
+`defer done(outcome)` is fine. Dropping it is not a missing statistic but a
+leak — a feedback table would count the selection as in flight forever, which
+makes the instance look permanently saturated and keeps its entry alive.
 
 The request is always passed to `selector.Select` and the strategy, so keyed
 and unkeyed strategies share one path.
+
 
 `Subscribe` keeps the latest snapshot and, like the endpointer, serves the last
 good one through a discovery outage; add `selector.InvalidateOnError(d)` to drop
@@ -409,11 +421,18 @@ ep := endpointer.NewEndpointer(checked, factory, logger)
 
 `health.HTTPProbe(scheme, path, timeout)` treats any status ≥ 400 as a failure.
 Thresholds are consecutive results, so one lost packet does not remove an
-instance. Two deliberate choices: an instance is treated as healthy until its
-first probe completes (`WithInitiallyHealthy(false)` to invert), and if nothing
-passes the checker republishes the unchecked set rather than an empty one — a
-probe that is itself broken must not black-hole the service. `Close` stops the
-probes and deregisters from the source without closing it.
+instance. A `Probe` must return when its context is cancelled; `Close` cancels
+and waits for the round in flight.
+
+Two deliberate choices: an instance is treated as healthy until its first probe
+completes (`WithInitiallyHealthy(false)` to invert), and once every instance has
+been probed and none passed, the checker republishes the unchecked set rather
+than an empty one — a probe that is itself broken must not black-hole the
+service. The two do not fight: the fail-open requires an actual result from
+every instance, so with `WithInitiallyHealthy(false)` nothing is published until
+the first round lands. `Close` stops the probes and deregisters from the source
+without closing it.
+
 
 
 ## Architecture

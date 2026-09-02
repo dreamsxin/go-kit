@@ -58,7 +58,7 @@ func TestFilter_KeepsOnlyMatchesAndNeverFallsBack(t *testing.T) {
 	if got := snapshot(t, empty); len(got) != 0 {
 		t.Fatalf("filtered = %v, want empty rather than a fallback", got)
 	}
-	if _, err := selector.New(empty, selector.RoundRobin()).Select(context.Background(), nil); !errors.Is(err, sd.ErrNoEndpoints) {
+	if _, _, err := selector.New(empty, selector.RoundRobin()).Select(context.Background(), nil); !errors.Is(err, sd.ErrNoEndpoints) {
 		t.Fatalf("Select error = %v, want ErrNoEndpoints", err)
 	}
 }

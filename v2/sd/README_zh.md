@@ -236,10 +236,20 @@ defer instances.Close()
 pool := selector.Prefer(instances, sd.MetadataEquals("zone", "cn-north-1a"))
 pick := selector.New(pool, selector.WeightedRandom(selector.MetadataWeight("", 1)))
 
-instance, err := pick.Select(ctx, request)   // sd.Instance：地址加标签
+instance, done, err := pick.Select(ctx, request)   // sd.Instance：地址加标签
+if err != nil { return err }
+started := time.Now()
+err = dial(instance.Address)
+done(sd.Outcome{Err: err, Latency: time.Since(started)})
 ```
 
+`Select` 返回的完成回调与均衡器放进 `sd.Picked.Done` 的是同一个东西，理由也一样：
+按调用维护状态的策略必须知道这次调用是怎么结束的。它永不为 nil，且重复调用安全，
+所以 `defer done(outcome)` 是可以的。丢掉它不是少一项统计而是泄漏——反馈表会
+永远认为这次选择还在途，于是该实例看起来永久满载，其记录也无法回收。
+
 请求始终会传给 `selector.Select` 与策略，因此按键和不按键策略共用一条路径。
+
 
 `Subscribe` 维护最新快照，并且和 endpointer 一样，在服务发现故障期间继续提供
 最后一份可用快照；想让它在宽限期后丢弃，加上 `selector.InvalidateOnError(d)`。
@@ -379,10 +389,16 @@ ep := endpointer.NewEndpointer(checked, factory, logger)
 ```
 
 `health.HTTPProbe(scheme, path, timeout)` 把 ≥ 400 的状态码视为失败。阈值统计
-的是连续结果，因此丢一个包不会导致实例被摘。两个有意的选择：实例在首次探测
-完成前按健康对待（用 `WithInitiallyHealthy(false)` 反转），以及当没有任何实例
-通过探测时，checker 会把**未经检查的**集合原样发布，而不是发布空集——探针
-自己坏了不能把整个服务变成黑洞。`Close` 停止探测并从上游注销，但不会关闭上游。
+的是连续结果，因此丢一个包不会导致实例被摘。`Probe` 必须在 context 取消时返回；
+`Close` 会取消 context 并等待正在进行的这一轮。
+
+两个有意的选择：实例在首次探测完成前按健康对待（用
+`WithInitiallyHealthy(false)` 反转）；而当**所有实例都已探测过**且无一通过时，
+checker 会原样发布未经检查的集合而不是空集——探针自己坏了不能把整个服务变成
+黑洞。这两者不冲突：fail-open 要求每个实例都真的有过探测结果，所以配合
+`WithInitiallyHealthy(false)` 时，第一轮探测落地之前什么都不会发布。
+`Close` 停止探测并从上游注销，但不会关闭上游。
+
 
 
 ## 架构

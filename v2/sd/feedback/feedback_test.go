@@ -76,10 +76,28 @@ func TestRetainKeepsInstancesWithCallsStillInFlight(t *testing.T) {
 		t.Fatal("Retain dropped an instance with a call in flight")
 	}
 
+	// No second Retain: the completion itself closes the loop. Waiting for the
+	// next snapshot would keep the entry forever in a service whose instance
+	// set never changes again.
 	done(sd.Outcome{})
-	table.Retain([]sd.Instance{staying})
-	if table.Stats(leaving).Samples != 0 {
-		t.Fatal("the entry was not dropped once its call reported")
+	if got := table.Stats(leaving); got.Samples != 0 || !got.FirstSeen.IsZero() {
+		t.Fatalf("stats after the last call = %+v, want the entry gone", got)
+	}
+}
+
+// An address can be retired and then come back — a restart that reuses the
+// address, a flapping registration. Its retirement must not follow it.
+func TestRetainClearsRetirementWhenAnAddressReturns(t *testing.T) {
+	table := feedback.NewTable()
+	flapping := sd.Instance{Address: "flapping:80"}
+	done := table.Track(flapping)
+
+	table.Retain(sd.Addresses("other:80"))
+	table.Retain([]sd.Instance{flapping})
+	done(sd.Outcome{Latency: time.Millisecond})
+
+	if got := table.Stats(flapping); got.Samples != 1 {
+		t.Fatalf("stats = %+v, want the measurement kept for a live address", got)
 	}
 }
 

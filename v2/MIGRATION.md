@@ -190,6 +190,26 @@ weight := selector.SlowStart(selector.MetadataWeight("weight", 1), table.FirstSe
 Draining now has a documented label: set `sd.StateKey` to `sd.StateDraining` on
 the registration and filter with `sd.Keep(sd.Serving())`.
 
+`selector.Select` now returns the completion callback, matching what the
+balancer already put in `sd.Picked.Done`:
+
+```go
+// before
+instance, err := pick.Select(ctx, request)
+
+// after
+instance, done, err := pick.Select(ctx, request)
+if err != nil { return err }
+started := time.Now()
+err = dial(instance.Address)
+done(sd.Outcome{Err: err, Latency: time.Since(started)})
+```
+
+The callback is never nil on success and is idempotent. Report the outcome even
+when the strategy looks stateless — the instance layer used to drop it, which
+made any table-backed strategy count every selection as in flight forever.
+
+
 
 
 Behavior changes that need no source edit but do need attention:

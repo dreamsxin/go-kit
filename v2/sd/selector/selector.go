@@ -21,6 +21,7 @@ package selector
 
 import (
 	"context"
+	"sync"
 
 	"github.com/dreamsxin/go-kit/v2/sd"
 )
@@ -54,9 +55,22 @@ type Strategy interface {
 	Pick(ctx context.Context, request any, instances []sd.Instance) (index int, done sd.Done, err error)
 }
 
-// Selector reports which instance to use next.
+// Selector reports which instance to use next and returns the callback that
+// reports what happened. Done is never nil on success and is safe to call more
+// than once, so a caller can defer it unconditionally:
+//
+//	instance, done, err := pick.Select(ctx, request)
+//	if err != nil { return err }
+//	started := time.Now()
+//	err = dial(instance.Address)
+//	done(sd.Outcome{Err: err, Latency: time.Since(started)})
+//
+// Dropping Done silently breaks any strategy that keeps state per call. A
+// feedback table counts the selection as still in flight forever, which makes
+// the instance look permanently saturated and keeps its entry alive, so this
+// is a leak rather than a missing statistic.
 type Selector interface {
-	Select(ctx context.Context, request any) (sd.Instance, error)
+	Select(ctx context.Context, request any) (sd.Instance, sd.Done, error)
 }
 
 // New binds a strategy to a source. The request is always passed through to
@@ -76,9 +90,9 @@ func New(source Source, strategy Strategy) Selector {
 
 // Select is a convenience helper for callers that do not need to retain the
 // concrete selector.
-func Select(ctx context.Context, selector Selector, request any) (sd.Instance, error) {
+func Select(ctx context.Context, selector Selector, request any) (sd.Instance, sd.Done, error) {
 	if selector == nil {
-		return sd.Instance{}, sd.ErrNoEndpoints
+		return sd.Instance{}, nil, sd.ErrNoEndpoints
 	}
 	return selector.Select(ctx, request)
 }
@@ -88,17 +102,28 @@ type bound struct {
 	strategy Strategy
 }
 
-func (b *bound) Select(ctx context.Context, request any) (sd.Instance, error) {
+func (b *bound) Select(ctx context.Context, request any) (sd.Instance, sd.Done, error) {
 	instances, err := b.source.Instances()
 	if err != nil {
-		return sd.Instance{}, err
+		return sd.Instance{}, nil, err
 	}
-	index, _, err := b.strategy.Pick(ctx, request, instances)
+	index, strategyDone, err := b.strategy.Pick(ctx, request, instances)
 	if err != nil {
-		return sd.Instance{}, err
+		return sd.Instance{}, nil, err
 	}
 	if index < 0 || index >= len(instances) {
-		return sd.Instance{}, sd.ErrNoEndpoints
+		return sd.Instance{}, nil, sd.ErrNoEndpoints
 	}
-	return instances[index], nil
+
+	// A callback is always returned, even when the strategy keeps no state, so
+	// callers can report the outcome without asking which strategy they got.
+	var once sync.Once
+	done := func(outcome sd.Outcome) {
+		once.Do(func() {
+			if strategyDone != nil {
+				strategyDone(outcome)
+			}
+		})
+	}
+	return instances[index], done, nil
 }
