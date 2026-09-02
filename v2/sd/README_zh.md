@@ -345,7 +345,7 @@ Envoy 称之为 panic 模式。
 
 ```go
 rank := selector.NewRanker(instances, table.Score(), ejector.Filter())
-top, err := rank.Rank(ctx, 3)   // 最优在前，同分时结果确定
+top, err := rank.Rank(ctx, request, 3)   // 最优在前，同分时结果确定
 ```
 
 `n <= 0` 返回所有可评分实例（已排序）。同分按地址排序，因此两个进程对同一份

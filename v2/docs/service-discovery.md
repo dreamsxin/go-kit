@@ -166,6 +166,12 @@ service discovery. Draining is a registration property, not a feedback sample.
 
 ## Choosing a strategy
 
+Three shapes of question, three contracts. Mixing them up is where routing code
+usually goes wrong.
+
+Single-instance selection — `selector.Strategy`, returning one index plus the
+`Done` callback for that call:
+
 | Need | Strategy | Notes |
 | --- | --- | --- |
 | even distribution | `selector.RoundRobin` | one atomic counter |
@@ -175,14 +181,31 @@ service discovery. Draining is a registration property, not a feedback sample.
 | local in-flight fairness | `Table.LeastRequest` | power of two choices |
 | request affinity | `selector.ConsistentHash` | request is always available |
 
+Candidate ranking — `selector.Ranker`, returning an ordered `[]sd.Instance`:
+
+| Need | Component | Notes |
+| --- | --- | --- |
+| shortlist for a caller that dials itself | `selector.NewRanker` | best first, ties broken by address |
+
+Decorators, which wrap one of the above rather than answering a question
+themselves:
+
+| Need | Component | Notes |
+| --- | --- | --- |
+| exclude candidates per selection | `selector.Filtered` | takes `sd.InstanceFilter`s |
+| ramp up a cold instance | `selector.SlowStart` | decorates a `WeightFunc` |
+
+`Ranker` is deliberately not a `Strategy`. A strategy names the instance for one
+call and owns that call's lifecycle through `Done`; a ranker returns candidates
+and owns nothing, because there is no single call to attribute. Forcing it into
+`Pick(...) (index, done, error)` would leave `Done` undefined — the whole list,
+one entry of it, or every subsequent dial? Round robin and consistent hashing
+also cannot rank: they define which instance is next, not a total order.
+
 The endpoint constructors are thin wrappers around the same selector strategies:
 `balancer.NewRoundRobin`, `NewRandom`, `NewWeightedRandom`, `NewScored`, and
 `NewConsistentHash`. Use `balancer.New(set, strategy)` when composing filters,
 feedback, or a custom strategy.
-
-`selector.NewRanker` is not in the table because it is not a `Strategy`: it
-answers "which N" rather than "which one", so it has no place in a pick. See
-[Feedback and passive ejection](#feedback-and-passive-ejection).
 
 ## Feedback and passive ejection
 
@@ -231,7 +254,7 @@ needs a shortlist rather than one pick, use `selector.NewRanker`:
 
 ```go
 ranker := selector.NewRanker(instances, table.Score(), ejector.Filter())
-top, err := ranker.Rank(ctx, 3)
+top, err := ranker.Rank(ctx, request, 3)
 ```
 
 ## Slow start

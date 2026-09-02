@@ -155,6 +155,10 @@ lb := balancer.New(set, strategy)
 
 ## 选择策略
 
+三种形状不同的问题，对应三套契约。路由代码出错，通常就出在把它们混为一谈。
+
+单实例选择——`selector.Strategy`，返回一个下标以及这次调用的 `Done` 回调：
+
 | 需求 | 策略 | 说明 |
 | --- | --- | --- |
 | 均匀分布 | `selector.RoundRobin` | 一个原子计数器 |
@@ -164,12 +168,28 @@ lb := balancer.New(set, strategy)
 | 本地在途公平 | `Table.LeastRequest` | power of two choices |
 | 请求亲和 | `selector.ConsistentHash` | 每次选择都能拿到 request |
 
+候选排序——`selector.Ranker`，返回有序的 `[]sd.Instance`：
+
+| 需求 | 组件 | 说明 |
+| --- | --- | --- |
+| 给自行拨号的调用方一份候选清单 | `selector.NewRanker` | 最优在前，同分按地址排序 |
+
+装饰器——它们包装上面的组件，本身不回答"选哪个"：
+
+| 需求 | 组件 | 说明 |
+| --- | --- | --- |
+| 每次选择前排除候选 | `selector.Filtered` | 接收 `sd.InstanceFilter` |
+| 让冷实例逐步承接流量 | `selector.SlowStart` | 装饰 `WeightFunc` |
+
+`Ranker` 有意不做成 `Strategy`。策略为一次调用指名实例，并通过 `Done` 拥有这次
+调用的生命周期；ranker 返回的是候选，什么都不拥有，因为没有单次调用可归属。
+硬塞成 `Pick(...) (index, done, error)` 会让 `Done` 失去定义——它对应整个列表、
+其中某一个，还是后续每一次拨号？另外轮询与一致性哈希也无法排序：它们定义的是
+"下一个是谁"，而不是所有实例上的全序。
+
 端点构造器是同一批 selector 策略的薄封装：`balancer.NewRoundRobin`、`NewRandom`、
 `NewWeightedRandom`、`NewScored` 与 `NewConsistentHash`。组合过滤、反馈或自定义策略时，
 使用 `balancer.New(set, strategy)`。
-
-`selector.NewRanker` 不在表内，因为它不是 `Strategy`：它回答的是"该用哪 N 个"而不是
-"该用哪一个"，在一次选择里没有位置。见[反馈与被动摘除](#反馈与被动摘除)。
 
 ## 反馈与被动摘除
 
@@ -213,7 +233,7 @@ lb := balancer.New(set, strategy)
 
 ```go
 ranker := selector.NewRanker(instances, table.Score(), ejector.Filter())
-top, err := ranker.Rank(ctx, 3)
+top, err := ranker.Rank(ctx, request, 3)
 ```
 
 ## 慢启动

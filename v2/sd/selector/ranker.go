@@ -15,10 +15,23 @@ import (
 // back for. Rank is score-based by construction — round robin and consistent
 // hashing define which instance is next, not a total order over all of them, so
 // they cannot produce a ranking.
+//
+// Ranker is deliberately not a Strategy. A strategy names the instance for one
+// call and owns that call through the Done it returns; a ranker returns
+// candidates and owns nothing, because there is no single call to attribute an
+// outcome to. Expressed as Pick(...) (index, done, error), Done would have no
+// meaning: neither the list, nor one entry of it, nor every later dial is the
+// thing that just completed.
 type Ranker interface {
 	// Rank returns up to n instances, best first. A value of n at or below zero
 	// returns every candidate.
-	Rank(ctx context.Context, n int) ([]sd.Instance, error)
+	//
+	// The request is passed through for the same reason Strategy.Pick takes one:
+	// a shortlist can depend on who is asking — a tenant pinned to a region, a
+	// job class with its own pool. Callers with nothing to say pass nil. The
+	// scoring supplied to NewRanker does not see it; a ranking that varies per
+	// request needs a request-aware score, which is a separate contract.
+	Rank(ctx context.Context, request any, n int) ([]sd.Instance, error)
 }
 
 // NewRanker orders the source's instances by score, after applying filters.
@@ -45,7 +58,7 @@ type ranked struct {
 	score    float64
 }
 
-func (r *ranker) Rank(ctx context.Context, n int) ([]sd.Instance, error) {
+func (r *ranker) Rank(ctx context.Context, _ any, n int) ([]sd.Instance, error) {
 	instances, err := r.source.Instances()
 	if err != nil {
 		return nil, err

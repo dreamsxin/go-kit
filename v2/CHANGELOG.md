@@ -100,6 +100,9 @@ through the immutable v0 and v1 tags.
   snapshot and return the best N instead of picking one. This is the shape a
   routing service needs, where the caller connects on its own. Ties break on
   address, so two processes ranking the same snapshot agree.
+  `Rank(ctx, request, n)` takes the request for the same reason `Strategy.Pick`
+  does — a shortlist can depend on who is asking — and is deliberately not a
+  `Strategy`: a ranker owns no call, so it has no `Done` to return.
 - `selector.SlowStart` and `selector.FirstSeenFunc` ramp a new instance's weight
   up over a window. A cold instance otherwise wins every least-request and
   scored comparison and takes full traffic before its caches and pools are warm.

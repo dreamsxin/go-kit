@@ -22,7 +22,7 @@ func TestRanker_OrdersByScoreAndTruncates(t *testing.T) {
 		"low:80": 0.1, "mid:80": 0.5, "high:80": 0.9,
 	}))
 
-	shortlist, err := ranker.Rank(context.Background(), 2)
+	shortlist, err := ranker.Rank(context.Background(), nil, 2)
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestRanker_ReturnsEverythingWhenNIsNotPositive(t *testing.T) {
 		"a:80": 1, "b:80": 2, "c:80": 3,
 	}))
 
-	shortlist, err := ranker.Rank(context.Background(), 0)
+	shortlist, err := ranker.Rank(context.Background(), nil, 0)
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestRanker_BreaksTiesByAddress(t *testing.T) {
 	source := selector.Static(instances("b:80", "a:80", "c:80")...)
 	ranker := selector.NewRanker(source, func(sd.Instance) (float64, bool) { return 1, true })
 
-	first, err := ranker.Rank(context.Background(), 3)
+	first, err := ranker.Rank(context.Background(), nil, 3)
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestRanker_ExcludesInstancesWithoutAScore(t *testing.T) {
 	source := selector.Static(instances("known:80", "unknown:80")...)
 	ranker := selector.NewRanker(source, scoreByAddress(map[string]float64{"known:80": 1}))
 
-	shortlist, err := ranker.Rank(context.Background(), 0)
+	shortlist, err := ranker.Rank(context.Background(), nil, 0)
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestRanker_NothingScorableReportsNoEndpoints(t *testing.T) {
 	source := selector.Static(instances("a:80")...)
 	ranker := selector.NewRanker(source, func(sd.Instance) (float64, bool) { return 0, false })
 
-	if _, err := ranker.Rank(context.Background(), 0); !errors.Is(err, sd.ErrNoEndpoints) {
+	if _, err := ranker.Rank(context.Background(), nil, 0); !errors.Is(err, sd.ErrNoEndpoints) {
 		t.Fatalf("error = %v, want ErrNoEndpoints", err)
 	}
 }
@@ -92,7 +92,7 @@ func TestRanker_AppliesFilters(t *testing.T) {
 		func(sd.Instance) (float64, bool) { return 1, true },
 		sd.Keep(sd.MetadataEquals("zone", "eu")))
 
-	shortlist, err := ranker.Rank(context.Background(), 0)
+	shortlist, err := ranker.Rank(context.Background(), nil, 0)
 	if err != nil {
 		t.Fatalf("Rank: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestRanker_PropagatesSourceErrors(t *testing.T) {
 	source := selector.SourceFunc(func() ([]sd.Instance, error) { return nil, failure })
 	ranker := selector.NewRanker(source, func(sd.Instance) (float64, bool) { return 1, true })
 
-	if _, err := ranker.Rank(context.Background(), 1); !errors.Is(err, failure) {
+	if _, err := ranker.Rank(context.Background(), nil, 1); !errors.Is(err, failure) {
 		t.Fatalf("error = %v, want the source error", err)
 	}
 }

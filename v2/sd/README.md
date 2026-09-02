@@ -375,10 +375,11 @@ gateway, an agent — connects on its own:
 
 ```go
 rank := selector.NewRanker(instances, table.Score(), ejector.Filter())
-top, err := rank.Rank(ctx, 3)   // best first, deterministic on ties
+top, err := rank.Rank(ctx, request, 3)   // best first, deterministic on ties
 ```
 
 `n <= 0` returns everything scorable, ordered. Ties break on address so two
+
 processes ranking the same snapshot agree.
 
 ### Slow start

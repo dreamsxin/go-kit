@@ -76,6 +76,9 @@
 - 新增 `selector.Ranker`、`selector.NewRanker` 与 `selector.ScoreFunc`：对快照
   排序并返回最优的 N 个，而不是只选一个。这正是"选路服务"需要的形状——调用方
   自己去连。同分按地址排序，因此两个进程对同一份快照排序结果一致。
+  `Rank(ctx, request, n)` 接收 request 的理由与 `Strategy.Pick` 相同——候选清单
+  可以取决于"谁在问"；它有意不做成 `Strategy`：ranker 不拥有任何一次调用，
+  因此没有 `Done` 可以返回。
 - 新增 `selector.SlowStart` 与 `selector.FirstSeenFunc`：让新实例的权重在一个
   窗口内逐步爬升。否则冷实例在最少请求与评分比较里稳赢，会在缓存和连接池还没
   热起来时就承接全量流量。

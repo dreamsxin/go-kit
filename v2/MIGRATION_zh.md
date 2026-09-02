@@ -160,7 +160,7 @@ checked := health.Check(instancer, health.TCPProbe(2*time.Second))
 defer checked.Close()
 
 // 排序而不是选一个，适合选路服务。
-top, err := selector.NewRanker(instances, table.Score(), ejector.Filter()).Rank(ctx, 3)
+top, err := selector.NewRanker(instances, table.Score(), ejector.Filter()).Rank(ctx, request, 3)
 
 // 慢启动，避免冷实例一上来就赢下每一次比较。
 weight := selector.SlowStart(selector.MetadataWeight("weight", 1), table.FirstSeen(), 30*time.Second)
