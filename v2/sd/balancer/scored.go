@@ -16,8 +16,8 @@ type ScoreFunc = selector.ScoreFunc
 // report pushed by the instances, ORCA or LRS style out-of-band reporting, or
 // any table the caller keeps. Such a signal is stale by at least one reporting
 // interval — that is inherent to the channel, not a defect. When this process
-// is on the data path and can observe the calls, NewLeastRequest measures the
-// truth instead.
+// is on the data path and can observe the calls, feedback.Table.LeastRequest
+// measures the truth instead.
 //
 // NewScored panics on a nil score function, which is a programming error rather
 // than a runtime condition.

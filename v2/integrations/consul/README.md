@@ -58,7 +58,7 @@ Two boundaries are deliberate:
   rest locally).
 - Live load does not belong in the catalog. A registry write per metric sample
   would hammer Consul and consumers would still read stale numbers; use
-  `balancer.NewLeastRequest`, which measures in-flight requests in process.
+  `feedback.Table.LeastRequest`, which measures in-flight requests in process.
 
 A metadata-only change counts as a change: relabelling an instance is broadcast
 to subscribers even when the address set is identical.

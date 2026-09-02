@@ -15,8 +15,9 @@ import (
 // the instances, ORCA or LRS style out-of-band reporting, or a table the
 // process maintains itself. Whatever the source, a score that arrives out of
 // band is stale by at least one reporting interval; that is inherent to the
-// channel. Use sd/balancer.NewLeastRequest when the caller is on the data path
-// and can measure the truth.
+// channel. Use LeastRequest, or feedback.Table.LeastRequest for a version that
+// also records what it measured, when the caller is on the data path and can
+// measure the truth.
 type ScoreFunc func(instance sd.Instance) (score float64, ok bool)
 
 // Scored selects the highest-scoring instance, breaking ties at random so that

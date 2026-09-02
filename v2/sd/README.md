@@ -86,7 +86,7 @@ Metadata carries the things a registry is designed to hold — zone, version,
 protocol, capability, weight, tenant. It is *not* a channel for live load
 signals: a registry write per metric sample would hammer the catalog, and every
 consumer would read a stale number anyway. Balancers that need live signals
-measure them in process; see `NewLeastRequest` below.
+measure them in process; see the feedback table below.
 
 Registries hand labels over as strings, while predicates are usually written
 against typed literals. The `sd.Metadata*` readers coerce, so `5` and `"5"` both
@@ -163,7 +163,7 @@ set. Six ship today, named after their Envoy/gRPC equivalents.
 | Random | `balancer.NewRandom` | `selector.Random` | uniform draw |
 | Weighted random | `balancer.NewWeightedRandom` | `selector.WeightedRandom` | weight per instance |
 | Scored | `balancer.NewScored` | `selector.Scored` | caller-supplied score, highest wins |
-| Least request | `balancer.NewLeastRequest` | `selector.LeastRequest` | in-flight count, power-of-two-choices |
+| Least request | `balancer.New` + `table.LeastRequest()` | `selector.LeastRequest` | in-flight count, power-of-two-choices |
 | Consistent hash | `balancer.NewConsistentHash` | `selector.ConsistentHash` | hash of a request key |
 
 ```go
@@ -179,9 +179,10 @@ client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
 })
 
 // Least request: two random candidates, lower in-flight count wins. The table
-// records what the calls do; pass nil for a private one.
+// is the caller's, because the same measurements also drive scoring, ejection,
+// and slow start — see "Writing a strategy" below.
 client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
-	return balancer.NewLeastRequest(set, table, balancer.WithChoices(2))
+	return balancer.New(set, table.LeastRequest(selector.WithChoices(2)))
 })
 
 // Scored: follow a load signal this process did not measure itself.

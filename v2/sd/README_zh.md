@@ -84,7 +84,7 @@ type Instance = struct {
 元数据承载的是注册中心本就适合存放的信息——可用区、版本、协议、能力、权重、
 租户。它**不是**上报实时负载的通道：每采样一次指标就写一次注册中心会打爆
 catalog，而且每个消费者读到的仍然是过期数字。需要实时信号的均衡器应在进程内
-自行度量，参见下文的 `NewLeastRequest`。
+自行度量，参见下文的反馈表。
 
 注册中心交回来的标签都是字符串，而断言通常用带类型的字面量书写。
 `sd.Metadata*` 系列读取函数会做类型归一，因此 `5` 与 `"5"` 都能匹配：
@@ -155,7 +155,7 @@ sd.And(
 | 随机 | `balancer.NewRandom` | `selector.Random` | 均匀抽样 |
 | 加权随机 | `balancer.NewWeightedRandom` | `selector.WeightedRandom` | 每个实例的权重 |
 | 评分 | `balancer.NewScored` | `selector.Scored` | 调用方给出的分数，最高者胜 |
-| 最少请求 | `balancer.NewLeastRequest` | `selector.LeastRequest` | 在途请求数，二选一（P2C） |
+| 最少请求 | `balancer.New` + `table.LeastRequest()` | `selector.LeastRequest` | 在途请求数，二选一（P2C） |
 | 一致性哈希 | `balancer.NewConsistentHash` | `selector.ConsistentHash` | 请求键的哈希 |
 
 ```go
@@ -170,10 +170,10 @@ client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
 	return balancer.NewWeightedRandom(set, balancer.MetadataWeight(balancer.DefaultWeightKey, 1))
 })
 
-// 最少请求：随机取两个候选，在途请求少的胜出。表负责记录调用结果，
-// 传 nil 则使用私有表。
+// 最少请求：随机取两个候选，在途请求少的胜出。表由调用方持有，因为同一份
+// 测量数据还要驱动评分、摘除与慢启动——见下文"自定义策略"。
 client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
-	return balancer.NewLeastRequest(set, table, balancer.WithChoices(2))
+	return balancer.New(set, table.LeastRequest(selector.WithChoices(2)))
 })
 
 // 评分：跟随本进程并未亲自度量的负载信号。

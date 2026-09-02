@@ -176,6 +176,39 @@ func TestGenericServiceDiscoveryDoesNotDependOnProviders(t *testing.T) {
 	}
 }
 
+// TestOptionalServiceDiscoveryLayersStayOptional pins the direction of the sd
+// dependency graph. Feedback accounting and active probing are decorations a
+// caller opts into, so the discovery, endpoint, and selection layers must not
+// resolve them — otherwise "freely assemblable" would be true of the API and
+// false of the build.
+func TestOptionalServiceDiscoveryLayersStayOptional(t *testing.T) {
+	root := moduleRoot(t)
+	packages := []string{
+		"./sd",
+		"./sd/balancer",
+		"./sd/client",
+		"./sd/endpointer",
+		"./sd/instance",
+		"./sd/retry",
+		"./sd/selector",
+	}
+	forbidden := []string{
+		coreModulePath + "/sd/feedback",
+		coreModulePath + "/sd/health",
+	}
+
+	args := []string{"list", "-deps", "-f", "{{.ImportPath}}"}
+	args = append(args, packages...)
+	output := commandOutput(t, root, "go", args...)
+	for _, importPath := range strings.Fields(string(output)) {
+		for _, optional := range forbidden {
+			if importPath == optional {
+				t.Errorf("core service discovery assemblies resolve optional package %q", optional)
+			}
+		}
+	}
+}
+
 func TestKitHTTPAssemblyDoesNotResolveOptionalDependencies(t *testing.T) {
 	root := moduleRoot(t)
 	output := commandOutput(t, root, "go", "list", "-deps", "-f", "{{.ImportPath}}", "./kit")

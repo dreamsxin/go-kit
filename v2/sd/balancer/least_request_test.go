@@ -14,17 +14,25 @@ import (
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
 	"github.com/dreamsxin/go-kit/v2/sd/feedback"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
+	"github.com/dreamsxin/go-kit/v2/sd/selector"
 )
 
+// leastRequest is the assembly these tests cover: the endpoint layer knows
+// nothing about feedback, so least request is composed rather than constructed.
+// A private table is fine here because each test outlives it.
+func leastRequest(source endpointer.InstanceEndpointer, options ...selector.LeastRequestOption) sd.Balancer {
+	return balancer.New(source, feedback.NewTable().LeastRequest(options...))
+}
+
 func TestLeastRequest_NoEndpoints(t *testing.T) {
-	lb := balancer.NewLeastRequest(newEndpointer(t), nil)
+	lb := leastRequest(newEndpointer(t))
 	if _, err := lb.Pick(context.Background(), nil); !errors.Is(err, sd.ErrNoEndpoints) {
 		t.Fatalf("Endpoint() error = %v, want ErrNoEndpoints", err)
 	}
 }
 
 func TestLeastRequest_SingleEndpoint(t *testing.T) {
-	lb := balancer.NewLeastRequest(newEndpointer(t, "only:80"), nil)
+	lb := leastRequest(newEndpointer(t, "only:80"))
 
 	for i := 0; i < 5; i++ {
 		if address := selectAddress(t, lb); address != "only:80" {
@@ -39,7 +47,7 @@ func TestLeastRequest_PropagatesSourceError(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	lb := balancer.NewLeastRequest(source, nil)
+	lb := leastRequest(source)
 	if _, err := lb.Pick(context.Background(), nil); err == nil {
 		t.Fatal("expected the closed endpointer error to propagate")
 	}
@@ -49,7 +57,7 @@ func TestLeastRequest_PropagatesSourceError(t *testing.T) {
 // the first instance picked would look permanently busy and all later traffic
 // would pile onto the other one, which this balance check would catch.
 func TestLeastRequest_ReleasesCounterWhenCallReturns(t *testing.T) {
-	lb := balancer.NewLeastRequest(newEndpointer(t, "A:80", "B:80"), nil)
+	lb := leastRequest(newEndpointer(t, "A:80", "B:80"))
 
 	const calls = 200
 	counts := map[string]int{}
@@ -66,7 +74,7 @@ func TestLeastRequest_ReleasesCounterWhenCallReturns(t *testing.T) {
 // A caller that invokes the returned endpoint twice must not drive the counter
 // negative, which would pin every later selection onto that instance.
 func TestLeastRequest_DoubleInvocationDoesNotCorruptCounters(t *testing.T) {
-	lb := balancer.NewLeastRequest(newEndpointer(t, "A:80", "B:80"), nil)
+	lb := leastRequest(newEndpointer(t, "A:80", "B:80"))
 
 	selected, err := lb.Pick(context.Background(), nil)
 	if err != nil {
@@ -92,7 +100,7 @@ func TestLeastRequest_DoubleInvocationDoesNotCorruptCounters(t *testing.T) {
 }
 
 func TestLeastRequest_ReachesEveryEndpoint(t *testing.T) {
-	lb := balancer.NewLeastRequest(newEndpointer(t, "A:80", "B:80", "C:80"), nil)
+	lb := leastRequest(newEndpointer(t, "A:80", "B:80", "C:80"))
 
 	seen := map[string]bool{}
 	for i := 0; i < 200; i++ {
@@ -134,7 +142,7 @@ func TestLeastRequest_AvoidsInstancesWithCallsInFlight(t *testing.T) {
 	cache.Update(sd.Event{Instances: sd.Addresses("slow:80", "fast:80")})
 	time.Sleep(20 * time.Millisecond)
 
-	lb := balancer.NewLeastRequest(set, nil)
+	lb := leastRequest(set)
 
 	const calls = 60
 	var wg sync.WaitGroup
@@ -171,15 +179,15 @@ func TestLeastRequest_WithChoices(t *testing.T) {
 	}{
 		{name: "below two falls back to the default", choices: 1},
 		{name: "zero falls back to the default", choices: 0},
-		{name: "explicit default", choices: balancer.DefaultChoices},
+		{name: "explicit default", choices: selector.DefaultChoices},
 		{name: "scans every instance", choices: 3},
 		{name: "more choices than instances", choices: 10},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lb := balancer.NewLeastRequest(newEndpointer(t, "A:80", "B:80", "C:80"), nil,
-				balancer.WithChoices(tt.choices))
+			lb := leastRequest(newEndpointer(t, "A:80", "B:80", "C:80"),
+				selector.WithChoices(tt.choices))
 
 			known := map[string]bool{"A:80": true, "B:80": true, "C:80": true}
 			for i := 0; i < 60; i++ {
@@ -191,9 +199,11 @@ func TestLeastRequest_WithChoices(t *testing.T) {
 	}
 }
 
-func TestLeastRequest_UsesSharedFeedbackTable(t *testing.T) {
+// The table the strategy reads is the table it writes, and the caller holds it,
+// which is what lets one table serve scoring, ejection, and slow start too.
+func TestLeastRequest_UsesTheCallersFeedbackTable(t *testing.T) {
 	table := feedback.NewTable()
-	lb := balancer.NewLeastRequest(newEndpointer(t, "A:80"), table)
+	lb := balancer.New(newEndpointer(t, "A:80"), table.LeastRequest())
 	picked, err := lb.Pick(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("Pick: %v", err)
@@ -216,7 +226,7 @@ func TestLeastRequest_SurvivesInstanceSetChanges(t *testing.T) {
 	cache.Update(sd.Event{Instances: sd.Addresses("A:80", "B:80")})
 	time.Sleep(20 * time.Millisecond)
 
-	lb := balancer.NewLeastRequest(set, nil)
+	lb := leastRequest(set)
 	for i := 0; i < 20; i++ {
 		selectAddress(t, lb)
 	}

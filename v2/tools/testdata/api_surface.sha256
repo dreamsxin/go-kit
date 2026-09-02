@@ -14,7 +14,7 @@ cd020b94098c712cdd72ce98a5a40d28a56a8e5358673db1121f9126b68f665d  github.com/dre
 79b32c4b155c6d836288ce38f81639356326c62c55813347d5e26bcc361d1099  github.com/dreamsxin/go-kit/v2/observability/otel
 713438679bb5b904d53b2e3792a64e15cbe29422f44b76459dd41c7c017f0ae7  github.com/dreamsxin/go-kit/v2/observability/slog
 6c2a930e47089097679e79ba7b59d8f6849e83d119d190ac3edd53d1f6b05e60  github.com/dreamsxin/go-kit/v2/sd
-4768809551297b9d2c861a8a84bf3a9eb8b9c6c0c8e62803d16c43d9416e2e15  github.com/dreamsxin/go-kit/v2/sd/balancer
+0689319779d15b786ae91aa0b4cda912711062c5146915cee115cc5ac5f0a05b  github.com/dreamsxin/go-kit/v2/sd/balancer
 f27ebf4be5d00d397f096c87c5f86e7a76eaf9c8e68a1469f2e7e4a3ee93246c  github.com/dreamsxin/go-kit/v2/sd/client
 8ea4cf572c44fc57e594d7dc48ba43ae50344583d419acd830ac7bb20bec67a5  github.com/dreamsxin/go-kit/v2/sd/endpointer
 8126acbfc2e8f2e1433ef7f47f75148df6386286c2528eb629e6e9f5a6fa2d00  github.com/dreamsxin/go-kit/v2/sd/feedback
@@ -22,7 +22,7 @@ f27ebf4be5d00d397f096c87c5f86e7a76eaf9c8e68a1469f2e7e4a3ee93246c  github.com/dre
 4a9e2c7e73c4c4ea2227c11b5f59df0ac541f3bcfadd536edfaee786f8a2d4ba  github.com/dreamsxin/go-kit/v2/sd/instance
 1462049a53462eee3ff50e2b86855cc8660636cc813f21f1c73c899c384d4f3e  github.com/dreamsxin/go-kit/v2/sd/retry
 162ee1bc4e3aac634909cf34656af7aa17749baf333b9a01a711eb68635aa058  github.com/dreamsxin/go-kit/v2/sd/retry/internal/backoff
-d1aa1aa9dbb3d7a3e2aba274aaf92b52964f129ef8345350f277ec79fedf9b55  github.com/dreamsxin/go-kit/v2/sd/selector
+09e16f7a92bd24e5e8be9eaa1038c209799150e7cd40fabda180c80bbd1657eb  github.com/dreamsxin/go-kit/v2/sd/selector
 c2afc849b04bf521547651356d8f2e5316673c24d84ea9530de07610e1241724  github.com/dreamsxin/go-kit/v2/security
 15f278692e71dc62a7213adcaf3f50d0cc892cdcc07f0ddd9a5d9265facea4df  github.com/dreamsxin/go-kit/v2/security/http
 5303e2e0d655eee41a36a27a73f7752c72f1ef12702256ea31236cba59cd6995  github.com/dreamsxin/go-kit/v2/transport

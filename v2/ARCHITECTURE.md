@@ -105,7 +105,9 @@ caller-owned slices. A `Balancer.Pick` returns a `Picked` identity plus
 local feedback without writing live metrics to the registry. Per-instance
 dynamic state lives in exactly one store, `feedback.Table`; policy state such as
 which addresses are currently ejected belongs to the policy, because it is per
-(policy, instance) rather than per instance. Active probing is a
+(policy, instance) rather than per instance. Dependencies point one way: the
+endpoint and selection layers do not import `sd/feedback` or `sd/health`, so an
+assembly that does not use them does not compile them in. Active probing is a
 decorator on `Instancer` rather than a stage of its own, so adding it changes no
 downstream layer. Cancellation interrupts both calls and retry backoff. `Instancer.Close`
 and constructor-returned closers own subscription goroutines and factory-created

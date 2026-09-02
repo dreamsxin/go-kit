@@ -47,6 +47,6 @@ func main() {
 有两条边界是刻意划定的：
 
 - Tags 不是元数据。它是集合而非键值对，且 `TagsInstancerOptions` 已经在做过滤（第一个 tag 在服务端，其余在本地）。
-- 实时负载不该进 catalog。每采样一次指标就写一次注册中心会打爆 Consul，而消费者读到的仍是过期数字；请改用 `balancer.NewLeastRequest`，它在进程内统计在途请求。
+- 实时负载不该进 catalog。每采样一次指标就写一次注册中心会打爆 Consul，而消费者读到的仍是过期数字；请改用 `feedback.Table.LeastRequest`，它在进程内统计在途请求。
 
 只改元数据也算变更：即便地址集合完全相同，重新打标签也会广播给订阅方。
