@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	sdclient "github.com/dreamsxin/go-kit/v2/sd/client"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
 	"github.com/dreamsxin/go-kit/v2/sd/feedback"
+	"github.com/dreamsxin/go-kit/v2/sd/health"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
 	"github.com/dreamsxin/go-kit/v2/sd/retry"
 	"github.com/dreamsxin/go-kit/v2/sd/selector"
@@ -400,5 +403,182 @@ func TestInvalidateOnError_ClearsCache(t *testing.T) {
 	}
 	if !errors.Is(err, sd.ErrNoEndpoints) && err != nil {
 		t.Logf("got expected error: %v", err)
+	}
+}
+
+// eventually polls until condition holds, so the health tests do not depend on
+// how long a probe round takes.
+func eventually(t *testing.T, condition func() bool) bool {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return true
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return false
+}
+
+func published(t *testing.T, source selector.Source) []string {
+	t.Helper()
+	items, err := source.Instances()
+	if err != nil {
+		return nil
+	}
+	list := make([]string, 0, len(items))
+	for _, item := range items {
+		list = append(list, item.Address)
+	}
+	sort.Strings(list)
+	return list
+}
+
+// Active probing covers what passive feedback cannot: an instance nothing has
+// called is never measured, so nothing can eject it.
+func TestHealth_DropsUnreachableThenFailsOpen(t *testing.T) {
+	var mu sync.Mutex
+	down := map[string]bool{"unreachable:80": true}
+	probe := health.Probe(func(_ context.Context, target sd.Instance) error {
+		mu.Lock()
+		defer mu.Unlock()
+		if down[target.Address] {
+			return errors.New("connection refused")
+		}
+		return nil
+	})
+
+	cache := instance.NewCache()
+	cache.Update(sd.Event{Instances: sd.Addresses("serving-A:80", "serving-B:80", "unreachable:80")})
+
+	checked := health.Check(cache, probe,
+		health.WithInterval(5*time.Millisecond),
+		health.WithUnhealthyThreshold(1),
+		health.WithLogger(nopLogger))
+	t.Cleanup(func() { _ = checked.Close() })
+
+	instances := selector.Subscribe(checked)
+	t.Cleanup(func() { _ = instances.Close() })
+
+	if !eventually(t, func() bool { return len(published(t, instances)) == 2 }) {
+		t.Fatalf("unreachable instance was never withdrawn: %v", published(t, instances))
+	}
+	if got := published(t, instances); got[0] != "serving-A:80" || got[1] != "serving-B:80" {
+		t.Errorf("published %v, want only the reachable pair", got)
+	}
+
+	// A probe failing for everything is far more likely broken than the whole
+	// service being down, so the unchecked set is published rather than none.
+	mu.Lock()
+	down["serving-A:80"] = true
+	down["serving-B:80"] = true
+	mu.Unlock()
+
+	if !eventually(t, func() bool { return len(published(t, instances)) == 3 }) {
+		t.Fatalf("no fail-open when every probe failed: %v", published(t, instances))
+	}
+}
+
+// A ranker answers "which N", for a caller that dials the instance itself.
+func TestRanker_ShortlistsScoredInstancesOnly(t *testing.T) {
+	pool := selector.Static(sd.Addresses("edge-A:443", "edge-B:443", "edge-C:443", "edge-D:443")...)
+	score := map[string]float64{"edge-A:443": 0.2, "edge-B:443": 0.9, "edge-C:443": 0.5}
+	rank := selector.NewRanker(pool, func(item sd.Instance) (float64, bool) {
+		value, known := score[item.Address]
+		return value, known
+	})
+
+	best, err := rank.Rank(context.Background(), nil, 2)
+	if err != nil {
+		t.Fatalf("Rank: %v", err)
+	}
+	if len(best) != 2 || best[0].Address != "edge-B:443" || best[1].Address != "edge-C:443" {
+		t.Fatalf("best 2 = %v, want edge-B then edge-C", best)
+	}
+
+	every, err := rank.Rank(context.Background(), nil, 0)
+	if err != nil {
+		t.Fatalf("Rank(0): %v", err)
+	}
+	if len(every) != 3 {
+		t.Fatalf("n <= 0 returned %d candidates, want the 3 that have a score", len(every))
+	}
+	for _, item := range every {
+		if item.Address == "edge-D:443" {
+			t.Error("an instance that refused a score became a candidate")
+		}
+	}
+}
+
+// Without a ramp, a new instance looks best to every load-aware strategy — it
+// has no in-flight requests and no latency history — and takes full traffic
+// while it is still cold.
+func TestSlowStart_RampsRecentlySeenInstances(t *testing.T) {
+	const window = time.Minute
+	seen := map[string]time.Time{
+		"warm:80":    time.Now().Add(-window),
+		"warming:80": time.Now().Add(-window / 4),
+		"cold:80":    time.Now(),
+	}
+	first := selector.FirstSeenFunc(func(item sd.Instance) (time.Time, bool) {
+		at, known := seen[item.Address]
+		return at, known
+	})
+	weight := selector.SlowStart(selector.MetadataWeight("weight", 10), first, window)
+
+	for address, want := range map[string]int{
+		"warm:80":    10,
+		"warming:80": 2,
+		"cold:80":    1,
+		"unknown:80": 1, // never seen, so treated as brand new
+	} {
+		if got := weight(sd.Instance{Address: address}); got != want {
+			t.Errorf("%s weight = %d, want %d", address, got, want)
+		}
+	}
+
+	// Zero means "never pick me"; ramping it would contradict the operator.
+	drained := sd.Instance{Address: "drained:80", Metadata: map[string]any{"weight": 0}}
+	if got := weight(drained); got != 0 {
+		t.Errorf("drained weight = %d, want 0", got)
+	}
+}
+
+// Draining is a property of the registration, not something measured, so it
+// lives in metadata and is read by a filter.
+func TestDraining_WithheldFromNewWorkAndReturnsOnReady(t *testing.T) {
+	pool := func(state string) []sd.Instance {
+		return []sd.Instance{
+			{Address: "ready-A:80", Metadata: map[string]any{sd.StateKey: sd.StateReady}},
+			{Address: "leaving:80", Metadata: map[string]any{sd.StateKey: state}},
+		}
+	}
+
+	count := func(state string) map[string]int {
+		pick := selector.New(selector.Static(pool(state)...),
+			selector.Filtered(selector.RoundRobin(), sd.Keep(sd.Serving())))
+		seen := map[string]int{}
+		for i := 0; i < 4; i++ {
+			chosen, done, err := pick.Select(context.Background(), nil)
+			if err != nil {
+				t.Fatalf("Select %d: %v", i+1, err)
+			}
+			done(sd.Outcome{})
+			seen[chosen.Address]++
+		}
+		return seen
+	}
+
+	draining := count(sd.StateDraining)
+	if draining["leaving:80"] != 0 {
+		t.Errorf("a draining instance took %d new calls, want 0", draining["leaving:80"])
+	}
+	if draining["ready-A:80"] != 4 {
+		t.Errorf("ready-A:80 served %d of 4 calls", draining["ready-A:80"])
+	}
+
+	ready := count(sd.StateReady)
+	if ready["leaving:80"] == 0 {
+		t.Error("flipping the label back did not bring the instance back into rotation")
 	}
 }

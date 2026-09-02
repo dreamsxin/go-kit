@@ -24,7 +24,7 @@ after dropping the `./examples/` prefix.
 | `interaction_policy/` | AI interaction runtime: MCP-style tool calls with authorization and audit hooks | `go run ./examples/interaction_policy` |
 | `mcp_basic/` | Minimal MCP server: single tool, `NewRuntime()`, `mcp.ListenAndServe` | `go run ./examples/mcp_basic` |
 | `mcp_full/` | Full MCP server: tools, resources, prompts, notifications, completions, SSE streaming | `go run ./examples/mcp_full` |
-| `sd/` | Service discovery: instance.Cache, Endpointer, RoundRobin, Retry, sd/client.NewEndpoint, InvalidateOnError, metadata filtering, selector, feedback.Table with Ejector | `go run ./examples/sd` |
+| `sd/` | Service discovery: instance.Cache, Endpointer, RoundRobin, Retry, sd/client.NewEndpoint, InvalidateOnError, metadata filtering, selector, feedback.Table with Ejector, active health checks, Ranker, SlowStart, draining | `go run ./examples/sd` |
 | `multisvc/` | IDL definition for two services in one package | (library) |
 | `profilesvc/` | Full CRUD service: Service → Endpoint → HTTP transport + Consul client | `go run ./examples/profilesvc/cmd/profilesvc` |
 | `transport/` | Deep-dive tests for HTTP server, HTTP client, and gRPC | `go test ./examples/transport/...` |

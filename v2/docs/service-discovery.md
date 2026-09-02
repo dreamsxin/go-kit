@@ -7,6 +7,9 @@ one backend. The package guides answer what each package exports; this chapter
 answers how to assemble discovery, endpoint construction, selection, feedback,
 health checks, retry, and shutdown as one system.
 
+Every assembly below has a runnable counterpart in `examples/sd`, which needs no
+registry and no network: `go run ./examples/sd`.
+
 ## The request path
 
 ```text

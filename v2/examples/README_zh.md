@@ -23,7 +23,7 @@
 | `interaction_policy/` | AI 交互运行时：带授权与审计钩子的 MCP 风格工具调用 | `go run ./examples/interaction_policy` |
 | `mcp_basic/` | 最小 MCP 服务器：单个工具、`NewRuntime()`、`mcp.ListenAndServe` | `go run ./examples/mcp_basic` |
 | `mcp_full/` | 完整 MCP 服务器：工具、资源、提示词、通知、补全、SSE 流式传输 | `go run ./examples/mcp_full` |
-| `sd/` | 服务发现：instance.Cache、Endpointer、RoundRobin、Retry、sd/client.NewEndpoint、InvalidateOnError、元数据过滤、selector、feedback.Table 与 Ejector | `go run ./examples/sd` |
+| `sd/` | 服务发现：instance.Cache、Endpointer、RoundRobin、Retry、sd/client.NewEndpoint、InvalidateOnError、元数据过滤、selector、feedback.Table 与 Ejector、主动健康检查、Ranker、SlowStart、draining | `go run ./examples/sd` |
 | `multisvc/` | 在一个包中为两个服务定义 IDL | （库） |
 | `profilesvc/` | 完整的 CRUD 服务：Service → Endpoint → HTTP 传输层 + Consul 客户端 | `go run ./examples/profilesvc/cmd/profilesvc` |
 | `transport/` | 针对 HTTP 服务器、HTTP 客户端和 gRPC 的深入测试 | `go test ./examples/transport/...` |
