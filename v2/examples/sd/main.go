@@ -360,13 +360,18 @@ func demo8_Feedback(logger *slog.Logger) {
 
 	// One table serves every policy: it ejects, it scores, and it counts what is
 	// in flight. Follow keeps it the size of the service rather than the size of
-	// the deployment history.
+	// the deployment history, and drives the ejector's state with the same
+	// subscription.
 	table := feedback.NewTable(feedback.WithAlpha(1))
-	following := table.Follow(cache)
+	ejector := feedback.NewEjector(table, feedback.EjectionPolicy{
+		MaxErrorRate: 0.5,
+		MinSamples:   1,
+		BaseDuration: 50 * time.Millisecond,
+	})
+	following := feedback.Follow(cache, table, ejector)
 	defer following.Close() //nolint:errcheck
 
-	healthy := table.Healthy(feedback.HealthPolicy{MaxErrorRate: 0.5, MinSamples: 1})
-	lb := balancer.New(set, table.Wrap(selector.Filtered(selector.RoundRobin(), healthy)))
+	lb := balancer.New(set, table.Wrap(selector.Filtered(selector.RoundRobin(), ejector.Filter())))
 	defer lb.Close() //nolint:errcheck
 
 	seen := map[string]int{}
@@ -381,6 +386,13 @@ func demo8_Feedback(logger *slog.Logger) {
 	fmt.Printf("  30 calls → %v\n", seen)
 	fmt.Printf("  bad:80 error rate %.0f%%, ejected after its first failure\n",
 		table.Stats(sd.Instance{Address: "bad:80"}).ErrorRate*100)
+
+	// Ejection expires. Without that, an instance receiving no traffic produces
+	// no new measurements, so nothing would ever clear the ones that ejected it.
+	time.Sleep(60 * time.Millisecond)
+	if _, err := invoke(lb, context.Background(), nil); err != nil {
+		fmt.Println("  after the ejection window: bad:80 was tried again and failed again")
+	}
 
 	// Scale down. Following discovery drops the measurements for the address
 	// that left, which is what stops a long-running table from growing with

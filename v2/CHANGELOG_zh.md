@@ -7,12 +7,13 @@
 
 ### 新增
 
-- `sd/balancer` 新增四种选择策略，轮询不再是唯一选项：`NewRandom`（均匀抽样，
+- `sd/balancer` 新增三种选择策略，轮询不再是唯一选项：`NewRandom`（均匀抽样，
   避免多客户端共享计数器导致的步调一致）、`NewWeightedRandom`（按每个实例的
   权重成比例选择；权重为 0 即可摘除实例，无需等待服务发现）、
-  `NewLeastRequest`（按在途请求数，二选一 P2C，配合 `WithChoices`、
-  `DefaultChoices`）、`NewConsistentHash`（虚拟节点哈希环，配合 `WithReplicas`、
-  `DefaultReplicas`，只有归属实例离开时对应的键才会迁移）。
+  `NewConsistentHash`（虚拟节点哈希环，配合 `WithReplicas`、
+  `DefaultReplicas`，只有归属实例离开时对应的键才会迁移）。最少请求改为组装而
+  非构造——见 `feedback.Table.LeastRequest`——因为它需要一份测量存储，而端点层
+  不应该依赖测量存储。
 - `sdclient.WithBalancer` 用于替换选择策略。此前 `sd/client.NewEndpoint` 把轮询
   硬编码，想换策略只能绕开构造器，手工串接 `endpointer`、负载均衡器与 `sd/retry`。
 - `sd.Outcome`、`sd.Done` 与 `sd.Picked`：每次 `Balancer.Pick(ctx, request)` 都会
@@ -34,7 +35,7 @@
   从注册标签中读取权重。
 - `consul.MetaRegistrarOptions` 在注册时上报静态标签，Consul instancer 会把每个
   条目的服务 `Meta` 还原成 `Instance.Metadata`；只改元数据也会作为变更广播。
-  实时负载不进 catalog：由 `NewLeastRequest` 在进程内度量。
+  实时负载不进 catalog：由 `feedback.Table.LeastRequest` 在进程内度量。
 - 新增 `sd/selector` 包：面向实例快照的选择策略，与端点无关。包含
   `Strategy.Pick(ctx, request, instances)`、`RoundRobin`、`Random`、
   `WeightedRandom`、`Scored`、`LeastRequest`、`ConsistentHash` 六种策略，`Static`、
@@ -44,15 +45,46 @@
 - `balancer.New(source, strategy)` 把任意 `selector.Strategy` 变成
   `sd.Balancer`，自定义策略无需重复实现端点查找即可被 `sd/client` 与 `sd/retry`
   使用；请求始终通过同一个策略方法传入。
-- `sd/feedback.Table` 记录 EWMA 时延、错误率、字节数和在途请求，
-  `Table.Score`、`Table.Load`、`Table.LeastRequest`、`Table.Healthy` 与
-  `Table.Wrap` 将本地观测接入评分、最少请求与被动摘除。
-  `Table.Follow(instancer)` 与 `Table.Retain(instances)` 会丢弃已离开服务发现的
-  地址的测量数据，使长期运行的表规模等于服务规模，而不是部署历史的规模。
+- `sd/feedback.Table` 记录 EWMA 时延、错误率、字节数、在途请求，以及每个地址
+  第一次出现的时间。`Table.Score`、`Table.Load`、`Table.LeastRequest`、
+  `Table.FirstSeen` 与 `Table.Wrap` 将本地观测接入评分选择、最少请求选择与慢启动。
+  `feedback.Follow(instancer, retainers...)` 与 `Table.Retain(instances)` 会丢弃
+  已离开服务发现的地址的测量数据，使长期运行的表规模等于服务规模，而不是部署
+  历史的规模。`Table.Reset(instance)` 清除某个地址的测量值，但保留其首次出现
+  时间与在途计数。`feedback.WithClock` 用于在测试中注入时间。
+- 新增 `feedback.Ejector` 与 `feedback.EjectionPolicy`：对齐 Envoy 的被动异常点
+  检测。`Ejector.Filter()` 在观测到 `MinSamples` 次调用后，移除超过
+  `MaxErrorRate`、`MaxLatency` 或 `MaxInFlight` 的实例；`MaxEjectionPercent`
+  （默认 50）在候选集里"不健康"占比过高时拒绝摘除——整池同时失败通常意味着
+  共享依赖出问题。一次摘除在 `BaseDuration` 后到期，并按该地址历史摘除次数
+  翻倍、上限 `MaxDuration`；到期时会重置导致摘除的测量值，否则没有流量的
+  衰减均值永远不会恢复，第一次摘除就等于永久摘除。
+- 新增 `feedback.Retainer` 与包级 `feedback.Follow`：只向 instancer 订阅一次，
+  同时驱动表与所有 ejector，因此"地址已离开"只在一个地方被遗忘。服务发现报错
+  不再被当成"实例全没了"。
 - 新增 `sd.InstanceFilter` 与 `sd.Keep(match)`，以及
   `selector.Filtered(strategy, filters...)`：为无法按单个实例判定的策略提供
-  集合级过滤契约。被动健康检查必须先知道"这一摘会摘掉多少"才能决定摘不摘，
-  因此 `Table.Healthy` 返回 `InstanceFilter`，其摘除上限按当次候选集计算。
+  集合级过滤契约。被动摘除必须先知道"这一摘会摘掉多少"才能决定摘不摘，
+  因此 `Ejector.Filter` 返回 `InstanceFilter`，其摘除上限按当次候选集计算。
+- 新增 `sd/health` 包：以 `sd.Instancer` 装饰器的形式做主动探测，下游每一层
+  都不需要改。`health.Check(source, probe, options...)`，配合 `health.Probe`、
+  `health.TCPProbe`、`health.HTTPProbe`，以及探测间隔、超时、阈值、并发度、
+  日志与初始状态等选项。被动检测只能看见有流量的实例；主动探测还能看见冷实例
+  与不可达实例。实例在首次探测完成前按健康对待；当没有任何实例通过探测时，
+  checker 会原样发布未经检查的集合而不是空集，避免探针自身故障把整个服务
+  变成黑洞。
+- 新增 `selector.Ranker`、`selector.NewRanker` 与 `selector.ScoreFunc`：对快照
+  排序并返回最优的 N 个，而不是只选一个。这正是"选路服务"需要的形状——调用方
+  自己去连。同分按地址排序，因此两个进程对同一份快照排序结果一致。
+- 新增 `selector.SlowStart` 与 `selector.FirstSeenFunc`：让新实例的权重在一个
+  窗口内逐步爬升。否则冷实例在最少请求与评分比较里稳赢，会在缓存和连接池还没
+  热起来时就承接全量流量。
+- selector 层新增 `selector.LeastRequest`、`selector.LoadFunc`、
+  `selector.WithChoices` 与 `selector.DefaultChoices`，不需要端点也能做在途选择；
+  `feedback.Table.LeastRequest` 把它与度量它的那张表绑定在一起。
+- 新增 `sd.StateKey`、`sd.StateReady`、`sd.StateDraining`、`sd.Draining()` 与
+  `sd.Serving()`：表示"仍在注册中心里、但不该再接新流量"的标签约定。排空是
+  注册信息的属性，因此它属于元数据，而不属于反馈表。
 - `balancer.NewScored` 与 `selector.Scored` 按调用方给出的分数选择，是本进程并未
   亲自度量的负载信号的接入点：实例推送的报告、ORCA/LRS 式带外上报，或任何本地
   表。返回 `false` 表示排除该实例，无需再写一个断言即可表达硬过滤。
@@ -79,14 +111,21 @@
 - **破坏性变更：** `sd.Balancer` 改为 `Pick(ctx, request) (sd.Picked, error)` 并
   增加 `Close`；删除 `Endpoint`、`EndpointFor` 与 `RequestBalancer`。
 - **破坏性变更：** `sd.Instancer` 增加 `Close() error`。
-- **破坏性变更：** `balancer.NewLeastRequest(source, table, options...)` 显式接收
-  反馈表；传 `nil` 表示使用私有表。移除 `WithTable` 与 `WithFeedback`——共享的
-  测量流是参数，不是选项。最少请求本身下移为
+- **破坏性变更：** 删除 `balancer.NewLeastRequest`，同时删除
+  `balancer.LoadFunc`、`LeastRequestOption`、`DefaultChoices`、`WithChoices`
+  这几个别名，以及更早的 `WithTable`/`WithFeedback` 选项。请改为组装：
+  `balancer.New(set, table.LeastRequest(...))`。两个原因：端点层此前无条件
+  import `sd/feedback`，导致连纯轮询的装配也把可选的反馈层编译进来；而
+  `table == nil` 这个简写造出的表调用方拿不到句柄，因此永远无法 `Retain`，
+  在滚动发布下会无界增长。最少请求本身位于
   `selector.LeastRequest(load, options...)`，实例层也能用它。
-- **破坏性变更：** `feedback.Table.Healthy` 的返回类型由 `sd.Match` 改为
-  `sd.InstanceFilter`，且摘除上限按候选集计算，而不再按表里出现过的所有地址计算。
-  请把它交给 `selector.Filtered`。移除重复命名 `feedback.Policy` 与
-  `Table.Done`，改用 `HealthPolicy` 与 `Track`。
+- **破坏性变更：** 被动健康检查由表上的方法改为独立的 `feedback.Ejector`。
+  移除 `Table.Healthy`、`feedback.HealthPolicy`、`feedback.Policy`、
+  `Table.Done` 与 `Table.Follow`；改用
+  `feedback.NewEjector(table, feedback.EjectionPolicy{...}).Filter()` 配合
+  `selector.Filtered`、`Track`，以及包级
+  `feedback.Follow(instancer, table, ejector)`。摘除现在有放回路径：没有它的话
+  第一次摘除就是永久的——实例拿不到流量，导致摘除的测量值也就永远不会衰减。
 - `sd/balancer` 现在是 `sd/selector` 之上的薄层：加权、评分与哈希策略都住在
   selector，balancer 只补上端点查找。均衡器策略相关 API 保留——`WeightFunc`、
   `KeyFunc`、`ConsistentHashOption`、`DefaultWeightKey`、`DefaultReplicas`、

@@ -97,16 +97,21 @@ a business operation is safe to retry.
 ### `sd`
 
 The root `sd` package owns provider-neutral discovery contracts.
-`sd/endpointer`, `sd/balancer`, `sd/retry`, and `sd/feedback` are independently
-usable runtime components; `sd/client` is their optional convenience
-composition. Updates are snapshots, not mutable caller-owned slices. A
-`Balancer.Pick` returns a `Picked` identity plus `Done(Outcome)`, so retry and
-other callers can feed per-instance results into local feedback without writing
-live metrics to the registry. Cancellation interrupts both calls and retry
-backoff. `Instancer.Close` and constructor-returned closers own subscription
-goroutines and factory-created client connections. Protocol retry classification
-belongs to the protocol adapter, not generic discovery. Consul and etcd support
-live in independent integration modules.
+`sd/endpointer`, `sd/selector`, `sd/balancer`, `sd/retry`, `sd/feedback`, and
+`sd/health` are independently usable runtime components; `sd/client` is their
+optional convenience composition. Updates are snapshots, not mutable
+caller-owned slices. A `Balancer.Pick` returns a `Picked` identity plus
+`Done(Outcome)`, so retry and other callers can feed per-instance results into
+local feedback without writing live metrics to the registry. Per-instance
+dynamic state lives in exactly one store, `feedback.Table`; policy state such as
+which addresses are currently ejected belongs to the policy, because it is per
+(policy, instance) rather than per instance. Active probing is a
+decorator on `Instancer` rather than a stage of its own, so adding it changes no
+downstream layer. Cancellation interrupts both calls and retry backoff. `Instancer.Close`
+and constructor-returned closers own subscription goroutines and factory-created
+client connections. Protocol retry classification belongs to the protocol
+adapter, not generic discovery. Consul and etcd support live in independent
+integration modules.
 
 ### `interaction`
 

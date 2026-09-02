@@ -339,11 +339,11 @@ func TestFeedback_EjectsFailingInstanceAndForgetsRemovedOnes(t *testing.T) {
 	t.Cleanup(func() { _ = set.Close() })
 
 	table := feedback.NewTable(feedback.WithAlpha(1))
-	following := table.Follow(cache)
+	ejector := feedback.NewEjector(table, feedback.EjectionPolicy{MaxErrorRate: 0.5, MinSamples: 1})
+	following := feedback.Follow(cache, table, ejector)
 	t.Cleanup(func() { _ = following.Close() })
 
-	healthy := table.Healthy(feedback.HealthPolicy{MaxErrorRate: 0.5, MinSamples: 1})
-	lb := balancer.New(set, table.Wrap(selector.Filtered(selector.RoundRobin(), healthy)))
+	lb := balancer.New(set, table.Wrap(selector.Filtered(selector.RoundRobin(), ejector.Filter())))
 	t.Cleanup(func() { _ = lb.Close() })
 
 	failures := 0

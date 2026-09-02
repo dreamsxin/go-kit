@@ -108,29 +108,66 @@ endpointer.Prefer(set, sd.MetadataEquals("zone", "a"))
 `retry.Error.Attempts` 会记录每次失败尝试的地址与时延。`sd.Instancer` 现在也
 要求 `Close() error`。
 
-`sd/feedback.Table` 是进程内结果表，记录 EWMA 时延、错误率、字节数和在途请求。
-使用 `Table.Wrap`、`Table.Score`、`Table.LeastRequest` 或 `Table.Healthy` 将本地
-观测接入策略选择与被动摘除；它不会把实时信号写回注册中心。
+`sd/feedback.Table` 是进程内结果表，记录 EWMA 时延、错误率、字节数、在途请求
+以及首次出现时间。使用 `Table.Wrap`、`Table.Score`、`Table.LeastRequest` 或
+`Table.FirstSeen` 将本地观测接入策略选择；它不会把实时信号写回注册中心。
+被动摘除是独立组件 `feedback.Ejector`。
 
-接入时有两处必须改对：
+接入时有三处必须改对：
 
 ```go
 // 之前
 lb := balancer.NewLeastRequest(set, balancer.WithTable(table))
 strategy := table.Wrap(selector.Scored(table.Score()))
 healthy := table.Healthy(policy)          // 曾经是 sd.Match
+following := table.Follow(instancer)
 
 // 之后
-lb := balancer.NewLeastRequest(set, table)                // 传 nil 使用私有表
-following := table.Follow(instancer)                      // 丢弃被替换的地址
+lb := balancer.New(set, table.LeastRequest())             // 表始终由调用方持有
+ejector := feedback.NewEjector(table, feedback.EjectionPolicy{
+	MaxErrorRate: 0.5,
+	MinSamples:   5,
+})
+following := feedback.Follow(instancer, table, ejector)   // 丢弃被替换的地址
 defer following.Close()
 strategy := table.Wrap(selector.Filtered(selector.Scored(table.Score()),
-	table.Healthy(policy)))                                // 现在是 sd.InstanceFilter
+	ejector.Filter()))                                     // 现在是 sd.InstanceFilter
 ```
 
-`Table.Healthy` 之所以是 `sd.InstanceFilter`，是因为它的摘除上限是对整个候选集的
-判定。务必调用 `Table.Follow(instancer)`——或自己调用 `Table.Retain(snapshot)`——
-否则表会为见过的每个地址各留一条记录，并随每次滚动发布持续增长。
+`balancer.NewLeastRequest` 已删除，`balancer.LoadFunc`、`LeastRequestOption`、
+`DefaultChoices`、`WithChoices` 这几个别名也一并删除，请直接用 selector 里的
+原件。端点层现在完全不 import `sd/feedback`，因此纯轮询的装配不会把反馈层
+编译进来。最少请求的组装方式与其他所有依赖反馈的策略一致：
+`balancer.New(set, table.LeastRequest(...))`。这同时去掉了旧的 `table == nil`
+简写——它造出一张调用方拿不到句柄的表，于是永远无法 `Retain`，在任何跨越滚动
+发布的进程里都是一张无界的 map。
+
+`Ejector.Filter` 之所以是 `sd.InstanceFilter`，是因为它的摘除上限是对整个候选集的
+判定。务必调用 `feedback.Follow`——或自己调用 `Table.Retain(snapshot)` 与
+`Ejector.Retain(snapshot)`——否则表会为见过的每个地址各留一条记录，并随每次
+滚动发布持续增长。
+
+摘除不再是永久的。一次摘除在 `EjectionPolicy.BaseDuration` 后到期（按该地址
+历史摘除次数翻倍，上限 `MaxDuration`），到期时会重置该地址的测量值。如果你要
+自己实现同类策略，记得一并重置测量值：拿不到流量的 EWMA 永远不会恢复，只放回
+而不清掉当初导致摘除的数据，下一次选择就会立刻再摘一遍。
+
+新增的可选层，都不影响既有装配：
+
+```go
+// 主动探测——装饰 instancer，下游一律不用改。
+checked := health.Check(instancer, health.TCPProbe(2*time.Second))
+defer checked.Close()
+
+// 排序而不是选一个，适合选路服务。
+top, err := selector.NewRanker(instances, table.Score(), ejector.Filter()).Rank(ctx, 3)
+
+// 慢启动，避免冷实例一上来就赢下每一次比较。
+weight := selector.SlowStart(selector.MetadataWeight("weight", 1), table.FirstSeen(), 30*time.Second)
+```
+
+排空现在有了明确的标签约定：把注册信息里的 `sd.StateKey` 设为
+`sd.StateDraining`，并用 `sd.Keep(sd.Serving())` 过滤。
 
 不需要改源码但需要注意的行为变更：
 

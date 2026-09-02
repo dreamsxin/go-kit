@@ -114,3 +114,29 @@ func Keep(match Match) InstanceFilter {
 		return kept
 	}
 }
+
+// Conventional metadata for lifecycle state. Every registry this project
+// integrates with can carry it — Consul meta, etcd JSON, Nacos metadata,
+// Kubernetes labels — so agreeing on one key is what makes a draining instance
+// mean the same thing to every consumer.
+const (
+	StateKey      = "state"
+	StateReady    = "ready"
+	StateDraining = "draining"
+)
+
+// Draining matches instances that asked to stop receiving new work.
+//
+// Only new selections are affected. Whatever already holds a connection to a
+// draining instance keeps it: sd does not own connections, so it cannot end them
+// and does not pretend to.
+func Draining() Match {
+	return MetadataEquals(StateKey, StateDraining)
+}
+
+// Serving matches instances that are not draining, which is the filter almost
+// every caller wants. An instance with no state label is serving: a registry
+// that never sets one must not go dark.
+func Serving() Match {
+	return Not(Draining())
+}

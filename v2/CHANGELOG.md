@@ -8,14 +8,15 @@ through the immutable v0 and v1 tags.
 
 ### Added
 
-- Four more selection strategies in `sd/balancer`, so round robin is no longer
+- Three more selection strategies in `sd/balancer`, so round robin is no longer
   the only option: `NewRandom` (uniform draw, avoids the lockstep a shared
   counter causes across many clients), `NewWeightedRandom` (probability
   proportional to a weight per instance; weight zero drains an instance
-  without waiting for service discovery), `NewLeastRequest` (in-flight count
-  with power-of-two-choices, `WithChoices`, `DefaultChoices`), and
+  without waiting for service discovery), and
   `NewConsistentHash` (a virtual-node ring, `WithReplicas`, `DefaultReplicas`,
-  so keys move only when their owning instance leaves).
+  so keys move only when their owning instance leaves). Least request is
+  assembled instead of constructed — see `feedback.Table.LeastRequest` — because
+  it needs a measurement store and the endpoint layer must not depend on one.
 - `sdclient.WithBalancer` replaces the selection strategy. Previously
   `sd/client.NewEndpoint` hardcoded round robin and a custom balancer meant
   bypassing the constructor and wiring `endpointer`, the balancer, and
@@ -44,7 +45,8 @@ through the immutable v0 and v1 tags.
 - `consul.MetaRegistrarOptions` reports static labels with the registration, and
   the Consul instancer lifts each entry's service `Meta` into
   `Instance.Metadata`. A metadata-only change is broadcast as a change. Live
-  load stays out of the catalog: `NewLeastRequest` measures it in process.
+  load stays out of the catalog: `feedback.Table.LeastRequest` measures it in
+  process.
 - New `sd/selector` package: selection strategies over instance snapshots,
   independent of endpoints. `Strategy.Pick(ctx, request, instances)`,
   the strategies `RoundRobin`, `Random`, `WeightedRandom`, `Scored`,
@@ -57,19 +59,59 @@ through the immutable v0 and v1 tags.
   `sd.Balancer`, so a custom strategy is usable by `sd/client` and `sd/retry`
   without reimplementing endpoint lookup. Request data is always passed through
   the one strategy method.
-- `sd/feedback.Table` records EWMA latency/error rate, bytes, and in-flight
-  calls. `Table.Score`, `Table.Load`, `Table.LeastRequest`, `Table.Healthy`, and
-  `Table.Wrap` connect local measurements to scored selection, least-request
-  selection, and passive outlier exclusion. `Table.Follow(instancer)` and
-  `Table.Retain(instances)` drop measurements for addresses that have left
-  discovery, so a long-running table stays the size of the service rather than
-  the size of its deployment history.
+- `sd/feedback.Table` records EWMA latency/error rate, bytes, in-flight calls,
+  and when each address was first seen. `Table.Score`, `Table.Load`,
+  `Table.LeastRequest`, `Table.FirstSeen`, and `Table.Wrap` connect local
+  measurements to scored selection, least-request selection, and slow start.
+  `feedback.Follow(instancer, retainers...)` and `Table.Retain(instances)` drop
+  measurements for addresses that have left discovery, so a long-running table
+  stays the size of the service rather than the size of its deployment history.
+  `Table.Reset(instance)` discards an address's measurements while keeping its
+  first-seen time and in-flight count. `feedback.WithClock` injects time for
+  tests.
+- `feedback.Ejector` and `feedback.EjectionPolicy`: passive outlier detection
+  modelled on Envoy. `Ejector.Filter()` removes instances that exceed
+  `MaxErrorRate`, `MaxLatency`, or `MaxInFlight` once `MinSamples` calls have
+  been observed; `MaxEjectionPercent` (default 50) refuses to eject when too
+  much of the candidate set looks unhealthy, since a pool failing as a whole
+  usually means a shared dependency. An ejection expires after `BaseDuration`,
+  doubled per previous ejection of that address and capped at `MaxDuration`,
+  and expiry resets the measurement that caused it — otherwise a decaying
+  average that never sees traffic would make the first ejection permanent.
+- `feedback.Retainer` and the package-level `feedback.Follow`: one subscription
+  to the instancer drives the table and every ejector, so a departed address is
+  forgotten in one place. A discovery error no longer looks like "every instance
+  is gone".
 - `sd.InstanceFilter` and `sd.Keep(match)`, plus `selector.Filtered(strategy,
   filters...)`: a set-level filter contract for policies that cannot be decided
-  per instance. Passive health checking needs to know how much of the pool it is
-  about to remove before it removes any of it, so `Table.Healthy` returns an
+  per instance. Passive ejection needs to know how much of the pool it is about
+  to remove before it removes any of it, so `Ejector.Filter` returns an
   `InstanceFilter` and its ejection cap is measured against the candidates in
   hand.
+- New `sd/health` package: active probing as an `sd.Instancer` decorator, so
+  every layer downstream is unchanged. `health.Check(source, probe, options...)`
+  with `health.Probe`, `health.TCPProbe`, `health.HTTPProbe`, and options for
+  interval, timeout, thresholds, concurrency, logger, and initial state.
+  Passive detection only sees instances that receive traffic; probes also see
+  cold and unreachable ones. An instance counts as healthy until its first probe
+  completes, and when nothing passes the checker republishes the unchecked set
+  rather than an empty one, so a broken probe cannot black-hole the service.
+- `selector.Ranker`, `selector.NewRanker`, and `selector.ScoreFunc`: rank the
+  snapshot and return the best N instead of picking one. This is the shape a
+  routing service needs, where the caller connects on its own. Ties break on
+  address, so two processes ranking the same snapshot agree.
+- `selector.SlowStart` and `selector.FirstSeenFunc` ramp a new instance's weight
+  up over a window. A cold instance otherwise wins every least-request and
+  scored comparison and takes full traffic before its caches and pools are warm.
+- `selector.LeastRequest`, `selector.LoadFunc`, `selector.WithChoices`, and
+  `selector.DefaultChoices` in the selector layer, so in-flight selection is
+  available without endpoints. `feedback.Table.LeastRequest` binds one to the
+  table that measures it.
+- `sd.StateKey`, `sd.StateReady`, `sd.StateDraining`, `sd.Draining()`, and
+  `sd.Serving()`: the label convention for an instance that is still registered
+  but should stop receiving new work. Draining is a property of the
+  registration, so it lives in metadata rather than in the feedback table.
+
 - `balancer.NewScored` and `selector.Scored` select on a caller-supplied score,
   the seam for load signals this process did not measure: a report the
   instances push, ORCA/LRS style out-of-band reporting, or any local table.
@@ -102,16 +144,24 @@ through the immutable v0 and v1 tags.
   `sd.Picked.Done` receives `sd.Outcome` after every call, preserving instance
   identity for feedback and retry attribution.
 - **Breaking:** `sd.Instancer` now exposes `Close() error`.
-- **Breaking:** `balancer.NewLeastRequest(source, table, options...)` takes the
-  feedback table explicitly; pass `nil` for a private one. `WithTable` and
-  `WithFeedback` are removed — a shared measurement stream is a parameter, not an
-  option. Least request itself moved to `selector.LeastRequest(load, options...)`
-  so the instance layer can use it too.
-- **Breaking:** `feedback.Table.Healthy` returns `sd.InstanceFilter` instead of
-  `sd.Match`, and its ejection cap is computed over the candidate set rather than
-  every address the table has ever seen. Feed it to `selector.Filtered`. The
-  duplicate names `feedback.Policy` and `Table.Done` are removed; use
-  `HealthPolicy` and `Track`.
+- **Breaking:** `balancer.NewLeastRequest` is removed, together with the
+  `balancer.LoadFunc`, `LeastRequestOption`, `DefaultChoices`, and `WithChoices`
+  aliases and the older `WithTable`/`WithFeedback` options. Assemble it as
+  `balancer.New(set, table.LeastRequest(...))`. Two reasons: the endpoint layer
+  imported `sd/feedback` unconditionally, so even a round-robin assembly
+  compiled the optional feedback layer in; and the `table == nil` shorthand
+  built a table the caller had no handle to, which therefore could never be
+  `Retain`ed and grew without bound across rolling deployments. Least request
+  itself lives in `selector.LeastRequest(load, options...)` so the instance
+  layer can use it too.
+- **Breaking:** passive health checking is now `feedback.Ejector` rather than a
+  method on the table. `Table.Healthy`, `feedback.HealthPolicy`,
+  `feedback.Policy`, `Table.Done`, and `Table.Follow` are removed; use
+  `feedback.NewEjector(table, feedback.EjectionPolicy{...}).Filter()` with
+  `selector.Filtered`, `Track`, and the package-level
+  `feedback.Follow(instancer, table, ejector)`. Ejection now has a recovery
+  path: without one the first ejection was permanent, because the measurement
+  that caused it can never decay while the instance receives no traffic.
  - `sd/balancer` is now a thin layer over `sd/selector`: the weighted, scored,
   and hash strategies live there and the balancer adds endpoint lookup. The
   public balancer API keeps `WeightFunc`, `KeyFunc`,

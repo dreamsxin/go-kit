@@ -85,14 +85,18 @@ Events 服务端）与传输特有错误。
 
 ### `sd`
 
-根 `sd` 包拥有供应商中立的服务发现契约。`sd/endpointer`、`sd/balancer`、
-`sd/retry` 与 `sd/feedback` 都可独立使用；`sd/client` 是可选的便捷组合。
+根 `sd` 包拥有供应商中立的服务发现契约。`sd/endpointer`、`sd/selector`、
+`sd/balancer`、`sd/retry`、`sd/feedback` 与 `sd/health` 都可独立使用；
+`sd/client` 是可选的便捷组合。
 更新以快照形式交付，不是调用方可变的切片。`Balancer.Pick` 返回带实例身份的
 `Picked` 以及 `Done(Outcome)`，因此 retry 等调用方可以把按实例结果回灌到
-进程内反馈表，而不必把实时指标写入注册中心。取消会同时中断调用与重试退避。
-`Instancer.Close` 与构造函数返回的关闭器负责订阅 goroutine 和工厂创建连接的
-生命周期。协议级重试分类属于协议适配器，而非通用发现层。Consul 与 etcd
-支持位于独立的 integration 模块。
+进程内反馈表，而不必把实时指标写入注册中心。按实例的动态状态只存放在一处
+——`feedback.Table`；而"哪些地址当前被摘除"这类策略状态归策略自己所有，
+因为它是按（策略，实例）而不是按实例存在的。主动探测是 `Instancer` 的装饰器
+而不是独立的一层，因此加上它不需要改动下游任何一层。取消会同时中断调用与
+重试退避。`Instancer.Close` 与构造函数返回的关闭器负责订阅 goroutine 和工厂
+创建连接的生命周期。协议级重试分类属于协议适配器，而非通用发现层。Consul 与
+etcd 支持位于独立的 integration 模块。
 
 ### `interaction`
 

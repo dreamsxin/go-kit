@@ -267,18 +267,22 @@ pick := selector.New(instances, myStrategy{}) // 不需要端点
 ```
 
 若要从调用本身采集反馈——时延、失败、在途深度——请使用 `sd/feedback.Table`。
-一张进程内的表服务于所有策略：既能评分，也能统计在途，还能摘除：
+一张进程内的表服务于所有策略：既能评分，也能统计在途，还会记录地址第一次
+出现的时间：
 
 ```go
 table := feedback.NewTable()
+ejector := feedback.NewEjector(table, feedback.EjectionPolicy{
+	MaxErrorRate: 0.5,
+	MinSamples:   5,
+})
 
 // 让表的规模等于服务规模，而不是部署历史的规模：
 // 离开服务发现的地址，其测量数据一并丢弃。
-following := table.Follow(instancer)
+following := feedback.Follow(instancer, table, ejector)
 defer following.Close()
 
-healthy := table.Healthy(feedback.HealthPolicy{MaxErrorRate: 0.5, MinSamples: 5})
-strategy := table.Wrap(selector.Filtered(selector.Scored(table.Score()), healthy))
+strategy := table.Wrap(selector.Filtered(selector.Scored(table.Score()), ejector.Filter()))
 
 lb := balancer.New(set, strategy)
 defer lb.Close()
@@ -291,24 +295,105 @@ picked.Done(sd.Outcome{Err: err, Latency: time.Since(started)})
 _ = response
 ```
 
-`sd.Match` 是针对单个实例的静态标签谓词；被动健康检查是 `sd.InstanceFilter`，
+`feedback.Follow` 只向 instancer 订阅一次，然后驱动所有 `feedback.Retainer`
+——表以及任意 ejector——因此"地址已离开"这件事只在一个地方被遗忘。服务发现
+报错不会被当成"实例全没了"：最后一份可用集合继续保留。
+
+`sd.Match` 是针对单个实例的静态标签谓词；被动摘除是 `sd.InstanceFilter`，
 它拿到的是整个候选集——因为"某个实例能不能摘"取决于"还有多少个也在失败"。
 用 `sd.Keep(match)` 可以把标签谓词放进同一个过滤器列表。`selector.Filtered`
 每次选择都会执行过滤器，并把结果映射回调用方自己的快照；而 `endpointer.Filter`
 仍然是端点集合静态视图的正确工具。
 
-`HealthPolicy.MaxEjectionPercent` 默认 50：当超过一半候选看起来不健康时，
-一个都不摘——整池同时失败，通常意味着共享依赖出问题或阈值设得太紧，
-而不是多数实例真的坏了。Envoy 称之为 panic 模式。
+### 摘除与放回
+
+`feedback.Ejector` 是被动异常点检测器。它按 `EjectionPolicy`
+（`MaxErrorRate`、`MaxLatency`、`MaxInFlight`，由 `MinSamples` 把关）
+逐个判定，并把越界的实例从候选集里移除。
+
+`MaxEjectionPercent` 默认 50：当超过一半候选看起来不健康时，一个都不摘——
+整池同时失败，通常意味着共享依赖出问题或阈值设得太紧，而不是多数实例真的坏了。
+Envoy 称之为 panic 模式。
+
+一次摘除在 `BaseDuration` 之后到期，并按该地址历史摘除次数翻倍、上限为
+`MaxDuration`——与 Envoy 相同的退避方式，没有半开探测期。窗口到期时 ejector
+会对该地址调用 `Table.Reset`：只放回、不清掉当初导致摘除的测量值，下一次选择
+就会立刻再摘一遍，因为没有流量的衰减均值永远不会自行恢复。摘除计数**故意**
+不会因为一次干净的判定而清零——反复抖动的地址每次被摘得更久——只有地址离开
+服务发现时才清除。
+
+### 排序，而不是选一个
+
+`selector.Ranker` 回答的是"该用哪 N 个实例"，而不是"该用哪一个"。这正是
+"选路服务"需要的形状：调用方（客户端、网关、agent）拿到列表后自己去连：
+
+```go
+rank := selector.NewRanker(instances, table.Score(), ejector.Filter())
+top, err := rank.Rank(ctx, 3)   // 最优在前，同分时结果确定
+```
+
+`n <= 0` 返回所有可评分实例（已排序）。同分按地址排序，因此两个进程对同一份
+快照排序会得到一致结果。
+
+### 慢启动
+
+冷实例在最少请求和评分选择里稳赢：它没有在途请求、也没有时延历史，于是每次
+比较都胜出，在缓存、连接池、JIT 都还没热起来时就被灌入全量流量。
+`selector.SlowStart` 让它的权重在一个窗口内逐步爬升：
+
+```go
+weight := selector.SlowStart(selector.MetadataWeight("weight", 1), table.FirstSeen(), 30*time.Second)
+strategy := table.Wrap(selector.WeightedRandom(weight))
+```
+
+窗口走完时实例达到配置权重；在此之前至少保持 1，因此不会被完全饿死。时间戳由
+`table.FirstSeen` 提供，所以重建策略不会让爬升过程重新开始。
+
+### 排空
+
+`sd.StateKey`（`"state"`）配合 `sd.StateReady` / `sd.StateDraining`，是"仍在
+注册中心里、但不该再接新流量"的标签约定。`sd.Serving()` 与 `sd.Draining()`
+是对应的谓词：
+
+```go
+strategy := selector.Filtered(selector.RoundRobin(), sd.Keep(sd.Serving()))
+```
+
+排空是注册信息的属性，因此它属于元数据，而不属于反馈表：正在下线的实例是
+健康的，它只是要走了。
+
+## 主动健康检查
+
+被动检测只能看见有流量的实例——冷实例和不可达实例根本不会被测量。`sd/health`
+直接探测它们，并且装饰的是 instancer，所以下游每一层都不用改：
+
+```go
+import "github.com/dreamsxin/go-kit/v2/sd/health"
+
+checked := health.Check(instancer, health.TCPProbe(2*time.Second),
+	health.WithInterval(10*time.Second),
+	health.WithUnhealthyThreshold(3))
+defer checked.Close()
+
+ep := endpointer.NewEndpointer(checked, factory, logger)
+```
+
+`health.HTTPProbe(scheme, path, timeout)` 把 ≥ 400 的状态码视为失败。阈值统计
+的是连续结果，因此丢一个包不会导致实例被摘。两个有意的选择：实例在首次探测
+完成前按健康对待（用 `WithInitiallyHealthy(false)` 反转），以及当没有任何实例
+通过探测时，checker 会把**未经检查的**集合原样发布，而不是发布空集——探针
+自己坏了不能把整个服务变成黑洞。`Close` 停止探测并从上游注销，但不会关闭上游。
+
 
 ## 架构
 
 ```
-Instancer → [selector.Filter] → Selector                → 实例
-Instancer → Endpointer → [Filter] → Balancer → Retry    → 端点
-                                        ↑ Outcome ↓
-                                     feedback.Table
+Instancer → [health.Check] → [selector.Filter] → Selector             → 实例
+Instancer → [health.Check] → Endpointer → [Filter] → Balancer → Retry → 端点
+                                                        ↑ Outcome ↓
+                                              feedback.Table + Ejector
 ```
+
 
 两条装配路径，共用一套策略。每一层只有一件事要做：instancer 监听注册中心，
 endpointer 把实例变成端点（factory 在这里决定如何连接），可选的过滤器收窄

@@ -124,31 +124,72 @@ address and latency for each failed attempt. `sd.Instancer` now also requires
 `Close() error`.
 
 `sd/feedback.Table` is the in-process result table for EWMA latency, error rate,
-bytes, and in-flight counts. Use `Table.Wrap`, `Table.Score`,
-`Table.LeastRequest`, or `Table.Healthy` to connect local observations to
-strategy selection and passive ejection; it does not write live signals back to
-the registry.
+bytes, in-flight counts, and first-seen times. Use `Table.Wrap`, `Table.Score`,
+`Table.LeastRequest`, or `Table.FirstSeen` to connect local observations to
+strategy selection; it does not write live signals back to the registry. Passive
+ejection is a separate component, `feedback.Ejector`.
 
-Two things to get right when adopting it:
+Three things to get right when adopting it:
 
 ```go
 // before
 lb := balancer.NewLeastRequest(set, balancer.WithTable(table))
 strategy := table.Wrap(selector.Scored(table.Score()))
 healthy := table.Healthy(policy)          // was an sd.Match
+following := table.Follow(instancer)
 
 // after
-lb := balancer.NewLeastRequest(set, table)                // nil for a private table
-following := table.Follow(instancer)                      // drop replaced addresses
+lb := balancer.New(set, table.LeastRequest())             // the table is always the caller's
+ejector := feedback.NewEjector(table, feedback.EjectionPolicy{
+	MaxErrorRate: 0.5,
+	MinSamples:   5,
+})
+following := feedback.Follow(instancer, table, ejector)   // drop replaced addresses
 defer following.Close()
 strategy := table.Wrap(selector.Filtered(selector.Scored(table.Score()),
-	table.Healthy(policy)))                                // now an sd.InstanceFilter
+	ejector.Filter()))                                     // now an sd.InstanceFilter
 ```
 
-`Table.Healthy` is an `sd.InstanceFilter` because its ejection cap is a decision
-about the whole candidate set. Call `Table.Follow(instancer)` — or
-`Table.Retain(snapshot)` yourself — or the table keeps one entry per address it
-has ever seen, which grows with every rolling deployment.
+`balancer.NewLeastRequest` is gone, along with the `balancer.LoadFunc`,
+`LeastRequestOption`, `DefaultChoices`, and `WithChoices` aliases; the selector
+originals are the ones to use. The endpoint layer no longer imports `sd/feedback`
+at all, so a round-robin assembly does not compile the feedback layer in. Least
+request is now composed the same way every other feedback-driven policy is:
+`balancer.New(set, table.LeastRequest(...))`. That also removes the old
+`table == nil` shorthand, which built a table the caller had no handle to and
+therefore could never `Retain` — an unbounded map in any process that survives a
+rolling deployment.
+
+
+`Ejector.Filter` is an `sd.InstanceFilter` because its ejection cap is a decision
+about the whole candidate set. Call `feedback.Follow` — or `Table.Retain(snapshot)`
+and `Ejector.Retain(snapshot)` yourself — or the table keeps one entry per address
+it has ever seen, which grows with every rolling deployment.
+
+Ejection is no longer permanent. An ejection expires after
+`EjectionPolicy.BaseDuration` (doubled per previous ejection of that address, up
+to `MaxDuration`) and expiry resets the address's measurements. If you replicate
+this policy yourself, reset the measurement too: an EWMA that receives no traffic
+never recovers, so returning an instance without clearing what ejected it
+re-ejects it on the next pick.
+
+New optional layers, none of which change existing assemblies:
+
+```go
+// Active probing — a decorator on the instancer, so nothing downstream changes.
+checked := health.Check(instancer, health.TCPProbe(2*time.Second))
+defer checked.Close()
+
+// Ranking instead of picking, for a routing service.
+top, err := selector.NewRanker(instances, table.Score(), ejector.Filter()).Rank(ctx, 3)
+
+// Slow start, so a cold instance does not win every comparison at once.
+weight := selector.SlowStart(selector.MetadataWeight("weight", 1), table.FirstSeen(), 30*time.Second)
+```
+
+Draining now has a documented label: set `sd.StateKey` to `sd.StateDraining` on
+the registration and filter with `sd.Keep(sd.Serving())`.
+
 
 
 Behavior changes that need no source edit but do need attention:

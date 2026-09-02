@@ -3,7 +3,6 @@ package feedback_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -27,66 +26,6 @@ func TestTrackRecordsOutcomeAndReleasesInflight(t *testing.T) {
 	}
 	if stats.ErrorRate != 1 || stats.Latency != 25*time.Millisecond || stats.Bytes != 10 {
 		t.Fatalf("stats = %+v, want recorded outcome", stats)
-	}
-}
-
-func TestHealthyEjectsTheFailingCandidate(t *testing.T) {
-	table := feedback.NewTable(feedback.WithAlpha(1))
-	bad := sd.Instance{Address: "bad:80"}
-	good := sd.Instance{Address: "good:80"}
-	other := sd.Instance{Address: "other:80"}
-	table.Observe(bad, sd.Outcome{Err: errors.New("failed"), Latency: 50 * time.Millisecond})
-	table.Observe(good, sd.Outcome{})
-	table.Observe(other, sd.Outcome{})
-
-	healthy := table.Healthy(feedback.HealthPolicy{MaxErrorRate: .5, MaxLatency: time.Second, MinSamples: 1})
-	kept := healthy(context.Background(), []sd.Instance{bad, good, other})
-	if addresses := addressesOf(kept); len(addresses) != 2 || addresses[0] == bad.Address {
-		t.Fatalf("kept = %v, want the failing instance removed", addresses)
-	}
-}
-
-func TestHealthyPanicThresholdAdmitsAllWhenMostCandidatesAreUnhealthy(t *testing.T) {
-	table := feedback.NewTable(feedback.WithAlpha(1))
-	bad := sd.Instance{Address: "bad:80"}
-	otherBad := sd.Instance{Address: "bad-2:80"}
-	good := sd.Instance{Address: "good:80"}
-	for _, instance := range []sd.Instance{bad, otherBad} {
-		table.Observe(instance, sd.Outcome{Err: errors.New("failed")})
-	}
-	table.Observe(good, sd.Outcome{})
-
-	healthy := table.Healthy(feedback.HealthPolicy{MaxErrorRate: .5, MinSamples: 1, MaxEjectionPercent: 50})
-	kept := healthy(context.Background(), []sd.Instance{bad, otherBad, good})
-	if len(kept) != 3 {
-		t.Fatalf("kept = %v, want every candidate: ejecting two of three exceeds the cap", addressesOf(kept))
-	}
-}
-
-func TestHealthyIgnoresMeasurementsOutsideTheCandidateSet(t *testing.T) {
-	// Addresses that have left discovery must not count towards the ejection
-	// cap. Otherwise a long-running table accumulates dead unhealthy entries
-	// until every candidate set looks doomed and nothing is ever ejected.
-	table := feedback.NewTable(feedback.WithAlpha(1))
-	failed := errors.New("failed")
-	for i := range 10 {
-		gone := sd.Instance{Address: fmt.Sprintf("retired-%d:80", i)}
-		table.Observe(gone, sd.Outcome{Err: failed})
-	}
-
-	bad := sd.Instance{Address: "bad:80"}
-	table.Observe(bad, sd.Outcome{Err: failed})
-	candidates := []sd.Instance{bad}
-	for i := range 3 {
-		good := sd.Instance{Address: fmt.Sprintf("good-%d:80", i)}
-		table.Observe(good, sd.Outcome{})
-		candidates = append(candidates, good)
-	}
-
-	healthy := table.Healthy(feedback.HealthPolicy{MaxErrorRate: .5, MinSamples: 1})
-	kept := healthy(context.Background(), candidates)
-	if len(kept) != 3 {
-		t.Fatalf("kept = %v, want the one failing candidate ejected", addressesOf(kept))
 	}
 }
 
@@ -153,7 +92,7 @@ func TestFollowRetainsOnEverySnapshot(t *testing.T) {
 	table.Observe(first, sd.Outcome{})
 	table.Observe(second, sd.Outcome{})
 
-	following := table.Follow(instancer)
+	following := feedback.Follow(instancer, table)
 	defer following.Close()
 
 	instancer.publish(sd.Event{Instances: []sd.Instance{first}})

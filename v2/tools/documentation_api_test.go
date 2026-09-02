@@ -30,6 +30,7 @@ var documentedPackageAliases = map[string]string{
 	"feedback":      filepath.Join("sd", "feedback"),
 	"selector":      filepath.Join("sd", "selector"),
 	"endpointer":    filepath.Join("sd", "endpointer"),
+	"health":        filepath.Join("sd", "health"),
 	"security":      "security",
 	"interaction":   "interaction",
 	"mcp":           filepath.Join("interaction", "mcp"),

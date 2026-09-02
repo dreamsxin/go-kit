@@ -287,18 +287,21 @@ pick := selector.New(instances, myStrategy{}) // usable without endpoints
 
 To collect feedback from the calls themselves, use `sd/feedback.Table`. One
 process-local table serves every policy: it scores, it counts what is in flight,
-and it ejects:
+and it records when an address was first seen:
 
 ```go
 table := feedback.NewTable()
+ejector := feedback.NewEjector(table, feedback.EjectionPolicy{
+	MaxErrorRate: 0.5,
+	MinSamples:   5,
+})
 
 // Keep the table the size of the service, not of the deployment history:
 // addresses that leave discovery take their measurements with them.
-following := table.Follow(instancer)
+following := feedback.Follow(instancer, table, ejector)
 defer following.Close()
 
-healthy := table.Healthy(feedback.HealthPolicy{MaxErrorRate: 0.5, MinSamples: 5})
-strategy := table.Wrap(selector.Filtered(selector.Scored(table.Score()), healthy))
+strategy := table.Wrap(selector.Filtered(selector.Scored(table.Score()), ejector.Filter()))
 
 lb := balancer.New(set, strategy)
 defer lb.Close()
@@ -311,7 +314,12 @@ picked.Done(sd.Outcome{Err: err, Latency: time.Since(started)})
 _ = response
 ```
 
-`sd.Match` is a per-instance predicate for static labels; passive health is an
+`feedback.Follow` takes one subscription to the instancer and feeds every
+`feedback.Retainer` — the table and any ejector — so a departed address is
+forgotten in one place. A discovery error is not treated as "everything is
+gone": the last good set stays.
+
+`sd.Match` is a per-instance predicate for static labels; passive ejection is an
 `sd.InstanceFilter`, which receives the whole candidate set, because whether one
 instance may be ejected depends on how many others are also failing. Use
 `sd.Keep(match)` to put a label predicate in the same filter list.
@@ -319,19 +327,103 @@ instance may be ejected depends on how many others are also failing. Use
 caller's snapshot; `endpointer.Filter` remains the right tool for a static view
 of the endpoint set.
 
-`HealthPolicy.MaxEjectionPercent` defaults to 50: when more than half of the
-candidates look unhealthy, nothing is ejected, since a pool failing as a whole
-usually means a shared dependency or a threshold set too tight. Envoy calls this
-panic mode.
+### Ejection and recovery
+
+`feedback.Ejector` is the passive outlier detector. It compares each instance
+against `EjectionPolicy` (`MaxErrorRate`, `MaxLatency`, `MaxInFlight`, gated by
+`MinSamples`) and removes the offenders from the candidate set.
+
+`MaxEjectionPercent` defaults to 50: when more than half of the candidates look
+unhealthy, nothing is ejected, since a pool failing as a whole usually means a
+shared dependency or a threshold set too tight. Envoy calls this panic mode.
+
+An ejection expires after `BaseDuration`, doubled for each previous ejection of
+that address and capped at `MaxDuration` — the same escalation Envoy applies,
+with no half-open probation. When the window expires the ejector calls
+`Table.Reset` for that address: un-ejecting without discarding the measurement
+that caused the ejection would re-eject on the next pick, because a decaying
+average never recovers without traffic. The ejection count deliberately survives
+a clean pass — an address that flaps is ejected for longer each time — and is
+cleared only when the address leaves discovery.
+
+### Ranking instead of picking
+
+`selector.Ranker` answers "which N instances should I use?" instead of "which
+one". It is the shape a routing service needs, where the caller — a client, a
+gateway, an agent — connects on its own:
+
+```go
+rank := selector.NewRanker(instances, table.Score(), ejector.Filter())
+top, err := rank.Rank(ctx, 3)   // best first, deterministic on ties
+```
+
+`n <= 0` returns everything scorable, ordered. Ties break on address so two
+processes ranking the same snapshot agree.
+
+### Slow start
+
+A cold instance loses least-request and scored selection outright: it has no
+in-flight requests and no latency history, so it wins every comparison and is
+handed the full share of traffic before its caches, pools, and JIT are warm.
+`selector.SlowStart` ramps its weight up over a window instead:
+
+```go
+weight := selector.SlowStart(selector.MetadataWeight("weight", 1), table.FirstSeen(), 30*time.Second)
+strategy := table.Wrap(selector.WeightedRandom(weight))
+```
+
+The instance reaches its configured weight when the window elapses; before that
+it holds at least 1, so it is never starved. `table.FirstSeen` supplies the
+timestamps, which is why the ramp survives a strategy being rebuilt.
+
+### Draining
+
+`sd.StateKey` (`"state"`) with `sd.StateReady` / `sd.StateDraining` is the label
+convention for an instance that is still registered but should stop receiving
+new work. `sd.Serving()` and `sd.Draining()` are the matching predicates:
+
+```go
+strategy := selector.Filtered(selector.RoundRobin(), sd.Keep(sd.Serving()))
+```
+
+Draining is a property of the registration, so it belongs in metadata, not in
+the feedback table: a shutting-down instance is healthy, it is just leaving.
+
+## Active health checks
+
+Passive detection only sees instances that receive traffic — a cold instance or
+an unreachable one is never measured. `sd/health` probes them directly and
+decorates an instancer, so every layer downstream is unchanged:
+
+```go
+import "github.com/dreamsxin/go-kit/v2/sd/health"
+
+checked := health.Check(instancer, health.TCPProbe(2*time.Second),
+	health.WithInterval(10*time.Second),
+	health.WithUnhealthyThreshold(3))
+defer checked.Close()
+
+ep := endpointer.NewEndpointer(checked, factory, logger)
+```
+
+`health.HTTPProbe(scheme, path, timeout)` treats any status ≥ 400 as a failure.
+Thresholds are consecutive results, so one lost packet does not remove an
+instance. Two deliberate choices: an instance is treated as healthy until its
+first probe completes (`WithInitiallyHealthy(false)` to invert), and if nothing
+passes the checker republishes the unchecked set rather than an empty one — a
+probe that is itself broken must not black-hole the service. `Close` stops the
+probes and deregisters from the source without closing it.
+
 
 ## Architecture
 
 ```
-Instancer → [selector.Filter] → Selector                     → instance
-Instancer → Endpointer → [Filter] → Balancer → Retry         → endpoint
-                                        ↑ Outcome ↓
-                                     feedback.Table
+Instancer → [health.Check] → [selector.Filter] → Selector             → instance
+Instancer → [health.Check] → Endpointer → [Filter] → Balancer → Retry → endpoint
+                                                        ↑ Outcome ↓
+                                              feedback.Table + Ejector
 ```
+
 
 Two assemblies, one set of strategies. Each layer has a single job: the
 instancer watches the registry, the endpointer turns instances into endpoints
