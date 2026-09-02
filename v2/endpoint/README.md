@@ -236,6 +236,16 @@ window decides recovery. Rate limiting ships as `RateLimitMiddleware` (reject)
 and `DelayRateLimitMiddleware` (wait) over the application-owned `RateLimiter`
 contract; `ErrRateLimited` encodes as 429 because the caller exceeded its quota.
 
+The breaker defaults to 5 consecutive failures to trip, 1 probe success to
+close, and a 1 minute open window (`DefaultBreaker*`); any non-positive setting
+falls back to the default. `CircuitBreaker.State()` exposes the current state,
+which is the value to export as a gauge — a breaker open for more than a minute
+is worth alerting on. `RateLimiterFuncs` adapts plain functions to the
+`RateLimiter` contract, and a limiter that also implements `RetryAfterReporter`
+has its delay attached to `ErrRateLimited`. Both limiters are process-local, so
+a multi-replica deployment either scales the per-replica rate by the replica
+count or supplies a shared, application-owned limiter.
+
 `RetryMiddleware` repeats transient failures with exponential backoff and full
 jitter. Its default classifier retries `apperror.KindUnavailable` and errors
 that classify themselves through `interface{ Retryable() bool }` — never
@@ -366,8 +376,11 @@ again covers:
 - builder-style composition
 - the framework's central middleware model
 
-Specialized modules such as `integrations/circuitbreaker` and
-`integrations/ratelimit` remain independently selectable components.
+Circuit breaking and rate limiting used to live in separate
+`integrations/circuitbreaker` and `integrations/ratelimit` modules. Both moved
+into this package in v2.4.0 and those modules were removed, so there is no
+extra module to select: `NewCircuitBreaker` and `RateLimitMiddleware` ship
+here.
 
 ## Best Practices
 

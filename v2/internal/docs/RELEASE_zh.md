@@ -155,23 +155,22 @@ make verify-published-core
 3. 在每个嵌套模块中运行 `go mod tidy` 和 `GOWORK=off go test ./...`。
 4. 提交并重新运行完整的 Linux/Windows 发布工作流。
 5. 运行 `make release-check-clean`；此时它要求根标签存在，并拒绝任何已存在的嵌套标签。
-6. 从该已验证提交创建清单标签：
+6. 从该已验证提交创建清单标签。`RELEASE_MANIFEST.json` 是模块列表的权威来源；
+   下面的命令只示意形式，不要照抄。
 
 ```bash
 git tag -a v2/cmd/microgen/v0.2.4 -m "microgen v0.2.1"
-git tag -a v2/integrations/circuitbreaker/v0.2.4 -m "circuitbreaker v0.2.1"
 git tag -a v2/integrations/consul/v0.2.4 -m "consul integration v0.2.1"
+git tag -a v2/integrations/etcd/v0.2.4 -m "etcd integration v0.2.1"
 git tag -a v2/integrations/grpc/v0.2.4 -m "gRPC integration v0.2.1"
-git tag -a v2/integrations/ratelimit/v0.2.4 -m "rate-limit integration v0.2.1"
 git tag -a v2/integrations/zap/v0.2.4 -m "Zap integration v0.2.1"
 git tag -a v2/kit/grpc/v0.2.4 -m "kit gRPC component v0.2.1"
 git tag -a v2/observability/otel/v0.2.4 -m "OpenTelemetry integration v0.2.1"
 git push origin \
   v2/cmd/microgen/v0.2.4 \
-  v2/integrations/circuitbreaker/v0.2.4 \
   v2/integrations/consul/v0.2.4 \
+  v2/integrations/etcd/v0.2.4 \
   v2/integrations/grpc/v0.2.4 \
-  v2/integrations/ratelimit/v0.2.4 \
   v2/integrations/zap/v0.2.4 \
   v2/kit/grpc/v0.2.4 \
   v2/observability/otel/v0.2.4

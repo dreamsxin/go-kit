@@ -233,6 +233,13 @@ typed := endpoint.Unwrap[HelloReq, HelloResp](
 基于应用自有的 `RateLimiter` 契约；`ErrRateLimited` 编码为 429，因为这是
 调用方超出了自己的配额。
 
+熔断器的默认值为连续 5 次失败触发、1 次探测成功恢复、开窗 1 分钟
+（`DefaultBreaker*`）；任何非正数配置都会回落到默认值。`CircuitBreaker.State()`
+暴露当前状态，这是适合导出为 gauge 的值——熔断开启超过一分钟值得告警。
+`RateLimiterFuncs` 可把一对普通函数适配成 `RateLimiter`；限流器若同时实现
+`RetryAfterReporter`，其延迟会附加到 `ErrRateLimited` 上。两个限流中间件都是
+进程内的，多副本部署要么按副本数缩放单副本速率，要么提供应用自有的共享限流器。
+
 `RetryMiddleware` 以指数退避加全抖动重试瞬时失败。默认分类器重试
 `apperror.KindUnavailable`，以及通过 `interface{ Retryable() bool }` 自行分类的
 错误——不重试 context 错误、本地拒绝与未分类错误；错误自带的重试提示
@@ -347,8 +354,9 @@ API。在 `v2.1.0` 之后，兼容性将重新覆盖：
 - builder 风格的组合
 - 框架的核心中间件模型
 
-`integrations/circuitbreaker` 和 `integrations/ratelimit` 等专用模块仍是可独立
-选择的组件。
+熔断与限流原先位于独立的 `integrations/circuitbreaker` 和
+`integrations/ratelimit` 模块。两者已于 v2.4.0 并入本包，对应模块已删除，
+因此不需要额外选用模块：`NewCircuitBreaker` 与 `RateLimitMiddleware` 就在这里。
 
 ## 最佳实践
 

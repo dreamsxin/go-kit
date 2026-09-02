@@ -197,23 +197,23 @@ After the root module resolves publicly:
 4. Commit and rerun the full Linux/Windows release workflow.
 5. Run `make release-check-clean`; it now requires the root tag and rejects
    any nested tag that already exists.
-6. Create the manifest tags from that verified commit:
+6. Create the manifest tags from that verified commit. `RELEASE_MANIFEST.json`
+   is the authoritative module list; the commands below are an illustration of
+   the shape, not a list to copy blindly.
 
 ```bash
 git tag -a v2/cmd/microgen/v0.2.4 -m "microgen v0.2.1"
-git tag -a v2/integrations/circuitbreaker/v0.2.4 -m "circuitbreaker v0.2.1"
 git tag -a v2/integrations/consul/v0.2.4 -m "consul integration v0.2.1"
+git tag -a v2/integrations/etcd/v0.2.4 -m "etcd integration v0.2.1"
 git tag -a v2/integrations/grpc/v0.2.4 -m "gRPC integration v0.2.1"
-git tag -a v2/integrations/ratelimit/v0.2.4 -m "rate-limit integration v0.2.1"
 git tag -a v2/integrations/zap/v0.2.4 -m "Zap integration v0.2.1"
 git tag -a v2/kit/grpc/v0.2.4 -m "kit gRPC component v0.2.1"
 git tag -a v2/observability/otel/v0.2.4 -m "OpenTelemetry integration v0.2.1"
 git push origin \
   v2/cmd/microgen/v0.2.4 \
-  v2/integrations/circuitbreaker/v0.2.4 \
   v2/integrations/consul/v0.2.4 \
+  v2/integrations/etcd/v0.2.4 \
   v2/integrations/grpc/v0.2.4 \
-  v2/integrations/ratelimit/v0.2.4 \
   v2/integrations/zap/v0.2.4 \
   v2/kit/grpc/v0.2.4 \
   v2/observability/otel/v0.2.4

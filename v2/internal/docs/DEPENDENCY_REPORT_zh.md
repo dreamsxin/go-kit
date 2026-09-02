@@ -37,10 +37,9 @@
 
 | 模块入口 | 编译包数 | 非标准包数 | 提供者家族 |
 | --- | ---: | ---: | --- |
-| `integrations/circuitbreaker` | 67 | 3 | Sony Gobreaker |
 | `integrations/consul` | 207 | 18 | HashiCorp Consul API |
+| `integrations/etcd` | 353 | 154 | etcd client v3（会带入 gRPC） |
 | `integrations/grpc` | 307 | 114 | gRPC 与 Protobuf |
-| `integrations/ratelimit` | 66 | 2 | `x/time/rate` 适配器契约 |
 | `integrations/zap` | 196 | 13 | Uber Zap |
 | `kit/grpc` | 303 | 110 | gRPC 与 Protobuf |
 | `observability/otel` | 209 | 24 | OpenTelemetry |

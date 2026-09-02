@@ -45,10 +45,9 @@ when the corresponding module is selected.
 
 | Module entry point | Compiled packages | Non-standard packages | Provider family |
 | --- | ---: | ---: | --- |
-| `integrations/circuitbreaker` | 67 | 3 | Sony Gobreaker |
 | `integrations/consul` | 207 | 18 | HashiCorp Consul API |
+| `integrations/etcd` | 353 | 154 | etcd client v3 (pulls gRPC) |
 | `integrations/grpc` | 307 | 114 | gRPC and Protobuf |
-| `integrations/ratelimit` | 66 | 2 | `x/time/rate` adapter contract |
 | `integrations/zap` | 196 | 13 | Uber Zap |
 | `kit/grpc` | 303 | 110 | gRPC and Protobuf |
 | `observability/otel` | 209 | 24 | OpenTelemetry |

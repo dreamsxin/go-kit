@@ -22,6 +22,8 @@ var removedDocumentationReferences = []string{
 	"github.com/dreamsxin/go-kit/v2/transport/grpc",
 	"github.com/dreamsxin/go-kit/v2/endpoint/circuitbreaker",
 	"github.com/dreamsxin/go-kit/v2/endpoint/ratelimit",
+	"github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker",
+	"github.com/dreamsxin/go-kit/v2/integrations/ratelimit",
 	"github.com/dreamsxin/go-kit/v2/observability/zap",
 	"github.com/dreamsxin/go-kit/v2/sd/consul",
 	"github.com/dreamsxin/go-kit/v2/cmd/microgen/generator",

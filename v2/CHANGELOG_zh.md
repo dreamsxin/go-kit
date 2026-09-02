@@ -160,6 +160,18 @@
 - `sd/health` 改用固定 worker pool 探测，不再每轮为每个实例创建 goroutine，并在
   `Close` 取消后立即停止投喂任务。`health.Probe` 的文档现在明确要求它必须在
   context 取消时返回，因为 `Close` 会等待正在进行的这一轮。
+- 文档不再把已删除的 `integrations/circuitbreaker` 与 `integrations/ratelimit`
+  模块当作仍然存在。`endpoint/README` 曾写"仍是可独立选择的组件"，
+  `internal/docs/RELEASE.md` 的发布 runbook 仍为二者列出打标签命令、却漏了
+  `integrations/etcd`，依赖报告与路线图也仍在统计它们。仅存在于这两份废弃 README
+  里的内容——熔断器默认值、`CircuitBreaker.State()`、`RateLimiterFuncs`
+  以及多副本限流说明——已并入 `endpoint/README`。
+
+### 移除
+
+- 删除 `integrations/circuitbreaker` 与 `integrations/ratelimit` 目录。两个模块在
+  v2.4.0 中间件并入 `endpoint` 时就已删除，残留的只是一份废弃说明 README；而
+  `go get` 解析旧依赖走的是 module proxy 与既有标签，不是仓库里的文件。
 
 
 ## [2.7.0] - 2026-09-01

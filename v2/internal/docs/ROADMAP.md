@@ -230,10 +230,9 @@ modules with their own `go.mod`, tests, and release checks:
 - `kit/grpc` or the final optional gRPC assembly location;
 - `integrations/grpc`;
 - `integrations/consul`;
+- `integrations/etcd`;
 - `integrations/zap`;
 - `observability/otel`;
-- `integrations/circuitbreaker`;
-- `integrations/ratelimit` when it continues to use `golang.org/x/time/rate`;
 - `cmd/microgen`.
 
 Nested module paths retain the package import path where practical. Module

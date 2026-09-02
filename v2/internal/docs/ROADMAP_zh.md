@@ -142,10 +142,9 @@ v2/
 - `kit/grpc` 或最终的可选 gRPC 装配位置；
 - `integrations/grpc`；
 - `integrations/consul`；
+- `integrations/etcd`；
 - `integrations/zap`；
 - `observability/otel`；
-- `integrations/circuitbreaker`；
-- `integrations/ratelimit`（当它继续使用 `golang.org/x/time/rate` 时）；
 - `cmd/microgen`。
 
 嵌套模块路径在可行时保留包导入路径。模块版本和标签由 `RELEASE.md` 所有；本地开发使用显式的 `go.work` 文件，而不是提交面向使用方的 `replace` 指令。

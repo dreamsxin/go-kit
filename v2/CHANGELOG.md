@@ -206,6 +206,22 @@ through the immutable v0 and v1 tags.
   instance per round, and stops feeding the pool as soon as `Close` cancels.
   `health.Probe` now documents that it must return on context cancellation,
   since `Close` waits for the round in flight.
+- Documentation stopped describing the removed `integrations/circuitbreaker` and
+  `integrations/ratelimit` modules as if they still existed. `endpoint/README`
+  told readers those modules "remain independently selectable components", the
+  release runbook in `internal/docs/RELEASE.md` listed tag commands for both and
+  omitted `integrations/etcd`, and the dependency report and roadmap still
+  counted them. The breaker defaults, `CircuitBreaker.State()`,
+  `RateLimiterFuncs`, and the multi-replica limiter note that only the deprecated
+  READMEs documented now live in `endpoint/README`.
+
+### Removed
+
+- The `integrations/circuitbreaker` and `integrations/ratelimit` directories.
+  Both modules were deleted in v2.4.0 when the middleware moved into `endpoint`;
+  what remained was a deprecation README, and `go get` resolves old requirements
+  through the module proxy and the existing tags, not through a file in the
+  repository.
 
 
 ## [2.7.0] - 2026-09-01
