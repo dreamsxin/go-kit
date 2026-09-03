@@ -3,6 +3,7 @@ package selector_test
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/dreamsxin/go-kit/v2/sd"
@@ -10,16 +11,15 @@ import (
 )
 
 func scoreByAddress(scores map[string]float64) selector.ScoreFunc {
-	return func(instance sd.Instance) (float64, bool) {
+	return func(_ context.Context, _ any, instance sd.Instance) (float64, bool) {
 		score, ok := scores[instance.Address]
 		return score, ok
 	}
 }
 
-// tenantRanker is the reason Rank takes a request: a shortlist can depend on who
-// is asking. NewRanker's scoring deliberately does not see the request — a score
-// is a property of the instance — so a ranking that varies per request is a
-// custom implementation, and this is what one looks like.
+// tenantRanker shows that a custom Ranker can use the request to produce a
+// tenant-specific shortlist. NewRanker also passes request to its unified score
+// function when callers use the built-in score-based implementation.
 type tenantRanker struct {
 	source selector.Source
 	home   map[string]string // tenant -> zone
@@ -96,6 +96,26 @@ func TestRanker_OrdersByScoreAndTruncates(t *testing.T) {
 	}
 }
 
+func TestNewRanker_PassesContextAndRequestToScore(t *testing.T) {
+	type key struct{}
+	ctx := context.WithValue(context.Background(), key{}, "trace")
+	var seen any
+	ranker := selector.NewRanker(selector.Static(instances("a:80")...),
+		func(gotCtx context.Context, request any, _ sd.Instance) (float64, bool) {
+			seen = gotCtx.Value(key{})
+			if request != "tenant-7" {
+				t.Fatalf("request = %v, want tenant-7", request)
+			}
+			return 1, true
+		})
+	if _, err := ranker.Rank(ctx, "tenant-7", 1); err != nil {
+		t.Fatalf("Rank: %v", err)
+	}
+	if seen != "trace" {
+		t.Fatalf("context value = %v, want trace", seen)
+	}
+}
+
 func TestRanker_ReturnsEverythingWhenNIsNotPositive(t *testing.T) {
 	source := selector.Static(instances("a:80", "b:80", "c:80")...)
 	ranker := selector.NewRanker(source, scoreByAddress(map[string]float64{
@@ -115,7 +135,7 @@ func TestRanker_ReturnsEverythingWhenNIsNotPositive(t *testing.T) {
 // something actually changed, so equal scores must order deterministically.
 func TestRanker_BreaksTiesByAddress(t *testing.T) {
 	source := selector.Static(instances("b:80", "a:80", "c:80")...)
-	ranker := selector.NewRanker(source, func(sd.Instance) (float64, bool) { return 1, true })
+	ranker := selector.NewRanker(source, func(context.Context, any, sd.Instance) (float64, bool) { return 1, true })
 
 	first, err := ranker.Rank(context.Background(), nil, 3)
 	if err != nil {
@@ -141,10 +161,28 @@ func TestRanker_ExcludesInstancesWithoutAScore(t *testing.T) {
 
 func TestRanker_NothingScorableReportsNoEndpoints(t *testing.T) {
 	source := selector.Static(instances("a:80")...)
-	ranker := selector.NewRanker(source, func(sd.Instance) (float64, bool) { return 0, false })
+	ranker := selector.NewRanker(source, func(context.Context, any, sd.Instance) (float64, bool) { return 0, false })
 
 	if _, err := ranker.Rank(context.Background(), nil, 0); !errors.Is(err, sd.ErrNoEndpoints) {
 		t.Fatalf("error = %v, want ErrNoEndpoints", err)
+	}
+}
+
+func TestRanker_SkipsNaNScores(t *testing.T) {
+	ranker := selector.NewRanker(selector.Static(instances("nan:80", "valid:80")...),
+		func(_ context.Context, _ any, instance sd.Instance) (float64, bool) {
+			if instance.Address == "nan:80" {
+				return math.NaN(), true
+			}
+			return 1, true
+		})
+
+	got, err := ranker.Rank(context.Background(), nil, 0)
+	if err != nil {
+		t.Fatalf("Rank: %v", err)
+	}
+	if len(got) != 1 || got[0].Address != "valid:80" {
+		t.Fatalf("ranked = %+v, want only valid:80", got)
 	}
 }
 
@@ -154,7 +192,7 @@ func TestRanker_AppliesFilters(t *testing.T) {
 		labelled("us:80", map[string]any{"zone": "us"}),
 	}
 	ranker := selector.NewRanker(selector.Static(set...),
-		func(sd.Instance) (float64, bool) { return 1, true },
+		func(context.Context, any, sd.Instance) (float64, bool) { return 1, true },
 		sd.Keep(sd.MetadataEquals("zone", "eu")))
 
 	shortlist, err := ranker.Rank(context.Background(), nil, 0)
@@ -169,7 +207,7 @@ func TestRanker_AppliesFilters(t *testing.T) {
 func TestRanker_PropagatesSourceErrors(t *testing.T) {
 	failure := errors.New("registry down")
 	source := selector.SourceFunc(func() ([]sd.Instance, error) { return nil, failure })
-	ranker := selector.NewRanker(source, func(sd.Instance) (float64, bool) { return 1, true })
+	ranker := selector.NewRanker(source, func(context.Context, any, sd.Instance) (float64, bool) { return 1, true })
 
 	if _, err := ranker.Rank(context.Background(), nil, 1); !errors.Is(err, failure) {
 		t.Fatalf("error = %v, want the source error", err)
@@ -179,7 +217,7 @@ func TestRanker_PropagatesSourceErrors(t *testing.T) {
 func TestNewRanker_NilArgumentsPanic(t *testing.T) {
 	for name, build := range map[string]func(){
 		"nil source": func() {
-			selector.NewRanker(nil, func(sd.Instance) (float64, bool) { return 1, true })
+			selector.NewRanker(nil, func(context.Context, any, sd.Instance) (float64, bool) { return 1, true })
 		},
 		"nil score": func() {
 			selector.NewRanker(selector.Static(), nil)

@@ -150,6 +150,11 @@ strategy := table.Wrap(selector.Filtered(selector.Scored(table.Score()),
 	ejector.Filter()))                                     // now an sd.InstanceFilter
 ```
 
+`selector.ScoreFunc` now receives `(context.Context, request, sd.Instance)` and
+is shared by `selector.Scored`, `selector.NewRanker`, and `feedback.Table.Score`.
+Instance-only scores can ignore the first two arguments; request-specific scores
+can use them directly without another request-aware interface.
+
 `balancer.NewLeastRequest` is gone, along with the `balancer.LoadFunc`,
 `LeastRequestOption`, `DefaultChoices`, and `WithChoices` aliases; the selector
 originals are the ones to use. The endpoint layer no longer imports `sd/feedback`

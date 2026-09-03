@@ -2,23 +2,30 @@ package selector
 
 import (
 	"context"
+	"math"
 	"math/rand/v2"
 
 	"github.com/dreamsxin/go-kit/v2/sd"
 )
 
-// ScoreFunc rates an instance; the highest score wins. Returning false
+// ScoreFunc rates an instance for one request; the highest score wins. Returning false
 // excludes the instance entirely, which is how a hard filter — draining,
 // unhealthy, saturated — is expressed without a second predicate.
 //
-// Scores come from wherever the caller measures them: a load report pushed by
+// The context and request are always supplied so a score can combine static
+// instance capacity with request-specific routing policy. Scores come from
+// wherever the caller measures them: a load report pushed by
 // the instances, ORCA or LRS style out-of-band reporting, or a table the
-// process maintains itself. Whatever the source, a score that arrives out of
-// band is stale by at least one reporting interval; that is inherent to the
-// channel. Use LeastRequest, or feedback.Table.LeastRequest for a version that
-// also records what it measured, when the caller is on the data path and can
-// measure the truth.
-type ScoreFunc func(instance sd.Instance) (score float64, ok bool)
+// process maintains itself. ScoreFunc runs once for every candidate on the
+// selection hot path; keep it bounded and local. Do not perform network I/O or
+// wait while holding a caller-owned lock. Whatever the source, a score that
+// arrives out of band is stale by at least one reporting interval; that is
+// inherent to the channel. Use LeastRequest, or feedback.Table.LeastRequest
+// for a version that also records what it measured, when the caller is on the
+// data path and can measure the truth. A NaN score is treated as not scoreable,
+// just like returning ok == false; positive and negative infinity remain valid
+// scores.
+type ScoreFunc func(ctx context.Context, request any, instance sd.Instance) (score float64, ok bool)
 
 // Scored selects the highest-scoring instance, breaking ties at random so that
 // equal scores do not pin every caller onto the first match.
@@ -36,11 +43,11 @@ type scored struct {
 	score ScoreFunc
 }
 
-func (s scored) Pick(_ context.Context, _ any, instances []sd.Instance) (int, sd.Done, error) {
+func (s scored) Pick(ctx context.Context, request any, instances []sd.Instance) (int, sd.Done, error) {
 	best, bestScore, ties := -1, 0.0, 0
 	for i, instance := range instances {
-		score, ok := s.score(instance)
-		if !ok {
+		score, ok := s.score(ctx, request, instance)
+		if !ok || math.IsNaN(score) {
 			continue
 		}
 		switch {

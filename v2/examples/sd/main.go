@@ -332,7 +332,7 @@ func demo7_Selector() {
 	// instances belongs — stale by a reporting interval, and never in the
 	// registry.
 	load := map[string]float64{"local-A:80": 0.9, "local-B:80": 0.2, "remote-C:80": 0.5}
-	byLoad := selector.New(instances, selector.Scored(func(item sd.Instance) (float64, bool) {
+	byLoad := selector.New(instances, selector.Scored(func(_ context.Context, _ any, item sd.Instance) (float64, bool) {
 		score, known := load[item.Address]
 		return -score, known // lower load, higher score
 	}))
@@ -505,7 +505,7 @@ func demo10_Ranker() {
 
 	pool := selector.Static(sd.Addresses("edge-A:443", "edge-B:443", "edge-C:443", "edge-D:443")...)
 	score := map[string]float64{"edge-A:443": 0.2, "edge-B:443": 0.9, "edge-C:443": 0.5}
-	rank := selector.NewRanker(pool, func(item sd.Instance) (float64, bool) {
+	rank := selector.NewRanker(pool, func(_ context.Context, _ any, item sd.Instance) (float64, bool) {
 		value, known := score[item.Address]
 		return value, known // edge-D refuses a score, so it is not a candidate
 	})

@@ -483,7 +483,7 @@ func TestHealth_DropsUnreachableThenFailsOpen(t *testing.T) {
 func TestRanker_ShortlistsScoredInstancesOnly(t *testing.T) {
 	pool := selector.Static(sd.Addresses("edge-A:443", "edge-B:443", "edge-C:443", "edge-D:443")...)
 	score := map[string]float64{"edge-A:443": 0.2, "edge-B:443": 0.9, "edge-C:443": 0.5}
-	rank := selector.NewRanker(pool, func(item sd.Instance) (float64, bool) {
+	rank := selector.NewRanker(pool, func(_ context.Context, _ any, item sd.Instance) (float64, bool) {
 		value, known := score[item.Address]
 		return value, known
 	})

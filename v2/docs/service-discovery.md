@@ -192,6 +192,24 @@ Candidate ranking — `selector.Ranker`, returning an ordered `[]sd.Instance`:
 | --- | --- | --- |
 | shortlist for a caller that dials itself | `selector.NewRanker` | best first, ties broken by address |
 
+Both `Scored` and `NewRanker` use the same request-aware score contract:
+
+```go
+type ScoreFunc func(
+    ctx context.Context,
+    request any,
+    instance sd.Instance,
+) (score float64, ok bool)
+```
+
+Return `ok == false` to exclude an instance. A score can ignore `ctx` and
+`request` when it is purely instance-based, or use them for tenant, region, or
+operation-specific routing.
+`ScoreFunc` runs once per candidate on the selection hot path, so keep it
+bounded and local: do not perform network I/O or wait while holding an
+application lock. `NaN` is treated as unavailable; positive and negative
+infinity remain valid scores.
+
 Decorators, which wrap one of the above rather than answering a question
 themselves:
 
@@ -211,6 +229,49 @@ The endpoint constructors are thin wrappers around the same selector strategies:
 `balancer.NewRoundRobin`, `NewRandom`, `NewWeightedRandom`, `NewScored`, and
 `NewConsistentHash`. Use `balancer.New(set, strategy)` when composing filters,
 feedback, or a custom strategy.
+
+## Custom middleware and components
+
+The built-ins are composition points, not closed implementations. A caller may
+wrap or replace each layer through its narrow contract:
+
+| Layer | Extension point | Typical middleware |
+| --- | --- | --- |
+| selector | `selector.Strategy` | logging, quotas, custom affinity |
+| ranking | `selector.Ranker` | cache, shortlist limits, request policy |
+| candidate set | `sd.InstanceFilter` | labels, tenancy, ejection |
+| endpoint selection | `sd.Balancer` | tracing, metrics, admission control |
+| endpoint creation | `endpointer.Factory` | transport setup, TLS, connection pooling |
+| active health | `health.Probe` | authentication, probe metrics, custom protocol |
+| retry | `retry.Callback` / `retry.Classifier` | idempotency and protocol policy |
+
+A strategy middleware must forward both the selected index and the inner
+callback. A balancer middleware must forward `Picked.Instance` and
+`Picked.Endpoint`, wrap `Picked.Done` at most once, and delegate `Close` to the
+inner balancer. A factory or probe wrapper should preserve the original error
+and closer semantics. These rules let custom components interoperate with the
+same feedback table and retry executor as the built-ins.
+
+For request-aware scoring, implement the unified `selector.ScoreFunc` rather
+than a second strategy interface:
+
+```go
+score := selector.ScoreFunc(func(ctx context.Context, request any, instance sd.Instance) (float64, bool) {
+    tenant, _ := request.(Request)
+    if tenant.Region != "" && instance.Metadata["region"] != tenant.Region {
+        return 0, false
+    }
+    return localLoadScore(ctx, instance), true
+})
+strategy := selector.Filtered(selector.Scored(score), sd.Keep(sd.Serving()))
+lb := balancer.New(set, strategy)
+```
+
+Instance-only scoring simply ignores `ctx` and `request`; custom code does not
+need to implement every built-in policy to use the surrounding decorators.
+Request/response middleware around the endpoint itself uses `endpoint.Middleware`
+and `endpoint.Builder`; the contracts in this section wrap discovery components
+and must preserve their callbacks and `Close` behavior.
 
 ## Feedback and passive ejection
 
@@ -255,7 +316,8 @@ lb := balancer.New(set, strategy)
 ```
 
 For an external load report, use `selector.Scored` directly. For a caller that
-needs a shortlist rather than one pick, use `selector.NewRanker`:
+needs a shortlist rather than one pick, use `selector.NewRanker`. Both receive
+the request through the unified `ScoreFunc`:
 
 ```go
 ranker := selector.NewRanker(instances, table.Score(), ejector.Filter())

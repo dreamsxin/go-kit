@@ -44,7 +44,7 @@ func TestNew_AppliesCustomStrategy(t *testing.T) {
 		sd.Instance{Address: "b:80", Metadata: map[string]any{"pick": true}},
 	)
 
-	chooseLabelled := selector.Scored(func(item sd.Instance) (float64, bool) {
+	chooseLabelled := selector.Scored(func(_ context.Context, _ any, item sd.Instance) (float64, bool) {
 		wanted, _ := sd.MetadataBool(item.Metadata, "pick")
 		return 1, wanted
 	})
@@ -133,7 +133,7 @@ func TestNewScored_FollowsAnExternalScoreTable(t *testing.T) {
 	set := labelledEndpointer(t, sd.Addresses("a:80", "b:80", "c:80")...)
 
 	scores := map[string]float64{"a:80": 0.1, "b:80": 0.4, "c:80": 0.9}
-	lb := balancer.NewScored(set, func(item sd.Instance) (float64, bool) {
+	lb := balancer.NewScored(set, func(_ context.Context, _ any, item sd.Instance) (float64, bool) {
 		score, known := scores[item.Address]
 		return score, known
 	})
@@ -157,7 +157,7 @@ func TestNewScored_FollowsAnExternalScoreTable(t *testing.T) {
 func TestNewScored_ExcludedInstancesReportNoEndpoints(t *testing.T) {
 	set := labelledEndpointer(t, sd.Addresses("a:80")...)
 
-	lb := balancer.NewScored(set, func(sd.Instance) (float64, bool) { return 0, false })
+	lb := balancer.NewScored(set, func(context.Context, any, sd.Instance) (float64, bool) { return 0, false })
 	if _, err := lb.Pick(context.Background(), nil); !errors.Is(err, sd.ErrNoEndpoints) {
 		t.Fatalf("Endpoint error = %v, want ErrNoEndpoints", err)
 	}

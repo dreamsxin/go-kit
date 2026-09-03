@@ -134,6 +134,10 @@ strategy := table.Wrap(selector.Filtered(selector.Scored(table.Score()),
 	ejector.Filter()))                                     // 现在是 sd.InstanceFilter
 ```
 
+`selector.ScoreFunc` 现在接收 `(context.Context, request, sd.Instance)`，并由
+`selector.Scored`、`selector.NewRanker` 与 `feedback.Table.Score` 共用。只按实例评分
+时可以忽略前两个参数，按请求变化的评分也不需要另一套请求感知接口。
+
 `balancer.NewLeastRequest` 已删除，`balancer.LoadFunc`、`LeastRequestOption`、
 `DefaultChoices`、`WithChoices` 这几个别名也一并删除，请直接用 selector 里的
 原件。端点层现在完全不 import `sd/feedback`，因此纯轮询的装配不会把反馈层

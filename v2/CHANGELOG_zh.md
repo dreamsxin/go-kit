@@ -79,6 +79,10 @@
   `Rank(ctx, request, n)` 接收 request 的理由与 `Strategy.Pick` 相同——候选清单
   可以取决于"谁在问"；它有意不做成 `Strategy`：ranker 不拥有任何一次调用，
   因此没有 `Done` 可以返回。
+- **破坏性变更：** `selector.ScoreFunc` 现在接收
+  `(context.Context, request, sd.Instance)`。`selector.Scored`、`selector.NewRanker`
+  与 `feedback.Table.Score` 共用这个带请求的函数；只按实例评分时可以忽略前两个
+  参数。自定义 strategy 与 ranker 仍然支持。
 - 新增 `selector.SlowStart` 与 `selector.FirstSeenFunc`：让新实例的权重在一个
   窗口内逐步爬升。否则冷实例在最少请求与评分比较里稳赢，会在缓存和连接池还没
   热起来时就承接全量流量。

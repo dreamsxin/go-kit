@@ -178,6 +178,22 @@ lb := balancer.New(set, strategy)
 | --- | --- | --- |
 | 给自行拨号的调用方一份候选清单 | `selector.NewRanker` | 最优在前，同分按地址排序 |
 
+`Scored` 与 `NewRanker` 共用同一个带请求的评分契约：
+
+```go
+type ScoreFunc func(
+    ctx context.Context,
+    request any,
+    instance sd.Instance,
+) (score float64, ok bool)
+```
+
+返回 `ok == false` 会排除实例。纯实例评分可以忽略 `ctx` 和 `request`；也可以用它们
+表达按租户、地域或操作类型变化的路由策略。
+`ScoreFunc` 在选择热路径上对每个候选执行一次，因此应保持有界且只做本地计算：不要执行
+网络 I/O，也不要在持有应用锁时等待。
+`NaN` 会被视为不可用分数；正负无穷仍是有效值。
+
 装饰器——它们包装上面的组件，本身不回答"选哪个"：
 
 | 需求 | 组件 | 说明 |
@@ -194,6 +210,44 @@ lb := balancer.New(set, strategy)
 端点构造器是同一批 selector 策略的薄封装：`balancer.NewRoundRobin`、`NewRandom`、
 `NewWeightedRandom`、`NewScored` 与 `NewConsistentHash`。组合过滤、反馈或自定义策略时，
 使用 `balancer.New(set, strategy)`。
+
+## 自定义中间件与组件
+
+内置组件都是组合点，不是封闭实现。调用方可以通过各自最窄的契约包装或替换它们：
+
+| 层 | 扩展点 | 常见中间件 |
+| --- | --- | --- |
+| selector | `selector.Strategy` | 日志、配额、自定义亲和 |
+| 排序 | `selector.Ranker` | 缓存、候选数量限制、请求策略 |
+| 候选集合 | `sd.InstanceFilter` | 标签、租户、摘除 |
+| 端点选择 | `sd.Balancer` | 追踪、指标、准入控制 |
+| 端点创建 | `endpointer.Factory` | 传输配置、TLS、连接池 |
+| 主动健康 | `health.Probe` | 认证、探测指标、自定义协议 |
+| 重试 | `retry.Callback` / `retry.Classifier` | 幂等性与协议策略 |
+
+Strategy 中间件必须原样转发被选下标和内部回调。Balancer 中间件必须转发
+`Picked.Instance` 与 `Picked.Endpoint`，最多包装一次 `Picked.Done`，并在 `Close`
+时委托内部 balancer。Factory 或 Probe 包装器应保留原始错误与 closer 语义。这样自定义
+组件仍可与同一张反馈表和 retry executor 协作。
+
+需要按请求评分时，实现统一的 `selector.ScoreFunc`，不要再造第二套请求感知策略接口：
+
+```go
+score := selector.ScoreFunc(func(ctx context.Context, request any, instance sd.Instance) (float64, bool) {
+    tenant, _ := request.(Request)
+    if tenant.Region != "" && instance.Metadata["region"] != tenant.Region {
+        return 0, false
+    }
+    return localLoadScore(ctx, instance), true
+})
+strategy := selector.Filtered(selector.Scored(score), sd.Keep(sd.Serving()))
+lb := balancer.New(set, strategy)
+```
+
+只按实例评分时忽略 `ctx` 与 `request` 即可；自定义代码不需要重新实现所有内置策略，
+也能使用外围装饰器。
+请求/响应级 endpoint 中间件使用 `endpoint.Middleware` 与 `endpoint.Builder`；本节契约
+用于包装服务发现组件，必须保留回调与 `Close` 语义。
 
 ## 反馈与被动摘除
 
@@ -233,7 +287,8 @@ strategy := table.LeastRequest(selector.WithChoices(2))
 lb := balancer.New(set, strategy)
 ```
 
-外部负载报告直接使用 `selector.Scored`。需要候选短名单时使用 `selector.NewRanker`：
+外部负载报告直接使用 `selector.Scored`。需要候选短名单时使用 `selector.NewRanker`；
+两者都会通过统一的 `ScoreFunc` 接收 request：
 
 ```go
 ranker := selector.NewRanker(instances, table.Score(), ejector.Filter())

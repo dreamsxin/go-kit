@@ -103,6 +103,11 @@ through the immutable v0 and v1 tags.
   `Rank(ctx, request, n)` takes the request for the same reason `Strategy.Pick`
   does — a shortlist can depend on who is asking — and is deliberately not a
   `Strategy`: a ranker owns no call, so it has no `Done` to return.
+- **Breaking:** `selector.ScoreFunc` now receives `(context.Context, request,
+  sd.Instance)`. `selector.Scored`, `selector.NewRanker`, and
+  `feedback.Table.Score` share this request-aware function; instance-only scores
+  can ignore the first two arguments. Custom strategies and rankers remain
+  supported.
 - `selector.SlowStart` and `selector.FirstSeenFunc` ramp a new instance's weight
   up over a window. A cold instance otherwise wins every least-request and
   scored comparison and takes full traffic before its caches and pools are warm.

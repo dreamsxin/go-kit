@@ -182,9 +182,10 @@ client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
 	return balancer.New(set, table.LeastRequest(selector.WithChoices(2)))
 })
 
-// 评分：跟随本进程并未亲自度量的负载信号。
+// 评分：跟随本进程并未亲自度量的负载信号。统一的 ScoreFunc 也会收到 ctx 和 request，
+// 可用于按请求路由。
 client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
-	return balancer.NewScored(set, func(instance sd.Instance) (float64, bool) {
+	return balancer.NewScored(set, func(_ context.Context, _ any, instance sd.Instance) (float64, bool) {
 		report, ok := reports.Latest(instance.Address) // 你的表，你的协议
 		if !ok || report.Saturated() {
 			return 0, false // false 就是硬过滤
@@ -201,8 +202,13 @@ client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
 })
 ```
 
-`WeightFunc` 的签名是 `func(sd.Instance) int`，所以权重来源不限：
-`MetadataWeight` 读注册标签，闭包也可以读本地表。
+`ScoreFunc` 的签名是 `func(context.Context, any, sd.Instance) (float64, bool)`，因此
+`Scored` 与 `Ranker` 可以共享静态或按请求评分。`WeightFunc` 仍是
+`func(sd.Instance) int`，所以静态权重来源不限：`MetadataWeight` 读注册标签，
+闭包也可以读本地表。
+`ScoreFunc` 会在选择热路径上对每个候选执行一次；应保持有界且只做本地计算，
+不要执行网络 I/O，也不要在持有应用锁时等待。
+`NaN` 会被视为不可用分数；正负无穷仍是有效值。
 
 加权、评分、最少请求与哈希策略需要知道端点由哪个实例生成，因此它们接收
 `endpointer.InstanceEndpointer` 而不是更窄的 `endpointer.Endpointer`。
@@ -270,6 +276,18 @@ type Strategy interface {
 	Pick(ctx context.Context, request any, instances []sd.Instance) (index int, done sd.Done, err error)
 }
 ```
+
+`selector.Scored` 与 `selector.NewRanker` 使用的评分契约是：
+
+```go
+type ScoreFunc func(ctx context.Context, request any, instance sd.Instance) (float64, bool)
+```
+
+纯实例评分可以忽略前两个参数，也可以用它们表达按请求路由。统一评分并不限制扩展：
+用户仍可直接实现并组合自定义的 `Strategy`、`Ranker`、`InstanceFilter`、`Probe`、
+`Balancer` 和 retry policy。
+请求/响应级的 endpoint 中间件使用 `endpoint.Middleware` 与其 `Builder`；下面的
+服务发现契约用于包装发现组件，并且必须保留回调与关闭语义。
 
 快照由外部传入，因此策略只持有自己的状态——计数器、哈希环、评分表——绝不会对
 调用方没见过的快照做选择。实现必须支持并发使用：一个策略服务于所有调用方，

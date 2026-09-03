@@ -2,6 +2,7 @@ package selector
 
 import (
 	"context"
+	"math"
 	"sort"
 
 	"github.com/dreamsxin/go-kit/v2/sd"
@@ -29,8 +30,7 @@ type Ranker interface {
 	// The request is passed through for the same reason Strategy.Pick takes one:
 	// a shortlist can depend on who is asking — a tenant pinned to a region, a
 	// job class with its own pool. Callers with nothing to say pass nil. The
-	// scoring supplied to NewRanker does not see it; a ranking that varies per
-	// request needs a request-aware score, which is a separate contract.
+	// unified ScoreFunc receives the same context and request.
 	Rank(ctx context.Context, request any, n int) ([]sd.Instance, error)
 }
 
@@ -58,7 +58,7 @@ type ranked struct {
 	score    float64
 }
 
-func (r *ranker) Rank(ctx context.Context, _ any, n int) ([]sd.Instance, error) {
+func (r *ranker) Rank(ctx context.Context, request any, n int) ([]sd.Instance, error) {
 	instances, err := r.source.Instances()
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func (r *ranker) Rank(ctx context.Context, _ any, n int) ([]sd.Instance, error) 
 
 	scored := make([]ranked, 0, len(instances))
 	for _, instance := range instances {
-		if value, ok := r.score(instance); ok {
+		if value, ok := r.score(ctx, request, instance); ok && !math.IsNaN(value) {
 			scored = append(scored, ranked{instance: instance, score: value})
 		}
 	}

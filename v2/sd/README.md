@@ -193,9 +193,10 @@ client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
 	return balancer.New(set, table.LeastRequest(selector.WithChoices(2)))
 })
 
-// Scored: follow a load signal this process did not measure itself.
+// Scored: follow a load signal this process did not measure itself. The unified
+// ScoreFunc also receives ctx and request for request-specific routing.
 client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
-	return balancer.NewScored(set, func(instance sd.Instance) (float64, bool) {
+	return balancer.NewScored(set, func(_ context.Context, _ any, instance sd.Instance) (float64, bool) {
 		report, ok := reports.Latest(instance.Address) // your table, your protocol
 		if !ok || report.Saturated() {
 			return 0, false // false is a hard filter
@@ -213,8 +214,14 @@ client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
 })
 ```
 
-A `WeightFunc` is `func(sd.Instance) int`, so any weight source works —
-`MetadataWeight` reads a registration label, a closure can read a local table.
+`ScoreFunc` is `func(context.Context, any, sd.Instance) (float64, bool)`, so
+`Scored` and `Ranker` can share static or request-specific scoring. `WeightFunc`
+is still `func(sd.Instance) int`, so any static weight source works —
+`MetadataWeight` reads a registration label, and a closure can read a local table.
+`ScoreFunc` runs once per candidate on the selection hot path; keep it bounded and
+local, and do not perform network I/O or wait while holding application locks.
+`NaN` is treated as an unavailable score; positive and negative infinity remain
+valid values.
 
 Weighted, scored, least-request, and hash strategies need to know which
 instance produced an endpoint, so they take `endpointer.InstanceEndpointer`
@@ -293,6 +300,20 @@ type Strategy interface {
 	Pick(ctx context.Context, request any, instances []sd.Instance) (index int, done sd.Done, err error)
 }
 ```
+
+The scoring contract used by `selector.Scored` and `selector.NewRanker` is:
+
+```go
+type ScoreFunc func(ctx context.Context, request any, instance sd.Instance) (float64, bool)
+```
+
+Users may ignore the first two arguments for instance-only scoring or use them
+for request-specific routing. The same extension boundary remains open for
+custom `Strategy`, `Ranker`, `InstanceFilter`, `Probe`, `Balancer`, and retry
+policies; the built-in decorators do not prevent custom implementations.
+For endpoint request/response middleware, use `endpoint.Middleware` and its
+`Builder`; the service-discovery contracts below wrap discovery components and
+must preserve their callbacks and close behavior.
 
 The snapshot is passed in, so a strategy holds only its own state — a counter,
 a ring, a score table — and can never pick against a snapshot its caller never

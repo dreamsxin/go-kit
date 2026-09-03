@@ -3,6 +3,7 @@ package selector_test
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/dreamsxin/go-kit/v2/sd"
@@ -31,7 +32,7 @@ func TestStrategies_EmptySnapshotReportsNoEndpoints(t *testing.T) {
 		"round robin":     selector.RoundRobin(),
 		"random":          selector.Random(),
 		"weighted":        selector.WeightedRandom(selector.MetadataWeight("", 1)),
-		"scored":          selector.Scored(func(sd.Instance) (float64, bool) { return 1, true }),
+		"scored":          selector.Scored(func(context.Context, any, sd.Instance) (float64, bool) { return 1, true }),
 		"consistent hash": selector.ConsistentHash(key),
 	}
 
@@ -128,7 +129,7 @@ func TestMetadataWeight_CoercesAndFallsBack(t *testing.T) {
 func TestScored_PicksHighestAndExcludesRejected(t *testing.T) {
 	set := instances("a:80", "b:80", "c:80")
 	scores := map[string]float64{"a:80": 0.2, "b:80": 0.9, "c:80": 0.5}
-	strategy := selector.Scored(func(instance sd.Instance) (float64, bool) {
+	strategy := selector.Scored(func(_ context.Context, _ any, instance sd.Instance) (float64, bool) {
 		score, ok := scores[instance.Address]
 		return score, ok
 	})
@@ -138,7 +139,7 @@ func TestScored_PicksHighestAndExcludesRejected(t *testing.T) {
 	}
 
 	// A hard filter is expressed by refusing to score.
-	filtered := selector.Scored(func(instance sd.Instance) (float64, bool) {
+	filtered := selector.Scored(func(_ context.Context, _ any, instance sd.Instance) (float64, bool) {
 		if instance.Address == "b:80" {
 			return 0, false
 		}
@@ -148,16 +149,53 @@ func TestScored_PicksHighestAndExcludesRejected(t *testing.T) {
 		t.Fatalf("selected %q, want c:80 once b:80 is excluded", got)
 	}
 
-	none := selector.Scored(func(sd.Instance) (float64, bool) { return 0, false })
+	none := selector.Scored(func(context.Context, any, sd.Instance) (float64, bool) { return 0, false })
 	if _, _, err := none.Pick(context.Background(), nil, set); !errors.Is(err, sd.ErrNoEndpoints) {
 		t.Fatalf("Pick error = %v, want ErrNoEndpoints when every instance is excluded", err)
+	}
+}
+
+func TestScored_SkipsNaNScores(t *testing.T) {
+	set := instances("nan:80", "valid:80")
+	strategy := selector.Scored(func(_ context.Context, _ any, instance sd.Instance) (float64, bool) {
+		if instance.Address == "nan:80" {
+			return math.NaN(), true
+		}
+		return 1, true
+	})
+
+	index, _, err := strategy.Pick(context.Background(), nil, set)
+	if err != nil {
+		t.Fatalf("Pick: %v", err)
+	}
+	if got := set[index].Address; got != "valid:80" {
+		t.Fatalf("selected %q, want valid:80", got)
+	}
+}
+
+func TestScored_PassesContextAndRequestToScore(t *testing.T) {
+	type key struct{}
+	ctx := context.WithValue(context.Background(), key{}, "trace")
+	var seen any
+	strategy := selector.Scored(func(gotCtx context.Context, request any, _ sd.Instance) (float64, bool) {
+		seen = gotCtx.Value(key{})
+		if request != "tenant-7" {
+			t.Fatalf("request = %v, want tenant-7", request)
+		}
+		return 1, true
+	})
+	if _, _, err := strategy.Pick(ctx, "tenant-7", instances("a:80")); err != nil {
+		t.Fatalf("Pick: %v", err)
+	}
+	if seen != "trace" {
+		t.Fatalf("context value = %v, want trace", seen)
 	}
 }
 
 // Equal scores must not pin every caller onto the first match.
 func TestScored_SpreadsTies(t *testing.T) {
 	set := instances("a:80", "b:80", "c:80")
-	strategy := selector.Scored(func(sd.Instance) (float64, bool) { return 1, true })
+	strategy := selector.Scored(func(context.Context, any, sd.Instance) (float64, bool) { return 1, true })
 
 	seen := map[string]int{}
 	for i := 0; i < 300; i++ {

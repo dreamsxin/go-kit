@@ -377,7 +377,7 @@ func statsOf(item *entry) Stats {
 // equivalence is a default, not a law. A caller who wants different weights
 // reads Stats and writes its own selector.ScoreFunc.
 func (t *Table) Score() selector.ScoreFunc {
-	return func(instance sd.Instance) (float64, bool) {
+	return func(_ context.Context, _ any, instance sd.Instance) (float64, bool) {
 		stats := t.Stats(instance)
 		latencyMS := float64(stats.Latency) / float64(time.Millisecond)
 		score := (1 - stats.ErrorRate) / (1 + latencyMS + float64(stats.InFlight))
