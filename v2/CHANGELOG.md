@@ -130,6 +130,13 @@ through the immutable v0 and v1 tags.
   order, and a symptom-based troubleshooting table. `sd/README.md` keeps the API
   reference and links to it rather than repeating the reasoning; `feedback`,
   `health`, and etcd now have navigation entries of their own.
+- `health.WithFailOpen` chooses what to publish when every instance has been
+  probed and none passed. The default stays fail-open — the unchecked set, on the
+  reasoning that a probe failing everywhere is more likely broken than the whole
+  service being down — but the choice belongs to the caller: reaching a dead
+  instance is worse than reaching none for a writer that must not double-apply.
+  The same policy was already configurable one layer down, as
+  `EjectionPolicy.MaxEjectionPercent`.
 
 ### Changed
 
@@ -202,6 +209,23 @@ through the immutable v0 and v1 tags.
   while a call was in flight was kept until the next snapshot arrived and stayed
   forever if none did; the last completion now drops it. A retired address that
   returns to discovery keeps its measurements.
+- `feedback.Table.Reset` discards the results of calls already in flight instead
+  of recording them against the fresh state. Reset zeroes the sample count, so a
+  straggler from before an ejection expired seeded the average at full weight
+  rather than decaying into it: one late failure re-ejected the instance on the
+  next selection, with a doubled window, and a call longer than the ejection
+  window could hold an instance out of service indefinitely.
+- `feedback.Table.Track` claims the entry and the in-flight slot in one critical
+  section. Taking them separately let a concurrent `Retain` observe an in-flight
+  count of zero for a call that had already picked its entry and delete that
+  entry underneath it, which silently reset the instance's first-seen time and
+  left a stray entry until the next snapshot.
+- `feedback.Table.Retain` registers the arrival time of addresses in the snapshot
+  that the table has not seen. `selector.SlowStart` ramps against
+  `Table.FirstSeen`, and an instance nobody had called yet was unknown, which
+  slow start treats as brand new — so the ramp began at the first call instead of
+  at the moment the instance joined the service, which is the timestamp Envoy and
+  NGINX both use.
 - `sd/health` probes on a fixed worker pool instead of one goroutine per
   instance per round, and stops feeding the pool as soon as `Close` cancels.
   `health.Probe` now documents that it must return on context cancellation,

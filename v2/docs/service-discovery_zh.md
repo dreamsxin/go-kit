@@ -253,8 +253,10 @@ weight := selector.SlowStart(
 strategy := table.Wrap(selector.WeightedRandom(weight))
 ```
 
-权重至少为 1，因此预热实例不会完全饿死。如果慢启动必须从实例进入 discovery 的时间
-开始，应传入 discovery 时间源，而不是首次调用时间。
+权重至少为 1，因此预热实例不会完全饿死；权重为 0 不会被拉升，因为 0 的含义就是
+"永远不要选我"。`table.FirstSeen()` 报告实例进入表的时间，所以让表跟随 discovery——
+`feedback.Follow`——爬坡就从实例加入服务的那一刻开始。否则表只会在首次调用时才知道
+这个实例，而没有被调用过的实例是未知的，慢启动会一直按全新实例处理。
 
 ## 主动健康检查
 
@@ -275,7 +277,8 @@ defer set.Close()
 `health.HTTPProbe` 将小于 400 的响应视为健康。阈值按连续结果计算。默认情况下，实例在
 首次探测完成前按健康处理；`WithInitiallyHealthy(false)` 会在所有实例完成首次探测前发布
 空集合。如果所有已经探测的实例都失败，checker 会发布未检查集合，而不是因为探针故障让
-服务整体失效。自定义 Probe 必须响应 context 取消，因为 `Checker.Close` 会等待正在执行的探测。
+服务整体失效；`WithFailOpen(false)` 改为发布空集合，适用于"打到死实例比打不到实例更糟"
+的调用方。自定义 Probe 必须响应 context 取消，因为 `Checker.Close` 会等待正在执行的探测。
 
 ## Provider
 

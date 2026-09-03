@@ -3,6 +3,7 @@ package feedback_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -98,6 +99,92 @@ func TestRetainClearsRetirementWhenAnAddressReturns(t *testing.T) {
 
 	if got := table.Stats(flapping); got.Samples != 1 {
 		t.Fatalf("stats = %+v, want the measurement kept for a live address", got)
+	}
+}
+
+// Reset returns an ejected instance to service by discarding what got it
+// ejected. A call issued before the reset belongs to that discarded period, and
+// recording it would reverse the recovery: Reset zeroes the sample count, so a
+// stale result seeds the average at full weight instead of decaying into it, and
+// one straggler would eject the instance again immediately.
+func TestResetDiscardsResultsFromCallsAlreadyInFlight(t *testing.T) {
+	table := feedback.NewTable(feedback.WithAlpha(1))
+	recovering := sd.Instance{Address: "recovering:80"}
+
+	straggler := table.Track(recovering)
+	table.Reset(recovering)
+	straggler(sd.Outcome{Err: errors.New("refused")})
+
+	stats := table.Stats(recovering)
+	if stats.Samples != 0 || stats.ErrorRate != 0 {
+		t.Fatalf("stats = %+v, want the pre-reset failure discarded", stats)
+	}
+	if stats.InFlight != 0 {
+		t.Fatalf("in flight = %d, want the slot released even for a discarded result", stats.InFlight)
+	}
+
+	// A call issued after the reset is the evidence that counts.
+	table.Track(recovering)(sd.Outcome{Err: errors.New("refused again")})
+	if got := table.Stats(recovering); got.Samples != 1 || got.ErrorRate != 1 {
+		t.Fatalf("stats = %+v, want the post-reset failure recorded", got)
+	}
+}
+
+// Slow start ramps against the moment an instance joined the service. Following
+// discovery is what supplies that moment; without it an instance nobody has
+// called yet is unknown, and slow start treats unknown as brand new forever.
+func TestRetainRegistersTheArrivalTimeOfNewInstances(t *testing.T) {
+	now := time.Unix(1000, 0)
+	table := feedback.NewTable(feedback.WithClock(func() time.Time { return now }))
+	firstSeen := table.FirstSeen()
+
+	early := sd.Instance{Address: "early:80"}
+	table.Retain([]sd.Instance{early})
+
+	at, known := firstSeen(early)
+	if !known || !at.Equal(time.Unix(1000, 0)) {
+		t.Fatalf("first seen = (%v, %v), want the arrival time with no call made", at, known)
+	}
+
+	// Arrival, not last seen: a later snapshot must not restart the ramp.
+	now = time.Unix(2000, 0)
+	late := sd.Instance{Address: "late:80"}
+	table.Retain([]sd.Instance{early, late})
+
+	if at, _ := firstSeen(early); !at.Equal(time.Unix(1000, 0)) {
+		t.Errorf("first seen for a known address = %v, want it unchanged", at)
+	}
+	if at, known := firstSeen(late); !known || !at.Equal(time.Unix(2000, 0)) {
+		t.Errorf("first seen for a new address = (%v, %v), want the second snapshot's time", at, known)
+	}
+}
+
+// Claiming the entry and the in-flight slot in one critical section is what
+// keeps a concurrent Retain from deleting an entry a call is about to use.
+func TestTrackAccountsEveryCallWhileRetainRuns(t *testing.T) {
+	table := feedback.NewTable(feedback.WithAlpha(1))
+	live := sd.Instance{Address: "live:80"}
+	snapshot := []sd.Instance{live}
+
+	const calls = 500
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < calls; i++ {
+			table.Retain(snapshot)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < calls; i++ {
+			table.Track(live)(sd.Outcome{})
+		}
+	}()
+	wg.Wait()
+
+	if got := table.Stats(live); got.Samples != calls || got.InFlight != 0 {
+		t.Fatalf("stats = %+v, want %d samples and nothing in flight", got, calls)
 	}
 }
 

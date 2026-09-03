@@ -160,6 +160,32 @@ func TestCheck_PublishesTheUncheckedSetWhenNothingPasses(t *testing.T) {
 	waitForAddresses(t, checker, "a:80", "b:80")
 }
 
+// Fail-open is a default, not a law. A caller for whom reaching a dead instance
+// is worse than reaching none must be able to turn it off, the same way
+// sd/feedback lets MaxEjectionPercent be configured.
+func TestCheck_FailClosedPublishesNothingWhenEveryProbeFails(t *testing.T) {
+	probes := newProbeTable()
+	failure := errors.New("probe misconfigured")
+	probes.fail("a:80", failure)
+	probes.fail("b:80", failure)
+
+	checker := health.Check(source(t, "a:80", "b:80"), probes.probe(),
+		health.WithInterval(2*time.Millisecond),
+		health.WithUnhealthyThreshold(1),
+		health.WithHealthyThreshold(1),
+		health.WithFailOpen(false))
+	defer checker.Close() //nolint:errcheck
+
+	waitForProbe(t, probes, "a:80")
+	waitForProbe(t, probes, "b:80")
+	waitForAddresses(t, checker)
+
+	// And it recovers: the option withholds the unchecked set, it does not
+	// latch the checker off.
+	probes.heal("a:80")
+	waitForAddresses(t, checker, "a:80")
+}
+
 func TestCheck_PassesDiscoveryErrorsThrough(t *testing.T) {
 	probes := newProbeTable()
 	cache := instance.NewCache()

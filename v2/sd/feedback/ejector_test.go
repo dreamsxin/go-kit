@@ -121,6 +121,48 @@ func TestEjectorIgnoresMeasurementsOutsideTheCandidateSet(t *testing.T) {
 	}
 }
 
+// A call issued before an ejection expired can answer after the instance is
+// back in service, reporting the very failure that ejected it. Recording it
+// would undo the recovery on the next selection — and with a doubled window, so
+// a call longer than the ejection window could hold an instance out
+// indefinitely.
+func TestEjectorIgnoresStragglersFromBeforeTheInstanceReturned(t *testing.T) {
+	clock := newFakeClock()
+	failed := errors.New("refused")
+	table := feedback.NewTable(feedback.WithAlpha(1))
+	bad := sd.Instance{Address: "bad:80"}
+	good := sd.Instance{Address: "good:80"}
+
+	// A slow call, issued while the instance was still taking traffic.
+	straggler := table.Track(bad)
+	table.Observe(bad, sd.Outcome{Err: failed})
+
+	ejector := feedback.NewEjector(table, feedback.EjectionPolicy{
+		MaxErrorRate: .5, MinSamples: 1, BaseDuration: time.Minute,
+	}, feedback.WithEjectorClock(clock.Now))
+	filter := ejector.Filter()
+	candidates := []sd.Instance{bad, good}
+
+	if kept := filter(context.Background(), candidates); len(kept) != 1 {
+		t.Fatalf("kept = %v, want the failing instance ejected", addressesOf(kept))
+	}
+
+	clock.advance(61 * time.Second)
+	if kept := filter(context.Background(), candidates); len(kept) != 2 {
+		t.Fatalf("kept = %v, want the instance back in service", addressesOf(kept))
+	}
+
+	straggler(sd.Outcome{Err: failed})
+
+	if kept := filter(context.Background(), candidates); len(kept) != 2 {
+		t.Fatalf("kept = %v, want the instance kept: a result from before the "+
+			"reset is exactly what the reset discarded", addressesOf(kept))
+	}
+	if ejector.Ejected(bad) {
+		t.Fatal("a straggling failure re-ejected an instance that had recovered")
+	}
+}
+
 // The point of the whole component: an instance receiving no traffic produces no
 // new measurements, so ejection has to expire and the measurements that caused
 // it have to be cleared. Otherwise the first ejection is permanent.

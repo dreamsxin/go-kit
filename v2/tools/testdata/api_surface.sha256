@@ -17,8 +17,8 @@ cd020b94098c712cdd72ce98a5a40d28a56a8e5358673db1121f9126b68f665d  github.com/dre
 0689319779d15b786ae91aa0b4cda912711062c5146915cee115cc5ac5f0a05b  github.com/dreamsxin/go-kit/v2/sd/balancer
 f27ebf4be5d00d397f096c87c5f86e7a76eaf9c8e68a1469f2e7e4a3ee93246c  github.com/dreamsxin/go-kit/v2/sd/client
 8ea4cf572c44fc57e594d7dc48ba43ae50344583d419acd830ac7bb20bec67a5  github.com/dreamsxin/go-kit/v2/sd/endpointer
-1c0a0ed86c06cbe55dd00e4e8914900b1d860f9025bea32d6d3342eb83a78660  github.com/dreamsxin/go-kit/v2/sd/feedback
-6f5e0321f16971fc2e4acb80c937f0c6db0568f50ff22dc333b4594de0b35671  github.com/dreamsxin/go-kit/v2/sd/health
+84173fff982ed4231abd640f0e30bfcbd9089ffc7799b1d7d37d4edd4b3517de  github.com/dreamsxin/go-kit/v2/sd/feedback
+55b17d444fc9f0186f74a3f515d704dace8f2834017abad87db44b2afec57757  github.com/dreamsxin/go-kit/v2/sd/health
 4a9e2c7e73c4c4ea2227c11b5f59df0ac541f3bcfadd536edfaee786f8a2d4ba  github.com/dreamsxin/go-kit/v2/sd/instance
 1462049a53462eee3ff50e2b86855cc8660636cc813f21f1c73c899c384d4f3e  github.com/dreamsxin/go-kit/v2/sd/retry
 162ee1bc4e3aac634909cf34656af7aa17749baf333b9a01a711eb68635aa058  github.com/dreamsxin/go-kit/v2/sd/retry/internal/backoff

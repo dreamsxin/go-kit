@@ -275,9 +275,12 @@ weight := selector.SlowStart(
 strategy := table.Wrap(selector.WeightedRandom(weight))
 ```
 
-The ramp floors at one so a warming instance is not starved. Use a discovery
-timestamp source when the ramp must begin when the instance enters the snapshot,
-rather than when it receives its first call.
+The ramp floors at one so a warming instance is not starved, and a weight of
+zero is left alone because zero means "never pick me". `table.FirstSeen()`
+reports when an instance entered the table, so drive the table from discovery —
+`feedback.Follow` — and the ramp begins when the instance joins the service.
+Without that, the table only learns of an instance on its first call, and an
+instance nobody has called yet is unknown, which slow start treats as brand new.
 
 ## Active health checks
 
@@ -301,9 +304,10 @@ consecutive results. By default an instance is healthy until its first probe
 completes; `WithInitiallyHealthy(false)` keeps each unprobed instance out of the
 published set while already-passed instances can continue serving. If every
 instance has produced a result and none passes, the checker publishes the
-unchecked set instead of turning a broken probe into an outage. A custom Probe
-must return when its context is cancelled because `Checker.Close` waits for
-active probes.
+unchecked set instead of turning a broken probe into an outage;
+`WithFailOpen(false)` publishes the empty set instead, for callers where
+reaching a dead instance is worse than reaching none. A custom Probe must return
+when its context is cancelled because `Checker.Close` waits for active probes.
 
 ## Providers
 

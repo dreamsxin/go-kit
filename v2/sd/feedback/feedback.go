@@ -62,19 +62,24 @@ type Table struct {
 }
 
 type entry struct {
-	// samples, latencyNS, errorRate, bytes, firstSeen and retired are guarded
-	// by Table.mu.
+	// samples, latencyNS, errorRate, bytes, firstSeen, generation and retired
+	// are guarded by Table.mu.
 	samples   uint64
 	latencyNS float64
 	errorRate float64
 	bytes     int64
 	firstSeen time.Time
+	// generation counts how many times Reset has cleared this entry. A call
+	// tracked before a Reset carries the older generation and its result is
+	// discarded, because Reset means "forget what happened before now".
+	generation uint64
 	// retired marks an address Retain wanted to drop but could not, because a
 	// call was still in flight. The last completion deletes it.
 	retired bool
 
-	// inflight is read and written outside the lock, including by callbacks
-	// that outlive a Retain, so it carries its own synchronisation.
+	// inflight is incremented and decremented under Table.mu, so Retain cannot
+	// observe zero for a call that is about to start. It stays atomic because
+	// Stats reads it under the read lock.
 	inflight atomic.Int64
 }
 
@@ -87,12 +92,6 @@ func NewTable(options ...Option) *Table {
 		}
 	}
 	return table
-}
-
-func (t *Table) entryFor(address string) *entry {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return t.entryForLocked(address)
 }
 
 func (t *Table) entryForLocked(address string) *entry {
@@ -112,8 +111,11 @@ func (t *Table) Observe(instance sd.Instance, outcome sd.Outcome) {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	t.recordLocked(t.entryForLocked(instance.Address), outcome)
+}
 
-	item := t.entryForLocked(instance.Address)
+// recordLocked must be called with Table.mu held.
+func (t *Table) recordLocked(item *entry, outcome sd.Outcome) {
 	failed := 0.0
 	if outcome.Err != nil {
 		failed = 1
@@ -138,27 +140,41 @@ func (t *Table) Track(instance sd.Instance) sd.Done {
 	if t == nil {
 		return func(sd.Outcome) {}
 	}
-	item := t.entryFor(instance.Address)
-	item.inflight.Add(1)
+	item, generation := t.begin(instance.Address)
 	var once sync.Once
 	return func(outcome sd.Outcome) {
-		once.Do(func() {
-			t.Observe(instance, outcome)
-			if item.inflight.Add(-1) == 0 {
-				t.release(instance.Address, item)
-			}
-		})
+		once.Do(func() { t.complete(instance.Address, item, generation, outcome) })
 	}
 }
 
-// release drops an address that Retain marked as gone and could not delete
-// because a call was still in flight. Without it, an instance that leaves
-// discovery mid-call keeps its entry until the next snapshot arrives — and if
-// the set never changes again, forever.
-func (t *Table) release(address string, item *entry) {
+// begin claims the entry and the in-flight slot in one critical section. Doing
+// the two separately let Retain see an in-flight count of zero for a call that
+// had already picked its entry, and delete the entry underneath it.
+func (t *Table) begin(address string) (*entry, uint64) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if !item.retired || item.inflight.Load() > 0 {
+	item := t.entryForLocked(address)
+	item.inflight.Add(1)
+	return item, item.generation
+}
+
+// complete records the result, releases the in-flight slot, and drops an
+// address that Retain marked as gone. Without the last part, an instance that
+// leaves discovery mid-call keeps its entry until the next snapshot arrives —
+// and if the set never changes again, forever.
+func (t *Table) complete(address string, item *entry, generation uint64, outcome sd.Outcome) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// A result from before a Reset is exactly what Reset discarded. Recording
+	// it would reverse the recovery: Reset zeroes the sample count, so the
+	// stale result seeds the average instead of decaying into it, and one
+	// straggling failure would re-eject the instance at full weight.
+	if item.generation == generation {
+		t.recordLocked(item, outcome)
+	}
+
+	if item.inflight.Add(-1) > 0 || !item.retired {
 		return
 	}
 	// Compare identities: a re-registered address may already own a new entry.
@@ -173,6 +189,9 @@ func (t *Table) release(address string, item *entry) {
 // This is what makes ejection reversible. A decayed average does not recover on
 // its own once traffic stops, so returning an instance to service without
 // clearing what got it ejected would eject it again on the next selection.
+//
+// Calls already in flight belong to the discarded period, so their results are
+// dropped when they complete rather than recorded against the fresh state.
 func (t *Table) Reset(instance sd.Instance) {
 	if t == nil {
 		return
@@ -187,13 +206,19 @@ func (t *Table) Reset(instance sd.Instance) {
 	item.latencyNS = 0
 	item.errorRate = 0
 	item.bytes = 0
+	item.generation++
 }
 
-// Retain drops measurements for addresses outside instances, which is what
-// keeps a long-running table the size of the service rather than the size of
-// its deployment history. An address with calls still in flight is marked
-// instead, and its last completion deletes it, so the lifecycle closes even if
-// no further snapshot ever arrives.
+// Retain aligns the table with the discovery snapshot. Addresses in the
+// snapshot that the table has not seen are registered with their arrival time,
+// which is what makes slow start ramp from the moment an instance joined the
+// service rather than from its first call: an instance nobody has called yet
+// would otherwise be unknown, and slow start treats unknown as brand new
+// forever. Addresses outside the snapshot are dropped, which keeps a
+// long-running table the size of the service rather than the size of its
+// deployment history. An address with calls still in flight is marked instead,
+// and its last completion deletes it, so the lifecycle closes even if no
+// further snapshot ever arrives.
 //
 // Pass the discovery snapshot, never a filtered candidate set: dropping an
 // instance that a health filter just ejected would erase the very measurements
@@ -214,11 +239,14 @@ func (t *Table) Retain(instances []sd.Instance) {
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	for _, instance := range instances {
+		// Records the arrival time for a new address, keeps the existing one
+		// for an address already known. A re-registered address is live again,
+		// so an earlier retirement must not outlive it.
+		t.entryForLocked(instance.Address).retired = false
+	}
 	for address, item := range t.items {
 		if _, wanted := keep[address]; wanted {
-			// A re-registered address is live again, so an earlier retirement
-			// must not outlive it.
-			item.retired = false
 			continue
 		}
 		if item.inflight.Load() > 0 {
@@ -306,8 +334,11 @@ type Stats struct {
 	ErrorRate float64
 	Bytes     int64
 	InFlight  int64
-	// FirstSeen is when this instance was first recorded, which is what slow
-	// start ramps against. It is zero for an instance the table has never seen.
+	// FirstSeen is when this instance entered the table, which is what slow
+	// start ramps against. A table that follows discovery — see Follow — is
+	// told about an instance when it registers, so this is its arrival time; a
+	// table driven only by calls learns of it on its first call instead. It is
+	// zero for an instance the table has never seen.
 	FirstSeen time.Time
 }
 
@@ -364,8 +395,10 @@ func (t *Table) Load() selector.LoadFunc {
 }
 
 // FirstSeen returns when each instance entered the table, for
-// selector.SlowStart. Instances the table has not seen report false, which slow
-// start treats as brand new.
+// selector.SlowStart. Follow the discovery snapshot so this is the instance's
+// arrival time; without that, an instance is unknown until its first call and
+// slow start treats unknown as brand new, so the ramp never starts. Instances
+// the table has not seen report false.
 func (t *Table) FirstSeen() selector.FirstSeenFunc {
 	return func(instance sd.Instance) (time.Time, bool) {
 		stats := t.Stats(instance)

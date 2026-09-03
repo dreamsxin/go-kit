@@ -362,8 +362,10 @@ weight := selector.SlowStart(selector.MetadataWeight("weight", 1), table.FirstSe
 strategy := table.Wrap(selector.WeightedRandom(weight))
 ```
 
-窗口走完时实例达到配置权重；在此之前至少保持 1，因此不会被完全饿死。时间戳由
-`table.FirstSeen` 提供，所以重建策略不会让爬升过程重新开始。
+窗口走完时实例达到配置权重；在此之前至少保持 1，因此不会被完全饿死，而权重 0 仍是 0。
+时间戳由 `table.FirstSeen` 提供，所以重建策略不会让爬升过程重新开始。让表跟随
+discovery（`feedback.Follow`），这些时间戳才是实例的到达时间；只靠调用驱动的表在首次
+调用前把实例视为未知，而未知会从零开始爬坡。
 
 ### 排空
 
@@ -402,7 +404,8 @@ ep := endpointer.NewEndpointer(checked, factory, logger)
 `WithInitiallyHealthy(false)` 反转）；而当**所有实例都已探测过**且无一通过时，
 checker 会原样发布未经检查的集合而不是空集——探针自己坏了不能把整个服务变成
 黑洞。fail-open 只有在每个实例都真的有过探测结果后才生效，因此未探测实例会保持隐藏，
-已经通过探测的实例仍可继续使用。`Close` 停止探测并从上游注销，但不会关闭上游。
+已经通过探测的实例仍可继续使用。`WithFailOpen(false)` 改为发布空集，仅当"打到死实例
+比打不到实例更糟"时才应这样选。`Close` 停止探测并从上游注销，但不会关闭上游。
 
 
 

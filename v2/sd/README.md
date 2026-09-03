@@ -395,8 +395,11 @@ strategy := table.Wrap(selector.WeightedRandom(weight))
 ```
 
 The instance reaches its configured weight when the window elapses; before that
-it holds at least 1, so it is never starved. `table.FirstSeen` supplies the
-timestamps, which is why the ramp survives a strategy being rebuilt.
+it holds at least 1, so it is never starved, and a weight of 0 is left at 0.
+`table.FirstSeen` supplies the timestamps, which is why the ramp survives a
+strategy being rebuilt. Drive the table from discovery (`feedback.Follow`) so
+those timestamps are arrival times; a table that only learns of an instance on
+its first call reports it as unknown until then, and unknown ramps from scratch.
 
 ### Draining
 
@@ -439,6 +442,8 @@ been probed and none passed, the checker republishes the unchecked set rather
 than an empty one — a probe that is itself broken must not black-hole the
 service. The fail-open applies only after every instance has produced a result,
 so unprobed instances stay hidden while already-passed instances remain usable.
+`WithFailOpen(false)` publishes the empty set instead, which is the right choice
+only when reaching a dead instance is worse than reaching none.
 `Close` stops the probes and deregisters from the source without closing it.
 
 

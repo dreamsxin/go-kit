@@ -153,6 +153,27 @@ func WithConcurrency(probes int) Option {
 	}
 }
 
+// WithFailOpen decides what to publish when every instance has been probed and
+// none of them passed.
+//
+// The default is true: the unchecked set is published, on the reasoning that a
+// probe failing for every instance is far more likely to be broken — a
+// firewall, a path that moved, a threshold set too tight — than the whole
+// service being down, and publishing an empty set turns a monitoring fault into
+// an outage. Envoy calls the same idea panic mode, and sd/feedback spells it
+// MaxEjectionPercent.
+//
+// Set false when calling a dead instance is worse than calling nothing: a
+// writer that must not double-apply, a pool where a failed probe means the
+// backend is mid-migration. The checker then publishes the empty set and
+// callers see sd.ErrNoEndpoints, which is a decision about correctness, not
+// availability, and only the caller can make it.
+func WithFailOpen(failOpen bool) Option {
+	return func(c *Checker) {
+		c.failOpen = failOpen
+	}
+}
+
 // WithLogger sets the logger used for state transitions.
 func WithLogger(logger *slog.Logger) Option {
 	return func(c *Checker) {
@@ -175,6 +196,7 @@ type Checker struct {
 	unhealthyThreshold int
 	healthyThreshold   int
 	initiallyHealthy   bool
+	failOpen           bool
 	concurrency        int
 
 	events chan sd.Event
@@ -221,6 +243,7 @@ func Check(source sd.Instancer, probe Probe, options ...Option) *Checker {
 		unhealthyThreshold: DefaultUnhealthyThreshold,
 		healthyThreshold:   DefaultHealthyThreshold,
 		initiallyHealthy:   true,
+		failOpen:           true,
 		concurrency:        DefaultConcurrency,
 		events:             make(chan sd.Event, 1),
 		states:             make(map[string]*state),
@@ -406,13 +429,14 @@ func (c *Checker) publish() {
 	// firewall, a path that moved — rather than every instance being down.
 	// Publishing an empty set in that case turns a monitoring fault into an
 	// outage, so the unchecked set is published instead. Same reasoning as the
-	// ejection cap in sd/feedback.
+	// ejection cap in sd/feedback. WithFailOpen(false) opts out, for callers
+	// where reaching a dead instance is worse than reaching none.
 	//
 	// This requires every instance to have been probed. Otherwise
 	// WithInitiallyHealthy(false) would defeat itself: at startup nothing is
 	// healthy yet, and republishing the unchecked set is exactly the behaviour
 	// that option exists to prevent.
-	if total > 0 && len(healthy) == 0 && everyoneProbed {
+	if total > 0 && len(healthy) == 0 && everyoneProbed && c.failOpen {
 		c.logger.Warn("no instance passed health checks, publishing the unchecked set", "instances", total)
 		c.cache.Update(sd.Event{Instances: snapshot})
 		return
