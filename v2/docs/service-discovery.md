@@ -7,10 +7,23 @@ one backend. The package guides answer what each package exports; this chapter
 answers how to assemble discovery, endpoint construction, selection, feedback,
 health checks, retry, and shutdown as one system.
 
-The core in-process assemblies below have runnable counterparts in `examples/sd`,
-which needs no registry and no network: `go run ./examples/sd`. Provider and
-long-lived bridge sections are integration templates; they require the provider
-or transport owned by the application.
+The core in-process assemblies below have a runnable counterpart in
+`examples/sd` (`go run ./examples/sd`). Provider and long-lived bridge sections
+are integration templates; the application owns the provider and transport.
+
+## Pick The Smallest Assembly
+
+| Need | Assembly |
+| --- | --- |
+| one fixed address or test pool | `selector.Static` + `selector.New` |
+| dynamic endpoints and connection reuse | `Instancer` -> `Endpointer` -> `Balancer` |
+| retries with an explicit policy | add `sd/retry` or `sd/client` |
+| measured least-request or passive ejection | `feedback.Table` + `feedback.Follow` |
+| active liveness checks | `health.Check` before the endpointer/selector |
+| caller-owned long connection | pick once, call `Done` when the connection ends |
+
+The invariant is simple: `Pick` returns identity and `Done(Outcome)`. Close each
+consumer before the source it uses.
 
 ## The request path
 

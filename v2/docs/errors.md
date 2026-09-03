@@ -3,8 +3,20 @@
 English | [简体中文](errors_zh.md)
 
 go-kit v2 separates error classification (business) from error encoding
-(transport). This page covers the whole flow: classification, automatic status
-mapping, validation errors, and custom wire formats.
+(transport). Use this page when an error crosses an HTTP or gRPC boundary.
+
+## The Rule In One Minute
+
+1. Return an `apperror` from service code; do not return HTTP or gRPC types.
+2. Let the transport map the kind to a protocol status.
+3. Use `PublicMessage` for text safe to expose. Keep `Error()` for diagnostics.
+4. Built-in HTTP encoders redact status 500. `DefaultErrorEncoder` additionally
+   lets an error implementing `json.Marshaler` own the complete body below 500;
+   that explicit escape hatch bypasses `PublicMessage`.
+5. Keep the status code meaningful. An envelope must not turn a failure into HTTP 200.
+
+For a custom envelope, jump to [Custom error formats](#custom-error-formats). For
+client retry behavior, see [Client-side classification](#client-side-classification).
 
 ## Classifying business errors
 
@@ -203,13 +215,19 @@ The default JSON error body is:
 {"code": "todo.not_found", "message": "todo not found", "request_id": "..."}
 ```
 
-The `message` is chosen in one order, shared by all three built-in encoders: a
+The `message` follows one rule in all three built-in encoders: a
 `PublicMessager` wins; otherwise a status below 500 may use `err.Error()`; a 500
 always answers `"Internal Server Error"`. 500 is where an unclassified error
 lands, and an unclassified error is exactly the one whose text was never written
 for a client — it may be wrapping a driver message or an upstream body. The error
 still reaches the logs in full, and `request_id` ties the two together. A
 deliberate 5xx set through `StatusCoder` keeps its message.
+
+`DefaultErrorEncoder` has one explicit escape hatch: below 500, an error that
+implements `json.Marshaler` replaces the entire response body and bypasses
+`PublicMessage`. This is an application-owned wire contract; the application is
+responsible for redaction and the resulting content type. The escape hatch never
+opens at 500.
 
 ## Validation errors
 

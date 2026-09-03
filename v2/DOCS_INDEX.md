@@ -1,78 +1,66 @@
-# Documentation / 文档导航
+# Documentation Index
 
 English | [简体中文](DOCS_INDEX_zh.md)
 
-The v2 documentation is task-oriented. Current behavior belongs in usage and
-architecture documents; the durable implementation sequence belongs only in
-`ROADMAP.md`. Temporary plans and session snapshots do not belong in the
-maintained documentation set.
+Choose the shortest document for the job. The [book](docs/index.md) gives the
+end-to-end path; package READMEs are the API reference; the root guides cover
+generation, architecture, production, and upgrades.
 
-**Start here**: the [book](docs/index.md) is the complete guide — topic
-chapters and complete tutorials organized as Quick Start -> Core Concepts ->
-Components -> Production. The tables below are the task index into the same
-documentation.
+## Start Here
 
-## Quick Start
+| Goal | Document |
+| --- | --- |
+| first service | [Getting started](docs/getting-started.md) |
+| generated project | [microgen tutorial](docs/tutorial-microgen.md) |
+| hand-built service | [root README](README.md#build-with-kit) |
+| production deployment | [Production guide](PRODUCTION.md) |
+| upgrade | [Migration notes](MIGRATION.md) |
 
-From zero to a running service in about fifteen minutes:
-
-| Step | Goal | Start here |
-| --- | --- | --- |
-| 1 | Install and generate a runnable service | [README: Generate A Service](README.md#generate-a-service) |
-| 2 | Understand what was generated and what you own | [MICROGEN.md](MICROGEN.md) |
-| 3 | Exercise the request path on runnable examples | [examples](examples/README.md) |
-| 4 | Compose a small service by hand | [README: Build With kit](README.md#build-with-kit) |
-
-## Component Tour
-
-Read in order to follow the request path from core to edge. Every guide is
-self-contained and assumes only the steps above; the last column points at a
-runnable example for the component.
-
-| Order | Component | Guide | Runnable example |
-| --- | --- | --- | --- |
-| 1 | Endpoints, typed endpoints, and middleware composition | [endpoint](endpoint/README.md) | [examples/middleware](examples/README.md) |
-| 2 | HTTP transport: server, client, SSE, multipart, pagination, tracing propagation | [transport](transport/README.md) | [examples/quickstart](examples/README.md) |
-| 3 | Service assembly: `kit`, application health endpoints, lifecycle, Server-Sent Events | [README: Build With kit](README.md#build-with-kit) | [examples/quickstart](examples/README.md) |
-| 4 | Resilience: validation, timeout, fallback, bulkhead, backpressure | [endpoint: Built-In Middleware](endpoint/README.md#built-in-middleware) | [examples/best_practice](examples/README.md) |
-| 5 | Response assembly: envelopes and error formats at the transport boundary | [transport: Composition And Nesting](transport/README.md#composition-and-nesting) | [examples/envelope](examples/README.md) |
-| 6 | Service discovery, balancing, feedback, and retry | [service discovery](docs/service-discovery.md) | [examples/sd](examples/README.md) |
-| 7 | HTTP security: CORS, CSRF, security headers, IP policy | [security/http](security/http/README.md) | [examples/auth](examples/README.md) |
-| 8 | Observability: slog, Zap, OpenTelemetry adapters | [slog](observability/slog/README.md), [otel](observability/otel/README.md), [zap](integrations/zap/README.md) | [PRODUCTION.md](PRODUCTION.md) |
-| 9 | AI interaction runtime and MCP Streamable HTTP | [interaction](interaction/README.md) | [examples/mcp_basic](examples/README.md) |
-| 10 | Optional integrations: Consul, etcd, gRPC (circuit breaking and rate limiting are built into `endpoint`) | [consul](integrations/consul/README.md), [etcd](integrations/etcd/README.md), [transport gRPC](transport/README.md) | [examples/sd](examples/README.md) |
-
-## By Task
+## Task Index
 
 | Task | Document |
 | --- | --- |
-| Customize logging, middleware, or errors | [docs/customization.md](docs/customization.md) |
-| Diagnose a failing service or request | [docs/troubleshooting.md](docs/troubleshooting.md) |
-| Prepare a service for production | [PRODUCTION.md](PRODUCTION.md) |
-| Review upgrade actions between releases | [MIGRATION.md](MIGRATION.md) |
-| Deep-dive the generator, extend mode, and contracts | [MICROGEN.md](MICROGEN.md) |
-| Understand package boundaries and extension rules | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| Review released changes | [CHANGELOG.md](CHANGELOG.md) |
+| understand layers and ownership | [Architecture](ARCHITECTURE.md), [Core concepts](docs/concepts.md) |
+| compose endpoint middleware | [Middleware](docs/middleware.md), [endpoint README](endpoint/README.md) |
+| expose or call HTTP | [transport README](transport/README.md) |
+| add gRPC | [transport README](transport/README.md), [gRPC README](integrations/grpc/README.md) |
+| add a custom body or protocol | [Custom transports](docs/custom-transport.md), [transport README](transport/README.md) |
+| customize errors and envelopes | [Error handling](docs/errors.md), [Customization](docs/customization.md) |
+| add service discovery and retry | [Service discovery](docs/service-discovery.md), [SD README](sd/README.md) |
+| add authentication and browser security | [Auth tutorial](docs/tutorial-auth.md), [security/http README](security/http/README.md) |
+| add logs, metrics, or tracing | [Observability](docs/observability.md) |
+| expose MCP tools | [MCP tutorial](docs/tutorial-mcp.md), [interaction README](interaction/README.md) |
+| test a service | [Testing](docs/testing.md) |
+| diagnose a failure | [Troubleshooting](docs/troubleshooting.md) |
+| configure a generated project | [Configuration](docs/configuration.md), [microgen guide](MICROGEN.md) |
 
-## For Maintainers
+## Component Reference
 
-| Task | Document |
+| Component | Reference |
 | --- | --- |
-| Change or release the repository | [internal/docs/MAINTAINING.md](internal/docs/MAINTAINING.md), [internal/docs/RELEASE.md](internal/docs/RELEASE.md), [RELEASE_MANIFEST.json](RELEASE_MANIFEST.json) |
-| Review the implementation sequence | [internal/docs/ROADMAP.md](internal/docs/ROADMAP.md) |
-| Review dependency closure | [internal/docs/DEPENDENCY_REPORT.md](internal/docs/DEPENDENCY_REPORT.md) |
-| Run verification tooling | [tools](tools/README.md) |
+| assembly and lifecycle | [`kit`](README.md#build-with-kit), [Lifecycle](docs/lifecycle.md) |
+| endpoint and middleware | [`endpoint`](endpoint/README.md), [Middleware](docs/middleware.md) |
+| HTTP and gRPC transport | [`transport`](transport/README.md), [`integrations/grpc`](integrations/grpc/README.md) |
+| discovery and balancing | [`sd`](sd/README.md), [Service discovery](docs/service-discovery.md) |
+| interaction and MCP | [`interaction`](interaction/README.md) |
+| security | [`security/http`](security/http/README.md) |
+| observability | [`observability/slog`](observability/slog/README.md), [`observability/otel`](observability/otel/README.md), [`integrations/zap`](integrations/zap/README.md) |
+| providers | [`consul`](integrations/consul/README.md), [`etcd`](integrations/etcd/README.md) |
+| project generator | [`microgen`](MICROGEN.md) |
 
-## Document Ownership
+## Maintainers
 
-- User-facing behavior: `README*`, `MICROGEN.md`, package guides.
-- Design and scope: `ARCHITECTURE.md`, `internal/docs/DEPENDENCY_REPORT.md`, `PRODUCTION.md`.
-- Product implementation sequence: `internal/docs/ROADMAP.md`.
-- Contributor process: `internal/docs/MAINTAINING.md`, `internal/docs/RELEASE.md`.
-- Version history: `CHANGELOG.md`, `MIGRATION.md`.
-- Generated-project documentation is owned by `cmd/microgen/templates/readme.tmpl`.
-- Every maintained document has an English version and a `_zh.md` Chinese
-  version; both are updated together.
+- [Maintaining](internal/docs/MAINTAINING.md)
+- [Release process](internal/docs/RELEASE.md)
+- [Dependency report](internal/docs/DEPENDENCY_REPORT.md)
+- [Roadmap](internal/docs/ROADMAP.md)
+- [Changelog](CHANGELOG.md)
 
-When behavior changes, update the nearest authoritative document. Do not add a
-second roadmap, design draft, or status snapshot.
+## Ownership Rules
+
+- Runtime behavior: root README, package READMEs, and `docs/` chapters.
+- Generated-project behavior: `cmd/microgen/templates/readme.tmpl`.
+- Design and scope: `ARCHITECTURE.md` and `PRODUCTION.md`.
+- History and upgrades: `CHANGELOG.md` and `MIGRATION.md`.
+- English and Chinese files are maintained as pairs. Update both when behavior or
+  public API changes.

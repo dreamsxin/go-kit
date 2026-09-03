@@ -2,7 +2,18 @@
 
 [English](middleware.md) | 简体中文
 
-中间件是端点层的主要扩展点；HTTP 边界另有自己的 `http.Handler` 中间件。本页覆盖组合顺序、内置目录、四种流控模式，以及各横切关注点在哪一层安放。
+中间件是端点层的主要扩展点；HTTP 边界另有自己的 `http.Handler` 中间件。
+
+## 先选择层级
+
+| 需求 | 使用 |
+| --- | --- |
+| 已解码请求、业务结果、超时、重试、准入 | `endpoint.Middleware` |
+| method、path、header、状态码、字节、raw handler | `http.Handler` middleware |
+| 编解码前后的协议元数据 | transport hook |
+| 服务启停与健康状态 | `kit.Lifecycle` / `kit.Host` |
+
+第一个添加的中间件位于最外层。下面先看拒绝语义，再看[自定义](customization_zh.md)。
 
 ## 组合
 

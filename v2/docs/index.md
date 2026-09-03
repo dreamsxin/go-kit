@@ -2,60 +2,71 @@
 
 English | [简体中文](index_zh.md)
 
-The book is the task-oriented companion to the package guides. Package guides
-(reference: `endpoint/README.md`, `transport/README.md`, ...) answer "what
-does this package provide". The book answers "how do I do X end to end".
+Use this book to complete a task end to end. Use package README files when you
+need the complete API reference.
+
+## Choose A Path
+
+| I want to... | Read first | Then use |
+| --- | --- | --- |
+| run a service in minutes | [Getting started](getting-started.md) | [examples](../examples/README.md) |
+| generate a project | [microgen tutorial](tutorial-microgen.md) | [microgen guide](../MICROGEN.md) |
+| assemble a small service by hand | [Getting started](getting-started.md) | [`kit` README](../README.md#build-with-kit) |
+| understand the request path | [Core concepts](concepts.md) | [Middleware](middleware.md), [Errors](errors.md) |
+| add HTTP, gRPC, SSE, or custom codecs | [Transport README](../transport/README.md) | [Custom transport](custom-transport.md) |
+| add discovery, balancing, retry, or health checks | [Service discovery](service-discovery.md) | [SD README](../sd/README.md) |
+| add authentication or browser protections | [Auth tutorial](tutorial-auth.md) | [Security README](../security/http/README.md) |
+| add logs, metrics, or tracing | [Observability](observability.md) | [Production guide](../PRODUCTION.md) |
+| expose tools to AI clients | [MCP tutorial](tutorial-mcp.md) | [Interaction README](../interaction/README.md) |
+| deploy and operate a service | [Production guide](../PRODUCTION.md) | [Lifecycle](lifecycle.md), [Troubleshooting](troubleshooting.md) |
+| upgrade an existing project | [Migration notes](../MIGRATION.md) | [Changelog](../CHANGELOG.md) |
 
 ## Tutorials
 
-Complete walkthroughs from an empty directory to a running service:
+Read these in the order that matches your goal:
 
-- [Getting started](getting-started.md): install, first service, first request
-- [Tutorial: a CRUD service](tutorial-crud.md): SQLite storage, typed JSON
-  routes, graceful shutdown
-- [Tutorial: generating a service](tutorial-microgen.md): IDL to a complete
-  project with clients, SDKs, and OpenAPI
-- [Tutorial: authentication middleware](tutorial-auth.md): Bearer keys, roles,
-  and public routes
-- [Tutorial: an MCP server](tutorial-mcp.md): expose tools to AI clients over
-  MCP Streamable HTTP
+- [Getting started](getting-started.md): first HTTP service and request.
+- [Generating a service](tutorial-microgen.md): Go IDL to a runnable project.
+- [A CRUD service](tutorial-crud.md): storage, typed routes, and shutdown.
+- [Authentication](tutorial-auth.md): bearer credentials and roles.
+- [An MCP server](tutorial-mcp.md): Streamable HTTP and tool calls.
 
-## Chapters
+## Core Chapters
 
-Cross-cutting flows that span more than one package:
+- [Core concepts](concepts.md): layers, ownership, context, and boundaries.
+- [Middleware](middleware.md): composition, ordering, and flow control.
+- [Error handling](errors.md): classification, status mapping, and safe messages.
+- [Lifecycle](lifecycle.md): startup, shutdown, health, and jobs.
+- [Configuration](configuration.md): generated configuration and precedence.
+- [Service discovery](service-discovery.md): snapshots, selection, feedback, and retry.
+- [Customization](customization.md): custom middleware, codecs, logs, and errors.
+- [Custom transports](custom-transport.md): HTTP codecs and new protocol adapters.
+- [Testing](testing.md): unit, HTTP, middleware, and integration tests.
+- [Troubleshooting](troubleshooting.md): symptom-first diagnosis.
+- [Observability](observability.md): logs, metrics, traces, correlation, and cardinality.
 
-- [Core concepts](concepts.md): the request path, error classification,
-  lifecycle ownership
-- [Service discovery and routing](service-discovery.md): discovery snapshots,
-  endpoint selection, feedback, health checks, providers, and long-lived calls
-- [Error handling](errors.md): `apperror`, transport mapping, custom error
-  formats end to end
-- [Middleware](middleware.md): composition, flow control, and the built-in
-  catalog
-- [Lifecycle](lifecycle.md): startup, graceful shutdown, background jobs
-- [Configuration](configuration.md): generated config precedence and custom
-  sections
-- [Testing](testing.md): testing endpoints and services
-- [Troubleshooting](troubleshooting.md): symptom-based failure diagnosis —
-  request correlation, status codes, database, logging, debug switches
-- [Customization](customization.md): custom log destinations, writing custom
-  middleware, and tailoring error handling
+## Package References
 
-## Component References
+The detailed contracts live beside the implementation:
 
-Package guides own the detailed API reference for each component:
+- [`endpoint`](../endpoint/README.md)
+- [`transport`](../transport/README.md)
+- [`kit`](../README.md#build-with-kit)
+- [`sd`](../sd/README.md)
+- [`interaction`](../interaction/README.md)
+- [`security/http`](../security/http/README.md)
+- [`observability/slog`](../observability/slog/README.md)
+- [`observability/otel`](../observability/otel/README.md)
+- [`integrations/grpc`](../integrations/grpc/README.md)
+- [`integrations/consul`](../integrations/consul/README.md)
+- [`integrations/etcd`](../integrations/etcd/README.md)
+- [`microgen`](../MICROGEN.md)
 
-- [endpoint](../endpoint/README.md), [transport](../transport/README.md),
-  [kit](../README.md#build-with-kit), [sd](../sd/README.md),
-  [feedback](service-discovery.md#feedback-and-passive-ejection),
-  [health](service-discovery.md#active-health-checks),
-  [interaction](../interaction/README.md), [security](../security/http/README.md),
-  [observability](../observability/slog/README.md),
-  [integrations](../integrations/consul/README.md),
-  [etcd](../integrations/etcd/README.md),
-  [microgen](../MICROGEN.md)
-
-## Production
+## Release And Maintenance
 
 - [Production guide](../PRODUCTION.md)
-- [Upgrade notes](../MIGRATION.md)
+- [Migration notes](../MIGRATION.md)
+- [Architecture and boundaries](../ARCHITECTURE.md)
+- [Documentation index](../DOCS_INDEX.md)
+- [Maintainer guide](../internal/docs/MAINTAINING.md)
+- [Release guide](../internal/docs/RELEASE.md)

@@ -2,10 +2,24 @@
 
 English | [简体中文](customization_zh.md)
 
-How to customize logging, middleware, and errors without forking the
-framework. Every recipe keeps the layer invariants: classification stays in
-the service layer, cross-cutting behavior in endpoint middleware, protocol
-facts in the transport layer.
+How to customize logging, middleware, and errors without forking the framework.
+Use the decision table below to choose the narrowest extension point. Every
+recipe keeps classification in the service layer, cross-cutting behavior in
+endpoint middleware, and protocol facts in transport.
+
+## Choose The Extension Point
+
+| Need | Use |
+| --- | --- |
+| change log destination or fields | a `slog.Handler` or the logging adapter |
+| observe every endpoint call | `endpoint.Recorder` and `RecordingMiddleware` |
+| enforce request policy | `endpoint.Middleware` / `endpoint.Builder` |
+| change HTTP parsing or encoding | transport decoder/encoder options |
+| change public error shape | `ServerErrorEncoder` and, for JSON success, `ServerResponseEncoder` |
+| add a protocol-specific concern | HTTP/gRPC transport hooks or middleware |
+
+Start with [Middleware](middleware.md) for ordering and [Error handling](errors.md)
+for status and message rules.
 
 ## Customizing logging
 

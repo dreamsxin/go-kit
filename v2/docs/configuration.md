@@ -2,8 +2,18 @@
 
 English | [简体中文](configuration_zh.md)
 
-Configuration only exists when a project is generated with `-config`. This
-page covers the precedence chain and application-owned custom sections.
+Configuration only exists when a project is generated with `-config`. This page
+is a reference for precedence, validation, and custom sections.
+
+## Quick Answer
+
+- Use YAML for deployment defaults and `APP_*` variables for deployment-time
+  overrides.
+- `file`, `hybrid`, and `remote` are generator-time modes, not runtime values.
+- `Config.Validate` runs before runtime wiring. Generated command-line flags are
+  local overrides and are applied after that validation.
+- `config/custom.go` is user-owned and must keep `SetDefaults`, `ApplyEnv() error`,
+  and `Validate() error` on `*CustomConfig`.
 
 ## Precedence
 

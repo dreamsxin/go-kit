@@ -346,10 +346,12 @@ classification remains independent of HTTP. The HTTP transport maps application
 kinds to status codes and uses their stable code and public message. Low-level
 HTTP integrations may implement
 `transporthttp.StatusCoder`, `transporthttp.ErrorCoder`, and
-`transporthttp.PublicMessager`. All three built-in error encoders share one rule
-for the message: a `PublicMessager` wins, a status below 500 may fall back to
+`transporthttp.PublicMessager`. All three built-in error encoders use the same
+message rule: a `PublicMessager` wins, a status below 500 may fall back to
 `err.Error()`, and 500 always reads "Internal Server Error" — never the internal
-error string.
+error string. `DefaultErrorEncoder` additionally honors `json.Marshaler` below
+500; that replaces the entire body and bypasses `PublicMessage`, so the
+application owns redaction and the wire format for that explicit escape hatch.
 
 ## HTTP Client
 

@@ -34,6 +34,19 @@ recorded in [CHANGELOG.md](CHANGELOG.md).
 
 Requires Go 1.25.8 or later.
 
+## Find Your Task
+
+| If you need... | Go to... |
+| --- | --- |
+| a five-minute first service | [Getting started](docs/getting-started.md) |
+| a generated project | [microgen tutorial](docs/tutorial-microgen.md) |
+| middleware, errors, or envelopes | [Middleware](docs/middleware.md), [Error handling](docs/errors.md), [Customization](docs/customization.md) |
+| a custom body or transport protocol | [Custom transports](docs/custom-transport.md) |
+| logs, metrics, or tracing | [Observability](docs/observability.md) |
+| discovery, balancing, or retry | [Service discovery](docs/service-discovery.md) |
+| deployment or incident diagnosis | [Production](PRODUCTION.md), [Troubleshooting](docs/troubleshooting.md) |
+| the complete map | [Documentation index](DOCS_INDEX.md) |
+
 ## Choose An Entry Point
 
 | Goal | Use |
@@ -387,7 +400,9 @@ document by task.
   - Chapters: [core concepts](docs/concepts.md),
     [error handling](docs/errors.md), [middleware](docs/middleware.md),
     [lifecycle](docs/lifecycle.md), [configuration](docs/configuration.md),
-    [testing](docs/testing.md)
+     [service discovery](docs/service-discovery.md), [customization](docs/customization.md),
+    [custom transports](docs/custom-transport.md), [testing](docs/testing.md),
+    [observability](docs/observability.md), [troubleshooting](docs/troubleshooting.md)
 - [DOCS_INDEX.md](DOCS_INDEX.md): quick start, component tour, documentation map
 - [MICROGEN.md](MICROGEN.md): generator usage and generated ownership
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries and extension model

@@ -3,8 +3,19 @@
 [English](testing.md) | 简体中文
 
 业务逻辑就是一个 `(context, Request) -> (Response, error)` 的普通函数，因此大多数
-测试完全不需要服务器。HTTP 行为用 `httptest.NewServer` 覆盖，它直接接受一个
-`kit.HTTP` 组件。
+测试完全不需要服务器。选择能够证明行为的最小测试边界。
+
+## 按改动选择测试
+
+| 改了什么 | 先运行 |
+| --- | --- |
+| service 规则或错误 kind | 直接调用 service |
+| endpoint 中间件 | 直接调用构建后的端点 |
+| HTTP 解码、状态码、header | 用 `kit.HTTP` 配合 `httptest.NewServer` |
+| 生成项目或 SDK 契约 | `go test ./tools -run 'TestMicrogen'` |
+| 并发或生命周期 | 针对包运行 `go test -race` |
+
+完整生成项目和进程 smoke 测试放在集成测试或发布验证中；它们有意更慢。
 
 ## 单元测试业务逻辑
 

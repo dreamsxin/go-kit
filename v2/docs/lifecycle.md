@@ -7,6 +7,19 @@ the `kit.HTTP` component owns the HTTP listener. After startup succeeds the
 Host owns graceful shutdown. This page covers startup, shutdown, background
 jobs, and optional servers.
 
+## Lifecycle At A Glance
+
+```text
+main creates signal context
+  -> assemble components
+  -> Host.Start
+  -> serve and watch component errors
+  -> bounded reverse-order shutdown
+```
+
+The process owns signals. A component owns the resources it creates. Generated
+projects have an equivalent standalone loop; they do not use `kit.Host`.
+
 ## Startup and shutdown
 
 ```go

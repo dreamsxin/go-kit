@@ -15,6 +15,10 @@ Service -> Endpoint -> Transport
 Use only the packages you need, or let `microgen` generate a complete,
 runnable service from a Go interface, Protobuf contract, or database schema.
 
+The maintained product line is the independent [`v2/`](v2/) module. Start with
+the [v2 README](v2/README.md), use the [documentation index](v2/DOCS_INDEX.md)
+to choose a task, or open the [complete book](v2/docs/index.md).
+
 ## Quick Example
 
 ```go
@@ -48,13 +52,17 @@ Full walkthrough: [getting started](v2/docs/getting-started.md).
 | `interaction` | AI tool runtime and MCP Streamable HTTP | [guide](v2/interaction/README.md) |
 | `security` | transport-neutral authentication subjects and endpoint enforcement | [guide](v2/ARCHITECTURE.md#optional-security) |
 | `security/http` | CORS, CSRF, security headers, IP policy | [guide](v2/security/http/README.md) |
-| `observability` | slog and OpenTelemetry adapters | [guide](v2/observability/slog/README.md) |
+| `observability` | slog, OpenTelemetry, correlation, and bounded telemetry | [guide](v2/docs/observability.md) |
 | `microgen` | project generation with Go/TS SDKs and OpenAPI | [guide](v2/MICROGEN.md) |
 
 ## Documentation
 
 - [Book](v2/docs/index.md): the complete guide — topic chapters and complete
   tutorials (getting started, CRUD, generation, authentication, MCP)
+- [Documentation index](v2/DOCS_INDEX.md): choose a document by task
+- [Custom transports](v2/docs/custom-transport.md): custom HTTP codecs and
+  non-HTTP protocol adapters
+- [Observability](v2/docs/observability.md): logs, metrics, traces, and request correlation
 - [Examples](v2/examples/README.md): runnable services for every component
 - [Production](v2/PRODUCTION.md): deployment, alerting, background jobs
 - [Upgrade notes](v2/MIGRATION.md), [Changelog](v2/CHANGELOG.md)
@@ -68,15 +76,21 @@ go get github.com/dreamsxin/go-kit/v2@latest
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 ```
 
-`v2.6.0` is the architecture-evolution release: it contains intentional
-breaking changes to the assembly layer and error model (see
+`v2.7.0` is the current architecture release: it contains intentional breaking
+changes to the assembly layer and error model (see
 [CHANGELOG](v2/CHANGELOG.md) and [MIGRATION](v2/MIGRATION.md)).
 
 ## Development
 
 ```bash
 go -C v2 test ./...
-go -C v2/tools run ./releaseverify -root .. -suites test,standalone,vet
+go -C v2 vet ./...
+```
+
+Before a release candidate, run the cross-module and standalone gates:
+
+```bash
+go -C v2/tools run ./releaseverify -root .. -suites test,standalone,vet,tidy,race
 ```
 
 ## License

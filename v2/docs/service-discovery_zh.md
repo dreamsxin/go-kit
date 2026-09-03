@@ -6,9 +6,21 @@
 各包指南回答“包提供什么”，本章回答如何把发现、端点创建、选择、反馈、健康检查、
 重试与停机装配成一个整体。
 
-下文的核心进程内装配在 `examples/sd` 都有可运行的对应示例，不依赖注册中心也不依赖
-网络：`go run ./examples/sd`。Provider 与长连接 bridge 章节是集成模板，需要应用
-自行提供对应的 provider 或传输层。
+下文的核心进程内装配在 `examples/sd` 有可运行示例（`go run ./examples/sd`），
+不依赖注册中心。Provider 与长连接 bridge 是集成模板，provider 和传输层由应用拥有。
+
+## 选择最小装配
+
+| 需求 | 装配 |
+| --- | --- |
+| 固定地址或测试池 | `selector.Static` + `selector.New` |
+| 动态端点与连接复用 | `Instancer` -> `Endpointer` -> `Balancer` |
+| 带明确策略的重试 | 加入 `sd/retry` 或 `sd/client` |
+| 最少请求或被动摘除 | `feedback.Table` + `feedback.Follow` |
+| 主动存活检查 | 在 endpointer/selector 之前使用 `health.Check` |
+| 调用方拥有的长连接 | 选择一次，连接结束时调用 `Done(Outcome)` |
+
+核心不变量很简单：`Pick` 返回身份和 `Done(Outcome)`；先关闭消费者，再关闭它使用的源。
 
 ## 请求链路
 

@@ -11,6 +11,18 @@ generator module installed by:
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 ```
 
+## Quick Choice
+
+| Source | Command shape | Result |
+| --- | --- | --- |
+| Go interfaces and structs | `microgen -idl idl.go ...` | HTTP, optional gRPC, clients, SDKs, schemas |
+| Protobuf | `microgen -idl service.proto ...` | generated proto-aware transport and clients |
+| existing database | `microgen -from-db -driver ... -dsn ...` | models, repositories, and service scaffolding |
+
+Start with the smallest capability set. Add `-config`, `-db`, `-model`,
+`-openapi`, or `-interaction` only when the generated project needs it. After
+generation, read the project README and `.microgen/manifest.json` before editing.
+
 ## Install
 
 From the repository root during v2 development:

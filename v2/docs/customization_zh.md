@@ -2,8 +2,21 @@
 
 [English](customization.md) | 简体中文
 
-如何在不 fork 框架的前提下自定义日志、中间件与错误。所有做法都保持分层不变
-量：分类留在 service 层，横切行为在 endpoint 中间件，协议事实归传输层。
+如何在不 fork 框架的前提下自定义日志、中间件与错误。先按下表选择最窄的扩展点：
+错误分类留在 service 层，横切行为在 endpoint 中间件，协议事实归传输层。
+
+## 选择扩展点
+
+| 需求 | 使用 |
+| --- | --- |
+| 修改日志去向或字段 | `slog.Handler` 或日志适配器 |
+| 观察每次端点调用 | `endpoint.Recorder` 与 `RecordingMiddleware` |
+| 执行请求策略 | `endpoint.Middleware` / `endpoint.Builder` |
+| 修改 HTTP 解析或编码 | 传输层 decoder/encoder 选项 |
+| 修改对外错误格式 | `ServerErrorEncoder`；JSON 成功响应再用 `ServerResponseEncoder` |
+| 添加协议专属能力 | HTTP/gRPC 传输 hook 或 middleware |
+
+顺序规则见[中间件](middleware_zh.md)，状态码和消息规则见[错误处理](errors_zh.md)。
 
 ## 自定义日志
 

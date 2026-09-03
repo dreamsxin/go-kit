@@ -3,8 +3,21 @@
 English | [简体中文](testing_zh.md)
 
 Business logic is a plain function of `(context, Request) -> (Response, error)`,
-so most tests need no server at all. HTTP behavior is covered with
-`httptest.NewServer`, which accepts a `kit.HTTP` component directly.
+so most tests need no server at all. Use the smallest test boundary that proves
+the behavior.
+
+## Test Selection
+
+| What changed | First test |
+| --- | --- |
+| service rules or error kinds | call the service directly |
+| endpoint middleware | call the built endpoint directly |
+| HTTP decoding, status, headers | `httptest.NewServer` with `kit.HTTP` |
+| generated project or SDK contract | `go test ./tools -run 'TestMicrogen'` |
+| concurrency or lifecycle | focused `go test -race` |
+
+Keep full generated-project and process smoke tests for integration or release
+verification; they are intentionally slower.
 
 ## Unit-testing business logic
 

@@ -2,7 +2,15 @@
 
 [English](configuration.md) | 简体中文
 
-只有用 `-config` 生成的项目才存在配置。本页覆盖优先级链与应用自有的自定义配置段。
+只有用 `-config` 生成的项目才存在配置。本页说明优先级、校验和自定义配置段。
+
+## 快速结论
+
+- 用 YAML 提供部署默认值，用 `APP_*` 环境变量提供部署时覆盖。
+- `file`、`hybrid`、`remote` 是生成期模式，不是运行时字段。
+- `Config.Validate` 在运行时组装前执行；生成命令行参数在此之后应用，适合本地覆盖。
+- `config/custom.go` 归应用所有，必须在 `*CustomConfig` 上保留
+  `SetDefaults`、`ApplyEnv() error` 和 `Validate() error`。
 
 ## 优先级
 

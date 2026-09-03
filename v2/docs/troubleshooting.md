@@ -2,9 +2,22 @@
 
 English | [简体中文](troubleshooting_zh.md)
 
-A symptom-based guide: what a failure means in this framework, and where to
-look. Every section assumes the correlation setup from the first section is
-in place.
+A symptom-based guide: identify the boundary that failed, then inspect the
+corresponding signal. Start with correlation before changing retry or timeout
+settings.
+
+## Fast Triage
+
+| Symptom | First place to look |
+| --- | --- |
+| service never starts | synchronous startup error, config validation, listener bind |
+| request returns 4xx/5xx | error kind, status mapping, `ServerErrorHandler` logs |
+| latency rises before failures | timeout, bulkhead queue, backpressure, downstream pool |
+| all instances disappear | active health fail-open/closed and passive ejection cap |
+| shutdown hangs | component closer, probe cancellation, endpoint factory resource |
+| generated project drifts | `.microgen/manifest.json` and `microgen extend -check -out .` |
+
+The detailed sections below explain the signal and the corrective action.
 
 ## First step: correlate one request end to end
 

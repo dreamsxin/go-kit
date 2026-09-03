@@ -5,6 +5,22 @@ This guide covers the framework-level checks needed before deploying a service.
 Application-specific authentication, authorization, data governance, and
 operations remain the application's responsibility.
 
+## Deployment Gate
+
+Before shipping, verify these six areas:
+
+1. [Lifecycle](#lifecycle): bounded startup and reverse-order shutdown.
+2. [HTTP Server](#http-server) and [HTTP Clients](#http-clients): limits,
+   deadlines, and streaming timeouts.
+3. [Service Discovery And Retry](#service-discovery-and-retry): explicit,
+   idempotency-aware retry policy and resource closure.
+4. [Authentication And Authorization](#authentication-and-authorization):
+   protocol authentication plus business authorization.
+5. [Logging](#logging), [Metrics](#metrics), and [Tracing](#tracing): bounded,
+   non-sensitive telemetry with request correlation.
+6. [Pre-Deployment Checklist](#pre-deployment-checklist): run it in CI and again
+   in the deployment environment.
+
 ## Lifecycle
 
 The process entry point owns signals and the root context:

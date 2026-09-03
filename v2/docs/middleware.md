@@ -3,9 +3,19 @@
 English | [简体中文](middleware_zh.md)
 
 Middleware is the primary extension point of the endpoint layer; the HTTP
-boundary has its own `http.Handler` middleware. This page covers composition
-order, the built-in catalog, the four flow-control patterns, and where each
-cross-cutting concern belongs across the layers.
+boundary has its own `http.Handler` middleware.
+
+## Choose The Layer
+
+| Need | Use |
+| --- | --- |
+| decoded request, business result, timeout, retry, admission | `endpoint.Middleware` |
+| method, path, headers, status, bytes, raw handler | `http.Handler` middleware |
+| protocol metadata before/after encoding | transport hooks |
+| service start/stop and health | `kit.Lifecycle` / `kit.Host` |
+
+The first middleware added is outermost. Read the catalog below for rejection
+semantics, then [Customization](customization.md) for application-owned wrappers.
 
 ## Composition
 

@@ -2,8 +2,19 @@
 
 [English](errors.md) | 简体中文
 
-go-kit v2 将错误分类（业务）与错误编码（传输层）分离。本页覆盖整个流程：分类、
-自动状态码映射、校验错误与自定义线上格式。
+go-kit v2 将错误分类（业务）与错误编码（传输层）分离。本页用于处理错误跨越 HTTP
+或 gRPC 边界的完整流程。
+
+## 一分钟规则
+
+1. service 代码返回 `apperror`，不要返回 HTTP 或 gRPC 类型。
+2. 让传输层把 kind 映射为协议状态码。
+3. 用 `PublicMessage` 声明可对外展示的文本；`Error()` 留给诊断日志。
+4. HTTP 内置编码器对 500 脱敏。`DefaultErrorEncoder` 在低于 500 时还允许实现
+   `json.Marshaler` 的错误接管完整响应体；这个显式逃生口会绕过 `PublicMessage`。
+5. 保持状态码真实。信封不能把失败伪装成 HTTP 200。
+
+需要自定义信封时直接看[自定义错误格式](#自定义错误格式)；客户端重试见[客户端分类](#客户端分类)。
 
 ## 业务错误分类
 
@@ -185,11 +196,15 @@ gRPC 客户端是对称的：失败调用会被包装为 `grpc.StatusError`，�
 {"code": "todo.not_found", "message": "todo not found", "request_id": "..."}
 ```
 
-`message` 的取值顺序三个内置编码器共用：`PublicMessager` 优先；否则低于 500 的状态码
+`message` 的取值规则在三个内置编码器中一致：`PublicMessager` 优先；否则低于 500 的状态码
 可以用 `err.Error()`；500 一律回答 `"Internal Server Error"`。500 正是未分类错误的落点，
 而未分类错误恰好就是那种文本从来不是写给客户端看的错误——它可能包着驱动报错或上游
 响应体。错误本身仍然完整进日志，`request_id` 把两边串起来。通过 `StatusCoder` 主动
 设置的 5xx 保留自己的消息。
+
+`DefaultErrorEncoder` 另有一个明确的逃生口：低于 500 时，如果错误实现了
+`json.Marshaler`，它会替换整个响应体并绕过 `PublicMessage`。这是应用自有的线上契约，
+脱敏和最终 Content-Type 由应用负责；500 永远不会打开这个逃生口。
 
 ## 校验错误
 

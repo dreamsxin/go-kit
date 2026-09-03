@@ -4,6 +4,18 @@ English | [简体中文](concepts_zh.md)
 
 Three invariants define go-kit v2. Everything else builds on them.
 
+## The Short Version
+
+| Question | Answer |
+| --- | --- |
+| Where does business logic live? | `service` functions, independent of protocols. |
+| Where do timeout, retry, and admission policies live? | Endpoint middleware or the discovery execution layer. |
+| Who owns listeners, clients, and goroutines? | The component or constructor that created them; close consumers before providers. |
+| How do errors cross protocols? | `apperror.Kind` is mapped to HTTP or gRPC status at the transport boundary. |
+
+Read [Middleware](middleware.md) for request policy, [Error handling](errors.md)
+for public failures, and [Lifecycle](lifecycle.md) for startup and shutdown.
+
 ## The request path
 
 ```text

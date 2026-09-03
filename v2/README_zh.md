@@ -28,6 +28,19 @@ github.com/dreamsxin/go-kit/v2
 
 需要 Go 1.25.8 或更高版本。
 
+## 按任务查找
+
+| 如果你需要…… | 进入…… |
+| --- | --- |
+| 五分钟跑通第一个服务 | [快速上手](docs/getting-started_zh.md) |
+| 生成一个项目 | [microgen 教程](docs/tutorial-microgen_zh.md) |
+| 中间件、错误或信封 | [中间件](docs/middleware_zh.md)、[错误处理](docs/errors_zh.md)、[自定义](docs/customization_zh.md) |
+| 自定义 body 或传输协议 | [自定义传输](docs/custom-transport_zh.md) |
+| 日志、指标或追踪 | [可观测性](docs/observability_zh.md) |
+| 服务发现、均衡或重试 | [服务发现](docs/service-discovery_zh.md) |
+| 部署或事故排查 | [生产指南](PRODUCTION_zh.md)、[排障](docs/troubleshooting_zh.md) |
+| 完整文档地图 | [文档导航](DOCS_INDEX_zh.md) |
+
 ## 选择入口
 
 | 目标 | 使用方式 |
@@ -353,7 +366,9 @@ make release-check-clean
     [认证](docs/tutorial-auth_zh.md)、[MCP 服务器](docs/tutorial-mcp_zh.md)
   - 章节：[核心概念](docs/concepts_zh.md)、[错误处理](docs/errors_zh.md)、
     [中间件](docs/middleware_zh.md)、[生命周期](docs/lifecycle_zh.md)、
-    [配置](docs/configuration_zh.md)、[测试](docs/testing_zh.md)
+    [配置](docs/configuration_zh.md)、[服务发现](docs/service-discovery_zh.md)、
+    [自定义](docs/customization_zh.md)、[自定义传输](docs/custom-transport_zh.md)、
+    [可观测性](docs/observability_zh.md)、[测试](docs/testing_zh.md)、[排障](docs/troubleshooting_zh.md)
 - [DOCS_INDEX.md](DOCS_INDEX_zh.md)：快速入门、组件导览、文档导航
 - [MICROGEN.md](MICROGEN_zh.md)：生成器使用与生成文件归属
 - [ARCHITECTURE.md](ARCHITECTURE_zh.md)：包边界和扩展模型

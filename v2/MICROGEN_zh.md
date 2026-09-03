@@ -11,6 +11,18 @@
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 ```
 
+## 快速选择
+
+| 来源 | 命令形式 | 结果 |
+| --- | --- | --- |
+| Go 接口和结构体 | `microgen -idl idl.go ...` | HTTP、可选 gRPC、客户端、SDK、契约文件 |
+| Protobuf | `microgen -idl service.proto ...` | 生成 proto 传输和客户端 |
+| 已有数据库 | `microgen -from-db -driver ... -dsn ...` | 模型、仓库和服务骨架 |
+
+先生成最小能力集；只有项目确实需要时再加 `-config`、`-db`、`-model`、
+`-openapi` 或 `-interaction`。生成后先读项目 README 和 `.microgen/manifest.json`，
+再开始编辑。
+
 ## 安装
 
 在 v2 开发过程中，从仓库根目录执行：

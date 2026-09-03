@@ -19,7 +19,62 @@ code is the runnable [examples/auth/main.go](../examples/auth/main.go) example.
 The three health routes are registered by `kit.NewHTTP` itself, so the public
 prefix list has to cover all three -- not just `/health`.
 
-## 2. The identity
+## 2. The standard split
+
+Authentication has two boundaries. HTTP middleware extracts a credential from
+the wire; the transport-neutral `security` package resolves it to a
+`security.Subject` and enforces route requirements in endpoint middleware. This
+keeps the service independent of bearer headers, cookies, or another protocol.
+
+```go
+type credentialKey struct{}
+
+func extractBearer(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+        ctx := context.WithValue(r.Context(), credentialKey{}, token)
+        next.ServeHTTP(w, r.WithContext(ctx))
+    })
+}
+
+type bearerAuthenticator struct{ keys map[string]identity }
+
+func (a bearerAuthenticator) Authenticate(ctx context.Context) (security.Subject, error) {
+    token, _ := ctx.Value(credentialKey{}).(string)
+    id, ok := a.keys[token]
+    if !ok || token == "" {
+        return security.Subject{}, apperror.Unauthenticated(
+            "auth.invalid", "credentials are missing or invalid",
+        )
+    }
+    return security.Subject{
+        ID: id.Subject, Kind: security.SubjectUser, Roles: id.Roles,
+    }, nil
+}
+```
+
+Install the extractor at the HTTP boundary and the resolver at the endpoint
+boundary. Public health routes remain unprotected because they are raw component
+routes; private JSON routes add the requirement explicitly:
+
+```go
+svc, _ := kit.NewHTTP(":8080",
+    kit.WithHTTPMiddleware(extractBearer),
+    kit.WithEndpointMiddleware(security.Middleware(bearerAuthenticator{keys: apiKeys})),
+)
+
+kit.HandleJSONTypedWithMiddleware(svc, "POST /api/me", meHandler,
+    func(b *endpoint.Builder) *endpoint.Builder {
+        return b.Use(security.RequireAuthenticated())
+    })
+```
+
+Use `security.RequireRole("admin")` for a role-protected route. Authorization
+that depends on resource ownership or business state belongs in the service
+layer. The rest of this tutorial shows the same flow with small application
+HTTP helpers so the wire decisions remain visible.
+
+## 3. The identity
 
 The identity is a plain value carried through the context:
 
@@ -35,7 +90,7 @@ func identityFromContext(ctx context.Context) (identity, bool) {
 }
 ```
 
-## 3. The middleware
+## 4. The middleware
 
 Authentication middleware validates the `Authorization` header and injects the
 identity. It is installed service-wide with `kit.WithHTTPMiddleware`, which
@@ -79,7 +134,7 @@ func authenticate(keys map[string]identity) func(http.Handler) http.Handler {
 Failures are classified with `apperror`, so the response carries a stable
 machine-readable code instead of prose.
 
-## 4. Authorization on one route
+## 5. Authorization on one route
 
 Role checks wrap a single route, after authentication has run:
 
@@ -108,7 +163,7 @@ svc.Handle("/api/admin", requireRole("admin")(adminHandler))
 answers every method. Add the verb to the pattern if you want the mux to reject
 the others for you.
 
-## 5. Assemble
+## 6. Assemble
 
 ```go
 httpAddr := flag.String("http.addr", ":8080", "HTTP listen address")
