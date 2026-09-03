@@ -177,6 +177,11 @@
 - `sd/health` 改用固定 worker pool 探测，不再每轮为每个实例创建 goroutine，并在
   `Close` 取消后立即停止投喂任务。`health.Probe` 的文档现在明确要求它必须在
   context 取消时返回，因为 `Close` 会等待正在进行的这一轮。
+- `sd/health` 现在拷贝拿到的快照，而不是保留 provider 的切片。`sd.Instancer` 是公开
+  扩展点，而 checker 会在探测轮之间持有快照，因此复用底层数组的 provider 可以改写正在
+  被探测和发布的集合。`instance.Cache` 早就在同一个边界做了拷贝，health 是唯一没做的
+  消费方。`sd.Event` 现在写明了让这成为 bug 而不是偏好的所有权规则：发布出去的事件
+  归消费方所有，生产方不得再改动或复用。
 - 文档不再把已删除的 `integrations/circuitbreaker` 与 `integrations/ratelimit`
   模块当作仍然存在。`endpoint/README` 曾写"仍是可独立选择的组件"，
   `internal/docs/RELEASE.md` 的发布 runbook 仍为二者列出打标签命令、却漏了

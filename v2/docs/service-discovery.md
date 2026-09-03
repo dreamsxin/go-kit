@@ -7,8 +7,10 @@ one backend. The package guides answer what each package exports; this chapter
 answers how to assemble discovery, endpoint construction, selection, feedback,
 health checks, retry, and shutdown as one system.
 
-Every assembly below has a runnable counterpart in `examples/sd`, which needs no
-registry and no network: `go run ./examples/sd`.
+The core in-process assemblies below have runnable counterparts in `examples/sd`,
+which needs no registry and no network: `go run ./examples/sd`. Provider and
+long-lived bridge sections are integration templates; they require the provider
+or transport owned by the application.
 
 ## The request path
 
@@ -308,6 +310,21 @@ unchecked set instead of turning a broken probe into an outage;
 `WithFailOpen(false)` publishes the empty set instead, for callers where
 reaching a dead instance is worse than reaching none. A custom Probe must return
 when its context is cancelled because `Checker.Close` waits for active probes.
+
+Which way to fail is a decision to make deliberately, not a default to accept by
+omission:
+
+- Read paths, caches, tolerant proxies: fail open. The probe is more likely
+  broken than every backend at once, and publishing nothing turns a monitoring
+  fault into an outage.
+- Writes, non-idempotent operations, backends mid-migration: fail closed.
+  Callers get `sd.ErrNoEndpoints` and can retry or shed load, which is
+  recoverable; a write applied twice is not.
+
+The same trade-off appears one layer down as
+`feedback.EjectionPolicy.MaxEjectionPercent`, and the two answers should agree: a
+service that fails closed here has no reason to let passive ejection empty the
+pool either.
 
 ## Providers
 

@@ -27,6 +27,13 @@ type Instance = struct {
 // alias so providers can implement Instancer without importing this module.
 // When Err is non-nil, consumers may continue using the previous snapshot for
 // a grace period before invalidating it.
+//
+// A published Event belongs to its consumers. A provider must not mutate
+// Instances or any Metadata map after handing the event over, and must not reuse
+// the backing array for the next watch: consumers such as sd/health keep the
+// snapshot between probe rounds, and a filter may hold a subset of it. Build a
+// fresh slice per event. Consumers that pass an event on to another component
+// are, by the same rule, free to hand over what they were given.
 type Event = struct {
 	Instances []Instance
 	Err       error

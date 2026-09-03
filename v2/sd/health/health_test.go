@@ -93,6 +93,54 @@ func equal(a, b []string) bool {
 	return true
 }
 
+// recyclingInstancer is a provider that overwrites the snapshot slice it already
+// handed out, which sd.Event forbids. The checker keeps the snapshot between
+// probe rounds, so aliasing it would let a provider bug rewrite the set being
+// probed and published.
+type recyclingInstancer struct {
+	mu        sync.Mutex
+	instances []sd.Instance
+}
+
+func (r *recyclingInstancer) Register(chan sd.Event) sd.Event {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return sd.Event{Instances: r.instances}
+}
+
+func (r *recyclingInstancer) Deregister(chan sd.Event) {}
+
+func (r *recyclingInstancer) Close() error { return nil }
+
+// recycle rewrites the addresses in place, reusing the backing array.
+func (r *recyclingInstancer) recycle(addresses ...string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i, address := range addresses {
+		r.instances[i] = sd.Instance{Address: address}
+	}
+}
+
+func TestCheck_OwnsTheSnapshotItWasGiven(t *testing.T) {
+	probes := newProbeTable()
+	provider := &recyclingInstancer{instances: sd.Addresses("a:80", "b:80")}
+
+	checker := health.Check(provider, probes.probe(),
+		health.WithInterval(2*time.Millisecond),
+		health.WithUnhealthyThreshold(1))
+	defer checker.Close() //nolint:errcheck
+
+	waitForAddresses(t, checker, "a:80", "b:80")
+
+	provider.recycle("rewritten-a:80", "rewritten-b:80")
+
+	// Nothing new was published, so the checker still holds what it copied.
+	waitForAddresses(t, checker, "a:80", "b:80")
+	if probes.probed("rewritten-a:80") != 0 {
+		t.Error("the checker probed an address the provider wrote after publishing")
+	}
+}
+
 func TestCheck_RemovesAnInstanceAfterTheUnhealthyThreshold(t *testing.T) {
 	probes := newProbeTable()
 	probes.fail("bad:80", errors.New("connection refused"))

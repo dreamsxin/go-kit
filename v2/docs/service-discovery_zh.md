@@ -6,8 +6,9 @@
 各包指南回答“包提供什么”，本章回答如何把发现、端点创建、选择、反馈、健康检查、
 重试与停机装配成一个整体。
 
-下文每种装配在 `examples/sd` 都有可运行的对应示例，不依赖注册中心也不依赖网络：
-`go run ./examples/sd`。
+下文的核心进程内装配在 `examples/sd` 都有可运行的对应示例，不依赖注册中心也不依赖
+网络：`go run ./examples/sd`。Provider 与长连接 bridge 章节是集成模板，需要应用
+自行提供对应的 provider 或传输层。
 
 ## 请求链路
 
@@ -275,10 +276,21 @@ defer set.Close()
 ```
 
 `health.HTTPProbe` 将小于 400 的响应视为健康。阈值按连续结果计算。默认情况下，实例在
-首次探测完成前按健康处理；`WithInitiallyHealthy(false)` 会在所有实例完成首次探测前发布
-空集合。如果所有已经探测的实例都失败，checker 会发布未检查集合，而不是因为探针故障让
-服务整体失效；`WithFailOpen(false)` 改为发布空集合，适用于"打到死实例比打不到实例更糟"
-的调用方。自定义 Probe 必须响应 context 取消，因为 `Checker.Close` 会等待正在执行的探测。
+首次探测完成前按健康处理；`WithInitiallyHealthy(false)` 会让每个尚未完成首次探测的实例
+暂不发布，已经通过探测的实例仍可继续服务。如果所有实例都已经产生结果但没有一个通过，
+checker 会发布未检查集合，而不是因为探针故障让服务整体失效；`WithFailOpen(false)` 改为
+发布空集合，适用于"打到死实例比打不到实例更糟"的调用方。自定义 Probe 必须响应 context
+取消，因为 `Checker.Close` 会等待正在执行的探测。
+
+往哪个方向失败是需要明确做的决策，而不是靠不配置默认接受下来的：
+
+- 读路径、缓存、容错代理：fail open。探针坏掉的可能性大于所有后端同时挂掉，而发布
+  空集会把一次监控故障变成一次服务故障。
+- 写请求、非幂等操作、正在迁移的后端：fail closed。调用方拿到 `sd.ErrNoEndpoints`，
+  可以重试或降载，这是可恢复的；而写入被执行两次不可恢复。
+
+同一个取舍在下一层表现为 `feedback.EjectionPolicy.MaxEjectionPercent`，两处的答案应当
+一致：在这里选择 fail closed 的服务，也没有理由允许被动摘除把实例池清空。
 
 ## Provider
 

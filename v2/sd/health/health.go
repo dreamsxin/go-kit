@@ -15,6 +15,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"sync"
@@ -135,9 +136,10 @@ func WithHealthyThreshold(successes int) Option {
 // restart into an outage. A gateway in front of slow-starting backends may
 // prefer false.
 //
-// With false, the checker publishes an empty set until the first probes land —
-// including at startup. The fail-open in publish does not override this,
-// because it only applies once every instance has actually been probed.
+// With false, each unprobed instance stays out of the published set until its
+// first probe lands. Existing instances that have already passed continue to
+// serve. The fail-open in publish does not override this, because it only
+// applies once every instance has actually been probed.
 func WithInitiallyHealthy(healthy bool) Option {
 	return func(c *Checker) {
 		c.initiallyHealthy = healthy
@@ -311,10 +313,20 @@ func (c *Checker) accept(event sd.Event) {
 		return
 	}
 
+	// The checker keeps this snapshot until the next event, so it has to own it.
+	// sd.Instancer is a public extension point: a provider that reuses its
+	// backing array between watches would otherwise rewrite the set the probe
+	// rounds are walking. instance.Cache copies at the same boundary for the
+	// same reason.
+	instances := make([]sd.Instance, len(event.Instances))
+	for i, item := range event.Instances {
+		instances[i] = sd.Instance{Address: item.Address, Metadata: maps.Clone(item.Metadata)}
+	}
+
 	c.mu.Lock()
-	c.snapshot = event.Instances
-	live := make(map[string]struct{}, len(event.Instances))
-	for _, target := range event.Instances {
+	c.snapshot = instances
+	live := make(map[string]struct{}, len(instances))
+	for _, target := range instances {
 		live[target.Address] = struct{}{}
 		if c.states[target.Address] == nil {
 			c.states[target.Address] = &state{healthy: c.initiallyHealthy}

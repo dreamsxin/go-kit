@@ -230,6 +230,14 @@ through the immutable v0 and v1 tags.
   instance per round, and stops feeding the pool as soon as `Close` cancels.
   `health.Probe` now documents that it must return on context cancellation,
   since `Close` waits for the round in flight.
+- `sd/health` copies the snapshot it is handed instead of retaining the
+  provider's slice. `sd.Instancer` is a public extension point and the checker
+  keeps a snapshot between probe rounds, so a provider that recycled its backing
+  array could rewrite the set being probed and published. `instance.Cache` already
+  copied at the same boundary; health was the only consumer that did not.
+  `sd.Event` now states the ownership rule that made this a bug rather than a
+  preference: a published event belongs to its consumers, and the producer must
+  not mutate or reuse it.
 - Documentation stopped describing the removed `integrations/circuitbreaker` and
   `integrations/ratelimit` modules as if they still existed. `endpoint/README`
   told readers those modules "remain independently selectable components", the
