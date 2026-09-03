@@ -95,6 +95,37 @@ outermost first) — log them yourself at startup to see which protections are
 armed for a route, and use `UseNamed` so they are not all `"?"`.
 
 
+## An upstream call failed
+
+`client.HTTPStatusError` is deliberately split: `Error()` keeps the upstream body
+for your logs, `PublicMessage()` puts only the upstream status on the wire. That
+means the body never leaks to your caller — and also that reading the downstream
+response tells you nothing about why the upstream refused. Log the whole picture
+at the call site:
+
+```go
+var statusErr *client.HTTPStatusError
+if errors.As(err, &statusErr) {
+    logger.ErrorContext(ctx, "upstream call failed",
+        "request_id", endpoint.RequestIDFromContext(ctx),            // yours
+        "upstream_request_id", statusErr.Header.Get("X-Request-ID"), // theirs
+        "upstream_status", statusErr.StatusCode,
+        "upstream_code", statusErr.ErrorCode(), // stable code, if they sent one
+        "err", statusErr,                       // status + body
+    )
+}
+```
+
+Two request IDs, because they are what let you hand the upstream team a line
+number in *their* logs. `Header` is a full clone of the upstream response
+headers, so a different correlation header (`traceparent`, a vendor trace ID) is
+read the same way.
+
+If the body looks like a cut-off JSON document, check `statusErr.Truncated`
+before blaming the upstream: bodies are kept only up to
+`client.MaxStatusErrorBodyBytes` (64 KiB), and a truncated body also makes
+`ErrorCode()` return `""`.
+
 ## Database problems (generated services)
 
 - Connection settings: `database.driver`, `database.dsn`

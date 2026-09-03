@@ -346,8 +346,10 @@ classification remains independent of HTTP. The HTTP transport maps application
 kinds to status codes and uses their stable code and public message. Low-level
 HTTP integrations may implement
 `transporthttp.StatusCoder`, `transporthttp.ErrorCoder`, and
-`transporthttp.PublicMessager`. Both built-in error encoders redact unclassified
-5xx details instead of exposing the internal error string.
+`transporthttp.PublicMessager`. All three built-in error encoders share one rule
+for the message: a `PublicMessager` wins, a status below 500 may fall back to
+`err.Error()`, and 500 always reads "Internal Server Error" — never the internal
+error string.
 
 ## HTTP Client
 

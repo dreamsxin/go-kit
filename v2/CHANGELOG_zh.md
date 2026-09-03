@@ -110,6 +110,16 @@
   而不是整个服务都挂了；但这个选择应该属于调用方——对于绝不能重复写入的写路径，
   打到死实例比打不到实例更糟。同一条策略在下一层早就是可配的，即
   `EjectionPolicy.MaxEjectionPercent`。
+- 新增 `grpcserver.CodeForError`，报告某个错误将被编码成哪个 gRPC code，对应
+  `transporthttp.HTTPStatusForError`。需要在编码器之前对错误分类的中间件——指标、
+  采样、重试判断——不必再自己复制一遍映射规则。
+- 新增 `client.HTTPStatusError.Truncated` 与导出的 `client.MaxStatusErrorBodyBytes`，
+  报告上游响应体是否在 64 KiB 诊断上限处被切断。此前截断是静默的，半截 JSON 看起来
+  就像上游返回了畸形响应——而 `ErrorCode()` 两种情况都返回 ""。`Error()` 现在会缀上
+  "(body truncated at N bytes)"。
+- etcd provider 新增针对真实集群的 live 测试，仅在 `GOKIT_ETCD_ENDPOINTS` 指定地址时
+  执行。租约过期、keepalive 续租与撤销都是 etcd 决定的，不是套件其余部分所用的 fake
+  `Client`，而 Registrar 的设计正压在这些机制上。见 `integrations/etcd/README.md`。
 
 ### 变更
 
@@ -182,6 +192,24 @@
 
 ### 修复
 
+- gRPC 错误编码器先分类，再看 context。此前请求被取消或超时时状态由 context 决定，
+  于是只要调用方先挂断，明确的 `apperror.Kind`——`NotFound`、`PermissionDenied`——
+  就会被 `Canceled` 或 `DeadlineExceeded` 顶掉。现在只有未分类的错误才回落到
+  context 状态。
+- HTTP 错误编码器不再在 500 时把 `err.Error()` 写到线上。`DefaultErrorEncoder`、
+  `JSONErrorEncoder` 与 `JSONErrorEncoderWithKindMapper` 共用一条规则：
+  `PublicMessager` 优先，低于 500 的状态码可以用错误文本，500 一律回答
+  `"Internal Server Error"`。此前包着驱动或上游报文的未分类错误对调用方是可读的，
+  现在它只进日志。通过 `StatusCoder` 主动设置的 5xx 仍保留自己的消息。
+- `etcd.Registrar` 把 `Register` 与 `Deregister` 串行化到整次调用，包含 etcd 往返。
+  此前只保护字段，因此一对重叠的调用可能让 registrar 以为自己已注册，而在途的删除
+  早已把新 key 抹掉——实例从发现中消失，且没有任何重试。
+- `etcd.Client.Deregister` 给 `Delete` 与 `Revoke` 各自一份超时预算，并在任一步失败
+  时保留租约记录。共用一份预算意味着删除偏慢就必然让撤销超时；失败时丢掉租约又让重试
+  无法撤销它——实例会一直可被发现，直到租约自己过期。
+- `feedback.Ejector` 把已处于摘除窗口内的实例计入 `MaxEjectionPercent`。此前上限只看
+  本次调用失败的实例，于是连续几次调用会一次摘一个——4 里摘 2、再摘 3、最后全摘——
+  而每一次单独看都远低于上限。
 - `JSONErrorEncoderWithKindMapper` 不再让 kind 映射覆盖显式状态码。现在
   `StatusCoder` 优先，与 `httpStatus` 一致；此前被转发的
   `client.HTTPStatusError` 的上游状态码会被应用的 kind 映射静默改写。

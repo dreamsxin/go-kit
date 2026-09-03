@@ -29,15 +29,25 @@ type ErrorResponse struct {
 	RequestID string `json:"request_id,omitempty"`
 }
 
-// DefaultErrorEncoder writes a plain-text response. Internal errors are always
-// redacted. Errors may implement json.Marshaler, transporthttp.StatusCoder, or
-// transporthttp.Headerer to customize non-5xx responses.
+// DefaultErrorEncoder writes a plain-text response. The body is the error's
+// PublicMessage when it has one, otherwise the error text for non-5xx statuses
+// and the status text above that. A 500 is always redacted.
+// transporthttp.StatusCoder, transporthttp.Headerer and
+// endpoint.RetryAfterReporter customize the status and headers.
+//
+// json.Marshaler is an escape hatch, not part of the redaction rule: an error
+// that marshals itself replaces the whole body, PublicMessage included, and the
+// application owns what ends up on the wire. It is honored only below 500, so it
+// cannot reopen the one status where redaction is unconditional. Errors this
+// package relays — client.HTTPStatusError above all — deliberately do not
+// implement it.
 func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 	status := httpStatus(err)
 	contentType := "text/plain; charset=utf-8"
-	body := []byte(statusText(status))
+	body := []byte(publicErrorMessage(err, status))
 	if status < http.StatusInternalServerError && err != nil {
-		body = []byte(err.Error())
+		// The application asked to own this body. Below 500 only: at 500 the
+		// redaction is not negotiable.
 		var marshaler json.Marshaler
 		if errors.As(err, &marshaler) {
 			if jsonBody, marshalErr := marshaler.MarshalJSON(); marshalErr == nil {
@@ -59,13 +69,47 @@ func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 	_, _ = w.Write(body)
 }
 
+// publicErrorMessage resolves the message every built-in encoder may put on the
+// wire, so the plain-text and JSON paths cannot disagree about what is safe.
+//
+// A transporthttp.PublicMessager wins: an error that states its own public
+// message has decided what a client may see. That is how a relayed
+// client.HTTPStatusError reports the upstream status without its body, which
+// err.Error() would have included verbatim.
+//
+// A 500 is the exception and always reads "Internal Server Error". It is the
+// bucket every unclassified error and every default-kind apperror falls into, so
+// its message was never chosen for a client's eyes — apperror.PublicMessage
+// returns whatever was passed to apperror.New, secrets included. Deliberate 5xx
+// classifications (501, 503, 504) still carry their message, because reaching
+// them takes an explicit kind. An encoder that must say more at 500 is one the
+// application writes itself.
+func publicErrorMessage(err error, status int) string {
+	fallback := statusText(status)
+	if fallback == "" {
+		fallback = "HTTP error"
+	}
+	if status == http.StatusInternalServerError {
+		return fallback
+	}
+	var pm transporthttp.PublicMessager
+	if errors.As(err, &pm) && pm.PublicMessage() != "" {
+		return pm.PublicMessage()
+	}
+	if status < http.StatusInternalServerError && err != nil {
+		return err.Error()
+	}
+	return fallback
+}
+
 // JSONErrorEncoder is an ErrorEncoder that always writes a JSON
 // error body.  It inspects the error for optional interfaces:
 //
 //   - transporthttp.StatusCoder: uses that HTTP status code (default 500)
 //   - transporthttp.Headerer: merges those headers into the response
 //   - transporthttp.ErrorCoder: sets a stable machine-readable code
-//   - transporthttp.PublicMessager: overrides the public message
+//   - transporthttp.PublicMessager: overrides the public message, at every
+//     status except 500, which is always "Internal Server Error"
 //
 // The response body is:
 // {"code": "<code>", "message": "<message>"}
@@ -156,16 +200,7 @@ func encodeJSONErrorWithStatus(ctx context.Context, err error, w http.ResponseWr
 		}
 	}
 
-	message := statusText(status)
-	if message == "" {
-		message = "HTTP error"
-	}
-	var pm transporthttp.PublicMessager
-	if errors.As(err, &pm) && pm.PublicMessage() != "" {
-		message = pm.PublicMessage()
-	} else if status < http.StatusInternalServerError && err != nil {
-		message = err.Error()
-	}
+	message := publicErrorMessage(err, status)
 
 	errorCode := defaultErrorCode(status)
 	var verr *endpoint.ValidationError
@@ -204,16 +239,7 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 
 	code := httpStatus(err)
 
-	message := statusText(code)
-	if message == "" {
-		message = "HTTP error"
-	}
-	var pm transporthttp.PublicMessager
-	if errors.As(err, &pm) && pm.PublicMessage() != "" {
-		message = pm.PublicMessage()
-	} else if code < http.StatusInternalServerError && err != nil {
-		message = err.Error()
-	}
+	message := publicErrorMessage(err, code)
 
 	errorCode := defaultErrorCode(code)
 	var verr *endpoint.ValidationError

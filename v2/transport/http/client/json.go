@@ -15,7 +15,11 @@ import (
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 )
 
-const maxStatusErrorBody = 64 << 10
+// MaxStatusErrorBodyBytes is how much of a non-2xx response body HTTPStatusError
+// keeps. The body is diagnostic, not a payload: it is held in memory for the
+// lifetime of the error, and an upstream that answers a failure with megabytes of
+// HTML must not be able to make that this service's problem.
+const MaxStatusErrorBodyBytes int64 = 64 << 10
 
 // DefaultMaxJSONResponseBytes bounds successful JSON responses decoded by
 // NewJSONClient. Callers with a larger, intentional contract can use
@@ -43,6 +47,16 @@ type HTTPStatusError struct {
 	Status     string
 	Header     http.Header
 	Body       []byte
+
+	// Truncated reports that the upstream body was longer than
+	// MaxStatusErrorBodyBytes and Body holds only its first bytes.
+	//
+	// It exists so a reader can tell a cut-off body from a malformed one. Body
+	// is what a human reads while debugging, and half a JSON document looks
+	// exactly like an upstream that answered garbage; ErrorCode also returns ""
+	// for a truncated body, which is indistinguishable from an upstream that
+	// sent no code.
+	Truncated bool
 }
 
 func (e *HTTPStatusError) Error() string {
@@ -53,6 +67,12 @@ func (e *HTTPStatusError) Error() string {
 	if body == "" {
 		return fmt.Sprintf("http client: unexpected status %s", e.Status)
 	}
+	if e.Truncated {
+		return fmt.Sprintf(
+			"http client: unexpected status %s: %s (body truncated at %d bytes)",
+			e.Status, body, MaxStatusErrorBodyBytes,
+		)
+	}
 	return fmt.Sprintf("http client: unexpected status %s: %s", e.Status, body)
 }
 
@@ -60,9 +80,10 @@ func (e *HTTPStatusError) Error() string {
 // the upstream status, never the upstream body.
 //
 // Error() keeps the body for logs, but a server that returns this error from an
-// endpoint would otherwise leak it — the JSON error encoders fall back to
-// Error() for 4xx responses, so an upstream 404 body would land verbatim in the
-// downstream response.
+// endpoint would otherwise leak it: the built-in error encoders fall back to
+// err.Error() below 500, so an upstream 404 body would land verbatim in the
+// downstream response. Stating a public message is what takes that fallback out
+// of the picture.
 func (e *HTTPStatusError) PublicMessage() string {
 	if e == nil {
 		return ""
@@ -155,12 +176,19 @@ func decodeJSONResponse[Resp any](r *http.Response, maxResponseBodyBytes int64) 
 }
 
 func newHTTPStatusError(r *http.Response) error {
-	body, _ := io.ReadAll(io.LimitReader(r.Body, maxStatusErrorBody))
+	// One byte past the limit distinguishes a body that exactly fills it from
+	// one that was cut short.
+	body, _ := io.ReadAll(io.LimitReader(r.Body, MaxStatusErrorBodyBytes+1))
+	truncated := int64(len(body)) > MaxStatusErrorBodyBytes
+	if truncated {
+		body = body[:MaxStatusErrorBodyBytes]
+	}
 	return &HTTPStatusError{
 		StatusCode: r.StatusCode,
 		Status:     r.Status,
 		Header:     r.Header.Clone(),
 		Body:       body,
+		Truncated:  truncated,
 	}
 }
 

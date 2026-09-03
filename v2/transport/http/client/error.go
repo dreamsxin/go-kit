@@ -44,8 +44,9 @@ func (e *HTTPStatusError) ErrorKindName() string {
 
 // ErrorCode implements transport/http.ErrorCoder by reading the stable
 // application code from the JSON error body the framework's HTTP encoders emit
-// ({"code": ..., "message": ...}). It is empty when the body is not JSON or
-// carries no code.
+// ({"code": ..., "message": ...}). It is empty when the body is not JSON,
+// carries no code, or was truncated (HTTPStatusError.Truncated) — a cut-off
+// document cannot be parsed.
 //
 // The status code is a coarse channel, so the stable code is what identifies the
 // failure. Relaying it keeps the upstream code intact instead of degrading to a

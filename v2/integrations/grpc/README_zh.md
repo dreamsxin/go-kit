@@ -53,10 +53,16 @@ grpcserver.ServerErrorEncoder(grpcserver.NewErrorEncoder(
 		if kind == "payment_failed" {
 			return codes.FailedPrecondition
 		}
-		return codes.Code(99) // 非法值：回退到内置映射
+		return codes.OK // 没有意见：回退到内置映射
 	}),
 ))
 ```
+
+分类发生在读取 context 之前，因此即使调用方已经挂断，`NotFound` 仍然是 `NotFound`；
+只有未分类的错误才会回落到 `Canceled` 或 `DeadlineExceeded`。`codes.Internal`——所有
+未分类错误的落点——一律回答 `"internal error"`，与 HTTP 编码器在 500 上的规则一致。
+`grpcserver.CodeForError` 报告某个错误将拿到哪个 code，供必须在编码器之前分类的
+中间件使用。
 
 ## 客户端
 

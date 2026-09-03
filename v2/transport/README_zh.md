@@ -322,8 +322,9 @@ JSON 请求解码器返回的解码错误会为 `JSONErrorEncoder` 携带 HTTP 4
 HTTP。HTTP 传输层将应用错误类别映射到状态码，并使用其稳定代码与公开消息。
 底层 HTTP 集成可实现
 `transporthttp.StatusCoder`、`transporthttp.ErrorCoder` 和
-`transporthttp.PublicMessager`。两个内置错误编码器都会对未分类的 5xx 细节
-进行脱敏，而不是暴露内部错误字符串。
+`transporthttp.PublicMessager`。三个内置错误编码器对消息共用一条规则：
+`PublicMessager` 优先，低于 500 的状态码可以回落到 `err.Error()`，500 一律读作
+"Internal Server Error"——绝不是内部错误字符串。
 
 ## HTTP 客户端
 

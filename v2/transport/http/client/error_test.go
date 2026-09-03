@@ -152,6 +152,129 @@ func TestHTTPStatusErrorDoesNotLeakUpstreamBody(t *testing.T) {
 	}
 }
 
+// A body cut off at the limit must say so. Half a JSON document is
+// indistinguishable from an upstream that answered garbage, and ErrorCode
+// returns "" either way, so the truncation has to be visible in the error text.
+func TestHTTPStatusErrorMarksATruncatedBody(t *testing.T) {
+	limit := httpclient.MaxStatusErrorBodyBytes
+	oversized := `{"code":"upstream.broke","message":"` + strings.Repeat("x", int(limit)) + `"}`
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(oversized))
+	}))
+	defer upstream.Close()
+
+	call, err := httpclient.NewJSONClient[echoResp](http.MethodGet, upstream.URL)
+	if err != nil {
+		t.Fatalf("NewJSONClient: %v", err)
+	}
+	_, callErr := call(context.Background(), echoReq{})
+
+	var statusErr *httpclient.HTTPStatusError
+	if !errors.As(callErr, &statusErr) {
+		t.Fatalf("error is not *HTTPStatusError: %v", callErr)
+	}
+	if !statusErr.Truncated {
+		t.Error("Truncated = false, want true for a body past the limit")
+	}
+	if got := int64(len(statusErr.Body)); got != limit {
+		t.Errorf("len(Body) = %d, want the limit %d", got, limit)
+	}
+	if got := statusErr.Error(); !strings.Contains(got, "body truncated at") {
+		t.Errorf("Error() = %q, want it to report the truncation", got)
+	}
+}
+
+// A body that fits is not reported as truncated, including one that exactly
+// fills the limit — the reader must be able to trust the flag.
+func TestHTTPStatusErrorDoesNotMarkAWholeBody(t *testing.T) {
+	body := strings.Repeat("y", int(httpclient.MaxStatusErrorBodyBytes))
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer upstream.Close()
+
+	call, err := httpclient.NewJSONClient[echoResp](http.MethodGet, upstream.URL)
+	if err != nil {
+		t.Fatalf("NewJSONClient: %v", err)
+	}
+	_, callErr := call(context.Background(), echoReq{})
+
+	var statusErr *httpclient.HTTPStatusError
+	if !errors.As(callErr, &statusErr) {
+		t.Fatalf("error is not *HTTPStatusError: %v", callErr)
+	}
+	if statusErr.Truncated {
+		t.Error("Truncated = true, want false for a body that fits exactly")
+	}
+	if got := statusErr.Error(); strings.Contains(got, "body truncated at") {
+		t.Errorf("Error() = %q, want no truncation note", got[:120])
+	}
+}
+
+// Every built-in encoder must reach the same conclusion about a relayed upstream
+// failure, so one of them cannot regress on its own. The error here is the real
+// *HTTPStatusError, not a stand-in: the guarantee is about what this type does
+// when the three encoders look at it.
+func TestUpstreamBodyReachesNoBuiltInEncoder(t *testing.T) {
+	const secret = `{"code":"user.missing","message":"db user hunter2 at 10.0.0.7 refused"}`
+	upstream := &httpclient.HTTPStatusError{
+		StatusCode: http.StatusNotFound,
+		Status:     "404 Not Found",
+		Header:     http.Header{},
+		Body:       []byte(secret),
+	}
+	public := upstream.PublicMessage()
+
+	encoders := []struct {
+		name       string
+		encode     httpserver.ErrorEncoder
+		wantStatus int
+	}{
+		{"DefaultErrorEncoder", httpserver.DefaultErrorEncoder, http.StatusNotFound},
+		{"JSONErrorEncoder", httpserver.JSONErrorEncoder, http.StatusNotFound},
+		{
+			"JSONErrorEncoderWithKindMapper/no opinion",
+			httpserver.JSONErrorEncoderWithKindMapper(func(apperror.Kind) int { return 0 }),
+			http.StatusNotFound,
+		},
+		{
+			// A mapper that reroutes the kind must not reroute the redaction
+			// with it.
+			"JSONErrorEncoderWithKindMapper/mapped",
+			httpserver.JSONErrorEncoderWithKindMapper(func(kind apperror.Kind) int {
+				if kind == apperror.KindNotFound {
+					return http.StatusGone
+				}
+				return 0
+			}),
+			http.StatusGone,
+		},
+	}
+
+	for _, encoder := range encoders {
+		t.Run(encoder.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			encoder.encode(context.Background(), upstream, rec)
+
+			if rec.Code != encoder.wantStatus {
+				t.Errorf("status = %d, want %d", rec.Code, encoder.wantStatus)
+			}
+			body := rec.Body.String()
+			for _, leak := range []string{"hunter2", "10.0.0.7", "refused"} {
+				if strings.Contains(body, leak) {
+					t.Errorf("body leaked %q from the upstream response: %q", leak, body)
+				}
+			}
+			if !strings.Contains(body, public) {
+				t.Errorf("body = %q, want the public message %q", body, public)
+			}
+		})
+	}
+}
+
 func TestHTTPStatusErrorRetryAfterHeader(t *testing.T) {
 	tests := []struct {
 		name   string

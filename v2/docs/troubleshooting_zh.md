@@ -90,6 +90,33 @@ host, _ := kit.NewHost(kit.WithLifecycle(svc))
 全是 `"?"`。
 
 
+## 上游调用失败
+
+`client.HTTPStatusError` 是故意拆开的：`Error()` 保留上游响应体给你的日志，
+`PublicMessage()` 只把上游状态放到线上。这意味着响应体不会泄露给你的调用方——同时也
+意味着看下游响应查不出上游为什么拒绝。在调用点把完整信息记全：
+
+```go
+var statusErr *client.HTTPStatusError
+if errors.As(err, &statusErr) {
+    logger.ErrorContext(ctx, "upstream call failed",
+        "request_id", endpoint.RequestIDFromContext(ctx),            // 你的
+        "upstream_request_id", statusErr.Header.Get("X-Request-ID"), // 对方的
+        "upstream_status", statusErr.StatusCode,
+        "upstream_code", statusErr.ErrorCode(), // 对方给了稳定码就带上
+        "err", statusErr,                       // status + body
+    )
+}
+```
+
+两个 request id，因为它们才是让你能给上游团队指出**他们**日志里具体哪一行的东西。
+`Header` 是上游响应头的完整克隆，所以换成别的关联头（`traceparent`、厂商 trace id）
+读法完全一样。
+
+如果响应体看起来像被切断的 JSON，先看 `statusErr.Truncated` 再去怪上游：响应体只保留
+到 `client.MaxStatusErrorBodyBytes`（64 KiB），而被截断的响应体也会让 `ErrorCode()`
+返回 `""`。
+
 ## 数据库问题（生成服务）
 
 - 连接配置：`database.driver`、`database.dsn`（`APP_DB_DSN` 覆盖）、

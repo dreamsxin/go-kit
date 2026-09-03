@@ -185,6 +185,12 @@ gRPC 客户端是对称的：失败调用会被包装为 `grpc.StatusError`，�
 {"code": "todo.not_found", "message": "todo not found", "request_id": "..."}
 ```
 
+`message` 的取值顺序三个内置编码器共用：`PublicMessager` 优先；否则低于 500 的状态码
+可以用 `err.Error()`；500 一律回答 `"Internal Server Error"`。500 正是未分类错误的落点，
+而未分类错误恰好就是那种文本从来不是写给客户端看的错误——它可能包着驱动报错或上游
+响应体。错误本身仍然完整进日志，`request_id` 把两边串起来。通过 `StatusCoder` 主动
+设置的 5xx 保留自己的消息。
+
 ## 校验错误
 
 实现了 `endpoint.Validatable` 的请求会在业务逻辑运行之前被校验；字段失败会收集到
@@ -259,5 +265,7 @@ svc, err := kit.NewHTTP(":8080", kit.WithJSONServerOptions(
 ## 经验法则
 
 - 业务代码用 `apperror` 分类；传输层映射状态码；绝不向客户端泄露内部细节。
-- 客户端错误（4xx）携带公开消息；服务器错误（5xx）保持不透明。
+- 客户端错误（4xx）携带公开消息。500 永远不带——它是未分类失败的落点。主动分类的
+  501/503/504 如果错误通过 `PublicMessage` 声明了消息就会带上；`err.Error()` 在 5xx
+  下从不使用。
 - 重试策略属于调用方：只有已分类的、幂等的失败才应该重试。

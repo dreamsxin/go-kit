@@ -148,3 +148,116 @@ func TestDefaultErrorEncoderRedactsUnclassifiedErrors(t *testing.T) {
 type errPlain struct{}
 
 func (errPlain) Error() string { return "database password is hunter2" }
+
+// Explicit classification wins over a context error in the chain, so one
+// apperror maps to the same failure class over HTTP and gRPC. Checking the
+// context first made a not_found wrapping context.Canceled arrive as 404 over
+// HTTP and Canceled over gRPC, and dropped the stable application code.
+func TestDefaultErrorEncoderPrefersTheKindOverAWrappedContextError(t *testing.T) {
+	err := DefaultErrorEncoder(context.Background(), apperror.Wrap(
+		apperror.KindNotFound, "user.missing", "no such user", context.Canceled,
+	))
+
+	st, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("not a status error: %v", err)
+	}
+	if st.Code() != codes.NotFound {
+		t.Fatalf("code = %v, want NotFound: the error classified itself", st.Code())
+	}
+	statusErr, ok := transportgrpc.ClassifyError(err).(*transportgrpc.StatusError)
+	if !ok {
+		t.Fatalf("ClassifyError did not classify %v", err)
+	}
+	if got := statusErr.ErrorCode(); got != "user.missing" {
+		t.Errorf("ErrorCode = %q, want user.missing", got)
+	}
+}
+
+// A cancelled request must not rewrite a classified error either.
+func TestDefaultErrorEncoderKeepsTheKindOnACancelledRequest(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := DefaultErrorEncoder(ctx, codedError{kind: "not_found", code: "user.missing"})
+
+	st, _ := status.FromError(err)
+	if st.Code() != codes.NotFound {
+		t.Fatalf("code = %v, want NotFound", st.Code())
+	}
+}
+
+// An unclassified error still falls back to the context status.
+func TestDefaultErrorEncoderFallsBackToTheContextStatus(t *testing.T) {
+	err := DefaultErrorEncoder(context.Background(), context.DeadlineExceeded)
+
+	st, _ := status.FromError(err)
+	if st.Code() != codes.DeadlineExceeded {
+		t.Fatalf("code = %v, want DeadlineExceeded", st.Code())
+	}
+}
+
+// codes.OK is the mapper's fallback sentinel, not a valid mapping: it is the
+// zero value a forgetful switch returns, and status.New(codes.OK, ...).Err() is
+// nil, so accepting it would answer a failed call with no error at all.
+func TestErrorEncoderWithKindMapperTreatsOKAsNoOpinion(t *testing.T) {
+	encoder := ErrorEncoderWithKindMapper(func(string) codes.Code { return codes.OK })
+
+	err := encoder(context.Background(), codedError{kind: "not_found", code: "user.missing"})
+	if err == nil {
+		t.Fatal("a failure was encoded as success")
+	}
+	st, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("not a status error: %v", err)
+	}
+	if st.Code() != codes.NotFound {
+		t.Fatalf("code = %v, want NotFound from the built-in mapping", st.Code())
+	}
+}
+
+// codes.Unauthenticated is the highest code gRPC defines, so a mapper must be
+// able to return it. Bounding the range at codes.DataLoss would have rejected
+// the code the built-in mapping emits for an unauthenticated error.
+func TestErrorEncoderWithKindMapperAcceptsTheHighestCode(t *testing.T) {
+	encoder := ErrorEncoderWithKindMapper(func(kind string) codes.Code {
+		if kind == "token_expired" {
+			return codes.Unauthenticated
+		}
+		return codes.OK
+	})
+
+	err := encoder(context.Background(), codedError{kind: "token_expired", code: "auth.expired"})
+	st, _ := status.FromError(err)
+	if st.Code() != codes.Unauthenticated {
+		t.Fatalf("code = %v, want Unauthenticated", st.Code())
+	}
+}
+
+// CodeForError is the gRPC counterpart of HTTPStatusForError: custom encoders
+// reuse it instead of re-deriving the order and drifting apart from the built-in
+// one, which is exactly how the context-before-kind bug arose.
+func TestCodeForErrorFollowsTheEncoderOrder(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want codes.Code
+	}{
+		{"nil", nil, codes.OK},
+		{"classified", codedError{kind: "not_found"}, codes.NotFound},
+		{
+			"classification beats the wrapped context error",
+			apperror.Wrap(apperror.KindNotFound, "user.missing", "no such user", context.Canceled),
+			codes.NotFound,
+		},
+		{"unclassified context error", context.DeadlineExceeded, codes.DeadlineExceeded},
+		{"unclassified", errPlain{}, codes.Internal},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := CodeForError(tc.err); got != tc.want {
+				t.Fatalf("CodeForError = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

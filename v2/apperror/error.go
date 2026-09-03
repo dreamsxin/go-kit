@@ -68,8 +68,12 @@ func WrapCause(kind Kind, code string, cause error) *Error {
 // Convenience constructors, one per kind. They keep call sites short without
 // hiding the transport-neutral classification.
 
-// Internal creates a KindInternal error (HTTP 500 / gRPC Internal). The
-// message stays opaque to clients because the transports redact 5xx bodies.
+// Internal creates a KindInternal error (HTTP 500 / gRPC Internal). The message
+// stays opaque to clients: 500 and codes.Internal are where every unclassified
+// failure lands, so the transports answer them with a fixed status text and never
+// the error's own message. Deliberate kinds — KindUnavailable, KindUnimplemented,
+// KindDeadlineExceeded — do carry their message, because reaching them takes an
+// explicit classification.
 func Internal(code, message string) *Error {
 	return New(KindInternal, code, message)
 }

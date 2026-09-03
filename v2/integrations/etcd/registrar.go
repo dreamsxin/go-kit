@@ -41,9 +41,14 @@ type Registrar struct {
 	key     string
 	pending bool
 
-	// teardown serialises Deregister so two callers cannot race on removing
-	// the same key.
-	teardown sync.Mutex
+	// lifecycle serialises Register against Deregister, and each against
+	// itself, for the whole call including the etcd round trip. mu only guards
+	// the fields and is released while etcd is talked to, so it cannot provide
+	// that: Deregister would publish "not registered", a concurrent Register
+	// would write a fresh key with a new lease, and the still-in-flight delete
+	// would remove it — leaving the Registrar convinced it is registered while
+	// the instance has vanished from discovery.
+	lifecycle sync.Mutex
 }
 
 // RegistrarOption configures a Registrar.
@@ -126,9 +131,13 @@ func NewRegistrar(client Client, logger *slog.Logger, service, address string, p
 // Calling it twice without an intervening Deregister is a no-op on the second
 // call: one Registrar owns one key.
 func (r *Registrar) Register() error {
+	r.lifecycle.Lock()
+	defer r.lifecycle.Unlock()
+
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.ctx != nil {
+	registered := r.ctx != nil
+	r.mu.Unlock()
+	if registered {
 		return nil
 	}
 
@@ -143,8 +152,12 @@ func (r *Registrar) Register() error {
 		cancel()
 		return err
 	}
+
+	r.mu.Lock()
 	r.ctx, r.cancel = ctx, cancel
+	// The key is live again, so there is no outstanding removal to retry.
 	r.pending = false
+	r.mu.Unlock()
 	r.logger.Debug("etcd service registered", "key", r.key, "ttl", r.ttl)
 
 	r.wg.Add(1)
@@ -164,12 +177,11 @@ func (r *Registrar) Register() error {
 // during shutdown would leave the instance in discovery until its lease expired
 // while the process reported a clean stop.
 func (r *Registrar) Deregister() error {
-	r.teardown.Lock()
-	defer r.teardown.Unlock()
+	r.lifecycle.Lock()
+	defer r.lifecycle.Unlock()
 
 	r.mu.Lock()
 	cancel := r.cancel
-	r.ctx, r.cancel = nil, nil
 	pending := r.pending || cancel != nil
 	r.pending = pending
 	r.mu.Unlock()
@@ -180,9 +192,16 @@ func (r *Registrar) Deregister() error {
 	if cancel != nil {
 		cancel()
 		r.wg.Wait()
+		// Only now are ctx and cancel meaningless: the supervisor is gone and
+		// nothing renews the lease. Clearing them earlier would publish "not
+		// registered" while the removal is still in flight.
+		r.mu.Lock()
+		r.ctx, r.cancel = nil, nil
+		r.mu.Unlock()
 	}
 
 	if err := r.client.Deregister(context.Background(), r.key); err != nil {
+		// pending stays true, so another Deregister retries the removal.
 		return err
 	}
 

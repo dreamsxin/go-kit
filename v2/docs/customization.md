@@ -161,8 +161,8 @@ decision guide:
 | Compose with the built-in mapping | `server.HTTPStatusForError` / `HTTPStatusForErrorKind` | custom encoders |
 
 Rules of thumb: classify with `apperror` in the service layer; never return
-protocol types from business code; 4xx carries a public message, 5xx stays
-opaque; retry decisions belong to the caller and only classified, idempotent
+protocol types from business code; 4xx carries a public message and 500 never
+does; retry decisions belong to the caller and only classified, idempotent
 failures should be retried.
 
 ### Wrapping responses in a `{code, msg, data}` envelope

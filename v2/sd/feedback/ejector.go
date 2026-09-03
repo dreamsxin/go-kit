@@ -183,10 +183,17 @@ func (e *Ejector) apply(instances []sd.Instance) []sd.Instance {
 		return serving
 	}
 
-	// The cap is measured against the candidates in hand, not against every
-	// address ever seen: instances that already left discovery must not decide
-	// whether a live one may be ejected.
-	if len(candidates)*100 > len(instances)*e.policy.MaxEjectionPercent {
+	// The cap counts every instance that would be out of service, not just the
+	// ones that failed on this call. An instance inside its ejection window is
+	// already unreachable, so leaving it out of the numerator let consecutive
+	// calls eject one at a time — 2 of 4, then 3 of 4, then all of them — while
+	// each individual call looked well under the limit.
+	//
+	// The denominator stays the full input rather than every address ever seen:
+	// instances that already left discovery must not decide whether a live one
+	// may be ejected.
+	alreadyEjected := len(instances) - len(serving)
+	if (alreadyEjected+len(candidates))*100 > len(instances)*e.policy.MaxEjectionPercent {
 		return instances
 	}
 

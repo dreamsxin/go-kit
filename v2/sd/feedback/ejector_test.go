@@ -95,6 +95,47 @@ func TestEjectorCapAdmitsAllWhenMostCandidatesAreUnhealthy(t *testing.T) {
 	}
 }
 
+// Ejecting one instance at a time across several calls must not walk past the
+// cap. Counting only the instances that failed on this call let 4 instances go
+// 2 ejected, then 3, then all 4, while every individual call looked well under
+// 50%: an outage the component exists to prevent.
+func TestEjectorCapCountsInstancesAlreadyEjected(t *testing.T) {
+	clock := newFakeClock()
+	failed := errors.New("failed")
+	table := feedback.NewTable(feedback.WithAlpha(1))
+	instances := []sd.Instance{
+		{Address: "a:80"}, {Address: "b:80"}, {Address: "c:80"}, {Address: "d:80"},
+	}
+	for _, instance := range instances {
+		table.Observe(instance, sd.Outcome{})
+	}
+
+	ejector := feedback.NewEjector(table, feedback.EjectionPolicy{
+		MaxErrorRate: .5, MinSamples: 1, MaxEjectionPercent: 50, BaseDuration: time.Minute,
+	}, feedback.WithEjectorClock(clock.Now))
+	filter := ejector.Filter()
+
+	// Two of four is exactly the cap, so both go.
+	table.Observe(instances[0], sd.Outcome{Err: failed})
+	table.Observe(instances[1], sd.Outcome{Err: failed})
+	if kept := filter(context.Background(), instances); len(kept) != 2 {
+		t.Fatalf("kept = %v, want two: ejecting two of four is at the cap", addressesOf(kept))
+	}
+
+	// A third failure would take the pool to 75% ejected. The cap must refuse,
+	// and refusing means panic mode: health is ignored and the whole pool is
+	// admitted, because a pool failing this widely usually means a shared
+	// dependency, not three broken instances.
+	table.Observe(instances[2], sd.Outcome{Err: failed})
+	kept := filter(context.Background(), instances)
+	if len(kept) != len(instances) {
+		t.Fatalf("kept = %v, want every instance: a third ejection exceeds the cap", addressesOf(kept))
+	}
+	if ejector.Ejected(instances[2]) {
+		t.Fatal("the cap was exceeded, so the third instance must not have been ejected")
+	}
+}
+
 func TestEjectorIgnoresMeasurementsOutsideTheCandidateSet(t *testing.T) {
 	// Addresses that have left discovery must not count towards the ejection
 	// cap. Otherwise a long-running table accumulates dead unhealthy entries

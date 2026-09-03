@@ -91,6 +91,28 @@ existed: every JSON entry point rejects unknown fields and trailing data, and
 these three only differ in taking an explicit body limit.
 `NewJSONEndpointWithDecodeOptions` is still the only way to relax strictness.
 
+### 500 responses no longer carry the error text
+
+All three HTTP error encoders now answer `"Internal Server Error"` when the
+status is 500. Anything an unclassified error wrapped — a driver message, an
+upstream body — used to be readable by the caller.
+
+The error itself is unchanged, so the log still has it. If a message is meant for
+the caller, say so explicitly:
+
+```go
+// PublicMessage() is used at any status, including 500.
+type rateLimited struct{ error }
+
+func (rateLimited) StatusCode() int       { return http.StatusTooManyRequests }
+func (rateLimited) PublicMessage() string { return "slow down" }
+```
+
+A deliberate 5xx other than 500 — `StatusCode()` returning 503, say — keeps its
+message. Only 500, the status an unclassified error lands on, is redacted.
+
+The same rule reaches gRPC: `codes.Internal` answers `"internal error"`.
+
 ## Upgrading To Unreleased (sd instance metadata)
 
 Service discovery now carries labels, not just addresses. Three source changes,

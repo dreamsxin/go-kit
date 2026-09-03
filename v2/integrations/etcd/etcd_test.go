@@ -34,6 +34,7 @@ type fakeClient struct {
 	lost          chan struct{}
 	deregistered  []string
 	deregisterErr error
+	onDeregister  func(key string)
 }
 
 func newFakeClient() *fakeClient {
@@ -88,6 +89,15 @@ func (f *fakeClient) Register(_ context.Context, key, value string, ttl time.Dur
 }
 
 func (f *fakeClient) Deregister(_ context.Context, key string) error {
+	f.mu.Lock()
+	hook := f.onDeregister
+	f.mu.Unlock()
+	// The hook runs outside the lock so a test can attempt a concurrent
+	// Register while the removal is in flight.
+	if hook != nil {
+		hook(key)
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.deregistered = append(f.deregistered, key)
@@ -441,6 +451,66 @@ func TestRegistrarReportsRegisterErrors(t *testing.T) {
 	// A failed Register must leave nothing to tear down.
 	if err := registrar.Deregister(); err != nil {
 		t.Fatalf("Deregister after a failed Register: %v", err)
+	}
+}
+
+// A Register must not slip between Deregister deciding to remove the key and
+// the removal reaching etcd. If it does, the delete lands on the key the new
+// Register just wrote: the instance disappears from discovery while the
+// Registrar still reports itself as registered, and because the new lease is
+// never revoked nothing ever notices.
+func TestRegistrarRegisterWaitsForAnInFlightDeregister(t *testing.T) {
+	client := newFakeClient()
+	registrar := NewRegistrar(client, nil, "users", "10.0.0.1", 8080)
+
+	removing := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	client.onDeregister = func(string) {
+		once.Do(func() {
+			close(removing)
+			<-release
+		})
+	}
+
+	if err := registrar.Register(); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	removed := make(chan error, 1)
+	go func() { removed <- registrar.Deregister() }()
+	<-removing
+
+	registered := make(chan error, 1)
+	go func() { registered <- registrar.Register() }()
+
+	select {
+	case err := <-registered:
+		t.Fatalf("Register returned while the removal was in flight (err = %v)", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if calls := client.registerCalls(); len(calls) != 1 {
+		t.Fatalf("register calls during the removal = %d, want 1: nothing new may reach etcd yet", len(calls))
+	}
+
+	close(release)
+	if err := <-removed; err != nil {
+		t.Fatalf("Deregister: %v", err)
+	}
+	if err := <-registered; err != nil {
+		t.Fatalf("Register after the removal: %v", err)
+	}
+	defer registrar.Deregister()
+
+	// The registration was rebuilt after the delete, so the key is live again.
+	if calls := client.registerCalls(); len(calls) != 2 {
+		t.Fatalf("register calls = %d, want 2", len(calls))
+	}
+	client.mu.Lock()
+	removals := len(client.deregistered)
+	client.mu.Unlock()
+	if removals != 1 {
+		t.Fatalf("removals = %d, want 1", removals)
 	}
 }
 

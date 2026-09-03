@@ -145,6 +145,19 @@ through the immutable v0 and v1 tags.
   instance is worse than reaching none for a writer that must not double-apply.
   The same policy was already configurable one layer down, as
   `EjectionPolicy.MaxEjectionPercent`.
+- `grpcserver.CodeForError` reports the gRPC code an error will be encoded as,
+  the counterpart of `transporthttp.HTTPStatusForError`. Middleware that needs to
+  classify an error before the encoder sees it — metrics, sampling, retry
+  decisions — no longer has to re-implement the mapping.
+- `client.HTTPStatusError.Truncated` and the exported
+  `client.MaxStatusErrorBodyBytes` report that the upstream body was cut off at
+  the 64 KiB diagnostic limit. Truncation was silent, so half a JSON document
+  read like an upstream that answered garbage — and `ErrorCode()` returned "" for
+  both. `Error()` now appends "(body truncated at N bytes)".
+- The etcd provider has live tests against a real cluster, skipped unless
+  `GOKIT_ETCD_ENDPOINTS` names one. Lease expiry, keepalive renewal, and
+  revocation are decided by etcd, not by the fake `Client` the rest of the suite
+  uses, and Registrar's design rests on them. See `integrations/etcd/README.md`.
 
 ### Changed
 
@@ -232,6 +245,32 @@ through the immutable v0 and v1 tags.
 
 ### Fixed
 
+- The gRPC error encoder classifies before it looks at the context. A cancelled
+  or timed-out request used to have its status decided by the context, so a
+  deliberate `apperror.Kind` — `NotFound`, `PermissionDenied` — was replaced by
+  `Canceled` or `DeadlineExceeded` whenever the caller hung up first. Only
+  unclassified errors now fall back to the context status.
+- The HTTP error encoders no longer put `err.Error()` on the wire at 500.
+  `DefaultErrorEncoder`, `JSONErrorEncoder`, and `JSONErrorEncoderWithKindMapper`
+  share one rule: a `PublicMessager` wins, a sub-500 status may use the error
+  text, and 500 always answers `"Internal Server Error"`. An unclassified error
+  wrapping a driver or upstream message stayed readable to the caller; it now
+  reaches the log only. A deliberate 5xx set through `StatusCoder` keeps its
+  message.
+- `etcd.Registrar` serialises `Register` against `Deregister` for the whole call,
+  including the etcd round trip. Only the fields were guarded before, so an
+  overlapping pair could leave the registrar believing it was registered while
+  the in-flight delete had already removed the new key — the instance vanished
+  from discovery and nothing retried.
+- `etcd.Client.Deregister` gives `Delete` and `Revoke` a deadline each, and keeps
+  the lease recorded when either fails. One shared budget meant a slow delete
+  left the revoke certain to time out, and dropping the lease on failure made the
+  retry unable to revoke it — the instance stayed discoverable until the lease
+  expired on its own.
+- `feedback.Ejector` counts instances already inside their ejection window
+  against `MaxEjectionPercent`. The cap only looked at the instances failing on
+  the current call, so consecutive calls ejected one at a time — 2 of 4, then 3
+  of 4, then all of them — with every individual call well under the limit.
 - `JSONErrorEncoderWithKindMapper` no longer lets the kind mapper overwrite an
   explicit status. `StatusCoder` now wins, matching `httpStatus`; previously a
   relayed `client.HTTPStatusError` had its upstream status silently rewritten by

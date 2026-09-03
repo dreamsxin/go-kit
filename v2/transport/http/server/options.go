@@ -47,7 +47,9 @@ func ServerAfter(after ...ResponseFunc) ServerOption {
 }
 
 // ServerErrorEncoder sets the function used to encode errors into HTTP
-// responses. The default encoder writes plain text and redacts 5xx details.
+// responses. The default encoder writes plain text and never puts err.Error() on
+// the wire at 5xx: 500 always reads "Internal Server Error", and another 5xx
+// carries only an explicit PublicMessage.
 func ServerErrorEncoder(ee ErrorEncoder) ServerOption {
 	return func(s *Server) { s.errorEncoder = ee }
 }

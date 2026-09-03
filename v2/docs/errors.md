@@ -203,6 +203,14 @@ The default JSON error body is:
 {"code": "todo.not_found", "message": "todo not found", "request_id": "..."}
 ```
 
+The `message` is chosen in one order, shared by all three built-in encoders: a
+`PublicMessager` wins; otherwise a status below 500 may use `err.Error()`; a 500
+always answers `"Internal Server Error"`. 500 is where an unclassified error
+lands, and an unclassified error is exactly the one whose text was never written
+for a client — it may be wrapping a driver message or an upstream body. The error
+still reaches the logs in full, and `request_id` ties the two together. A
+deliberate 5xx set through `StatusCoder` keeps its message.
+
 ## Validation errors
 
 Requests implementing `endpoint.Validatable` are validated before business
@@ -282,6 +290,8 @@ encoder. That is what stops a mapper from silently rewriting a relayed
 
 - Business code classifies with `apperror`; transports map statuses; never
   leak internals to clients.
-- Client errors (4xx) carry a public message; server errors (5xx) stay opaque.
+- Client errors (4xx) carry a public message. 500 never does — it is where
+  unclassified failures land. A deliberate 501/503/504 carries one if the error
+  states it through `PublicMessage`; `err.Error()` is never used at 5xx.
 - Retry policy belongs to the caller: only classified, idempotent failures
   should be retried.

@@ -168,23 +168,45 @@ func (c *client) Register(ctx context.Context, key, value string, ttl time.Durat
 func (c *client) Deregister(ctx context.Context, key string) error {
 	c.mu.Lock()
 	lease, leased := c.leases[key]
-	delete(c.leases, key)
 	c.mu.Unlock()
-	ctx, cancel := context.WithTimeout(ctx, c.timeout)
-	defer cancel()
 
+	// Delete and Revoke get a deadline each. Sharing one meant a Delete that
+	// consumed the whole budget left the Revoke certain to fail, so a slow
+	// delete turned into a leaked lease.
 	var errs []error
-	if _, err := c.etcd.Delete(ctx, key); err != nil {
+	deleteCtx, cancelDelete := context.WithTimeout(ctx, c.timeout)
+	_, err := c.etcd.Delete(deleteCtx, key)
+	cancelDelete()
+	if err != nil {
 		errs = append(errs, fmt.Errorf("delete %s: %w", key, err))
 	}
+
 	if leased {
 		// Revoking releases the lease immediately instead of leaving it to
 		// expire, which matters when the same key is registered again at once.
-		if _, err := c.etcd.Revoke(ctx, lease); err != nil {
+		revokeCtx, cancelRevoke := context.WithTimeout(ctx, c.timeout)
+		_, err := c.etcd.Revoke(revokeCtx, lease)
+		cancelRevoke()
+		if err != nil {
 			errs = append(errs, fmt.Errorf("revoke lease for %s: %w", key, err))
 		}
 	}
-	return errors.Join(errs...)
+
+	if err := errors.Join(errs...); err != nil {
+		// Keep the lease recorded. A retry needs the same lease to revoke, and
+		// forgetting it here would leave it renewing until its TTL ran out.
+		return err
+	}
+
+	c.mu.Lock()
+	// Drop the mapping only if it is still the lease this call revoked: a
+	// concurrent Register may have replaced it, and that newer lease must not
+	// be forgotten by an older teardown.
+	if current, ok := c.leases[key]; ok && leased && current == lease {
+		delete(c.leases, key)
+	}
+	c.mu.Unlock()
+	return nil
 }
 
 // revoke releases a lease the caller could not finish attaching a key to. It is

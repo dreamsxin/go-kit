@@ -57,10 +57,17 @@ grpcserver.ServerErrorEncoder(grpcserver.NewErrorEncoder(
 		if kind == "payment_failed" {
 			return codes.FailedPrecondition
 		}
-		return codes.Code(99) // invalid: fall back to the built-in mapping
+		return codes.OK // no opinion: fall back to the built-in mapping
 	}),
 ))
 ```
+
+Classification happens before the context is consulted, so a `NotFound` stays
+`NotFound` even when the caller has already hung up; only an unclassified error
+falls back to `Canceled` or `DeadlineExceeded`. `codes.Internal` — where every
+unclassified error lands — always answers `"internal error"`, the same rule the
+HTTP encoders apply at 500. `grpcserver.CodeForError` reports the code an error
+will get, for middleware that has to classify before the encoder runs.
 
 ## Client
 

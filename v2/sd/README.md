@@ -404,7 +404,11 @@ against `EjectionPolicy` (`MaxErrorRate`, `MaxLatency`, `MaxInFlight`, gated by
 
 `MaxEjectionPercent` defaults to 50: when more than half of the candidates look
 unhealthy, nothing is ejected, since a pool failing as a whole usually means a
-shared dependency or a threshold set too tight. Envoy calls this panic mode.
+shared dependency or a threshold set too tight. Envoy calls this panic mode. The
+cap counts instances already inside their ejection window, not just the ones
+failing right now — otherwise consecutive calls would eject one at a time until
+the pool was empty, each call looking well under the limit.
+
 
 An ejection expires after `BaseDuration`, doubled for each previous ejection of
 that address and capped at `MaxDuration` — the same escalation Envoy applies,

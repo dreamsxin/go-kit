@@ -281,3 +281,88 @@ func TestWrapJSONResponse_NilWrapFallsBack(t *testing.T) {
 		t.Errorf("nil wrap should encode as-is, got %v", body)
 	}
 }
+
+// leakyError is the shape of a relayed upstream failure: Error() keeps the
+// upstream body for logs, PublicMessage() states what a client may see.
+type leakyError struct{ status int }
+
+func (e leakyError) Error() string {
+	return "http client: unexpected status 404 Not Found: {\"internal_host\":\"db-prod-3.internal\"}"
+}
+func (e leakyError) PublicMessage() string { return "upstream request failed with status 404" }
+func (e leakyError) StatusCode() int       { return e.status }
+
+// The plain-text encoder must not fall back to the internal error text when the
+// error has stated a safe public message. Without this, an upstream body landed
+// verbatim in the downstream 404.
+func TestDefaultErrorEncoder_PrefersThePublicMessage(t *testing.T) {
+	rec := httptest.NewRecorder()
+	server.DefaultErrorEncoder(context.Background(), leakyError{status: http.StatusNotFound}, rec)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status: got %d, want 404", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "upstream request failed with status 404") {
+		t.Fatalf("body: got %q, want the public message", body)
+	}
+	if strings.Contains(body, "db-prod-3.internal") {
+		t.Fatalf("body leaked the upstream response: %q", body)
+	}
+}
+
+// 500 is where every unclassified error and every default-kind apperror lands,
+// so its message was never chosen for a client's eyes. Both encoders redact it,
+// PublicMessage or not.
+func TestErrorEncoders_RedactTheMessageAt500(t *testing.T) {
+	err := apperror.New(apperror.KindInternal, "db.fail", "pg://user:pw@db-prod-3: too many connections")
+
+	rec := httptest.NewRecorder()
+	server.DefaultErrorEncoder(context.Background(), err, rec)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("text status: got %d, want 500", rec.Code)
+	}
+	if got := strings.TrimSpace(rec.Body.String()); got != "Internal Server Error" {
+		t.Fatalf("text body: got %q, want the redacted status text", got)
+	}
+
+	rec = httptest.NewRecorder()
+	server.JSONErrorEncoder(context.Background(), err, rec)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("json status: got %d, want 500", rec.Code)
+	}
+	var body struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if decodeErr := json.NewDecoder(rec.Body).Decode(&body); decodeErr != nil {
+		t.Fatal(decodeErr)
+	}
+	if body.Message != "Internal Server Error" {
+		t.Fatalf("json message: got %q, want the redacted status text", body.Message)
+	}
+	if body.Code != "db.fail" {
+		t.Fatalf("json code: got %q, want the stable code to survive", body.Code)
+	}
+}
+
+// A deliberate 5xx kind still carries its message: reaching 503 took an explicit
+// KindUnavailable, so the message was written for a client.
+func TestErrorEncoders_KeepTheMessageForADeliberate5xx(t *testing.T) {
+	err := apperror.New(apperror.KindUnavailable, "storage.down", "storage is unavailable, retry shortly")
+
+	rec := httptest.NewRecorder()
+	server.JSONErrorEncoder(context.Background(), err, rec)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status: got %d, want 503", rec.Code)
+	}
+	var body struct {
+		Message string `json:"message"`
+	}
+	if decodeErr := json.NewDecoder(rec.Body).Decode(&body); decodeErr != nil {
+		t.Fatal(decodeErr)
+	}
+	if body.Message != "storage is unavailable, retry shortly" {
+		t.Fatalf("message: got %q, want the public message", body.Message)
+	}
+}

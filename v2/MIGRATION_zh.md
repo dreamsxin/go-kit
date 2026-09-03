@@ -77,6 +77,26 @@ httpserver.NewTypedJSONServerWithBodyLimit[Req, Resp](fn, maxBodyBytes)
 尾随数据，这三个构造器的唯一区别只是多接一个显式的请求体上限。放宽严格性仍然只有
 `NewJSONEndpointWithDecodeOptions` 一条路。
 
+### 500 响应不再携带错误文本
+
+三个 HTTP 错误编码器在状态码为 500 时统一回答 `"Internal Server Error"`。此前未分类
+错误包住的内容——驱动报错、上游响应体——调用方是能读到的。
+
+错误对象本身没变，日志里仍然完整。如果某条消息确实是给调用方看的，就明确声明：
+
+```go
+// PublicMessage() 在任何状态码下都生效，包括 500。
+type rateLimited struct{ error }
+
+func (rateLimited) StatusCode() int       { return http.StatusTooManyRequests }
+func (rateLimited) PublicMessage() string { return "slow down" }
+```
+
+主动设置的、500 之外的 5xx——比如 `StatusCode()` 返回 503——保留自己的消息。只有 500
+这个未分类错误的落点会被脱敏。
+
+gRPC 侧同理：`codes.Internal` 回答 `"internal error"`。
+
 ## 升级到未发布版本（sd 实例元数据）
 
 服务发现现在携带标签，而不只是地址。需要改三处源码，都很机械。

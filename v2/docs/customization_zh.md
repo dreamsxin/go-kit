@@ -148,7 +148,7 @@ svc, err := kit.NewHTTP(":8080",
 | 与内置映射组合 | `server.HTTPStatusForError` / `HTTPStatusForErrorKind` | 自定义编码器 |
 
 经验法则：在 service 层用 `apperror` 分类；业务代码绝不返回协议类型；4xx 携
-带公开消息，5xx 保持不透明；重试决策属于调用方，只重试已分类且幂等的失败。
+带公开消息，500 永远不带；重试决策属于调用方，只重试已分类且幂等的失败。
 
 ### 用 `{code, msg, data}` 信封包装响应
 
