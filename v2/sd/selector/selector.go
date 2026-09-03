@@ -65,6 +65,9 @@ type Strategy interface {
 //	err = dial(instance.Address)
 //	done(sd.Outcome{Err: err, Latency: time.Since(started)})
 //
+// On error Done is nil and there is nothing to report: no instance was selected,
+// so no accounting was opened. Check err before deferring.
+//
 // Dropping Done silently breaks any strategy that keeps state per call. A
 // feedback table counts the selection as still in flight forever, which makes
 // the instance look permanently saturated and keeps its entry alive, so this

@@ -359,7 +359,10 @@ _ = response
 `feedback.Follow` takes one subscription to the instancer and feeds every
 `feedback.Retainer` — the table and any ejector — so a departed address is
 forgotten in one place. A discovery error is not treated as "everything is
-gone": the last good set stays.
+gone": the last good set stays. Subscribe it to the raw instancer, not to a
+`health.Check` wrapping it: a retainer cannot tell a health withdrawal from a
+deregistration, so it would forget the ejection record and the measurements
+behind it every time probing dipped.
 
 `sd.Match` is a per-instance predicate for static labels; passive ejection is an
 `sd.InstanceFilter`, which receives the whole candidate set, because whether one
@@ -395,7 +398,10 @@ one". It is the shape a routing service needs, where the caller — a client, a
 gateway, an agent — connects on its own:
 
 ```go
-rank := selector.NewRanker(instances, table.Score(), ejector.Filter())
+pool := selector.Subscribe(instancer)   // any selector.Source, not a slice
+defer pool.Close()
+
+rank := selector.NewRanker(pool, table.Score(), ejector.Filter())
 top, err := rank.Rank(ctx, request, 3)   // best first, deterministic on ties
 ```
 
@@ -475,7 +481,8 @@ only when reaching a dead instance is worse than reaching none.
 Instancer → [health.Check] → [selector.Filter] → Selector             → instance
 Instancer → [health.Check] → Endpointer → [Filter] → Balancer → Retry → endpoint
                                                         ↑ Outcome ↓
-                                              feedback.Table + Ejector
+Instancer → feedback.Follow ───────────────────────→ feedback.Table + Ejector
+            (the raw one, never the checked one)
 ```
 
 Two assemblies, one set of strategies; callers that never issue the call

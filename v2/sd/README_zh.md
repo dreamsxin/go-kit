@@ -331,7 +331,9 @@ _ = response
 
 `feedback.Follow` 只向 instancer 订阅一次，然后驱动所有 `feedback.Retainer`
 ——表以及任意 ejector——因此"地址已离开"这件事只在一个地方被遗忘。服务发现
-报错不会被当成"实例全没了"：最后一份可用集合继续保留。
+报错不会被当成"实例全没了"：最后一份可用集合继续保留。要订阅原始 instancer，
+不要订阅包在外面的 `health.Check`：retainer 分不清"主动健康检查把实例摘掉"和
+"实例注销"，探测一旦下探，摘除记录以及支撑它的测量数据就会被一并遗忘。
 
 `sd.Match` 是针对单个实例的静态标签谓词；被动摘除是 `sd.InstanceFilter`，
 它拿到的是整个候选集——因为"某个实例能不能摘"取决于"还有多少个也在失败"。
@@ -362,7 +364,10 @@ Envoy 称之为 panic 模式。
 "选路服务"需要的形状：调用方（客户端、网关、agent）拿到列表后自己去连：
 
 ```go
-rank := selector.NewRanker(instances, table.Score(), ejector.Filter())
+pool := selector.Subscribe(instancer)   // 任意 selector.Source，不是切片
+defer pool.Close()
+
+rank := selector.NewRanker(pool, table.Score(), ejector.Filter())
 top, err := rank.Rank(ctx, request, 3)   // 最优在前，同分时结果确定
 ```
 
@@ -433,7 +438,8 @@ checker 会原样发布未经检查的集合而不是空集——探针自己坏
 Instancer → [health.Check] → [selector.Filter] → Selector             → 实例
 Instancer → [health.Check] → Endpointer → [Filter] → Balancer → Retry → 端点
                                                         ↑ Outcome ↓
-                                              feedback.Table + Ejector
+Instancer → feedback.Follow ───────────────────────→ feedback.Table + Ejector
+            （原始的那个，不是被 check 包过的）
 ```
 
 两条装配路径，共用一套策略；不自己发请求的调用方到第一行为止。每一层各自拥有

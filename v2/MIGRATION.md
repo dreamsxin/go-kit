@@ -185,8 +185,11 @@ New optional layers, none of which change existing assemblies:
 checked := health.Check(instancer, health.TCPProbe(2*time.Second))
 defer checked.Close()
 
-// Ranking instead of picking, for a routing service.
-top, err := selector.NewRanker(instances, table.Score(), ejector.Filter()).Rank(ctx, request, 3)
+// Ranking instead of picking, for a routing service. The first argument is a
+// selector.Source, not a slice.
+pool := selector.Subscribe(checked)
+defer pool.Close()
+top, err := selector.NewRanker(pool, table.Score(), ejector.Filter()).Rank(ctx, request, 3)
 
 // Slow start, so a cold instance does not win every comparison at once.
 weight := selector.SlowStart(selector.MetadataWeight("weight", 1), table.FirstSeen(), 30*time.Second)

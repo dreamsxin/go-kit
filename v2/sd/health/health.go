@@ -58,7 +58,7 @@ func TCPProbe(timeout time.Duration) Probe {
 	}
 }
 
-// HTTPProbe issues a GET against the instance and treats any 2xx or 3xx as
+// HTTPProbe issues a GET against the instance and treats any status below 400 as
 // healthy. An empty scheme means http.
 func HTTPProbe(scheme, path string, timeout time.Duration) Probe {
 	if scheme == "" {

@@ -183,7 +183,7 @@ Single-instance selection — `selector.Strategy`, returning one index plus the
 | independent random distribution | `selector.Random` | avoids client lockstep |
 | static capacity weights | `selector.WeightedRandom` | zero weight drains an instance |
 | measured or reported score | `selector.Scored` | highest score wins |
-| local in-flight fairness | `Table.LeastRequest` | power of two choices |
+| local in-flight fairness | `table.LeastRequest` | power of two choices; the bare `selector.LeastRequest` takes any `LoadFunc` |
 | request affinity | `selector.ConsistentHash` | request is always available |
 
 Candidate ranking — `selector.Ranker`, returning an ordered `[]sd.Instance`:
@@ -298,9 +298,24 @@ strategy := table.Wrap(selector.Filtered(
 lb := balancer.New(set, strategy)
 ```
 
+`table.Wrap` is what puts calls into the table: it counts in-flight at `Pick` and
+records the outcome at `Done`. Without it nothing is ever recorded, every
+instance scores the same, and `selector.Scored` degrades to a random pick. An
+instance with no samples scores the maximum, which is how it earns its first
+calls; `selector.SlowStart` over `table.FirstSeen()` is the companion when that
+first burst is too much for a cold process.
+
 `feedback.Follow` retains state against the full discovery snapshot. Do not
 retain against an already filtered candidate set: doing so would erase the
 measurements that caused an instance to be ejected.
+
+That includes a `health.Check` wrapping the same instancer — pass `instancer`,
+not `checked`. A checker withdraws an instance it considers unhealthy, and a
+retainer cannot tell a withdrawal from a deregistration: the ejector would drop
+its ejection record and the table its measurements, so the instance comes back
+with a clean slate as soon as probing recovers, and active and passive health
+checking cancel each other out. `health.Check` still decorates the instancer
+feeding the endpointer or selector; only `Follow` needs the undecorated one.
 
 An ejector removes unhealthy candidates according to error rate, latency, and
 in-flight thresholds. Ejection expires after `BaseDuration`, backs off for
@@ -320,7 +335,10 @@ needs a shortlist rather than one pick, use `selector.NewRanker`. Both receive
 the request through the unified `ScoreFunc`:
 
 ```go
-ranker := selector.NewRanker(instances, table.Score(), ejector.Filter())
+pool := selector.Subscribe(instancer)   // or selector.Static(...)
+defer pool.Close()
+
+ranker := selector.NewRanker(pool, table.Score(), ejector.Filter())
 top, err := ranker.Rank(ctx, request, 3)
 ```
 

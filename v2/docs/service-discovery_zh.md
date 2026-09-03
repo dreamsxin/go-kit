@@ -169,7 +169,7 @@ lb := balancer.New(set, strategy)
 | 独立随机分布 | `selector.Random` | 避免多客户端步调一致 |
 | 静态容量权重 | `selector.WeightedRandom` | 0 权重可排空实例 |
 | 测量或上报分数 | `selector.Scored` | 最高分胜出 |
-| 本地在途公平 | `Table.LeastRequest` | power of two choices |
+| 本地在途公平 | `table.LeastRequest` | power of two choices；裸的 `selector.LeastRequest` 接受任意 `LoadFunc` |
 | 请求亲和 | `selector.ConsistentHash` | 每次选择都能拿到 request |
 
 候选排序——`selector.Ranker`，返回有序的 `[]sd.Instance`：
@@ -273,8 +273,19 @@ strategy := table.Wrap(selector.Filtered(
 lb := balancer.New(set, strategy)
 ```
 
+真正把调用写进表里的是 `table.Wrap`：它在 `Pick` 时累加在途、在 `Done` 时记录结果。
+少了它，表里永远没有数据，所有实例分数相同，`selector.Scored` 退化成随机选择。没有
+采样的实例拿到的是最高分——它得先拿到调用才能被测量；如果这一批冷启动流量太猛，配套
+使用基于 `table.FirstSeen()` 的 `selector.SlowStart`。
+
 `feedback.Follow` 必须针对完整 discovery 快照保留状态，不要针对已经过滤过的候选集保留；
 否则会抹掉导致实例被摘除的测量值。
+
+这里也包括包裹同一个 instancer 的 `health.Check`——要传 `instancer`，不要传 `checked`。
+checker 会撤下它判定为不健康的实例，而 retainer 分不清"被撤下"和"已注销"：ejector 会
+丢掉它的摘除记录、table 会丢掉它的测量值，于是探测一恢复，实例就以一份干净的记录回到
+池里，主动与被动健康检查互相抵消。`health.Check` 仍然装饰喂给 endpointer 或 selector
+的那个 instancer，只有 `Follow` 需要未装饰的原始 instancer。
 
 Ejector 按错误率、时延和在途阈值移除不健康候选。摘除在 `BaseDuration` 后到期，连续
 违规地址的窗口会翻倍，直到 `MaxDuration`，并清理导致摘除的测量。`MaxEjectionPercent`
@@ -291,7 +302,10 @@ lb := balancer.New(set, strategy)
 两者都会通过统一的 `ScoreFunc` 接收 request：
 
 ```go
-ranker := selector.NewRanker(instances, table.Score(), ejector.Filter())
+pool := selector.Subscribe(instancer)   // 或 selector.Static(...)
+defer pool.Close()
+
+ranker := selector.NewRanker(pool, table.Score(), ejector.Filter())
 top, err := ranker.Rank(ctx, request, 3)
 ```
 

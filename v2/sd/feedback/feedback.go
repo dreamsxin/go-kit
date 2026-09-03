@@ -267,6 +267,15 @@ type Retainer interface {
 // subscription serves every retainer, so a table and the ejector reading it
 // cannot drift apart. The returned Closer unsubscribes; it does not close the
 // Instancer.
+//
+// Pass the raw Instancer, not a health.Check decorating it. A checker withdraws
+// an instance it considers unhealthy, and to a retainer a withdrawal is
+// indistinguishable from deregistration: Ejector.Retain drops the ejection
+// state, so the instance returns with a clean record the moment probing
+// recovers, and Table.Retain drops the measurements that ejected it. Active and
+// passive health checking would cancel each other out. Following registration
+// instead means a retainer only forgets an instance that has actually left the
+// service.
 func Follow(instancer sd.Instancer, retainers ...Retainer) io.Closer {
 	if instancer == nil {
 		panic("feedback: nil instancer")
@@ -376,11 +385,27 @@ func statsOf(item *entry) Stats {
 // treats one millisecond of latency as equivalent to one call in flight. That
 // equivalence is a default, not a law. A caller who wants different weights
 // reads Stats and writes its own selector.ScoreFunc.
+//
+// The score is only as good as what the table was told, so wrap the strategy
+// that consumes it:
+//
+//	strategy := table.Wrap(selector.Scored(table.Score()))
+//
+// Without Wrap nothing records into the table, every instance scores the same,
+// and Scored degrades to a random pick. An instance with no samples yet scores
+// the maximum 1: no errors, no latency, nothing in flight. That is intentional —
+// an unmeasured instance has to receive calls before it can be measured — and it
+// is self-limiting under Wrap, because in-flight rises at Pick and drops the
+// score before the first outcome arrives. To ramp a cold instance more gently
+// than that, weight it with selector.SlowStart over Table.FirstSeen.
 func (t *Table) Score() selector.ScoreFunc {
 	return func(_ context.Context, _ any, instance sd.Instance) (float64, bool) {
 		stats := t.Stats(instance)
 		latencyMS := float64(stats.Latency) / float64(time.Millisecond)
 		score := (1 - stats.ErrorRate) / (1 + latencyMS + float64(stats.InFlight))
+		// The denominator is at least 1 and the numerator is bounded, so only a
+		// corrupted stat could reach these branches. They are kept so a bad
+		// score can never propagate into a comparison.
 		if math.IsNaN(score) || math.IsInf(score, 0) || score < 0 {
 			score = 0
 		}
