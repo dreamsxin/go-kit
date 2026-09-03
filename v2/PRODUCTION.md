@@ -45,7 +45,11 @@ service/
 Jobs are callers of the service layer, not endpoints: they must not import
 transport packages, and their business logic stays in `service/` so HTTP
 handlers and jobs share one implementation. The runner implements
-`kit.Lifecycle`:
+`kit.Lifecycle`.
+
+`jobs.Runner` below is a sketch to write in your own service, not a package this
+framework ships — the framework contributes `kit.Lifecycle` and the host that
+drives it:
 
 ```go
 type Job struct {
@@ -138,10 +142,14 @@ runtime state. Close it before calling `Instancer.Close` so subscriptions are
 removed and factory-created client connections are released. Every
 `Balancer.Pick` must be paired with `Picked.Done` after the endpoint returns.
 
-The built-in default retry classifier retries only explicit
-`Retryable() == true` errors, no-endpoint discovery errors, and known transient
-gRPC statuses. Unknown errors are permanent. Production callers should still
-prefer `RetryWithRetryable` with a domain-specific classifier.
+The built-in default retry classifier (`sd/retry.DefaultClassifier`) retries only
+errors that classify themselves through `interface{ Retryable() bool }` and
+`sd.ErrNoEndpoints`; context cancellation and deadlines are never retried, and
+anything unclassified is treated as permanent. It knows nothing about gRPC or
+HTTP status codes on its own: a gRPC client contributes that knowledge with
+`sdclient.WithRetryable(grpc.Retryable)`, and any other protocol plugs in the
+same way — `client.WithRetryable(...)` on `sd/client`, or
+`retry.WithClassifier(...)` in a hand-assembled path.
 
 Backoff and calls honor context cancellation. The total timeout must cover all
 attempts and waits, not each attempt independently.

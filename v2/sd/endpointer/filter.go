@@ -15,6 +15,11 @@ import (
 // is deliberate: better to fail than to send a request somewhere the caller
 // ruled out. Use Prefer when spilling over is preferable to failing.
 //
+// Filter is a view, not an owner: closing it does not close source, because
+// several views commonly share one endpoint set and closing one must not
+// invalidate the others. Close the set you constructed instead — the same rule
+// balancer.New and health.Check follow.
+//
 // Predicates come from the root sd package: sd.MetadataEquals, sd.MetadataIn,
 // sd.MetadataMatches, sd.HasMetadata, and sd.And / sd.Or / sd.Not.
 func Filter(source InstanceEndpointer, match sd.Match) InstanceEndpointer {
@@ -28,6 +33,8 @@ func Filter(source InstanceEndpointer, match sd.Match) InstanceEndpointer {
 // matches — Envoy's ANY_ENDPOINT. This is how zone-aware routing degrades:
 // stay local while local instances exist, spill over to other zones rather
 // than fail.
+//
+// Like Filter, it is a view and does not close source.
 func Prefer(source InstanceEndpointer, match sd.Match) InstanceEndpointer {
 	if match == nil {
 		panic("endpointer: nil filter match")
@@ -41,7 +48,9 @@ type filtered struct {
 	fallback bool
 }
 
-func (s *filtered) Close() error { return s.source.Close() }
+// Close is a no-op: a filtered view owns nothing. Its source is closed by
+// whoever built it.
+func (s *filtered) Close() error { return nil }
 
 func (s *filtered) Endpoints() ([]endpoint.Endpoint, error) {
 	instances, err := s.InstanceEndpoints()

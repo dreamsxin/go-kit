@@ -218,6 +218,73 @@ func TestFollowRetainsOnEverySnapshot(t *testing.T) {
 	}
 }
 
+func TestWrapForwardsCloseToTheStrategyItDecorates(t *testing.T) {
+	table := feedback.NewTable()
+	inner := &closableStrategy{}
+	// The assembly a caller actually writes: accounting over a filter over a
+	// strategy that owns something. Only the outermost layer is ever handed to
+	// selector.New or balancer.New, so every layer has to forward Close.
+	strategy := table.Wrap(selector.Filtered(inner, nil))
+
+	pick := selector.New(selector.Static(sd.Addresses("a:80")...), strategy)
+	if err := pick.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := pick.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+	if inner.closes != 1 {
+		t.Fatalf("strategy closed %d times through Wrap and Filtered, want 1", inner.closes)
+	}
+}
+
+func TestFollowStopsWhenAProviderClosesTheChannel(t *testing.T) {
+	instancer := &fakeInstancer{state: sd.Event{Instances: sd.Addresses("a:80")}}
+	counter := &countingRetainer{}
+
+	following := feedback.Follow(instancer, counter)
+	defer following.Close()
+
+	// Closing a subscriber channel breaks the sd.Instancer contract, but a
+	// provider that does it must not turn the follower into a hot loop
+	// retaining zero-value snapshots.
+	instancer.closeSubscribers()
+	time.Sleep(20 * time.Millisecond)
+
+	if got := counter.count(); got != 1 {
+		t.Fatalf("Retain called %d times, want 1 (the initial snapshot only)", got)
+	}
+}
+
+type countingRetainer struct {
+	mu     sync.Mutex
+	calls  int
+	latest []sd.Instance
+}
+
+func (c *countingRetainer) Retain(instances []sd.Instance) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	c.latest = instances
+}
+
+func (c *countingRetainer) count() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.calls
+}
+
+type closableStrategy struct {
+	closes int
+}
+
+func (s *closableStrategy) Pick(context.Context, any, []sd.Instance) (int, sd.Done, error) {
+	return 0, nil, nil
+}
+
+func (s *closableStrategy) Close() error { s.closes++; return nil }
+
 func TestLeastRequestPrefersTheLeastLoadedInstance(t *testing.T) {
 	table := feedback.NewTable()
 	busy := sd.Instance{Address: "busy:80"}
@@ -307,3 +374,12 @@ func (f *fakeInstancer) publish(event sd.Event) {
 }
 
 func (f *fakeInstancer) subscribers() int { return len(f.subscribed) }
+
+// closeSubscribers breaks the sd.Instancer contract on purpose: no provider may
+// close a channel it was handed, and consumers must survive one that does.
+func (f *fakeInstancer) closeSubscribers() {
+	for _, subscriber := range f.subscribed {
+		close(subscriber)
+	}
+	f.subscribed = nil
+}

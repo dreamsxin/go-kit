@@ -3,8 +3,8 @@
 English | [简体中文](tutorial-mcp_zh.md)
 
 This tutorial exposes a tool over MCP Streamable HTTP, the protocol AI clients
-speak. The complete code is the runnable [examples/mcp_basic](../examples/README.md)
-example.
+speak. The complete code is the runnable
+[examples/mcp_basic/main.go](../examples/mcp_basic/main.go) example.
 
 ## 1. The goal
 
@@ -29,7 +29,8 @@ _ = rt.RegisterTool(interaction.ToolFunc{
 		},
 	},
 	Fn: func(_ context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
-		name, _ := call.Input["name"].(string)
+		args, _ := call.Input.(map[string]any)
+		name, _ := args["name"].(string)
 		return interaction.ToolResult{Output: map[string]any{"greeting": "Hello, " + name + "!"}}, nil
 	},
 })
@@ -37,12 +38,23 @@ _ = rt.RegisterTool(interaction.ToolFunc{
 
 ## 3. Serve MCP
 
-`interaction/mcp` exposes the runtime over Streamable HTTP:
+`interaction/mcp` exposes the runtime over Streamable HTTP. The shortest form
+builds the mux and starts the session reaper for you:
+
+```go
+log.Fatal(mcp.ListenAndServe(":8080", rt))
+```
+
+To mount MCP beside your own routes, take the handler instead:
 
 ```go
 mux := http.NewServeMux()
-mux.Handle("/mcp", mcp.NewHandler(rt))
+mux.Handle("/mcp", mcp.NewHandler(rt)) // alias for NewStreamableHandler
 ```
+
+Register the pattern without a method verb. The handler dispatches POST, GET,
+and DELETE itself and answers anything else with 405 and an `Allow` header;
+registering only `POST /mcp` would break session termination.
 
 ## 4. Call it
 
@@ -75,8 +87,11 @@ rt := interaction.NewRuntime().WithHooks(
 )
 ```
 
-Denied calls are rejected before execution and never reach the audit sink. The
-full policy walkthrough is [examples/interaction_policy](../examples/README.md).
+Denied calls are rejected before execution and never reach the audit sink --
+because `BeforeToolCall` hooks run in the order given and the first error returns
+immediately. Put `AuthorizationHook` first if you want that; swap the two and
+denials become audited instead. The full policy walkthrough is
+[examples/interaction_policy/main.go](../examples/interaction_policy/main.go).
 
 ## Where to go next
 

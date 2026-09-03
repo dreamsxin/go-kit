@@ -67,7 +67,8 @@ Transport request
 `Recorder` 是指标扩展点：`RecordingMiddleware` 把每次调用的 `Observation`
 （操作名、耗时、错误）交给它，任何后端桥接都只是该接口的一个实现。`Metrics`
 是内置的内存采集器，其计数器不导出且由内部锁保护，读取入口为 `Snapshot()`、
-`SnapshotFor(operation)` 与 `Operations()`，都返回无锁、可复制的值。
+`SnapshotFor(operation)` 与 `Operations()`，都在短临界区内返回脱离内部状态的
+可复制值。
 
 Endpoint 中间件观察业务调用结果，不应从 HTTP 状态码或 gRPC 线上细节
 推断错误。
@@ -90,9 +91,13 @@ Events 服务端）与传输特有错误。
 `sd/client` 是可选的便捷组合。
 更新以快照形式交付，不是调用方可变的切片。`Balancer.Pick` 返回带实例身份的
 `Picked` 以及 `Done(Outcome)`，因此 retry 等调用方可以把按实例结果回灌到
-进程内反馈表，而不必把实时指标写入注册中心。按实例的动态状态只存放在一处
-——`feedback.Table`；而"哪些地址当前被摘除"这类策略状态归策略自己所有，
-因为它是按（策略，实例）而不是按实例存在的。依赖方向是单向的：端点层与选择层
+进程内反馈表，而不必把实时指标写入注册中心。业务调用的反馈指标统一存放在
+`feedback.Table`；主动健康状态由 `health.Check` 持有，"哪些地址当前被摘除"
+这类策略状态归策略自己所有，因为它是按（策略，实例）而不是按实例存在的。
+装饰器不拥有它被交给的东西：`balancer.New`、`health.Check`、`selector.Subscribe`
+与 `endpointer.Filter` 都不关闭 source，由创建者关闭；而 `Selector.Close` 与
+`Balancer.Close` 会关闭它们被交给的策略链，因此包装型策略必须透传 `Close`
+（见 `selector.CloseStrategy`）。依赖方向是单向的：端点层与选择层
 都不 import `sd/feedback` 与 `sd/health`，因此不使用它们的装配也不会把它们编译
 进来。主动探测是 `Instancer` 的装饰器
 而不是独立的一层，因此加上它不需要改动下游任何一层。取消会同时中断调用与

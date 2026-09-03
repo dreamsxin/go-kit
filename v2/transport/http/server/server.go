@@ -97,6 +97,17 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A response that reports its own failure is treated exactly like a
+	// returned error, so a business error carried in the response value gets
+	// the same status, code, and logging as one returned normally.
+	if failer, ok := response.(endpoint.Failer); ok {
+		if failed := failer.Failed(); failed != nil {
+			s.errorHandler.Handle(ctx, failed)
+			s.errorEncoder(ctx, failed, responseWriter)
+			return
+		}
+	}
+
 	for _, f := range s.after {
 		ctx = f(ctx, r, iw)
 	}

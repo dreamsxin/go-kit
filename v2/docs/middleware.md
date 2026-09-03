@@ -40,7 +40,7 @@ layer:
 | --- | --- | --- | --- |
 | Logging | stays clean; reads correlation IDs from the context | `slogadapter.LoggingMiddleware`, `integrations/zap`, or `slogadapter.NewTelemetry` | `server.AccessLogMiddleware` for protocol facts; `ServerErrorHandler` records failures |
 | Tracing | the context carries trace and request IDs | `TracingMiddleware` (W3C correlation), `oteladapter.TracingMiddleware` (spans) | `transporthttp.ExtractTraceparent` / `InjectTraceparent` header propagation |
-| Metrics | — | `RecordingMiddleware` with any `Recorder`, `oteladapter.NewMetrics` | access-log status/bytes; `ServerFinalizer` hooks |
+| Metrics | — | `RecordingMiddleware` with any `Recorder` — `endpoint.Metrics` in memory, `oteladapter.NewMetrics` for OpenTelemetry | access-log status/bytes; `ServerFinalizer` hooks |
 | Errors | returns `apperror` classifications | `ErrorHandlingMiddleware` attaches the operation name; `ValidationMiddleware` short-circuits | `ErrorEncoder` maps kinds to statuses; `ErrorHandler` observes |
 
 Placement rules:
@@ -80,22 +80,32 @@ That keeps request paths deterministic and testable.
 | `ErrorHandlingMiddleware` | wraps endpoint errors with the operation name | never rejects |
 | `TracingMiddleware` | W3C trace context propagation | never rejects |
 | `BackpressureMiddleware` | global in-flight cap | 503 unavailable |
-| `CircuitBreaker` | consecutive failures trip the breaker, probe closes it | 503 unavailable + `Retry-After` |
+| `InFlightMiddleware` | global in-flight cap, publishing the live count | 503 unavailable |
+| `CircuitBreaker.Middleware()` | consecutive failures trip the breaker, probe closes it | 503 unavailable + `Retry-After` |
 | `RateLimitMiddleware` | reject over-limit requests | 429 too many requests |
 | `DelayRateLimitMiddleware` | wait for a token instead of rejecting | context error |
 | `RetryMiddleware` | repeat transient failures with backoff | returns the last error |
 | `Fallback` | answer with a fallback endpoint on failure | joins both errors when the fallback fails too |
-| `BulkheadMiddleware` | per-key concurrency isolation | 503 unavailable |
+| `BulkheadMiddleware` | per-key concurrency **queue** | the caller's context error (504/499), wrapping `ErrBulkheadFull` |
 
 Rate limiting rejects with 429 because the caller exceeded its quota; a tripped
-breaker, a full bulkhead, and backpressure reject with 503 because the service
-is shedding load. See [errors](errors.md) for the full mapping.
+breaker and backpressure reject with 503 because the service is shedding load.
+The bulkhead is the exception: it does not shed, it queues, so a saturated key
+shows up as latency and then as whatever ended the caller's wait — a timeout
+stays 504, a disconnect stays 499. `errors.Is(err, endpoint.ErrBulkheadFull)`
+still reports the saturation behind it. Pair `WithBulkhead` with `WithTimeout` so
+the queue is bounded by something. See [errors](errors.md) for the full mapping.
+
+`CircuitBreaker` is not itself a `Middleware`: construct it once with
+`endpoint.NewCircuitBreaker()` and install `breaker.Middleware()`, keeping the
+`*CircuitBreaker` for `State()`.
 
 Every middleware in the catalog has a Builder shortcut (`WithValidation`,
-`WithTimeout`, `WithRecording`, `WithRateLimit`, `WithCircuitBreaker`,
-`WithRetry`, `WithFallback`, `WithBulkhead`, `WithBackpressure`,
-`WithTracing`, `WithErrorHandling`), so `Use` is only needed for custom
-middleware.
+`WithTimeout`, `WithRecording`, `WithMetrics`, `WithRateLimit`,
+`WithDelayRateLimit`, `WithCircuitBreaker`, `WithRetry`, `WithFallback`,
+`WithBulkhead`, `WithBackpressure`, `WithTracing`, `WithErrorHandling`), so `Use`
+and `UseNamed` are only needed for custom middleware. `InFlightMiddleware` has
+no shortcut because it needs the caller's counter; install it with `Use`.
 
 ## Retrying transient failures
 

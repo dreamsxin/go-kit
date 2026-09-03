@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 )
 
@@ -227,6 +228,68 @@ func TestBuilder_Describe(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("label %d: got %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+func TestBulkheadMiddleware_ReportsTheCallerContextThatEndedTheWait(t *testing.T) {
+	release := make(chan struct{})
+	occupied := make(chan struct{})
+	base := func(ctx context.Context, request any) (any, error) {
+		close(occupied)
+		<-release
+		return "ok", nil
+	}
+	ep := endpoint.NewBuilder(base).WithBulkhead(1, nil).Build()
+
+	go func() { _, _ = ep(context.Background(), "first") }()
+	<-occupied
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	_, err := ep(ctx, "second")
+	close(release)
+
+	// The saturation stays visible, but the failure is classified as the
+	// caller's timeout so a transport reports 504 rather than 503.
+	if !errors.Is(err, endpoint.ErrBulkheadFull) {
+		t.Fatalf("error = %v, want it to wrap ErrBulkheadFull", err)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want it to wrap context.DeadlineExceeded", err)
+	}
+	var kinder apperror.Kinder
+	if !errors.As(err, &kinder) {
+		t.Fatalf("error %v does not classify itself", err)
+	}
+	if got := kinder.ErrorKind(); got != apperror.KindDeadlineExceeded {
+		t.Fatalf("kind = %q, want %q", got, apperror.KindDeadlineExceeded)
+	}
+}
+
+func TestBulkheadMiddleware_ClassifiesCancellationAsCanceled(t *testing.T) {
+	release := make(chan struct{})
+	occupied := make(chan struct{})
+	base := func(ctx context.Context, request any) (any, error) {
+		close(occupied)
+		<-release
+		return "ok", nil
+	}
+	ep := endpoint.NewBuilder(base).WithBulkhead(1, nil).Build()
+
+	go func() { _, _ = ep(context.Background(), "first") }()
+	<-occupied
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := ep(ctx, "second")
+	close(release)
+
+	var kinder apperror.Kinder
+	if !errors.As(err, &kinder) {
+		t.Fatalf("error %v does not classify itself", err)
+	}
+	if got := kinder.ErrorKind(); got != apperror.KindCanceled {
+		t.Fatalf("kind = %q, want %q", got, apperror.KindCanceled)
 	}
 }
 

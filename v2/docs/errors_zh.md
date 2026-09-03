@@ -104,9 +104,10 @@ endpoint 层的拒绝错误自带分类，因此两种传输从它们得到一�
 `errors.Is` 与分类信息都保持可用。
 
 HTTP 编码器会把它写成 `Retry-After` 头（单位秒，向上取整）；gRPC 编码器会在
-status 上附加 `google.rpc.RetryInfo`。熔断器打开时会自动上报开窗剩余时间；
-实现了 `RetryAfterReporter` 的 `RateLimiter` 的延迟会被附加到 `ErrRateLimited`
-上。
+status 上附加 `google.rpc.RetryInfo`。熔断器在开窗期内拒绝时会自动上报开窗剩余
+时间；半开状态下的拒绝（已有另一个探测请求在途）不带提示，因为开窗已经结束，
+没有可诚实上报的时间——调用方回退到自己的退避策略。实现了 `RetryAfterReporter`
+的 `RateLimiter` 的延迟会被附加到 `ErrRateLimited` 上。
 
 `RetryMiddleware` 反向读取同一契约：错误带提示时，该提示取代本地退避计划，并以
 `endpoint.MaxRetryAfterHint` 封顶，避免恶意对端把没有自带 deadline 的调用方长
@@ -125,7 +126,7 @@ call, _ := client.NewJSONClient[UserResp](http.MethodGet, "https://api/users/1")
 ep := endpoint.NewBuilder(call).
     WithTimeout(2 * time.Second).
     WithCircuitBreaker(breaker).
-    WithRetry(3). // 重试 503/502，不重试 400/404，并遵循服务端的 Retry-After
+    WithRetry(3). // 重试 408/429/5xx，不重试其他 4xx，并遵循服务端的 Retry-After
     Build()
 ```
 
@@ -250,6 +251,10 @@ svc, err := kit.NewHTTP(":8080", kit.WithJSONServerOptions(
 
 自定义编码器需要与内置映射组合而不是替换时，`server.HTTPStatusForErrorKind(kind)`
 公开内置映射。
+
+映射器解析的是 *kind*，不是状态码：通过 `transporthttp.StatusCoder` 声明了自身状态
+码的错误会保留它，与默认编码器一致。正是这一点保证了映射器不会静默改写转发的
+`client.HTTPStatusError` 或 `endpoint.ValidationError`。
 
 ## 经验法则
 

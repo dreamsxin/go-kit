@@ -111,9 +111,12 @@ the hint without changing the error's identity, so `errors.Is` and the
 classification still work.
 
 The HTTP encoders turn it into a `Retry-After` header (seconds, rounded up);
-the gRPC encoder attaches `google.rpc.RetryInfo` to the status. An open circuit
-breaker reports the time left in its open window automatically, and a
-`RateLimiter` that implements `RetryAfterReporter` has its delay attached to
+the gRPC encoder attaches `google.rpc.RetryInfo` to the status. A breaker
+rejecting inside its open window reports the time left in that window
+automatically; a rejection while half-open (another probe is already in flight)
+carries no hint, because the window has already elapsed and there is nothing
+honest to report — the caller falls back to its own backoff. A `RateLimiter`
+that implements `RetryAfterReporter` has its delay attached to
 `ErrRateLimited`.
 
 `RetryMiddleware` reads the same contract in the other direction: when the
@@ -135,7 +138,7 @@ call, _ := client.NewJSONClient[UserResp](http.MethodGet, "https://api/users/1")
 ep := endpoint.NewBuilder(call).
     WithTimeout(2 * time.Second).
     WithCircuitBreaker(breaker).
-    WithRetry(3). // 503/502 retried, 400/404 not, server Retry-After honored
+    WithRetry(3). // 408/429/5xx retried, other 4xx not, server Retry-After honored
     Build()
 ```
 
@@ -269,6 +272,11 @@ svc, err := kit.NewHTTP(":8080", kit.WithJSONServerOptions(
 
 `server.HTTPStatusForErrorKind(kind)` exposes the built-in mapping when a
 custom encoder wants to compose with it instead of replacing it.
+
+The mapper resolves *kinds*, not statuses: an error that states its own status
+through `transporthttp.StatusCoder` keeps it, exactly as with the default
+encoder. That is what stops a mapper from silently rewriting a relayed
+`client.HTTPStatusError` or an `endpoint.ValidationError`.
 
 ## Rules of thumb
 

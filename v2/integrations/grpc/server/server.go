@@ -110,6 +110,16 @@ func (s Server) ServeGRPC(ctx context.Context, req any) (retctx context.Context,
 		return ctx, nil, err
 	}
 
+	// A response that reports its own failure is treated exactly like a
+	// returned error, so a business error carried in the response value gets
+	// the same code, details, and logging as one returned normally.
+	if failer, ok := response.(endpoint.Failer); ok {
+		if failed := failer.Failed(); failed != nil {
+			s.handleError(ctx, failed)
+			return ctx, nil, s.errorEncoder(ctx, failed)
+		}
+	}
+
 	var mdHeader, mdTrailer metadata.MD
 	for _, f := range s.after {
 		ctx = f(ctx, &mdHeader, &mdTrailer)

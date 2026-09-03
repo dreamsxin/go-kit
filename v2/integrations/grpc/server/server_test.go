@@ -20,6 +20,42 @@ func (e classifiedError) Error() string         { return e.message }
 func (e classifiedError) ErrorKindName() string { return e.kind }
 func (e classifiedError) PublicMessage() string { return e.message }
 
+// A response carrying its own error is a failure here too: the gRPC server must
+// encode it as a status instead of shipping a half-filled message.
+func TestServeGRPC_FailerResponseIsEncodedAsAStatus(t *testing.T) {
+	s := NewServer(
+		func(context.Context, any) (any, error) {
+			return grpcFailerResponse{err: classifiedError{kind: "not_found", message: "no such user"}}, nil
+		},
+		func(context.Context, interface{}) (interface{}, error) { return nil, nil },
+		func(context.Context, interface{}) (interface{}, error) {
+			t.Fatal("response encoder must not run for a failed response")
+			return nil, nil
+		},
+	)
+
+	_, _, err := s.ServeGRPC(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	st, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("not a status error: %v", err)
+	}
+	if st.Code() != codes.NotFound {
+		t.Errorf("code = %v, want NotFound", st.Code())
+	}
+	if st.Message() != "no such user" {
+		t.Errorf("message = %q, want the public message", st.Message())
+	}
+}
+
+type grpcFailerResponse struct {
+	err error
+}
+
+func (r grpcFailerResponse) Failed() error { return r.err }
+
 func TestNewServer_PanicsOnNilEssentialParameters(t *testing.T) {
 	tests := []struct {
 		name string

@@ -93,7 +93,8 @@ catalog，而且每个消费者读到的仍然是过期数字。需要实时信�
 自行度量，参见下文的反馈表。
 
 注册中心交回来的标签都是字符串，而断言通常用带类型的字面量书写。
-`sd.Metadata*` 系列读取函数会做类型归一，因此 `5` 与 `"5"` 都能匹配：
+`sd.MetadataString`、`sd.MetadataInt`、`sd.MetadataBool` 这三个读取函数会做
+类型归一，因此 `5` 与 `"5"` 都能匹配：
 
 ```go
 weight, ok := sd.MetadataInt(inst.Metadata, "weight")
@@ -297,8 +298,30 @@ type ScoreFunc func(ctx context.Context, request any, instance sd.Instance) (flo
 
 ```go
 lb := balancer.New(set, myStrategy{})         // 可直接被 sd/client 与 sd/retry 使用
+defer lb.Close()
 pick := selector.New(instances, myStrategy{}) // 不需要端点
+defer pick.Close()
 ```
+
+### 自定义组件的生命周期规则
+
+两条规则覆盖本包的所有装配方式：
+
+- **关闭你自己构造的东西。** `Selector.Close` 与 `Balancer.Close` 会释放你交给
+  它们的策略链；`Instancer` 与 endpoint set 仍归你所有——`balancer.New`、
+  `health.Check`、`selector.Subscribe` 与 `endpointer.Filter` 都不关闭 source，
+  因为同一个 source 常常同时支撑多个消费者。
+- **包装型策略必须透传 `Close`。** `selector.New` 与 `balancer.New` 只看得见最
+  外层策略，中间任何一层吞掉 `Close`，其下所有层就再也关不掉。
+  `feedback.Table.Wrap` 与 `selector.Filtered` 都会透传，自定义装饰器一行即可：
+
+```go
+func (d *myDecorator) Close() error { return selector.CloseStrategy(d.inner) }
+```
+
+不持有任何资源的策略（所有内置策略都是）根本不需要 `Close`，
+`selector.CloseStrategy` 对它是空操作。
+
 
 若要从调用本身采集反馈——时延、失败、在途深度——请使用 `sd/feedback.Table`。
 一张进程内的表服务于所有策略：既能评分，也能统计在途，还会记录地址第一次
@@ -452,6 +475,7 @@ Instancer → feedback.Follow ────────────────�
 ep   := endpointer.NewEndpointer(instancer, factory, logger)
 defer ep.Close()
 lb   := balancer.NewRoundRobin(ep)
+defer lb.Close()
 call := retry.Retry(3, 500*time.Millisecond, lb)
 ```
 

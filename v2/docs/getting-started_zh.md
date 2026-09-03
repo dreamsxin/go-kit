@@ -77,7 +77,9 @@ curl http://localhost:8080/health
 
 - `kit.NewHTTP` 校验了配置并注册了 `/health`、`/livez` 和 `/readyz`。
 - `HandleJSONTyped` 注册了一个类型化 JSON 路由：请求体被严格解码（未知字段和
-  多余数据都会被拒绝），响应以匹配的状态码编码为 JSON。
+  多余数据都会被拒绝），返回值以 `200` 写成 JSON。若返回错误，则改为编码为
+  `{"code","message","request_id"}`，状态码由其 `apperror` kind 映射而来——
+  `KindInvalidArgument` 对应 400，`KindNotFound` 对应 404，以此类推。
 - `kit.NewHost` 把 HTTP 组件挂载到传输中立的生命周期 Host；`host.Run(ctx)`
   启动了服务器，并在收到 `SIGTERM` 时将其优雅停机。
 

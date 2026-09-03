@@ -83,9 +83,23 @@ by go-kit make the callback idempotent, so an adapter may safely use `defer`.
 it from opaque request and response values; a protocol adapter or bridge that
 counts traffic should fill it.
 
-The instance-only selector has the same feedback half of the contract:
+The instance-only selector has the same feedback half of the contract.
+`selector.New` binds a strategy to a source and returns a `Selector`; close it
+when you are done, which releases the strategy and nothing else — the source and
+the instancer behind it stay yours:
 
 ```go
+type Selector interface {
+    Select(ctx context.Context, request any) (sd.Instance, sd.Done, error)
+    Close() error
+}
+
+pool := selector.Subscribe(instancer)
+defer pool.Close()
+
+pick := selector.New(pool, selector.RoundRobin())
+defer pick.Close()
+
 instance, done, err := pick.Select(ctx, request)
 if err != nil {
     return err
@@ -141,6 +155,13 @@ defer lb.Close()
 
 call := retry.Retry(3, 500*time.Millisecond, lb)
 ```
+
+`retry.Retry` takes both an attempt cap and a wall-clock budget, and the budget
+wins: a call that runs out of time stops mid-schedule. The failure is a
+`retry.Error` carrying every attempt made so far, with the context error as its
+`Final`, so `errors.Is(err, context.DeadlineExceeded)` still matches while the
+message names the instances that failed. Only a budget that expires before any
+attempt completes returns the bare context error.
 
 ## Filtering and lifecycle state
 
@@ -245,12 +266,15 @@ wrap or replace each layer through its narrow contract:
 | active health | `health.Probe` | authentication, probe metrics, custom protocol |
 | retry | `retry.Callback` / `retry.Classifier` | idempotency and protocol policy |
 
-A strategy middleware must forward both the selected index and the inner
-callback. A balancer middleware must forward `Picked.Instance` and
-`Picked.Endpoint`, wrap `Picked.Done` at most once, and delegate `Close` to the
-inner balancer. A factory or probe wrapper should preserve the original error
-and closer semantics. These rules let custom components interoperate with the
-same feedback table and retry executor as the built-ins.
+A strategy middleware must forward the selected index, the inner callback, and
+`Close` — `selector.CloseStrategy(inner)` is the one-line form, and skipping it
+hides the inner strategy's cleanup, because only the outermost strategy is
+visible to `selector.New` and `balancer.New`. A balancer middleware must forward
+`Picked.Instance` and `Picked.Endpoint`, wrap `Picked.Done` at most once, and
+delegate `Close` to the inner balancer. A factory or probe wrapper should
+preserve the original error and closer semantics. These rules let custom
+components interoperate with the same feedback table and retry executor as the
+built-ins.
 
 For request-aware scoring, implement the unified `selector.ScoreFunc` rather
 than a second strategy interface:

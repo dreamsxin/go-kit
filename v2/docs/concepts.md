@@ -45,9 +45,15 @@ on. The complete kind table for both transports lives in
 [error handling](errors.md#the-apperror-reference).
 
 > [!NOTE]
-> Unclassified errors never leak internal details to clients: they encode as
-> 500 with a redacted message. Only errors classified with `apperror` carry a
-> public message.
+> An error the framework cannot classify at all encodes as 500 with a redacted
+> message — the internal error string never reaches the client. "Classified" is
+> wider than "built with `apperror`", though: the encoders also honor
+> `transporthttp.StatusCoder` and `PublicMessager`, which is how
+> `endpoint.ValidationError` becomes 400, the admission-control sentinels become
+> 503/429, and a relayed `client.HTTPStatusError` keeps its upstream status.
+> Bare `context.DeadlineExceeded` and `context.Canceled` also map to 504 and 499
+> rather than 500. `server.HTTPStatusForError` is the one function that answers
+> "what status will this error get".
 
 The full flow, including custom error formats, is covered in
 [error handling](errors.md).

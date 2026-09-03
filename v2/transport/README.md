@@ -52,7 +52,7 @@ binding := transport.Binding[HelloRequest, HelloResponse]{
 }
 
 // HTTP: strict typed JSON in one call.
-kit.HandleJSONTyped(svc, "POST /hello", binding.TypedEndpoint())
+kit.HandleJSONTyped(httpComponent, "POST /hello", binding.TypedEndpoint())
 
 // gRPC: the protobuf-facing codec maps wire messages to the domain types.
 srv := grpcserver.NewServer(
@@ -127,7 +127,10 @@ Components compose in two clearly separated styles.
 **Replacing** - exactly one wins per route, the last one set:
 
 - the success response encoder (`server.ServerResponseEncoder`, default
-  `EncodeJSONResponse`);
+  `EncodeJSONResponse`) — note it applies only to the **JSON entry points**
+  (`NewJSONServer`, `NewJSONEndpoint`, and their typed and strict variants). A
+  server built with `NewServer` takes its encode function as a constructor
+  argument, so passing `ServerResponseEncoder` to it is silently overridden;
 - the error encoder (`server.ServerErrorEncoder`);
 - the request body decoder (the constructor `DecodeRequestFunc`).
 
@@ -135,18 +138,15 @@ Multiple format conversions still compose, but inside the one installed
 function: an envelope encoder can marshal, post-process, or delegate itself.
 
 **Combining request parsers.** A route has one body decoder, but body, path,
-query, and multipart inputs combine inside it. The shared helpers fill the
-same request struct from different sources, and path values take precedence
-over query values with the same field name:
+query, and multipart inputs combine inside it. `DecodeQueryRequest` fills the
+struct from **both** path and query values, with path winning on a name clash,
+so it is all a GET-style route needs:
 
 ```go
 func decodeList(ctx context.Context, r *http.Request) (any, error) {
     var req ListOrdersRequest          // form/json tags map query and path fields
     if err := transporthttp.DecodeQueryRequest(r, &req); err != nil {
         return nil, err                // query and path both land here
-    }
-    if err := transporthttp.DecodePathRequest(r, &req); err != nil {
-        return nil, err
     }
     page, err := transporthttp.ParsePage(r)
     if err != nil {
@@ -156,6 +156,9 @@ func decodeList(ctx context.Context, r *http.Request) (any, error) {
     return req, nil
 }
 ```
+
+`DecodePathRequest` is the *body* companion: run it after JSON decoding so path
+values override whatever the body carried.
 
 File uploads combine the same way: decode form fields with
 `server.ParseMultipartForm` inside the decoder, then read the file part.
@@ -227,25 +230,34 @@ Use `transport/http/server` when exposing HTTP APIs.
 
 Recommended entry points:
 
-- `server.NewServer`
-- `server.NewTypedJSONServer`
-- `server.NewJSONServer`
-- `server.NewJSONEndpoint`
-- `server.NewStrictTypedJSONServer`
-- `server.NewStrictJSONServer`
-- `server.NewStrictJSONEndpoint`
-- `server.NewTypedJSONServerWithMiddleware`
-- `server.NewJSONServerWithMiddleware`
-- `server.DecodeJSONRequest`
-- `server.DecodeJSONRequestWithOptions`
-- `server.DecodeJSONBody`
-- `server.StrictJSONDecodeOptions`
-- `server.DefaultMaxJSONBodyBytes`
-- `server.EncodeJSONResponse`
-- `server.JSONErrorEncoder`
+- `server.NewServer` — the general server; you supply decode and encode
+- `server.NewJSONServer` / `server.NewTypedJSONServer` — handler in, JSON route out
+- `server.NewJSONEndpoint` — same, for an endpoint you already built
+- `server.NewJSONServerWithBodyLimit` / `server.NewTypedJSONServerWithBodyLimit` /
+  `server.NewJSONEndpointWithBodyLimit` — the same three with an explicit body cap
+- `server.NewJSONServerWithMiddleware` / `server.NewTypedJSONServerWithMiddleware`
+- `server.NewJSONEndpointWithDecodeOptions` — the escape hatch for changing
+  strictness itself
+- `server.DecodeJSONRequest` / `server.DecodeJSONRequestWithOptions` /
+  `server.DecodeJSONBody`
+- `server.StrictJSONDecodeOptions`, `server.JSONDecodeOptions`,
+  `server.DefaultMaxJSONBodyBytes`
+- `server.EncodeJSONResponse`, `server.WrapJSONResponse`
+- `server.JSONErrorEncoder`, `server.DefaultErrorEncoder`,
+  `server.JSONErrorEncoderWithKindMapper`, `server.TextErrorEncoder`
+- `server.HTTPStatusForError` / `server.HTTPStatusForErrorKind` — the status an
+  error maps to, for relaying an upstream failure or writing a custom encoder
+- `server.RawBodyCodec` / `server.RawBodyCodecWithMaxBytes` for non-JSON bodies
+- `server.NopRequestDecoder` / `server.NopResponseEncoder`
 - `server.NewSSEServer` / `server.NewSSEServerTyped` for Server-Sent Events streams
 - `server.ParseMultipartForm` for bounded multipart/form-data uploads
 - `server.WriteAttachment` for file downloads
+- `server.AccessLogMiddleware` for a standard-library `slog` access log
+
+Every JSON entry point decodes **strictly**: unknown object fields, a second
+JSON value, and bodies over `DefaultMaxJSONBodyBytes` are rejected with 400.
+The `WithBodyLimit` variants change only the size cap;
+`NewJSONEndpointWithDecodeOptions` is the only way to relax strictness.
 
 `ParseMultipartForm` enforces a total body cap, a per-file cap, and the
 in-memory threshold before parts spill to temporary files; limit violations
@@ -284,8 +296,7 @@ Primary extension points:
 - `ServerFinalizer`
 - `ServerErrorHandler`
 - `ServerErrorEncoder`
-- `ServerErrorEncoder`
-- `ServerErrorHandler`
+- `ServerResponseEncoder` (JSON entry points only)
 
 The default error handler is a no-op. Install an application-owned handler when
 errors must be logged or recorded, for example
@@ -313,15 +324,15 @@ handler := server.NewTypedJSONServer(
 http.Handle("/hello", handler)
 ```
 
-Prefer the fully typed helpers when the response has a concrete type. The JSON
-helpers are strict by default: they reject unknown object fields, a second JSON
-value, and bodies larger than the default byte limit.
-Use the explicit strict helpers when a route needs a custom body limit:
+Prefer the fully typed helpers when the response has a concrete type. All JSON
+helpers are strict: they reject unknown object fields, a second JSON value, and
+bodies larger than the default byte limit. Use a `WithBodyLimit` helper when a
+route needs a different cap:
 
 ```go
-handler := server.NewStrictJSONEndpoint[HelloReq](
+handler := server.NewJSONEndpointWithBodyLimit[HelloReq](
     ep,
-    server.DefaultMaxJSONBodyBytes,
+    64<<10,
     server.ServerErrorEncoder(server.JSONErrorEncoder),
 )
 ```

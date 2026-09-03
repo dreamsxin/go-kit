@@ -56,6 +56,20 @@ func (e *HTTPStatusError) Error() string {
 	return fmt.Sprintf("http client: unexpected status %s: %s", e.Status, body)
 }
 
+// PublicMessage reports the message a server may forward to its own clients:
+// the upstream status, never the upstream body.
+//
+// Error() keeps the body for logs, but a server that returns this error from an
+// endpoint would otherwise leak it — the JSON error encoders fall back to
+// Error() for 4xx responses, so an upstream 404 body would land verbatim in the
+// downstream response.
+func (e *HTTPStatusError) PublicMessage() string {
+	if e == nil {
+		return ""
+	}
+	return fmt.Sprintf("upstream request failed with status %s", e.Status)
+}
+
 // Retryable reports whether the status is generally safe to retry.
 func (e *HTTPStatusError) Retryable() bool {
 	if e == nil {

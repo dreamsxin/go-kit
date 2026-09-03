@@ -197,6 +197,29 @@ func TestJSONErrorEncoderWithKindMapper(t *testing.T) {
 	}
 }
 
+// A kind mapper resolves kinds, not statuses. An error that states its own
+// status means it, exactly as with the default encoder, so installing a mapper
+// cannot silently rewrite a relayed upstream status.
+func TestJSONErrorEncoderWithKindMapper_ExplicitStatusWins(t *testing.T) {
+	encoder := server.JSONErrorEncoderWithKindMapper(func(apperror.Kind) int {
+		return http.StatusPaymentRequired
+	})
+
+	rec := httptest.NewRecorder()
+	encoder(context.Background(), statusCoderError{status: http.StatusServiceUnavailable}, rec)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("status: got %d, want 503", rec.Code)
+	}
+}
+
+type statusCoderError struct {
+	status int
+}
+
+func (statusCoderError) Error() string            { return "upstream is down" }
+func (e statusCoderError) StatusCode() int        { return e.status }
+func (statusCoderError) ErrorKind() apperror.Kind { return apperror.KindUnavailable }
+
 func TestJSONErrorEncoderWithKindMapper_NilMapper(t *testing.T) {
 	encoder := server.JSONErrorEncoderWithKindMapper(nil)
 	rec := httptest.NewRecorder()

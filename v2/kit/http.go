@@ -37,6 +37,7 @@ type HTTP struct {
 	jsonMaxBodyBytes   int64
 	jsonServerOptions  []httpserver.ServerOption
 	healthTimeout      time.Duration
+	timeout            time.Duration
 
 	checksMu        sync.Mutex
 	livenessChecks  []namedHealthCheck
@@ -183,10 +184,13 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // custom protocol endpoints.
 //
 // Endpoint middleware is intentionally not applied to plain HTTP handlers.
-// Use HandleJSONTyped, HandleJSON, or HandleJSONEndpoint for application
-// endpoints that should use the service -> endpoint -> transport chain and
-// endpoint middleware such as timeout, logging, metrics, rate limiting, or
-// circuit breaking.
+// What a raw route still gets from the component: the request context (so
+// kit.RequestFromContext works), WithRequestID, and the WithTimeout deadline.
+// What it does not get: WithMetrics, WithRecorder, WithRateLimit,
+// WithCircuitBreaker, and anything added through WithEndpointMiddleware, since
+// those observe or gate an endpoint call rather than an http.Handler. Use
+// HandleJSONTyped, HandleJSON, or HandleJSONEndpoint for application endpoints
+// that should run the service -> endpoint -> transport chain.
 func (h *HTTP) Handle(pattern string, handler http.Handler) {
 	h.mux.Handle(pattern, h.withHTTPContext(handler))
 }
@@ -217,6 +221,15 @@ func (h *HTTP) applyEndpointMiddleware(operation string, base endpoint.Endpoint)
 func (h *HTTP) withHTTPContext(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := h.prepareHTTPContext(r.Context(), r, w)
+		if h.timeout > 0 {
+			// The deadline is applied here, not only in the endpoint chain, so
+			// a raw handler registered with Handle is bounded too. Without it,
+			// WithTimeout looked like a service-wide option while silently
+			// leaving every raw route unbounded.
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, h.timeout)
+			defer cancel()
+		}
 		handler.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

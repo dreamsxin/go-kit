@@ -53,7 +53,10 @@ func ServerErrorEncoder(ee ErrorEncoder) ServerOption {
 }
 
 // ServerErrorHandler sets the handler that is called whenever an error
-// occurs (decode, endpoint, or encode).  The default handler logs via zap.
+// occurs (decode, endpoint, or encode). The default is
+// transport.NopErrorHandler, which discards errors: the transport encodes the
+// response but records nothing. Set this option (or use kit.WithRecorder, which
+// wires it for you) to get errors into logs.
 func ServerErrorHandler(errorHandler transport.ErrorHandler) ServerOption {
 	return func(s *Server) { s.errorHandler = errorHandler }
 }

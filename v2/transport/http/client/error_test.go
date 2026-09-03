@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -119,6 +120,35 @@ func TestHTTPStatusErrorCodeIgnoresNonJSONBodies(t *testing.T) {
 				t.Errorf("ErrorCode = %q, want empty", got)
 			}
 		})
+	}
+}
+
+// The upstream body is diagnostic, not public: it may name internal hosts or
+// quote internal errors. It belongs in logs (Error) but never in the response a
+// relaying service writes to its own caller (PublicMessage).
+func TestHTTPStatusErrorDoesNotLeakUpstreamBody(t *testing.T) {
+	secret := `{"message":"db user hunter2 at 10.0.0.7 refused"}`
+	err := &httpclient.HTTPStatusError{
+		StatusCode: http.StatusNotFound,
+		Status:     "404 Not Found",
+		Body:       []byte(secret),
+	}
+
+	if !strings.Contains(err.Error(), secret) {
+		t.Errorf("Error() = %q, want it to keep the upstream body for logs", err.Error())
+	}
+	if got := err.PublicMessage(); strings.Contains(got, "hunter2") || strings.Contains(got, "10.0.0.7") {
+		t.Errorf("PublicMessage = %q, want no upstream body", got)
+	}
+
+	// Relaying the error must therefore produce a body-free message.
+	rec := httptest.NewRecorder()
+	httpserver.JSONErrorEncoder(context.Background(), err, rec)
+	if strings.Contains(rec.Body.String(), "hunter2") {
+		t.Errorf("relayed body = %q, want no upstream body", rec.Body.String())
+	}
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("relayed status = %d, want 404", rec.Code)
 	}
 }
 

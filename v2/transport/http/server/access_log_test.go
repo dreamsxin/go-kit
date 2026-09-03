@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -71,6 +72,59 @@ func TestAccessLogMiddleware_RecordsProtocolFacts(t *testing.T) {
 	}
 	if attrs["trace_id"] != "0af7651916cd43dd8448eb211c80319c" {
 		t.Errorf("trace_id = %v", attrs["trace_id"])
+	}
+}
+
+// The access line has to carry the same request ID the client got back, or
+// correlating a client-reported failure with the server log means guessing.
+// HTTP middleware runs outside the component's per-request context, so the ID
+// is read from the response header the component already wrote.
+func TestAccessLogMiddleware_RecordsRequestIDFromTheResponseHeader(t *testing.T) {
+	handler := &captureHandler{}
+	mw := server.AccessLogMiddleware(slog.New(handler))
+	served := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-Request-ID", "req-42")
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	served.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/x", nil))
+
+	attrs := handler.latestAttrs()
+	if attrs["request_id"] != "req-42" {
+		t.Errorf("request_id = %v, want req-42", attrs["request_id"])
+	}
+}
+
+// Installed inside a chain that already populated the context, the context wins.
+func TestAccessLogMiddleware_PrefersTheContextRequestID(t *testing.T) {
+	handler := &captureHandler{}
+	mw := server.AccessLogMiddleware(slog.New(handler))
+	served := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-Request-ID", "from-header")
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	req = req.WithContext(endpoint.WithRequestID(req.Context(), "from-context"))
+	served.ServeHTTP(httptest.NewRecorder(), req)
+
+	attrs := handler.latestAttrs()
+	if attrs["request_id"] != "from-context" {
+		t.Errorf("request_id = %v, want from-context", attrs["request_id"])
+	}
+}
+
+func TestAccessLogMiddleware_OmitsRequestIDWhenAbsent(t *testing.T) {
+	handler := &captureHandler{}
+	mw := server.AccessLogMiddleware(slog.New(handler))
+	served := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	served.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/x", nil))
+
+	if _, has := handler.latestAttrs()["request_id"]; has {
+		t.Error("request_id should be absent when no ID was assigned")
 	}
 }
 

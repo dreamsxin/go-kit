@@ -82,11 +82,28 @@ func DefaultRetryable(err error) bool {
 	if errors.As(err, &classified) {
 		return classified.Retryable()
 	}
-	var kinder apperror.Kinder
-	if !errors.As(err, &kinder) {
+	// Both classification contracts are read, so an error is retryable under
+	// the same rule whether it implements apperror.Kinder or only the minimal
+	// apperror.KindNamer that optional transports use.
+	kind, ok := errorKind(err)
+	if !ok {
 		return false
 	}
-	return kinder.ErrorKind() == apperror.KindUnavailable
+	return kind == apperror.KindUnavailable
+}
+
+// errorKind reads the classification from either the typed apperror.Kinder
+// contract or the minimal apperror.KindNamer contract.
+func errorKind(err error) (apperror.Kind, bool) {
+	var kinder apperror.Kinder
+	if errors.As(err, &kinder) {
+		return kinder.ErrorKind(), true
+	}
+	var namer apperror.KindNamer
+	if errors.As(err, &namer) {
+		return apperror.Kind(namer.ErrorKindName()), true
+	}
+	return "", false
 }
 
 // defaultRetryBackoff is exponential backoff with full jitter, the schedule

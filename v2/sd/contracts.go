@@ -13,6 +13,14 @@ import (
 // instance reported when it registered. It is an alias so providers can build
 // snapshots without importing this module.
 //
+// Address is both the dial target and the identity of an instance. Every
+// component that keeps per-instance state — endpoint caches, feedback tables,
+// ejectors, health state — keys on it, so a provider must publish a non-empty
+// address, unique within one snapshot. Duplicates are dropped rather than
+// merged, and reusing an address for a different process hands the new one the
+// state of the old (its first-seen time, its ejection status) until discovery
+// drops it from a snapshot.
+//
 // Metadata carries *static* labels — zone, version, protocol, capability,
 // weight, tenant — the kind of thing a registry is designed to hold. It is not
 // a channel for live load signals: a registry write per metric sample would
@@ -51,6 +59,15 @@ func Addresses(addresses ...string) []Instance {
 
 // Instancer publishes service-discovery snapshots and owns the provider
 // lifecycle. Close is idempotent and releases watches and other resources.
+//
+// The subscriber owns its channel. Register starts delivery and returns the
+// current snapshot; Deregister only stops delivery. An Instancer must never
+// close a channel it was handed — a subscriber that sees its own channel closed
+// under it cannot tell an empty snapshot from a dead provider — and it must not
+// block on a subscriber that is not reading. Give it a buffer of one and drop
+// the stale event rather than the new one, as sd/instance.Cache does: on a full
+// channel it discards the queued event and enqueues the current one, so a slow
+// subscriber falls behind but never reads a snapshot that is already obsolete.
 type Instancer interface {
 	Register(chan Event) Event
 	Deregister(chan Event)
@@ -58,6 +75,12 @@ type Instancer interface {
 }
 
 // Registrar registers and deregisters one service instance.
+//
+// Deregister is the whole shutdown story: it must be idempotent and must
+// release everything Register started — renewal goroutines, leases, watch
+// contexts — so a caller never needs a second teardown call. A Registrar may be
+// reused: Register after Deregister registers the same instance again. Clients
+// and connections handed to the constructor stay the caller's to close.
 type Registrar interface {
 	Register() error
 	Deregister() error
@@ -67,11 +90,14 @@ type Registrar interface {
 // Latency includes endpoint execution time, not time spent waiting to pick an
 // instance.
 //
-// Bytes is the application-defined volume the call moved. sd/retry does not fill
-// it, because an endpoint's request and response are opaque values at that
-// layer; a caller that knows the protocol — a proxy counting the bytes it
-// relayed, a transport reading a content length — reports it by wrapping
-// Picked.Done. Zero means nobody measured it.
+// Bytes is the application-defined total volume the call moved, in both
+// directions. sd/retry does not fill it, because an endpoint's request and
+// response are opaque values at that layer; a caller that knows the protocol — a
+// proxy counting the bytes it relayed, a transport reading a content length —
+// reports it by wrapping Picked.Done. Zero means nobody measured it. A caller
+// that needs per-direction or protocol-specific detail keeps it in its own
+// table, keyed by instance, rather than in this struct: every call on the hot
+// path pays for whatever lands here.
 type Outcome struct {
 	Err     error
 	Latency time.Duration

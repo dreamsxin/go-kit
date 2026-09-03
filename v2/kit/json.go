@@ -116,6 +116,6 @@ func HandleJSONEndpoint[Req any](
 	}
 	ep = h.applyEndpointMiddleware(pattern, ep)
 	routeOptions := append(append([]httpserver.ServerOption(nil), h.jsonServerOptions...), options...)
-	handler := httpserver.NewStrictJSONEndpoint[Req](ep, h.jsonMaxBodyBytes, routeOptions...)
+	handler := httpserver.NewJSONEndpointWithBodyLimit[Req](ep, h.jsonMaxBodyBytes, routeOptions...)
 	h.mux.Handle(pattern, h.withHTTPContext(handler))
 }

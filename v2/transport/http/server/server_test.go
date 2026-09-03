@@ -58,6 +58,66 @@ func TestServer_ResponseEncoderReceivesFlusher(t *testing.T) {
 	}
 }
 
+// A response carrying its own error is a failure: implementing endpoint.Failer
+// has to reach the error encoder, or the interface is a trap that answers 200
+// with a half-filled body.
+func TestServer_FailerResponseIsEncodedAsAnError(t *testing.T) {
+	handled := make([]error, 0, 1)
+	ep := endpoint.Endpoint(func(context.Context, interface{}) (interface{}, error) {
+		return failerResponse{err: apperror.NotFound("user.missing", "no such user")}, nil
+	})
+	s := server.NewServer(ep, nopDecode, server.EncodeJSONResponse,
+		server.ServerErrorEncoder(server.JSONErrorEncoder),
+		server.ServerErrorHandler(transport.ErrorHandlerFunc(func(_ context.Context, err error) {
+			handled = append(handled, err)
+		})),
+	)
+
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Code != "user.missing" {
+		t.Errorf("code = %q, want user.missing", body.Code)
+	}
+	if len(handled) != 1 {
+		t.Fatalf("error handler saw %d errors, want 1", len(handled))
+	}
+}
+
+// A Failer whose Failed() is nil is an ordinary success.
+func TestServer_FailerResponseWithoutErrorIsEncodedNormally(t *testing.T) {
+	ep := endpoint.Endpoint(func(context.Context, interface{}) (interface{}, error) {
+		return failerResponse{Name: "ada"}, nil
+	})
+	s := server.NewServer(ep, nopDecode, server.EncodeJSONResponse)
+
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "ada") {
+		t.Errorf("body = %q, want the response value", rec.Body.String())
+	}
+}
+
+type failerResponse struct {
+	Name string `json:"name"`
+	err  error
+}
+
+func (r failerResponse) Failed() error { return r.err }
+
 func TestServer_DecodeError(t *testing.T) {
 	s := server.NewServer(endpoint.Nop,
 		func(_ context.Context, _ *http.Request) (interface{}, error) {

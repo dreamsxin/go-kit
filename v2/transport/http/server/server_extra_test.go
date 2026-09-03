@@ -339,9 +339,9 @@ func TestNewJSONServer_RejectsUnknownFieldsByDefault(t *testing.T) {
 	}
 }
 
-func TestNewStrictJSONServer_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
+func TestNewJSONServerWithBodyLimit_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
 	called := false
-	h := server.NewStrictJSONServer[testReq](func(_ context.Context, _ testReq) (any, error) {
+	h := server.NewJSONServerWithBodyLimit[testReq](func(_ context.Context, _ testReq) (any, error) {
 		called = true
 		return "ok", nil
 	}, 128)
@@ -362,9 +362,9 @@ func TestNewStrictJSONServer_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
 	}
 }
 
-func TestNewStrictTypedJSONServer_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
+func TestNewTypedJSONServerWithBodyLimit_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
 	called := false
-	h := server.NewStrictTypedJSONServer(func(_ context.Context, _ testReq) (string, error) {
+	h := server.NewTypedJSONServerWithBodyLimit(func(_ context.Context, _ testReq) (string, error) {
 		called = true
 		return "ok", nil
 	}, 128)

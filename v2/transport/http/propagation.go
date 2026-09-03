@@ -28,7 +28,7 @@ func ExtractTraceparent(ctx context.Context, r *http.Request) context.Context {
 // from the context into the traceparent header of an outgoing request. Use
 // it as a client Before hook so downstream services continue the same trace:
 //
-//	client.NewClient(method, tgt, enc, dec, client.Before(transporthttp.InjectTraceparent))
+//	client.NewClient(method, tgt, enc, dec, client.ClientBefore(transporthttp.InjectTraceparent))
 //
 // The injected parent span ID is the current operation's span, giving the
 // downstream service a connected parent. Requests without a trace context in

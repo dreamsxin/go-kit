@@ -60,7 +60,9 @@ func (rt generatedRuntime) registerGRPCServices(server *grpc.Server) {
 
 func generatedRouteEntries(rt generatedRuntime, withOpenAPI, withDebug bool{{if .WithInteraction}}, withInteraction bool{{end}}) []generatedRouteEntry {
 	routes := []generatedRouteEntry{
-		{Method: "GET", Path: "/health", Handler: "health"},
+		{Method: "GET, HEAD", Path: "/health", Handler: "health"},
+		{Method: "GET, HEAD", Path: "/livez", Handler: "health"},
+		{Method: "GET, HEAD", Path: "/readyz", Handler: "health"},
 	}
 	if withDebug {
 		routes = append(routes, generatedRouteEntry{Method: "GET", Path: "/debug/routes", Handler: "debug"})

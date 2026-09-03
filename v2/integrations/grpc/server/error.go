@@ -10,6 +10,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/protoadapt"
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	"github.com/dreamsxin/go-kit/v2/apperror"
 )
 
 // ErrorEncoder maps application errors to errors safe for gRPC clients.
@@ -100,11 +102,10 @@ func (c errorEncoderConfig) encode(ctx context.Context, err error) error {
 // classify resolves the gRPC code and the message safe to expose. Unclassified
 // errors stay Internal with a redacted message.
 func (c errorEncoderConfig) classify(err error) (codes.Code, string) {
-	var kinder interface{ ErrorKindName() string }
-	if !errors.As(err, &kinder) {
+	kind, ok := errorKindName(err)
+	if !ok {
 		return codes.Internal, "internal error"
 	}
-	kind := kinder.ErrorKindName()
 
 	if c.kindMapper != nil {
 		if code := c.kindMapper(kind); code >= codes.OK && code <= codes.DataLoss {
@@ -123,6 +124,22 @@ func (c errorEncoderConfig) classify(err error) (codes.Code, string) {
 		return code, code.String()
 	}
 	return code, "internal error"
+}
+
+// errorKindName reads the classification from either the typed apperror.Kinder
+// contract or the minimal apperror.KindNamer one, in that order. Both are read
+// so an error classified with apperror.Kinder alone maps to the same code here
+// as it does over HTTP, instead of collapsing to Internal.
+func errorKindName(err error) (string, bool) {
+	var kinder apperror.Kinder
+	if errors.As(err, &kinder) {
+		return string(kinder.ErrorKind()), true
+	}
+	var namer apperror.KindNamer
+	if errors.As(err, &namer) {
+		return namer.ErrorKindName(), true
+	}
+	return "", false
 }
 
 // statusError builds the gRPC status and attaches the canonical error details:

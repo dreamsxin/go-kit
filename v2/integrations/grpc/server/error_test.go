@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/dreamsxin/go-kit/v2/apperror"
 	transportgrpc "github.com/dreamsxin/go-kit/v2/integrations/grpc"
 )
 
@@ -107,6 +108,27 @@ func TestDefaultErrorEncoderAttachesCodeAndRetryInfo(t *testing.T) {
 		t.Error("an Unavailable status must be retryable")
 	}
 }
+
+// apperror.Kinder is the typed classification contract, and an error that
+// implements only it must map to the same code here as it does over HTTP.
+func TestDefaultErrorEncoderReadsTheTypedKindContract(t *testing.T) {
+	err := DefaultErrorEncoder(context.Background(), kinderError{kind: apperror.KindNotFound})
+
+	st, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("not a status error: %v", err)
+	}
+	if st.Code() != codes.NotFound {
+		t.Errorf("code = %v, want NotFound", st.Code())
+	}
+}
+
+type kinderError struct {
+	kind apperror.Kind
+}
+
+func (kinderError) Error() string              { return "no such user" }
+func (e kinderError) ErrorKind() apperror.Kind { return e.kind }
 
 func TestDefaultErrorEncoderRedactsUnclassifiedErrors(t *testing.T) {
 	err := DefaultErrorEncoder(context.Background(), errPlain{})

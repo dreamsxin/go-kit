@@ -33,6 +33,50 @@ go-kit v2 遵循语义化版本。本页记录当前版本所需的升级动作�
 
 推荐迁移顺序：逐个服务迁移；先从类型化 JSON 处理器（`kit`）入手，再把错误字符串约定替换为 `apperror`，然后把重复的 HTTP/gRPC 装配收敛到 `transport.Binding`，最后让 `microgen` 接管再生成的传输。
 
+## 升级到未发布版本（传输层与 JSON 构造器）
+
+HTTP/gRPC 服务端路径上有两项破坏性变更。
+
+### `endpoint.Failer` 现在生效
+
+HTTP 与 gRPC 服务器会检查响应是否有 `Failed() error`。若它返回非 nil，响应被丢弃、
+改为编码该错误——获得与正常返回错误完全相同的状态码、错误码与日志。
+
+只有当你的响应类型恰好已经带有 `Failed() error` 方法时，这才影响你。此前该方法被
+忽略、响应会被序列化成一次成功；现在它决定响应内容。如果你并不是想实现 go-kit 的
+这个契约，请给方法改名：
+
+```go
+// 这个类型现在会让每个 Err 非 nil 的响应短路。
+type CreateResponse struct {
+	ID  string `json:"id"`
+	Err error  `json:"-"`
+}
+
+func (r CreateResponse) Failed() error { return r.Err }
+```
+
+`Failer` 存在的意义是服务那些无法返回 error 的签名——生成的批处理 handler、回调
+适配器。它不是"用 200 附带错误字段"的手段：那种场景请正常返回 error。
+
+### `NewStrict*` JSON 构造器更名
+
+```go
+// 之前
+httpserver.NewStrictJSONEndpoint[Req](ep, maxBodyBytes)
+httpserver.NewStrictJSONServer[Req](fn, maxBodyBytes)
+httpserver.NewStrictTypedJSONServer[Req, Resp](fn, maxBodyBytes)
+
+// 之后
+httpserver.NewJSONEndpointWithBodyLimit[Req](ep, maxBodyBytes)
+httpserver.NewJSONServerWithBodyLimit[Req](fn, maxBodyBytes)
+httpserver.NewTypedJSONServerWithBodyLimit[Req, Resp](fn, maxBodyBytes)
+```
+
+行为未变。旧名字暗示了一种从未存在的解码差异：所有 JSON 入口都会拒绝未知字段与
+尾随数据，这三个构造器的唯一区别只是多接一个显式的请求体上限。放宽严格性仍然只有
+`NewJSONEndpointWithDecodeOptions` 一条路。
+
 ## 升级到未发布版本（sd 实例元数据）
 
 服务发现现在携带标签，而不只是地址。需要改三处源码，都很机械。
@@ -192,6 +236,35 @@ done(sd.Outcome{Err: err, Latency: time.Since(started)})
 
 回调在成功时永不为 nil，且幂等。即使策略看起来无状态也请上报结果——实例层
 此前会丢掉它，导致任何基于反馈表的策略把每次选择永久计为在途。
+
+### 两条装配路径统一到一条所有权规则
+
+`selector.Selector` 新增 `Close() error`，同时 `endpointer.Filter` /
+`endpointer.Prefer` 不再关闭 source。两条路径的规则一致：关闭你自己构造的东西，
+交给它的东西仍归你。
+
+```go
+// 之后
+pick := selector.New(pool, strategy)
+defer pick.Close()   // 释放 strategy；pool 与 Instancer 仍归你
+
+view := endpointer.Filter(set, sd.MetadataEquals("zone", "a"))
+defer set.Close()    // 关 set 而不是 view：view.Close() 现在是空操作
+```
+
+需要改的两处：
+
+- 自定义 `Selector` 实现需要补一个 `Close() error`；不持有资源时返回 `nil` 即可。
+- 依赖 `filter.Close()` 顺带关闭底层 endpoint set 的代码，改为直接关闭 set。
+  其余不变，并且多个视图现在可以安全共享同一个 set。
+
+相关但无需改动：装饰其他策略的策略现在会真正触发内部 `Close`。
+`feedback.Table.Wrap` 与 `selector.Filtered` 通过 `selector.CloseStrategy` 透传；
+如果你写过自己的装饰器，补上同样的一行，避免可关闭的内部策略被搁死：
+
+```go
+func (d *myDecorator) Close() error { return selector.CloseStrategy(d.inner) }
+```
 
 不需要改源码但需要注意的行为变更：
 

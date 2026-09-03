@@ -76,8 +76,8 @@ logging, rate limiting, and circuit breaking remain explicit adapters.
 call an `Observation` (operation, duration, error), and any backend bridge is an
 implementation of that interface. `Metrics` is the built-in in-memory collector.
 Its counters are unexported and guarded internally, so the read paths are
-`Snapshot()`, `SnapshotFor(operation)`, and `Operations()`, each returning
-lock-free, copyable values.
+`Snapshot()`, `SnapshotFor(operation)`, and `Operations()`, each returning a
+copyable value detached from that state under a short critical section.
 
 Endpoint middleware observes business call results. It should not infer errors
 from HTTP status codes or gRPC wire details.
@@ -102,10 +102,15 @@ The root `sd` package owns provider-neutral discovery contracts.
 optional convenience composition. Updates are snapshots, not mutable
 caller-owned slices. A `Balancer.Pick` returns a `Picked` identity plus
 `Done(Outcome)`, so retry and other callers can feed per-instance results into
-local feedback without writing live metrics to the registry. Per-instance
-dynamic state lives in exactly one store, `feedback.Table`; policy state such as
-which addresses are currently ejected belongs to the policy, because it is per
-(policy, instance) rather than per instance. Dependencies point one way: the
+local feedback without writing live metrics to the registry. Business call
+feedback lives in one store, `feedback.Table`; active probe verdicts belong to
+`health.Check`, and policy state such as which addresses are currently ejected
+belongs to the policy, because it is per (policy, instance) rather than per
+instance. A decorator never owns what it was handed: `balancer.New`,
+`health.Check`, `selector.Subscribe`, and `endpointer.Filter` leave the source to
+whoever built it, while `Selector.Close` and `Balancer.Close` release the
+strategy chain they were given — which is why a wrapping strategy must forward
+`Close` (see `selector.CloseStrategy`). Dependencies point one way: the
 endpoint and selection layers do not import `sd/feedback` or `sd/health`, so an
 assembly that does not use them does not compile them in. Active probing is a
 decorator on `Instancer` rather than a stage of its own, so adding it changes no

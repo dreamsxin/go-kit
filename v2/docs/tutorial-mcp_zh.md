@@ -3,7 +3,7 @@
 [English](tutorial-mcp.md) | 简体中文
 
 本教程通过 MCP Streamable HTTP 暴露一个工具，这是 AI 客户端使用的协议。完整代码
-即可运行的 [examples/mcp_basic](../examples/README_zh.md) 示例。
+即可运行的 [examples/mcp_basic/main.go](../examples/mcp_basic/main.go) 示例。
 
 ## 1. 目标
 
@@ -28,7 +28,8 @@ _ = rt.RegisterTool(interaction.ToolFunc{
 		},
 	},
 	Fn: func(_ context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
-		name, _ := call.Input["name"].(string)
+		args, _ := call.Input.(map[string]any)
+		name, _ := args["name"].(string)
 		return interaction.ToolResult{Output: map[string]any{"greeting": "Hello, " + name + "!"}}, nil
 	},
 })
@@ -36,12 +37,22 @@ _ = rt.RegisterTool(interaction.ToolFunc{
 
 ## 3. 提供 MCP 服务
 
-`interaction/mcp` 通过 Streamable HTTP 暴露运行时：
+`interaction/mcp` 通过 Streamable HTTP 暴露运行时。最短的写法会替你建好 mux 并
+启动会话清理：
+
+```go
+log.Fatal(mcp.ListenAndServe(":8080", rt))
+```
+
+若要把 MCP 挂在你自己的路由旁边，取 handler 即可：
 
 ```go
 mux := http.NewServeMux()
-mux.Handle("/mcp", mcp.NewHandler(rt))
+mux.Handle("/mcp", mcp.NewHandler(rt)) // NewStreamableHandler 的别名
 ```
+
+注册模式时不要带方法动词。handler 自己分发 POST、GET 与 DELETE，其他方法返回 405
+并带 `Allow` 头；只注册 `POST /mcp` 会导致会话终止无法工作。
 
 ## 4. 调用它
 
@@ -74,8 +85,10 @@ rt := interaction.NewRuntime().WithHooks(
 )
 ```
 
-被拒绝的调用会在执行前被拒绝，永远不会到达审计接收器。完整的策略教程见
-[examples/interaction_policy](../examples/README_zh.md)。
+被拒绝的调用会在执行前被拒绝，永远不会到达审计接收器——因为 `BeforeToolCall`
+钩子按给定顺序运行，第一个返回错误就立即返回。想要这个效果，就把
+`AuthorizationHook` 放在前面；两者调换顺序，被拒绝的调用就会被审计。完整的策略
+教程见 [examples/interaction_policy/main.go](../examples/interaction_policy/main.go)。
 
 ## 接下来去哪
 

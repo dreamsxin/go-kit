@@ -17,34 +17,38 @@ type Endpoint func(ctx context.Context, request any) (response any, err error)
 // Useful as a placeholder in tests or when an endpoint is not yet implemented.
 func Nop(context.Context, any) (any, error) { return struct{}{}, nil }
 
-// Failer may be implemented by a response type to signal a business-logic
-// error without using the Go error return value.  If the response implements
-// Failer and Failed() returns non-nil, the transport layer treats the call
-// as failed.
+// Failer may be implemented by a response type that carries its own
+// business-logic error instead of returning it. When the response implements
+// Failer and Failed() returns non-nil, the HTTP and gRPC servers discard the
+// response and encode that error through their error encoder — the same status,
+// stable code, and error handler a returned error would get.
 //
 // # When to use Failer
 //
-// Most services should return errors normally:
+// Almost never. Return errors normally:
 //
 //	func (s *svc) CreateUser(ctx context.Context, req CreateUserRequest) (CreateUserResponse, error) {
 //	    if req.Name == "" {
-//	        return CreateUserResponse{}, errors.New("name required") // normal Go error
+//	        return CreateUserResponse{}, apperror.InvalidArgument("user.name", "name required")
 //	    }
 //	    ...
 //	}
 //
-// Use Failer only when the transport protocol requires a successful wire-level
-// response even on business failure — for example, when a gRPC method must
-// return a proto message (not a gRPC status error) to carry structured error
-// details:
+// Failer exists for a service whose method signature cannot return an error —
+// a generated batch handler that must fill one response slot per item, an
+// adapter over a callback API — and which therefore has to smuggle the failure
+// out inside the response value:
 //
 //	type CreateUserResponse struct {
-//	    User  *User
-//	    Error string `json:"error,omitempty"`
-//	    err   error  // unexported, set by business logic
+//	    User *User
+//	    err  error // unexported, set by business logic
 //	}
 //
 //	func (r CreateUserResponse) Failed() error { return r.err }
+//
+// It is not a way to return a business error inside a 200 response: the servers
+// turn it into an error response. To answer 200 with an error field in the
+// body, put the field in the response struct and do not implement Failer.
 type Failer interface {
 	Failed() error
 }

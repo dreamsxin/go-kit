@@ -8,6 +8,9 @@ through the immutable v0 and v1 tags.
 
 ### Added
 
+- `selector.CloseStrategy(strategy)` releases a strategy that owns something and
+  is a no-op for one that does not, so a decorating strategy can forward `Close`
+  in one line instead of type-asserting.
 - Three more selection strategies in `sd/balancer`, so round robin is no longer
   the only option: `NewRandom` (uniform draw, avoids the lockstep a shared
   counter causes across many clients), `NewWeightedRandom` (probability
@@ -145,6 +148,37 @@ through the immutable v0 and v1 tags.
 
 ### Changed
 
+- **Breaking:** the HTTP and gRPC servers honour `endpoint.Failer`. A response
+  whose `Failed()` returns non-nil is discarded and the error is encoded
+  instead, so it gets the same status, code, and logging as an error returned
+  normally — upstream go-kit's semantics. `Failer` was previously documented but
+  never consulted, so a response carrying a business error was serialised as a
+  success. Use it only for signatures that cannot return an error; it is not a
+  way to answer 200 with an error field.
+- **Breaking:** `NewStrictJSONEndpoint`, `NewStrictJSONServer`, and
+  `NewStrictTypedJSONServer` are renamed `NewJSONEndpointWithBodyLimit`,
+  `NewJSONServerWithBodyLimit`, and `NewTypedJSONServerWithBodyLimit`. "Strict"
+  implied a decoding difference that never existed — every JSON entry point
+  decodes strictly, and these constructors only take an explicit
+  `maxBodyBytes`. `NewJSONEndpointWithDecodeOptions` remains the only way to
+  relax strictness.
+- `oteladapter.Metrics` implements `endpoint.Recorder`, so
+  `kit.WithRecorder(otelMetrics)` compiles and covers every route with its
+  pattern as the operation. `Metrics.Middleware(operation)` is now shorthand for
+  `endpoint.RecordingMiddleware(operation, m)`.
+- Generated projects (`microgen`) register `/livez` and `/readyz` beside
+  `/health`, matching `kit.NewHTTP`. Readiness turns on once the listeners are
+  serving and off at the first shutdown signal, so a rolling deploy drains
+  instead of dropping connections; `/health` covers both scopes and `/livez`
+  stays 200 while the process is alive.
+- **Breaking:** `selector.Selector` gains `Close() error`, so the instance-only
+  assembly releases its strategy the same way `sd.Balancer.Close` does. One rule
+  now covers both: close the Selector or Balancer you constructed, and the
+  Instancer or endpoint set you handed it stays yours to close.
+- **Breaking:** `endpointer.Filter` and `endpointer.Prefer` no longer close their
+  source. A filtered view owns nothing, so closing one of several views over a
+  shared endpoint set no longer invalidates the others — the ownership rule
+  `balancer.New`, `health.Check`, and `selector.Subscribe` already followed.
 - **Breaking:** `sd.Event.Instances` is `[]sd.Instance` instead of `[]string`.
   Build snapshots with `sd.Addresses("host:port", ...)` when there are no labels
   to report.
@@ -198,6 +232,43 @@ through the immutable v0 and v1 tags.
 
 ### Fixed
 
+- `JSONErrorEncoderWithKindMapper` no longer lets the kind mapper overwrite an
+  explicit status. `StatusCoder` now wins, matching `httpStatus`; previously a
+  relayed `client.HTTPStatusError` had its upstream status silently rewritten by
+  the application's kind mapping.
+- `sd/retry` keeps the attempt history when the budget expires. A timed-out call
+  returned a bare `context.DeadlineExceeded`, discarding exactly the record
+  `retry.Error` exists to carry; it now returns `retry.Error` with `Attempts`
+  populated and `Final` set to the context error, so `errors.Is` still works.
+  With no attempts made, the bare context error is returned unchanged.
+- `AccessLogMiddleware` emits `request_id`, which two doc pages already claimed.
+  It reads the ID from the context, falling back to the `X-Request-ID` response
+  header, because HTTP middleware wraps the mux and therefore runs outside the
+  per-request context the component prepares.
+- Documentation: corrected every chapter and component README (EN and ZH) against
+  the code — the custom-config hook signatures in `docs/configuration.md` (they
+  are methods on `*CustomConfig`, and `Validate` was missing), the real load
+  order including post-validation CLI flags, the non-existent "redacted config
+  summary", `-config` being required for `config/custom.go`, the Go SDK not being
+  gated on `-openapi`, `extend`'s full-combined-IDL requirement, the typed JSON
+  path not enveloping success responses, and the omitted error checks in the
+  tutorial assembly snippets.
+- Strategy decorators forward `Close`. `feedback.Table.Wrap` and
+  `selector.Filtered` kept only `Pick`, and `sd/balancer` type-asserts `Close` on
+  the outermost strategy only, so
+  `balancer.New(set, table.Wrap(selector.Filtered(mine, f)))` silently leaked
+  whatever `mine` owned. Both layers now implement an idempotent `Close` that
+  forwards through `selector.CloseStrategy`, which custom decorators use too.
+- `sd/health` and `feedback.Follow` no longer spin if a provider closes a
+  subscriber channel — which `sd.Instancer` forbids, and now says so. The checker
+  keeps probing and publishing its last snapshot; the follower stops.
+- etcd `Registrar.Deregister` retries a failed key removal. It cleared its local
+  state before calling etcd, so a transient error during shutdown reported a
+  clean stop while the instance stayed in discovery until its lease expired. A
+  failed removal now leaves the registration pending, so calling `Deregister`
+  again finishes the job.
+- etcd revokes a lease it granted but could not attach a key to: a `Put` or
+  `KeepAlive` failure after `Grant` leaked the lease for a full TTL.
 - **Breaking:** `selector.Selector.Select` and the package-level
   `selector.Select` return `(sd.Instance, sd.Done, error)`. The instance layer
   discarded the strategy's callback, so a table-backed strategy used through

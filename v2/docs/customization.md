@@ -222,6 +222,8 @@ the body, so a numeric envelope loses the automatic code relay between your own
 services. The status-based classification, retry, and `Retry-After` handling all
 keep working; only the code needs a translation of your own.
 
-Streaming routes are exempt: an envelope cannot wrap an SSE stream, so
-`HandleSSE` writes its own frames.
+Streaming routes are exempt: an envelope cannot wrap an SSE stream, so both
+`kit.HandleSSETyped` and the raw `HTTP.HandleSSE` method write their own frames
+and ignore `ServerResponseEncoder`.
+
 

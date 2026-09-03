@@ -111,7 +111,9 @@ go run ./cmd
 
 Runtime inspection:
 
-- `GET /health`
+- `GET /health` — liveness and readiness (503 until serving, and again while draining)
+- `GET /livez` — liveness only
+- `GET /readyz` — readiness only
 {{if .WithConfig}}- `GET /debug/routes` when `debug.routes_enabled` is true
 {{end}}
 {{if .WithInteraction}}- `POST /mcp` — MCP JSON-RPC 2.0 endpoint (tools, resources, prompts, logging)

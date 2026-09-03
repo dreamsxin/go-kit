@@ -30,6 +30,11 @@ type Kinder interface {
 
 // KindNamer is the minimal structural contract used by optional transports
 // that must not depend on this package directly.
+//
+// Implementing either contract is enough: every classification site in the
+// framework — the HTTP and gRPC error encoders and the retry classifier — reads
+// Kinder first and falls back to KindNamer, so a custom error does not have to
+// implement both to be classified consistently across transports.
 type KindNamer interface {
 	ErrorKindName() string
 }

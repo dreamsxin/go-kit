@@ -97,8 +97,8 @@ consumer would read a stale number anyway. Balancers that need live signals
 measure them in process; see the feedback table below.
 
 Registries hand labels over as strings, while predicates are usually written
-against typed literals. The `sd.Metadata*` readers coerce, so `5` and `"5"` both
-work:
+against typed literals. The `sd.MetadataString`, `sd.MetadataInt`, and
+`sd.MetadataBool` readers coerce, so `5` and `"5"` both work:
 
 ```go
 weight, ok := sd.MetadataInt(inst.Metadata, "weight")
@@ -324,8 +324,32 @@ the strategy keeps local feedback state; it receives the call's `sd.Outcome`.
 
 ```go
 lb := balancer.New(set, myStrategy{})       // usable by sd/client and sd/retry
+defer lb.Close()
 pick := selector.New(instances, myStrategy{}) // usable without endpoints
+defer pick.Close()
 ```
+
+### Lifecycle rules for custom components
+
+Two rules cover every assembly in this package:
+
+- **Close what you constructed.** `Selector.Close` and `Balancer.Close` release
+  the strategy chain you handed them. The `Instancer` and the endpoint set stay
+  yours: `balancer.New`, `health.Check`, `selector.Subscribe`, and
+  `endpointer.Filter` never close their source, because one source commonly backs
+  several consumers.
+- **A decorating strategy forwards `Close`.** Only the outermost strategy is
+  visible to `selector.New` and `balancer.New`, so a layer that swallows `Close`
+  makes everything under it unreachable. `feedback.Table.Wrap` and
+  `selector.Filtered` forward; a custom decorator does the same with one line:
+
+```go
+func (d *myDecorator) Close() error { return selector.CloseStrategy(d.inner) }
+```
+
+A strategy that owns nothing — every built-in one — needs no `Close` at all;
+`selector.CloseStrategy` is a no-op for it.
+
 
 To collect feedback from the calls themselves, use `sd/feedback.Table`. One
 process-local table serves every policy: it scores, it counts what is in flight,
@@ -494,6 +518,7 @@ is in [Service discovery and routing](../docs/service-discovery.md#the-request-p
 ep   := endpointer.NewEndpointer(instancer, factory, logger)
 defer ep.Close()
 lb   := balancer.NewRoundRobin(ep)
+defer lb.Close()
 call := retry.Retry(3, 500*time.Millisecond, lb)
 ```
 

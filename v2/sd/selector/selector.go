@@ -21,6 +21,7 @@ package selector
 
 import (
 	"context"
+	"io"
 	"sync"
 
 	"github.com/dreamsxin/go-kit/v2/sd"
@@ -51,8 +52,32 @@ func (f SourceFunc) Instances() ([]sd.Instance, error) { return f() }
 // Implementations must be safe for concurrent use: one Strategy is shared by
 // every caller of the selector or balancer it backs. Pick reports
 // sd.ErrNoEndpoints when nothing is selectable, an empty snapshot included.
+//
+// Pick is the whole interface: a strategy that holds nothing needs nothing
+// else, and every built-in one is in that class. A strategy that does own
+// something — a goroutine sampling a signal, a connection to a load reporter —
+// adds an idempotent Close() error, which sd/balancer and sd/selector call for
+// it. A strategy that wraps another strategy must forward that Close; see
+// CloseStrategy.
 type Strategy interface {
 	Pick(ctx context.Context, request any, instances []sd.Instance) (index int, done sd.Done, err error)
+}
+
+// CloseStrategy releases whatever a strategy owns. Strategies are not required
+// to own anything, so this is a no-op unless strategy implements
+// io.Closer — which is why every decorator can call it unconditionally.
+//
+// Decorators must: sd/balancer and sd/selector only ever see the outermost
+// strategy, so a layer that swallows Close makes the Close of everything
+// underneath it unreachable. Filtered and feedback.Table.Wrap forward through
+// this; a custom decorator does the same:
+//
+//	func (d *decorator) Close() error { return selector.CloseStrategy(d.inner) }
+func CloseStrategy(strategy Strategy) error {
+	if closer, ok := strategy.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
 }
 
 // Selector reports which instance to use next and returns the callback that
@@ -72,12 +97,21 @@ type Strategy interface {
 // feedback table counts the selection as still in flight forever, which makes
 // the instance look permanently saturated and keeps its entry alive, so this
 // is a leak rather than a missing statistic.
+//
+// Close releases the strategy the Selector was built with, exactly as
+// sd.Balancer.Close does, so one rule covers both assemblies: close what you
+// constructed, and the Instancer or endpoint set you handed in stays yours.
+// It is idempotent.
 type Selector interface {
 	Select(ctx context.Context, request any) (sd.Instance, sd.Done, error)
+	Close() error
 }
 
 // New binds a strategy to a source. The request is always passed through to
 // the strategy, so keyed and unkeyed strategies share one contract.
+//
+// Close the returned Selector when you are done with it; it releases the
+// strategy and nothing else.
 //
 // New panics on a nil source or strategy, which is a programming error rather
 // than a runtime condition.
@@ -101,8 +135,19 @@ func Select(ctx context.Context, selector Selector, request any) (sd.Instance, s
 }
 
 type bound struct {
-	source   Source
-	strategy Strategy
+	source    Source
+	strategy  Strategy
+	closeOnce sync.Once
+	closeErr  error
+}
+
+// Close releases the strategy. The source is not closed: an Instancer
+// subscription or a shared snapshot outlives any one Selector built on it.
+func (b *bound) Close() error {
+	b.closeOnce.Do(func() {
+		b.closeErr = CloseStrategy(b.strategy)
+	})
+	return b.closeErr
 }
 
 func (b *bound) Select(ctx context.Context, request any) (sd.Instance, sd.Done, error) {

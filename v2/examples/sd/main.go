@@ -263,8 +263,11 @@ func demo6_Metadata(logger *slog.Logger) {
 	defer set.Close() //nolint:errcheck
 
 	// Prefer the local zone, but fall back to the whole set when it empties out.
+	// The filtered view owns nothing: closing set above is what releases the
+	// endpoints.
 	local := endpointer.Prefer(set, sd.MetadataEquals("zone", "z1"))
 	lb := balancer.NewWeightedRandom(local, balancer.MetadataWeight(balancer.DefaultWeightKey, 1))
+	defer lb.Close() //nolint:errcheck
 
 	seen := map[string]int{}
 	for i := 0; i < 100; i++ {
@@ -313,6 +316,10 @@ func demo7_Selector() {
 
 	local := selector.Filter(instances, sd.MetadataEquals("zone", "z1"))
 	pick := selector.New(local, selector.RoundRobin())
+	// Close what you constructed: the Selector releases its strategy, the
+	// Subscription above releases its own subscription. Neither closes the
+	// cache they read.
+	defer pick.Close() //nolint:errcheck
 
 	for i := 0; i < 3; i++ {
 		chosen, done, err := pick.Select(context.Background(), nil)
@@ -336,6 +343,7 @@ func demo7_Selector() {
 		score, known := load[item.Address]
 		return -score, known // lower load, higher score
 	}))
+	defer byLoad.Close() //nolint:errcheck
 	chosen, done, err := byLoad.Select(context.Background(), nil)
 	if err != nil {
 		fmt.Printf("  select by load: %v\n", err)

@@ -5,16 +5,19 @@ English | [简体中文](tutorial-auth_zh.md)
 This tutorial adds Bearer-key authentication and role-based authorization to a
 kit service. Authentication is application-owned by design; the framework
 provides the middleware boundary and the error classification. The complete
-code is the runnable [examples/auth](../examples/README.md) example.
+code is the runnable [examples/auth/main.go](../examples/auth/main.go) example.
 
 ## 1. The goal
 
 | Route | Behavior |
 | --- | --- |
-| `GET /health` | public |
-| `POST /api/me` | any valid key: 200 with the caller identity |
-| `GET /api/admin` | admin role required: 403 otherwise |
+| `/health`, `/livez`, `/readyz` | public |
+| `/api/me` | any valid key: 200 with the caller identity |
+| `/api/admin` | admin role required: 403 otherwise |
 | everything else | missing or unknown key: 401 |
+
+The three health routes are registered by `kit.NewHTTP` itself, so the public
+prefix list has to cover all three -- not just `/health`.
 
 ## 2. The identity
 
@@ -35,10 +38,13 @@ func identityFromContext(ctx context.Context) (identity, bool) {
 ## 3. The middleware
 
 Authentication middleware validates the `Authorization` header and injects the
-identity. It is installed service-wide with `kit.WithHTTPMiddleware`, so it
-wraps every route except the public prefixes:
+identity. It is installed service-wide with `kit.WithHTTPMiddleware`, which
+wraps the whole mux -- there is no per-route exclusion option, so the middleware
+itself decides what is public:
 
 ```go
+var publicPrefixes = []string{"/health", "/livez", "/readyz"}
+
 func authenticate(keys map[string]identity) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -98,17 +104,38 @@ func requireRole(role string) func(http.Handler) http.Handler {
 svc.Handle("/api/admin", requireRole("admin")(adminHandler))
 ```
 
+`Handle` takes a bare path, not a `"GET /api/admin"` pattern, so the route
+answers every method. Add the verb to the pattern if you want the mux to reject
+the others for you.
+
 ## 5. Assemble
 
 ```go
-svc, err := kit.NewHTTP(":8080",
+httpAddr := flag.String("http.addr", ":8080", "HTTP listen address")
+flag.Parse()
+
+ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+defer stop()
+
+svc, err := kit.NewHTTP(*httpAddr,
 	kit.WithHTTPMiddleware(authenticate(apiKeys)),
 	kit.WithRequestID(),
 )
+if err != nil {
+	log.Fatal(err)
+}
+registerRoutes(svc)
+
 host, err := kit.NewHost(kit.WithLifecycle(svc))
+if err != nil {
+	log.Fatal(err)
+}
+if err := host.Run(ctx); err != nil {
+	log.Fatal(err)
+}
 ```
 
-Run it and try the four rows from the goal table:
+Run it from the `v2/` module directory and try the rows from the goal table:
 
 ```bash
 go run ./examples/auth

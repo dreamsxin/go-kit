@@ -34,11 +34,16 @@ type Registrar struct {
 	metadata  map[string]string
 	retryBase time.Duration
 
-	mu     sync.Mutex
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-	key    string
+	mu      sync.Mutex
+	ctx     context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
+	key     string
+	pending bool
+
+	// teardown serialises Deregister so two callers cannot race on removing
+	// the same key.
+	teardown sync.Mutex
 }
 
 // RegistrarOption configures a Registrar.
@@ -139,6 +144,7 @@ func (r *Registrar) Register() error {
 		return err
 	}
 	r.ctx, r.cancel = ctx, cancel
+	r.pending = false
 	r.logger.Debug("etcd service registered", "key", r.key, "ttl", r.ttl)
 
 	r.wg.Add(1)
@@ -149,22 +155,40 @@ func (r *Registrar) Register() error {
 	return nil
 }
 
-// Deregister removes the instance key and stops renewing it.
+// Deregister removes the instance key and stops renewing it. It is idempotent,
+// and it is the only teardown a Registrar needs: it stops the supervisor,
+// deletes the key, and revokes the lease.
+//
+// A failure to remove the key leaves the registration pending, so calling
+// Deregister again retries the removal. Without that, a transient etcd error
+// during shutdown would leave the instance in discovery until its lease expired
+// while the process reported a clean stop.
 func (r *Registrar) Deregister() error {
+	r.teardown.Lock()
+	defer r.teardown.Unlock()
+
 	r.mu.Lock()
 	cancel := r.cancel
 	r.ctx, r.cancel = nil, nil
+	pending := r.pending || cancel != nil
+	r.pending = pending
 	r.mu.Unlock()
 
-	if cancel == nil {
+	if !pending {
 		return nil
 	}
-	cancel()
-	r.wg.Wait()
+	if cancel != nil {
+		cancel()
+		r.wg.Wait()
+	}
 
 	if err := r.client.Deregister(context.Background(), r.key); err != nil {
 		return err
 	}
+
+	r.mu.Lock()
+	r.pending = false
+	r.mu.Unlock()
 	r.logger.Debug("etcd service deregistered", "key", r.key)
 	return nil
 }

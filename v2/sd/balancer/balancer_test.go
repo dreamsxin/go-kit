@@ -13,12 +13,15 @@ import (
 	"github.com/dreamsxin/go-kit/v2/sd/selector"
 )
 
-type closableStrategy struct{ closed bool }
+type closableStrategy struct {
+	closed bool
+	closes int
+}
 
 func (s *closableStrategy) Pick(context.Context, any, []sd.Instance) (int, sd.Done, error) {
 	return 0, nil, nil
 }
-func (s *closableStrategy) Close() error { s.closed = true; return nil }
+func (s *closableStrategy) Close() error { s.closed = true; s.closes++; return nil }
 
 type feedbackStrategy struct{ outcomes chan sd.Outcome }
 
@@ -103,6 +106,22 @@ func TestNew_CloseReleasesClosableStrategy(t *testing.T) {
 	}
 	if !strategy.closed {
 		t.Fatal("balancer did not close its strategy")
+	}
+}
+
+func TestNew_CloseReachesStrategyThroughDecorators(t *testing.T) {
+	set := labelledEndpointer(t, sd.Addresses("a:80")...)
+	strategy := &closableStrategy{}
+	lb := balancer.New(set, selector.Filtered(strategy, nil))
+
+	if err := lb.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := lb.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+	if strategy.closes != 1 {
+		t.Fatalf("strategy closed %d times through Filtered, want 1", strategy.closes)
 	}
 }
 

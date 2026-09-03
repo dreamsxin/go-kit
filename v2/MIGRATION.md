@@ -43,6 +43,54 @@ JSON handlers (`kit`), then replace error-string conventions with `apperror`,
 then collapse duplicate HTTP/gRPC assemblies into `transport.Binding`, and
 finally let `microgen` own regenerated transports.
 
+## Upgrading To Unreleased (transport and JSON constructors)
+
+Two breaking changes on the HTTP/gRPC server path.
+
+### `endpoint.Failer` is now honoured
+
+The HTTP and gRPC servers check the response for `Failed() error`. If it returns
+non-nil, the response is discarded and the error is encoded instead — the same
+status, code, and logging an error returned normally would get.
+
+This only matters if a response type of yours already happens to have a
+`Failed() error` method. Before, that method was ignored and the response was
+serialised as a success; now it decides the response. Rename the method if you
+did not mean it as the go-kit contract:
+
+```go
+// This type now short-circuits every response with a non-nil Err.
+type CreateResponse struct {
+	ID  string `json:"id"`
+	Err error  `json:"-"`
+}
+
+func (r CreateResponse) Failed() error { return r.Err }
+```
+
+`Failer` exists for signatures that cannot return an error — a generated batch
+handler, a callback adapter. It is not a way to answer 200 with an error field:
+return the error normally instead.
+
+### `NewStrict*` JSON constructors renamed
+
+```go
+// before
+httpserver.NewStrictJSONEndpoint[Req](ep, maxBodyBytes)
+httpserver.NewStrictJSONServer[Req](fn, maxBodyBytes)
+httpserver.NewStrictTypedJSONServer[Req, Resp](fn, maxBodyBytes)
+
+// after
+httpserver.NewJSONEndpointWithBodyLimit[Req](ep, maxBodyBytes)
+httpserver.NewJSONServerWithBodyLimit[Req](fn, maxBodyBytes)
+httpserver.NewTypedJSONServerWithBodyLimit[Req, Resp](fn, maxBodyBytes)
+```
+
+Behaviour is unchanged. The old names implied a decoding difference that never
+existed: every JSON entry point rejects unknown fields and trailing data, and
+these three only differ in taking an explicit body limit.
+`NewJSONEndpointWithDecodeOptions` is still the only way to relax strictness.
+
 ## Upgrading To Unreleased (sd instance metadata)
 
 Service discovery now carries labels, not just addresses. Three source changes,
@@ -217,8 +265,37 @@ The callback is never nil on success and is idempotent. Report the outcome even
 when the strategy looks stateless — the instance layer used to drop it, which
 made any table-backed strategy count every selection as in flight forever.
 
+### One ownership rule for both assemblies
 
+`selector.Selector` now has `Close() error`, and `endpointer.Filter` /
+`endpointer.Prefer` no longer close their source. The rule is the same on both
+paths: close what you constructed, and whatever you handed in stays yours.
 
+```go
+// after
+pick := selector.New(pool, strategy)
+defer pick.Close()   // releases strategy; pool and the Instancer stay yours
+
+view := endpointer.Filter(set, sd.MetadataEquals("zone", "a"))
+defer set.Close()    // the set, not the view: view.Close() is a no-op now
+```
+
+Two edits to look for:
+
+- A custom `Selector` implementation needs a `Close() error` method. Returning
+  `nil` is correct when it owns nothing.
+- Code that relied on `filter.Close()` closing the endpoint set underneath must
+  close the set instead. Nothing else changes: several views may now share one
+  set safely.
+
+Related, and requiring no edit: a strategy that decorates another strategy now
+gets its inner `Close` called. `feedback.Table.Wrap` and `selector.Filtered`
+forward through `selector.CloseStrategy`; if you wrote your own decorator, add
+the same one-liner so a closable inner strategy is not stranded:
+
+```go
+func (d *myDecorator) Close() error { return selector.CloseStrategy(d.inner) }
+```
 
 Behavior changes that need no source edit but do need attention:
 

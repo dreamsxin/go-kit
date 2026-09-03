@@ -129,7 +129,12 @@ func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callba
 
 			select {
 			case <-callContext.Done():
-				return nil, callContext.Err()
+				// The budget (or the caller) ended the call. Keep the attempts
+				// made so far: "deadline exceeded" alone does not say which
+				// instances were tried or how they failed, which is the whole
+				// point of retry.Error. Unwrap still exposes the context error,
+				// so errors.Is keeps working.
+				return nil, budgetError(result, callContext.Err())
 			case completed := <-resultChannel:
 				result.Attempts = append(result.Attempts, Attempt{
 					Address: completed.address,
@@ -150,12 +155,23 @@ func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callba
 					return nil, result
 				}
 				if err := sleep(callContext, delay); err != nil {
-					return nil, err
+					return nil, budgetError(result, err)
 				}
 				delay = backoff.Next(delay)
 			}
 		}
 	}
+}
+
+// budgetError reports a context failure with the attempt history behind it. With
+// no attempts there is nothing to add, so the bare context error is returned and
+// callers see exactly what the standard library gave us.
+func budgetError(result Error, cause error) error {
+	if len(result.Attempts) == 0 {
+		return cause
+	}
+	result.Final = cause
+	return result
 }
 
 type attemptResult struct {

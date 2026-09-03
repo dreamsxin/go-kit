@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -137,6 +138,56 @@ func TestRetry_ContextCancelled(t *testing.T) {
 	_, err := ep(ctx, nil)
 	if err == nil {
 		t.Error("expected error from context cancellation")
+	}
+}
+
+// "deadline exceeded" on its own does not say which instances were tried, so the
+// budget failure has to carry the attempt history behind it. errors.Is must keep
+// seeing the context error.
+func TestRetry_BudgetTimeoutKeepsTheAttemptHistory(t *testing.T) {
+	f := endpointer.Factory(func(_ sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+		ep := endpoint.Endpoint(func(context.Context, any) (any, error) {
+			return nil, transientError{errors.New("upstream refused")}
+		})
+		return ep, io.NopCloser(nil), nil
+	})
+	lb := newBalancer(t, f)
+	// A budget far shorter than the backoff schedule, so the deadline lands
+	// after at least one attempt was recorded.
+	ep := retry.Retry(10, 25*time.Millisecond, lb)
+
+	_, err := ep(context.Background(), nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want it to wrap context.DeadlineExceeded", err)
+	}
+	var retryErr retry.Error
+	if !errors.As(err, &retryErr) {
+		t.Fatalf("err is not a retry.Error: %v", err)
+	}
+	if len(retryErr.Attempts) == 0 {
+		t.Error("attempt history is empty")
+	}
+	if !strings.Contains(err.Error(), "upstream refused") {
+		t.Errorf("message = %q, want it to name the attempt failure", err.Error())
+	}
+}
+
+// With nothing attempted there is no history to add, so the caller sees exactly
+// the standard-library error.
+func TestRetry_BudgetTimeoutWithoutAttemptsStaysBare(t *testing.T) {
+	f := endpointer.Factory(func(_ sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+		ep := endpoint.Endpoint(func(ctx context.Context, _ any) (any, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		})
+		return ep, io.NopCloser(nil), nil
+	})
+	lb := newBalancer(t, f)
+	ep := retry.Retry(10, 20*time.Millisecond, lb)
+
+	_, err := ep(context.Background(), nil)
+	if err != context.DeadlineExceeded {
+		t.Fatalf("err = %v (%T), want the bare context.DeadlineExceeded", err, err)
 	}
 }
 

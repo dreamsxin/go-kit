@@ -4,16 +4,19 @@
 
 本教程为一个 kit 服务添加 Bearer 密钥认证与基于角色的授权。认证在设计上由应用
 自有；框架提供中间件边界与错误分类。完整代码即可运行的
-[examples/auth](../examples/README_zh.md) 示例。
+[examples/auth/main.go](../examples/auth/main.go) 示例。
 
 ## 1. 目标
 
 | 路由 | 行为 |
 | --- | --- |
-| `GET /health` | 公开 |
-| `POST /api/me` | 任意有效密钥：200 并返回调用方身份 |
-| `GET /api/admin` | 需要 admin 角色：否则 403 |
+| `/health`、`/livez`、`/readyz` | 公开 |
+| `/api/me` | 任意有效密钥：200 并返回调用方身份 |
+| `/api/admin` | 需要 admin 角色：否则 403 |
 | 其他一切 | 密钥缺失或未知：401 |
+
+这三条健康路由由 `kit.NewHTTP` 自己注册，因此公开前缀列表必须覆盖全部三条——
+不只是 `/health`。
 
 ## 2. 身份
 
@@ -34,9 +37,12 @@ func identityFromContext(ctx context.Context) (identity, bool) {
 ## 3. 中间件
 
 认证中间件校验 `Authorization` 头并注入身份。它通过 `kit.WithHTTPMiddleware`
-以服务级方式安装，因此包裹除公开前缀之外的每一条路由：
+以服务级方式安装，包裹整个 mux——没有按路由排除的选项，因此由中间件自己决定
+什么是公开的：
 
 ```go
+var publicPrefixes = []string{"/health", "/livez", "/readyz"}
+
 func authenticate(keys map[string]identity) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -95,17 +101,37 @@ func requireRole(role string) func(http.Handler) http.Handler {
 svc.Handle("/api/admin", requireRole("admin")(adminHandler))
 ```
 
+`Handle` 接受的是裸路径，而不是 `"GET /api/admin"` 这样的模式，因此该路由对所有
+方法都响应。如果希望 mux 帮你拒绝其他方法，请把动词写进模式里。
+
 ## 5. 装配
 
 ```go
-svc, err := kit.NewHTTP(":8080",
+httpAddr := flag.String("http.addr", ":8080", "HTTP listen address")
+flag.Parse()
+
+ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+defer stop()
+
+svc, err := kit.NewHTTP(*httpAddr,
 	kit.WithHTTPMiddleware(authenticate(apiKeys)),
 	kit.WithRequestID(),
 )
+if err != nil {
+	log.Fatal(err)
+}
+registerRoutes(svc)
+
 host, err := kit.NewHost(kit.WithLifecycle(svc))
+if err != nil {
+	log.Fatal(err)
+}
+if err := host.Run(ctx); err != nil {
+	log.Fatal(err)
+}
 ```
 
-运行它，并尝试目标表格中的四行：
+从 `v2/` 模块目录运行它，并尝试目标表格中的各行：
 
 ```bash
 go run ./examples/auth

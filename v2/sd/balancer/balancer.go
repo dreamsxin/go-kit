@@ -67,9 +67,7 @@ func (b *strategyBalancer) Pick(ctx context.Context, request any) (sd.Picked, er
 
 func (b *strategyBalancer) Close() error {
 	b.closeOnce.Do(func() {
-		if closer, ok := b.strategy.(interface{ Close() error }); ok {
-			b.closeErr = closer.Close()
-		}
+		b.closeErr = selector.CloseStrategy(b.strategy)
 	})
 	return b.closeErr
 }

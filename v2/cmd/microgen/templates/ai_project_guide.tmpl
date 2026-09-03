@@ -62,7 +62,9 @@ Generator-owned (do not hand-edit; use `microgen extend`):
 {{- end }}
 {{- if .WithConfig }}- `GET /debug/routes` — runtime route inspection when `debug.routes_enabled` is true
 {{- end }}
-- `GET /health` — health check
+- `GET /health` — liveness and readiness; 503 until the listeners are up and again once shutdown starts
+- `GET /livez` — liveness only; 200 while the process is alive
+- `GET /readyz` — readiness only; 503 while draining
 
 ## Common Modifications
 

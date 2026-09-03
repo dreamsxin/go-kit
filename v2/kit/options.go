@@ -171,11 +171,18 @@ func WithEndpointMiddleware(middlewares ...endpoint.Middleware) Option {
 }
 
 // WithTimeout adds a per-request context deadline.
+//
+// It applies to every route, including raw handlers registered with Handle:
+// the deadline is set on the request context before the handler runs, and the
+// endpoint chain derives its own from it. Handlers that respect ctx therefore
+// stop on time; one that ignores cancellation still runs to completion, since a
+// deadline propagates but cannot interrupt.
 func WithTimeout(d time.Duration) Option {
 	return func(h *HTTP) error {
 		if d <= 0 {
 			return fmt.Errorf("timeout must be > 0")
 		}
+		h.timeout = d
 		h.middleware = append(h.middleware, endpoint.TimeoutMiddleware(d))
 		return nil
 	}

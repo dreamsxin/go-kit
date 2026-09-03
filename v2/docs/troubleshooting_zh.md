@@ -63,7 +63,7 @@ host, _ := kit.NewHost(kit.WithLifecycle(svc))
 | 400（解码） | 严格 JSON 解码拒绝请求体 | 未知字段、重复键或尾部多余数据——设计如此 |
 | 401 | 认证拒绝（`apperror.KindUnauthenticated`） | 协议边界的凭据提取 |
 | 403 | 授权拒绝（`KindPermissionDenied`） | `security.RequireRole` / 应用策略 |
-| 404 | 路由或方法不匹配 | Go mux 模式区分方法（`"POST /x"` ≠ `"GET /x"`）；查 `/debug/routes` |
+| 404 | 路由或方法不匹配 | Go mux 模式区分方法（`"POST /x"` ≠ `"GET /x"`）；生成项目中可查 `/debug/routes` |
 | 409 / 412 | `KindConflict` / `KindFailedPrecondition` | 业务状态冲突 |
 | 429 | 限流拒绝了调用方 | 核对限流器预算；限流器已知等待时长时会带 `Retry-After` |
 | 499 | 客户端断连或取消 | `KindCanceled` 或未分类的 `context.Canceled`——不是服务端故障 |
@@ -80,13 +80,15 @@ host, _ := kit.NewHost(kit.WithLifecycle(svc))
 | 来源 | 中间件 | 状态码 | 判别信号 |
 | --- | --- | --- | --- |
 | 限流 | `RateLimitMiddleware` | 429 | 持续超量流量；核对限流器预算 |
-| 熔断 | `CircuitBreaker` | 503 | 连续失败后开启——真正的问题是失败的依赖；熔断器 `State()` 显示 open/half-open，`Retry-After` 给出开窗剩余时间 |
-| 舱壁 | `BulkheadMiddleware` | 503 | 某个 key 占满了它的并发槽 |
+| 熔断 | `breaker.Middleware()` | 503 | 连续失败后开启——真正的问题是失败的依赖；熔断器 `State()` 显示 open/half-open，`Retry-After` 给出开窗剩余时间（半开状态下的拒绝不带提示） |
+| 舱壁 | `BulkheadMiddleware` | 调用方的 context 错误（504/499） | 某个 key 占满槽位后请求会**排队**；先是延迟上升，然后调用方超时。用 `errors.Is(err, endpoint.ErrBulkheadFull)` 确认原因 |
 | 背压 | `BackpressureMiddleware` | 503 | 全局在途上限；整个服务已饱和 |
 
-`endpoint.Metrics.SnapshotFor(pattern)` 按路由统计错误，`Snapshot()` 给出总量；
-`endpoint.Builder.Describe()` 在启动时打印链顺序，可以确认某条路由装配了哪些
-保护。
+`endpoint.Metrics.SnapshotFor(pattern)` 按路由统计错误，`Snapshot()` 给出总量。
+`endpoint.Builder.Describe()` **返回**链上的标签（`[]string`，最外层在前）——需要你
+自己在启动时打印，才能确认某条路由装配了哪些保护；配合 `UseNamed` 使用，否则标签
+全是 `"?"`。
+
 
 ## 数据库问题（生成服务）
 
@@ -117,7 +119,7 @@ host, _ := kit.NewHost(kit.WithLifecycle(svc))
 
 | 开关 | 作用 |
 | --- | --- |
-| `debug.routes_enabled: true` | 提供 `GET /debug/routes` 列出已注册路由 |
-| `debug.print_routes: true` | 启动时打印全部路由 |
-| `endpoint.Builder.Describe()` | 打印单个端点的中间件链 |
+| `debug.routes_enabled: true` | 提供 `GET /debug/routes` 列出已注册路由（仅生成项目——框架本身没有这个路由） |
+| `debug.print_routes: true` | 启动时打印全部路由（仅生成项目） |
+| `endpoint.Builder.Describe()` | 返回单个端点的中间件链标签，供你自行打印 |
 | `microgen extend -check` | 校验生成项目的清单漂移 |

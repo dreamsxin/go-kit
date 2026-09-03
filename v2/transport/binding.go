@@ -18,9 +18,9 @@ import (
 //	    Endpoint: sayHello,
 //	}
 //	// HTTP: JSON decode is generated from the typed endpoint.
-//	kit.HandleJSONTyped(svc, "POST /hello", binding.TypedEndpoint())
+//	kit.HandleJSONTyped(httpComponent, "POST /hello", binding.TypedEndpoint())
 //	// gRPC: register the protobuf-facing codec.
-//	pb.RegisterGreeterServer(grpcComponent.Server(), binding.GRPCServer(helloToProto, protoToHello))
+//	pb.RegisterGreeterServer(grpcComponent.Server(), binding.GRPCServer(protoToHello, helloToProto))
 //
 // A binding is a value; copying it is cheap and shares nothing mutable.
 type Binding[Req, Resp any] struct {
@@ -37,8 +37,12 @@ func (b Binding[Req, Resp]) TypedEndpoint() endpoint.TypedEndpoint[Req, Resp] {
 
 // GRPCServer builds a gRPC server handler from the binding. decode maps the
 // incoming protobuf message to the domain request; encode maps the domain
-// response back to the protobuf message. Options follow the gRPC server
-// package's option set.
+// response back to the protobuf message.
+//
+// The returned handler carries no transport options of its own: error encoding,
+// interceptors, and the rest belong to the gRPC server the handler is
+// registered on. Wrap Endpoint with middleware before building the binding for
+// anything that is per-method.
 func (b Binding[Req, Resp]) GRPCServer(
 	decode func(ctx context.Context, pbMessage any) (Req, error),
 	encode func(ctx context.Context, resp Resp) (any, error),

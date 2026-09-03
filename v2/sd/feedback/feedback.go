@@ -301,7 +301,13 @@ func Follow(instancer sd.Instancer, retainers ...Retainer) io.Closer {
 			select {
 			case <-follower.done:
 				return
-			case event := <-events:
+			case event, ok := <-events:
+				// A provider must not close a channel it was handed (see
+				// sd.Instancer), but this loop is not the place to spin if one
+				// does.
+				if !ok {
+					return
+				}
 				// A failed snapshot says nothing about which instances exist,
 				// so it must not be treated as "everything else is gone".
 				if event.Err == nil {
@@ -440,19 +446,33 @@ func (t *Table) LeastRequest(options ...selector.LeastRequestOption) selector.St
 
 // Wrap augments a strategy with local accounting. The selected strategy's
 // callback, when present, runs before the table records the same outcome.
+//
+// Close forwards to strategy, so a strategy that owns something still gets
+// closed through this layer. The table itself holds no goroutine and needs no
+// closing; a table that follows discovery is closed through the Follow closer.
 func (t *Table) Wrap(strategy selector.Strategy) selector.Strategy {
 	if strategy == nil {
 		panic("feedback: nil strategy")
 	}
-	return wrapped{table: t, strategy: strategy}
+	return &wrapped{table: t, strategy: strategy}
 }
 
 type wrapped struct {
-	table    *Table
-	strategy selector.Strategy
+	table     *Table
+	strategy  selector.Strategy
+	closeOnce sync.Once
+	closeErr  error
 }
 
-func (w wrapped) Pick(ctx context.Context, request any, instances []sd.Instance) (int, sd.Done, error) {
+// Close releases the wrapped strategy. It is idempotent.
+func (w *wrapped) Close() error {
+	w.closeOnce.Do(func() {
+		w.closeErr = selector.CloseStrategy(w.strategy)
+	})
+	return w.closeErr
+}
+
+func (w *wrapped) Pick(ctx context.Context, request any, instances []sd.Instance) (int, sd.Done, error) {
 	index, strategyDone, err := w.strategy.Pick(ctx, request, instances)
 	if err != nil {
 		return 0, nil, err

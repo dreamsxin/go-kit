@@ -67,7 +67,7 @@ servers are created, so config problems never hide behind runtime logs.
 | 400 (decode) | strict JSON decode rejected the body | unknown fields, duplicate keys, or trailing data — strict by design |
 | 401 | authentication rejected (`apperror.KindUnauthenticated`) | credential extraction at the protocol boundary |
 | 403 | authorization rejected (`KindPermissionDenied`) | `security.RequireRole` / application policy |
-| 404 | route or method mismatch | Go mux patterns are method-aware (`"POST /x"` ≠ `"GET /x"`); check `/debug/routes` |
+| 404 | route or method mismatch | Go mux patterns are method-aware (`"POST /x"` ≠ `"GET /x"`); in a generated project check `/debug/routes` |
 | 409 / 412 | `KindConflict` / `KindFailedPrecondition` | business state conflict |
 | 429 | rate limiting rejected the caller | check the limiter budget; `Retry-After` reports the wait when the limiter knows it |
 | 499 | the client disconnected or cancelled | `KindCanceled` or an unclassified `context.Canceled` — not a server fault |
@@ -85,13 +85,15 @@ by what is configured and what the metrics show:
 | Source | Middleware | Status | Signal |
 | --- | --- | --- | --- |
 | Rate limiting | `RateLimitMiddleware` | 429 | steady over-limit traffic; check the limiter budget |
-| Circuit breaker | `CircuitBreaker` | 503 | opens after consecutive failures — the real problem is the failing dependency; breaker `State()` shows open/half-open, and `Retry-After` reports the open window |
-| Bulkhead | `BulkheadMiddleware` | 503 | one key saturates its concurrency slot |
+| Circuit breaker | `breaker.Middleware()` | 503 | opens after consecutive failures — the real problem is the failing dependency; breaker `State()` shows open/half-open, and `Retry-After` reports the open window (a half-open rejection carries no hint) |
+| Bulkhead | `BulkheadMiddleware` | the caller's context error (504/499) | a key saturates its slots and requests **queue**; latency rises first, then callers time out. `errors.Is(err, endpoint.ErrBulkheadFull)` confirms the cause |
 | Backpressure | `BackpressureMiddleware` | 503 | global in-flight cap; the whole service is saturated |
 
-`endpoint.Metrics.SnapshotFor(pattern)` counts errors per route,
-`Snapshot()` the total, and `endpoint.Builder.Describe()` prints the chain order
-at startup so you know which protections are armed for a route.
+`endpoint.Metrics.SnapshotFor(pattern)` counts errors per route and `Snapshot()`
+the total. `endpoint.Builder.Describe()` *returns* the chain labels (`[]string`,
+outermost first) — log them yourself at startup to see which protections are
+armed for a route, and use `UseNamed` so they are not all `"?"`.
+
 
 ## Database problems (generated services)
 
@@ -130,7 +132,7 @@ at startup so you know which protections are armed for a route.
 
 | Switch | Effect |
 | --- | --- |
-| `debug.routes_enabled: true` | serves `GET /debug/routes` listing registered routes |
-| `debug.print_routes: true` | prints all routes at startup |
-| `endpoint.Builder.Describe()` | prints the middleware chain of one endpoint |
+| `debug.routes_enabled: true` | serves `GET /debug/routes` listing registered routes (generated projects only — the framework has no such route) |
+| `debug.print_routes: true` | prints all routes at startup (generated projects only) |
+| `endpoint.Builder.Describe()` | returns the middleware chain labels of one endpoint, for you to log |
 | `microgen extend -check` | validates manifest drift in a generated project |

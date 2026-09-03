@@ -2,6 +2,7 @@ package selector
 
 import (
 	"context"
+	"sync"
 
 	"github.com/dreamsxin/go-kit/v2/sd"
 )
@@ -19,19 +20,32 @@ import (
 // Filtered panics on a nil strategy. Nil filters are skipped, which keeps
 // conditional assembly — one filter only in production, say — from needing a
 // slice built by hand.
+//
+// Close forwards to strategy, so a strategy that owns something still gets
+// closed through this layer.
 func Filtered(strategy Strategy, filters ...sd.InstanceFilter) Strategy {
 	if strategy == nil {
 		panic("selector: nil strategy")
 	}
-	return filtered{strategy: strategy, filters: filters}
+	return &filtered{strategy: strategy, filters: filters}
 }
 
 type filtered struct {
-	strategy Strategy
-	filters  []sd.InstanceFilter
+	strategy  Strategy
+	filters   []sd.InstanceFilter
+	closeOnce sync.Once
+	closeErr  error
 }
 
-func (f filtered) Pick(ctx context.Context, request any, instances []sd.Instance) (int, sd.Done, error) {
+// Close releases the wrapped strategy. It is idempotent.
+func (f *filtered) Close() error {
+	f.closeOnce.Do(func() {
+		f.closeErr = CloseStrategy(f.strategy)
+	})
+	return f.closeErr
+}
+
+func (f *filtered) Pick(ctx context.Context, request any, instances []sd.Instance) (int, sd.Done, error) {
 	candidates := instances
 	for _, filter := range f.filters {
 		if filter == nil {

@@ -53,7 +53,7 @@ binding := transport.Binding[HelloRequest, HelloResponse]{
 }
 
 // HTTP：一次调用完成严格类型化 JSON。
-kit.HandleJSONTyped(svc, "POST /hello", binding.TypedEndpoint())
+kit.HandleJSONTyped(httpComponent, "POST /hello", binding.TypedEndpoint())
 
 // gRPC：protobuf 编解码把线上消息映射为领域类型。
 srv := grpcserver.NewServer(
@@ -125,7 +125,10 @@ svc.Handle("POST /shout", server.NewServer(ep, decode, encode,
 **替换式** - 每条路由只有一个生效，最后设置者胜出：
 
 - 成功响应编码器（`server.ServerResponseEncoder`，默认
-  `EncodeJSONResponse`）；
+  `EncodeJSONResponse`）——注意它只作用于 **JSON 入口**（`NewJSONServer`、
+  `NewJSONEndpoint` 及其类型化与 `WithBodyLimit` 变体）。用 `NewServer` 构造的
+  服务端在构造参数里接收编码函数，因此传给它的 `ServerResponseEncoder` 会被静默
+  覆盖；
 - 错误编码器（`server.ServerErrorEncoder`）；
 - 请求体解码器（构造时的 `DecodeRequestFunc`）。
 
@@ -133,17 +136,14 @@ svc.Handle("POST /shout", server.NewServer(ep, decode, encode,
 可以自行序列化、后处理或委托其他逻辑。
 
 **组合多个请求解析器。** 一条路由只有一个 body 解码器，但 body、路径、
-查询与 multipart 输入可以在其中组合。共享的辅助函数从不同来源填充同一个
-请求结构体，且同名字段路径值优先于查询值：
+查询与 multipart 输入可以在其中组合。`DecodeQueryRequest` 会**同时**从路径和查询
+填充结构体，同名字段路径值优先，因此 GET 风格的路由只需要它：
 
 ```go
 func decodeList(ctx context.Context, r *http.Request) (any, error) {
     var req ListOrdersRequest          // form/json 标签映射查询与路径字段
     if err := transporthttp.DecodeQueryRequest(r, &req); err != nil {
         return nil, err                // 查询与路径都写入这里
-    }
-    if err := transporthttp.DecodePathRequest(r, &req); err != nil {
-        return nil, err
     }
     page, err := transporthttp.ParsePage(r)
     if err != nil {
@@ -222,25 +222,32 @@ return transporthttp.NewPageResult(page, total, rows), nil
 
 推荐入口：
 
-- `server.NewServer`
-- `server.NewTypedJSONServer`
-- `server.NewJSONServer`
-- `server.NewJSONEndpoint`
-- `server.NewStrictTypedJSONServer`
-- `server.NewStrictJSONServer`
-- `server.NewStrictJSONEndpoint`
-- `server.NewTypedJSONServerWithMiddleware`
-- `server.NewJSONServerWithMiddleware`
-- `server.DecodeJSONRequest`
-- `server.DecodeJSONRequestWithOptions`
-- `server.DecodeJSONBody`
-- `server.StrictJSONDecodeOptions`
-- `server.DefaultMaxJSONBodyBytes`
-- `server.EncodeJSONResponse`
-- `server.JSONErrorEncoder`
+- `server.NewServer` —— 通用服务端，解码与编码由你提供
+- `server.NewJSONServer` / `server.NewTypedJSONServer` —— 传入处理函数，得到 JSON 路由
+- `server.NewJSONEndpoint` —— 同上，但用于你已经构建好的 endpoint
+- `server.NewJSONServerWithBodyLimit` / `server.NewTypedJSONServerWithBodyLimit` /
+  `server.NewJSONEndpointWithBodyLimit` —— 上述三者的显式请求体上限版本
+- `server.NewJSONServerWithMiddleware` / `server.NewTypedJSONServerWithMiddleware`
+- `server.NewJSONEndpointWithDecodeOptions` —— 改变严格性本身的逃生口
+- `server.DecodeJSONRequest` / `server.DecodeJSONRequestWithOptions` /
+  `server.DecodeJSONBody`
+- `server.StrictJSONDecodeOptions`、`server.JSONDecodeOptions`、
+  `server.DefaultMaxJSONBodyBytes`
+- `server.EncodeJSONResponse`、`server.WrapJSONResponse`
+- `server.JSONErrorEncoder`、`server.DefaultErrorEncoder`、
+  `server.JSONErrorEncoderWithKindMapper`、`server.TextErrorEncoder`
+- `server.HTTPStatusForError` / `server.HTTPStatusForErrorKind` —— 某个错误会映射到
+  的状态码，用于转发上游失败或编写自定义编码器
+- `server.RawBodyCodec` / `server.RawBodyCodecWithMaxBytes` 用于非 JSON 请求体
+- `server.NopRequestDecoder` / `server.NopResponseEncoder`
 - `server.NewSSEServer` / `server.NewSSEServerTyped` 用于 Server-Sent Events 流
 - `server.ParseMultipartForm` 用于有界的 multipart/form-data 上传
 - `server.WriteAttachment` 用于文件下载
+- `server.AccessLogMiddleware` 用于基于标准库 `slog` 的访问日志
+
+所有 JSON 入口都**严格**解码：未知对象字段、第二个 JSON 值、以及超过
+`DefaultMaxJSONBodyBytes` 的请求体都会以 400 拒绝。`WithBodyLimit` 变体只改变
+大小上限；只有 `NewJSONEndpointWithDecodeOptions` 能放宽严格性。
 
 `ParseMultipartForm` 在分片溢出到临时文件之前强制执行总请求体上限、单文件上限
 和内存阈值；超限违规通过标准错误编码器归类为 413，格式错误的请求归类为
@@ -268,8 +275,7 @@ return transporthttp.NewPageResult(page, total, rows), nil
 - `ServerFinalizer`
 - `ServerErrorHandler`
 - `ServerErrorEncoder`
-- `ServerErrorEncoder`
-- `ServerErrorHandler`
+- `ServerResponseEncoder`（仅 JSON 入口）
 
 默认的错误处理器是 no-op。当错误必须被记录或上报时，应安装应用自有的处理器，
 例如来自 `integrations/zap` 的 `zapadapter.NewErrorHandler(logger)`。
@@ -296,14 +302,14 @@ handler := server.NewTypedJSONServer(
 http.Handle("/hello", handler)
 ```
 
-当响应具有具体类型时，优先使用完全类型化的辅助函数。JSON 辅助函数默认是
+当响应具有具体类型时，优先使用完全类型化的辅助函数。所有 JSON 辅助函数都是
 严格的：它们会拒绝未知对象字段、第二个 JSON 值，以及超过默认字节上限的
-请求体。当某个路由需要自定义请求体上限时，使用显式的 strict 辅助函数：
+请求体。当某个路由需要不同的请求体上限时，使用 `WithBodyLimit` 辅助函数：
 
 ```go
-handler := server.NewStrictJSONEndpoint[HelloReq](
+handler := server.NewJSONEndpointWithBodyLimit[HelloReq](
     ep,
-    server.DefaultMaxJSONBodyBytes,
+    64<<10,
     server.ServerErrorEncoder(server.JSONErrorEncoder),
 )
 ```

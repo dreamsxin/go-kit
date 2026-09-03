@@ -53,7 +53,7 @@ test-contracts:
 
 test-docs:
 	@echo ">>> Running documentation and UTF-8 verification..."
-	@go -C ./tools test -v . -run "Test(RepositoryTextFilesAreUTF8|DocumentationLinksResolve|DocumentationDoesNotRecommendRemovedAPIs)" -count=1
+	@go -C ./tools test -v . -run "Test(RepositoryTextFilesAreUTF8|DocumentationLinksResolve|DocumentationDoesNotRecommendRemovedAPIs|DocumentationReferencesExistingAPIs)" -count=1
 
 test-examples:
 	@echo ">>> Running example package tests..."

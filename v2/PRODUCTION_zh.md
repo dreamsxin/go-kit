@@ -43,7 +43,10 @@ service/
 
 任务是服务层的调用方，不是 endpoint：它们不得导入传输包，其业务逻辑留在
 `service/` 中，使 HTTP handler 与任务共享同一份实现。Runner 实现
-`kit.Lifecycle`：
+`kit.Lifecycle`。
+
+下面的 `jobs.Runner` 是你在自己服务里要写的骨架，不是本框架提供的包——框架
+提供的是 `kit.Lifecycle` 与驱动它的 host：
 
 ```go
 type Job struct {
@@ -130,9 +133,12 @@ host, err := kit.NewHost(kit.WithLifecycle(httpComponent, runner))
 Instancer.Close 之前关闭它，使订阅被移除、工厂创建的客户端连接被释放。
 每次 `Balancer.Pick` 都必须在端点返回后配对调用 `Picked.Done`。
 
-内置默认重试分类器只重试显式 `Retryable() == true` 的错误、无 endpoint 的
-发现错误和已知的瞬态 gRPC 状态。未知错误视为永久错误。生产调用方仍应优先
-使用 `RetryWithRetryable` 配合领域专用分类器。
+内置默认重试分类器（`sd/retry.DefaultClassifier`）只重试通过
+`interface{ Retryable() bool }` 自我分类的错误以及 `sd.ErrNoEndpoints`；
+context 取消与超时永不重试，未分类错误视为永久错误。它本身不认识 gRPC 或
+HTTP 状态码：gRPC 客户端用 `sdclient.WithRetryable(grpc.Retryable)` 补上这层
+知识，其他协议同理——在 `sd/client` 上用 `client.WithRetryable(...)`，
+手工装配时用 `retry.WithClassifier(...)`。
 
 退避与调用遵循 context 取消。总超时必须覆盖所有尝试与等待，而不是每个
 尝试独立计算。

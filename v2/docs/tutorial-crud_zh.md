@@ -3,8 +3,8 @@
 [English](tutorial-crud.md) | 简体中文
 
 本教程从零构建一个数据库支撑的 todo 服务：SQLite 存储、类型化 JSON 路由、已分类
-错误与优雅停机。完整代码即可运行的 [examples/todosvc](../examples/README_zh.md)
-示例。
+错误与优雅停机。完整代码即可运行的
+[examples/todosvc/main.go](../examples/todosvc/main.go) 示例。
 
 ## 1. 目标
 
@@ -61,15 +61,16 @@ func (svc todoService) Create(ctx context.Context, title string) (Todo, error) {
 
 ## 4. 传输层
 
-以请求体为形态的请求使用类型化 JSON 路径（严格解码、中间件、信封）。路径参数
-使用原生 handler，因为 JSON 请求体无法携带它们：
+以请求体为形态的请求使用类型化 JSON 路径：严格解码、端点中间件，以及统一的错误
+形态。路径参数使用原生 handler，因为 JSON 请求体无法携带它们：
 
 ```go
-kit.HandleJSONTyped(svc, "POST /todos", func(ctx context.Context, req createTodoRequest) (Todo, error) {
+// httpSvc 是 *kit.HTTP 组件；todos 是 todoService。
+kit.HandleJSONTyped(httpSvc, "POST /todos", func(ctx context.Context, req createTodoRequest) (Todo, error) {
 	return todos.Create(ctx, req.Title)
 })
 
-svc.HandleFunc("GET /todos/{id}", func(w http.ResponseWriter, r *http.Request) {
+httpSvc.HandleFunc("GET /todos/{id}", func(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(w, r)
 	if !ok {
 		return
@@ -83,6 +84,11 @@ svc.HandleFunc("GET /todos/{id}", func(w http.ResponseWriter, r *http.Request) {
 })
 ```
 
+成功的类型化响应直接写出值本身，不做包装：`POST /todos` 返回的就是 `Todo` 对象。
+只有错误才有固定形态（`{"code","message","request_id"}`）。若你也想给成功响应加一层
+包装，用 `kit.WithJSONServerOptions(httpserver.ServerResponseEncoder(...))` 为整个
+服务安装一个——见[定制](customization_zh.md)。
+
 ## 5. 装配与停机
 
 存储在服务启动前打开，并通过一个 `kit.Lifecycle` 组件在优雅停机期间关闭：
@@ -92,14 +98,32 @@ store, err := openTodoStore(ctx, *dbDSN)
 if err != nil {
 	log.Fatalf("open database: %v", err)
 }
-svc, err := kit.NewHTTP(*httpAddr,
+todos := todoService{store: store, now: time.Now}
+
+httpSvc, err := kit.NewHTTP(*httpAddr,
 	kit.WithRequestID(),
 	kit.WithTimeout(5*time.Second),
 )
-host, err := kit.NewHost(kit.WithLifecycle(&storeLifecycle{store: store}, svc))
+if err != nil {
+	log.Fatal(err)
+}
+registerRoutes(httpSvc, todos)
+
+// 顺序有意义：组件按给定顺序启动、按相反顺序停机，因此存储比它支撑的服务器活得更久。
+host, err := kit.NewHost(kit.WithLifecycle(&storeLifecycle{store: store}, httpSvc))
+if err != nil {
+	log.Fatal(err)
+}
+if err := host.Run(ctx); err != nil {
+	log.Fatal(err)
+}
 ```
 
+`ctx` 来自 `signal.NotifyContext`，因此 Ctrl-C 触发优雅停机，而不是直接杀掉进程。
+
 ## 6. 运行它
+
+从 `v2/` 模块目录运行——`examples/` 是加入仓库 workspace 的独立模块：
 
 ```bash
 go run ./examples/todosvc
@@ -108,8 +132,11 @@ curl -X POST http://localhost:8080/todos -d '{"title":"write the tutorial"}'
 curl http://localhost:8080/todos
 curl -X POST http://localhost:8080/todos/1/done
 curl -i -X DELETE http://localhost:8080/todos/1
-curl -i http://localhost:8080/todos/999   # 404 with a stable code
+curl -i http://localhost:8080/todos/999
+# 404 {"code":"todo.not_found","message":"todo not found"}
 ```
+
+默认 DSN 是 `:memory:`，数据只存活一个进程周期。传 `-db.dsn=todos.db` 可持久化。
 
 ## 接下来去哪
 

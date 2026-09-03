@@ -290,13 +290,24 @@ func (c *Checker) loop() {
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
 
+	events := c.events
+
 	// Probe immediately so the first verdict does not wait a full interval.
 	c.round()
 	for {
 		select {
 		case <-c.ctx.Done():
 			return
-		case event := <-c.events:
+		case event, ok := <-events:
+			if !ok {
+				// A provider must not close a channel it was handed (see
+				// sd.Instancer). One that does costs us discovery updates, but
+				// receiving from a nil channel blocks forever, so probing and
+				// publishing carry on with the last snapshot instead of
+				// spinning on zero-value events.
+				events = nil
+				continue
+			}
 			c.accept(event)
 		case <-ticker.C:
 			c.round()

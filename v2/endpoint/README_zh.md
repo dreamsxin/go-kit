@@ -44,11 +44,13 @@ type Middleware func(Endpoint) Endpoint
 
 ### `Failer`
 
-`Failer` 允许响应类型在不占用 Go 错误返回值的情况下携带业务错误。
+`Failer` 让响应类型自己携带业务错误，而不是通过返回值返回。当响应实现
+`Failed() error` 且返回非 nil 时，HTTP 与 gRPC 服务端会丢弃该响应，并用各自的
+错误编码器编码这个错误——状态码、稳定错误码、错误处理器都与正常返回错误时一致。
 
-仅当传输层要求即使业务失败也要给出成功的线上级响应时才使用它。
-
-大多数业务逻辑仍然应当优先使用普通的 Go 错误。
+只有当服务方法签名无法返回错误时才用它（按项填充结果槽的批量处理器、包装回调式
+API 的适配器）。它**不是**"用 200 携带错误字段"的手段：那种需求直接在响应结构体
+里加字段，不要实现 `Failer`。
 
 ## 推荐入口
 
@@ -112,8 +114,17 @@ fmt.Println(snapshot.RequestCount, snapshot.ErrorCount, snapshot.AverageDuration
 builder 契约说明：
 
 - `NewBuilder` 要求非 nil 的基础端点
-- `Use(...)` 要求非 nil 的中间件值
-- 非法的组合输入会快速失败，而不是把问题推迟到请求时
+- `Use(...)` 与 `UseNamed(...)` 要求非 nil 的中间件值
+- 非法的组合输入在装配期直接 **panic**，而不是把问题推迟到请求时——装配发生在
+  启动阶段，错误的链路会让进程失败，而不是让某个请求失败
+- `UseNamed(label, m)` 记录标签，`Describe()` 按应用顺序（最外层在前，未命名的
+  显示为 `"?"`）返回它们；启动日志打印它，就能看到某条路由实际拿到的链路
+
+指标标签说明：`WithRecording(operation, ...)` 会给每次观测打上 `operation` 标签，
+因此 `Metrics.SnapshotFor(operation)` 与 `Operations()` 可用。`WithMetrics(&m)`
+记录时**没有**操作标签，只有聚合的 `Snapshot()` 有意义，`SnapshotFor` 返回零值。
+除非确实只要聚合值，否则优先用 `WithRecording`。操作标签必须来自有界集合——按用户
+或按 URL 路径打标签会让映射在进程生命周期内不断增长。
 
 ## `Chain`
 
@@ -140,7 +151,7 @@ endpoint，并在每次请求时决定链路其余部分如何执行。四种模
 场景。
 
 **短路** - 终止链路并立即应答。内置的 `ValidationMiddleware`、
-`BackpressureMiddleware` 和 `BulkheadMiddleware` 都这样做：
+`BackpressureMiddleware`、`RateLimitMiddleware` 和熔断器都这样做：
 
 ```go
 func requireTenant(next endpoint.Endpoint) endpoint.Endpoint {
@@ -163,13 +174,19 @@ degraded := endpoint.NewBuilder(cachedResponse).
 ep := endpoint.NewBuilder(primary).WithFallback(degraded).Build()
 ```
 
-**重复** - 再次调用链路的剩余部分。`sd/retry` 包装 `next` 并按尝试次数
-反复调用，带有自己的退避与错误分类。
+**重复** - 再次调用链路的剩余部分。`RetryMiddleware` 包装 `next` 并按尝试次数
+反复调用，带有自己的退避与错误分类。（`sd/retry` 在更外一层做同样的事，但它是
+**由负载均衡器驱动的 endpoint**，不是 `Middleware`：它每次尝试都重新挑选实例。）
 
 **替换** - 用不同行为包装 `next` 而不是直接调用它：
-`TimeoutMiddleware` 在 deadline 下于 goroutine 中运行 `next`，
-`MetricsMiddleware` 观察其结果。被包装的 endpoint 保持不透明，中间件
-不需要知道链路还有多深。
+`MetricsMiddleware` 观察其结果，`Fallback` 在首选失败时改用备用 endpoint。
+被包装的 endpoint 保持不透明，中间件不需要知道链路还有多深。
+
+`TimeoutMiddleware` 传递 deadline，而不强制中断：它派生带 deadline 的
+context，然后在同一个 goroutine 上同步调用 `next`。下游所有遵守 `ctx` 的部分
+——HTTP 与 gRPC 客户端、数据库驱动、`sd/retry` 的退避——都会在超时后返回；
+忽略取消的 endpoint 仍会跑到结束。因此它约束的是调用方"等待下游"的时间，
+而不是终止正在执行的工作。
 
 中间件做不到的一件事，是在运行期改动已构造路由的链路--组装发生在装配
 期，这让请求路径确定且可测试。按路由的变化属于装配期
@@ -219,12 +236,20 @@ typed := endpoint.Unwrap[HelloReq, HelloResp](
 - `TracingMiddleware`
 - `ValidationMiddleware`
 - `BackpressureMiddleware`
-- `Fallback`
+- `InFlightMiddleware`
 - `BulkheadMiddleware`
-- `CircuitBreaker`
 - `RateLimitMiddleware`
 - `DelayRateLimitMiddleware`
 - `RetryMiddleware`
+- `Fallback`
+
+`CircuitBreaker` 本身不是 `Middleware`：它是被所有请求共享的有状态对象，因此用
+`NewCircuitBreaker()` 构造一次，再装上 `breaker.Middleware()`（或
+`Builder.WithCircuitBreaker(breaker)`）。要保留 `*CircuitBreaker` 值——`State()`
+在它上面。
+
+`BackpressureMiddleware(max)` 限制全局在途调用数；`InFlightMiddleware(max,
+&counter)` 做同样的事，同时把实时计数写入调用方的 `*int64`，便于导出为 gauge。
 
 `CircuitBreaker` 是 endpoint 包内置的无依赖熔断器：连续失败会触发开启，
 开启期间用 `ErrCircuitOpen`（HTTP 503，并把开窗剩余时间作为 `Retry-After`
@@ -240,9 +265,12 @@ typed := endpoint.Unwrap[HelloReq, HelloResp](
 `RetryAfterReporter`，其延迟会附加到 `ErrRateLimited` 上。两个限流中间件都是
 进程内的，多副本部署要么按副本数缩放单副本速率，要么提供应用自有的共享限流器。
 
-`RetryMiddleware` 以指数退避加全抖动重试瞬时失败。默认分类器重试
-`apperror.KindUnavailable`，以及通过 `interface{ Retryable() bool }` 自行分类的
-错误——不重试 context 错误、本地拒绝与未分类错误；错误自带的重试提示
+`RetryMiddleware` 以指数退避加全抖动重试瞬时失败。默认分类器按固定顺序判断：
+context 错误与本地拒绝（`ErrCircuitOpen`、`ErrBulkheadFull`、`ErrBackpressure`、
+`ErrRateLimited`）永不重试；随后实现 `interface{ Retryable() bool }` 的错误自行
+决定——它**优先于** `apperror` 分类，上游返回的 408 或 429 正是靠这一点变成可重试；
+否则只重试 `apperror.KindUnavailable`，该分类从 `apperror.Kinder` 或
+`apperror.KindNamer` 任一契约读取。未分类的错误不重试。错误自带的重试提示
 （`RetryAfterReporter`）优先于退避计划，上限为 `MaxRetryAfterHint`；幂等性由调用方
 负责。传输层客户端同样是 `Endpoint`，因此同一套组合也适用于对外调用：
 `transport/http/client.HTTPStatusError` 按状态码自我分类，并上报服务端的
@@ -274,9 +302,14 @@ ep := endpoint.NewBuilder(createUser).WithValidation().Build()
 `Fallback` 在主端点失败时以降级兜底端点应答，在依赖恢复期间把错误挡在调用方之外。
 调用方 context 已结束时它跳过兜底——取消不是依赖故障；兜底也失败时它合并两个
 错误，主故障原因仍可通过 `errors.Is` 取到。
+
 `BulkheadMiddleware` 按资源键（租户、依赖）限制并发，这样一个慢的键无法像全局
-`BackpressureMiddleware` 计数那样耗尽共享预算；两种拒绝错误都编码为 HTTP 503。
-舱壁隔离的键必须保持有界，因为每个键在端点的生命周期内都占有一个槽位池：
+`BackpressureMiddleware` 计数那样耗尽共享预算。它是**队列，不是立即拒绝**：键对应
+的槽位池满时请求会排队等待槽位，因此饱和先表现为延迟。当调用方 context 结束等待
+时，错误按该 context 错误分类——调用方超时是 504，断连是 499——并包装
+`ErrBulkheadFull`，因此 `errors.Is` 仍能查到饱和原因。请与 `WithTimeout` 搭配，让
+队列有个边界。舱壁隔离的键必须保持有界，因为每个键在端点的生命周期内都占有一个
+槽位池：
 
 ```go
 ep := endpoint.NewBuilder(callDependency).

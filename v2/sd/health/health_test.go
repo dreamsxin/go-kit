@@ -121,6 +121,60 @@ func (r *recyclingInstancer) recycle(addresses ...string) {
 	}
 }
 
+// rudeInstancer closes the channel it was handed, which sd.Instancer forbids.
+type rudeInstancer struct {
+	mu          sync.Mutex
+	instances   []sd.Instance
+	subscribers []chan sd.Event
+}
+
+func (r *rudeInstancer) Register(ch chan sd.Event) sd.Event {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if ch != nil {
+		r.subscribers = append(r.subscribers, ch)
+	}
+	return sd.Event{Instances: append([]sd.Instance(nil), r.instances...)}
+}
+
+func (r *rudeInstancer) Deregister(chan sd.Event) {}
+
+func (r *rudeInstancer) Close() error { return nil }
+
+func (r *rudeInstancer) closeSubscribers() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, subscriber := range r.subscribers {
+		close(subscriber)
+	}
+	r.subscribers = nil
+}
+
+func TestCheck_SurvivesAProviderThatClosesItsChannel(t *testing.T) {
+	probes := newProbeTable()
+	provider := &rudeInstancer{instances: sd.Addresses("a:80", "b:80")}
+
+	checker := health.Check(provider, probes.probe(),
+		health.WithInterval(2*time.Millisecond),
+		health.WithUnhealthyThreshold(1))
+	defer checker.Close() //nolint:errcheck
+
+	waitForAddresses(t, checker, "a:80", "b:80")
+	provider.closeSubscribers()
+
+	// The set the checker already has stays published, and probing keeps
+	// running instead of spinning on zero-value events.
+	rounds := probes.probed("a:80")
+	time.Sleep(20 * time.Millisecond)
+	waitForAddresses(t, checker, "a:80", "b:80")
+	if probes.probed("a:80") <= rounds {
+		t.Fatal("probing stopped after the provider closed the channel")
+	}
+
+	probes.fail("a:80", errors.New("down"))
+	waitForAddresses(t, checker, "b:80")
+}
+
 func TestCheck_OwnsTheSnapshotItWasGiven(t *testing.T) {
 	probes := newProbeTable()
 	provider := &recyclingInstancer{instances: sd.Addresses("a:80", "b:80")}

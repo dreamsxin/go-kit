@@ -367,6 +367,52 @@ func TestRegistrarDeregisterStopsRenewalAndRemovesTheKey(t *testing.T) {
 	}
 }
 
+func TestRegistrarDeregisterRetriesAfterAFailedRemoval(t *testing.T) {
+	client := newFakeClient()
+	client.mu.Lock()
+	client.deregisterErr = errors.New("etcd unreachable")
+	client.mu.Unlock()
+
+	registrar := NewRegistrar(client, nil, "users", "10.0.0.1", 8080, IDRegistrarOptions("users-1"))
+	if err := registrar.Register(); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if err := registrar.Deregister(); err == nil {
+		t.Fatal("Deregister did not report the removal failure")
+	}
+
+	// The key is still in etcd, so the registration is still pending: a retry
+	// has to attempt the removal again instead of reporting a clean stop.
+	client.mu.Lock()
+	client.deregisterErr = nil
+	attempts := len(client.deregistered)
+	client.mu.Unlock()
+	if attempts != 1 {
+		t.Fatalf("removal attempts = %d, want 1", attempts)
+	}
+
+	if err := registrar.Deregister(); err != nil {
+		t.Fatalf("retried Deregister: %v", err)
+	}
+	client.mu.Lock()
+	deregistered := append([]string(nil), client.deregistered...)
+	client.mu.Unlock()
+	if len(deregistered) != 2 || deregistered[1] != "/services/users/users-1" {
+		t.Fatalf("deregistered = %v, want the retry to remove the key again", deregistered)
+	}
+
+	// And once it succeeded, it stays done.
+	if err := registrar.Deregister(); err != nil {
+		t.Fatalf("third Deregister: %v", err)
+	}
+	client.mu.Lock()
+	total := len(client.deregistered)
+	client.mu.Unlock()
+	if total != 2 {
+		t.Fatalf("removal attempts after success = %d, want 2", total)
+	}
+}
+
 func TestRegistrarRegisterIsIdempotent(t *testing.T) {
 	client := newFakeClient()
 	registrar := NewRegistrar(client, nil, "users", "10.0.0.1", 8080)

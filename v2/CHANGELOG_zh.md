@@ -7,6 +7,8 @@
 
 ### 新增
 
+- `selector.CloseStrategy(strategy)`：策略持有资源时释放它，不持有时是空操作，
+  因此包装型策略可以一行透传 `Close`，不必自己写类型断言。
 - `sd/balancer` 新增三种选择策略，轮询不再是唯一选项：`NewRandom`（均匀抽样，
   避免多客户端共享计数器导致的步调一致）、`NewWeightedRandom`（按每个实例的
   权重成比例选择；权重为 0 即可摘除实例，无需等待服务发现）、
@@ -111,6 +113,32 @@
 
 ### 变更
 
+- **破坏性变更：** HTTP 与 gRPC 服务器现在遵守 `endpoint.Failer`。若响应的
+  `Failed()` 返回非 nil，该响应被丢弃、改为编码该错误，因此它获得与正常返回错误
+  完全相同的状态码、错误码与日志——这是上游 go-kit 的语义。此前 `Failer` 只被文档
+  提及、从未被查询，携带业务错误的响应会被序列化成一次成功。只在无法返回 error 的
+  签名上使用它；它不是"用 200 附带错误字段"的手段。
+- **破坏性变更：** `NewStrictJSONEndpoint`、`NewStrictJSONServer` 与
+  `NewStrictTypedJSONServer` 更名为 `NewJSONEndpointWithBodyLimit`、
+  `NewJSONServerWithBodyLimit` 与 `NewTypedJSONServerWithBodyLimit`。"Strict"
+  暗示了一种从未存在的解码差异——所有 JSON 入口都严格解码，这些构造器只是多接一个
+  显式的 `maxBodyBytes`。放宽严格性仍然只有 `NewJSONEndpointWithDecodeOptions`
+  一条路。
+- `oteladapter.Metrics` 实现了 `endpoint.Recorder`，因此
+  `kit.WithRecorder(otelMetrics)` 能编译通过，并以路由模式作为 operation 覆盖每
+  一条路由。`Metrics.Middleware(operation)` 现在就是
+  `endpoint.RecordingMiddleware(operation, m)` 的简写。
+- 生成的项目（`microgen`）在 `/health` 之外注册 `/livez` 与 `/readyz`，与
+  `kit.NewHTTP` 一致。就绪状态在监听器开始服务后置为真、收到第一个停机信号时置为
+  假，因此滚动发布会摘流而不是丢连接；`/health` 覆盖两个范围，`/livez` 在进程存活
+  期间始终 200。
+- **破坏性变更：** `selector.Selector` 新增 `Close() error`，使"只选实例"的装配
+  与 `sd.Balancer.Close` 一样释放自己的策略链。现在两条路径只有一条规则：关闭
+  你构造的 Selector 或 Balancer，交给它的 Instancer 与 endpoint set 仍由你关闭。
+- **破坏性变更：** `endpointer.Filter` 与 `endpointer.Prefer` 不再关闭 source。
+  过滤视图不拥有任何东西，因此关闭共享同一 endpoint set 的某个视图不会再让其他
+  视图失效——这也是 `balancer.New`、`health.Check` 与 `selector.Subscribe` 一直
+  遵循的所有权规则。
 - **破坏性变更：** `sd.Event.Instances` 的类型由 `[]string` 改为 `[]sd.Instance`。
   没有标签需要上报时，用 `sd.Addresses("host:port", ...)` 构造快照。
 - **破坏性变更：** `endpointer.Factory` 的参数由字符串地址改为 `sd.Instance`，
@@ -154,6 +182,35 @@
 
 ### 修复
 
+- `JSONErrorEncoderWithKindMapper` 不再让 kind 映射覆盖显式状态码。现在
+  `StatusCoder` 优先，与 `httpStatus` 一致；此前被转发的
+  `client.HTTPStatusError` 的上游状态码会被应用的 kind 映射静默改写。
+- `sd/retry` 在预算耗尽时保留尝试记录。此前超时的调用只返回一个裸的
+  `context.DeadlineExceeded`，恰好丢掉了 `retry.Error` 存在的意义；现在返回
+  `retry.Error`，`Attempts` 完整、`Final` 为该 context 错误，`errors.Is` 依旧可用。
+  若一次尝试都没发生，则原样返回裸的 context 错误。
+- `AccessLogMiddleware` 现在输出 `request_id`——这是两处文档早已声称的行为。它从
+  context 读取 ID，读不到则回退到 `X-Request-ID` 响应头，因为 HTTP 中间件包裹的是
+  mux，运行在组件为每个请求准备的 context 之外。
+- 文档：按代码逐条校正了所有章节与组件 README（中英）——`docs/configuration.md`
+  的自定义配置钩子签名（它们是 `*CustomConfig` 的方法，且漏了 `Validate`）、包含
+  "校验之后才生效的命令行 flag"的真实加载顺序、并不存在的"脱敏配置摘要"、
+  `config/custom.go` 需要 `-config`、Go SDK 并不由 `-openapi` 决定、`extend` 要求
+  完整合并的 IDL、类型化 JSON 成功响应并不做信封包装，以及教程装配片段里被省略的
+  错误检查。
+- 策略装饰器现在会透传 `Close`。`feedback.Table.Wrap` 与 `selector.Filtered` 此前
+  只保留 `Pick`，而 `sd/balancer` 只对最外层策略做 `Close` 类型断言，因此
+  `balancer.New(set, table.Wrap(selector.Filtered(mine, f)))` 会静默泄漏 `mine`
+  持有的资源。两层现在都实现幂等 `Close`，通过 `selector.CloseStrategy` 向内转发，
+  自定义装饰器同样使用它。
+- `sd/health` 与 `feedback.Follow` 不会再因为 provider 关闭订阅 channel 而忙转
+  ——`sd.Instancer` 禁止这样做，现在契约里写明了。checker 会继续探测并沿用最后一份
+  快照，follower 则退出。
+- etcd `Registrar.Deregister` 会重试失败的 key 删除。它此前在调用 etcd 之前就清空
+  了本地状态，于是停机时的瞬时错误会报告"已干净停止"，而实例要等租约过期才离开
+  目录。现在删除失败会保留待删状态，再次调用 `Deregister` 即可完成。
+- etcd 会撤销"已授予但未能挂上 key"的租约：`Grant` 成功后 `Put` 或 `KeepAlive`
+  失败会让租约泄漏整个 TTL。
 - **破坏性变更：** `selector.Selector.Select` 与包级 `selector.Select` 改为返回
   `(sd.Instance, sd.Done, error)`。此前实例层丢弃了策略返回的回调，导致基于
   反馈表的策略在 `selector.New` 路径下把每次选择都永久计为在途：该实例在最少

@@ -32,7 +32,7 @@ HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.C
 | --- | --- | --- | --- |
 | 日志 | 保持纯净；从 context 读关联 ID | `slogadapter.LoggingMiddleware`、`integrations/zap` 或 `slogadapter.NewTelemetry` | `server.AccessLogMiddleware` 记录协议事实；`ServerErrorHandler` 记录失败 |
 | 追踪 | context 携带 trace 与请求 ID | `TracingMiddleware`（W3C 关联）、`oteladapter.TracingMiddleware`（span） | `transporthttp.ExtractTraceparent` / `InjectTraceparent` 头传播 |
-| 指标 | — | `RecordingMiddleware` 搭配任意 `Recorder`、`oteladapter.NewMetrics` | 访问日志的状态码/字节数；`ServerFinalizer` 钩子 |
+| 指标 | — | `RecordingMiddleware` 搭配任意 `Recorder`——内存用 `endpoint.Metrics`，OpenTelemetry 用 `oteladapter.NewMetrics` | 访问日志的状态码/字节数；`ServerFinalizer` 钩子 |
 | 错误 | 返回 `apperror` 分类 | `ErrorHandlingMiddleware` 附操作名；`ValidationMiddleware` 短路 | `ErrorEncoder` 映射状态码；`ErrorHandler` 观察 |
 
 安放规则：
@@ -67,20 +67,30 @@ HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.C
 | `ErrorHandlingMiddleware` | 用操作名包装端点错误 | 从不拒绝 |
 | `TracingMiddleware` | W3C trace context 传播 | 从不拒绝 |
 | `BackpressureMiddleware` | 全局在途请求上限（背压） | 503 unavailable |
-| `CircuitBreaker` | 连续失败使熔断器跳闸，探针使其闭合 | 503 unavailable + `Retry-After` |
+| `InFlightMiddleware` | 全局在途上限，并对外发布实时计数 | 503 unavailable |
+| `CircuitBreaker.Middleware()` | 连续失败使熔断器跳闸，探针使其闭合 | 503 unavailable + `Retry-After` |
 | `RateLimitMiddleware` | 拒绝超限请求（限流） | 429 too many requests |
 | `DelayRateLimitMiddleware` | 等待令牌而非拒绝 | context 错误 |
 | `RetryMiddleware` | 对瞬时失败带退避重试 | 返回最后一次错误 |
 | `Fallback` | 失败时用降级兜底端点应答 | 兜底也失败时合并两个错误 |
-| `BulkheadMiddleware` | 按 key 的并发隔离（舱壁隔离） | 503 unavailable |
+| `BulkheadMiddleware` | 按 key 的并发**排队**（舱壁隔离） | 调用方的 context 错误（504/499），并包装 `ErrBulkheadFull` |
 
-限流用 429，因为是调用方超出了自己的配额；熔断跳闸、舱壁占满与背压用 503，
-因为此时是服务在卸载负载。完整映射见 [错误处理](errors_zh.md)。
+限流用 429，因为是调用方超出了自己的配额；熔断跳闸与背压用 503，因为此时是服务
+在卸载负载。舱壁是例外：它不拒绝而是排队，因此某个 key 饱和先表现为延迟，然后
+表现为结束调用方等待的原因——超时仍是 504，断连仍是 499。
+`errors.Is(err, endpoint.ErrBulkheadFull)` 仍能查到背后的饱和原因。请把
+`WithBulkhead` 与 `WithTimeout` 搭配，让队列有个边界。完整映射见
+[错误处理](errors_zh.md)。
+
+`CircuitBreaker` 本身不是 `Middleware`：用 `endpoint.NewCircuitBreaker()` 构造一次，
+装上 `breaker.Middleware()`，并保留 `*CircuitBreaker` 以便调用 `State()`。
 
 目录中的每个中间件都有 Builder 快捷方式（`WithValidation`、`WithTimeout`、
-`WithRecording`、`WithRateLimit`、`WithCircuitBreaker`、`WithRetry`、
-`WithFallback`、`WithBulkhead`、`WithBackpressure`、`WithTracing`、
-`WithErrorHandling`），因此 `Use` 只在自定义中间件时才需要。
+`WithRecording`、`WithMetrics`、`WithRateLimit`、`WithDelayRateLimit`、
+`WithCircuitBreaker`、`WithRetry`、`WithFallback`、`WithBulkhead`、
+`WithBackpressure`、`WithTracing`、`WithErrorHandling`），因此 `Use` 与 `UseNamed`
+只在自定义中间件时才需要。`InFlightMiddleware` 没有快捷方式，因为它需要调用方的
+计数器；用 `Use` 安装。
 
 ## 重试瞬时失败
 

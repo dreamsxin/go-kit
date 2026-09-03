@@ -137,11 +137,15 @@ func (c *client) Register(ctx context.Context, key, value string, ttl time.Durat
 	_, err = c.etcd.Put(putCtx, key, value, clientv3.WithLease(lease.ID))
 	cancel()
 	if err != nil {
+		// The lease is granted but nothing is attached to it, so nothing will
+		// ever renew it. Revoking now beats holding a dead lease for a TTL.
+		c.revoke(lease.ID)
 		return nil, err
 	}
 
 	keepAlive, err := c.etcd.KeepAlive(ctx, lease.ID)
 	if err != nil {
+		c.revoke(lease.ID)
 		return nil, err
 	}
 
@@ -166,7 +170,6 @@ func (c *client) Deregister(ctx context.Context, key string) error {
 	lease, leased := c.leases[key]
 	delete(c.leases, key)
 	c.mu.Unlock()
-
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
@@ -182,4 +185,13 @@ func (c *client) Deregister(ctx context.Context, key string) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// revoke releases a lease the caller could not finish attaching a key to. It is
+// best effort: the lease expires on its own if etcd is unreachable, so there is
+// nothing useful to report to a caller that is already returning an error.
+func (c *client) revoke(lease clientv3.LeaseID) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	_, _ = c.etcd.Revoke(ctx, lease)
 }

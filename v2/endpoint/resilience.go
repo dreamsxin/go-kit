@@ -66,8 +66,12 @@ func (b *Builder) WithFallback(fallback Endpoint) *Builder {
 // (dependency names, tenant buckets); the middleware keeps one slot pool per
 // distinct key for the lifetime of the endpoint.
 //
-// Requests that arrive while their key's pool is full wait until a slot
-// frees or the context is cancelled; cancellation returns ErrBulkheadFull.
+// Requests that arrive while their key's pool is full wait for a slot: this is
+// a queue, not an immediate shed, so saturation shows up as latency until the
+// caller's context ends. When it does, the error classifies as that context
+// error — a caller timeout stays a timeout (HTTP 504), a disconnect stays a
+// disconnect (499) — and wraps ErrBulkheadFull, so errors.Is still reports the
+// saturation that caused the wait.
 //
 // Example:
 //
@@ -110,7 +114,11 @@ func BulkheadMiddleware(maxPerKey int, key func(request any) string) Middleware 
 			case pool <- struct{}{}:
 				defer func() { <-pool }()
 			case <-ctx.Done():
-				return nil, errors.Join(ErrBulkheadFull, ctx.Err())
+				// The caller's context ended the wait, so the failure is its
+				// timeout or cancellation, not load shedding. Reporting
+				// ErrBulkheadFull alone turned every caller timeout into a 503;
+				// it stays wrapped for logs and metrics.
+				return nil, newShedWaitError(ctx.Err(), ErrBulkheadFull)
 			}
 			return next(ctx, request)
 		}

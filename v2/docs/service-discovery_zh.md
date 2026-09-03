@@ -76,9 +76,22 @@ type Outcome struct {
 使用 `defer`。`Bytes` 是调用方定义的总字节数；通用 retry 无法从不透明的 request 和
 response 推断它，需要由协议适配器或 bridge 填写。
 
-只选择实例的 selector 也保留反馈契约：
+只选择实例的 selector 也保留反馈契约。`selector.New` 把 strategy 绑定到 source
+并返回 `Selector`；用完后关闭它，这只释放 strategy，不释放其他东西——source 以及
+它背后的 instancer 仍归你所有：
 
 ```go
+type Selector interface {
+    Select(ctx context.Context, request any) (sd.Instance, sd.Done, error)
+    Close() error
+}
+
+pool := selector.Subscribe(instancer)
+defer pool.Close()
+
+pick := selector.New(pool, selector.RoundRobin())
+defer pick.Close()
+
 instance, done, err := pick.Select(ctx, request)
 if err != nil {
     return err
@@ -132,6 +145,11 @@ defer lb.Close()
 
 call := retry.Retry(3, 500*time.Millisecond, lb)
 ```
+
+`retry.Retry`同时接受尝试次数上限与墙钟预算，预算优先：超时的调用会在计划中途停止。
+此时的失败是一个 `retry.Error`，携带至此为止的全部尝试记录，`Final` 为 context 错误，
+因此 `errors.Is(err, context.DeadlineExceeded)` 仍然匹配，而错误消息会指出失败的实例。
+只有在任何一次尝试完成之前预算就到期时，才返回裸的 context 错误。
 
 ## 过滤与生命周期状态
 
@@ -225,7 +243,9 @@ type ScoreFunc func(
 | 主动健康 | `health.Probe` | 认证、探测指标、自定义协议 |
 | 重试 | `retry.Callback` / `retry.Classifier` | 幂等性与协议策略 |
 
-Strategy 中间件必须原样转发被选下标和内部回调。Balancer 中间件必须转发
+Strategy 中间件必须原样转发被选下标、内部回调以及 `Close`——一行写法是
+`selector.CloseStrategy(inner)`；漏掉它内部策略就永远关不掉，因为
+`selector.New` 与 `balancer.New` 只看得见最外层策略。Balancer 中间件必须转发
 `Picked.Instance` 与 `Picked.Endpoint`，最多包装一次 `Picked.Done`，并在 `Close`
 时委托内部 balancer。Factory 或 Probe 包装器应保留原始错误与 closer 语义。这样自定义
 组件仍可与同一张反馈表和 retry executor 协作。

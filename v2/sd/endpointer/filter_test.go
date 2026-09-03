@@ -120,15 +120,20 @@ func TestFilter_EndpointsMirrorsInstanceEndpoints(t *testing.T) {
 	}
 }
 
-func TestFilter_ClosesUnderlyingSet(t *testing.T) {
+func TestFilter_DoesNotCloseUnderlyingSet(t *testing.T) {
 	set := newLabelledSet(t, labelled("svc:80", nil))
-	local := endpointer.Filter(set, sd.HasMetadata("zone"))
+	first := endpointer.Filter(set, sd.HasMetadata("zone"))
+	second := endpointer.Prefer(set, sd.HasMetadata("zone"))
 
-	if err := local.Close(); err != nil {
+	if err := first.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
-	if _, err := set.InstanceEndpoints(); !errors.Is(err, endpointer.ErrCacheClosed) {
-		t.Fatalf("underlying set error = %v, want ErrCacheClosed", err)
+	if _, err := set.InstanceEndpoints(); err != nil {
+		t.Fatalf("underlying set error after closing a view = %v, want nil", err)
+	}
+	// A second view over the same set keeps working: views own nothing.
+	if _, err := second.InstanceEndpoints(); err != nil {
+		t.Fatalf("sibling view error = %v, want nil", err)
 	}
 }
 

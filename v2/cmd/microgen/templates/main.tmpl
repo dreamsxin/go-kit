@@ -12,7 +12,8 @@ import (
 	"os"
 	"os/signal"
 {{if .WithConfig}}	"strings"
-{{end}}	"syscall"
+{{end}}	"sync/atomic"
+	"syscall"
 	"time"
 
 {{if .WithGRPC}}	"google.golang.org/grpc"
@@ -148,14 +149,33 @@ func main() {
 	}
 {{end}}
 
+	var ready atomic.Bool
 	r := http.NewServeMux()
-	healthHandler := func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, `{"status":"ok","service":"{{range .Project.Services}}{{.Name}}{{end}}"}`)
+
+	// Kubernetes-style probes, matching the routes kit.NewHTTP registers:
+	//   /livez  liveness  -- the process is up; restart the container if this fails
+	//   /readyz readiness -- the listeners are serving; take the pod out of the
+	//                        load balancer if this fails
+	//   /health both      -- the convenience route most tooling defaults to
+	// ready flips on once both listeners are up and off again at the first sign
+	// of shutdown, so a rolling deploy drains connections instead of dropping them.
+	healthHandler := func(requireReady bool) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if requireReady && !ready.Load() {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				fmt.Fprintln(w, `{"status":"not_ready","service":"{{range .Project.Services}}{{.Name}}{{end}}"}`)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintln(w, `{"status":"ok","service":"{{range .Project.Services}}{{.Name}}{{end}}"}`)
+		}
 	}
-	r.HandleFunc("GET /health", healthHandler)
-	r.HandleFunc("HEAD /health", healthHandler)
+	for pattern, requireReady := range map[string]bool{"/health": true, "/livez": false, "/readyz": true} {
+		handler := healthHandler(requireReady)
+		r.HandleFunc("GET "+pattern, handler)
+		r.HandleFunc("HEAD "+pattern, handler)
+	}
 
 {{if .WithInteraction}}	mcpHandler := mcp.NewStreamableHandler(interactionRuntime)
 	r.Handle("GET /mcp", mcpHandler)
@@ -230,6 +250,7 @@ func main() {
 	}()
 {{end}}
 
+	ready.Store(true)
 	printBanner(logger, *httpAddr{{if .WithGRPC}}, *grpcAddr{{end}}, {{if .WithOpenAPI}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}})
 
 	runContext, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -240,6 +261,9 @@ func main() {
 	case err := <-serverErr:
 		logger.Error("server stopped unexpectedly", "err", err)
 	}
+	// Fail readiness first, so the load balancer stops sending new requests while
+	// the in-flight ones finish draining below.
+	ready.Store(false)
 	logger.Info("shutting down")
 
 {{if .WithConfig}}	shutdownTimeout := cfg.Server.GracefulShutdownTimeout

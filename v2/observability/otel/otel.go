@@ -97,6 +97,8 @@ type Metrics struct {
 	attrs    []attribute.KeyValue
 }
 
+var _ endpoint.Recorder = (*Metrics)(nil)
+
 // NewMetrics creates instruments from the application-owned meter.
 func NewMetrics(meter metric.Meter, options ...MetricsOption) (*Metrics, error) {
 	if meter == nil {
@@ -136,29 +138,33 @@ func NewMetrics(meter metric.Meter, options ...MetricsOption) (*Metrics, error) 
 	return &Metrics{requests: requests, errors: errorsCounter, duration: duration, attrs: attrs}, nil
 }
 
+// Observe implements endpoint.Recorder, so the adapter plugs into the same
+// recording path as every other backend: endpoint.RecordingMiddleware, or
+// kit.WithRecorder to cover every route with its pattern as the operation.
+func (m *Metrics) Observe(ctx context.Context, obs endpoint.Observation) {
+	if m == nil {
+		return
+	}
+	attrs := append([]attribute.KeyValue(nil), m.attrs...)
+	attrs = append(attrs,
+		attribute.String("operation", obs.Operation),
+		attribute.String("outcome", outcome(obs.Err)),
+	)
+	options := metric.WithAttributes(attrs...)
+	m.requests.Add(ctx, 1, options)
+	m.duration.Record(ctx, float64(obs.Duration)/float64(time.Millisecond), options)
+	if obs.Err != nil {
+		m.errors.Add(ctx, 1, options)
+	}
+}
+
 // Middleware returns endpoint metrics middleware for a bounded operation name.
+// It is shorthand for endpoint.RecordingMiddleware(operation, m).
 func (m *Metrics) Middleware(operation string) endpoint.Middleware {
 	if m == nil {
 		return func(next endpoint.Endpoint) endpoint.Endpoint { return next }
 	}
-	return func(next endpoint.Endpoint) endpoint.Endpoint {
-		return func(ctx context.Context, request any) (response any, err error) {
-			start := time.Now()
-			response, err = next(ctx, request)
-			attrs := append([]attribute.KeyValue(nil), m.attrs...)
-			attrs = append(attrs,
-				attribute.String("operation", operation),
-				attribute.String("outcome", outcome(err)),
-			)
-			options := metric.WithAttributes(attrs...)
-			m.requests.Add(ctx, 1, options)
-			m.duration.Record(ctx, float64(time.Since(start))/float64(time.Millisecond), options)
-			if err != nil {
-				m.errors.Add(ctx, 1, options)
-			}
-			return response, err
-		}
-	}
+	return endpoint.RecordingMiddleware(operation, m)
 }
 
 func outcome(err error) string {

@@ -43,11 +43,15 @@ This keeps runtime policies composable and transport-agnostic.
 
 ### `Failer`
 
-`Failer` allows a response type to carry a business error without using the Go error return value.
+`Failer` lets a response type carry its own business error instead of returning
+it. When a response implements `Failed() error` and returns non-nil, the HTTP
+and gRPC servers discard the response and encode that error through their error
+encoder — the same status, stable code, and error handler a returned error gets.
 
-Use it only when the transport requires a successful wire-level response even on business failure.
-
-Most business logic should still prefer normal Go errors.
+Reach for it only when the service signature cannot return an error (a batch
+handler filling one slot per item, an adapter over a callback API). It is *not*
+a way to answer 200 with an error field: for that, put the field in the response
+struct and do not implement `Failer`.
 
 ## Recommended Entry Points
 
@@ -112,8 +116,21 @@ Why prefer the builder:
 Builder contract note:
 
 - `NewBuilder` requires a non-nil base endpoint
-- `Use(...)` requires non-nil middleware values
-- invalid composition input fails fast instead of deferring the problem to request time
+- `Use(...)` and `UseNamed(...)` require non-nil middleware values
+- invalid composition input **panics** at assembly time rather than deferring
+  the problem to request time — assembly runs at startup, so a bad chain fails
+  the process instead of a request
+- `UseNamed(label, m)` records a label that `Describe()` returns in application
+  order (outermost first, unlabeled entries as `"?"`), which is what to log at
+  startup to see the chain a route actually got
+
+Metrics label note: `WithRecording(operation, ...)` labels every observation
+with `operation`, so `Metrics.SnapshotFor(operation)` and `Operations()` work.
+`WithMetrics(&m)` records with **no** operation label, so only the aggregate
+`Snapshot()` is meaningful and `SnapshotFor` returns a zero value. Prefer
+`WithRecording` unless the aggregate is genuinely all you want. Operation labels
+must come from a bounded set — a label per user or per URL path grows the map
+for the process's lifetime.
 
 ## `Chain`
 
@@ -140,8 +157,8 @@ happens next: it receives the wrapped endpoint and decides per request how the
 rest of the chain runs. Four patterns cover the practical cases.
 
 **Short-circuit** - stop the chain and answer immediately. The built-in
-`ValidationMiddleware`, `BackpressureMiddleware`, and `BulkheadMiddleware` all
-do this:
+`ValidationMiddleware`, `BackpressureMiddleware`, `RateLimitMiddleware`, and the
+circuit breaker all do this:
 
 ```go
 func requireTenant(next endpoint.Endpoint) endpoint.Endpoint {
@@ -165,13 +182,22 @@ degraded := endpoint.NewBuilder(cachedResponse).
 ep := endpoint.NewBuilder(primary).WithFallback(degraded).Build()
 ```
 
-**Repeat** - call the rest of the chain again. `sd/retry` wraps `next` and
-invokes it per attempt with its own backoff and classification.
+**Repeat** - call the rest of the chain again. `RetryMiddleware` wraps `next`
+and invokes it per attempt with its own backoff and classification. (`sd/retry`
+does the same thing one layer out, but it is a *balancer-driven endpoint*, not a
+`Middleware`: it picks a fresh instance per attempt.)
 
 **Replace** - wrap `next` with different behavior instead of calling it
-directly: `TimeoutMiddleware` runs `next` on a goroutine under a deadline,
-`MetricsMiddleware` observes its result. The wrapped endpoint stays opaque; a
+directly: `MetricsMiddleware` observes its result, `Fallback` answers from a
+second endpoint when the first fails. The wrapped endpoint stays opaque; a
 middleware never needs to know how deep the chain is.
+
+`TimeoutMiddleware` is deadline propagation, not enforcement: it derives a
+context with the deadline and calls `next` on the same goroutine. Everything
+downstream that respects `ctx` — the HTTP and gRPC clients, database drivers,
+`sd/retry` backoff — returns when it expires. An endpoint that ignores
+cancellation runs to completion regardless, so treat the timeout as a bound on
+what the caller *waits for downstream*, not as a way to kill work in progress.
 
 One thing middleware cannot do is rewire the chain of already-constructed
 routes at runtime - composition happens at assembly, which keeps request paths
@@ -222,12 +248,21 @@ Core middleware in `endpoint`:
 - `TracingMiddleware`
 - `ValidationMiddleware`
 - `BackpressureMiddleware`
-- `Fallback`
+- `InFlightMiddleware`
 - `BulkheadMiddleware`
-- `CircuitBreaker`
 - `RateLimitMiddleware`
 - `DelayRateLimitMiddleware`
 - `RetryMiddleware`
+- `Fallback`
+
+`CircuitBreaker` is not itself a `Middleware`: it is a stateful object shared by
+every request, so you construct it once with `NewCircuitBreaker()` and install
+`breaker.Middleware()` (or `Builder.WithCircuitBreaker(breaker)`). Keep the
+`*CircuitBreaker` value — it is where `State()` lives.
+
+`BackpressureMiddleware(max)` caps total in-flight calls; `InFlightMiddleware(max,
+&counter)` does the same but also publishes the live count into the caller's
+`*int64`, for exporting as a gauge.
 
 `CircuitBreaker` is a dependency-free endpoint circuit breaker: consecutive
 failures trip it open, it rejects with `ErrCircuitOpen` (HTTP 503, with the
@@ -247,12 +282,16 @@ a multi-replica deployment either scales the per-replica rate by the replica
 count or supplies a shared, application-owned limiter.
 
 `RetryMiddleware` repeats transient failures with exponential backoff and full
-jitter. Its default classifier retries `apperror.KindUnavailable` and errors
-that classify themselves through `interface{ Retryable() bool }` — never
-context errors, local rejections, or unclassified errors — a retry hint on the
-error (`RetryAfterReporter`) overrides the schedule up to `MaxRetryAfterHint`,
-and the caller owns idempotency. A transport client is an `Endpoint` too, so the
-same stack applies to outbound calls:
+jitter. Its default classifier answers in a fixed order: context errors and
+local rejections (`ErrCircuitOpen`, `ErrBulkheadFull`, `ErrBackpressure`,
+`ErrRateLimited`) are never retried; then an error implementing
+`interface{ Retryable() bool }` decides for itself — this **overrides** its
+`apperror` kind, which is how a 408 or 429 from an upstream becomes retryable;
+otherwise only `apperror.KindUnavailable` is retried, read from either
+`apperror.Kinder` or `apperror.KindNamer`. Unclassified errors are not retried.
+A retry hint on the error (`RetryAfterReporter`) overrides the schedule up to
+`MaxRetryAfterHint`, and the caller owns idempotency. A transport client is an
+`Endpoint` too, so the same stack applies to outbound calls:
 `transport/http/client.HTTPStatusError` classifies itself by status code and
 reports the server's `Retry-After`.
 
@@ -286,10 +325,16 @@ ep := endpoint.NewBuilder(createUser).WithValidation().Build()
 the error away from callers while a dependency recovers. It skips the fallback
 when the caller's context is already done — a cancellation is not a dependency
 failure — and joins both errors when the fallback fails too, so the primary
-cause stays reachable through `errors.Is`. `BulkheadMiddleware`
-limits concurrency per resource key (tenant, dependency), so one slow key
-cannot consume the shared budget the way the global `BackpressureMiddleware`
-count can; both rejection errors encode as HTTP 503. Bulkhead keys must stay
+cause stays reachable through `errors.Is`.
+
+`BulkheadMiddleware` limits concurrency per resource key (tenant, dependency),
+so one slow key cannot consume the shared budget the way the global
+`BackpressureMiddleware` count can. It is a **queue, not an immediate shed**:
+requests whose key pool is full wait for a slot, so saturation first shows up as
+latency. When the caller's context ends the wait, the error classifies as that
+context error — a caller timeout is 504, a disconnect is 499 — and wraps
+`ErrBulkheadFull`, so `errors.Is` still reports the saturation. Pair it with
+`WithTimeout` so the queue is bounded by something. Bulkhead keys must stay
 bounded, since each key owns a slot pool for the endpoint's lifetime:
 
 ```go

@@ -14,6 +14,11 @@ import (
 // NewJSONServer creates an HTTP server that automatically handles JSON
 // encoding/decoding for the given handler function.
 //
+// Every JSON entry point in this package decodes strictly: unknown object
+// fields, a second JSON value, and bodies over DefaultMaxJSONBodyBytes are
+// rejected with 400. Use the *WithBodyLimit variants for a different size cap
+// and NewJSONEndpointWithDecodeOptions to change strictness itself.
+//
 // JSONErrorEncoder is used by default — errors are written as
 // {"code": "...", "message": "..."} with an appropriate HTTP status code.
 // Pass ServerErrorEncoder to override.
@@ -61,9 +66,9 @@ func NewJSONEndpointWithDecodeOptions[Req any](
 	return NewServer(e, DecodeJSONRequestWithOptions[Req](decodeOptions), EncodeJSONResponse, opts...)
 }
 
-// NewStrictJSONEndpoint creates an HTTP server for public JSON APIs. It
-// rejects unknown fields, trailing data, and bodies larger than maxBodyBytes.
-func NewStrictJSONEndpoint[Req any](
+// NewJSONEndpointWithBodyLimit is NewJSONEndpoint with an explicit maximum
+// request body size instead of DefaultMaxJSONBodyBytes.
+func NewJSONEndpointWithBodyLimit[Req any](
 	e endpoint.Endpoint,
 	maxBodyBytes int64,
 	options ...ServerOption,
@@ -71,24 +76,24 @@ func NewStrictJSONEndpoint[Req any](
 	return NewJSONEndpointWithDecodeOptions[Req](e, StrictJSONDecodeOptions(maxBodyBytes), options...)
 }
 
-// NewStrictJSONServer creates a strict JSON HTTP server around a handler
-// function with an explicit body size limit.
-func NewStrictJSONServer[Req any](
+// NewJSONServerWithBodyLimit is NewJSONServer with an explicit maximum request
+// body size instead of DefaultMaxJSONBodyBytes.
+func NewJSONServerWithBodyLimit[Req any](
 	handler func(ctx context.Context, req Req) (any, error),
 	maxBodyBytes int64,
 	options ...ServerOption,
 ) *Server {
-	return NewStrictJSONEndpoint[Req](endpoint.TypedEndpoint[Req, any](handler).Wrap(), maxBodyBytes, options...)
+	return NewJSONEndpointWithBodyLimit[Req](endpoint.TypedEndpoint[Req, any](handler).Wrap(), maxBodyBytes, options...)
 }
 
-// NewStrictTypedJSONServer creates a strict JSON server with compile-time
-// request and response types.
-func NewStrictTypedJSONServer[Req, Resp any](
+// NewTypedJSONServerWithBodyLimit is NewTypedJSONServer with an explicit
+// maximum request body size instead of DefaultMaxJSONBodyBytes.
+func NewTypedJSONServerWithBodyLimit[Req, Resp any](
 	handler func(ctx context.Context, req Req) (Resp, error),
 	maxBodyBytes int64,
 	options ...ServerOption,
 ) *Server {
-	return NewStrictJSONEndpoint[Req](endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), maxBodyBytes, options...)
+	return NewJSONEndpointWithBodyLimit[Req](endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), maxBodyBytes, options...)
 }
 
 // NewJSONServerWithMiddleware is a convenience wrapper that combines

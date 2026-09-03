@@ -108,7 +108,17 @@ func JSONErrorEncoderWithKindMapper(mapper func(apperror.Kind) int) ErrorEncoder
 	}
 }
 
+// statusWithMapper resolves the status through the application's kind mapper.
+// An explicit StatusCoder still wins, exactly as in httpStatus: an error that
+// states its own status — a relayed client.HTTPStatusError, a validation error —
+// means it, and the mapper exists for errors that carry only a kind.
 func statusWithMapper(err error, mapper func(apperror.Kind) int) int {
+	var sc transporthttp.StatusCoder
+	if errors.As(err, &sc) {
+		if status := sc.StatusCode(); status >= 100 && status <= 999 {
+			return status
+		}
+	}
 	kind, ok := errorKind(err)
 	if !ok {
 		return 0
