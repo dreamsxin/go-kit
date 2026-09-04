@@ -5,6 +5,13 @@
 package apperror
 
 // Kind classifies an application failure independently of any transport.
+//
+// The empty Kind is not a distinct class: every constructor and ErrorKind
+// normalize it to KindInternal, so an unclassified error maps to HTTP 500 and
+// gRPC Internal rather than to a status no transport has a rule for. An unknown
+// non-empty Kind is left as it is and falls into the same default at the
+// transports, which is what lets an application define its own kinds and route
+// them with a kind mapper.
 type Kind string
 
 const (

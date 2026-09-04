@@ -196,11 +196,15 @@ gRPC 客户端是对称的：失败调用会被包装为 `grpc.StatusError`，�
 {"code": "todo.not_found", "message": "todo not found", "request_id": "..."}
 ```
 
-`message` 的取值规则在三个内置编码器中一致：`PublicMessager` 优先；否则低于 500 的状态码
-可以用 `err.Error()`；500 一律回答 `"Internal Server Error"`。500 正是未分类错误的落点，
-而未分类错误恰好就是那种文本从来不是写给客户端看的错误——它可能包着驱动报错或上游
-响应体。错误本身仍然完整进日志，`request_id` 把两边串起来。通过 `StatusCoder` 主动
-设置的 5xx 保留自己的消息。
+`message` 的取值规则在三个内置编码器中一致。实现了 `PublicMessager` 的错误自行决定
+它的消息，空消息也算数：空表示"这里没有任何内容是给客户端的"，此时取状态文本。这正是
+`apperror.WrapCause` 能够只携带 kind 与 code、而把 cause 留在内部的原因，也是
+`apperror.NotFound("user.missing", "")` 回答 `"Not Found"` 而不是那个 code 的原因——
+把 code 放到 `code` 字段上线，不要塞进 message。不在该契约内的错误在低于 500 时回落到
+`err.Error()`，因为校验失败本来就是写给调用方看的。500 一律回答
+`"Internal Server Error"`。500 正是未分类错误的落点，而未分类错误恰好就是那种文本从来
+不是写给客户端看的错误——它可能包着驱动报错或上游响应体。错误本身仍然完整进日志，
+`request_id` 把两边串起来。通过 `StatusCoder` 主动设置的 5xx 保留自己的消息。
 
 `DefaultErrorEncoder` 另有一个明确的逃生口：低于 500 时，如果错误实现了
 `json.Marshaler`，它会替换整个响应体并绕过 `PublicMessage`。这是应用自有的线上契约，
@@ -280,7 +284,9 @@ svc, err := kit.NewHTTP(":8080", kit.WithJSONServerOptions(
 ## 经验法则
 
 - 业务代码用 `apperror` 分类；传输层映射状态码；绝不向客户端泄露内部细节。
-- 客户端错误（4xx）携带公开消息。500 永远不带——它是未分类失败的落点。主动分类的
-  501/503/504 如果错误通过 `PublicMessage` 声明了消息就会带上；`err.Error()` 在 5xx
-  下从不使用。
+- 客户端错误（4xx）携带公开消息，除非错误刻意声明了空消息——那会读作状态文本。500
+  永远不带——它是未分类失败的落点。主动分类的 501/503/504 如果错误通过
+  `PublicMessage` 声明了消息就会带上；`err.Error()` 在 5xx 下从不使用。
+- `code` 字段才是稳定的机器可读契约，`message` 是给人看的、可以被脱敏。绝不要把应用
+  语义只放在 message 里。
 - 重试策略属于调用方：只有已分类的、幂等的失败才应该重试。

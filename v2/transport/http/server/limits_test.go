@@ -3,6 +3,7 @@ package server_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -89,6 +90,34 @@ func TestSuccessEncodersIgnoreAnInvalidStatus(t *testing.T) {
 type zeroStatusResponse struct{}
 
 func (zeroStatusResponse) StatusCode() int { return 0 }
+
+// The same bounded reader guards protobuf and other raw bodies, so its message
+// must not name JSON — below 500 the message is what the encoders put on the wire.
+func TestRawOverLimitBodyMessageIsNotJSONSpecific(t *testing.T) {
+	decode, _ := server.RawBodyCodecWithMaxBytes(
+		func(b []byte) (any, error) { return string(b), nil },
+		func(any) ([]byte, error) { return nil, nil },
+		"application/x-protobuf", 8,
+	)
+	request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(strings.Repeat("a", 64)))
+
+	_, err := decode(context.Background(), request)
+	if err == nil {
+		t.Fatal("decode should reject the over-limit body")
+	}
+	if strings.Contains(err.Error(), "json") {
+		t.Fatalf("error message names JSON on a protobuf route: %q", err.Error())
+	}
+	if !errors.Is(err, server.ErrJSONBodyTooLarge) {
+		t.Fatalf("error should stay matchable by the exported sentinel, got %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	server.TextErrorEncoder("application/x-protobuf")(context.Background(), err, recorder)
+	if strings.Contains(recorder.Body.String(), "json") {
+		t.Fatalf("response body names JSON on a protobuf route: %q", recorder.Body.String())
+	}
+}
 
 func assertStatus(t *testing.T, err error, want int) {
 	t.Helper()

@@ -219,7 +219,10 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 		generatedChainPath := filepath.Join(outDir, "endpoint", "userservice", "generated_chain.go")
 		mustContainFile(t, generatedChainPath, "endpoint.TracingMiddleware()")
 		mustContainFile(t, generatedChainPath, "endpoint.ErrorHandlingMiddleware(name)")
-		mustContainFile(t, generatedChainPath, "endpoint.MetricsMiddleware(generatedMetrics(name))")
+		mustContainFile(t, generatedChainPath, "endpoint.RecordingMiddleware(name, generatedMetricsCollector)")
+		// Innermost, so the metrics and logging above it see a Failer response
+		// as the failure the transport will encode.
+		mustContainFile(t, generatedChainPath, "endpoint.FailerMiddleware()")
 		mustContainFile(t, customChainPath, customMarker)
 
 		buildTargets := []string{

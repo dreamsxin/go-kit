@@ -248,9 +248,13 @@ func DecodeJSONBody(r *http.Request, target any, options JSONDecodeOptions) erro
 // ErrJSONBodyTooLarge so errors.Is keeps working, and classifies itself as 413
 // so callers that surface the read error directly — RawBodyCodec does — get the
 // status its documentation promises without a decode wrapper in between.
+//
+// Its message deliberately omits "json": the same reader bounds protobuf and
+// other raw bodies, and below 500 the message is what the encoders put on the
+// wire, so a protobuf route must not answer with a JSON error string.
 type bodyTooLargeError struct{}
 
-func (bodyTooLargeError) Error() string { return ErrJSONBodyTooLarge.Error() }
+func (bodyTooLargeError) Error() string { return "request body too large" }
 
 func (bodyTooLargeError) Unwrap() error { return ErrJSONBodyTooLarge }
 

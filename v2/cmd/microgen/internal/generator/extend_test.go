@@ -629,7 +629,11 @@ func TestApplyAppendMiddleware_WritesGeneratedChainAndPreservesCustomChain(t *te
 	generatedChainPath := filepath.Join(outDir, "endpoint", "userservice", "generated_chain.go")
 	mustContain(t, generatedChainPath, "endpoint.TracingMiddleware()")
 	mustContain(t, generatedChainPath, "endpoint.ErrorHandlingMiddleware(name)")
-	mustContain(t, generatedChainPath, "endpoint.MetricsMiddleware(generatedMetrics(name))")
+	mustContain(t, generatedChainPath, "endpoint.RecordingMiddleware(name, generatedMetricsCollector)")
+	// Innermost, so the metrics and logging above it see a Failer response as
+	// the failure the transport will encode.
+	mustContain(t, generatedChainPath, "endpoint.FailerMiddleware()")
+	mustContain(t, generatedChainPath, "func Metrics() *endpoint.Metrics")
 	mustContain(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"tracing"`)
 	mustContain(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"error-handling"`)
 	mustContain(t, filepath.Join(outDir, ".microgen", "manifest.json"), `"metrics"`)

@@ -271,7 +271,7 @@ func main() {
 	if !errors.As(err, &apiErr) {
 		panic("expected exported APIError")
 	}
-	result.Error = ErrorObservation{Status: apiErr.StatusCode, Body: apiErr.Body}
+	result.Error = ErrorObservation{Status: apiErr.StatusCode(), Body: apiErr.Body}
 
 	if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
 		panic(err)

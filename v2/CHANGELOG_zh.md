@@ -48,6 +48,31 @@
 - `observability/otel`、`observability/slog`、`integrations/zap`：panic 的
   endpoint 被报告为 panic。此前 otel span 以 Unset 结束且不记录错误，zap 记录
   "endpoint call succeeded"，slog 什么都不记录。
+- `DefaultErrorEncoder` 只在返回的错误本身实现 `json.Marshaler` 时才启用该逃生口。
+  此前 `errors.As` 会遍历整条链，一个可序列化的 cause 就能替换整个响应体——这是绕过
+  消息规则的唯一路径，也正是 `apperror.WrapCause` 要防的东西。
+- 超限请求体的错误不再在非 JSON 路由上说 "json"。同一个有界 reader 也保护 protobuf
+  等原始请求体，而 500 以下消息会直接上线。它仍然可以用
+  `errors.Is(err, ErrJSONBodyTooLarge)` 匹配。
+
+### 变更 - 生成代码
+
+需重新生成才能生效；它们违反的运行时契约见上面的条目。
+
+- 生成的中间件链在最内层安装 `endpoint.FailerMiddleware`，这样 `Failer` 响应不会在
+  传输层回答错误的同时被生成的指标与日志算作成功。
+- 生成的指标通过 `endpoint.RecordingMiddleware` 记录进同一个按 operation 标签化的
+  collector。此前是每个 operation 一个未标签化的 collector 存在未导出的 map 里，导致
+  `SnapshotFor` 与 `Operations` 永远为空，生成项目里没有任何代码能读到这些计数。现在
+  生成一个 `Metrics()` 访问器暴露该 collector。
+- 生成 SDK 的 `APIError` 满足传输错误契约：`StatusCode`、`ErrorKindName`、
+  `PublicMessage` 与 `Retryable`。此前转发它的服务只会得到一个笼统的 500，且上游响应
+  体被嵌进消息里。它的 `StatusCode` 字段改名为 `Status`，因为 `StatusCode` 是契约要求
+  的方法名。
+- 生成 SDK 的 `WithTimeout` 改为按调用施加 context deadline，因此在
+  `WithHTTPClient` 替换了客户端时依然生效——此前那种情况下它是静默失效的。
+  `WithTimeout`、`WithHTTPClient` 与 `WithMaxResponseBodyBytes` 现在对错误输入采用
+  同一条策略：忽略并保留默认值。
 
 ### 新增
 
@@ -70,6 +95,15 @@ doc comment 在本仓库属于已评审的 API 快照，因此单独记录而不
   `sd/client.NewEndpoint` 声称它组合了一个 `Endpointer`。该模块中的一切都返回
   `InstanceEndpointer`。
 - `SubjectFromContext` 声称对匿名调用者返回 false。
+- `client.KindForStatus` 声称自己是 `server.HTTPStatusForErrorKind` 的逆映射。那个
+  映射并非单射：`KindAlreadyExists` 与 `KindConflict` 都回答 409，
+  `KindDeadlineExceeded` 与 408 请求超时共用 504。因此有两个 kind 在 HTTP 上无法
+  round-trip，而在 gRPC 上全部可以。
+- `apperror.Kind` 没有说明空 kind 会被规范化为 `KindInternal`——所有构造函数与
+  `ErrorKind` 都会这么做。
+- `docs/concepts.md` 把 `endpoint.ValidationError` 的 400 归因于 `PublicMessager`，
+  实际来自 `apperror.Kinder`。`transport/README.md` 与 `docs/errors.md` 的正文仍在
+  描述已被取代的消息规则。
 
 ## [2.8.0] - 2026-09-04
 

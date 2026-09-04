@@ -322,11 +322,14 @@ JSON 请求解码器返回的解码错误会为 `JSONErrorEncoder` 携带 HTTP 4
 HTTP。HTTP 传输层将应用错误类别映射到状态码，并使用其稳定代码与公开消息。
 底层 HTTP 集成可实现
 `transporthttp.StatusCoder`、`transporthttp.ErrorCoder` 和
-`transporthttp.PublicMessager`。三个内置错误编码器对消息使用同一条规则：
-`PublicMessager` 优先，低于 500 的状态码可以回落到 `err.Error()`，500 一律读作
-"Internal Server Error"——绝不是内部错误字符串。`DefaultErrorEncoder` 在低于 500 时
-还支持 `json.Marshaler` 这个显式逃生口：它会替换整个响应体并绕过 `PublicMessage`，因此
-脱敏和线上格式由应用负责。
+`transporthttp.PublicMessager`。三个内置错误编码器对消息使用同一条规则：实现了
+`PublicMessager` 的错误自行决定它的消息，空消息同样生效——空表示"这里没有任何内容
+是给客户端的"，此时取状态文本，这正是 `apperror.WrapCause` 的 cause 不会上线的原因。
+不在该契约内的错误在低于 500 时回落到 `err.Error()`，因为校验失败本来就是写给调用方
+看的。500 一律读作 "Internal Server Error"——绝不是内部错误字符串。
+`DefaultErrorEncoder` 在低于 500 且返回的错误本身实现了 `json.Marshaler` 时还支持
+这个显式逃生口：它会替换整个响应体并绕过 `PublicMessage`，因此脱敏和线上格式由应用
+负责。
 
 ## HTTP 客户端
 

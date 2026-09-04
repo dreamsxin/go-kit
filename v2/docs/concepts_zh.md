@@ -55,12 +55,12 @@ return Todo{}, apperror.New(apperror.KindNotFound, "todo.not_found", "todo not f
 
 > [!NOTE]
 > 框架完全无法分类的错误编码为 500 且消息已脱敏——内部错误字符串绝不会到达客户端。
-> 但"已分类"比"用 `apperror` 构造"更宽：编码器同样识别
-> `transporthttp.StatusCoder` 与 `PublicMessager`，因此 `endpoint.ValidationError`
-> 得到 400，准入控制哨兵错误得到 503/429，转发的 `client.HTTPStatusError` 保留上游
-> 状态码。裸的 `context.DeadlineExceeded` 与 `context.Canceled` 也分别映射为 504
-> 与 499，而不是 500。`server.HTTPStatusForError` 是回答"这个错误会得到什么状态码"
-> 的唯一函数。
+> 但"已分类"比"用 `apperror` 构造"更宽：编码器同样通过 `apperror.Kinder` 与
+> `apperror.KindNamer` 分类，因此 `endpoint.ValidationError` 得到 400、准入控制哨兵
+> 错误得到 503/429；它们还识别 `transporthttp.StatusCoder`，因此转发的
+> `client.HTTPStatusError` 保留上游状态码。裸的 `context.DeadlineExceeded` 与
+> `context.Canceled` 也分别映射为 504 与 499，而不是 500。
+> `server.HTTPStatusForError` 是回答"这个错误会得到什么状态码"的唯一函数。
 
 完整流程（包括自定义错误格式）见[错误处理](errors_zh.md)。
 

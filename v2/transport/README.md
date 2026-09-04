@@ -347,11 +347,16 @@ kinds to status codes and uses their stable code and public message. Low-level
 HTTP integrations may implement
 `transporthttp.StatusCoder`, `transporthttp.ErrorCoder`, and
 `transporthttp.PublicMessager`. All three built-in error encoders use the same
-message rule: a `PublicMessager` wins, a status below 500 may fall back to
-`err.Error()`, and 500 always reads "Internal Server Error" — never the internal
-error string. `DefaultErrorEncoder` additionally honors `json.Marshaler` below
-500; that replaces the entire body and bypasses `PublicMessage`, so the
-application owns redaction and the wire format for that explicit escape hatch.
+message rule: an error that implements `PublicMessager` decides its own message,
+and an empty answer is honored too — it means "nothing here is for a client" and
+yields the status text, which is what keeps `apperror.WrapCause` from putting its
+cause on the wire. An error outside that contract falls back to `err.Error()`
+below 500, because a validation failure is written for the caller to read. 500
+always reads "Internal Server Error" — never the internal error string.
+`DefaultErrorEncoder` additionally honors `json.Marshaler` below 500 when the
+returned error implements it directly; that replaces the entire body and bypasses
+`PublicMessage`, so the application owns redaction and the wire format for that
+explicit escape hatch.
 
 ## HTTP Client
 

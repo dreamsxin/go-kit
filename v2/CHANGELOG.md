@@ -57,6 +57,37 @@ observable behaviour, and those are listed first.
 - `observability/otel`, `observability/slog`, `integrations/zap`: a panicking
   endpoint is reported as a panic. The otel span ended Unset with no recorded
   error, zap logged "endpoint call succeeded", and slog logged nothing.
+- `DefaultErrorEncoder` honors `json.Marshaler` only when the returned error
+  implements it directly. `errors.As` walked the chain, so a marshalable cause
+  could replace the whole body — the one path around the message rule, and
+  exactly what `apperror.WrapCause` exists to prevent.
+- The over-limit body error no longer says "json" on a route that is not JSON.
+  The same bounded reader guards protobuf and other raw bodies, and below 500 the
+  message is what reaches the client. It still matches
+  `errors.Is(err, ErrJSONBodyTooLarge)`.
+
+### Changed - generated code
+
+Regenerate to pick these up; the runtime contracts they were violating are
+described in the entries above.
+
+- The generated middleware chain installs `endpoint.FailerMiddleware` innermost,
+  so a `Failer` response is not counted as a success by the generated metrics and
+  logging while the transport answers an error.
+- Generated metrics record into one collector labeled per operation, through
+  `endpoint.RecordingMiddleware`. They used one unlabeled collector per operation
+  in an unexported map, so `SnapshotFor` and `Operations` were always empty and
+  nothing in the generated project could read the tallies. A generated `Metrics()`
+  accessor now exposes the collector.
+- The generated SDK's `APIError` satisfies the transport error contracts:
+  `StatusCode`, `ErrorKindName`, `PublicMessage`, and `Retryable`. A service
+  relaying it got a blanket 500 with the upstream body embedded in the message.
+  Its `StatusCode` field is now named `Status`, because `StatusCode` is the
+  method name the contract requires.
+- The generated SDK's `WithTimeout` applies as a per-call context deadline, so it
+  holds when `WithHTTPClient` replaces the client. It was silently dead in that
+  case. `WithTimeout`, `WithHTTPClient`, and `WithMaxResponseBodyBytes` now share
+  one policy for bad input: ignore it and keep the default.
 
 ### Added
 
@@ -83,6 +114,17 @@ rather than folded into the changes above.
   `Endpointer`, and `sd/client.NewEndpoint` claimed to compose an `Endpointer`.
   Everything in the module returns an `InstanceEndpointer`.
 - `SubjectFromContext` claimed its boolean is false for anonymous callers.
+- `client.KindForStatus` claimed to be the inverse of
+  `server.HTTPStatusForErrorKind`. That mapping is not injective:
+  `KindAlreadyExists` and `KindConflict` both answer 409, and
+  `KindDeadlineExceeded` shares 504 with a 408. Two kinds therefore do not
+  round-trip over HTTP, while all of them do over gRPC.
+- `apperror.Kind` did not document that the empty kind normalizes to
+  `KindInternal`, which every constructor and `ErrorKind` do.
+- `docs/concepts.md` attributed `endpoint.ValidationError`'s 400 to
+  `PublicMessager`; it comes from `apperror.Kinder`. The prose in
+  `transport/README.md` and `docs/errors.md` still described the superseded
+  message rule.
 
 ## [2.8.0] - 2026-09-04
 

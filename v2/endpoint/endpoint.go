@@ -73,17 +73,21 @@ func ResponseError(response any) error {
 }
 
 // FailerMiddleware converts a Failer response into a returned error, so the
-// middleware around it sees the failure instead of a nil error. It changes
-// nothing a client observes: the servers encode a returned error and a failed
-// response identically.
+// middleware around it sees the failure instead of a nil error. What reaches the
+// client is unchanged at the encoder: the servers discard a failed response and
+// encode its error exactly as they encode a returned one.
 //
-// Install it innermost, closest to the endpoint, so everything outside it —
-// metrics, breaker, retry — counts the call as the failure it is:
+// What does change is every error-sensitive middleware outside it, which is the
+// point. A breaker now counts the failure and can open; retry now retries and
+// re-executes the endpoint; metrics stop reporting the call as a success. Choose
+// the placement accordingly — a business 404 is a failure worth measuring but
+// usually not worth retrying, so put retry inside it and metrics outside.
+//
+// Install it innermost, closest to the endpoint:
 //
 //	ep = endpoint.NewBuilder(ep).
-//	    WithCircuitBreaker().
 //	    WithMetrics(recorder).
-//	    WithFailer(). // innermost: applied last, runs first
+//	    WithFailer(). // added last, so it ends up innermost
 //	    Build()
 func FailerMiddleware() Middleware {
 	return func(next Endpoint) Endpoint {

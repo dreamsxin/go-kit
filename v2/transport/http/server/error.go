@@ -38,9 +38,11 @@ type ErrorResponse struct {
 // json.Marshaler is an escape hatch, not part of the redaction rule: an error
 // that marshals itself replaces the whole body, PublicMessage included, and the
 // application owns what ends up on the wire. It is honored only below 500, so it
-// cannot reopen the one status where redaction is unconditional. Errors this
-// package relays — client.HTTPStatusError above all — deliberately do not
-// implement it.
+// cannot reopen the one status where redaction is unconditional, and only when
+// the returned error implements it directly — a wrapped cause that happens to be
+// marshalable must not become the response, or apperror.WrapCause would leak
+// through this hatch the message rule closes. Errors this package relays —
+// client.HTTPStatusError above all — deliberately do not implement it.
 func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 	status := httpStatus(err)
 	contentType := "text/plain; charset=utf-8"
@@ -48,8 +50,7 @@ func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 	if status < http.StatusInternalServerError && err != nil {
 		// The application asked to own this body. Below 500 only: at 500 the
 		// redaction is not negotiable.
-		var marshaler json.Marshaler
-		if errors.As(err, &marshaler) {
+		if marshaler, ok := err.(json.Marshaler); ok {
 			if jsonBody, marshalErr := marshaler.MarshalJSON(); marshalErr == nil {
 				contentType, body = "application/json; charset=utf-8", jsonBody
 			}
@@ -76,9 +77,13 @@ func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 // into the contract, so its answer is final — including an empty one, which
 // means "nothing here is for a client" and yields the status text. That is what
 // makes apperror.WrapCause keep its promise: it carries a kind and a code but no
-// message, and the cause it wraps must not reach the response. It is also how a
-// relayed client.HTTPStatusError reports the upstream status without its body,
-// which err.Error() would have included verbatim.
+// message, and the cause it wraps must not reach the response. The same applies
+// to any apperror built with an empty message, so apperror.NotFound(code, "")
+// answers "Not Found" rather than the code — put the code on the wire through
+// transporthttp.ErrorCoder, which JSONErrorEncoder emits as the body's "code"
+// field, rather than through the message. It is also how a relayed
+// client.HTTPStatusError reports the upstream status without its body, which
+// err.Error() would have included verbatim.
 //
 // An error that stays out of the contract falls back to err.Error() below 500.
 // Validation failures and other client-caused errors are written to be read by
@@ -213,8 +218,13 @@ func encodeJSONErrorWithStatus(ctx context.Context, err error, w http.ResponseWr
 //   - transporthttp.StatusCoder: uses that HTTP status code (default 500)
 //   - transporthttp.Headerer: merges those headers into the response
 //   - transporthttp.ErrorCoder: sets a stable machine-readable code
-//   - transporthttp.PublicMessager: overrides the public message, at every
-//     status except 500, which is always "Internal Server Error"
+//   - transporthttp.PublicMessager: decides the message. Implementing it is
+//     opting in, so an empty answer is honored too and yields the status text —
+//     it means "nothing here is for a client". A 500 always reads "Internal
+//     Server Error" regardless.
+//
+// An error that implements none of these gets err.Error() below 500 and the
+// status text at or above it.
 //
 // The response body is:
 // {"code": "<code>", "message": "<message>"}

@@ -114,3 +114,70 @@ type statusError struct {
 
 func (e *statusError) Error() string   { return e.message }
 func (e *statusError) StatusCode() int { return e.status }
+
+// marshalableCause is the shape that makes the json.Marshaler escape hatch
+// dangerous: a cause that serializes itself.
+type marshalableCause struct{}
+
+func (marshalableCause) Error() string { return "internal: " + secretCause.Error() }
+
+func (marshalableCause) MarshalJSON() ([]byte, error) {
+	return []byte(`{"dsn":"postgres://svc:hunter2@10.0.0.7"}`), nil
+}
+
+// The escape hatch is for an error that marshals *itself*. errors.As would find a
+// marshalable cause too, which would hand WrapCause's cause straight to the
+// client through the one path the message rule does not cover.
+func TestDefaultErrorEncoderIgnoresAMarshalableCause(t *testing.T) {
+	err := apperror.WrapCause(apperror.KindNotFound, "user.not_found", marshalableCause{})
+
+	status, body := encodedBody(t, server.DefaultErrorEncoder, err)
+	if status != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", status)
+	}
+	if strings.Contains(body, "hunter2") || strings.Contains(body, "dsn") {
+		t.Fatalf("the cause marshaled itself into the body: %q", body)
+	}
+	if body != "Not Found" {
+		t.Fatalf("body = %q, want the redacted status text", body)
+	}
+}
+
+// An error that marshals itself still owns the body.
+func TestDefaultErrorEncoderHonorsASelfMarshalingError(t *testing.T) {
+	status, body := encodedBody(t, server.DefaultErrorEncoder, selfMarshaling{})
+	if status != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", status)
+	}
+	if body != `{"field":"email"}` {
+		t.Fatalf("body = %q, want the error's own JSON", body)
+	}
+}
+
+type selfMarshaling struct{}
+
+func (selfMarshaling) Error() string   { return "validation failed" }
+func (selfMarshaling) StatusCode() int { return http.StatusBadRequest }
+
+func (selfMarshaling) MarshalJSON() ([]byte, error) { return []byte(`{"field":"email"}`), nil }
+
+// An apperror built with an empty message is the same deliberate silence as
+// WrapCause: the code belongs in the code field, not the message.
+func TestEmptyPublicMessageDoesNotFallBackToTheCode(t *testing.T) {
+	err := apperror.New(apperror.KindNotFound, "user.not_found", "")
+
+	_, body := encodedBody(t, server.DefaultErrorEncoder, err)
+	if body != "Not Found" {
+		t.Fatalf("body = %q, want the status text", body)
+	}
+
+	// The code still reaches the client through the JSON encoder's code field.
+	_, jsonBody := encodedBody(t, server.JSONErrorEncoder, err)
+	var payload server.ErrorResponse
+	if decodeErr := json.Unmarshal([]byte(jsonBody), &payload); decodeErr != nil {
+		t.Fatalf("body %q: %v", jsonBody, decodeErr)
+	}
+	if payload.Code != "user.not_found" {
+		t.Fatalf("code = %q, want the application code", payload.Code)
+	}
+}

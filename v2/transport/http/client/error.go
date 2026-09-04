@@ -102,9 +102,16 @@ func parseRetryAfter(value string, now time.Time) time.Duration {
 }
 
 // KindForStatus maps an HTTP status code to the transport-neutral apperror kind
-// the server-side encoders would have produced for it. It is the inverse of
-// server.HTTPStatusForErrorKind and is exported so custom response decoders can
-// classify their own errors the same way.
+// the server-side encoders would have produced for it. It is exported so custom
+// response decoders can classify their own errors the same way.
+//
+// It is a left inverse of server.HTTPStatusForErrorKind for every kind but two,
+// because that mapping is not injective: KindAlreadyExists and KindConflict both
+// answer 409, and KindDeadlineExceeded shares 504 with a 408 request timeout. A
+// relayed 409 therefore reads as KindConflict even when the origin classified it
+// KindAlreadyExists — a distinction HTTP has no status for, and one that does
+// survive a gRPC hop, where the two kinds have separate codes. Carry the exact
+// application meaning in transporthttp.ErrorCoder, which does round-trip.
 //
 // Unknown 4xx statuses become KindInvalidArgument and every other unknown
 // status becomes KindInternal.

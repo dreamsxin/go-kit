@@ -215,13 +215,19 @@ The default JSON error body is:
 {"code": "todo.not_found", "message": "todo not found", "request_id": "..."}
 ```
 
-The `message` follows one rule in all three built-in encoders: a
-`PublicMessager` wins; otherwise a status below 500 may use `err.Error()`; a 500
-always answers `"Internal Server Error"`. 500 is where an unclassified error
-lands, and an unclassified error is exactly the one whose text was never written
-for a client — it may be wrapping a driver message or an upstream body. The error
-still reaches the logs in full, and `request_id` ties the two together. A
-deliberate 5xx set through `StatusCoder` keeps its message.
+The `message` follows one rule in all three built-in encoders. An error that
+implements `PublicMessager` decides its own message, and an empty answer counts:
+it means "nothing here is for a client" and yields the status text. That is what
+lets `apperror.WrapCause` carry a kind and a code while keeping its cause off the
+wire, and it is also why `apperror.NotFound("user.missing", "")` answers
+`"Not Found"` rather than the code — put the code on the wire through the `code`
+field, not the message. An error outside that contract falls back to
+`err.Error()` below 500, because a validation failure is written for the caller
+to read. A 500 always answers `"Internal Server Error"`. 500 is where an
+unclassified error lands, and an unclassified error is exactly the one whose text
+was never written for a client — it may be wrapping a driver message or an
+upstream body. The error still reaches the logs in full, and `request_id` ties
+the two together. A deliberate 5xx set through `StatusCoder` keeps its message.
 
 `DefaultErrorEncoder` has one explicit escape hatch: below 500, an error that
 implements `json.Marshaler` replaces the entire response body and bypasses
@@ -308,8 +314,12 @@ encoder. That is what stops a mapper from silently rewriting a relayed
 
 - Business code classifies with `apperror`; transports map statuses; never
   leak internals to clients.
-- Client errors (4xx) carry a public message. 500 never does — it is where
-  unclassified failures land. A deliberate 501/503/504 carries one if the error
-  states it through `PublicMessage`; `err.Error()` is never used at 5xx.
+- Client errors (4xx) carry a public message unless the error deliberately
+  states an empty one, which reads as the status text. 500 never carries one —
+  it is where unclassified failures land. A deliberate 501/503/504 carries one if
+  the error states it through `PublicMessage`; `err.Error()` is never used at 5xx.
+- The `code` field is the stable machine-readable contract; the `message` is for
+  humans and may be redacted. Never encode application meaning in the message
+  alone.
 - Retry policy belongs to the caller: only classified, idempotent failures
   should be retried.

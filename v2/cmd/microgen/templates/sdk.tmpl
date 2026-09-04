@@ -42,9 +42,10 @@ import (
 
 // ─────────────────────────── Client interface ────────────────────────────────
 
-// Client is the {{.Service.ServiceName}} client interface.
-// It mirrors the server-side Service interface exactly, so any code that
-// works against the interface can be tested with a mock.
+// Client is the {{.Service.ServiceName}} client interface. It mirrors the unary
+// methods of the server-side Service interface, so code written against it can
+// be tested with a mock. Streaming methods are gRPC-only and live on
+// StreamingClient, which embeds this one.
 type Client interface {
 {{range .UnaryMethods}}	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
 	{{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error)
@@ -80,17 +81,32 @@ type Option func(*httpClient)
 
 const defaultMaxResponseBodyBytes int64 = 4 << 20
 
-// WithTimeout sets the per-request HTTP timeout (default: 30s).
+// WithTimeout sets the per-request timeout for unary calls (default: 30s).
+// A non-positive value is ignored and the default is kept.
+//
+// It is applied as a context deadline on each call rather than as
+// http.Client.Timeout, so it holds whether or not WithHTTPClient replaced the
+// client. Streaming calls are not bounded by it.
 func WithTimeout(d time.Duration) Option {
-	return func(c *httpClient) { c.timeout = d }
+	return func(c *httpClient) {
+		if d > 0 {
+			c.timeout = d
+		}
+	}
 }
 
-// WithHTTPClient replaces the default *http.Client.
+// WithHTTPClient replaces the default *http.Client. A nil client is ignored and
+// the default is kept.
 func WithHTTPClient(hc *http.Client) Option {
-	return func(c *httpClient) { c.http = hc }
+	return func(c *httpClient) {
+		if hc != nil {
+			c.http = hc
+		}
+	}
 }
 
-// WithMaxResponseBodyBytes caps a single HTTP response body.
+// WithMaxResponseBodyBytes caps a single HTTP response body. A non-positive
+// value is ignored and the default is kept.
 func WithMaxResponseBodyBytes(n int64) Option {
 	return func(c *httpClient) {
 		if n > 0 {
@@ -129,7 +145,10 @@ func New(baseURL string, opts ...Option) Client {
 		o(c)
 	}
 	if c.http == nil {
-		c.http = &http.Client{Timeout: c.timeout}
+		// No Timeout here: the per-request deadline in do covers the whole
+		// call including the body read, and applying both would give two
+		// bounds that drift apart when WithHTTPClient replaces the client.
+		c.http = &http.Client{}
 	}
 	return c
 }
@@ -169,17 +188,100 @@ type httpClient struct {
 }
 
 // APIError is returned when the server responds with a non-2xx status.
-// StatusCode and Body preserve the transport error contract for callers.
+//
+// It satisfies the framework's transport error contracts structurally, without
+// importing them, so a service that relays this error from an endpoint gets the
+// upstream status and classification instead of a blanket 500:
+//
+//   - StatusCode reports the upstream status (transporthttp.StatusCoder).
+//   - ErrorKindName reports the transport-neutral kind (apperror.KindNamer), so
+//     a gRPC hop maps it to the matching code.
+//   - PublicMessage reports the status without the body (PublicMessager). Error
+//     keeps the body for logs; relaying it verbatim would leak whatever the
+//     upstream put there, because the built-in encoders fall back to Error()
+//     below 500.
+//
+// Translate rather than relay when the upstream failure means something else to
+// your own callers — an upstream 404 would otherwise make your handler answer
+// 404.
 type APIError struct {
-	StatusCode int
-	Body       string
+	Status int
+	Body   string
 }
 
 func (e *APIError) Error() string {
-	return fmt.Sprintf("{{.Service.PackageName}}sdk: server returned %d: %s", e.StatusCode, e.Body)
+	return fmt.Sprintf("{{.Service.PackageName}}sdk: server returned %d: %s", e.Status, e.Body)
+}
+
+// StatusCode reports the upstream HTTP status.
+func (e *APIError) StatusCode() int {
+	if e == nil {
+		return 0
+	}
+	return e.Status
+}
+
+// PublicMessage reports the upstream status without the upstream body.
+func (e *APIError) PublicMessage() string {
+	if e == nil {
+		return ""
+	}
+	return fmt.Sprintf("upstream request failed with status %d", e.Status)
+}
+
+// ErrorKindName maps the upstream status to the transport-neutral kind name the
+// framework uses, so the classification survives another hop in either protocol.
+func (e *APIError) ErrorKindName() string {
+	if e == nil {
+		return ""
+	}
+	switch e.Status {
+	case http.StatusBadRequest:
+		return "invalid_argument"
+	case http.StatusUnauthorized:
+		return "unauthenticated"
+	case http.StatusForbidden:
+		return "permission_denied"
+	case http.StatusNotFound:
+		return "not_found"
+	case http.StatusConflict:
+		return "conflict"
+	case http.StatusPreconditionFailed:
+		return "failed_precondition"
+	case http.StatusTooManyRequests:
+		return "resource_exhausted"
+	case http.StatusRequestTimeout, http.StatusGatewayTimeout:
+		return "deadline_exceeded"
+	case http.StatusNotImplemented:
+		return "unimplemented"
+	case http.StatusServiceUnavailable, http.StatusBadGateway:
+		return "unavailable"
+	}
+	if e.Status >= 400 && e.Status < 500 {
+		return "invalid_argument"
+	}
+	return "internal"
+}
+
+// Retryable reports whether the upstream status is generally safe to retry.
+func (e *APIError) Retryable() bool {
+	if e == nil {
+		return false
+	}
+	switch e.Status {
+	case http.StatusRequestTimeout, http.StatusTooManyRequests,
+		http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	}
+	return false
 }
 
 func (c *httpClient) do(ctx context.Context, method, path string, reqBody, respBody interface{}) error {
+	if c.timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.timeout)
+		defer cancel()
+	}
 	var bodyReader io.Reader
 	if reqBody != nil {
 		b, err := json.Marshal(reqBody)
@@ -222,7 +324,7 @@ func (c *httpClient) do(ctx context.Context, method, path string, reqBody, respB
 		return fmt.Errorf("{{.Service.PackageName}}sdk: response body exceeds %d bytes", c.maxResponseBodyBytes)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return &APIError{StatusCode: resp.StatusCode, Body: string(raw)}
+		return &APIError{Status: resp.StatusCode, Body: string(raw)}
 	}
 
 	if respBody != nil {
