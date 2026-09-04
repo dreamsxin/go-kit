@@ -24,7 +24,7 @@ v2 是独立 Go module：
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.7.0` 是本次发布的版本。它统一了服务端与客户端传输的错误分类，包含经批准的破坏性变更：准入控制的状态码，以及转发上游错误的行为；升级路径见 [MIGRATION.md](MIGRATION_zh.md)。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)。
+`v2.8.0` 是本次发布的版本。它把内部细节挡在响应之外，让韧性策略按失败率而不是连续失败次数判断依赖，并包含经批准的破坏性变更：错误编码、熔断器的失败分类，以及已关闭的 selector；升级路径见 [MIGRATION.md](MIGRATION_zh.md)。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)。
 
 需要 Go 1.25.8 或更高版本。
 

@@ -33,7 +33,7 @@ go-kit v2 遵循语义化版本。本页记录当前版本所需的升级动作�
 
 推荐迁移顺序：逐个服务迁移；先从类型化 JSON 处理器（`kit`）入手，再把错误字符串约定替换为 `apperror`，然后把重复的 HTTP/gRPC 装配收敛到 `transport.Binding`，最后让 `microgen` 接管再生成的传输。
 
-## 升级到未发布版本（传输层与 JSON 构造器）
+## 升级到 v2.8.0（传输层与 JSON 构造器）
 
 HTTP/gRPC 服务端路径上有两项破坏性变更。
 
@@ -97,7 +97,7 @@ func (rateLimited) PublicMessage() string { return "slow down" }
 
 gRPC 侧同理：`codes.Internal` 回答 `"internal error"`。
 
-## 升级到未发布版本（sd 实例元数据）
+## 升级到 v2.8.0（sd 实例元数据）
 
 服务发现现在携带标签，而不只是地址。需要改三处源码，都很机械。
 
@@ -294,6 +294,57 @@ func (d *myDecorator) Close() error { return selector.CloseStrategy(d.inner) }
   条目并泄漏它的 closer。
 - 在 Consul 中，服务的 `Meta` 会呈现为 `Instance.Metadata`；Tags 不会，它仍然是
   `TagsInstancerOptions` 的过滤输入。
+
+## 升级到 v2.8.0（熔断分类与已关闭的 selector）
+
+两处行为变更，都不会有编译错误提醒你。
+
+### 熔断器忽略调用方取消
+
+`context.Canceled` 不再计入失败阈值。此前一批客户端断连就能触发熔断，然后卸掉的是
+依赖根本不负责的流量。
+
+如果旧的分类是刻意的，显式恢复它：
+
+```go
+endpoint.NewCircuitBreaker(
+    endpoint.WithBreakerFailurePredicate(func(err error) bool { return err != nil }),
+)
+```
+
+`context.DeadlineExceeded` 仍然计入。一个到达 endpoint 的 deadline 并不说明预算属于
+谁——调用方还是依赖——所以单看错误无法分类。改从实测耗时判断，这也正是"依赖变慢而不是
+坏掉"时值得打开的检查：
+
+```go
+endpoint.NewCircuitBreaker(
+    endpoint.WithBreakerMaxErrorRate(0.5),
+    endpoint.WithBreakerMinSamples(20),
+    endpoint.WithBreakerSlowCallThreshold(2*time.Second),
+)
+```
+
+即使别的都不改，打开 `MaxErrorRate` 也值得：只数连续失败的话，"三次里失败一次"的依赖
+永远不会让熔断器打开，因为没有足够长的连续段。
+
+### 已关闭的 selector / balancer 不再选择
+
+`Close` 之后，`Selector.Select` 与 `Balancer.Pick` 返回 `sd.ErrClosed`。此前它们仍会
+继续从源里取实例，等于一个已经停机的组件悄悄留在服务里。
+
+只要还有东西经它选择，就要保持 selector 打开。请求仍在途时用 `defer` 关掉它，现在会让
+那些请求失败：
+
+```go
+// 已经进入策略内部的那次选择不会被打断——Close 不是屏障——但在它之后开始的都会拿到
+// sd.ErrClosed。
+if errors.Is(err, sd.ErrClosed) {
+    // 组件在你脚下被拆掉了：停下，不要重试
+}
+```
+
+`sd.ErrClosed` 与 `sd.ErrNoEndpoints` 故意区分开：没有实例是值得重试的暂态，而已关闭的
+selector 永远不是。
 
 ## 升级到 v2.7.0
 

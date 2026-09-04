@@ -150,10 +150,12 @@ direct-refactor-specific SemVer exception and is called out in release notes;
 - [x] Work Package 4: `kit` is HTTP-only, optional lifecycle components use a
   neutral contract, and gRPC assembly lives in the independent `kit/grpc`
   module.
-- [x] Work Package 5: circuit breaker, rate limit, gRPC, Consul, Zap,
-  OpenTelemetry, and `microgen` have independent modules and the repository is
-  orchestrated by `go.work`. The root runtime module has no third-party
-  requirements; legacy `log` is a standard-library-only compatibility facade.
+- [x] Work Package 5: gRPC, Consul, etcd, Zap, OpenTelemetry, and `microgen`
+  have independent modules and the repository is orchestrated by `go.work`. The
+  circuit breaker and rate limiter stayed in the root module because they need no
+  third-party dependency to be complete. The root runtime module has no
+  third-party requirements; legacy `log` is a standard-library-only compatibility
+  facade.
 - [x] Work Package 6: generator implementation packages live under
   `cmd/microgen/internal`; generated projects use the new package topology and
   direct `slog`, and minimal HTTP projects resolve no optional provider or
@@ -209,11 +211,10 @@ v2/
     slog/
     otel/                           # optional module
   integrations/
-    circuitbreaker/                 # optional module
-    grpc/                           # optional module
-    ratelimit/                      # optional module
-    zap/                            # optional module
     consul/                         # optional module
+    etcd/                           # optional module
+    grpc/                           # optional module
+    zap/                            # optional module
   cmd/
     microgen/                       # independent tool module
       internal/
@@ -238,6 +239,13 @@ modules with their own `go.mod`, tests, and release checks:
 Nested module paths retain the package import path where practical. Module
 versions and tags are owned by `RELEASE.md`; local development uses an explicit
 `go.work` file rather than committed consumer-facing `replace` directives.
+
+Adapter modules for `gobreaker` and `golang.org/x/time/rate` are a non-goal.
+`endpoint.CircuitBreaker` and `endpoint.RateLimitMiddleware` are dependency-free
+and complete — including rate-based tripping and slow-call accounting — and the
+whole of such an adapter is wrapping a third-party type in one `Middleware`,
+which an application writes in a dozen lines. A module would instead cost a
+`go.mod`, release checks, an API snapshot, and bilingual docs in perpetuity.
 
 ### Package Migration Map / 包迁移映射
 

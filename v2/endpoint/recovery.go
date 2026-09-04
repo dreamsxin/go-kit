@@ -17,9 +17,16 @@ type PanicHandler func(ctx context.Context, request any, recovered any) error
 // logging or an error reporter:
 //
 //	endpoint.RecoveryMiddleware(func(ctx context.Context, req, recovered any) error {
-//		logger.ErrorContext(ctx, "endpoint panic", "panic", recovered)
+//		logger.ErrorContext(ctx, "endpoint panic",
+//			"panic", recovered,
+//			"stack", string(debug.Stack()), // the handler still runs on the panicking goroutine
+//		)
 //		return endpoint.DefaultPanicHandler(ctx, req, recovered)
 //	})
+//
+// Capture the stack in the handler, not from the recovered value: the value is
+// whatever was passed to panic and carries no stack of its own, and by the time
+// the middleware returns the frames are gone.
 func DefaultPanicHandler(context.Context, any, any) error {
 	return apperror.Internal("endpoint.panic", "endpoint panic recovered")
 }

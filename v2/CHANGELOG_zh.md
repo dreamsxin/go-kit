@@ -3,17 +3,27 @@
 
 所有重要的 v2 变更都记录在这里。旧历史仍可通过不可变的 v0 和 v1 标签获取。
 
-## [未发布]
+## [2.8.0] - Release Candidate
 
 ### 新增
 
 - Endpoint panic 恢复：`RecoveryMiddleware`、可配置 `PanicHandler` 与默认脱敏的
-  `apperror` 结果；熔断器支持失败判定函数，默认不把调用方取消计为依赖失败。
+  `apperror` 结果。把它装在最外层以覆盖整条链；栈要在 handler 里抓，那时 panic 的
+  调用帧还在当前 goroutine 上。
+- 基于失败率的熔断：`WithBreakerMaxErrorRate`、`WithBreakerWindowSize` 与
+  `WithBreakerMinSamples` 按滑动窗口内的失败占比触发熔断。只数连续失败的话，"三次里
+  失败一次"的依赖永远不会让熔断器打开——没有足够长的连续段——而这恰恰是依赖劣化最常见
+  的形态。`WithBreakerSlowCallThreshold` 把慢应答记为失败，即使它的错误被失败判定函数
+  排除掉也算：无论被取消的预算属于谁，依赖都没有在时限内应答。窗口在每次状态切换时
+  清空，因此恢复后的依赖不会被自己早已作废的测量重新打开熔断。
+- `WithBreakerFailurePredicate` 决定哪些 endpoint 错误算依赖失败。被排除的错误完全
+  不进记录，因此不会像"记为成功"那样把失败率冲淡。
 - MCP 生命周期控制：支持上下文的 `mcp.Serve`、`StreamableHandler.Shutdown`、
   活跃会话上限、活跃 SSE 感知的清理，以及通过 `NewMemoryEventSinkWithLimit` 限制
   内存事件历史。
-- `sd.ErrClosed` 让已关闭 selector/balancer 对新选择稳定返回关闭错误。
-
+- `sd.ErrClosed` 让已关闭的 selector/balancer 拒绝新的选择。这个检查按设计是尽力而为：
+  `Close` 不会等待已经进入策略内部的那次选择，因为把它做成屏障意味着为了关闭路径把每次
+  选择都放进锁里。
 - `selector.CloseStrategy(strategy)`：策略持有资源时释放它，不持有时是空操作，
   因此包装型策略可以一行透传 `Close`，不必自己写类型断言。
 - `sd/balancer` 新增三种选择策略，轮询不再是唯一选项：`NewRandom`（均匀抽样，
@@ -130,6 +140,14 @@
 
 ### 变更
 
+- **破坏性变更：** 已关闭的 `Selector` 与 `Balancer` 用 `sd.ErrClosed` 拒绝新的选择。
+  此前 `Select` 与 `Pick` 在 `Close` 之后仍继续从源里取实例，等于一个已经停机的组件
+  悄悄留在服务里。依赖旧行为的代码必须在还要选择的期间保持 selector 打开。
+- **破坏性变更：** 熔断器不再把调用方取消计为依赖失败。此前一批客户端断连就能触发
+  熔断，然后卸掉的是依赖根本不负责的流量。如果旧的分类是刻意的，用
+  `WithBreakerFailurePredicate` 覆盖回去。`context.DeadlineExceeded` 仍计为失败，
+  因为一个到达 endpoint 的 deadline 并不说明预算属于谁；要判断这件事请改用
+  `WithBreakerSlowCallThreshold`，从实测耗时来判断。
 - **破坏性变更：** HTTP 与 gRPC 服务器现在遵守 `endpoint.Failer`。若响应的
   `Failed()` 返回非 nil，该响应被丢弃、改为编码该错误，因此它获得与正常返回错误
   完全相同的状态码、错误码与日志——这是上游 go-kit 的语义。此前 `Failer` 只被文档

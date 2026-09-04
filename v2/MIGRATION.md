@@ -43,7 +43,7 @@ JSON handlers (`kit`), then replace error-string conventions with `apperror`,
 then collapse duplicate HTTP/gRPC assemblies into `transport.Binding`, and
 finally let `microgen` own regenerated transports.
 
-## Upgrading To Unreleased (transport and JSON constructors)
+## Upgrading To v2.8.0 (transport and JSON constructors)
 
 Two breaking changes on the HTTP/gRPC server path.
 
@@ -113,7 +113,7 @@ message. Only 500, the status an unclassified error lands on, is redacted.
 
 The same rule reaches gRPC: `codes.Internal` answers `"internal error"`.
 
-## Upgrading To Unreleased (sd instance metadata)
+## Upgrading To v2.8.0 (sd instance metadata)
 
 Service discovery now carries labels, not just addresses. Three source changes,
 all mechanical.
@@ -329,6 +329,62 @@ Behavior changes that need no source edit but do need attention:
   closer.
 - With Consul, service `Meta` is surfaced as `Instance.Metadata`. Tags are not:
   they remain a filtering input for `TagsInstancerOptions`.
+
+## Upgrading To v2.8.0 (breaker classification and closed selectors)
+
+Two behaviour changes with no compile error to warn you.
+
+### The circuit breaker ignores caller cancellation
+
+`context.Canceled` no longer counts toward the failure threshold. A burst of
+client disconnects used to trip the breaker, which then shed load the dependency
+was never responsible for.
+
+If the old classification was deliberate, restore it explicitly:
+
+```go
+endpoint.NewCircuitBreaker(
+    endpoint.WithBreakerFailurePredicate(func(err error) bool { return err != nil }),
+)
+```
+
+`context.DeadlineExceeded` still counts. A deadline arriving at the endpoint does
+not say who owned the budget — the caller's or the dependency's — so it cannot be
+classified from the error alone. Judge it from the measured duration instead,
+which is also the check worth arming for a dependency that got slow rather than
+broken:
+
+```go
+endpoint.NewCircuitBreaker(
+    endpoint.WithBreakerMaxErrorRate(0.5),
+    endpoint.WithBreakerMinSamples(20),
+    endpoint.WithBreakerSlowCallThreshold(2*time.Second),
+)
+```
+
+Arming `MaxErrorRate` is the upgrade worth making even if nothing else changes:
+consecutive counting alone never opens on a dependency that fails a third of the
+time, because no run is long enough.
+
+### A closed selector or balancer stops selecting
+
+`Selector.Select` and `Balancer.Pick` return `sd.ErrClosed` after `Close`. They
+previously kept serving from the source, so a shut-down component silently stayed
+in service.
+
+Keep the selector open for as long as anything selects through it. Closing it in
+a `defer` while requests are still in flight now fails those requests:
+
+```go
+// A pick already inside the strategy is not interrupted — Close is not a
+// barrier — but anything that starts after it gets sd.ErrClosed.
+if errors.Is(err, sd.ErrClosed) {
+    // the component was torn down under you: stop, do not retry
+}
+```
+
+`sd.ErrClosed` is deliberately distinct from `sd.ErrNoEndpoints`: no endpoints is
+a transient condition worth retrying, a closed selector never is.
 
 ## Upgrading To v2.7.0
 

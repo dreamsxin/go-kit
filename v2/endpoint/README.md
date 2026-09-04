@@ -374,7 +374,13 @@ Circuit breaking, rate limiting, and retrying are built into the core package
 and hold no third-party dependencies:
 
 - `NewCircuitBreaker` (`.Middleware()`) rejects calls with `ErrCircuitOpen`
-  while open and probes to recover.
+  while open and probes to recover. Two trip conditions are available:
+  `WithBreakerFailureThreshold` counts consecutive failures, and
+  `WithBreakerMaxErrorRate` counts the failure share of a rolling window, which
+  is what catches a dependency failing a third of the time — a run that short
+  never trips a counter. `WithBreakerSlowCallThreshold` counts a slow answer as a
+  failure, and `WithBreakerFailurePredicate` decides which errors count at all
+  (caller cancellation does not, by default).
 - `RateLimitMiddleware` rejects over-limit requests with `ErrRateLimited`;
   `DelayRateLimitMiddleware` waits for a token and honors context
   cancellation. Limiters implement the `RateLimiter` contract and stay

@@ -123,6 +123,180 @@ func TestCircuitBreaker_DoesNotCountCallerCancellation(t *testing.T) {
 	}
 }
 
+// The failure a consecutive counter cannot see: a dependency that fails every
+// other call never produces a run long enough to trip it, so without a rate
+// check the breaker would leave it in service forever.
+func TestCircuitBreaker_TripsOnFailureRateWithoutAConsecutiveRun(t *testing.T) {
+	breaker := endpoint.NewCircuitBreaker(
+		endpoint.WithBreakerFailureThreshold(5), // unreachable: runs are 1 long
+		endpoint.WithBreakerMaxErrorRate(0.4),
+		endpoint.WithBreakerWindowSize(10),
+		endpoint.WithBreakerMinSamples(4),
+		endpoint.WithBreakerOpenTimeout(time.Hour),
+	)
+	call := 0
+	ep := breaker.Middleware()(func(context.Context, any) (any, error) {
+		call++
+		if call%2 == 1 {
+			return nil, errors.New("flaky")
+		}
+		return "ok", nil
+	})
+
+	// Three samples, two of them failures: over the rate, under MinSamples.
+	for i := 0; i < 3; i++ {
+		_, _ = ep(context.Background(), nil)
+	}
+	if got := breaker.State(); got != endpoint.BreakerClosed {
+		t.Fatalf("state with 3 samples: got %v, want closed until MinSamples is met", got)
+	}
+
+	// The fifth call is the third failure: 3 of 5 exceeds 0.4.
+	for i := 0; i < 2; i++ {
+		_, _ = ep(context.Background(), nil)
+	}
+	if got := breaker.State(); got != endpoint.BreakerOpen {
+		t.Fatalf("state with 3 failures in 5: got %v, want open", got)
+	}
+	if _, err := ep(context.Background(), nil); !errors.Is(err, endpoint.ErrCircuitOpen) {
+		t.Fatalf("open breaker should reject: got %v", err)
+	}
+}
+
+// MinSamples exists so a quiet endpoint cannot be opened by its first bad call.
+func TestCircuitBreaker_MinSamplesGatesTheRateCheck(t *testing.T) {
+	breaker := endpoint.NewCircuitBreaker(
+		endpoint.WithBreakerFailureThreshold(100),
+		endpoint.WithBreakerMaxErrorRate(0.1),
+		endpoint.WithBreakerWindowSize(50),
+		endpoint.WithBreakerMinSamples(10),
+	)
+	ep := breaker.Middleware()(func(context.Context, any) (any, error) {
+		return nil, errors.New("down")
+	})
+
+	for i := 0; i < 3; i++ {
+		_, _ = ep(context.Background(), nil)
+	}
+	if got := breaker.State(); got != endpoint.BreakerClosed {
+		t.Fatalf("state after 3 of 10 required samples: got %v, want closed", got)
+	}
+}
+
+// A dependency answering slowly is not healthy: it holds the caller's
+// goroutines and spends its budget, so a slow success counts as a failure.
+func TestCircuitBreaker_CountsSlowSuccessesAsFailures(t *testing.T) {
+	breaker := endpoint.NewCircuitBreaker(
+		endpoint.WithBreakerFailureThreshold(2),
+		endpoint.WithBreakerSlowCallThreshold(5*time.Millisecond),
+		endpoint.WithBreakerOpenTimeout(time.Hour),
+	)
+	ep := breaker.Middleware()(func(context.Context, any) (any, error) {
+		time.Sleep(20 * time.Millisecond)
+		return "ok", nil
+	})
+
+	for i := 0; i < 2; i++ {
+		if _, err := ep(context.Background(), nil); err != nil {
+			t.Fatalf("slow call %d should still succeed: %v", i, err)
+		}
+	}
+	if got := breaker.State(); got != endpoint.BreakerOpen {
+		t.Fatalf("state after two slow successes: got %v, want open", got)
+	}
+}
+
+// A cancelled call is excluded from failure counting, but the duration is
+// observed regardless of who owned the budget: the dependency did not answer
+// inside the threshold, and that is worth recording.
+func TestCircuitBreaker_SlowCallCountsEvenWhenTheErrorIsExcluded(t *testing.T) {
+	breaker := endpoint.NewCircuitBreaker(
+		endpoint.WithBreakerFailureThreshold(1),
+		endpoint.WithBreakerSlowCallThreshold(5*time.Millisecond),
+		endpoint.WithBreakerOpenTimeout(time.Hour),
+	)
+	ep := breaker.Middleware()(func(ctx context.Context, _ any) (any, error) {
+		time.Sleep(20 * time.Millisecond)
+		return nil, ctx.Err()
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := ep(ctx, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+	if got := breaker.State(); got != endpoint.BreakerOpen {
+		t.Fatalf("state after a slow cancelled call: got %v, want open", got)
+	}
+}
+
+// Measurements taken before the breaker opened describe a dependency the caller
+// has since stopped talking to. Keeping them would re-trip the circuit on the
+// first failure after recovery, however healthy the dependency had become.
+func TestCircuitBreaker_ForgetsTheWindowAfterRecovery(t *testing.T) {
+	breaker := endpoint.NewCircuitBreaker(
+		endpoint.WithBreakerFailureThreshold(100),
+		endpoint.WithBreakerMaxErrorRate(0.4),
+		endpoint.WithBreakerWindowSize(10),
+		endpoint.WithBreakerMinSamples(4),
+		endpoint.WithBreakerOpenTimeout(10*time.Millisecond),
+	)
+	fail := true
+	call := 0
+	ep := breaker.Middleware()(func(context.Context, any) (any, error) {
+		call++
+		if fail && call%2 == 1 {
+			return nil, errors.New("flaky")
+		}
+		return "ok", nil
+	})
+
+	for i := 0; i < 5; i++ {
+		_, _ = ep(context.Background(), nil)
+	}
+	if got := breaker.State(); got != endpoint.BreakerOpen {
+		t.Fatalf("state after the rate was exceeded: got %v, want open", got)
+	}
+
+	fail = false
+	time.Sleep(15 * time.Millisecond)
+	if _, err := ep(context.Background(), nil); err != nil {
+		t.Fatalf("probe should pass: %v", err)
+	}
+	if got := breaker.State(); got != endpoint.BreakerClosed {
+		t.Fatalf("state after a successful probe: got %v, want closed", got)
+	}
+
+	// One failure against an empty window is one sample, not a rate.
+	fail, call = true, 1
+	_, _ = ep(context.Background(), nil)
+	if got := breaker.State(); got != endpoint.BreakerClosed {
+		t.Fatalf("state after one failure post-recovery: got %v, want closed", got)
+	}
+}
+
+// A rate can never exceed 1, so a threshold of 1 would arm a check that never
+// fires. It means "every call in the window failed" instead.
+func TestCircuitBreaker_MaxErrorRateOfOneMeansEveryCall(t *testing.T) {
+	breaker := endpoint.NewCircuitBreaker(
+		endpoint.WithBreakerFailureThreshold(100),
+		endpoint.WithBreakerMaxErrorRate(1),
+		endpoint.WithBreakerWindowSize(4),
+		endpoint.WithBreakerMinSamples(4),
+		endpoint.WithBreakerOpenTimeout(time.Hour),
+	)
+	ep := breaker.Middleware()(func(context.Context, any) (any, error) {
+		return nil, errors.New("down")
+	})
+
+	for i := 0; i < 4; i++ {
+		_, _ = ep(context.Background(), nil)
+	}
+	if got := breaker.State(); got != endpoint.BreakerOpen {
+		t.Fatalf("state after a fully failing window: got %v, want open", got)
+	}
+}
+
 func TestRecoveryMiddlewareConvertsPanicAndKeepsRecoveredValueOutOfError(t *testing.T) {
 	var recovered any
 	ep := endpoint.RecoveryMiddleware(func(_ context.Context, _ any, value any) error {

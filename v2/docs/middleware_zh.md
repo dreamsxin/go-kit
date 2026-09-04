@@ -96,6 +96,22 @@ HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.C
 `CircuitBreaker` 本身不是 `Middleware`：用 `endpoint.NewCircuitBreaker()` 构造一次，
 装上 `breaker.Middleware()`，并保留 `*CircuitBreaker` 以便调用 `State()`。
 
+默认按连续失败触发，这只能抓住彻底挂掉的依赖。常见情况是依赖只有一部分请求失败，
+这时要打开 `WithBreakerMaxErrorRate`；如果"慢"和"失败"一样糟，再加上
+`WithBreakerSlowCallThreshold`：
+
+```go
+breaker := endpoint.NewCircuitBreaker(
+    endpoint.WithBreakerMaxErrorRate(0.5),              // 窗口内失败超过一半
+    endpoint.WithBreakerMinSamples(20),                 // ……且窗口里已有 20 次调用
+    endpoint.WithBreakerSlowCallThreshold(2*time.Second),
+)
+```
+
+慢调用即使没有返回错误也记为失败；即使它的错误被失败判定函数排除掉，也仍然记为失败——
+无论被取消的预算属于谁，依赖都没有在时限内应答。窗口在每次状态切换时清空，因此恢复后的
+依赖是从干净的记录重新开始。
+
 目录中的每个中间件都有 Builder 快捷方式（`WithValidation`、`WithTimeout`、
 `WithRecording`、`WithMetrics`、`WithRateLimit`、`WithDelayRateLimit`、
 `WithCircuitBreaker`、`WithRetry`、`WithFallback`、`WithBulkhead`、

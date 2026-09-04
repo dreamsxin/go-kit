@@ -131,6 +131,13 @@ type Balancer interface {
 var ErrNoEndpoints = errors.New("no endpoints available")
 
 // ErrClosed indicates that a selector or balancer has been closed and cannot
-// accept new picks. Close prevents new selections; an already returned
-// endpoint remains the caller's responsibility to finish.
+// accept new picks. An endpoint already returned remains the caller's
+// responsibility to finish.
+//
+// The check is best effort, not a barrier: Close does not wait for a pick that
+// is already inside the strategy, so a call that started before Close may still
+// complete normally. Making it a barrier would put every pick behind a lock for
+// the sake of a shutdown path. A Strategy whose Close releases state that Pick
+// reads must therefore be safe against a concurrent Pick; the built-in
+// strategies are.
 var ErrClosed = errors.New("selector or balancer is closed")

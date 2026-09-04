@@ -3,21 +3,25 @@ English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
-v2.7.0 is the release being published from `main` for the independent module:
+v2.8.0 is the release being published from `main` for the independent module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.7.0` is the approved error-contract release: one classification serves both
-directions, so a client call composes with the same middleware and the same
-mapping tables as a server endpoint. It carries approved breaking changes: local
-admission-control rejections answer 503 instead of 429, `RateLimiterFunc` became
-`RateLimiterFuncs`, and a relayed client error keeps the upstream status and
-code instead of degrading to 500. Nested modules publish `v0.4.0` tags; the
-core-dependent ones require `v2.7.0` from the nested-candidate commit onward.
-The historical record of earlier releases, including the documented SemVer
-exceptions, lives in [CHANGELOG.md](../../CHANGELOG.md).
+`v2.8.0` is the approved exposure and resilience release: what a caller may read
+is decided by one rule in one place, and a dependency is judged by how often and
+how slowly it answers rather than by how many failures happened to arrive in a
+row. It carries approved breaking changes: a 500 response never carries the error
+text, `endpoint.Failer` is honoured, the `NewStrict*` JSON constructors are
+renamed `*WithBodyLimit`, `selector.ScoreFunc` receives the request, a closed
+selector or balancer returns `sd.ErrClosed`, and the circuit breaker no longer
+counts caller cancellation as a dependency failure. Nested modules publish
+`v0.5.0` tags, except `integrations/etcd`, whose first release was `v0.1.0` and
+which publishes `v0.2.0`; the core-dependent ones require `v2.8.0` from the
+nested-candidate commit onward. The historical record of earlier releases,
+including the documented SemVer exceptions, lives in
+[CHANGELOG.md](../../CHANGELOG.md).
 
 The published module is stored in the repository's `v2` major-version
 subdirectory, but consumers request normal module versions such as `v2.4.0`.
@@ -50,7 +54,12 @@ The approved exceptions are limited to:
   the transport layer, stdlib-only generated custom-routes hook);
 - the `v2.7.0` error-contract unification (local admission-control rejections
   answer 503, the `RateLimiterFunc` to `RateLimiterFuncs` rename, and relayed
-  client errors keeping the upstream status and code).
+  client errors keeping the upstream status and code);
+- the `v2.8.0` exposure and resilience corrections (500 responses no longer carry
+  the error text, `endpoint.Failer` is honoured, the `NewStrict*` JSON
+  constructors are renamed `*WithBodyLimit`, `selector.ScoreFunc` receives the
+  request, a closed selector or balancer returns `sd.ErrClosed`, and the circuit
+  breaker stops counting caller cancellation as a dependency failure).
 
 Neither exception authorizes unrelated breaking changes. Any further
 incompatibility requires a new major module path unless separately approved and

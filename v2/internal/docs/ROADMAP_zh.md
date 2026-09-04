@@ -84,7 +84,7 @@
 - [x] 工作包 2：服务发现契约现在位于 `sd`；负载均衡、重试、endpointer、实例缓存和客户端组合拥有独立的包。泛型 SD 依赖测试拒绝 gRPC 和 Consul 提供者导入。
 - [x] 工作包 3：HTTP 错误编码和 HTTP 扩展契约现在位于 `transport/http` 之下；根传输包只保留共享的错误处理器契约。导入测试拒绝 HTTP/gRPC 交叉依赖。
 - [x] 工作包 4：`kit` 仅支持 HTTP，可选生命周期组件使用中立契约，gRPC 装配位于独立的 `kit/grpc` 模块。
-- [x] 工作包 5：熔断器、限流、gRPC、Consul、Zap、OpenTelemetry 和 `microgen` 拥有独立模块，仓库由 `go.work` 编排。根运行时模块没有第三方依赖；旧 `log` 是仅标准库的兼容外观。
+- [x] 工作包 5：gRPC、Consul、etcd、Zap、OpenTelemetry 和 `microgen` 拥有独立模块，仓库由 `go.work` 编排。熔断器与限流留在根模块，因为它们不需要任何第三方依赖就已完整。根运行时模块没有第三方依赖；旧 `log` 是仅标准库的兼容外观。
 - [x] 工作包 6：生成器实现包位于 `cmd/microgen/internal` 之下；生成的项目使用新的包拓扑和直接的 `slog`，最小 HTTP 项目不解析任何可选提供者或数据库依赖。
 - [x] 工作包 7：`kit` 是唯一的快速开始，底层接线命名为 `manual_composition`，包文档使用最终依赖图，迁移文档映射被移除的 API 和包路径。
 - [x] 工作包 8：依赖边界可执行，当前闭包和 `v2.0.0` 对比记录在 `DEPENDENCY_REPORT.md` 中。功能、契约、API、vet、模块、独立模块和干净范围门禁全部通过。`/v2` SemVer 例外和 `v2.1.0` 根版本获得批准。完整的 Ubuntu/Windows 工作流于 2026-08-14 通过。根模块和全部八个嵌套模块标签按顺序发布，并可通过公共 Go 代理解析；最终发布记录已完成。
@@ -123,11 +123,10 @@ v2/
     slog/
     otel/                           # optional module
   integrations/
-    circuitbreaker/                 # optional module
-    grpc/                           # optional module
-    ratelimit/                      # optional module
-    zap/                            # optional module
     consul/                         # optional module
+    etcd/                           # optional module
+    grpc/                           # optional module
+    zap/                            # optional module
   cmd/
     microgen/                       # independent tool module
       internal/
@@ -148,6 +147,12 @@ v2/
 - `cmd/microgen`。
 
 嵌套模块路径在可行时保留包导入路径。模块版本和标签由 `RELEASE.md` 所有；本地开发使用显式的 `go.work` 文件，而不是提交面向使用方的 `replace` 指令。
+
+`gobreaker` 与 `golang.org/x/time/rate` 的适配器模块是明确的非目标。
+`endpoint.CircuitBreaker` 与 `endpoint.RateLimitMiddleware` 零依赖且功能完整——包含
+基于失败率的触发与慢调用统计——而这类适配器的全部内容就是把一个第三方类型包成一个
+`Middleware`，应用自己十几行就能写完。开模块的代价则是一份 `go.mod`、发布检查、
+API 快照与双语文档的长期维护。
 
 ### 包迁移映射
 

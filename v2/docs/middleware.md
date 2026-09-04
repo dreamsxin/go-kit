@@ -110,6 +110,24 @@ the queue is bounded by something. See [errors](errors.md) for the full mapping.
 `endpoint.NewCircuitBreaker()` and install `breaker.Middleware()`, keeping the
 `*CircuitBreaker` for `State()`.
 
+The default trips on consecutive failures, which only catches a dependency that
+is fully down. Arm `WithBreakerMaxErrorRate` for the common case — a dependency
+failing part of the time — and `WithBreakerSlowCallThreshold` when slow is as bad
+as failed:
+
+```go
+breaker := endpoint.NewCircuitBreaker(
+    endpoint.WithBreakerMaxErrorRate(0.5),              // over half of the window
+    endpoint.WithBreakerMinSamples(20),                 // ...once 20 calls are in it
+    endpoint.WithBreakerSlowCallThreshold(2*time.Second),
+)
+```
+
+A slow call counts as a failure even when it returned no error, and even when its
+error was excluded by the failure predicate: whoever owned the cancelled budget,
+the dependency did not answer in time. The window is cleared on every state
+change, so a recovered dependency starts from a clean slate.
+
 Every middleware in the catalog has a Builder shortcut (`WithValidation`,
 `WithTimeout`, `WithRecording`, `WithMetrics`, `WithRateLimit`,
 `WithDelayRateLimit`, `WithCircuitBreaker`, `WithRetry`, `WithFallback`,

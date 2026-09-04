@@ -25,9 +25,22 @@ const (
 	DefaultBreakerFailureThreshold = 5
 	DefaultBreakerSuccessThreshold = 1
 	DefaultBreakerOpenTimeout      = time.Minute
+	// DefaultBreakerWindowSize is how many recent outcomes MaxErrorRate
+	// considers when no window size is configured.
+	DefaultBreakerWindowSize = 100
+	// DefaultBreakerMinSamples is how many outcomes the window must hold
+	// before MaxErrorRate may trip the breaker.
+	DefaultBreakerMinSamples = 20
 )
 
 // BreakerSettings configures the endpoint circuit breaker.
+//
+// Two trip conditions are available and both may be armed at once. Consecutive
+// counting (FailureThreshold) reacts fastest to a dependency that is completely
+// down. Rate counting (MaxErrorRate over a rolling window) catches the more
+// common failure: a dependency that fails a third of the time never produces a
+// long enough consecutive run to trip a counter, so a counter alone leaves it
+// running forever.
 type BreakerSettings struct {
 	// FailureThreshold is the number of consecutive endpoint failures that
 	// trips the breaker into the open state. Non-positive selects
@@ -44,7 +57,37 @@ type BreakerSettings struct {
 	// dependency failure. Caller cancellation is excluded by default because
 	// it does not say anything about dependency health. Set this to customize
 	// classification, for example to exclude transport-specific errors.
+	//
+	// An excluded error is not recorded at all — neither failure nor success —
+	// so it cannot dilute MaxErrorRate the way counting it as a success would.
 	FailurePredicate func(error) bool
+
+	// MaxErrorRate trips the breaker when the share of failures in the rolling
+	// window exceeds it, as a fraction: 0.5 means more than half. Zero, the
+	// default, leaves only consecutive counting armed.
+	MaxErrorRate float64
+	// WindowSize is how many recent outcomes MaxErrorRate considers.
+	// Non-positive selects DefaultBreakerWindowSize.
+	WindowSize int
+	// MinSamples is how many outcomes the window must hold before MaxErrorRate
+	// may trip the breaker, so one unlucky call in a quiet minute cannot open
+	// the circuit. Non-positive selects DefaultBreakerMinSamples; larger than
+	// WindowSize is capped to it, because a window that small can never hold
+	// more.
+	MinSamples int
+	// SlowCallThreshold makes a call taking at least this long count as a
+	// failure even when it returned no error. A dependency answering in thirty
+	// seconds is not healthier than one returning errors: it holds the caller's
+	// goroutines and spends its budget. Zero, the default, disables slow-call
+	// accounting.
+	//
+	// It is also what makes a timeout legible. A context deadline arriving at
+	// the endpoint says nothing about who owned the budget — the caller's or the
+	// dependency's — so DeadlineExceeded alone cannot be classified, and the
+	// default predicate therefore counts it as a failure. Measured duration can
+	// be classified, which is why slow-call accounting is the honest way to
+	// judge a dependency that got slow rather than broken.
+	SlowCallThreshold time.Duration
 }
 
 // BreakerOption mutates BreakerSettings. See NewCircuitBreaker.
@@ -73,15 +116,43 @@ func WithBreakerFailurePredicate(predicate func(error) bool) BreakerOption {
 	return func(s *BreakerSettings) { s.FailurePredicate = predicate }
 }
 
+// WithBreakerMaxErrorRate arms rate-based tripping: the breaker opens when more
+// than rate of the outcomes in the rolling window are failures. Values at or
+// below zero disable it; values at or above 1 are meaningless, since a rate can
+// never exceed 1, and are treated as 1 minus one sample.
+func WithBreakerMaxErrorRate(rate float64) BreakerOption {
+	return func(s *BreakerSettings) { s.MaxErrorRate = rate }
+}
+
+// WithBreakerWindowSize sets how many recent outcomes the rate check considers.
+func WithBreakerWindowSize(n int) BreakerOption {
+	return func(s *BreakerSettings) { s.WindowSize = n }
+}
+
+// WithBreakerMinSamples sets how many outcomes the window must hold before the
+// rate check may trip the breaker.
+func WithBreakerMinSamples(n int) BreakerOption {
+	return func(s *BreakerSettings) { s.MinSamples = n }
+}
+
+// WithBreakerSlowCallThreshold counts a call taking at least d as a failure,
+// even when it returned no error.
+func WithBreakerSlowCallThreshold(d time.Duration) BreakerOption {
+	return func(s *BreakerSettings) { s.SlowCallThreshold = d }
+}
+
 // CircuitBreaker is a dependency-free endpoint circuit breaker middleware.
 // It rejects calls while open with ErrCircuitOpen; the half-open state lets a
 // single probe through at a time until SuccessThreshold consecutive probes
 // succeed. Timeouts and cancellations of the caller are unchanged; the breaker
-// observes only endpoint errors.
+// observes only endpoint errors and call durations.
 //
 // Example:
 //
-//	breaker := endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(3))
+//	breaker := endpoint.NewCircuitBreaker(
+//	    endpoint.WithBreakerMaxErrorRate(0.5),
+//	    endpoint.WithBreakerSlowCallThreshold(2*time.Second),
+//	)
 //	ep := endpoint.NewBuilder(callDependency).Use(breaker.Middleware()).Build()
 type CircuitBreaker struct {
 	settings BreakerSettings
@@ -93,11 +164,21 @@ type CircuitBreaker struct {
 	probeInFlight bool
 	openedAt      time.Time
 	now           func() time.Time
+
+	// window is a ring of recent outcomes, true for a failure. It is reset on
+	// every state transition: measurements taken before the breaker opened
+	// describe a dependency the caller has since stopped talking to, so keeping
+	// them would re-trip the circuit on the first call after recovery.
+	window     []bool
+	windowNext int
+	windowLen  int
+	windowBad  int
 }
 
 // NewCircuitBreaker constructs a circuit breaker with the default settings
-// (5 consecutive failures, 1 minute open window, 1 probing success to close).
-// Non-positive settings fall back to those defaults.
+// (5 consecutive failures, 1 minute open window, 1 probing success to close,
+// and no rate or slow-call check). Non-positive settings fall back to those
+// defaults.
 func NewCircuitBreaker(options ...BreakerOption) *CircuitBreaker {
 	var settings BreakerSettings
 	for _, option := range options {
@@ -119,7 +200,34 @@ func NewCircuitBreaker(options ...BreakerOption) *CircuitBreaker {
 			return err != nil && !errors.Is(err, context.Canceled)
 		}
 	}
-	return &CircuitBreaker{settings: settings, now: time.Now}
+
+	breaker := &CircuitBreaker{settings: settings, now: time.Now}
+	if !breaker.rateArmed() {
+		return breaker
+	}
+	if breaker.settings.WindowSize < 1 {
+		breaker.settings.WindowSize = DefaultBreakerWindowSize
+	}
+	if breaker.settings.MinSamples < 1 {
+		breaker.settings.MinSamples = DefaultBreakerMinSamples
+	}
+	if breaker.settings.MinSamples > breaker.settings.WindowSize {
+		breaker.settings.MinSamples = breaker.settings.WindowSize
+	}
+	// A rate can never exceed 1, so a threshold at or above 1 would arm a check
+	// that never fires. Treat it as "every call in the window failed".
+	if size := float64(breaker.settings.WindowSize); breaker.settings.MaxErrorRate >= 1 {
+		breaker.settings.MaxErrorRate = (size - 1) / size
+	}
+	breaker.window = make([]bool, breaker.settings.WindowSize)
+	return breaker
+}
+
+// rateArmed reports whether the rolling window is in use. Slow-call accounting
+// needs it too: a slow call is a failure, and without a rate to compare against
+// it would only ever feed the consecutive counter.
+func (cb *CircuitBreaker) rateArmed() bool {
+	return cb.settings.MaxErrorRate > 0
 }
 
 // Middleware returns the endpoint middleware that enforces the breaker.
@@ -129,8 +237,9 @@ func (cb *CircuitBreaker) Middleware() Middleware {
 			if err := cb.beforeRequest(); err != nil {
 				return nil, err
 			}
+			started := cb.now()
 			resp, err := next(ctx, request)
-			cb.afterRequest(err)
+			cb.afterRequest(err, cb.now().Sub(started))
 			return resp, err
 		}
 	}
@@ -186,29 +295,44 @@ func (cb *CircuitBreaker) openRejection() error {
 	return NewRetryAfterError(ErrCircuitOpen, remaining)
 }
 
-func (cb *CircuitBreaker) afterRequest(err error) {
+// afterRequest records one outcome. elapsed is measured around the wrapped
+// endpoint, so it includes everything the breaker sits in front of.
+func (cb *CircuitBreaker) afterRequest(err error, elapsed time.Duration) {
+	slow := cb.settings.SlowCallThreshold > 0 && elapsed >= cb.settings.SlowCallThreshold
+
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	if err != nil && !cb.settings.FailurePredicate(err) {
+
+	if err != nil && !cb.settings.FailurePredicate(err) && !slow {
+		// Nothing was observed about the dependency: not a failure, and not a
+		// success either, so it must not enter the window — counting it as a
+		// success would dilute the rate that the window exists to measure.
 		if cb.state == BreakerHalfOpen {
 			cb.probeInFlight = false
 		}
 		return
 	}
+	// A slow call counts even when the error was excluded: whoever owned the
+	// cancelled budget, the dependency did not answer inside the threshold.
+	failed := slow || err != nil
 
 	switch cb.state {
 	case BreakerClosed:
-		if err != nil {
-			cb.failures++
-			if cb.failures >= cb.settings.FailureThreshold {
-				cb.trip()
-			}
-		} else {
+		cb.recordLocked(failed)
+		if !failed {
 			cb.failures = 0
+			return
+		}
+		cb.failures++
+		// A success can never raise the rate, so the check belongs here only.
+		if cb.failures >= cb.settings.FailureThreshold || cb.rateExceededLocked() {
+			cb.trip()
 		}
 	case BreakerHalfOpen:
+		// Probes are deliberately kept out of the window: one probe cannot meet
+		// MinSamples, and the window is reset on every transition anyway.
 		cb.probeInFlight = false
-		if err != nil {
+		if failed {
 			cb.trip()
 			return
 		}
@@ -217,8 +341,45 @@ func (cb *CircuitBreaker) afterRequest(err error) {
 			cb.state = BreakerClosed
 			cb.failures = 0
 			cb.successes = 0
+			cb.resetWindowLocked()
 		}
 	}
+}
+
+// recordLocked appends one outcome to the rolling window, evicting the oldest
+// when it is full. It is a no-op when no rate check is armed.
+// The caller must hold cb.mu.
+func (cb *CircuitBreaker) recordLocked(failed bool) {
+	if cb.window == nil {
+		return
+	}
+	if cb.windowLen == len(cb.window) {
+		if cb.window[cb.windowNext] {
+			cb.windowBad--
+		}
+	} else {
+		cb.windowLen++
+	}
+	cb.window[cb.windowNext] = failed
+	if failed {
+		cb.windowBad++
+	}
+	cb.windowNext = (cb.windowNext + 1) % len(cb.window)
+}
+
+// rateExceededLocked reports whether the window holds enough samples and too
+// many failures. The caller must hold cb.mu.
+func (cb *CircuitBreaker) rateExceededLocked() bool {
+	if cb.window == nil || cb.windowLen < cb.settings.MinSamples {
+		return false
+	}
+	return float64(cb.windowBad)/float64(cb.windowLen) > cb.settings.MaxErrorRate
+}
+
+// resetWindowLocked forgets every recorded outcome. windowLen gates all reads,
+// so the stored values need not be cleared. The caller must hold cb.mu.
+func (cb *CircuitBreaker) resetWindowLocked() {
+	cb.windowNext, cb.windowLen, cb.windowBad = 0, 0, 0
 }
 
 // trip moves the breaker to the open state and starts a new open window.
@@ -228,4 +389,5 @@ func (cb *CircuitBreaker) trip() {
 	cb.openedAt = cb.now()
 	cb.successes = 0
 	cb.probeInFlight = false
+	cb.resetWindowLocked()
 }

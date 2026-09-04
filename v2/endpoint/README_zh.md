@@ -343,7 +343,7 @@ ep = zapadapter.LoggingMiddleware(logger, "CreateUser")(ep)
 
 熔断、限流与重试已内置于核心包，不持有第三方依赖：
 
-- `NewCircuitBreaker`（`.Middleware()`）在熔断开启时用 `ErrCircuitOpen` 拒绝调用，并通过探测请求恢复。
+- `NewCircuitBreaker`（`.Middleware()`）在熔断开启时用 `ErrCircuitOpen` 拒绝调用，并通过探测请求恢复。有两种触发条件：`WithBreakerFailureThreshold` 数连续失败，`WithBreakerMaxErrorRate` 数滑动窗口内的失败占比——后者才能抓住"三次里失败一次"的依赖，这么短的连续段永远触发不了计数器。`WithBreakerSlowCallThreshold` 把慢应答记为失败，`WithBreakerFailurePredicate` 决定哪些错误算失败（默认不算调用方取消）。
 - `RateLimitMiddleware` 超限时用 `ErrRateLimited` 拒绝；`DelayRateLimitMiddleware` 等待令牌，并遵循 context 取消。限流器实现 `RateLimiter` 契约，由应用持有。
 - `RetryMiddleware` 对瞬时失败带退避重试；分类器与退避策略均可替换。
 

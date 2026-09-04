@@ -4,19 +4,33 @@ English | [简体中文](CHANGELOG_zh.md)
 All notable v2 changes are recorded here. Legacy history remains available
 through the immutable v0 and v1 tags.
 
-## [Unreleased]
+## [2.8.0] - Release Candidate
 
 ### Added
 
-- Endpoint panic recovery with `RecoveryMiddleware`, configurable
-  `PanicHandler`, and a redacted default `apperror` result. Circuit breakers
-  now accept a failure predicate and exclude caller cancellation by default.
+- Endpoint panic recovery with `RecoveryMiddleware`, a configurable
+  `PanicHandler`, and a redacted default `apperror` result. Install it as the
+  outermost middleware so it covers the whole chain; capture the stack inside the
+  handler, where the panicking frames are still on the goroutine.
+- Rate-based circuit breaking: `WithBreakerMaxErrorRate`,
+  `WithBreakerWindowSize`, and `WithBreakerMinSamples` trip the breaker on the
+  failure share of a rolling window. Consecutive counting alone never opens on a
+  dependency that fails a third of the time — no run is long enough — which is
+  the most common way a dependency degrades. `WithBreakerSlowCallThreshold`
+  counts a slow answer as a failure, including one whose error the failure
+  predicate excluded: whoever owned the cancelled budget, the dependency did not
+  answer in time. The window is cleared on every state change, so a recovered
+  dependency is not re-tripped by measurements it has outlived.
+- `WithBreakerFailurePredicate` decides which endpoint errors count as
+  dependency failures. An excluded error is not recorded at all, so it cannot
+  dilute the rate the way counting it as a success would.
 - MCP lifecycle controls: context-aware `mcp.Serve`, `StreamableHandler.Shutdown`,
   active-session limits, active-SSE-aware cleanup, and bounded in-memory event
   history through `NewMemoryEventSinkWithLimit`.
-- `sd.ErrClosed` makes closed selectors and balancers reject new picks
-  deterministically.
-
+- `sd.ErrClosed` lets a closed selector or balancer reject new picks. The check is
+  best effort by design: `Close` does not wait for a pick already inside the
+  strategy, because making it a barrier would put every pick behind a lock for
+  the sake of a shutdown path.
 - `selector.CloseStrategy(strategy)` releases a strategy that owns something and
   is a no-op for one that does not, so a decorating strategy can forward `Close`
   in one line instead of type-asserting.
@@ -170,6 +184,18 @@ through the immutable v0 and v1 tags.
 
 ### Changed
 
+- **Breaking:** a closed `Selector` or `Balancer` rejects new picks with
+  `sd.ErrClosed`. `Select` and `Pick` previously kept serving from the source
+  after `Close`, so a shut-down component silently stayed in service. Code that
+  relied on that must keep the selector open for as long as it selects.
+- **Breaking:** the circuit breaker no longer counts caller cancellation as a
+  dependency failure. A burst of client disconnects used to trip the breaker,
+  which then shed load the dependency was never responsible for. Override with
+  `WithBreakerFailurePredicate` if the old classification was deliberate.
+  `context.DeadlineExceeded` still counts, because a deadline arriving at the
+  endpoint does not say who owned the budget; use
+  `WithBreakerSlowCallThreshold` to judge that from the measured duration
+  instead.
 - **Breaking:** the HTTP and gRPC servers honour `endpoint.Failer`. A response
   whose `Failed()` returns non-nil is discarded and the error is encoded
   instead, so it gets the same status, code, and logging as an error returned
