@@ -11,7 +11,8 @@ Integration and documentation probes for the v2 framework and `microgen`.
 - `readme_quickstart_test.go`: generated README workflow checks.
 - `documentation_links_test.go`, `documentation_api_test.go`: markdown link and
   anchor resolution, plus existence of every framework symbol the docs name.
-- `testdata/`: generated-project fixtures and source contracts.
+- `testdata/`: source contracts, behavior fixtures, and reviewed snapshots;
+  generated projects are created under `t.TempDir()` by the tests.
 
 ## Run Tests
 
@@ -42,6 +43,5 @@ The tools suite covers:
 - generated clients, SDKs, OpenAPI/JSON Schema contracts, and interaction adapters;
 - repeat-generation ownership and determinism.
 
-Tracked directories under `testdata/` are expected-output fixtures. Update them
-only through the owning generation tests and verify a second run produces no
-additional diff.
+Tracked files under `testdata/` are intentional inputs or reviewed snapshots.
+Generated projects are ephemeral and are not checked in.

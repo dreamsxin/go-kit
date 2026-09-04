@@ -2,14 +2,7 @@ go 1.25.8
 
 use (
 	.
-	./cmd/microgen
 	./examples
-	./integrations/consul
-	./integrations/etcd
-	./integrations/grpc
-	./integrations/zap
-	./kit/grpc
-	./observability/otel
 	./tools
 	./tools/contractcheck
 )

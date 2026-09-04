@@ -1,12 +1,13 @@
 # 依赖闭包报告
 [English](DEPENDENCY_REPORT.md) | 简体中文
 
-本报告记录 v2 直接架构重构之后的依赖闭包。可执行的规则位于 `tools/dependency_boundaries_test.go`；本文档记录经过评审的结果，以及 `ROADMAP.md` 要求的与 `v2.0.0` 的对比。
+本报告记录当前 v2 依赖闭包。可执行的规则位于 `tools/dependency_boundaries_test.go`；本文档
+记录经过评审的结果，以及用于诊断的历史测量基线。
 
 ## 环境
 
-- 当前源码：`be05d33370a2ac9f7cfbc266033a65df641ea90f`
-- 已发布基线：`v2.0.0`（`788c0538db872aab10dc910b9ed14e8a6a4745b0`）
+- 当前源码：v2.8.0 发布候选工作树
+- 对比基线：历史 v2 测量（仅作诊断）
 - Go：`go1.25.8`
 - 平台：`windows/amd64`
 - CGO：已禁用
@@ -16,7 +17,8 @@
 
 ## 核心入口
 
-根运行时模块没有第三方模块依赖。因此每个入口只解析标准库和所列的 go-kit 包。
+根 module 为其中发布的可选 package 声明 provider 依赖。每个核心入口仍然只解析标准库
+和所列的 go-kit package；只有导入可选 package 时才会出现 provider 成本。
 
 | 入口 | 编译包数 | go-kit 包数 | 允许的 go-kit 依赖区域 |
 | --- | ---: | ---: | --- |
@@ -33,9 +35,9 @@
 
 ## 可选入口
 
-可选集成是独立模块。只有选择了相应的模块，其提供者成本才可见。
+可选集成属于同一 module 中的 provider package。只有导入相应 package，应用的依赖闭包才会包含其提供者成本。
 
-| 模块入口 | 编译包数 | 非标准包数 | 提供者家族 |
+| Package 入口 | 编译包数 | 非标准包数 | 提供者家族 |
 | --- | ---: | ---: | --- |
 | `integrations/consul` | 207 | 18 | HashiCorp Consul API |
 | `integrations/etcd` | 353 | 154 | etcd client v3（会带入 gRPC） |
@@ -56,7 +58,7 @@ GOWORK=off CGO_ENABLED=0 go build -a -trimpath
 
 表格报告较短一次强制构建的耗时。耗时仅为诊断信息，不是绝对的发布阈值；依赖和二进制测量是稳定的闭包信号。
 
-| 指标 | `v2.0.0` | 当前重构 | 降低幅度 |
+| 指标 | 历史基线 | 当前候选 | 变化 |
 | --- | ---: | ---: | ---: |
 | 编译包数 | 326 | 190 | 41.7% |
 | 非标准包数 | 131 | 6 | 95.4% |
@@ -64,7 +66,8 @@ GOWORK=off CGO_ENABLED=0 go build -a -trimpath
 | 强制构建耗时 | 9.205 s | 7.013 s | 23.8% |
 | Windows 二进制大小 | 18,372,096 字节 | 8,898,048 字节 | 51.6% |
 
-当前的两模块依赖图是独立探针加上 go-kit 根模块。对这个仅 HTTP 的服务，可选集成不会被解析。
+仅 HTTP 探针只解析 go-kit 根 module，不会解析任何可选 provider package。仓库还保留
+examples 和 tooling 两个仅供工作区使用的 module；它们不发布也不打 tag。
 
 ## 复查
 
@@ -72,7 +75,7 @@ GOWORK=off CGO_ENABLED=0 go build -a -trimpath
 
 ```bash
 go -C ./tools test . -run TestArchitectureDependencyGates -count=1
-go -C ./tools test . -run TestCoreModuleHasNoThirdPartyRequirements -count=1
+go -C ./tools test . -run TestKitHTTPAssemblyDoesNotResolveOptionalDependencies -count=1
 go -C ./tools test . -run TestPublishableModulesDoNotUseLocalReplacements -count=1
 ```
 

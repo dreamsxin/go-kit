@@ -18,7 +18,7 @@
 | 添加日志、指标或追踪 | [可观测性](observability_zh.md) | [生产指南](../PRODUCTION_zh.md) |
 | 向 AI 客户端提供工具 | [MCP 教程](tutorial-mcp_zh.md) | [Interaction README](../interaction/README_zh.md) |
 | 部署和运维 | [生产指南](../PRODUCTION_zh.md) | [生命周期](lifecycle_zh.md)、[排障](troubleshooting_zh.md) |
-| 升级已有项目 | [迁移说明](../MIGRATION_zh.md) | [变更记录](../CHANGELOG_zh.md) |
+| 升级已有项目 | [变更记录](../CHANGELOG_zh.md) | [生产指南](../PRODUCTION_zh.md) |
 
 ## 教程
 
@@ -64,7 +64,7 @@
 ## 发布与维护
 
 - [生产指南](../PRODUCTION_zh.md)
-- [迁移说明](../MIGRATION_zh.md)
+- [变更记录](../CHANGELOG_zh.md)
 - [架构与边界](../ARCHITECTURE_zh.md)
 - [文档导航](../DOCS_INDEX_zh.md)
 - [维护者指南](../internal/docs/MAINTAINING_zh.md)

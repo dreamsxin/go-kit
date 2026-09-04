@@ -63,8 +63,8 @@ and protected from unreviewed deterministic drift.
 
 - `observability/slog` provides standard-library structured endpoint logging
   without replacing the core zap logger API.
-- `observability/otel` is an independent module for endpoint tracing and
-  metrics, with no direct adapter dependency in the main v2 module.
+- `observability/otel` provides endpoint tracing and metrics; no core package
+  imports it.
 - Provider setup, resources, exporters, sampling, and shutdown remain in
   application assembly.
 
@@ -88,7 +88,7 @@ Completed: common HTTP hardening can be enabled explicitly with standard
 - `make verify-release` runs full functional validation, generated-project and
   contract checks, pinned TypeScript checks, focused race tests, vet, module
   tidy checks, UTF-8/link checks, and the reviewed public API snapshot.
-- README examples, migration instructions, CLI behavior, generated ownership,
+- README examples, CLI behavior, generated ownership,
   and exported runtime packages are covered by executable checks or snapshots.
 - `make release-check-clean` verifies the committed v2 scope before tagging.
 - Runtime closure now includes MCP lifecycle/version/origin/capability checks,
@@ -105,32 +105,17 @@ Completed: common HTTP hardening can be enabled explicitly with standard
 - MCP transport sessions own and release one runtime session; generic JSON
   clients bound successful response bodies; invalid Go IDL fails generation.
 
-Completed: the v2.0.0 compatibility contract and release notes are frozen. The
-immutable root tag `v2.0.0` points at the verified release commit, and
-`github.com/dreamsxin/go-kit/v2@v2.0.0` resolves through the public Go proxy.
-The historical incorrect `v2/v2.0.0` tag has been removed.
+Completed: the current public baseline is owned by the root module and one root
+tag; contract, API, documentation, and dependency boundaries are enforced by
+automated release gates.
 
 ## Milestone 6 (Complete): Direct v2 Architecture Refactor / v2 直接架构重构
 
 ### Decision / 决策
 
-The current `main/v2` source tree will be refactored directly. The work does not
-preserve source compatibility with the published `v2.0.0` API and will not add
-deprecated forwarding packages merely to retain the old package graph.
-
-当前 `main/v2` 源码直接进行结构重构，不保留已发布 `v2.0.0` 的源码兼容性，也不
-通过废弃转发包继续维持旧依赖图。`v2.0.0` tag 保持不可变，所有不兼容变化必须在
-最终发布前集中记录到 `MIGRATION.md` 和 `CHANGELOG.md`。
-
-This is an explicit compatibility-policy override for the active development
-branch. On 2026-08-14, the repository owner approved publishing the result as
-another `/v2` release instead of changing the module path to `/v3`. This is a
-direct-refactor-specific SemVer exception and is called out in release notes;
-`v2.0.0` remains immutable and the published root refactor release is `v2.1.0`.
-
-2026-08-14，仓库所有者批准继续使用 `/v2` 发布本次不兼容重构，不切换到
-`/v3`。该决定是仅针对直接重构的 SemVer 例外，并已在发布说明中明确披露；
-`v2.0.0` 保持不变，本次根 module 正式发布版本为 `v2.1.0`。
+The current source is maintained as the v2.8.0 candidate baseline. Development
+snapshots carry no source-compatibility promise; the public contract is defined
+by the release manifest, changelog, and reviewed API snapshot.
 
 ### Execution Status / 实施状态
 
@@ -148,28 +133,21 @@ direct-refactor-specific SemVer exception and is called out in release notes;
   under `transport/http`; the root transport package retains only the shared
   error-handler contract. Import tests reject HTTP/gRPC cross-dependencies.
 - [x] Work Package 4: `kit` is HTTP-only, optional lifecycle components use a
-  neutral contract, and gRPC assembly lives in the independent `kit/grpc`
-  module.
-- [x] Work Package 5: gRPC, Consul, etcd, Zap, OpenTelemetry, and `microgen`
-  have independent modules and the repository is orchestrated by `go.work`. The
-  circuit breaker and rate limiter stayed in the root module because they need no
-  third-party dependency to be complete. The root runtime module has no
-  third-party requirements; legacy `log` is a standard-library-only compatibility
-  facade.
+  neutral contract, and gRPC assembly lives in the `kit/grpc` package.
+- [x] Work Package 5: provider, transport, and generator boundaries are packages
+  inside the single published module. Dependency closure is enforced per package
+  by `TestKitHTTPAssemblyDoesNotResolveOptionalDependencies`, and
+  `TestOnlyOneModuleIsPublishable` prevents a second published module.
 - [x] Work Package 6: generator implementation packages live under
   `cmd/microgen/internal`; generated projects use the new package topology and
   direct `slog`, and minimal HTTP projects resolve no optional provider or
   database dependencies.
 - [x] Work Package 7: `kit` is the only quickstart, lower-level wiring is named
-  `manual_composition`, package docs use the final graph, and migration docs map
-  removed APIs and package paths.
+  `manual_composition`, and package docs use the final graph.
 - [x] Work Package 8: dependency boundaries are executable and the current
-  closure and `v2.0.0` comparison are captured in `DEPENDENCY_REPORT.md`.
-  Functional, contract, API, vet, module, standalone-module, and clean-scope
-  gates pass. The `/v2` SemVer exception and `v2.1.0` root version are approved.
-  The full Ubuntu/Windows workflow passed on 2026-08-14. The root and all eight
-  nested-module tags were published in order and resolve through the public Go
-  proxy; the final release record is complete.
+  closure is captured in `DEPENDENCY_REPORT.md`. Functional, contract, API, vet,
+  module, standalone, and clean-scope gates pass for the single published
+  module.
 
 ### Refactor Goals / 重构目标
 
@@ -181,7 +159,8 @@ direct-refactor-specific SemVer exception and is called out in release notes;
   database-driver, generator, Gobreaker, Zap, or OpenTelemetry packages.
 - Put interfaces and errors in the package that consumes or owns them; remove
   generic `interfaces`, `events`, and `utils` packages.
-- Keep optional integrations in independently testable modules.
+- Keep optional integrations in independently testable packages within the
+  published module.
 - Provide one recommended first-use path: `kit` for a small HTTP service, then
   lower-level `endpoint` and `transport` packages for explicit composition.
 - Make the complete validation suite deterministic, cross-platform, and clean
@@ -202,21 +181,21 @@ v2/
     retry/                          # protocol-neutral retry execution
     instance/                       # in-memory instance source
   kit/                              # lightweight HTTP assembly and lifecycle
-    grpc/                           # optional gRPC lifecycle component module
+    grpc/                           # optional gRPC lifecycle component package
   interaction/
     mcp/
   security/
     http/
   observability/
     slog/
-    otel/                           # optional module
+    otel/                           # optional provider package
   integrations/
-    consul/                         # optional module
-    etcd/                           # optional module
-    grpc/                           # optional module
-    zap/                            # optional module
+    consul/                         # optional provider package
+    etcd/                           # optional provider package
+    grpc/                           # optional provider package
+    zap/                            # optional provider package
   cmd/
-    microgen/                       # independent tool module
+    microgen/                       # build-time tool package
       internal/
         dbschema/
         generator/
@@ -224,21 +203,11 @@ v2/
         parser/
 ```
 
-The main v2 module must contain only the protocol-neutral runtime, HTTP runtime,
-and standard-library integrations. The following directories become nested Go
-modules with their own `go.mod`, tests, and release checks:
-
-- `kit/grpc` or the final optional gRPC assembly location;
-- `integrations/grpc`;
-- `integrations/consul`;
-- `integrations/etcd`;
-- `integrations/zap`;
-- `observability/otel`;
-- `cmd/microgen`.
-
-Nested module paths retain the package import path where practical. Module
-versions and tags are owned by `RELEASE.md`; local development uses an explicit
-`go.work` file rather than committed consumer-facing `replace` directives.
+The v2 release is one published Go module. Provider, transport, observability,
+and generator boundaries are package boundaries inside that module; only
+`examples`, `tools`, and `tools/contractcheck` remain repository-only workspace
+modules. The root tag owns the complete v2 product, while package-level import
+boundaries and dependency gates keep optional costs out of minimal assemblies.
 
 Adapter modules for `gobreaker` and `golang.org/x/time/rate` are a non-goal.
 `endpoint.CircuitBreaker` and `endpoint.RateLimitMiddleware` are dependency-free
@@ -246,31 +215,6 @@ and complete — including rate-based tripping and slow-call accounting — and 
 whole of such an adapter is wrapping a third-party type in one `Middleware`,
 which an application writes in a dozen lines. A module would instead cost a
 `go.mod`, release checks, an API snapshot, and bilingual docs in perpetuity.
-
-### Package Migration Map / 包迁移映射
-
-| Current API or file | Target ownership | Required action |
-| --- | --- | --- |
-| `endpoint.Endpoint`, `Middleware`, typed adapters | `endpoint` | Keep and simplify |
-| `endpoint.EndpointCache` | `sd/endpointer` | Move and rename only if clarity improves |
-| `endpoint.Factory` | `sd/endpointer` | Move with cache ownership |
-| `endpoint.EndpointerOption*` | `sd/endpointer` | Move; remove from endpoint |
-| `endpoint.LoggingMiddleware` and `endpoint.Logger` | `integrations/zap` | Move; endpoint stops importing Zap |
-| endpoint trace/request ID context helpers | `endpoint` | Keep standard-library implementation |
-| `transport.ErrorHandler` | `transport` or protocol owner | Keep only if shared without protocol types |
-| `transport.ErrorEncoder` and `DefaultErrorEncoder` | `transport/http/server` | Move; root transport stops importing HTTP |
-| `transport/http/interfaces/*` | `transport/http` | Move protocol contracts into the HTTP owner |
-| `sd/interfaces.Instancer` and `sd/events.Event` | `sd` | Move to the owning root package |
-| `sd/interfaces.Registrar` | `sd` | Replace with error-returning contract |
-| `sd/interfaces.Balancer` and `ErrNoEndpoints` | `sd` | Move to root or retry consumer package |
-| `sd/endpointer/balancer` | `sd/balancer` | Flatten package path |
-| `sd/endpointer/executor` | `sd/retry` | Remove direct gRPC status handling |
-| `utils.Exponential` | `sd/retry/internal/backoff` | Make implementation private |
-| `sd/consul` | `integrations/consul` | Move into optional module |
-| `log` Zap alias package | `integrations/zap` | Remove from core module |
-| `kit.WithGRPC` and gRPC fields | `kit/grpc` component | Remove from HTTP core assembly |
-| `kit.WithRateLimit`, `WithCircuitBreaker` | explicit endpoint middleware | Remove dependency-owning shortcuts |
-| `cmd/microgen/{generator,parser,ir,dbschema}` | `cmd/microgen/internal/*` | Make generator internals non-importable |
 
 ### Work Package 0: Clean And Portable Test Harness
 
@@ -350,7 +294,7 @@ Goal: make every transport package own all protocol-specific behavior.
 - Keep HTTP status, headers, public messages, error codes, encoders, and request
   metadata inside `transport/http`.
 - Keep gRPC metadata, status conversion, interceptors, and retry classification
-  inside the independent `integrations/grpc` module.
+  inside the optional `integrations/grpc` package.
 - Remove HTTP types from the root `transport` package. Delete the root package
   when no truly shared behavior remains.
 - Preserve equivalent before/after/finalizer ordering across HTTP and gRPC
@@ -387,17 +331,17 @@ Acceptance:
 - `Service.Run(ctx)` still follows caller-owned cancellation.
 - Startup failure remains synchronous and shutdown remains bounded.
 
-### Work Package 5: Optional Module Separation
+### Work Package 5: Optional Package Boundaries (Historical)
 
 Goal: make module boundaries match component boundaries.
 
-- Create nested modules for provider SDKs, non-standard middleware engines,
-  gRPC, and the generator.
+- Keep provider SDK, non-standard middleware, gRPC, and generator boundaries at
+  the package level inside the single published module.
 - Add a repository `go.work` for development and CI orchestration.
-- Remove database drivers, Proto parser, Consul, Zap, gRPC, and OpenTelemetry
-  requirements from the main runtime `go.mod`.
-- Give every nested module independent tidy, test, vet, and release checks.
-- Reject relative `replace` directives from publishable module manifests.
+- Keep one version and one root tag for published packages; dependency closure
+  remains enforced by package-level tests.
+- Run tidy, test, vet, and release checks for the root module and repository-only
+  modules.
 
 Acceptance:
 
@@ -410,7 +354,7 @@ go test ./...
 Run equivalent commands in every workspace module. All module manifests must
 remain unchanged after tidy.
 
-### Work Package 6: Microgen Migration
+### Work Package 6: Microgen Completion
 
 Goal: generate only the new package topology and keep build-time dependencies
 outside the runtime module.
@@ -423,7 +367,7 @@ outside the runtime module.
   changes.
 - Regenerate all reviewed contracts in temporary directories and explicitly
   review snapshot changes.
-- Build generated HTTP-only projects without access to optional modules.
+- Build generated HTTP-only projects without importing optional provider packages.
 
 Acceptance:
 
@@ -442,8 +386,8 @@ Goal: expose one coherent learning path matching the final package graph.
 - Update package READMEs after their final imports and ownership stabilize.
 - Rewrite `ARCHITECTURE.md` to describe the resulting dependency rules rather
   than the previous graph.
-- Record every removed or renamed API in `MIGRATION.md` with before/after import
-  examples.
+- Record every removed or renamed API in `CHANGELOG.md` with the final import
+  path and current usage examples.
 - Update `README*`, `PRODUCTION.md`, `MICROGEN.md`, and generated README
   templates together.
 
@@ -460,12 +404,11 @@ Goal: prove the refactor is complete before selecting the publication path.
 - Run the full test, race, vet, contract, API, generation, encoding, link, and
   module-tidy suites from a clean worktree.
 - Capture dependency lists for the minimal endpoint, HTTP transport, SD, kit,
-  interaction, security, and optional-module entry points.
-- Compare minimal HTTP build time, binary size, module graph, and dependency
-  count against `v2.0.0`.
+  interaction, security, and optional-package entry points.
+- Record minimal HTTP build dependency closure, binary size, and module graph
+  as a diagnostic baseline for later releases.
 - Review the final exported API snapshot as a deliberate contract reset.
-- Decide whether to publish the incompatible result as an explicitly documented
-  v2 SemVer exception or change the module path and release it as v3.
+- Publish the reviewed result under the release manifest's root v2 tag.
 
 Required final commands:
 
@@ -493,7 +436,7 @@ These rules are enforced by tests or repository tooling, not only by review:
 | `interaction/mcp` | interaction only |
 | `security/http` | none |
 | `observability/slog` | core endpoint and protocol-neutral transport contracts only |
-| optional modules | only their declared provider SDK and core contracts |
+| optional provider packages | only their declared provider SDK and core contracts |
 
 ### Completion Definition / 完成定义
 
@@ -507,7 +450,7 @@ Milestone 6 is complete only when all of the following are true:
 - All generated project modes use the new topology.
 - The complete verification suite passes on Linux and Windows and leaves the
   worktree clean.
-- Architecture, migration, release, usage, and generator documentation agree.
+- Architecture, release, usage, and generator documentation agree.
 - The publication path and compatibility impact are explicitly approved and
   recorded before tagging.
 

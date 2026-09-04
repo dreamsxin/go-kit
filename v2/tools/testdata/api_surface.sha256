@@ -1,8 +1,8 @@
 go-kit-v2 public API
 8a5cc8f3c8a518da216a3c98dc3111307f07424731b7715106a9d6139bce57a7  github.com/dreamsxin/go-kit/v2/apperror
 f8be23140695e4183b223ca2e56a11ad7d8c3cbb95a65c2b14e6b02e2ebc4f84  github.com/dreamsxin/go-kit/v2/endpoint
-a27375fd273b4eb77e05bd124a1fcf0d95dd2844946480366a09cd2bf1c99c62  github.com/dreamsxin/go-kit/v2/integrations/consul
-46d920d07b7a79a5482ed9092c4fd4909377f16e9a48a1c7074c26c5dc8b15e1  github.com/dreamsxin/go-kit/v2/integrations/etcd
+2fc8994e9a39c30912f9f7ed3421f02577c4b105915d49139ad87b4e12dcf6fd  github.com/dreamsxin/go-kit/v2/integrations/consul
+d342ae27ad4799cc764e26b564fd24c1dcd42e2a032fbd69c4571f0ccffde2b3  github.com/dreamsxin/go-kit/v2/integrations/etcd
 370a4d6892b0931a29a56804c03fdd21890c12d4edbe173bd9960b27b4b7602d  github.com/dreamsxin/go-kit/v2/integrations/grpc
 bd1a3afbe838d5fcc673818d0089b5f44aa053b6131249737b9d71df4f4384ae  github.com/dreamsxin/go-kit/v2/integrations/grpc/client
 7a25af0990c6b394cfca7509be1de3c329eebde9fd9d8aec9f10c261b8c32539  github.com/dreamsxin/go-kit/v2/integrations/grpc/server

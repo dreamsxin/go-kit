@@ -103,7 +103,7 @@ Events 服务端）与传输特有错误。
 而不是独立的一层，因此加上它不需要改动下游任何一层。取消会同时中断调用与
 重试退避。`Instancer.Close` 与构造函数返回的关闭器负责订阅 goroutine 和工厂
 创建连接的生命周期。协议级重试分类属于协议适配器，而非通用发现层。Consul 与
-etcd 支持位于独立的 integration 模块。
+etcd 支持位于同一发布 module 中的可选 provider package。
 
 ### `interaction`
 
@@ -126,7 +126,7 @@ Provider 实现必须复制调用方可变数据，并且不得在持有内部�
 
 `observability/slog` 把 endpoint 结果与传输错误适配到标准库 `log/slog`
 API。`integrations/zap` 拥有等价的 Zap 专用适配器，使核心包保持供应商
-中立。`observability/otel` 是独立模块，把 endpoint 调用适配到应用自有的
+中立。`observability/otel` 把 endpoint 调用适配到应用自有的
 OpenTelemetry tracer 与 meter。这些适配器不记录请求/响应载荷；操作名和
 应用属性必须保持有界。
 
@@ -225,12 +225,12 @@ L1 传输适配层（依赖 L0）
    transport/http/server · transport/http/client · security/http
 
 L2 组装层（依赖 L0+L1）
-   kit · kit/grpc（独立 module）
+   kit · kit/grpc
 
 L3 可选组合（独立包，不引入新依赖）
    observability/slog · sd/client
 
-L4 独立 module 扩展层（第三方依赖，独立版本演进）
+L4 可选 provider（第三方依赖；仅在导入对应 package 时进入构建闭包）
    observability/otel · integrations/zap · integrations/grpc ·
    integrations/consul
 
@@ -253,5 +253,6 @@ L5 构建期工具（不进运行时依赖图）
 
 ## 稳定性
 
-`v2.6.0` 是当前已发布契约。它是经批准的架构进化版本：装配层（`kit.Service`
-拆分为 `kit.Host` + `kit.HTTP`）、错误模型（移除 `server.HTTPError`）与生成的自定义路由钩子发生了经明确批准的不兼容变更；例外已记录在发布策略中。之后的补丁版本修复行为，次版本新增能力。进一步的不兼容变更需要新的主 module 版本，除非另行批准。
+`v2.8.0` 是当前发布候选契约。它建立了发布清单和 API 快照记录的 package
+图、生命周期所有权、传输错误模型和生成项目布局。在 v2 兼容性冻结之前，minor
+版本允许改变行为或移除 API；冻结之后，不兼容变更需要新的主 module 版本。

@@ -1,6 +1,6 @@
 # etcd 集成
 
-`integrations/etcd` 是独立的 provider 模块。它在服务前缀下为每个实例写入
+`integrations/etcd` 是发布版 v2 module 中的可选 provider package。它在服务前缀下为每个实例写入
 带租约的注册键，并向 v2 `sd.Instancer` 契约发布不可变快照，不依赖核心模块。
 
 ```go

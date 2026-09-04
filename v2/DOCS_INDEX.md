@@ -14,7 +14,7 @@ generation, architecture, production, and upgrades.
 | generated project | [microgen tutorial](docs/tutorial-microgen.md) |
 | hand-built service | [root README](README.md#build-with-kit) |
 | production deployment | [Production guide](PRODUCTION.md) |
-| upgrade | [Migration notes](MIGRATION.md) |
+| upgrade | [Changelog](CHANGELOG.md) |
 
 ## Task Index
 
@@ -61,6 +61,6 @@ generation, architecture, production, and upgrades.
 - Runtime behavior: root README, package READMEs, and `docs/` chapters.
 - Generated-project behavior: `cmd/microgen/templates/readme.tmpl`.
 - Design and scope: `ARCHITECTURE.md` and `PRODUCTION.md`.
-- History and upgrades: `CHANGELOG.md` and `MIGRATION.md`.
+- History: `CHANGELOG.md`.
 - English and Chinese files are maintained as pairs. Update both when behavior or
   public API changes.

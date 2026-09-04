@@ -814,6 +814,8 @@ func TestGenerateFull_GoMod_WithModelRequiresGORM(t *testing.T) {
 	mustContain(t, filepath.Join(outDir, "go.mod"), "gorm.io/gorm v1.31.1")
 }
 
+// gRPC ships in the same module as the rest of the framework, so enabling it
+// adds no requirement of its own.
 func TestGenerateFull_GoMod_WithGRPCRequiresGRPCIntegration(t *testing.T) {
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
@@ -828,7 +830,7 @@ func TestGenerateFull_GoMod_WithGRPCRequiresGRPCIntegration(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
-	mustContain(t, filepath.Join(outDir, "go.mod"), "github.com/dreamsxin/go-kit/v2/integrations/grpc v0.5.0")
+	mustNotContain(t, filepath.Join(outDir, "go.mod"), "github.com/dreamsxin/go-kit/v2/integrations/grpc")
 }
 
 func TestGenerateFull_GoMod_WithConfigUsesYAMLWithoutRemoteProviderBundle(t *testing.T) {

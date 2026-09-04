@@ -1,8 +1,9 @@
 # Consul Integration
 English | [简体中文](README_zh.md)
 
-`integrations/consul` is an independent provider module. It depends on the
-Consul SDK and the Go standard library, but not on the go-kit runtime module.
+`integrations/consul` is an optional provider package in the
+`github.com/dreamsxin/go-kit/v2` module. It depends on the Consul SDK, while
+generic discovery packages remain provider-neutral.
 
 ```go
 package main

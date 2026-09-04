@@ -392,18 +392,17 @@ ep = zapadapter.LoggingMiddleware(logger, "CreateUser")(ep)
 
 ## 稳定性说明
 
-已发布的 `v2.0.0` endpoint API 仍是历史性的稳定基线。获得批准的 `v2.1.0`
-SemVer 例外将本包契约重置为 `tools/testdata/api_surface.sha256` 中评审过的
-API。在 `v2.1.0` 之后，兼容性将重新覆盖：
+v2.8.0 候选版本建立了 `tools/testdata/api_surface.sha256` 中记录的 endpoint
+契约。在 v2 兼容性冻结之前，minor 版本允许改变行为或移除 API；冻结之后，
+兼容性覆盖：
 
 - `Endpoint`
 - `Middleware`
 - builder 风格的组合
 - 框架的核心中间件模型
 
-熔断与限流原先位于独立的 `integrations/circuitbreaker` 和
-`integrations/ratelimit` 模块。两者已于 v2.4.0 并入本包，对应模块已删除，
-因此不需要额外选用模块：`NewCircuitBreaker` 与 `RateLimitMiddleware` 就在这里。
+熔断与限流是无第三方依赖的 endpoint 中间件：`NewCircuitBreaker` 与
+`RateLimitMiddleware` 就在这里。
 
 ## 最佳实践
 

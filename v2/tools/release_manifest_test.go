@@ -31,11 +31,13 @@ func TestReleaseManifestMatchesRepository(t *testing.T) {
 	root := moduleRoot(t)
 	manifest := readReleaseManifest(t, root)
 
-	if manifest.SchemaVersion != 1 {
-		t.Fatalf("schemaVersion = %d, want 1", manifest.SchemaVersion)
+	// Schema 2 describes one module. Schema 1 carried a module list, a release
+	// order, and a per-module core requirement.
+	if manifest.SchemaVersion != 2 {
+		t.Fatalf("schemaVersion = %d, want 2", manifest.SchemaVersion)
 	}
 	switch manifest.Phase {
-	case "core-candidate", "nested-candidate":
+	case "candidate":
 		if manifest.ReleaseDate != "" {
 			t.Fatalf("releaseDate = %q in phase %q, want empty", manifest.ReleaseDate, manifest.Phase)
 		}
@@ -46,116 +48,36 @@ func TestReleaseManifestMatchesRepository(t *testing.T) {
 	default:
 		t.Fatalf("unsupported release phase %q", manifest.Phase)
 	}
-	assertReleaseVersion(t, "previousCoreVersion", manifest.PreviousCoreVersion)
 	assertReleaseVersion(t, "coreVersion", manifest.CoreVersion)
 	if releaseMajor(manifest.CoreVersion) != "v2" {
 		t.Fatalf("coreVersion = %q, want v2 release", manifest.CoreVersion)
 	}
-	if manifest.PreviousCoreVersion == manifest.CoreVersion {
-		t.Fatal("previousCoreVersion and coreVersion must differ")
+	// The module lives in the v2 major-version subdirectory, so its tag is the
+	// plain version rather than a directory-prefixed one.
+	if manifest.Tag != manifest.CoreVersion {
+		t.Fatalf("tag = %q, want %q", manifest.Tag, manifest.CoreVersion)
 	}
 
-	modulesByDir := make(map[string]releaseconfig.Module, len(manifest.Modules))
-	modulesByPath := make(map[string]releaseconfig.Module, len(manifest.Modules))
-	tags := make(map[string]struct{}, len(manifest.Modules))
-	for _, module := range manifest.Modules {
-		if module.Directory == "" || module.ModulePath == "" || module.Tag == "" {
-			t.Fatalf("release module has empty identity field: %+v", module)
-		}
-		assertReleaseVersion(t, module.ModulePath, module.Version)
-		if module.ReleaseOrder < 1 {
-			t.Errorf("%s releaseOrder = %d, want positive value", module.ModulePath, module.ReleaseOrder)
-		}
-		if _, exists := modulesByDir[module.Directory]; exists {
-			t.Errorf("duplicate release directory %q", module.Directory)
-		}
-		if _, exists := modulesByPath[module.ModulePath]; exists {
-			t.Errorf("duplicate release module path %q", module.ModulePath)
-		}
-		if _, exists := tags[module.Tag]; exists {
-			t.Errorf("duplicate release tag %q", module.Tag)
-		}
-		modulesByDir[module.Directory] = module
-		modulesByPath[module.ModulePath] = module
-		tags[module.Tag] = struct{}{}
-
-		wantTag := module.Version
-		if module.Directory != "." {
-			wantTag = filepath.ToSlash(filepath.Join("v2", module.Directory, module.Version))
-			if releaseMajor(module.Version) != "v0" {
-				t.Errorf("nested module %s version = %q, want initial v0 release", module.ModulePath, module.Version)
-			}
-		}
-		if module.Tag != wantTag {
-			t.Errorf("%s tag = %q, want %q", module.ModulePath, module.Tag, wantTag)
-		}
-
-		moduleRoot := root
-		if module.Directory != "." {
-			moduleRoot = filepath.Join(root, filepath.FromSlash(module.Directory))
-		}
-		edit := readModuleEdit(t, moduleRoot)
-		if edit.Module.Path != module.ModulePath {
-			t.Errorf("%s go.mod module = %q, want %q", module.Directory, edit.Module.Path, module.ModulePath)
-		}
-		if module.Directory == "." {
-			if module.Version != manifest.CoreVersion {
-				t.Errorf("root module version = %q, want coreVersion %q", module.Version, manifest.CoreVersion)
-			}
-			if module.ReleaseOrder != 1 {
-				t.Errorf("root releaseOrder = %d, want 1", module.ReleaseOrder)
-			}
-		}
-		if module.DependsOnCore {
-			wantCore := manifest.CoreVersion
-			if manifest.Phase == "core-candidate" {
-				wantCore = manifest.PreviousCoreVersion
-			}
-			if got := requiredVersion(edit, "github.com/dreamsxin/go-kit/v2"); got != wantCore {
-				t.Errorf("%s requires core %q, want %q in phase %s", module.ModulePath, got, wantCore, manifest.Phase)
-			}
-			if module.ReleaseOrder <= 1 {
-				t.Errorf("core-dependent module %s must release after core", module.ModulePath)
-			}
-		}
-	}
-
-	wantDirectories := discoverPublishableModuleDirectories(t, root)
-	gotDirectories := make([]string, 0, len(modulesByDir))
-	for directory := range modulesByDir {
-		gotDirectories = append(gotDirectories, directory)
-	}
-	sort.Strings(gotDirectories)
-	if strings.Join(gotDirectories, "\n") != strings.Join(wantDirectories, "\n") {
-		t.Fatalf("release manifest module directories differ\n--- want\n%s\n--- got\n%s", strings.Join(wantDirectories, "\n"), strings.Join(gotDirectories, "\n"))
+	edit := readModuleEdit(t, root)
+	if want := "github.com/dreamsxin/go-kit/v2"; edit.Module.Path != want {
+		t.Fatalf("root go.mod module = %q, want %q", edit.Module.Path, want)
 	}
 
 	assertVersionText(t, filepath.Join(root, "Makefile"), "VERSION     ?= "+manifest.CoreVersion)
-	assertVersionText(t, filepath.Join(root, "cmd", "microgen", "internal", "generator", "options.go"), `const defaultGoKitVersion = "`+manifest.CoreVersion+`"`)
+	assertVersionText(t, filepath.Join(root, "cmd", "microgen", "internal", "generator", "options.go"),
+		`const defaultGoKitVersion = "`+manifest.CoreVersion+`"`)
 	examples := readModuleEdit(t, filepath.Join(root, "examples"))
-	wantExamplesCore := manifest.CoreVersion
-	if manifest.Phase == "core-candidate" {
-		wantExamplesCore = manifest.PreviousCoreVersion
-	}
-	if got := requiredVersion(examples, "github.com/dreamsxin/go-kit/v2"); got != wantExamplesCore {
-		t.Errorf("examples require core %q, want %q in phase %s", got, wantExamplesCore, manifest.Phase)
-	}
-	grpcModule, ok := modulesByPath["github.com/dreamsxin/go-kit/v2/integrations/grpc"]
-	if !ok {
-		t.Fatal("release manifest is missing integrations/grpc")
-	}
-	assertVersionText(t, filepath.Join(root, "cmd", "microgen", "templates", "go_mod.tmpl"), "github.com/dreamsxin/go-kit/v2/integrations/grpc "+grpcModule.Version)
-	microgenModule, ok := modulesByPath["github.com/dreamsxin/go-kit/v2/cmd/microgen"]
-	if !ok {
-		t.Fatal("release manifest is missing cmd/microgen")
+	if got := requiredVersion(examples, "github.com/dreamsxin/go-kit/v2"); got != manifest.CoreVersion {
+		t.Errorf("examples require core %q, want %q", got, manifest.CoreVersion)
 	}
 	for _, readme := range []string{"README.md", "README_zh.md"} {
 		path := filepath.Join(root, readme)
 		assertVersionText(t, path, manifest.CoreVersion)
 		// Documentation installs the generator with @latest so it never drifts
 		// between releases.
-		assertVersionText(t, path, microgenModule.ModulePath+"@latest")
+		assertVersionText(t, path, "github.com/dreamsxin/go-kit/v2/cmd/microgen@latest")
 	}
+
 	changelogVersion := strings.TrimPrefix(manifest.CoreVersion, "v")
 	changelogStatus := "Release Candidate"
 	if manifest.Phase == "released" {
@@ -163,12 +85,68 @@ func TestReleaseManifestMatchesRepository(t *testing.T) {
 	}
 	assertVersionText(t, filepath.Join(root, "CHANGELOG.md"), "## ["+changelogVersion+"] - "+changelogStatus)
 
-	fixtureOutput := commandOutput(t, root, "git", "ls-files", "--", "tools/testdata/*/go.mod")
-	for _, relative := range strings.Fields(string(fixtureOutput)) {
-		fixtureRoot := filepath.Dir(filepath.Join(root, filepath.FromSlash(relative)))
-		if got := requiredVersion(readModuleEdit(t, fixtureRoot), "github.com/dreamsxin/go-kit/v2"); got != manifest.CoreVersion {
-			t.Errorf("%s requires core %q, want %q", relative, got, manifest.CoreVersion)
+}
+
+// TestOnlyOneModuleIsPublishable keeps the single-module layout from eroding.
+//
+// A new go.mod anywhere under v2 that is not one of the repository-only modules
+// would silently reintroduce multi-module releases: a second thing to version,
+// tag, and keep in step with the core.
+func TestOnlyOneModuleIsPublishable(t *testing.T) {
+	root := moduleRoot(t)
+	allowed := map[string]struct{}{
+		"go.mod":                     {},
+		"examples/go.mod":            {},
+		"tools/go.mod":               {},
+		"tools/contractcheck/go.mod": {},
+	}
+
+	var unexpected []string
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		relative = filepath.ToSlash(relative)
+		if entry.IsDir() {
+			// Generator fixtures are standalone projects, not part of the release.
+			if relative == ".git" || relative == "tools/testdata" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if entry.Name() != "go.mod" {
+			return nil
+		}
+		if _, ok := allowed[relative]; !ok {
+			unexpected = append(unexpected, relative)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk module definitions: %v", err)
+	}
+	if len(unexpected) > 0 {
+		sort.Strings(unexpected)
+		t.Fatalf("module definitions outside the single published module:\n%s", strings.Join(unexpected, "\n"))
+	}
+}
+
+func TestHistoricalV2TagsAreGone(t *testing.T) {
+	root := moduleRoot(t)
+	manifest := readReleaseManifest(t, root)
+	output := commandOutput(t, root, "git", "tag", "--list", "v2.*", "v2/*")
+	var historical []string
+	for _, tag := range strings.Fields(string(output)) {
+		if tag != manifest.Tag {
+			historical = append(historical, tag)
+		}
+	}
+	if len(historical) > 0 {
+		t.Fatalf("historical v2 tags must be absent:\n%s", strings.Join(historical, "\n"))
 	}
 }
 
@@ -223,43 +201,4 @@ func assertVersionText(t *testing.T, path, want string) {
 	if !strings.Contains(string(data), want) {
 		t.Errorf("%s does not contain release value %q", path, want)
 	}
-}
-
-func discoverPublishableModuleDirectories(t *testing.T, root string) []string {
-	t.Helper()
-	var directories []string
-	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if !entry.IsDir() {
-			return nil
-		}
-		relative, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		if relative == "examples" || relative == "tools" {
-			return filepath.SkipDir
-		}
-		if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
-			directory := filepath.ToSlash(relative)
-			if directory == "" {
-				directory = "."
-			}
-			directories = append(directories, directory)
-		}
-		if relative == ".git" {
-			return filepath.SkipDir
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("discover publishable modules: %v", err)
-	}
-	if len(directories) == 0 {
-		t.Fatal("no publishable modules discovered")
-	}
-	sort.Strings(directories)
-	return directories
 }

@@ -1,8 +1,9 @@
 # etcd Integration
 
-`integrations/etcd` is an independent provider module. It stores one leased
-registration per instance below a service prefix and publishes immutable
-snapshots to the v2 `sd.Instancer` contract without importing the core module.
+`integrations/etcd` is an optional discovery provider package in the published
+v2 module. It stores one leased registration per
+instance below a service prefix and publishes immutable snapshots through the
+`sd.Instancer` contract; `contract.go` asserts that at compile time.
 
 ```go
 client := etcd.NewClient(rawClient)

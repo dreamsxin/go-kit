@@ -3,69 +3,40 @@ English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
-v2.8.0 is the release being published from `main` for the independent module:
+v2.8.0 is the release being published from `main` for the module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.8.0` is the approved exposure and resilience release: what a caller may read
-is decided by one rule in one place, and a dependency is judged by how often and
-how slowly it answers rather than by how many failures happened to arrive in a
-row. It carries approved breaking changes: a 500 response never carries the error
-text, `endpoint.Failer` is honoured, the `NewStrict*` JSON constructors are
-renamed `*WithBodyLimit`, `selector.ScoreFunc` receives the request, a closed
-selector or balancer returns `sd.ErrClosed`, and the circuit breaker no longer
-counts caller cancellation as a dependency failure. Nested modules publish
-`v0.5.0` tags, except `integrations/etcd`, whose first release was `v0.1.0` and
-which publishes `v0.2.0`; the core-dependent ones require `v2.8.0` from the
-nested-candidate commit onward. The historical record of earlier releases,
-including the documented SemVer exceptions, lives in
+`v2.8.0` is the release that establishes one published module.
+Runtime, generator, providers, and adapters ship together: one `require`, one
+tag, and no version skew between the framework and the things that plug into it.
+Behaviour changes in this release are recorded in
 [CHANGELOG.md](../../CHANGELOG.md).
 
 The published module is stored in the repository's `v2` major-version
-subdirectory, but consumers request normal module versions such as `v2.4.0`.
-Its tag is the root tag `v2.4.0`, not `v2/v2.4.0`. A future `/v3` module would
-likewise use a root `v3.0.0` tag.
-
-The `v2.4.0` release published the root `v2.4.0` tag and `v0.2.2` tags for all
-eight independently versioned nested modules. The `v0.2.2` releases carry the
-core requirement update to `v2.4.0`: the tags are created from the
-nested-candidate commit in which every core-dependent module already requires
-`v2.4.0`. The published `v0.2.1` optional modules remain version-bump releases
-with their `v2.2.0` requirement, which stays compatible.
+subdirectory, but consumers request normal module versions such as `v2.8.0`.
+Its tag is the root tag `v2.8.0`. Historical v2 module tags, both root and
+nested, have been removed; future releases use only the root tag.
 
 ## Versioning
 
-v2 follows semantic versioning except for explicitly approved and documented
-exceptions:
+v2 is pre-freeze. Until the freeze is declared, a minor release may change
+behaviour or remove API; every such change is recorded in `CHANGELOG.md` under
+the release that made it.
 
-- patch: compatible fixes and documentation corrections;
-- minor: backward-compatible public capabilities;
-- major: incompatible runtime API, module, CLI, configuration, or generated
-  ownership changes.
+- patch: fixes and documentation corrections;
+- minor: new capabilities, and behaviour or API changes while pre-freeze;
+- major: reserved for after the freeze.
 
-The approved exceptions are limited to:
+There is no per-release upgrade guide. Behaviour and API changes are recorded in
+the changelog for the release that introduces them; consumers should pin the
+version they have validated.
 
-- the direct refactor delivered in `v2.1.0`;
-- the `v2.2.0` `Metrics.Snapshot() -> MetricsSnapshot` return-type correction;
-- the `v2.6.0` architecture evolution (assembly split into `kit.Host` +
-  `kit.HTTP`, `server.HTTPError` removal, `log` facade removal, SSE moved to
-  the transport layer, stdlib-only generated custom-routes hook);
-- the `v2.7.0` error-contract unification (local admission-control rejections
-  answer 503, the `RateLimiterFunc` to `RateLimiterFuncs` rename, and relayed
-  client errors keeping the upstream status and code);
-- the `v2.8.0` exposure and resilience corrections (500 responses no longer carry
-  the error text, `endpoint.Failer` is honoured, the `NewStrict*` JSON
-  constructors are renamed `*WithBodyLimit`, `selector.ScoreFunc` receives the
-  request, a closed selector or balancer returns `sd.ErrClosed`, and the circuit
-  breaker stops counting caller cancellation as a dependency failure).
+Once the freeze is declared, incompatible changes require a new major module path.
 
-Neither exception authorizes unrelated breaking changes. Any further
-incompatibility requires a new major module path unless separately approved and
-documented before implementation.
-
-The compatibility contract includes:
+The compatibility contract at that point covers:
 
 - exported runtime APIs;
 - module and package paths;
@@ -77,9 +48,9 @@ The compatibility contract includes:
 Templates and packages under `cmd/microgen` are internal implementation details,
 but their generated public behavior is a product surface.
 
-## v2.0.0 Entry Criteria (Complete)
+## Release Entry Criteria
 
-The v2.0.0 release commit satisfies these criteria:
+The v2.8.0 candidate satisfies these criteria:
 
 - `kit`, endpoint, HTTP/gRPC transport, service discovery, and interaction
   lifecycles have explicit error and cancellation contracts.
@@ -88,14 +59,14 @@ The v2.0.0 release commit satisfies these criteria:
 - Go IDL, Protobuf, database, config, extend, and interaction generation paths
   have deterministic integration tests.
 - Generated configuration validates before runtime wiring.
-- Optional `slog` and OpenTelemetry adapters pass their focused package tests
-  without adding a direct adapter dependency to the main module.
+- Optional `slog` and OpenTelemetry adapters pass their focused package tests;
+  core package dependency gates still keep them out of HTTP-only builds.
 - Optional HTTP security middleware validates policy at construction and has
   focused trusted-proxy, IP, CORS, CSRF, header, and streaming-boundary tests.
 - Database introspection is read-only and startup migration is opt-in.
 - HTTP/MCP limits, protocol checks, streaming timeouts, and concurrency behavior
   are covered by tests.
-- README quick starts and migration examples compile against the release API.
+- README quick starts and release examples compile against the release API.
 - `go test ./...` and the targeted race suite pass on a clean checkout.
 - `CHANGELOG.md` contains only v2 history and has no unresolved release blockers.
 
@@ -112,7 +83,7 @@ The release target includes the normal Go validation plus generated OpenAPI
 cross-SDK HTTP behavior checks, and deterministic contract snapshots for Go
 IDL, Protobuf, and database source modes. It also verifies the reviewed public
 API snapshot, documentation links and UTF-8, focused race tests, `go vet`, and
-tidy module files across the main and nested modules.
+tidy module files across the root module and repository-only modules.
 
 After the release candidate is committed, run:
 
@@ -128,7 +99,7 @@ The equivalent focused Go commands are:
 ```bash
 go test ./...
 go test -race ./endpoint ./kit ./interaction/... ./transport/... ./sd/...
-go -C ./cmd/microgen test -race ./internal/generator
+go test -race ./cmd/microgen/internal/generator
 go vet ./...
 ```
 
@@ -155,8 +126,9 @@ Also verify:
 - no temporary generated files remain;
 - the approved tag points at the verified commit containing the matching
   major-version module path;
-- after pushing tags, the manifest-driven published checks resolve every module
-  through `proxy.golang.org` without a local `replace`.
+- after pushing the root tag, the published check resolves
+  `github.com/dreamsxin/go-kit/v2` through `proxy.golang.org` without a local
+  `replace`, and no historical v2 tag remains.
 
 Intentional exported API changes must be reviewed before refreshing the API
 snapshot:
@@ -166,81 +138,41 @@ go -C ./tools test . -run TestPublicAPISurfaceSnapshot -count=1 \
   -args -update-api-snapshot
 ```
 
-## v2.4.2 Multi-Module Release
+## Release Procedure
 
-`RELEASE_MANIFEST.json` is the source of truth. The root and nested modules do
-not share one module version or one tag:
+`RELEASE_MANIFEST.json` is the source of truth. v2 ships as one module, so a
+release is one version and one tag:
 
-- root runtime: `github.com/dreamsxin/go-kit/v2@v2.4.2`;
-- microgen and optional nested modules: independent `v0.2.4` releases
-  (`microgen` for the dead `-add-tables` flag fix, published in `v0.2.1`; the optional modules for
-  the core requirement update to `v2.4.2`);
-- examples and repository tools: not published as product modules.
+- runtime, generator, providers, and adapters: `github.com/dreamsxin/go-kit/v2`;
+- `examples`, `tools`, and `tools/contractcheck`: workspace-only, never tagged.
 
-The release is deliberately phased because a nested module cannot require the
-new core version until the root tag is available through Go module resolution.
+There is one release phase. `TestOnlyOneModuleIsPublishable` and the historical
+tag check fail if another published module or old v2 tag is introduced.
 
-### Phase 1: Core Candidate
-
-The manifest phase is `core-candidate`. All candidate tags must be absent.
-Core-dependent nested modules temporarily retain the last published core
-requirement while workspace tests exercise them against the local changes.
+### Cut the release
 
 1. Require successful Linux and Windows `v2 verify` jobs for the candidate.
-2. Run `make release-check-clean` from the candidate commit.
-3. Create and push only the root tag:
+2. Run `make release-check-clean` from the candidate commit. The manifest phase
+   is `candidate`, and the check requires the tag to be absent.
+3. Create and push the tag:
 
 ```bash
-git tag -a v2.4.2 -m "go-kit v2.4.2"
-git push origin v2.4.2
-make verify-published-core
-```
-
-### Phase 2: Nested Candidates
-
-After the root module resolves publicly:
-
-1. Change the manifest phase to `nested-candidate`.
-2. Change every `dependsOnCore` module requirement from `v2.4.1` to `v2.4.2`.
-3. Run `go mod tidy` and `GOWORK=off go test ./...` in every nested module.
-4. Commit and rerun the full Linux/Windows release workflow.
-5. Run `make release-check-clean`; it now requires the root tag and rejects
-   any nested tag that already exists.
-6. Create the manifest tags from that verified commit. `RELEASE_MANIFEST.json`
-   is the authoritative module list; the commands below are an illustration of
-   the shape, not a list to copy blindly.
-
-```bash
-git tag -a v2/cmd/microgen/v0.2.4 -m "microgen v0.2.1"
-git tag -a v2/integrations/consul/v0.2.4 -m "consul integration v0.2.1"
-git tag -a v2/integrations/etcd/v0.2.4 -m "etcd integration v0.2.1"
-git tag -a v2/integrations/grpc/v0.2.4 -m "gRPC integration v0.2.1"
-git tag -a v2/integrations/zap/v0.2.4 -m "Zap integration v0.2.1"
-git tag -a v2/kit/grpc/v0.2.4 -m "kit gRPC component v0.2.1"
-git tag -a v2/observability/otel/v0.2.4 -m "OpenTelemetry integration v0.2.1"
-git push origin \
-  v2/cmd/microgen/v0.2.4 \
-  v2/integrations/consul/v0.2.4 \
-  v2/integrations/etcd/v0.2.4 \
-  v2/integrations/grpc/v0.2.4 \
-  v2/integrations/zap/v0.2.4 \
-  v2/kit/grpc/v0.2.4 \
-  v2/observability/otel/v0.2.4
+git tag -a v2.8.0 -m "go-kit v2.8.0"
+git push origin v2.8.0
 make verify-published
 ```
 
-If the public proxy has not propagated a new tag yet, wait and rerun the
-published check. Do not bypass it with `GOPROXY=direct` or a local `replace`.
+If the public proxy has not propagated the tag yet, wait and rerun the published
+check. Do not bypass it with `GOPROXY=direct` or a local `replace`.
 
-### Phase 3: Release Record
+### Record the release
 
-After every module resolves publicly, change the manifest phase to `released`,
-replace the changelog candidate marker with the release date, and commit the
-final release record. In this phase `make release-check-clean` requires every
-manifest tag to exist.
+Change the manifest phase to `released`, set `releaseDate`, replace the changelog
+candidate marker with that date, and commit. In this phase
+`make release-check-clean` requires the tag to exist.
 
 ## Release Notes
 
-Release notes should describe user-visible behavior, migration actions, and known
-limitations. Internal refactor details belong in commits or pull requests unless
-they explain an observable change.
+Release notes should describe user-visible behavior and known limitations.
+Internal refactor details belong in commits or pull requests unless they explain
+an observable change.

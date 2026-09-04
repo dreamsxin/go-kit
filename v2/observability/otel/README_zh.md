@@ -2,7 +2,8 @@
 
 [English](README.md) | 简体中文
 
-`observability/otel` 是一个用于 endpoint 链路追踪与指标的可选模块。它有意位于主模块 `github.com/dreamsxin/go-kit/v2` 之外，因此不使用 OpenTelemetry 的服务不会引入它的依赖。
+`observability/otel` 是 `github.com/dreamsxin/go-kit/v2` 模块中的可选 package。
+不导入它的服务不会在自己的 package 依赖闭包中解析 OpenTelemetry 依赖。
 
 由应用负责 tracer/meter provider 的设置、导出器、采样和关闭。适配器只根据传入的 provider 创建 span 与 instruments：
 

@@ -2,12 +2,12 @@
 
 [English](README.md) | 简体中文
 
-`integrations/grpc` 把 endpoint 适配到 gRPC。它是独立模块，因此纯 HTTP 服务不会引入 gRPC 依赖。
+`integrations/grpc` 把 endpoint 适配到 gRPC。它随框架模块一起发布；纯 HTTP 服务不会链接其中任何内容，这一点由 `TestKitHTTPAssemblyDoesNotResolveOptionalDependencies` 保证。
 
 ## 安装
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2/integrations/grpc@latest
+go get github.com/dreamsxin/go-kit/v2@latest
 ```
 
 ## 服务端

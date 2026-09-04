@@ -30,7 +30,7 @@
 - `transport/http/server`
 - `transport/http/client`
 
-gRPC 是一个可选模块，包含两个公开区域：
+gRPC 是一个可选 provider package，包含两个公开区域：
 
 - `integrations/grpc/server`
 - `integrations/grpc/client`
@@ -469,10 +469,9 @@ resp, err := ep(ctx, HelloReq{Name: "world"})
 
 ## 稳定性说明
 
-已发布的 `v2.0.0` transport API 仍是历史性的稳定基线。获得批准的 `v2.1.0`
-SemVer 例外将该契约重置为评审过的 API 快照。在 `v2.1.0` 之后，兼容性覆盖
-文档化的行为，而不覆盖内部执行细节，例如确切的 writer 拦截或内部请求
-生命周期结构。
+v2.8.0 候选版本建立了经过评审的 transport API 快照。在 v2 兼容性冻结之前，
+minor 版本允许改变行为或移除 API；冻结之后，兼容性覆盖文档化行为，而不覆盖
+内部执行细节，例如确切的 writer 拦截或请求生命周期结构。
 
 ## 相关文档
 

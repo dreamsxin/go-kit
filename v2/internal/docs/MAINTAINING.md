@@ -17,8 +17,8 @@ legacy tags while implementing a v2 change.
 
 All maintained modules intentionally use the same minimum Go version declared
 in their `go.mod` files, currently Go 1.25.8. Changing that floor is a
-repository-wide compatibility decision: update every module, generated fixture,
-CI lane, README badge, and release check together.
+repository-wide compatibility decision: update every module, CI lane, README
+badge, generated-project check, and release gate together.
 
 ## Scope Rules
 
@@ -103,7 +103,6 @@ The maintained top-level set is intentionally small:
 - `PRODUCTION.md`: deployment guidance;
 - `ROADMAP.md`: authoritative implementation sequence and milestone acceptance;
 - `MAINTAINING.md`: contributor workflow;
-- `MIGRATION.md`: v1 to v2 changes;
 - `RELEASE.md` and `CHANGELOG.md`: release policy and history.
 
 Update the authoritative document instead of adding a second roadmap, project
@@ -128,10 +127,10 @@ relative and must resolve on a case-sensitive filesystem.
 - Invalid configuration returns an error where startup can handle it.
 - Names describe actual behavior; avoid names that promise retry, streaming, or
   safety that is not implemented.
-- Breaking changes are recorded in `CHANGELOG.md` and `MIGRATION.md` when needed.
-- Any SemVer exception requires explicit repository-owner approval and must be
-  limited to the exact API recorded in the changelog, migration guide, commit,
-  and release notes.
+- Behaviour changes are recorded in `CHANGELOG.md`.
+- Any pre-freeze compatibility exception requires explicit repository-owner
+  approval and must be limited to the exact API recorded in the changelog,
+  commit, and release notes.
 
 ### Generator
 
@@ -152,17 +151,17 @@ relative and must resolve on a case-sensitive filesystem.
 
 ## Release Preparation
 
-1. Review `RELEASE_MANIFEST.json` and confirm its phase, module paths, versions,
-   tags, and release order.
+1. Review `RELEASE_MANIFEST.json` and confirm its phase, module path, version,
+   and root tag.
 2. Review exported API and generated-output diffs.
-3. Update `CHANGELOG.md`, `MIGRATION.md`, `RELEASE.md`, and `ROADMAP.md`.
+3. Update `CHANGELOG.md`, `RELEASE.md`, and `ROADMAP.md`.
 4. Commit the final release candidate.
 5. Run `make verify-release` and `make verify-cross-platform` from that
    committed candidate, or require the equivalent Linux/Windows CI jobs.
 6. Run `make release-check-clean` from the same commit.
-7. Follow the phased core and nested-module tag sequence in `RELEASE.md`.
+7. Confirm that no historical v2 module tag exists.
 
-The root module uses a root `vX.Y.Z` tag. Nested modules use repository-relative
-directory-prefixed tags recorded in `RELEASE_MANIFEST.json`.
+The root module uses one root `vX.Y.Z` tag. Repository-only modules are never
+tagged.
 
 See [RELEASE.md](RELEASE.md) for the compatibility policy.

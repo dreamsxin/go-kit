@@ -19,7 +19,7 @@ need the complete API reference.
 | add logs, metrics, or tracing | [Observability](observability.md) | [Production guide](../PRODUCTION.md) |
 | expose tools to AI clients | [MCP tutorial](tutorial-mcp.md) | [Interaction README](../interaction/README.md) |
 | deploy and operate a service | [Production guide](../PRODUCTION.md) | [Lifecycle](lifecycle.md), [Troubleshooting](troubleshooting.md) |
-| upgrade an existing project | [Migration notes](../MIGRATION.md) | [Changelog](../CHANGELOG.md) |
+| upgrade an existing project | [Changelog](../CHANGELOG.md) | [Production guide](../PRODUCTION.md) |
 
 ## Tutorials
 
@@ -65,7 +65,7 @@ The detailed contracts live beside the implementation:
 ## Release And Maintenance
 
 - [Production guide](../PRODUCTION.md)
-- [Migration notes](../MIGRATION.md)
+- [Changelog](../CHANGELOG.md)
 - [Architecture and boundaries](../ARCHITECTURE.md)
 - [Documentation index](../DOCS_INDEX.md)
 - [Maintainer guide](../internal/docs/MAINTAINING.md)

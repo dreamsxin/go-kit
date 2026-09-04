@@ -131,7 +131,7 @@ shutdown rather than killing the process.
 
 ## 6. Run it
 
-Run from the `v2/` module directory -- `examples/` is a separate module joined
+Run from the `v2/` module directory -- `examples/` is a repository-only module joined
 to the repository workspace:
 
 ```bash

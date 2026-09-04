@@ -4,7 +4,7 @@
 
 一份 go-kit 框架的导览，从最简单到最完整。
 
-`examples/` 是一个加入仓库 workspace 的独立模块。请从 `v2/` 模块目录运行下面的每条命令；如果位于 `v2/examples/` 目录下，则去掉 `./examples/` 前缀后再运行。
+`examples/` 是加入仓库 workspace 的内部 module。请从 `v2/` 模块目录运行下面的每条命令；如果位于 `v2/examples/` 目录下，则去掉 `./examples/` 前缀后再运行。
 
 ## 学习路径
 

@@ -2,13 +2,14 @@
 
 English | [简体中文](README_zh.md)
 
-`integrations/grpc` adapts endpoints to gRPC. It is an independent module so
-HTTP-only services do not pull gRPC dependencies.
+`integrations/grpc` adapts endpoints to gRPC. It ships in the framework module; an
+HTTP-only service links none of it, which
+`TestKitHTTPAssemblyDoesNotResolveOptionalDependencies` keeps true.
 
 ## Install
 
 ```bash
-go get github.com/dreamsxin/go-kit/v2/integrations/grpc@latest
+go get github.com/dreamsxin/go-kit/v2@latest
 ```
 
 ## Server

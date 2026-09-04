@@ -19,4 +19,10 @@ func validateGeneratedContracts(t *testing.T, root string) {
 	)
 	cmd.Dir = filepath.Join(cwd, "contractcheck")
 	runCommand(t, cmd)
+
+	// Generated projects are ephemeral; compile their TypeScript SDK while the
+	// fixture is still available instead of relying on checked-in output.
+	typecheck := exec.Command("go", "run", "./typecheck", filepath.Join(root, "sdk", "typescript", "tsconfig.json"))
+	typecheck.Dir = cwd
+	runCommand(t, typecheck)
 }

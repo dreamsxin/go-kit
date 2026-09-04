@@ -16,13 +16,12 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		t.Fatalf("Getwd: %v", err)
 	}
 	root := filepath.Dir(cwd)
-	microgenPath := microgenMainPath(t)
 
 	t.Run("IDL", func(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_idl_integration")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", idlFile,
 			"-out", outDir,
 			"-import", "example.com/gen_idl_integration",
@@ -77,7 +76,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
 		run := func() {
-			cmd := exec.Command("go", "run", microgenPath,
+			cmd := microgenCommand(t,
 				"-idl", idlFile,
 				"-out", outDir,
 				"-import", "example.com/gen_idl_rerun",
@@ -161,7 +160,7 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_idl_custom_routes")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", idlFile,
 			"-out", outDir,
 			"-import", "example.com/gen_idl_custom_routes",

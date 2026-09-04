@@ -31,8 +31,6 @@ var removedDocumentationReferences = []string{
 	"kit.WithRateLimit(",
 	"kit.WithCircuitBreaker(",
 	"kit.WithLogging(",
-	"stable public v2 package from v2.0.0 onward",
-	"Transport packages are stable public v2 APIs from v2.0.0 onward",
 }
 
 func TestDocumentationDoesNotRecommendRemovedAPIs(t *testing.T) {
@@ -43,7 +41,6 @@ func TestDocumentationDoesNotRecommendRemovedAPIs(t *testing.T) {
 	root := filepath.Dir(cwd)
 	historical := map[string]struct{}{
 		"CHANGELOG.md": {},
-		"MIGRATION.md": {},
 		"ROADMAP.md":   {},
 	}
 

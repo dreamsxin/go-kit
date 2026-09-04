@@ -2,6 +2,7 @@ package main
 
 import (
 	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -21,10 +22,23 @@ func TestParseSuites(t *testing.T) {
 	}
 }
 
-func TestPublishableModulesExcludeRepositoryOnlyModules(t *testing.T) {
-	got := sortedModuleNames(publishableModules("root"))
-	want := []string{"consul", "core", "etcd", "grpc", "kit-grpc", "microgen", "otel", "zap"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("publishable modules = %v, want %v", got, want)
+// v2 ships as one module, so the standalone suite covers exactly one directory.
+// examples and tools exercise the release; they are never required by anyone.
+func TestPublishableModulesIsOnlyTheRootModule(t *testing.T) {
+	if got := sortedModuleNames(publishableModules("root")); !reflect.DeepEqual(got, []string{"core"}) {
+		t.Fatalf("publishable modules = %v, want [core]", got)
 	}
+	want := []string{"contractcheck", "core", "examples", "tools"}
+	if got := sortedModuleNames(maintainedModules("root")); !reflect.DeepEqual(got, want) {
+		t.Fatalf("maintained modules = %v, want %v", got, want)
+	}
+}
+
+func sortedModuleNames(modules []module) []string {
+	names := make([]string, 0, len(modules))
+	for _, module := range modules {
+		names = append(names, module.name)
+	}
+	sort.Strings(names)
+	return names
 }

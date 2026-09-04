@@ -117,8 +117,8 @@ decorator on `Instancer` rather than a stage of its own, so adding it changes no
 downstream layer. Cancellation interrupts both calls and retry backoff. `Instancer.Close`
 and constructor-returned closers own subscription goroutines and factory-created
 client connections. Protocol retry classification belongs to the protocol
-adapter, not generic discovery. Consul and etcd support live in independent
-integration modules.
+adapter, not generic discovery. Consul and etcd support live in optional
+provider packages in the same published module.
 
 ### `interaction`
 
@@ -145,7 +145,7 @@ return errors; process entry points decide when to terminate.
 `observability/slog` adapts endpoint outcomes and transport errors to the
 standard-library `log/slog` API. `integrations/zap` owns equivalent
 Zap-specific adapters, so core packages remain provider-neutral.
-`observability/otel` is a separate module that adapts endpoint calls to
+`observability/otel` adapts endpoint calls to
 application-owned OpenTelemetry tracers and meters. These adapters do not log
 or record request/response payloads; operation names and application attributes
 must remain bounded.
@@ -260,14 +260,14 @@ L1 transport adapters (depend on L0)
    transport/http/server · transport/http/client · security/http
 
 L2 assembly (depends on L0+L1)
-   kit · kit/grpc (independent module)
+   kit · kit/grpc
 
 L3 optional composition (independent packages, no new dependencies)
    observability/slog · sd/client
 
-L4 independent modules (third-party dependencies, versioned separately)
+L4 optional providers (third-party dependencies; linked only when imported)
    observability/otel · integrations/zap · integrations/grpc ·
-   integrations/consul
+   integrations/consul · integrations/etcd
 
 L5 build-time tooling (never enters the runtime dependency graph)
    cmd/microgen
@@ -292,10 +292,8 @@ server. `cmd/microgen` output depends on L0–L3 only.
 
 ## Stability
 
-`v2.6.0` is the current published contract. It is the approved
-architecture-evolution release: the assembly layer (`kit.Service` split into
-`kit.Host` + `kit.HTTP`), the error model (`server.HTTPError` removed), and
-the generated custom-routes hook changed incompatibly by explicit approval;
-the exceptions are recorded in the release policy. Later patch releases fix
-behavior and minor releases add capabilities. Further incompatible changes
-require a new major module version unless separately approved.
+`v2.8.0` is the current release-candidate contract. It establishes the reviewed
+package graph, lifecycle ownership, transport error model, and generated
+project layout captured by the release manifest and API snapshot. Until the v2
+compatibility freeze, minor releases may change behavior or remove APIs; after
+the freeze, incompatible changes require a new major module version.

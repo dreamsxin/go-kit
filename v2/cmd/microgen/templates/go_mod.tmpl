@@ -4,9 +4,6 @@ go 1.25.8
 
 require (
 	github.com/dreamsxin/go-kit/v2 {{.GoKitVersion}}
-	{{- if .WithGRPC}}
-	github.com/dreamsxin/go-kit/v2/integrations/grpc v0.5.0
-	{{- end}}
 	{{- if .WithOpenAPI}}
 	github.com/swaggest/swgui v1.8.9
 	{{- end}}
@@ -20,8 +17,4 @@ require (
 
 {{if .RootRelPath}}
 replace github.com/dreamsxin/go-kit/v2 => {{printf "%q" .RootRelPath}}
-
-{{if .WithGRPC}}
-replace github.com/dreamsxin/go-kit/v2/integrations/grpc => {{printf "%q" (printf "%s/integrations/grpc" .RootRelPath)}}
-{{end}}
 {{end}}

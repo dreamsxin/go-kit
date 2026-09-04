@@ -26,11 +26,9 @@ This directory is the independent Go module:
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.8.0` is the release being published. It keeps internal detail off the wire,
-makes resilience judge dependencies by rate rather than by consecutive failures,
-and contains approved breaking changes to error encoding, to circuit breaker
-classification, and to closed selectors; see [MIGRATION.md](MIGRATION.md) for the
-upgrade path. Per-release changes are recorded in [CHANGELOG.md](CHANGELOG.md).
+`v2.8.0` is the release being published. It ships as a single module: one
+`require`, one tag, no version skew between the framework and its providers.
+Per-release changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 Requires Go 1.25.8 or later.
 
@@ -69,7 +67,7 @@ Install `microgen` while developing in this repository:
 go -C v2 install ./cmd/microgen
 ```
 
-Install the refactored generator from its independently versioned module:
+Install the generator package from the same module:
 
 ```bash
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
@@ -329,7 +327,7 @@ Optional observability adapters keep provider ownership in application
 assembly. `observability/slog` uses only the standard library and ships
 `NewTelemetry`, which assembles the canonical tracing → metrics → logging
 chain; `integrations/zap` owns the current Zap integration, and
-`observability/otel` is a separate module. The core `endpoint` package
+`observability/otel` owns tracing and metrics. The core `endpoint` package
 imports none of these providers. Test the adapters with:
 
 ```bash
@@ -407,7 +405,7 @@ document by task.
 - [MICROGEN.md](MICROGEN.md): generator usage and generated ownership
 - [ARCHITECTURE.md](ARCHITECTURE.md): package boundaries and extension model
 - [PRODUCTION.md](PRODUCTION.md): runtime, security, and observability guidance
-- [MIGRATION.md](MIGRATION.md): upgrade notes between releases
+- [CHANGELOG.md](CHANGELOG.md): per-release changes
 - [examples/](examples/README.md): runnable examples
 
 ## License

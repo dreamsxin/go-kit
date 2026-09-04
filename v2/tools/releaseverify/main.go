@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
@@ -34,14 +33,16 @@ func main() {
 	}
 
 	maintained := maintainedModules(root)
-	publishable := publishableModules(root)
 	for _, suite := range suites {
 		fmt.Printf("\n>>> release suite: %s\n", suite)
 		switch suite {
 		case "test":
 			runForModules(maintained, nil, "go", "test", "./...", "-count=1")
 		case "standalone":
-			runForModules(publishable, []string{"GOWORK=off"}, "go", "test", "./...", "-count=1")
+			// The published module is the root module, and it requires nothing
+			// from this repository, so leaving the workspace needs no tag to
+			// exist and no proxy round trip.
+			runForModules(publishableModules(root), []string{"GOWORK=off"}, "go", "test", "./...", "-count=1")
 		case "vet":
 			runForModules(maintained, nil, "go", "vet", "./...")
 		case "tidy":
@@ -84,34 +85,20 @@ func parseSuites(value string) ([]string, error) {
 	return suites, nil
 }
 
+// maintainedModules lists every module in the workspace. Only the first is
+// published; the rest exist to exercise and generate it.
 func maintainedModules(root string) []module {
 	return []module{
 		{name: "core", dir: root},
-		{name: "microgen", dir: filepath.Join(root, "cmd", "microgen")},
 		{name: "examples", dir: filepath.Join(root, "examples")},
-		{name: "consul", dir: filepath.Join(root, "integrations", "consul")},
-		{name: "etcd", dir: filepath.Join(root, "integrations", "etcd")},
-		{name: "grpc", dir: filepath.Join(root, "integrations", "grpc")},
-		{name: "zap", dir: filepath.Join(root, "integrations", "zap")},
-		{name: "kit-grpc", dir: filepath.Join(root, "kit", "grpc")},
-		{name: "otel", dir: filepath.Join(root, "observability", "otel")},
 		{name: "tools", dir: filepath.Join(root, "tools")},
 		{name: "contractcheck", dir: filepath.Join(root, "tools", "contractcheck")},
 	}
 }
 
+// publishableModules lists the modules a consumer can require.
 func publishableModules(root string) []module {
-	modules := maintainedModules(root)
-	var publishable []module
-	for _, module := range modules {
-		switch module.name {
-		case "examples", "tools", "contractcheck":
-			continue
-		default:
-			publishable = append(publishable, module)
-		}
-	}
-	return publishable
+	return []module{{name: "core", dir: root}}
 }
 
 func runForModules(modules []module, extraEnv []string, name string, args ...string) {
@@ -122,28 +109,13 @@ func runForModules(modules []module, extraEnv []string, name string, args ...str
 }
 
 func runRace(root string) {
-	checks := []struct {
-		dir      string
-		packages []string
-	}{
-		{
-			dir: root,
-			packages: []string{
-				"./endpoint", "./kit", "./interaction/...", "./transport/...",
-				"./sd/...", "./security/http", "./observability/slog",
-			},
-		},
-		{dir: filepath.Join(root, "cmd", "microgen"), packages: []string{"./internal/generator"}},
-		{dir: filepath.Join(root, "integrations", "consul"), packages: []string{"./..."}},
-		{dir: filepath.Join(root, "integrations", "grpc"), packages: []string{"./..."}},
-		{dir: filepath.Join(root, "integrations", "zap"), packages: []string{"./..."}},
-		{dir: filepath.Join(root, "kit", "grpc"), packages: []string{"./..."}},
-		{dir: filepath.Join(root, "observability", "otel"), packages: []string{"./..."}},
+	packages := []string{
+		"./endpoint", "./kit", "./kit/grpc", "./interaction/...", "./transport/...",
+		"./sd/...", "./security/http", "./observability/...",
+		"./integrations/...", "./cmd/microgen/internal/generator",
 	}
-	for _, check := range checks {
-		args := append([]string{"test", "-race"}, check.packages...)
-		run(check.dir, []string{"CGO_ENABLED=1"}, "go", args...)
-	}
+	args := append([]string{"test", "-race"}, packages...)
+	run(root, []string{"CGO_ENABLED=1"}, "go", args...)
 }
 
 func run(dir string, extraEnv []string, name string, args ...string) {
@@ -190,14 +162,4 @@ func commandEnv(overrides []string) []string {
 func fatalf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
 	os.Exit(1)
-}
-
-// Keep command output stable when module lists become data-driven later.
-func sortedModuleNames(modules []module) []string {
-	names := make([]string, 0, len(modules))
-	for _, module := range modules {
-		names = append(names, module.name)
-	}
-	sort.Strings(names)
-	return names
 }

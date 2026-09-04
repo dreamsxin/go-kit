@@ -8,26 +8,21 @@ import (
 func TestExpectedTagState(t *testing.T) {
 	tests := []struct {
 		phase string
-		order int
 		want  bool
 	}{
-		{phase: "core-candidate", order: 1, want: false},
-		{phase: "core-candidate", order: 2, want: false},
-		{phase: "nested-candidate", order: 1, want: true},
-		{phase: "nested-candidate", order: 2, want: false},
-		{phase: "released", order: 1, want: true},
-		{phase: "released", order: 2, want: true},
+		{phase: "candidate", want: false},
+		{phase: "released", want: true},
 	}
 	for _, test := range tests {
-		got, err := expectedTagState(test.phase, test.order)
+		got, err := expectedTagState(test.phase)
 		if err != nil {
-			t.Fatalf("expectedTagState(%q, %d): %v", test.phase, test.order, err)
+			t.Fatalf("expectedTagState(%q): %v", test.phase, err)
 		}
 		if got != test.want {
-			t.Errorf("expectedTagState(%q, %d) = %t, want %t", test.phase, test.order, got, test.want)
+			t.Errorf("expectedTagState(%q) = %t, want %t", test.phase, got, test.want)
 		}
 	}
-	if _, err := expectedTagState("unknown", 1); err == nil {
+	if _, err := expectedTagState("unknown"); err == nil {
 		t.Fatal("expected unsupported phase to fail")
 	}
 }

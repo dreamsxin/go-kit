@@ -8,14 +8,21 @@ import (
 	"testing"
 )
 
-func microgenMainPath(t *testing.T) string {
+// microgenCommand runs the repository generator from the root module. This is
+// important when tools tests run with GOWORK=off: the generator imports
+// cmd/microgen/internal packages, which Go permits only when the command is
+// built from within the owning module.
+func microgenCommand(t *testing.T, args ...string) *exec.Cmd {
 	t.Helper()
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
 	root := filepath.Dir(cwd)
-	return filepath.Join(root, "cmd", "microgen", "main.go")
+	commandArgs := append([]string{"run", "./cmd/microgen"}, args...)
+	cmd := exec.Command("go", commandArgs...)
+	cmd.Dir = root
+	return cmd
 }
 
 func generatedProjectDir(t *testing.T, name string) string {
@@ -34,10 +41,9 @@ func TestMicrogenCLIValidation(t *testing.T) {
 		t.Fatalf("Getwd: %v", err)
 	}
 	root := filepath.Dir(cwd)
-	microgenPath := microgenMainPath(t)
 
 	t.Run("FailsWithoutIDLOrFromDB", func(t *testing.T) {
-		cmd := exec.Command("go", "run", microgenPath)
+		cmd := microgenCommand(t)
 		out, err := cmd.CombinedOutput()
 		if err == nil {
 			t.Fatal("expected microgen to fail without -idl or -from-db")
@@ -50,7 +56,7 @@ func TestMicrogenCLIValidation(t *testing.T) {
 	t.Run("FailsForMissingIDLPath", func(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_missing_idl")
 
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", filepath.Join(cwd, "testdata", "does-not-exist.go"),
 			"-out", outDir,
 			"-import", "example.com/gen_missing_idl",
@@ -69,7 +75,7 @@ func TestMicrogenCLIValidation(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_bad_driver")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", idlFile,
 			"-out", outDir,
 			"-import", "example.com/gen_bad_driver",

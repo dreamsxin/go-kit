@@ -16,13 +16,12 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		t.Fatalf("Getwd: %v", err)
 	}
 	root := filepath.Dir(cwd)
-	microgenPath := microgenMainPath(t)
 
 	t.Run("IDL_GeneratedProject_BuildsAndRuns", func(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_idl_runnable")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", idlFile,
 			"-out", outDir,
 			"-import", "example.com/gen_idl_runnable",
@@ -69,7 +68,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_idl_minimal_runtime")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", idlFile,
 			"-out", outDir,
 			"-import", "example.com/gen_idl_minimal_runtime",
@@ -147,7 +146,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_idl_prefixed_runtime")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", idlFile,
 			"-out", outDir,
 			"-import", "example.com/gen_idl_prefixed_runtime",
@@ -208,7 +207,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_idl_components")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", idlFile,
 			"-out", outDir,
 			"-import", "example.com/gen_idl_components",

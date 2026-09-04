@@ -1,3 +1,4 @@
+// Package releaseconfig loads the v2 release manifest.
 package releaseconfig
 
 import (
@@ -6,24 +7,16 @@ import (
 	"os"
 )
 
-// Manifest defines the versions, tags, and order of a multi-module release.
+// Manifest describes the release being cut.
+//
+// v2 ships as one module, so a release is one commit and one tag. Phase is
+// "candidate" while that tag does not exist yet and "released" once it does.
 type Manifest struct {
-	SchemaVersion       int      `json:"schemaVersion"`
-	Phase               string   `json:"phase"`
-	ReleaseDate         string   `json:"releaseDate,omitempty"`
-	PreviousCoreVersion string   `json:"previousCoreVersion"`
-	CoreVersion         string   `json:"coreVersion"`
-	Modules             []Module `json:"modules"`
-}
-
-// Module is one independently versioned module in a release.
-type Module struct {
-	Directory     string `json:"directory"`
-	ModulePath    string `json:"modulePath"`
-	Version       string `json:"version"`
+	SchemaVersion int    `json:"schemaVersion"`
+	Phase         string `json:"phase"`
+	ReleaseDate   string `json:"releaseDate,omitempty"`
+	CoreVersion   string `json:"coreVersion"`
 	Tag           string `json:"tag"`
-	ReleaseOrder  int    `json:"releaseOrder"`
-	DependsOnCore bool   `json:"dependsOnCore"`
 }
 
 // LoadManifest reads and decodes a release manifest.

@@ -118,7 +118,7 @@ func TestHTTPStatusForErrorReusesFrameworkMapping(t *testing.T) {
 	}
 }
 
-// structurallyClassifiedError mimics an optional module that classifies through
+// structurallyClassifiedError mimics an external package that classifies through
 // the minimal KindNamer contract instead of importing apperror, such as the gRPC
 // integration's client errors.
 type structurallyClassifiedError struct{ kind string }

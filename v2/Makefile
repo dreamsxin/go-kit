@@ -7,7 +7,7 @@
         deps tools \
         test-runtime test-microgen test-contracts test-docs test-examples \
         test-observability test-security test-api test-boundaries test-race test-fmt test-vet test-modules \
-        release-check-clean verify-cross-platform verify-published-core verify-published verify verify-release
+        release-check-clean verify-cross-platform verify-published verify verify-release
 
 # Default variables, overridable from the command line.
 IDL         ?= ./examples/usersvc/idl.go
@@ -28,15 +28,11 @@ all: build
 ## workflow shortcuts
 test-runtime:
 	@echo ">>> Running runtime package tests..."
-	@go test -v ./kit ./endpoint/... ./transport/... ./sd/... ./security/http ./observability/slog ./interaction/...
-	@go -C ./kit/grpc test -v ./...
-	@go -C ./integrations/consul test -v ./...
-	@go -C ./integrations/grpc test -v ./...
-	@go -C ./integrations/zap test -v ./...
+	@go test -v ./kit/... ./endpoint/... ./transport/... ./sd/... ./security/http ./observability/slog ./interaction/... ./integrations/...
 
 test-microgen:
 	@echo ">>> Running microgen tests..."
-	@go -C ./cmd/microgen test -v ./...
+	@go test -v ./cmd/microgen/...
 	@echo ">>> Running microgen integration tests..."
 	@go -C ./tools test -v ./... -run "Test(Microgen|ReadmeQuickStartSmoke)"
 
@@ -44,10 +40,6 @@ test-contracts:
 	@echo ">>> Generating and validating OpenAPI, JSON Schema, and TypeScript contracts..."
 	@go -C ./tools/contractcheck test ./...
 	@go -C ./tools test -v . -run "TestMicrogen(IDLContractIntegration|ProtoIntegration|FromDBIntegration)" -count=1
-	@go -C ./tools run ./typecheck \
-		./testdata/gen_idl_integration/sdk/typescript/tsconfig.json \
-		./testdata/gen_proto_integration/sdk/typescript/tsconfig.json \
-		./testdata/gen_fromdb_sqlite/sdk/typescript/tsconfig.json
 	@echo ">>> Comparing generated Go and TypeScript SDK HTTP behavior..."
 	@go -C ./tools test -v . -run TestGeneratedSDKBehaviorContract -count=1
 
@@ -65,9 +57,9 @@ test-observability:
 	@echo ">>> Running slog adapter tests..."
 	@go test -v ./observability/slog
 	@echo ">>> Running Zap adapter tests..."
-	@go -C ./integrations/zap test -v ./...
+	@go test -v ./integrations/zap
 	@echo ">>> Running OpenTelemetry adapter tests..."
-	@go -C ./observability/otel test -v ./...
+	@go test -v ./observability/otel
 
 test-security:
 	@echo ">>> Running optional HTTP security middleware tests..."
@@ -79,17 +71,11 @@ test-api:
 
 test-boundaries:
 	@echo ">>> Verifying architecture and module dependency boundaries..."
-	@go -C ./tools test -v . -run "Test(ArchitectureDependencyGates|CoreModuleHasNoThirdPartyRequirements|MicrogenImplementationPackagesAreInternal|PublishableModulesDoNotUseLocalReplacements|ReleaseManifestMatchesRepository)" -count=1
+	@go -C ./tools test -v . -run "Test(ArchitectureDependencyGates|KitHTTPAssemblyDoesNotResolveOptionalDependencies|MicrogenImplementationPackagesAreInternal|OnlyOneModuleIsPublishable|PublishableModulesDoNotUseLocalReplacements|ReleaseManifestMatchesRepository)" -count=1
 
 test-race:
 	@echo ">>> Running focused race tests..."
-	@go test -race ./kit ./interaction/... ./transport/... ./sd/... ./security/http ./observability/slog
-	@go -C ./kit/grpc test -race ./...
-	@go -C ./integrations/consul test -race ./...
-	@go -C ./integrations/grpc test -race ./...
-	@go -C ./integrations/zap test -race ./...
-	@go -C ./observability/otel test -race ./...
-	@go -C ./cmd/microgen test -race ./internal/generator
+	@go test -race ./kit/... ./interaction/... ./transport/... ./sd/... ./security/http ./observability/... ./integrations/... ./cmd/microgen/internal/generator
 
 test-fmt:
 	@echo ">>> Verifying gofmt formatting..."
@@ -98,36 +84,18 @@ test-fmt:
 test-vet:
 	@echo ">>> Running go vet across maintained modules..."
 	@go vet ./...
-	@go -C ./cmd/microgen vet ./...
 	@go -C ./examples vet ./...
-	@go -C ./integrations/consul vet ./...
-	@go -C ./integrations/grpc vet ./...
-	@go -C ./integrations/zap vet ./...
-	@go -C ./kit/grpc vet ./...
-	@go -C ./observability/otel vet ./...
 	@go -C ./tools vet ./...
 	@go -C ./tools/contractcheck vet ./...
 
 test-modules:
 	@echo ">>> Verifying module files are tidy..."
 	@go mod tidy
-	@go -C ./observability/otel mod tidy
-	@go -C ./tools/contractcheck mod tidy
-	@go -C ./cmd/microgen mod tidy
 	@go -C ./examples mod tidy
-	@go -C ./integrations/consul mod tidy
-	@go -C ./integrations/grpc mod tidy
-	@go -C ./integrations/zap mod tidy
-	@go -C ./kit/grpc mod tidy
 	@go -C ./tools mod tidy
-	@git diff --exit-code -- go.mod go.sum go.work.sum \
-		./cmd/microgen/go.mod ./cmd/microgen/go.sum \
+	@go -C ./tools/contractcheck mod tidy
+	@git diff --exit-code -- go.mod go.sum go.work go.work.sum \
 		./examples/go.mod ./examples/go.sum \
-		./integrations/consul/go.mod ./integrations/consul/go.sum \
-		./integrations/grpc/go.mod ./integrations/grpc/go.sum \
-		./integrations/zap/go.mod ./integrations/zap/go.sum \
-		./kit/grpc/go.mod ./kit/grpc/go.sum \
-		./observability/otel/go.mod ./observability/otel/go.sum \
 		./tools/go.mod ./tools/go.sum \
 		./tools/contractcheck/go.mod ./tools/contractcheck/go.sum
 
@@ -139,13 +107,9 @@ verify-cross-platform:
 	@echo ">>> Running cross-platform release suites..."
 	@go -C ./tools run ./releaseverify -root .. -suites test,standalone,vet,tidy,race
 
-verify-published-core:
-	@echo ">>> Verifying the published core module..."
-	@go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -published-order 1
-
 verify-published:
-	@echo ">>> Verifying all published modules..."
-	@go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -published-order 2
+	@echo ">>> Verifying the published module..."
+	@go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-published
 
 verify: build test-fmt test-runtime test-microgen test-docs test-examples test-observability test-security
 	@echo ">>> Verification pass completed."
@@ -156,7 +120,7 @@ verify-release: verify test-contracts test-api test-boundaries test-race test-ve
 ## install-microgen: build and install microgen into GOPATH/bin
 install-microgen:
 	@echo ">>> Installing microgen..."
-	@go -C ./cmd/microgen install .
+	@go install ./cmd/microgen
 	@echo "    Done: $(MICROGEN)"
 
 ## gen: generate HTTP service with model/repository/OpenAPI
@@ -245,13 +209,7 @@ proto:
 build:
 	@echo ">>> Building go-kit..."
 	@go build ./...
-	@go -C ./cmd/microgen build ./...
 	@go -C ./examples build ./...
-	@go -C ./integrations/consul build ./...
-	@go -C ./integrations/grpc build ./...
-	@go -C ./integrations/zap build ./...
-	@go -C ./kit/grpc build ./...
-	@go -C ./observability/otel build ./...
 	@go -C ./tools build ./...
 	@go -C ./tools/contractcheck build ./...
 
@@ -324,8 +282,7 @@ help:
 	@echo "  make verify-release Run the full release validation pass"
 	@echo "  make release-check-clean Verify the committed v2 scope and release tag phase"
 	@echo "  make verify-cross-platform Run the same release suites used by Linux/Windows CI"
-	@echo "  make verify-published-core Verify the published core module from the manifest"
-	@echo "  make verify-published Verify every published module from the manifest"
+	@echo "  make verify-published Verify the published module from the manifest"
 	@echo "  make coverage      Generate coverage report"
 	@echo "  make lint          Run golangci-lint"
 	@echo ""

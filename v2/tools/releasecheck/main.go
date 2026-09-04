@@ -20,7 +20,7 @@ func main() {
 	requestedScope := flag.String("scope", ".", "repository-relative scope to verify, resolved from the current directory")
 	manifestPath := flag.String("manifest", "", "release manifest path, resolved from the current directory")
 	checkTags := flag.Bool("check-tags", false, "verify local tag presence matches the manifest phase")
-	publishedOrder := flag.Int("published-order", 0, "verify manifest modules through this release order on the public Go proxy")
+	checkPublished := flag.Bool("check-published", false, "verify the manifest version resolves through the public Go proxy")
 	flag.Parse()
 
 	cwd, err := os.Getwd()
@@ -41,24 +41,25 @@ func main() {
 	if strings.TrimSpace(*publishedVersion) != "" {
 		verifyPublishedModule(publishedModule, *publishedVersion)
 	}
-	if strings.TrimSpace(*manifestPath) != "" {
-		resolvedManifest, err := filepath.Abs(filepath.Join(cwd, *manifestPath))
-		if err != nil {
-			fail("resolve release manifest: %v", err)
+	if strings.TrimSpace(*manifestPath) == "" {
+		return
+	}
+	resolvedManifest, err := filepath.Abs(filepath.Join(cwd, *manifestPath))
+	if err != nil {
+		fail("resolve release manifest: %v", err)
+	}
+	manifest, err := releaseconfig.LoadManifest(resolvedManifest)
+	if err != nil {
+		fail("load release manifest: %v", err)
+	}
+	if *checkTags {
+		if err := verifyTagState(repoRoot, manifest); err != nil {
+			fail("verify release tags: %v", err)
 		}
-		manifest, err := releaseconfig.LoadManifest(resolvedManifest)
-		if err != nil {
-			fail("load release manifest: %v", err)
-		}
-		if *checkTags {
-			if err := verifyTagState(repoRoot, manifest); err != nil {
-				fail("verify release tags: %v", err)
-			}
-			fmt.Printf("release tags match phase: %s\n", manifest.Phase)
-		}
-		if *publishedOrder > 0 {
-			verifyManifestPublished(manifest, *publishedOrder)
-		}
+		fmt.Printf("release tag matches phase: %s\n", manifest.Phase)
+	}
+	if *checkPublished {
+		verifyPublishedModule(publishedModule, manifest.CoreVersion)
 	}
 }
 
@@ -81,33 +82,42 @@ func resolveScope(repoRoot, cwd, requestedScope string) (string, string, error) 
 	return scopeDir, scope, nil
 }
 
+// verifyTagState checks the release tag against the manifest phase. v2 ships as
+// one module, so there is one current tag and no historical v2 tags to retain.
 func verifyTagState(repoRoot string, manifest releaseconfig.Manifest) error {
-	for _, module := range manifest.Modules {
-		want, err := expectedTagState(manifest.Phase, module.ReleaseOrder)
-		if err != nil {
-			return err
+	want, err := expectedTagState(manifest.Phase)
+	if err != nil {
+		return err
+	}
+	got, err := tagExists(repoRoot, manifest.Tag)
+	if err != nil {
+		return err
+	}
+	if got != want {
+		state := "absent"
+		if want {
+			state = "present"
 		}
-		got, err := tagExists(repoRoot, module.Tag)
-		if err != nil {
-			return err
+		return fmt.Errorf("tag %s must be %s in phase %s", manifest.Tag, state, manifest.Phase)
+	}
+	allV2Tags := strings.Fields(run(repoRoot, "git", "tag", "--list", "v2.*", "v2/*"))
+	var historical []string
+	for _, tag := range allV2Tags {
+		if tag != manifest.Tag {
+			historical = append(historical, tag)
 		}
-		if got != want {
-			state := "absent"
-			if want {
-				state = "present"
-			}
-			return fmt.Errorf("tag %s must be %s in phase %s", module.Tag, state, manifest.Phase)
-		}
+	}
+	if len(historical) > 0 {
+		return fmt.Errorf("historical v2 tags must be absent:\n%s", strings.Join(historical, "\n"))
 	}
 	return nil
 }
 
-func expectedTagState(phase string, releaseOrder int) (bool, error) {
+// expectedTagState reports whether the release tag may exist in the given phase.
+func expectedTagState(phase string) (bool, error) {
 	switch phase {
-	case "core-candidate":
+	case "candidate":
 		return false, nil
-	case "nested-candidate":
-		return releaseOrder == 1, nil
 	case "released":
 		return true, nil
 	default:
@@ -126,20 +136,6 @@ func tagExists(repoRoot, tag string) (bool, error) {
 		return false, fmt.Errorf("inspect tag %s: %w", tag, err)
 	}
 	return true, nil
-}
-
-func verifyManifestPublished(manifest releaseconfig.Manifest, releaseOrder int) {
-	matched := 0
-	for _, module := range manifest.Modules {
-		if module.ReleaseOrder > releaseOrder {
-			continue
-		}
-		verifyPublishedModule(module.ModulePath, module.Version)
-		matched++
-	}
-	if matched == 0 {
-		fail("release manifest has no modules through order %d", releaseOrder)
-	}
 }
 
 func verifyPublishedModule(modulePath, version string) {

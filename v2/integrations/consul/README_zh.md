@@ -2,7 +2,8 @@
 
 [English](README.md) | 简体中文
 
-`integrations/consul` 是一个独立的 provider 模块。它依赖 Consul SDK 和 Go 标准库，但不依赖 go-kit 运行时模块。
+`integrations/consul` 是 `github.com/dreamsxin/go-kit/v2` 模块中的可选 provider package。
+它依赖 Consul SDK，而通用服务发现 package 仍保持 provider 中立。
 
 ```go
 package main

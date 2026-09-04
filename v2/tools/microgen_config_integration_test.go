@@ -19,20 +19,18 @@ func TestMicrogenConfigIntegration(t *testing.T) {
 		t.Fatalf("Getwd: %v", err)
 	}
 	root := filepath.Dir(cwd)
-	microgenPath := microgenMainPath(t)
 
 	t.Run("IDL_Config_CustomHooksAreUserOwned", func(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_idl_custom_config")
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
 		generateArgs := []string{
-			"run", microgenPath,
 			"-idl", idlFile,
 			"-out", outDir,
 			"-import", "example.com/gen_idl_custom_config",
 			"-config",
 			"-docs=false",
 		}
-		if out, err := exec.Command("go", generateArgs...).CombinedOutput(); err != nil {
+		if out, err := microgenCommand(t, generateArgs...).CombinedOutput(); err != nil {
 			t.Fatalf("microgen custom-config fixture failed: %v\n%s", err, out)
 		}
 
@@ -115,7 +113,7 @@ func main() {
 			t.Fatalf("custom env hook output = %q", out)
 		}
 
-		if out, err := exec.Command("go", generateArgs...).CombinedOutput(); err != nil {
+		if out, err := microgenCommand(t, generateArgs...).CombinedOutput(); err != nil {
 			t.Fatalf("microgen custom-config rerun failed: %v\n%s", err, out)
 		}
 		mustContainFile(t, customPath, "APP_REDIS_ADDR")
@@ -125,7 +123,7 @@ func main() {
 		outDir := generatedProjectDir(t, "gen_idl_remote_config")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", idlFile,
 			"-out", outDir,
 			"-import", "example.com/gen_idl_remote_config",
@@ -237,7 +235,7 @@ func main() {
 		outDir := generatedProjectDir(t, "gen_idl_remote_config_strict")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", idlFile,
 			"-out", outDir,
 			"-import", "example.com/gen_idl_remote_config_strict",

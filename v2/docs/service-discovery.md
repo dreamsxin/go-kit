@@ -445,8 +445,9 @@ pool either.
 
 ## Providers
 
-Consul and etcd are independent modules. They satisfy the same `sd.Instancer`
-shape and do not enter the dependency closure of generic discovery packages.
+Consul and etcd satisfy the `sd.Instancer` contract — `contract.go` in each
+asserts it at compile time — and do not enter the dependency closure of generic
+discovery packages.
 
 ```go
 consulInstancer := consul.NewInstancer(consulClient, logger, "users", true)

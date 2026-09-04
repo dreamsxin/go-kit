@@ -65,7 +65,7 @@ Full walkthrough: [getting started](v2/docs/getting-started.md).
 - [Observability](v2/docs/observability.md): logs, metrics, traces, and request correlation
 - [Examples](v2/examples/README.md): runnable services for every component
 - [Production](v2/PRODUCTION.md): deployment, alerting, background jobs
-- [Upgrade notes](v2/MIGRATION.md), [Changelog](v2/CHANGELOG.md)
+- [Changelog](v2/CHANGELOG.md)
 
 ## Current Release
 
@@ -76,9 +76,8 @@ go get github.com/dreamsxin/go-kit/v2@latest
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 ```
 
-`v2.7.0` is the current architecture release: it contains intentional breaking
-changes to the assembly layer and error model (see
-[CHANGELOG](v2/CHANGELOG.md) and [MIGRATION](v2/MIGRATION.md)).
+`v2.8.0` is the current architecture release, and it ships as a single module:
+one `require`, one tag (see [CHANGELOG](v2/CHANGELOG.md)).
 
 ## Development
 

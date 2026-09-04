@@ -9,8 +9,13 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/dreamsxin/go-kit/v2/kit"
 	googlegrpc "google.golang.org/grpc"
 )
+
+// Component implements kit.Lifecycle; the assertion keeps the contract honest
+// at compile time, in this module, instead of inside an application build.
+var _ kit.Lifecycle = (*Component)(nil)
 
 // Component owns a gRPC server and implements kit.Lifecycle. Register services
 // through Server before attaching the component to a kit.Host.

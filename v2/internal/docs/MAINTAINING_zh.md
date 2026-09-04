@@ -12,7 +12,7 @@
 
 v1 源码不在 `main` 上维护。实现 v2 变更时，不要重建它，也不要重写不可变的旧标签。
 
-所有维护中的模块有意在其 `go.mod` 文件中声明相同的最低 Go 版本，当前为 Go 1.25.8。更改这一下限是仓库范围的兼容性决策：必须同步更新每个模块、生成的夹具、CI 通道、README 徽章和发布检查。
+所有维护中的模块有意在其 `go.mod` 文件中声明相同的最低 Go 版本，当前为 Go 1.25.8。更改这一下限是仓库范围的兼容性决策：必须同步更新每个模块、CI 通道、README 徽章、生成项目检查和发布门禁。
 
 ## 范围规则
 
@@ -91,7 +91,6 @@ go test ./tools -run TestPublicAPISurfaceSnapshot -count=1 \
 - `PRODUCTION.md`：部署指引；
 - `ROADMAP.md`：权威实施顺序与里程碑验收；
 - `MAINTAINING.md`：贡献者工作流；
-- `MIGRATION.md`：v1 到 v2 的变更；
 - `RELEASE.md` 和 `CHANGELOG.md`：发布策略与历史。
 
 更新权威文档，而不是新增第二份路线图、项目快照、设计草稿或重复索引。临时规划应写在 issue 或拉取请求中。
@@ -112,8 +111,8 @@ go test ./tools -run TestPublicAPISurfaceSnapshot -count=1 \
 - 由拥有该行为的包暴露该 API。
 - 无效配置在启动流程能够处理的位置返回错误。
 - 命名应描述实际行为；避免使用承诺了未实现的重试、流式处理或安全性的名称。
-- 破坏性变更在需要时记录在 `CHANGELOG.md` 和 `MIGRATION.md` 中。
-- 任何 SemVer 例外都需要仓库所有者的明确批准，并且必须仅限于变更日志、迁移指南、提交和发布说明中记录的确切 API。
+- 行为变更记录在 `CHANGELOG.md` 中。
+- 冻结前的兼容性例外需要仓库所有者明确批准，并且必须仅限于变更日志、提交和发布说明中记录的确切 API。
 
 ### 生成器
 
@@ -134,14 +133,14 @@ go test ./tools -run TestPublicAPISurfaceSnapshot -count=1 \
 
 ## 发布准备
 
-1. 评审 `RELEASE_MANIFEST.json`，确认其阶段、模块路径、版本、标签和发布顺序。
+1. 评审 `RELEASE_MANIFEST.json`，确认其阶段、模块路径、版本和根标签。
 2. 评审导出 API 和生成输出的差异。
-3. 更新 `CHANGELOG.md`、`MIGRATION.md`、`RELEASE.md` 和 `ROADMAP.md`。
+3. 更新 `CHANGELOG.md`、`RELEASE.md` 和 `ROADMAP.md`。
 4. 提交最终发布候选。
 5. 从该已提交的候选运行 `make verify-release` 和 `make verify-cross-platform`，或要求等价的 Linux/Windows CI 作业。
 6. 从同一提交运行 `make release-check-clean`。
-7. 遵循 `RELEASE.md` 中分阶段的核心与嵌套模块标签顺序。
+7. 确认不存在历史 v2 模块标签。
 
-根模块使用根 `vX.Y.Z` 标签。嵌套模块使用记录在 `RELEASE_MANIFEST.json` 中的、仓库相对的目录前缀标签。
+根模块使用唯一的 `vX.Y.Z` 标签。仓库内部模块永不打标签。
 
 兼容性策略见 [RELEASE_zh.md](RELEASE_zh.md)。

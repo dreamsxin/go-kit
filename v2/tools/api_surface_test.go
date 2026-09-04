@@ -52,23 +52,22 @@ type publicPackage struct {
 	importPath string
 }
 
+// publicRuntimePackages lists the packages whose exported surface is reviewed.
+//
+// Everything ships from one module now, so the list comes from one go list. The
+// microgen tree is excluded: it is a command, and its behaviour is pinned by the
+// generator contract tests rather than by a doc snapshot.
 func publicRuntimePackages(t *testing.T, root string) []publicPackage {
 	t.Helper()
-	moduleRoots := []string{
-		root,
-		filepath.Join(root, "integrations", "consul"),
-		filepath.Join(root, "integrations", "etcd"),
-		filepath.Join(root, "integrations", "grpc"),
-		filepath.Join(root, "integrations", "zap"),
-		filepath.Join(root, "kit", "grpc"),
-		filepath.Join(root, "observability", "otel"),
-	}
+	const microgenPrefix = "github.com/dreamsxin/go-kit/v2/cmd/microgen"
+
+	output := commandOutput(t, root, "go", "list", "./...")
 	var packages []publicPackage
-	for _, moduleRoot := range moduleRoots {
-		output := commandOutput(t, moduleRoot, "go", "list", "./...")
-		for _, importPath := range strings.Fields(string(output)) {
-			packages = append(packages, publicPackage{root: moduleRoot, importPath: importPath})
+	for _, importPath := range strings.Fields(string(output)) {
+		if importPath == microgenPrefix || strings.HasPrefix(importPath, microgenPrefix+"/") {
+			continue
 		}
+		packages = append(packages, publicPackage{root: root, importPath: importPath})
 	}
 	sort.Slice(packages, func(i, j int) bool {
 		return packages[i].importPath < packages[j].importPath

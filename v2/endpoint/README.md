@@ -433,21 +433,18 @@ Avoid:
 
 ## Stability Notes
 
-The published `v2.0.0` endpoint API remains a historical stable baseline. The
-approved `v2.1.0` SemVer exception resets this package contract to the API
-reviewed in `tools/testdata/api_surface.sha256`. After `v2.1.0`, compatibility
-again covers:
+The v2.8.0 candidate establishes the reviewed endpoint contract captured in
+`tools/testdata/api_surface.sha256`. Until the v2 compatibility freeze, minor
+releases may change behavior or remove APIs; after the freeze, compatibility
+covers:
 
 - `Endpoint`
 - `Middleware`
 - builder-style composition
 - the framework's central middleware model
 
-Circuit breaking and rate limiting used to live in separate
-`integrations/circuitbreaker` and `integrations/ratelimit` modules. Both moved
-into this package in v2.4.0 and those modules were removed, so there is no
-extra module to select: `NewCircuitBreaker` and `RateLimitMiddleware` ship
-here.
+Circuit breaking and rate limiting are dependency-free endpoint middleware:
+`NewCircuitBreaker` and `RateLimitMiddleware` ship in this package.
 
 ## Best Practices
 

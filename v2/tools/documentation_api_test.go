@@ -48,8 +48,6 @@ var frameworkAPIPattern = regexp.MustCompile(`\b(` + documentedAliasAlternation(
 var historicalDocumentation = map[string]struct{}{
 	"CHANGELOG.md":       {},
 	"CHANGELOG_zh.md":    {},
-	"MIGRATION.md":       {},
-	"MIGRATION_zh.md":    {},
 	"ROADMAP.md":         {},
 	"ROADMAP_zh.md":      {},
 	"RELEASE.md":         {},

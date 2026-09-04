@@ -81,7 +81,6 @@ func recordedLease(c Client, key string) (clientv3.LeaseID, bool) {
 	return lease, leased
 }
 
-
 // keysUnder reports the instance keys currently stored under the service prefix.
 func keysUnder(t *testing.T, etcd *clientv3.Client, prefix string) []string {
 	t.Helper()

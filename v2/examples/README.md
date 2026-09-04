@@ -3,7 +3,7 @@ English | [简体中文](README_zh.md)
 
 A guided tour of the go-kit framework, from simplest to most complete.
 
-`examples/` is an independent module joined to the repository workspace. Run
+`examples/` is a repository-only module joined to the repository workspace. Run
 every command below from the `v2/` module directory, or from `v2/examples/`
 after dropping the `./examples/` prefix.
 

@@ -2,7 +2,6 @@ package tools_test
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -16,7 +15,7 @@ func TestMicrogenIDLDefaultFlags(t *testing.T) {
 	outDir := generatedProjectDir(t, "gen_idl_default_flags")
 
 	idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-	cmd := exec.Command("go", "run", microgenMainPath(t),
+	cmd := microgenCommand(t,
 		"-idl", idlFile,
 		"-out", outDir,
 		"-import", "example.com/gen_idl_default_flags",

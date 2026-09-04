@@ -1,9 +1,9 @@
 # OpenTelemetry adapter
 English | [简体中文](README_zh.md)
 
-`observability/otel` is an optional module for endpoint tracing and metrics.
-It is intentionally outside the main `github.com/dreamsxin/go-kit/v2` module,
-so services that do not use OpenTelemetry do not acquire its dependencies.
+`observability/otel` is an optional package in the
+`github.com/dreamsxin/go-kit/v2` module. Services that do not import it do not
+resolve its OpenTelemetry dependencies in their package dependency closure.
 
 The application owns tracer/meter provider setup, exporters, sampling, and
 shutdown. The adapter only creates spans and instruments from the providers it

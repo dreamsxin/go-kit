@@ -24,7 +24,7 @@ v2 是独立 Go module：
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.8.0` 是本次发布的版本。它把内部细节挡在响应之外，让韧性策略按失败率而不是连续失败次数判断依赖，并包含经批准的破坏性变更：错误编码、熔断器的失败分类，以及已关闭的 selector；升级路径见 [MIGRATION.md](MIGRATION_zh.md)。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)。
+`v2.8.0` 是本次发布的版本。它以单一模块发布：一行 `require`、一个 tag，框架与各 provider 之间不存在版本错配。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)。
 
 需要 Go 1.25.8 或更高版本。
 
@@ -62,7 +62,7 @@ github.com/dreamsxin/go-kit/v2
 go -C v2 install ./cmd/microgen
 ```
 
-从独立版本 module 安装重构版生成器：
+从同一 module 安装发布版生成器：
 
 ```bash
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
@@ -304,7 +304,7 @@ IAM、Outbox、任务平台、对象存储、Secret 平台和完整事务框架�
 可选观测适配器将 provider 的创建、资源、导出器、采样和关闭责任保留在
 应用装配层。`observability/slog` 只使用标准库，并提供 `NewTelemetry` 装配
 tracing → metrics → logging 的固定顺序链；`integrations/zap` 负责当前
-Zap 集成，`observability/otel` 是独立 module；核心 `endpoint` 不导入这些
+Zap 集成，`observability/otel` 是同一 module 中的可选 package；核心 `endpoint` 不导入这些
 provider。可以使用以下命令验证观测适配器：
 
 ```bash
@@ -373,7 +373,7 @@ make release-check-clean
 - [MICROGEN.md](MICROGEN_zh.md)：生成器使用与生成文件归属
 - [ARCHITECTURE.md](ARCHITECTURE_zh.md)：包边界和扩展模型
 - [PRODUCTION.md](PRODUCTION_zh.md)：运行、安全和可观测性指导
-- [MIGRATION.md](MIGRATION_zh.md)：版本间升级说明
+- [CHANGELOG.md](CHANGELOG_zh.md)：各版本变更记录
 - [examples/](examples/README_zh.md)：可运行示例
 
 ## License

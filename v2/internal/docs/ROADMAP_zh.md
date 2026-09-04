@@ -43,7 +43,7 @@
 ## 里程碑 3（已完成）：可选运维适配
 
 - `observability/slog` 提供标准库结构化 endpoint 日志，而不替换核心 zap logger API。
-- `observability/otel` 是用于 endpoint 追踪和指标的独立模块，主 v2 模块中没有直接的适配器依赖。
+- `observability/otel` 提供 endpoint 追踪与指标；没有任何核心包 import 它。
 - 提供者初始化、资源、导出器、采样和关闭仍留在应用装配层。
 
 已完成：应用可以显式采用标准可观测性，而不使用这些适配器的服务保持核心依赖路径精简。
@@ -59,22 +59,22 @@
 ## 里程碑 5（已完成）：v2 发布收口
 
 - `make verify-release` 运行完整功能验证、生成项目和契约检查、固定的 TypeScript 检查、专项竞态测试、vet、模块 tidy 检查、UTF-8/链接检查以及经过评审的公开 API 快照。
-- README 示例、迁移说明、CLI 行为、生成物所有权和导出的运行时包由可执行检查或快照覆盖。
+- README 示例、CLI 行为、生成物所有权和导出的运行时包由可执行检查或快照覆盖。
 - `make release-check-clean` 在打标签之前验证已提交的 v2 范围。
 - 运行时收口现在包括 MCP 生命周期/版本/Origin/能力检查、单流 SSE 投递、会话级日志级别和工具结果错误语义；HTTP/gRPC 元数据和流式资源所有权；可取消的 Consul 阻塞查询；以及流安全的 `kit` 默认值。
 - 生成器收口现在包括有界的 SDK 响应读取、URL 解析、仓储排序白名单、有效的日志/超时接线、可选的入站中间件、安全的低速率限制器突发、预先绑定的服务器监听器、数据库资源关闭以及流安全的生成 HTTP 默认值。
 - 完整重新生成保护用户所有的服务、装配、配置和 README 文件，同时清单枚举所有生成器所有的 endpoint 和 transport 产物。
 - MCP 传输会话拥有并释放一个运行时会话；泛型 JSON 客户端绑定成功响应体；无效的 Go IDL 使生成失败。
 
-已完成：v2.0.0 兼容性契约和发布说明已冻结。不可变的根标签 `v2.0.0` 指向经过验证的发布提交，`github.com/dreamsxin/go-kit/v2@v2.0.0` 可通过公共 Go 代理解析。历史上错误的 `v2/v2.0.0` 标签已被移除。
+已完成：当前正式基线由根 module 和唯一根 tag 管理；发布前的契约、API、文档和
+依赖边界均由自动化门禁校验。
 
 ## 里程碑 6（已完成）：v2 直接架构重构
 
 ### 决策
 
-当前 `main/v2` 源码直接进行结构重构，不保留已发布 `v2.0.0` 的源码兼容性，也不通过废弃转发包继续维持旧依赖图。`v2.0.0` 标签保持不可变，所有不兼容变化必须在最终发布前集中记录到 `MIGRATION.md` 和 `CHANGELOG.md`。
-
-2026-08-14，仓库所有者批准继续使用 `/v2` 发布本次不兼容重构，不切换到 `/v3`。该决定是仅针对直接重构的 SemVer 例外，并已在发布说明中明确披露；`v2.0.0` 保持不变，本次根模块正式发布版本为 `v2.1.0`。
+当前源码以 v2.8.0 候选基线直接维护，不保留开发快照的源码兼容承诺；公开契约由
+发布清单、变更日志和 API 快照共同定义。
 
 ### 实施状态
 
@@ -83,11 +83,11 @@
 - [x] 工作包 1 竞态门禁：完整的维护竞态套件在本地使用 MinGW-w64 C 编译器通过，并在 Ubuntu/Windows 发布工作流中通过。
 - [x] 工作包 2：服务发现契约现在位于 `sd`；负载均衡、重试、endpointer、实例缓存和客户端组合拥有独立的包。泛型 SD 依赖测试拒绝 gRPC 和 Consul 提供者导入。
 - [x] 工作包 3：HTTP 错误编码和 HTTP 扩展契约现在位于 `transport/http` 之下；根传输包只保留共享的错误处理器契约。导入测试拒绝 HTTP/gRPC 交叉依赖。
-- [x] 工作包 4：`kit` 仅支持 HTTP，可选生命周期组件使用中立契约，gRPC 装配位于独立的 `kit/grpc` 模块。
-- [x] 工作包 5：gRPC、Consul、etcd、Zap、OpenTelemetry 和 `microgen` 拥有独立模块，仓库由 `go.work` 编排。熔断器与限流留在根模块，因为它们不需要任何第三方依赖就已完整。根运行时模块没有第三方依赖；旧 `log` 是仅标准库的兼容外观。
+- [x] 工作包 4：`kit` 仅支持 HTTP，可选生命周期组件使用中立契约，gRPC 装配位于 `kit/grpc` package。
+- [x] 工作包 5：provider、传输和生成器边界作为 package 保留在单一发布 module 内。依赖闭包由 `TestKitHTTPAssemblyDoesNotResolveOptionalDependencies` 按 package 校验，`TestOnlyOneModuleIsPublishable` 防止重新拆分发布 module。
 - [x] 工作包 6：生成器实现包位于 `cmd/microgen/internal` 之下；生成的项目使用新的包拓扑和直接的 `slog`，最小 HTTP 项目不解析任何可选提供者或数据库依赖。
-- [x] 工作包 7：`kit` 是唯一的快速开始，底层接线命名为 `manual_composition`，包文档使用最终依赖图，迁移文档映射被移除的 API 和包路径。
-- [x] 工作包 8：依赖边界可执行，当前闭包和 `v2.0.0` 对比记录在 `DEPENDENCY_REPORT.md` 中。功能、契约、API、vet、模块、独立模块和干净范围门禁全部通过。`/v2` SemVer 例外和 `v2.1.0` 根版本获得批准。完整的 Ubuntu/Windows 工作流于 2026-08-14 通过。根模块和全部八个嵌套模块标签按顺序发布，并可通过公共 Go 代理解析；最终发布记录已完成。
+- [x] 工作包 7：`kit` 是唯一的快速开始，底层接线命名为 `manual_composition`，包文档使用最终依赖图。
+- [x] 工作包 8：依赖边界、功能、契约、API、vet、模块和干净范围门禁均已完成；当前正式基线由根 module 和唯一根 tag 发布。
 
 ### 重构目标
 
@@ -95,7 +95,7 @@
 - 使基础 `endpoint`、HTTP 传输、泛型服务发现、交互运行时、HTTP 安全和 HTTP 装配路径独立于特定提供者的依赖。
 - 确保仅 HTTP 的应用不会编译或解析 gRPC、Consul、数据库驱动、生成器、Gobreaker、Zap 或 OpenTelemetry 包。
 - 接口和错误放在消费或拥有它们的包中；移除泛型的 `interfaces`、`events` 和 `utils` 包。
-- 将可选集成保留在可独立测试的模块中。
+- 将可选集成保留在发布 module 内、可独立测试的 package 中。
 - 提供一条推荐的首用路径：小型 HTTP 服务用 `kit`，之后需要显式组合时用更底层的 `endpoint` 和 `transport` 包。
 - 使完整的验证套件确定性、跨平台，并对 Git 工作树保持干净。
 
@@ -114,21 +114,21 @@ v2/
     retry/                          # protocol-neutral retry execution
     instance/                       # in-memory instance source
   kit/                              # lightweight HTTP assembly and lifecycle
-    grpc/                           # optional gRPC lifecycle component module
+    grpc/                           # optional gRPC lifecycle component package
   interaction/
     mcp/
   security/
     http/
   observability/
     slog/
-    otel/                           # optional module
+    otel/                           # optional provider package
   integrations/
-    consul/                         # optional module
-    etcd/                           # optional module
-    grpc/                           # optional module
-    zap/                            # optional module
+    consul/                         # optional provider package
+    etcd/                           # optional provider package
+    grpc/                           # optional provider package
+    zap/                            # optional provider package
   cmd/
-    microgen/                       # independent tool module
+    microgen/                       # build-time tool package
       internal/
         dbschema/
         generator/
@@ -136,48 +136,16 @@ v2/
         parser/
 ```
 
-主 v2 模块必须只包含协议无关运行时、HTTP 运行时和标准库集成。以下目录将成为拥有自己的 `go.mod`、测试和发布检查的嵌套 Go 模块：
-
-- `kit/grpc` 或最终的可选 gRPC 装配位置；
-- `integrations/grpc`；
-- `integrations/consul`；
-- `integrations/etcd`；
-- `integrations/zap`；
-- `observability/otel`；
-- `cmd/microgen`。
-
-嵌套模块路径在可行时保留包导入路径。模块版本和标签由 `RELEASE.md` 所有；本地开发使用显式的 `go.work` 文件，而不是提交面向使用方的 `replace` 指令。
+v2 以一个已发布 Go module 交付。provider、transport、observability 和 generator
+边界都是该 module 内的 package 边界；只有 `examples`、`tools` 和
+`tools/contractcheck` 保留为仓库内部工作区 module。根 tag 拥有完整 v2 产品，
+package 级导入边界与依赖门禁确保最小装配不会承担可选成本。
 
 `gobreaker` 与 `golang.org/x/time/rate` 的适配器模块是明确的非目标。
 `endpoint.CircuitBreaker` 与 `endpoint.RateLimitMiddleware` 零依赖且功能完整——包含
 基于失败率的触发与慢调用统计——而这类适配器的全部内容就是把一个第三方类型包成一个
 `Middleware`，应用自己十几行就能写完。开模块的代价则是一份 `go.mod`、发布检查、
 API 快照与双语文档的长期维护。
-
-### 包迁移映射
-
-| 当前 API 或文件 | 目标所有权 | 需要的操作 |
-| --- | --- | --- |
-| `endpoint.Endpoint`、`Middleware`、类型化适配器 | `endpoint` | 保留并简化 |
-| `endpoint.EndpointCache` | `sd/endpointer` | 仅在能提升清晰度时移动并重命名 |
-| `endpoint.Factory` | `sd/endpointer` | 随缓存所有权一起移动 |
-| `endpoint.EndpointerOption*` | `sd/endpointer` | 移动；从 endpoint 移除 |
-| `endpoint.LoggingMiddleware` 和 `endpoint.Logger` | `integrations/zap` | 移动；endpoint 停止导入 Zap |
-| endpoint trace/请求 ID 上下文辅助函数 | `endpoint` | 保留标准库实现 |
-| `transport.ErrorHandler` | `transport` 或协议所有者 | 仅在能不带协议类型共享时保留 |
-| `transport.ErrorEncoder` 和 `DefaultErrorEncoder` | `transport/http/server` | 移动；根传输停止导入 HTTP |
-| `transport/http/interfaces/*` | `transport/http` | 将协议契约移入 HTTP 所有者 |
-| `sd/interfaces.Instancer` 和 `sd/events.Event` | `sd` | 移动到拥有的根包 |
-| `sd/interfaces.Registrar` | `sd` | 替换为返回错误的契约 |
-| `sd/interfaces.Balancer` 和 `ErrNoEndpoints` | `sd` | 移动到根包或 retry 消费方包 |
-| `sd/endpointer/balancer` | `sd/balancer` | 拍平包路径 |
-| `sd/endpointer/executor` | `sd/retry` | 移除直接的 gRPC status 处理 |
-| `utils.Exponential` | `sd/retry/internal/backoff` | 将实现私有化 |
-| `sd/consul` | `integrations/consul` | 移入可选模块 |
-| `log` Zap 别名包 | `integrations/zap` | 从核心模块移除 |
-| `kit.WithGRPC` 和 gRPC 字段 | `kit/grpc` 组件 | 从 HTTP 核心装配中移除 |
-| `kit.WithRateLimit`、`WithCircuitBreaker` | 显式 endpoint 中间件 | 移除拥有依赖的快捷方式 |
-| `cmd/microgen/{generator,parser,ir,dbschema}` | `cmd/microgen/internal/*` | 使生成器内部不可导入 |
 
 ### 工作包 0：干净且可移植的测试基架
 
@@ -243,7 +211,7 @@ endpoint 导入列表必须只包含标准库包。
 目标：使每个传输包拥有所有协议特定的行为。
 
 - 将 HTTP 状态、头部、公开消息、错误码、编码器和请求元数据保留在 `transport/http` 之内。
-- 将 gRPC 元数据、状态转换、拦截器和重试分类保留在独立的 `integrations/grpc` 模块之内。
+- 将 gRPC 元数据、状态转换、拦截器和重试分类保留在可选的 `integrations/grpc` package 内。
 - 从根 `transport` 包中移除 HTTP 类型。当没有真正共享的行为剩余时删除根包。
 - 在 HTTP 和 gRPC 之间保持等价的 before/after/finalizer 顺序，而不强制相同的函数签名。
 - 添加防止 HTTP/gRPC 交叉导入的包导入测试。
@@ -271,15 +239,15 @@ endpoint 导入列表必须只包含标准库包。
 - `Service.Run(ctx)` 仍遵循调用方所有的取消。
 - 启动失败保持同步，关闭保持有界。
 
-### 工作包 5：可选模块分离
+### 工作包 5：可选 package 边界（历史）
 
 目标：使模块边界与组件边界一致。
 
-- 为提供者 SDK、非标准中间件引擎、gRPC 和生成器创建嵌套模块。
+- 为提供者 SDK、非标准中间件引擎、gRPC 和生成器创建清晰的 package 边界。
 - 添加仓库 `go.work` 用于开发和 CI 编排。
-- 从主运行时 `go.mod` 中移除数据库驱动、Proto 解析器、Consul、Zap、gRPC 和 OpenTelemetry 依赖。
-- 为每个嵌套模块提供独立的 tidy、test、vet 和发布检查。
-- 拒绝可发布模块清单中的相对 `replace` 指令。
+- 依赖是否进入应用闭包由实际导入的 package 决定；根 module 统一管理版本。
+- 为根 module 和仓库内部 module 提供 tidy、test、vet 和发布检查。
+- 保持发布 module 只使用根版本与根标签。
 
 验收：
 
@@ -291,7 +259,7 @@ go test ./...
 
 在每个工作区模块中运行等价命令。所有模块清单在 tidy 之后必须保持不变。
 
-### 工作包 6：microgen 迁移
+### 工作包 6：microgen 收口
 
 目标：只生成新的包拓扑，并将构建期依赖保持在运行时模块之外。
 
@@ -300,7 +268,7 @@ go test ./...
 - 移除对已删除便捷选项和旧接口路径的生成使用。
 - 当包所有权或生成产物所有权变化时更新清单模式。
 - 在临时目录中重新生成所有经过评审的契约，并显式评审快照变更。
-- 在无法访问可选模块的情况下构建生成的仅 HTTP 项目。
+- 在无法访问可选 package 的情况下构建生成的仅 HTTP 项目。
 
 验收：
 
@@ -317,7 +285,7 @@ go test ./...
 - 将当前底层快速开始重命名为显式的手动组合示例。
 - 在包的最终导入和所有权稳定之后更新包 README。
 - 重写 `ARCHITECTURE.md` 以描述结果依赖规则，而不是之前的依赖图。
-- 在 `MIGRATION.md` 中记录每个被移除或重命名的 API，并附前后导入示例。
+- 在 `CHANGELOG.md` 中记录每个被移除或重命名的 API，并附前后导入示例。
 - 一起更新 `README*`、`PRODUCTION.md`、`MICROGEN.md` 和生成的 README 模板。
 
 验收：
@@ -331,10 +299,10 @@ go test ./...
 目标：在选择发布路径之前证明重构已完成。
 
 - 从干净的工作树运行完整的测试、竞态、vet、契约、API、生成、编码、链接和模块 tidy 套件。
-- 为最小 endpoint、HTTP 传输、SD、kit、交互、安全和可选模块入口捕获依赖列表。
-- 将最小 HTTP 构建时间、二进制大小、模块图和依赖计数与 `v2.0.0` 对比。
+- 为最小 endpoint、HTTP 传输、SD、kit、交互、安全和可选 package 入口捕获依赖列表。
+- 记录最小 HTTP 构建的依赖闭包、二进制大小和模块图，作为后续版本的诊断基线。
 - 将最终的导出 API 快照作为一次审慎的契约重置进行评审。
-- 决定将不兼容结果作为显式记录的 v2 SemVer 例外发布，还是更改模块路径并作为 v3 发布。
+- 按发布清单使用唯一根 v2 tag 发布经过评审的结果。
 
 必需的最终命令：
 
@@ -362,7 +330,7 @@ git status --porcelain
 | `interaction/mcp` | 仅 interaction |
 | `security/http` | 无 |
 | `observability/slog` | 仅核心 endpoint 和协议无关传输契约 |
-| 可选模块 | 仅其声明的提供者 SDK 和核心契约 |
+| 可选 package | 仅其声明的提供者 SDK 和核心契约 |
 
 ### 完成定义
 
@@ -374,7 +342,7 @@ git status --porcelain
 - 仅 HTTP 的使用不会解析或编译 gRPC、Zap、Consul、数据库或生成器依赖。
 - 所有生成的项目模式使用新拓扑。
 - 完整验证套件在 Linux 和 Windows 上通过，并保持工作树干净。
-- 架构、迁移、发布、使用和生成器文档保持一致。
+- 架构、发布、使用和生成器文档保持一致。
 - 发布路径和兼容性影响在打标签之前被显式批准并记录。
 
 ## 里程碑 7（已完成）：用户工作流覆盖

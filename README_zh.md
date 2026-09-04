@@ -61,7 +61,7 @@ if err != nil {
 - [可观测性](v2/docs/observability_zh.md)：日志、指标、追踪和请求关联
 - [示例](v2/examples/README_zh.md)：每个组件的可运行服务
 - [生产指南](v2/PRODUCTION_zh.md)：部署、告警、后台任务
-- [升级说明](v2/MIGRATION_zh.md)、[变更日志](v2/CHANGELOG_zh.md)
+- [变更日志](v2/CHANGELOG_zh.md)
 
 ## 当前版本
 
@@ -72,7 +72,7 @@ go get github.com/dreamsxin/go-kit/v2@latest
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 ```
 
-`v2.7.0` 是当前架构版本：包含对装配层与错误模型的有意破坏性变更（见[变更日志](v2/CHANGELOG_zh.md)与[升级说明](v2/MIGRATION_zh.md)）。
+`v2.8.0` 是当前架构版本，并以单一模块发布：一行 `require`、一个 tag（见[变更日志](v2/CHANGELOG_zh.md)）。
 
 ## 开发验证
 
@@ -81,7 +81,7 @@ go -C v2 test ./...
 go -C v2 vet ./...
 ```
 
-发布候选版本前，再运行跨模块与独立模块闸门：
+发布候选版本前，再运行跨模块与单模块发布闸门：
 
 ```bash
 go -C v2/tools run ./releaseverify -root .. -suites test,standalone,vet,tidy,race

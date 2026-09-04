@@ -35,9 +35,23 @@ func TestGeneratedSDKBehaviorContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
-	root := filepath.Join(cwd, "testdata", "gen_fromdb_sqlite")
-	if _, err := os.Stat(filepath.Join(root, "sdk", "typescript", "client.ts")); err != nil {
-		t.Skip("generated database fixture is absent; run the contract integration tests first")
+	root := generatedProjectDir(t, "gen_fromdb_sdk_behavior")
+	dbPath := filepath.Join(t.TempDir(), "schema.sqlite")
+	createSQLiteSchema(t, dbPath)
+	cmd := microgenCommand(t,
+		"-from-db",
+		"-driver", "sqlite",
+		"-dsn", dbPath,
+		"-service", "CatalogService",
+		"-out", root,
+		"-import", "example.com/gen_fromdb_sqlite",
+		"-config=false",
+		"-docs=false",
+		"-db=false",
+		"-openapi",
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("generate SDK behavior fixture: %v\n%s", err, out)
 	}
 
 	want := readSDKBehaviorResult(t, filepath.Join(cwd, "testdata", "sdk_behavior_contract.json"))

@@ -19,12 +19,11 @@ func TestMicrogenInteractionIntegration(t *testing.T) {
 		t.Fatalf("Getwd: %v", err)
 	}
 	root := filepath.Dir(cwd)
-	microgenPath := microgenMainPath(t)
 
 	outDir := generatedProjectDir(t, "gen_interaction_e2e")
 
 	idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-	cmd := exec.Command("go", "run", microgenPath,
+	cmd := microgenCommand(t,
 		"-idl", idlFile,
 		"-out", outDir,
 		"-import", "example.com/gen_interaction_e2e",

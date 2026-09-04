@@ -10,7 +10,6 @@ import (
 )
 
 func TestMicrogenFromDBIntegration(t *testing.T) {
-	microgenPath := microgenMainPath(t)
 
 	t.Run("FromDB_SQLite_GeneratedProject_BuildsAndRuns", func(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_fromdb_sqlite")
@@ -18,7 +17,7 @@ func TestMicrogenFromDBIntegration(t *testing.T) {
 		dbPath := filepath.Join(t.TempDir(), "fromdb_runtime.sqlite")
 		createSQLiteSchema(t, dbPath)
 
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-from-db",
 			"-driver", "sqlite",
 			"-dsn", dbPath,

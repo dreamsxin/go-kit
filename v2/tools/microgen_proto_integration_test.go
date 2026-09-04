@@ -15,13 +15,12 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
-	microgenPath := microgenMainPath(t)
 
 	t.Run("Proto", func(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_proto_integration")
 
 		protoFile := filepath.Join(cwd, "testdata", "service.proto")
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", protoFile,
 			"-out", outDir,
 			"-import", "example.com/gen_proto_integration",
@@ -72,7 +71,7 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_proto_component_flow")
 
 		protoFile := filepath.Join(cwd, "testdata", "service.proto")
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", protoFile,
 			"-out", outDir,
 			"-import", "example.com/gen_proto_component_flow",
@@ -141,7 +140,7 @@ message UploadSummary { int32 count = 1; }
 `), 0o644); err != nil {
 			t.Fatalf("write stream proto: %v", err)
 		}
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", protoFile,
 			"-out", outDir,
 			"-import", "example.com/gen_proto_server_stream",
@@ -204,7 +203,7 @@ message UploadSummary { int32 count = 1; }
 		outDir := generatedProjectDir(t, "gen_proto_grpc_runtime")
 
 		protoFile := filepath.Join(cwd, "testdata", "service.proto")
-		cmd := exec.Command("go", "run", microgenPath,
+		cmd := microgenCommand(t,
 			"-idl", protoFile,
 			"-out", outDir,
 			"-import", "example.com/gen_proto_grpc_runtime",

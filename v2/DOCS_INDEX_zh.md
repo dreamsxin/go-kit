@@ -13,7 +13,7 @@ API 参考；根目录指南负责生成、架构、生产部署和升级。
 | 生成项目 | [microgen 教程](docs/tutorial-microgen_zh.md) |
 | 手工组装服务 | [根 README](README_zh.md#使用-kit) |
 | 生产部署 | [生产指南](PRODUCTION_zh.md) |
-| 升级项目 | [迁移说明](MIGRATION_zh.md) |
+| 升级项目 | [变更记录](CHANGELOG_zh.md) |
 
 ## 按任务查找
 
@@ -60,5 +60,5 @@ API 参考；根目录指南负责生成、架构、生产部署和升级。
 - 运行时行为：根 README、各包 README 和 `docs/` 章节。
 - 生成项目行为：`cmd/microgen/templates/readme.tmpl`。
 - 设计与范围：`ARCHITECTURE.md`、`PRODUCTION.md`。
-- 历史与升级：`CHANGELOG.md`、`MIGRATION.md`。
+- 历史：`CHANGELOG.md`。
 - 英文与中文文件成对维护；公开行为或 API 变化时同步更新两种语言。

@@ -1,15 +1,14 @@
 # Dependency Closure Report
 English | [简体中文](DEPENDENCY_REPORT_zh.md)
 
-This report captures the dependency closure after the direct v2 architecture
-refactor. The executable rules live in `tools/dependency_boundaries_test.go`;
-this document records the reviewed result and the `v2.0.0` comparison required
-by `ROADMAP.md`.
+This report captures the current v2 dependency closure. The executable rules
+live in `tools/dependency_boundaries_test.go`; this document records the reviewed
+result and a diagnostic comparison baseline.
 
 ## Environment
 
-- Current source: `be05d33370a2ac9f7cfbc266033a65df641ea90f`
-- Published baseline: `v2.0.0` (`788c0538db872aab10dc910b9ed14e8a6a4745b0`)
+- Current source: v2.8.0 release-candidate working tree
+- Comparison baseline: historical v2 measurements (diagnostic only)
 - Go: `go1.25.8`
 - Platform: `windows/amd64`
 - CGO: disabled
@@ -21,8 +20,10 @@ Non-standard counts include go-kit packages as well as provider packages.
 
 ## Core Entry Points
 
-The root runtime module has no third-party module requirements. Each entry point
-therefore resolves only the standard library and the listed go-kit packages.
+The root module declares provider dependencies for the optional packages it
+ships. Each core entry point still resolves only the standard library and the
+listed go-kit packages; provider costs appear only when an optional package is
+imported.
 
 | Entry point | Compiled packages | Go-kit packages | Allowed go-kit dependency area |
 | --- | ---: | ---: | --- |
@@ -40,10 +41,10 @@ outside these areas, including provider SDKs and protocol crossings.
 
 ## Optional Entry Points
 
-Optional integrations are separate modules. Their provider cost is visible only
-when the corresponding module is selected.
+Optional integrations ship in the same module. Their provider cost appears in a
+build only when their packages are imported.
 
-| Module entry point | Compiled packages | Non-standard packages | Provider family |
+| Package entry point | Compiled packages | Non-standard packages | Provider family |
 | --- | ---: | ---: | --- |
 | `integrations/consul` | 207 | 18 | HashiCorp Consul API |
 | `integrations/etcd` | 353 | 154 | etcd client v3 (pulls gRPC) |
@@ -70,7 +71,7 @@ The table reports the shorter forced-build duration. Timing is diagnostic, not
 an absolute release threshold; dependency and binary measurements are stable
 closure signals.
 
-| Metric | `v2.0.0` | Current refactor | Reduction |
+| Metric | Historical baseline | Current candidate | Change |
 | --- | ---: | ---: | ---: |
 | Compiled packages | 326 | 190 | 41.7% |
 | Non-standard packages | 131 | 6 | 95.4% |
@@ -78,8 +79,9 @@ closure signals.
 | Forced build time | 9.205 s | 7.013 s | 23.8% |
 | Windows binary size | 18,372,096 bytes | 8,898,048 bytes | 51.6% |
 
-The current two-module graph is the standalone probe plus the root go-kit
-module. Optional integrations do not resolve for this HTTP-only service.
+The HTTP-only probe resolves the root go-kit module and no optional provider
+package. The repository also keeps separate workspace-only modules for examples
+and tooling; they are not published or tagged.
 
 ## Recheck
 
@@ -88,7 +90,7 @@ module changes:
 
 ```bash
 go -C ./tools test . -run TestArchitectureDependencyGates -count=1
-go -C ./tools test . -run TestCoreModuleHasNoThirdPartyRequirements -count=1
+go -C ./tools test . -run TestKitHTTPAssemblyDoesNotResolveOptionalDependencies -count=1
 go -C ./tools test . -run TestPublishableModulesDoNotUseLocalReplacements -count=1
 ```
 

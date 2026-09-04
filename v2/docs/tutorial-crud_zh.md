@@ -123,7 +123,7 @@ if err := host.Run(ctx); err != nil {
 
 ## 6. 运行它
 
-从 `v2/` 模块目录运行——`examples/` 是加入仓库 workspace 的独立模块：
+从 `v2/` 模块目录运行——`examples/` 是加入仓库 workspace 的内部 module：
 
 ```bash
 go run ./examples/todosvc

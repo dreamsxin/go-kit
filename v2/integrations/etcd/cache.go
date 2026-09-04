@@ -5,20 +5,16 @@ import (
 	"reflect"
 	"sort"
 	"sync"
+
+	"github.com/dreamsxin/go-kit/v2/sd"
 )
 
-// Instance and Event mirror the protocol-neutral discovery snapshot
-// structurally, without coupling this provider module to a specific core
-// module version.
-type Instance = struct {
-	Address  string
-	Metadata map[string]any
-}
+// Instance and Event are aliases for the core discovery snapshot types, so a
+// value built here is interchangeable with sd.Instance and sd.Event and the
+// compiler keeps the two sides from drifting apart.
+type Instance = sd.Instance
 
-type Event = struct {
-	Instances []Instance
-	Err       error
-}
+type Event = sd.Event
 
 type eventCache struct {
 	mu          sync.RWMutex

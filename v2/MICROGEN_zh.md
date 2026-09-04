@@ -5,7 +5,7 @@
 `microgen` 从契约生成可直接运行的 Go 服务。它是新服务的推荐入口；运行时
 各包仍可独立使用。
 
-本指南对应最新发布的 `microgen`（独立版本化生成器模块），安装方式：
+本指南对应主 module 中发布的 `microgen` package，安装方式：
 
 ```bash
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest

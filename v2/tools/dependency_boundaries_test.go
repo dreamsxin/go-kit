@@ -125,25 +125,8 @@ func TestEndpointHasOnlyStandardLibraryImports(t *testing.T) {
 	}
 }
 
-func TestCoreModuleHasNoThirdPartyRequirements(t *testing.T) {
-	root := moduleRoot(t)
-	type editJSON struct {
-		Require []struct {
-			Path string
-		}
-	}
-
-	output := commandOutput(t, root, "go", "mod", "edit", "-json")
-	var edit editJSON
-	if err := json.Unmarshal(output, &edit); err != nil {
-		t.Fatalf("decode core go.mod: %v", err)
-	}
-	for _, requirement := range edit.Require {
-		t.Errorf("core module requires third-party module %q", requirement.Path)
-	}
-}
-
 func TestMicrogenImplementationPackagesAreInternal(t *testing.T) {
+
 	root := moduleRoot(t)
 	microgenRoot := filepath.Join(root, "cmd", "microgen")
 	output := commandOutput(t, microgenRoot, "go", "list", "-f", "{{.ImportPath}}", "./...")
@@ -209,20 +192,37 @@ func TestOptionalServiceDiscoveryLayersStayOptional(t *testing.T) {
 	}
 }
 
+// TestKitHTTPAssemblyDoesNotResolveOptionalDependencies is the surviving form of
+// the old module-level gate.
+//
+// Everything ships from one module now, so "the core module has no third-party
+// requirements" is no longer a statement anyone can make. The goal it protected
+// is still checkable, and at a more useful granularity: an HTTP-only assembly
+// must not resolve gRPC, a discovery provider, a database driver, or a telemetry
+// SDK. go list -deps answers that per package, which is what an application
+// actually links.
 func TestKitHTTPAssemblyDoesNotResolveOptionalDependencies(t *testing.T) {
 	root := moduleRoot(t)
 	output := commandOutput(t, root, "go", "list", "-deps", "-f", "{{.ImportPath}}", "./kit")
 	forbidden := []string{
-		"github.com/dreamsxin/go-kit/v2/kit/grpc",
-		"github.com/dreamsxin/go-kit/v2/integrations/zap",
+		coreModulePath + "/cmd/microgen",
+		coreModulePath + "/integrations/consul",
+		coreModulePath + "/integrations/etcd",
+		coreModulePath + "/integrations/grpc",
+		coreModulePath + "/integrations/zap",
+		coreModulePath + "/kit/grpc",
+		coreModulePath + "/observability/otel",
+		"github.com/emicklei/proto",
 		"github.com/go-sql-driver/mysql",
 		"github.com/hashicorp/consul",
 		"github.com/lib/pq",
 		"github.com/mattn/go-sqlite3",
-		"modernc.org/sqlite",
 		"github.com/sony/gobreaker",
+		"go.etcd.io/etcd",
+		"go.opentelemetry.io/otel",
 		"go.uber.org/zap",
 		"google.golang.org/grpc",
+		"modernc.org/sqlite",
 	}
 	for _, importPath := range strings.Fields(string(output)) {
 		for _, prefix := range forbidden {
@@ -285,17 +285,10 @@ func TestTransportPackagesDoNotCrossProtocolBoundaries(t *testing.T) {
 	}
 }
 
+// TestPublishableModulesDoNotUseLocalReplacements guards the one module that is
+// published. examples and tools are workspace-only and may replace freely.
 func TestPublishableModulesDoNotUseLocalReplacements(t *testing.T) {
 	root := moduleRoot(t)
-	moduleRoots := []string{
-		root,
-		filepath.Join(root, "cmd", "microgen"),
-		filepath.Join(root, "integrations", "consul"),
-		filepath.Join(root, "integrations", "grpc"),
-		filepath.Join(root, "integrations", "zap"),
-		filepath.Join(root, "kit", "grpc"),
-		filepath.Join(root, "observability", "otel"),
-	}
 	type moduleVersion struct {
 		Path    string
 		Version string
@@ -307,16 +300,14 @@ func TestPublishableModulesDoNotUseLocalReplacements(t *testing.T) {
 		}
 	}
 
-	for _, moduleRoot := range moduleRoots {
-		output := commandOutput(t, moduleRoot, "go", "mod", "edit", "-json")
-		var edit editJSON
-		if err := json.Unmarshal(output, &edit); err != nil {
-			t.Fatalf("decode %s/go.mod: %v", moduleRoot, err)
-		}
-		for _, replacement := range edit.Replace {
-			if replacement.New.Version == "" {
-				t.Errorf("publishable module %s uses local replace %s => %s", moduleRoot, replacement.Old.Path, replacement.New.Path)
-			}
+	output := commandOutput(t, root, "go", "mod", "edit", "-json")
+	var edit editJSON
+	if err := json.Unmarshal(output, &edit); err != nil {
+		t.Fatalf("decode %s/go.mod: %v", root, err)
+	}
+	for _, replacement := range edit.Replace {
+		if replacement.New.Version == "" {
+			t.Errorf("published module uses local replace %s => %s", replacement.Old.Path, replacement.New.Path)
 		}
 	}
 }

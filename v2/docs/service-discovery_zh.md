@@ -395,7 +395,7 @@ checker 会发布未检查集合，而不是因为探针故障让服务整体失
 
 ## Provider
 
-Consul 与 etcd 是独立模块，结构上都满足同一个 `sd.Instancer`，不会进入通用服务发现包的
+Consul 与 etcd 都满足 `sd.Instancer` 契约——各自的 `contract.go` 在编译期断言这一点——并且不会进入通用服务发现包的
 依赖闭包：
 
 ```go

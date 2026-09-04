@@ -29,7 +29,7 @@ The core transport module exposes the HTTP areas:
 - `transport/http/server`
 - `transport/http/client`
 
-gRPC is an optional module with two public areas:
+gRPC is an optional provider package with two public areas:
 
 - `integrations/grpc/server`
 - `integrations/grpc/client`
@@ -496,11 +496,11 @@ These are framework anti-patterns because they weaken separation between protoco
 
 ## Stability Notes
 
-The published `v2.0.0` transport API remains a historical stable baseline. The
-approved `v2.1.0` SemVer exception resets the contract to the reviewed API
-snapshot. After `v2.1.0`, compatibility covers documented behavior, not
-internal execution details such as exact writer interception or internal
-request lifecycle structure.
+The v2.8.0 candidate establishes the reviewed transport API snapshot. Until the
+v2 compatibility freeze, minor releases may change behavior or remove APIs;
+after the freeze, compatibility covers documented behavior, not internal
+execution details such as exact writer interception or request lifecycle
+structure.
 
 ## Related Docs
 
