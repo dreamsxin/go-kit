@@ -101,13 +101,23 @@ func (r *Runtime) RegisterPrompt(p Prompt, render func(map[string]string) (Promp
 	return provider.Register(p, render)
 }
 
-// StartSession creates a new session and emits a session-started event.
+// StartSession creates a new session and emits a session-started event. When
+// the event cannot be emitted the session is released again, so a caller that
+// sees an error is never left with a session it has no handle on.
 func (r *Runtime) StartSession(ctx context.Context, subject string, metadata map[string]string) (Session, error) {
+	if r.Sessions == nil || r.Events == nil {
+		return Session{}, fmt.Errorf("%w: Sessions and Events", ErrRuntimeNotConfigured)
+	}
 	session, err := r.Sessions.Create(ctx, subject, metadata)
 	if err != nil {
 		return Session{}, err
 	}
 	if err := r.Events.Emit(ctx, Event{SessionID: session.ID, Type: EventSessionStarted}); err != nil {
+		if _, closeErr := r.Sessions.Close(ctx, session.ID); closeErr == nil {
+			if deleter, ok := r.Sessions.(SessionDeleter); ok {
+				_ = deleter.Delete(ctx, session.ID)
+			}
+		}
 		return Session{}, err
 	}
 	return session, nil
@@ -115,6 +125,9 @@ func (r *Runtime) StartSession(ctx context.Context, subject string, metadata map
 
 // EndSession closes the session and emits a session-ended event.
 func (r *Runtime) EndSession(ctx context.Context, id SessionID) (Session, error) {
+	if r.Sessions == nil || r.Events == nil {
+		return Session{}, fmt.Errorf("%w: Sessions and Events", ErrRuntimeNotConfigured)
+	}
 	session, err := r.Sessions.Close(ctx, id)
 	if err != nil {
 		return Session{}, err
@@ -142,6 +155,9 @@ func (r *Runtime) ReleaseSession(ctx context.Context, id SessionID) error {
 
 // RegisterTool registers a tool with the runtime's tool registry.
 func (r *Runtime) RegisterTool(tool Tool) error {
+	if r.Tools == nil {
+		return fmt.Errorf("%w: Tools", ErrRuntimeNotConfigured)
+	}
 	return r.Tools.Register(tool)
 }
 
@@ -156,6 +172,9 @@ func (r *Runtime) ListTools() []ToolDescriptor {
 
 // CallTool executes a tool call, invoking hooks and emitting events.
 func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, error) {
+	if r.Sessions == nil || r.Events == nil || r.Tools == nil {
+		return ToolResult{}, fmt.Errorf("%w: Sessions, Events and Tools", ErrRuntimeNotConfigured)
+	}
 	session, err := r.Sessions.Get(ctx, call.SessionID)
 	if err != nil {
 		return ToolResult{}, err
@@ -164,8 +183,18 @@ func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, erro
 		return ToolResult{}, ErrSessionClosed
 	}
 
-	for _, hook := range r.Hooks {
+	for i, hook := range r.Hooks {
 		if err := hook.BeforeToolCall(ctx, session, call); err != nil {
+			// Unwind the hooks that already admitted the call so an audit sink
+			// records the rejection and a hook that acquired something can
+			// release it. The tool never ran, so the result is zero.
+			r.afterToolCall(ctx, session, call, ToolResult{}, err, i-1)
+			r.emit(ctx, Event{
+				SessionID: call.SessionID,
+				Type:      EventError,
+				Name:      call.Name,
+				Payload:   err.Error(),
+			})
 			return ToolResult{}, err
 		}
 	}
@@ -201,6 +230,16 @@ func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, erro
 		}
 	}
 	return result, err
+}
+
+// afterToolCall runs AfterToolCall in reverse order over Hooks[:from+1]. Errors
+// from the hooks are discarded: the caller already has the failure that is being
+// reported, and an audit sink that cannot write must not turn a rejection into a
+// different error.
+func (r *Runtime) afterToolCall(ctx context.Context, session Session, call ToolCall, result ToolResult, callErr error, from int) {
+	for i := from; i >= 0; i-- {
+		_ = r.Hooks[i].AfterToolCall(ctx, session, call, result, callErr)
+	}
 }
 
 // emit sends an event and routes any error to OnEmitError.

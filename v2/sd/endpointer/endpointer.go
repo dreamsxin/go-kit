@@ -17,9 +17,11 @@ type Endpointer interface {
 	Endpoints() ([]endpoint.Endpoint, error)
 }
 
-// InstanceEndpointer also reports the instance address behind each endpoint.
-// Weighted and hash-based balancers require this identity; round-robin and
-// random do not, so they accept the narrower Endpointer.
+// InstanceEndpointer also reports the instance address behind each endpoint,
+// the identity weighted, hash-based, and feedback-driven strategies need.
+// Everything this module builds returns an InstanceEndpointer; Endpointer stays
+// separate for an application that only consumes endpoints and wants to say so
+// in its own signatures.
 type InstanceEndpointer interface {
 	Endpointer
 	InstanceEndpoints() ([]InstanceEndpoint, error)

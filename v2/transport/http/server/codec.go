@@ -21,9 +21,10 @@ type MarshalFunc func(response any) ([]byte, error)
 // TextErrorEncoder is an ErrorEncoder that writes errors as plain text with
 // the given Content-Type. Use it for non-JSON routes (protobuf, binary, text)
 // so error responses share the response format instead of defaulting to JSON.
-// Classification still runs through the same rules as the JSON encoder:
+// Classification and redaction run through the same rules as the JSON encoder:
 // StatusCoder, ValidationError, rejection errors, and apperror kinds decide
-// the status; 5xx bodies stay opaque.
+// the status; transporthttp.PublicMessager chooses the message; a 500 always
+// reads "Internal Server Error".
 //
 //	server.NewServer(ep, decodeProto, encodeProto,
 //	    server.ServerErrorEncoder(server.TextErrorEncoder("application/x-protobuf")),
@@ -46,22 +47,14 @@ func TextErrorEncoder(contentType string) ErrorEncoder {
 
 		w.Header().Set("Content-Type", contentType)
 
-		message := http.StatusText(status)
-		if message == "" {
-			message = "HTTP error"
-		}
-		var pm transporthttp.PublicMessager
-		if errors.As(err, &pm) && pm.PublicMessage() != "" {
-			message = pm.PublicMessage()
-		} else if status < http.StatusInternalServerError && err != nil {
-			message = err.Error()
-		}
+		message := publicErrorMessage(err, status)
 
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte(message))
 	}
 }
 
+// RawBodyCodec returns a decode/encode pair for a route that speaks a
 // non-JSON body format - protobuf, MessagePack, custom binary, or text. The
 // codec reads the bounded body, hands it to unmarshal, and writes marshal's
 // output with the given Content-Type.
@@ -124,10 +117,7 @@ func RawBodyCodecWithMaxBytes(unmarshal UnmarshalFunc, marshal MarshalFunc, cont
 				}
 			}
 		}
-		code := http.StatusOK
-		if sc, ok := response.(transporthttp.StatusCoder); ok {
-			code = sc.StatusCode()
-		}
+		code := responseStatus(response)
 		w.WriteHeader(code)
 		if code == http.StatusNoContent {
 			return nil

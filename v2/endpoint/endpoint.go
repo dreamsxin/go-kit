@@ -49,6 +49,53 @@ func Nop(context.Context, any) (any, error) { return struct{}{}, nil }
 // It is not a way to return a business error inside a 200 response: the servers
 // turn it into an error response. To answer 200 with an error field in the
 // body, put the field in the response struct and do not implement Failer.
+//
+// # Failer is invisible to middleware
+//
+// A Failer response reaches the transport with a nil error, so every middleware
+// in this package — metrics, circuit breaker, retry, logging — records it as a
+// success. Only the server that encodes the response sees the failure. Install
+// FailerMiddleware innermost to turn it into a returned error first, and the
+// rest of the chain observes what the client will.
 type Failer interface {
 	Failed() error
+}
+
+// ResponseError returns the error a response carries through Failer, or nil when
+// the response carries none. Use it in a custom middleware that must judge the
+// outcome of a call the way the transport will.
+func ResponseError(response any) error {
+	failer, ok := response.(Failer)
+	if !ok {
+		return nil
+	}
+	return failer.Failed()
+}
+
+// FailerMiddleware converts a Failer response into a returned error, so the
+// middleware around it sees the failure instead of a nil error. It changes
+// nothing a client observes: the servers encode a returned error and a failed
+// response identically.
+//
+// Install it innermost, closest to the endpoint, so everything outside it —
+// metrics, breaker, retry — counts the call as the failure it is:
+//
+//	ep = endpoint.NewBuilder(ep).
+//	    WithCircuitBreaker().
+//	    WithMetrics(recorder).
+//	    WithFailer(). // innermost: applied last, runs first
+//	    Build()
+func FailerMiddleware() Middleware {
+	return func(next Endpoint) Endpoint {
+		return func(ctx context.Context, request any) (any, error) {
+			response, err := next(ctx, request)
+			if err != nil {
+				return response, err
+			}
+			if failed := ResponseError(response); failed != nil {
+				return nil, failed
+			}
+			return response, nil
+		}
+	}
 }

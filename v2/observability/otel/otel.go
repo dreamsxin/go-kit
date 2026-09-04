@@ -39,8 +39,17 @@ func WithSpanAttributes(attributes ...attribute.KeyValue) TraceOption {
 	}
 }
 
+// errEndpointPanicked is what a span records when the endpoint unwound through
+// a panic. The panic value itself is not available without recovering it, which
+// would change the program's behaviour.
+var errEndpointPanicked = errors.New("endpoint panicked")
+
 // TracingMiddleware creates one span for each endpoint invocation. A nil
 // tracer uses the application's configured global provider.
+//
+// A panic ends the span with an Error status and a recorded exception, then
+// propagates. Only span.End would run otherwise, leaving the span Unset —
+// indistinguishable from a success to most backends.
 func TracingMiddleware(tracer trace.Tracer, operation string, options ...TraceOption) endpoint.Middleware {
 	if tracer == nil {
 		tracer = otel.Tracer(instrumentationName)
@@ -58,9 +67,17 @@ func TracingMiddleware(tracer trace.Tracer, operation string, options ...TraceOp
 				trace.WithSpanKind(cfg.kind),
 				trace.WithAttributes(cfg.attributes...),
 			)
-			defer span.End()
+			returned := false
+			defer func() {
+				if !returned {
+					span.RecordError(errEndpointPanicked)
+					span.SetStatus(codes.Error, "endpoint panicked")
+				}
+				span.End()
+			}()
 
 			response, err = next(spanCtx, request)
+			returned = true
 			if err != nil {
 				span.RecordError(err)
 				span.SetStatus(codes.Error, "endpoint failed")

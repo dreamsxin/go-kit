@@ -146,14 +146,29 @@ func TestAuthorizationError_Unwrap(t *testing.T) {
 
 // --- AuthorizerFunc unit tests ---
 
-func TestAuthorizerFunc_Nil_AllowsByDefault(t *testing.T) {
+func TestAuthorizerFunc_Nil_Denies(t *testing.T) {
 	var f AuthorizerFunc // nil
 	decision, err := f.AuthorizeToolCall(context.Background(), Session{}, ToolCall{})
 	if err != nil {
 		t.Fatalf("nil AuthorizerFunc should not error, got %v", err)
 	}
-	if !decision.Allowed {
-		t.Fatal("nil AuthorizerFunc should allow by default")
+	if decision.Allowed {
+		t.Fatal("nil AuthorizerFunc should deny: an unwired policy is not a grant")
+	}
+	if decision.Reason == "" {
+		t.Fatal("denial should carry a reason")
+	}
+}
+
+func TestAuthorizationHook_TypedNilAuthorizerDenies(t *testing.T) {
+	// A typed nil is not caught by AuthorizationHook's own nil check, so the
+	// deny has to come from AuthorizerFunc itself.
+	var f AuthorizerFunc
+	h := AuthorizationHook{Authorizer: f}
+	if err := h.BeforeToolCall(context.Background(), Session{}, ToolCall{Name: "x"}); err == nil {
+		t.Fatal("typed-nil authorizer should reject the call")
+	} else if !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("error should unwrap to ErrUnauthorized, got %v", err)
 	}
 }
 

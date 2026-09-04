@@ -169,6 +169,7 @@ func (b *bound) Select(ctx context.Context, request any) (sd.Instance, sd.Done, 
 		return sd.Instance{}, nil, err
 	}
 	if index < 0 || index >= len(instances) {
+		sd.Release(strategyDone, sd.ErrNoEndpoints)
 		return sd.Instance{}, nil, sd.ErrNoEndpoints
 	}
 

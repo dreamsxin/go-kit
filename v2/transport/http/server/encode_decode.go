@@ -40,15 +40,27 @@ func EncodeJSONResponse(_ context.Context, w http.ResponseWriter, response any) 
 			}
 		}
 	}
-	code := http.StatusOK
-	if sc, ok := response.(transporthttp.StatusCoder); ok {
-		code = sc.StatusCode()
-	}
+	code := responseStatus(response)
 	w.WriteHeader(code)
 	if code == http.StatusNoContent {
 		return nil
 	}
 	return json.NewEncoder(w).Encode(response)
+}
+
+// responseStatus reads a success status off the response value. A StatusCoder
+// outside the range net/http accepts is ignored rather than passed to
+// WriteHeader, which panics on it — the same range check the error encoders
+// already apply, so a response type cannot take the process down.
+func responseStatus(response any) int {
+	sc, ok := response.(transporthttp.StatusCoder)
+	if !ok {
+		return http.StatusOK
+	}
+	if code := sc.StatusCode(); code >= 100 && code <= 999 {
+		return code
+	}
+	return http.StatusOK
 }
 
 // WrapJSONResponse returns an EncodeResponseFunc that transforms the response
@@ -78,10 +90,7 @@ func WrapJSONResponse(wrap func(response any) any) EncodeResponseFunc {
 				}
 			}
 		}
-		code := http.StatusOK
-		if sc, ok := response.(transporthttp.StatusCoder); ok {
-			code = sc.StatusCode()
-		}
+		code := responseStatus(response)
 
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(code)

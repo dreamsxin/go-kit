@@ -72,10 +72,17 @@ func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 // publicErrorMessage resolves the message every built-in encoder may put on the
 // wire, so the plain-text and JSON paths cannot disagree about what is safe.
 //
-// A transporthttp.PublicMessager wins: an error that states its own public
-// message has decided what a client may see. That is how a relayed
-// client.HTTPStatusError reports the upstream status without its body, which
-// err.Error() would have included verbatim.
+// A transporthttp.PublicMessager decides for itself. Implementing it is opting
+// into the contract, so its answer is final — including an empty one, which
+// means "nothing here is for a client" and yields the status text. That is what
+// makes apperror.WrapCause keep its promise: it carries a kind and a code but no
+// message, and the cause it wraps must not reach the response. It is also how a
+// relayed client.HTTPStatusError reports the upstream status without its body,
+// which err.Error() would have included verbatim.
+//
+// An error that stays out of the contract falls back to err.Error() below 500.
+// Validation failures and other client-caused errors are written to be read by
+// the caller, and hiding them turns a self-explanatory 400 into a guessing game.
 //
 // A 500 is the exception and always reads "Internal Server Error". It is the
 // bucket every unclassified error and every default-kind apperror falls into, so
@@ -93,8 +100,11 @@ func publicErrorMessage(err error, status int) string {
 		return fallback
 	}
 	var pm transporthttp.PublicMessager
-	if errors.As(err, &pm) && pm.PublicMessage() != "" {
-		return pm.PublicMessage()
+	if errors.As(err, &pm) {
+		if message := pm.PublicMessage(); message != "" {
+			return message
+		}
+		return fallback
 	}
 	if status < http.StatusInternalServerError && err != nil {
 		return err.Error()
@@ -102,30 +112,6 @@ func publicErrorMessage(err error, status int) string {
 	return fallback
 }
 
-// JSONErrorEncoder is an ErrorEncoder that always writes a JSON
-// error body.  It inspects the error for optional interfaces:
-//
-//   - transporthttp.StatusCoder: uses that HTTP status code (default 500)
-//   - transporthttp.Headerer: merges those headers into the response
-//   - transporthttp.ErrorCoder: sets a stable machine-readable code
-//   - transporthttp.PublicMessager: overrides the public message, at every
-//     status except 500, which is always "Internal Server Error"
-//
-// The response body is:
-// {"code": "<code>", "message": "<message>"}
-//
-// Use it with ServerErrorEncoder:
-//
-//	server.NewServer(ep, dec, enc,
-//	    server.ServerErrorEncoder(server.JSONErrorEncoder),
-//	)
-//
-// Or with NewJSONServer:
-//
-//	server.NewJSONServer[Req](handler,
-//	    server.ServerErrorEncoder(server.JSONErrorEncoder),
-//	)
-//
 // JSONErrorEncoderWithKindMapper returns an ErrorEncoder like JSONErrorEncoder
 // but resolves the HTTP status through the given kind mapper first. The mapper
 // receives the classified apperror kind; return a non-positive status to fall
@@ -221,6 +207,29 @@ func encodeJSONErrorWithStatus(ctx context.Context, err error, w http.ResponseWr
 	})
 }
 
+// JSONErrorEncoder is an ErrorEncoder that always writes a JSON error body.
+// It inspects the error for optional interfaces:
+//
+//   - transporthttp.StatusCoder: uses that HTTP status code (default 500)
+//   - transporthttp.Headerer: merges those headers into the response
+//   - transporthttp.ErrorCoder: sets a stable machine-readable code
+//   - transporthttp.PublicMessager: overrides the public message, at every
+//     status except 500, which is always "Internal Server Error"
+//
+// The response body is:
+// {"code": "<code>", "message": "<message>"}
+//
+// Use it with ServerErrorEncoder:
+//
+//	server.NewServer(ep, dec, enc,
+//	    server.ServerErrorEncoder(server.JSONErrorEncoder),
+//	)
+//
+// Or with NewJSONServer:
+//
+//	server.NewJSONServer[Req](handler,
+//	    server.ServerErrorEncoder(server.JSONErrorEncoder),
+//	)
 var JSONErrorEncoder ErrorEncoder = func(ctx context.Context, err error, w http.ResponseWriter) {
 	encodeJSONError(ctx, err, w)
 }

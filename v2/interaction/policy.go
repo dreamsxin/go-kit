@@ -20,9 +20,12 @@ type Authorizer interface {
 // AuthorizerFunc adapts a function into an Authorizer.
 type AuthorizerFunc func(context.Context, Session, ToolCall) (AuthorizationDecision, error)
 
+// AuthorizeToolCall calls f. A nil f denies: it reaches an Authorizer field only
+// as a typed nil, which AuthorizationHook's nil check cannot see, and a policy
+// that was never wired is a misconfiguration — not a grant.
 func (f AuthorizerFunc) AuthorizeToolCall(ctx context.Context, session Session, call ToolCall) (AuthorizationDecision, error) {
 	if f == nil {
-		return AuthorizationDecision{Allowed: true}, nil
+		return AuthorizationDecision{Reason: "authorizer is nil"}, nil
 	}
 	return f(ctx, session, call)
 }
@@ -97,6 +100,11 @@ func (f AuditSinkFunc) RecordAudit(ctx context.Context, record AuditRecord) erro
 }
 
 // AuditHook records before and after tool call audit events.
+//
+// The "before" record's Allowed is always true: it states that the call reached
+// this hook, not that anything approved it — no decision exists yet. The
+// outcome lives in the "after" record, which Runtime.CallTool emits for
+// rejected calls too, so a denial is never invisible to the sink.
 type AuditHook struct {
 	Sink AuditSink
 	Now  func() time.Time

@@ -102,15 +102,23 @@ func (b *Builder) Build() Endpoint {
 }
 
 // ─────────────────────────── Timeout middleware ───────────────────────────
-
 // TimeoutMiddleware returns a Middleware that cancels the context after d.
 // The wrapped endpoint receives a context that will be cancelled when the
 // deadline is exceeded.
+//
+// A non-positive d imposes no deadline. This is the one duration in the package
+// that is not clamped to a minimum, because no duration is a usable substitute:
+// context.WithTimeout(ctx, 0) hands the endpoint an already expired context and
+// every request fails with DeadlineExceeded. An unset timeout means "no
+// timeout", as it does on http.Server.
 //
 // Example:
 //
 //	ep = endpoint.TimeoutMiddleware(5 * time.Second)(ep)
 func TimeoutMiddleware(d time.Duration) Middleware {
+	if d <= 0 {
+		return func(next Endpoint) Endpoint { return next }
+	}
 	return func(next Endpoint) Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			ctx, cancel := context.WithTimeout(ctx, d)
@@ -118,4 +126,11 @@ func TimeoutMiddleware(d time.Duration) Middleware {
 			return next(ctx, request)
 		}
 	}
+}
+
+// WithFailer appends a FailerMiddleware to the Builder. Add it last so it ends
+// up innermost and the middleware already registered observe the failure a
+// Failer response carries.
+func (b *Builder) WithFailer() *Builder {
+	return b.UseNamed("failer", FailerMiddleware())
 }

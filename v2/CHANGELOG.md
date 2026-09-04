@@ -2,6 +2,88 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.8.1] - Release Candidate
+
+A contract audit of every runtime package. Each item below is a place where the
+code and its own documented contract disagreed. The version is a patch because
+the fixes are corrections, not a new feature set; several of them do change
+observable behaviour, and those are listed first.
+
+### Fixed - behaviour
+
+- `security`: an anonymous or identity-less subject no longer satisfies
+  `RequireAuthenticated` or `RequireRole`. `Middleware` also stops discarding a
+  subject that carries only roles or claims, which previously turned an
+  authenticated caller into a 401.
+- `interaction`: a nil `AuthorizerFunc` denies instead of allowing. It reaches an
+  `Authorizer` field only as a typed nil, which `AuthorizationHook`'s own nil
+  check cannot see, so this was a fail-open path.
+- `interaction`: `Runtime.CallTool` runs `AfterToolCall` on the hooks that
+  already admitted a call when a later hook rejects it, so `AuditHook` records
+  the denial. Rejections were previously invisible to an audit sink.
+- `kit`: a panicking health check is reported as an unhealthy check instead of
+  taking the process down. Checks run in their own goroutines and probes are
+  unauthenticated requests.
+- HTTP error encoders: an error that implements `transporthttp.PublicMessager`
+  now decides its message even when that message is empty, which means "nothing
+  here is for a client". `apperror.WrapCause` therefore keeps its documented
+  promise that the cause stays internal; the `err.Error()` fallback below 500
+  remains for errors outside the contract.
+- `TextErrorEncoder` resolves its message through the same rule as the JSON and
+  plain-text encoders. It previously applied `PublicMessager` at 500 too, and
+  named 499 "HTTP error" instead of "Client Closed Request".
+- `integrations/grpc`: `StatusError` reports a public message that names the
+  upstream code without the upstream description, mirroring
+  `client.HTTPStatusError`.
+- An over-limit request body classifies as 413 on both the JSON and raw codec
+  paths, matching `ParseMultipartForm` and `RawBodyCodecWithMaxBytes`'s
+  documentation. It was 400 through `JSONDecodeError` and 500 when surfaced
+  directly.
+- `endpoint.TimeoutMiddleware` and `sd/retry`: a non-positive timeout imposes no
+  deadline instead of handing the call an already expired context.
+- `endpoint.BackpressureMiddleware`, `endpoint.InFlightMiddleware`, and
+  `sd/retry.Retry`: a non-positive limit is clamped to 1, as
+  `BulkheadMiddleware` already did. A zero limit previously rejected every
+  request.
+- `sd`: a wrapping strategy or balancer that discards a successful inner `Pick`
+  releases its `Done`. `selector.Filtered`, `feedback`, `selector`, and
+  `balancer` each leaked an in-flight reservation on their refusal paths.
+- Success response encoders ignore a `StatusCoder` value outside 100-999 rather
+  than passing it to `WriteHeader`, which panics on it.
+- `interaction`: a `Runtime` missing `Sessions`, `Events`, or `Tools` reports
+  `ErrRuntimeNotConfigured` instead of panicking on the first call, and
+  `StartSession` releases the session it created when the started event cannot be
+  emitted.
+- `observability/otel`, `observability/slog`, `integrations/zap`: a panicking
+  endpoint is reported as a panic. The otel span ended Unset with no recorded
+  error, zap logged "endpoint call succeeded", and slog logged nothing.
+
+### Added
+
+- `endpoint.FailerMiddleware` and `endpoint.ResponseError`, with
+  `Builder.WithFailer`. A `Failer` response reaches the transport with a nil
+  error, so metrics, the circuit breaker, and retry all counted it as a success.
+  Installed innermost, the middleware converts it first and changes nothing a
+  client observes.
+- `security.Subject.Authenticated`, the check that distinguishes a subject being
+  present in a context from a principal having been established.
+- `sd.Release`, the helper a wrapping strategy uses to hand back a `Done` it
+  cannot use.
+- `interaction.ErrRuntimeNotConfigured`.
+
+### Fixed - documentation
+
+Doc comments are part of the reviewed API surface here, so these are recorded
+rather than folded into the changes above.
+
+- `JSONErrorEncoder` had no doc comment; the block describing it was attached to
+  `JSONErrorEncoderWithKindMapper`. `RawBodyCodec`'s comment started
+  mid-sentence.
+- `sd/endpointer` claimed round-robin and random balancers accept the narrower
+  `Endpointer`, and `sd/client.NewEndpoint` claimed to compose an `Endpointer`.
+  Everything in the module returns an `InstanceEndpointer`.
+- `SubjectFromContext` claimed its boolean is false for anonymous callers.
+
 ## [2.8.0] - 2026-09-04
 
 This is the first public release of the current `go-kit/v2` product line.

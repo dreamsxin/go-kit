@@ -18,4 +18,9 @@ var (
 	ErrPromptExists          = errors.New("interaction: prompt already registered")
 	ErrInvalidArgument       = errors.New("interaction: invalid argument")
 	ErrCompletionUnsupported = errors.New("interaction: completions not supported")
+	// ErrRuntimeNotConfigured reports that a Runtime is missing a component it
+	// cannot work without. Runtime's Sessions, Events, and Tools have no
+	// zero-value behaviour, so a Runtime built without NewRuntime — or one whose
+	// field was assigned nil — reports this instead of panicking on the call.
+	ErrRuntimeNotConfigured = errors.New("interaction: runtime is missing a required component")
 )

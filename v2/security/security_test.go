@@ -48,18 +48,73 @@ func TestMiddlewareInjectsSubject(t *testing.T) {
 	}
 }
 
-func TestMiddlewareAnonymousPassesWithoutSubject(t *testing.T) {
+func TestMiddlewareAnonymousCarriesUnauthenticatedSubject(t *testing.T) {
+	var seen security.Subject
 	var ok bool
 	ep := security.Middleware(keyAuthenticator)(endpoint.Endpoint(func(ctx context.Context, _ any) (any, error) {
-		_, ok = security.SubjectFromContext(ctx)
+		seen, ok = security.SubjectFromContext(ctx)
 		return nil, nil
 	}))
 
 	if _, err := ep(context.Background(), nil); err != nil {
 		t.Fatalf("endpoint: %v", err)
 	}
-	if ok {
-		t.Fatal("anonymous request carried a subject")
+	if !ok {
+		t.Fatal("the authentication result should be readable even when anonymous")
+	}
+	if seen.Authenticated() {
+		t.Fatalf("anonymous subject reported authenticated: %+v", seen)
+	}
+}
+
+func TestRequireAuthenticatedRejectsSubjectWithoutIdentity(t *testing.T) {
+	// Roles and claims do not identify anyone, and an explicitly anonymous
+	// subject is not a principal. Presence in the context must not be enough.
+	cases := map[string]security.Subject{
+		"roles only":  {Roles: []string{"admin"}},
+		"claims only": {Claims: map[string]any{"tenant": "acme"}},
+		"anonymous":   {ID: "guest", Kind: security.SubjectAnonymous},
+	}
+	for name, subject := range cases {
+		t.Run(name, func(t *testing.T) {
+			ctx := security.WithSubject(context.Background(), subject)
+			_, err := security.RequireAuthenticated()(endpoint.Nop)(ctx, nil)
+			var appErr *apperror.Error
+			if !errors.As(err, &appErr) || appErr.ErrorKind() != apperror.KindUnauthenticated {
+				t.Fatalf("error = %v, want unauthenticated apperror", err)
+			}
+		})
+	}
+}
+
+func TestRequireRoleRejectsUnauthenticatedRoleHolder(t *testing.T) {
+	ctx := security.WithSubject(context.Background(), security.Subject{Roles: []string{"admin"}})
+	_, err := security.RequireRole("admin")(endpoint.Nop)(ctx, nil)
+
+	var appErr *apperror.Error
+	if !errors.As(err, &appErr) || appErr.ErrorKind() != apperror.KindPermissionDenied {
+		t.Fatalf("error = %v, want permission_denied apperror", err)
+	}
+}
+
+func TestMiddlewarePreservesRolesOnlySubject(t *testing.T) {
+	// The middleware must not drop what the authenticator returned, even when
+	// it carries no identity: dropping it would hide a misconfigured
+	// authenticator behind a plain 401.
+	auth := security.AuthenticatorFunc(func(context.Context) (security.Subject, error) {
+		return security.Subject{Roles: []string{"admin"}}, nil
+	})
+	var seen security.Subject
+	var ok bool
+	ep := security.Middleware(auth)(endpoint.Endpoint(func(ctx context.Context, _ any) (any, error) {
+		seen, ok = security.SubjectFromContext(ctx)
+		return nil, nil
+	}))
+	if _, err := ep(context.Background(), nil); err != nil {
+		t.Fatalf("endpoint: %v", err)
+	}
+	if !ok || !seen.HasRole("admin") {
+		t.Fatalf("subject = %+v, ok = %v", seen, ok)
 	}
 }
 

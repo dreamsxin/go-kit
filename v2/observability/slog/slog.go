@@ -47,6 +47,9 @@ func WithAttrs(attrs func(context.Context) []slog.Attr) Option {
 // LoggingMiddleware records endpoint outcome, duration, and correlation IDs
 // using the standard library slog API. Logger setup and handler selection stay
 // under application control.
+//
+// A panic is logged at Error level as a panic and left to propagate. The record
+// is emitted from a defer, so a panicking call is never silently unlogged.
 func LoggingMiddleware(logger *slog.Logger, operation string, options ...Option) endpoint.Middleware {
 	if logger == nil {
 		logger = slog.Default()
@@ -61,28 +64,35 @@ func LoggingMiddleware(logger *slog.Logger, operation string, options ...Option)
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (response any, err error) {
 			start := time.Now()
-			response, err = next(ctx, request)
+			returned := false
+			defer func() {
+				attrs := []slog.Attr{
+					slog.String("operation", operation),
+					slog.Duration("duration", time.Since(start)),
+					slog.Bool("success", returned && err == nil),
+				}
+				if traceID := endpoint.TraceIDFromContext(ctx); traceID != "" {
+					attrs = append(attrs, slog.String("trace_id", string(traceID)))
+				}
+				if requestID := endpoint.RequestIDFromContext(ctx); requestID != "" {
+					attrs = append(attrs, slog.String("request_id", requestID))
+				}
+				if cfg.Attrs != nil {
+					attrs = append(attrs, cfg.Attrs(ctx)...)
+				}
+				switch {
+				case !returned:
+					logger.LogAttrs(ctx, slog.LevelError, "endpoint call panicked", attrs...)
+				case err != nil:
+					attrs = append(attrs, slog.Any("error", err))
+					logger.LogAttrs(ctx, cfg.Level, "endpoint call failed", attrs...)
+				default:
+					logger.LogAttrs(ctx, cfg.Level, "endpoint call succeeded", attrs...)
+				}
+			}()
 
-			attrs := []slog.Attr{
-				slog.String("operation", operation),
-				slog.Duration("duration", time.Since(start)),
-				slog.Bool("success", err == nil),
-			}
-			if traceID := endpoint.TraceIDFromContext(ctx); traceID != "" {
-				attrs = append(attrs, slog.String("trace_id", string(traceID)))
-			}
-			if requestID := endpoint.RequestIDFromContext(ctx); requestID != "" {
-				attrs = append(attrs, slog.String("request_id", requestID))
-			}
-			if cfg.Attrs != nil {
-				attrs = append(attrs, cfg.Attrs(ctx)...)
-			}
-			if err != nil {
-				attrs = append(attrs, slog.Any("error", err))
-				logger.LogAttrs(ctx, cfg.Level, "endpoint call failed", attrs...)
-			} else {
-				logger.LogAttrs(ctx, cfg.Level, "endpoint call succeeded", attrs...)
-			}
+			response, err = next(ctx, request)
+			returned = true
 			return response, err
 		}
 	}

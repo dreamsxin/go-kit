@@ -63,8 +63,8 @@ func WithBalancer(factory BalancerFactory) Option {
 	return func(options *Options) { options.Balancer = factory }
 }
 
-// NewEndpoint composes an Endpointer, a Balancer, and a retry executor. The
-// Balancer defaults to round robin; override it with WithBalancer.
+// NewEndpoint composes an InstanceEndpointer, a Balancer, and a retry executor.
+// The Balancer defaults to round robin; override it with WithBalancer.
 // A nil logger falls back to slog.Default().
 func NewEndpoint(src sd.Instancer, factory endpointer.Factory, logger *slog.Logger, opts ...Option) (endpoint.Endpoint, io.Closer, error) {
 	options := Options{

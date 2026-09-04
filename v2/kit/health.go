@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -164,12 +165,22 @@ func healthCheckErrorMessage(ctx context.Context, err error) string {
 	if errors.Is(err, errHealthCheckInProgress) {
 		return "check already running"
 	}
+	if errors.Is(err, errHealthCheckPanicked) {
+		return "check panicked"
+	}
 	return "check failed"
 }
 
 var errHealthCheckInProgress = errors.New("health check is already running")
 
-func runHealthCheck(ctx context.Context, check namedHealthCheck) error {
+// errHealthCheckPanicked reports a check that panicked. The panic is converted
+// rather than propagated: checks run in their own goroutines, where an
+// unrecovered panic takes the process down, and a probe is an unauthenticated
+// request — a buggy check must not become a remote kill switch. Reporting the
+// check as unhealthy is the honest answer.
+var errHealthCheckPanicked = errors.New("health check panicked")
+
+func runHealthCheck(ctx context.Context, check namedHealthCheck) (err error) {
 	if check.gate != nil {
 		select {
 		case check.gate <- struct{}{}:
@@ -178,6 +189,11 @@ func runHealthCheck(ctx context.Context, check namedHealthCheck) error {
 			return errHealthCheckInProgress
 		}
 	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("%w: %v", errHealthCheckPanicked, recovered)
+		}
+	}()
 
 	return check.check(ctx)
 }

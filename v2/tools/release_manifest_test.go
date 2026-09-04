@@ -135,18 +135,39 @@ func TestOnlyOneModuleIsPublishable(t *testing.T) {
 	}
 }
 
-func TestHistoricalV2TagsAreGone(t *testing.T) {
+// TestNestedModuleTagsAreGone keeps the single-module tag scheme intact.
+//
+// The published module lives in the v2 major-version subdirectory, so its tags
+// are plain versions. A directory-prefixed tag such as
+// v2/integrations/etcd/v0.1.0 only exists to version a nested module, and one of
+// those going missing is what broke the release check before the layout was
+// consolidated. Root version tags accumulate with every release and are not
+// historical debris, so they are not checked here.
+func TestNestedModuleTagsAreGone(t *testing.T) {
+	root := moduleRoot(t)
+	output := commandOutput(t, root, "git", "tag", "--list", "v2/*")
+	if nested := strings.Fields(string(output)); len(nested) > 0 {
+		t.Fatalf("nested module tags must be absent:\n%s", strings.Join(nested, "\n"))
+	}
+}
+
+// TestReleasedTagExists pairs with the manifest phase: a candidate must not
+// already be tagged, and a released version must be.
+func TestReleasedTagExists(t *testing.T) {
 	root := moduleRoot(t)
 	manifest := readReleaseManifest(t, root)
-	output := commandOutput(t, root, "git", "tag", "--list", "v2.*", "v2/*")
-	var historical []string
-	for _, tag := range strings.Fields(string(output)) {
-		if tag != manifest.Tag {
-			historical = append(historical, tag)
+	output := commandOutput(t, root, "git", "tag", "--list", manifest.Tag)
+	tagged := len(strings.Fields(string(output))) > 0
+
+	switch manifest.Phase {
+	case "candidate":
+		if tagged {
+			t.Fatalf("tag %s already exists while the manifest is a candidate", manifest.Tag)
 		}
-	}
-	if len(historical) > 0 {
-		t.Fatalf("historical v2 tags must be absent:\n%s", strings.Join(historical, "\n"))
+	case "released":
+		if !tagged {
+			t.Fatalf("tag %s must exist in phase released", manifest.Tag)
+		}
 	}
 }
 

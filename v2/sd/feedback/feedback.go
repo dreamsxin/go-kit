@@ -478,6 +478,7 @@ func (w *wrapped) Pick(ctx context.Context, request any, instances []sd.Instance
 		return 0, nil, err
 	}
 	if index < 0 || index >= len(instances) {
+		sd.Release(strategyDone, sd.ErrNoEndpoints)
 		return 0, nil, sd.ErrNoEndpoints
 	}
 	tableDone := w.table.Track(instances[index])

@@ -192,10 +192,18 @@ func (e JSONDecodeError) Unwrap() error {
 }
 
 func (e JSONDecodeError) StatusCode() int {
+	// An over-limit body is not a malformed body. It classifies as 413, the
+	// same status ParseMultipartForm uses and the one RawBodyCodec documents.
+	if errors.Is(e.Err, ErrJSONBodyTooLarge) {
+		return http.StatusRequestEntityTooLarge
+	}
 	return http.StatusBadRequest
 }
 
 func (e JSONDecodeError) ErrorCode() string {
+	if errors.Is(e.Err, ErrJSONBodyTooLarge) {
+		return "request_too_large"
+	}
 	return "bad_request.invalid_json"
 }
 
@@ -236,6 +244,20 @@ func DecodeJSONBody(r *http.Request, target any, options JSONDecodeOptions) erro
 	return fmt.Errorf("%w: %v", ErrJSONTrailingData, err)
 }
 
+// bodyTooLargeError is what limitedBodyReader reports. It unwraps to
+// ErrJSONBodyTooLarge so errors.Is keeps working, and classifies itself as 413
+// so callers that surface the read error directly — RawBodyCodec does — get the
+// status its documentation promises without a decode wrapper in between.
+type bodyTooLargeError struct{}
+
+func (bodyTooLargeError) Error() string { return ErrJSONBodyTooLarge.Error() }
+
+func (bodyTooLargeError) Unwrap() error { return ErrJSONBodyTooLarge }
+
+func (bodyTooLargeError) StatusCode() int { return http.StatusRequestEntityTooLarge }
+
+func (bodyTooLargeError) ErrorCode() string { return "request_too_large" }
+
 type limitedBodyReader struct {
 	reader    io.Reader
 	remaining int64
@@ -246,7 +268,7 @@ func (r *limitedBodyReader) Read(p []byte) (int, error) {
 		var probe [1]byte
 		n, err := r.reader.Read(probe[:])
 		if n > 0 {
-			return 0, ErrJSONBodyTooLarge
+			return 0, bodyTooLargeError{}
 		}
 		return 0, err
 	}

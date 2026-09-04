@@ -62,6 +62,7 @@ func (f *filtered) Pick(ctx context.Context, request any, instances []sd.Instanc
 		return 0, nil, err
 	}
 	if index < 0 || index >= len(candidates) {
+		sd.Release(done, sd.ErrNoEndpoints)
 		return 0, nil, sd.ErrNoEndpoints
 	}
 
@@ -76,5 +77,6 @@ func (f *filtered) Pick(ctx context.Context, request any, instances []sd.Instanc
 	}
 	// A filter returned something that was never a candidate. Refusing beats
 	// dialling an address the caller never discovered.
+	sd.Release(done, sd.ErrNoEndpoints)
 	return 0, nil, sd.ErrNoEndpoints
 }

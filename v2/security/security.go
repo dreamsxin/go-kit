@@ -63,6 +63,18 @@ func (s Subject) HasRole(role string) bool {
 	return false
 }
 
+// Authenticated reports whether the subject identifies a principal, which is
+// what RequireAuthenticated and RequireRole enforce.
+//
+// Being present in a context is not the same as being authenticated: Middleware
+// stores whatever the Authenticator returned, and an Authenticator marks a
+// caller anonymous by returning a zero Subject or SubjectAnonymous with a nil
+// error. A subject is authenticated when it has an ID and is not anonymous —
+// roles and claims alone do not identify anyone.
+func (s Subject) Authenticated() bool {
+	return s.ID != "" && s.Kind != SubjectAnonymous
+}
+
 // Authenticator establishes a subject from credentials the transport layer
 // has already placed in the context. Implementations return the resolved
 // subject, or an apperror-classified failure: KindUnauthenticated for
@@ -93,9 +105,10 @@ func WithSubject(ctx context.Context, subject Subject) context.Context {
 	return context.WithValue(ctx, subjectKey{}, subject)
 }
 
-// SubjectFromContext extracts the authenticated subject from the context.
-// The boolean result is false when the request was not authenticated or the
-// caller is anonymous.
+// SubjectFromContext extracts the subject a transport boundary stored in the
+// context. The boolean reports only whether a subject is present — Middleware
+// stores anonymous subjects too, so use Subject.Authenticated to decide whether
+// a principal was actually established.
 func SubjectFromContext(ctx context.Context) (Subject, bool) {
 	subject, ok := ctx.Value(subjectKey{}).(Subject)
 	return subject, ok
@@ -103,9 +116,10 @@ func SubjectFromContext(ctx context.Context) (Subject, bool) {
 
 // Middleware returns endpoint middleware that authenticates each request
 // before the wrapped endpoint runs. On success the subject is injected into
-// the context; a zero subject proceeds anonymously. Authenticator errors are
-// returned unchanged, so classify them with apperror to control the mapped
-// transport status. A nil authenticator panics.
+// the context as the Authenticator returned it, anonymous ones included, so a
+// downstream reader sees the authentication result rather than its absence.
+// Authenticator errors are returned unchanged, so classify them with apperror to
+// control the mapped transport status. A nil authenticator panics.
 //
 // Compose it with kit.WithEndpointMiddleware or a per-endpoint Builder; the
 // HTTP-layer credential extraction that feeds it remains application owned.
@@ -119,22 +133,21 @@ func Middleware(auth Authenticator) endpoint.Middleware {
 			if err != nil {
 				return nil, err
 			}
-			if subject.ID != "" || subject.Kind != "" {
-				ctx = WithSubject(ctx, subject)
-			}
-			return next(ctx, request)
+			return next(WithSubject(ctx, subject), request)
 		}
 	}
 }
 
 // RequireAuthenticated returns endpoint middleware that rejects requests
 // without an authenticated subject using KindUnauthenticated (HTTP 401).
-// Install it after Middleware on routes that require a principal; public
-// routes such as health checks stay unwrapped.
+// Anonymous and identity-less subjects are rejected as well: presence in the
+// context is not authentication, Subject.Authenticated is. Install it after
+// Middleware on routes that require a principal; public routes such as health
+// checks stay unwrapped.
 func RequireAuthenticated() endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
-			if _, ok := SubjectFromContext(ctx); !ok {
+			if subject, ok := SubjectFromContext(ctx); !ok || !subject.Authenticated() {
 				return nil, apperror.New(apperror.KindUnauthenticated,
 					"security.unauthenticated", "request was not authenticated")
 			}
@@ -144,9 +157,9 @@ func RequireAuthenticated() endpoint.Middleware {
 }
 
 // RequireRole returns endpoint middleware that rejects subjects not holding
-// the given role using KindPermissionDenied (HTTP 403). Requests without any
-// subject are rejected with the same classification. Business authorization
-// rules beyond coarse role checks belong in the service layer.
+// the given role using KindPermissionDenied (HTTP 403). Requests without an
+// authenticated subject are rejected with the same classification. Business
+// authorization rules beyond coarse role checks belong in the service layer.
 func RequireRole(role string) endpoint.Middleware {
 	if role == "" {
 		panic("security: role cannot be empty")
@@ -154,7 +167,7 @@ func RequireRole(role string) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			subject, ok := SubjectFromContext(ctx)
-			if !ok || !subject.HasRole(role) {
+			if !ok || !subject.Authenticated() || !subject.HasRole(role) {
 				return nil, apperror.New(apperror.KindPermissionDenied,
 					"security.role_required", "caller does not hold required role")
 			}

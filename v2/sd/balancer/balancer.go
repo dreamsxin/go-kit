@@ -53,6 +53,7 @@ func (b *strategyBalancer) Pick(ctx context.Context, request any) (sd.Picked, er
 		return sd.Picked{}, err
 	}
 	if index < 0 || index >= len(items) {
+		sd.Release(strategyDone, sd.ErrNoEndpoints)
 		return sd.Picked{}, sd.ErrNoEndpoints
 	}
 

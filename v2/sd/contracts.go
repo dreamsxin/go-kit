@@ -109,6 +109,17 @@ type Outcome struct {
 // for every successful Pick, including calls that return an error.
 type Done func(Outcome)
 
+// Release invokes done with err when done is non-nil. A Strategy or Balancer
+// that wraps another must call it on every path that discards an inner Pick that
+// succeeded: the inner strategy may already have reserved an in-flight slot, and
+// dropping its Done leaks that reservation for the life of the process.
+func Release(done Done, err error) {
+	if done == nil {
+		return
+	}
+	done(Outcome{Err: err})
+}
+
 // Picked is the endpoint and identity selected for one attempt. The caller
 // must invoke Done after the endpoint returns, even when it returns an error.
 type Picked struct {

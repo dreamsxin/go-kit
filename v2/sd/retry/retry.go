@@ -87,7 +87,13 @@ type Callback func(attempt int, received error) (keepTrying bool, replacement er
 type Classifier func(error) bool
 
 // Retry attempts a call up to maxAttempts times within timeout.
+//
+// A maxAttempts below 1 is clamped to 1, as in endpoint.RetryMiddleware: the
+// call still runs once, because a retry policy is not a way to skip the call.
 func Retry(maxAttempts int, timeout time.Duration, balancer sd.Balancer) endpoint.Endpoint {
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
 	return WithCallback(timeout, balancer, attemptLimit(maxAttempts))
 }
 
@@ -105,6 +111,10 @@ func WithCallback(timeout time.Duration, balancer sd.Balancer, callback Callback
 }
 
 // WithClassifier retries calls using explicit attempt and error policies.
+//
+// A non-positive timeout imposes no deadline of its own and the attempts run
+// under the caller's context, as in endpoint.TimeoutMiddleware. Passing 0 would
+// otherwise hand every attempt an already expired context.
 func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callback, classifier Classifier) endpoint.Endpoint {
 	if callback == nil {
 		callback = alwaysRetry
@@ -117,7 +127,17 @@ func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callba
 	}
 
 	return func(ctx context.Context, request any) (any, error) {
-		callContext, cancel := context.WithTimeout(ctx, timeout)
+		// Cancellable either way: returning must stop the attempt goroutines
+		// even when no deadline was asked for.
+		var (
+			callContext context.Context
+			cancel      context.CancelFunc
+		)
+		if timeout > 0 {
+			callContext, cancel = context.WithTimeout(ctx, timeout)
+		} else {
+			callContext, cancel = context.WithCancel(ctx)
+		}
 		defer cancel()
 
 		resultChannel := make(chan attemptResult, 1)

@@ -60,6 +60,21 @@ func (e *StatusError) Code() codes.Code { return e.st.Code() }
 // gRPC code to the transport-neutral kind name.
 func (e *StatusError) ErrorKindName() string { return KindNameForCode(e.st.Code()) }
 
+// PublicMessage reports the message a server may forward to its own clients:
+// the upstream code, never the upstream description.
+//
+// Error() keeps the description for logs, but a server that returns this error
+// from an endpoint would otherwise leak it: the built-in HTTP error encoders
+// fall back to err.Error() below 500, so an upstream NotFound's message would
+// land verbatim in the downstream response body. This mirrors
+// client.HTTPStatusError, so a gRPC hop and an HTTP hop redact the same way.
+func (e *StatusError) PublicMessage() string {
+	if e == nil {
+		return ""
+	}
+	return "upstream request failed with code " + e.st.Code().String()
+}
+
 // Retryable reports whether the code marks a transient failure.
 func (e *StatusError) Retryable() bool { return Retryable(e.err) }
 
