@@ -51,7 +51,6 @@ API 参考；根目录指南负责生成、架构、生产部署和升级。
 
 - [维护指南](internal/docs/MAINTAINING_zh.md)
 - [发布流程](internal/docs/RELEASE_zh.md)
-- [依赖报告](internal/docs/DEPENDENCY_REPORT_zh.md)
 - [路线图](internal/docs/ROADMAP_zh.md)
 - [变更记录](CHANGELOG_zh.md)
 

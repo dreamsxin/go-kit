@@ -52,7 +52,6 @@ generation, architecture, production, and upgrades.
 
 - [Maintaining](internal/docs/MAINTAINING.md)
 - [Release process](internal/docs/RELEASE.md)
-- [Dependency report](internal/docs/DEPENDENCY_REPORT.md)
 - [Roadmap](internal/docs/ROADMAP.md)
 - [Changelog](CHANGELOG.md)
 

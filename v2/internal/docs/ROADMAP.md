@@ -144,10 +144,11 @@ by the release manifest, changelog, and reviewed API snapshot.
   database dependencies.
 - [x] Work Package 7: `kit` is the only quickstart, lower-level wiring is named
   `manual_composition`, and package docs use the final graph.
-- [x] Work Package 8: dependency boundaries are executable and the current
-  closure is captured in `DEPENDENCY_REPORT.md`. Functional, contract, API, vet,
-  module, standalone, and clean-scope gates pass for the single published
-  module.
+- [x] Work Package 8: dependency boundaries are executable, and
+  `dependency_boundaries_test.go` is the record of them — a package that resolves
+  outside its allowed area fails the build rather than contradicting a document.
+  Functional, contract, API, vet, module, standalone, and clean-scope gates pass
+  for the single published module.
 
 ### Refactor Goals / 重构目标
 
