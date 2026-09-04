@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.8.0] - Release Candidate
+## [2.8.0] - 2026-09-04
 
 This is the first public release of the current `go-kit/v2` product line.
 The repository ships as one Go module:
