@@ -121,9 +121,17 @@ Strict JSON endpoints reject unknown fields and trailing JSON values. Keep body
 limits enabled unless a specific route has a documented reason to accept larger
 payloads.
 
+Put `endpoint.RecoveryMiddleware` outermost in every endpoint chain. It turns
+business or middleware panics into a classified, redacted 500; the supplied
+`PanicHandler` should report the recovered value to logs or an error service,
+never to the response body.
+
 Streaming protocols require different timeout choices. MCP SSE responses are
 long-lived, so the HTTP write timeout must be `0` or longer than the supported
-session duration.
+session duration. Set MCP `SessionTTL`, `MaxSessions`, `MaxPostBodyBytes`, and
+`AllowedOrigins`, start cleanup, and call `StreamableHandler.Shutdown(ctx)` (or
+`mcp.Serve`) during termination so SSE writers and interaction sessions are
+released.
 
 When generated contract support is enabled, `/openapi.json`, `/schema.json`, and
 `/swagger/` expose the service contract. Keep them public only when that is an

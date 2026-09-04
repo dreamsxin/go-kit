@@ -109,6 +109,17 @@ func TestNew_CloseReleasesClosableStrategy(t *testing.T) {
 	}
 }
 
+func TestNew_CloseRejectsSubsequentPicks(t *testing.T) {
+	set := labelledEndpointer(t, sd.Addresses("a:80")...)
+	lb := balancer.New(set, selector.RoundRobin())
+	if err := lb.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if _, err := lb.Pick(context.Background(), nil); !errors.Is(err, sd.ErrClosed) {
+		t.Fatalf("Pick after Close = %v, want ErrClosed", err)
+	}
+}
+
 func TestNew_CloseReachesStrategyThroughDecorators(t *testing.T) {
 	set := labelledEndpointer(t, sd.Addresses("a:80")...)
 	strategy := &closableStrategy{}

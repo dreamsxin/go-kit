@@ -80,7 +80,7 @@ func main() {
 {{if .WithConfig}}	configPath := flag.String("config", "config/config.yaml", "path to config file")
 	flag.CommandLine.Parse(filterArgs(os.Args[1:], "-config"))
 
-	cfg, err := config.Load(*configPath)
+	cfg, err := config.LoadUnvalidated(*configPath)
 	if err != nil {
 		panic("FATAL: load config: " + err.Error())
 	}
@@ -92,6 +92,12 @@ func main() {
 		autoMigrate = flag.Bool("auto-migrate", cfg.Database.AutoMigrate, "run database AutoMigrate on startup")
 {{end}}	)
 	flag.Parse()
+	cfg.Server.HTTPAddr = *httpAddr
+{{if .WithGRPC}}	cfg.Server.GRPCAddr = *grpcAddr
+{{end}}{{if .WithDB}}	cfg.Database.DSN = *dsn
+{{end}}	if err := cfg.Validate(); err != nil {
+		panic("FATAL: invalid config: " + err.Error())
+	}
 {{if .WithDB}}	cfg.Database.AutoMigrate = *autoMigrate
 {{end}}
 

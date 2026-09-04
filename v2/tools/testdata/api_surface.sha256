@@ -1,19 +1,19 @@
 go-kit-v2 public API
 8a5cc8f3c8a518da216a3c98dc3111307f07424731b7715106a9d6139bce57a7  github.com/dreamsxin/go-kit/v2/apperror
-23fd4eb53d0a1bad1eb034f3b369a052bc3b1124dbc5254bacd110ca7a048b7f  github.com/dreamsxin/go-kit/v2/endpoint
+7f5ded30bf62008ccf6f6d30b689b0520a8ec0ad2401cc1b3d6d1bcf8c8e05ee  github.com/dreamsxin/go-kit/v2/endpoint
 a27375fd273b4eb77e05bd124a1fcf0d95dd2844946480366a09cd2bf1c99c62  github.com/dreamsxin/go-kit/v2/integrations/consul
 46d920d07b7a79a5482ed9092c4fd4909377f16e9a48a1c7074c26c5dc8b15e1  github.com/dreamsxin/go-kit/v2/integrations/etcd
 370a4d6892b0931a29a56804c03fdd21890c12d4edbe173bd9960b27b4b7602d  github.com/dreamsxin/go-kit/v2/integrations/grpc
 bd1a3afbe838d5fcc673818d0089b5f44aa053b6131249737b9d71df4f4384ae  github.com/dreamsxin/go-kit/v2/integrations/grpc/client
 7a25af0990c6b394cfca7509be1de3c329eebde9fd9d8aec9f10c261b8c32539  github.com/dreamsxin/go-kit/v2/integrations/grpc/server
 76ab5668b10045b42ec58505f93ce37826adfbb7ca8e5178551c5b364c004078  github.com/dreamsxin/go-kit/v2/integrations/zap
-59b1611be66e7505ea18ce1a2fc00ab7d99e60fe1d8644e8bf44de1ad636adeb  github.com/dreamsxin/go-kit/v2/interaction
-2208efee915ee7c25dcf92782e4d3748811649e6f90225fca40c063cf1e7745e  github.com/dreamsxin/go-kit/v2/interaction/mcp
+ed159e1a8d02b0a5ead0d3fdbf2b1f2c1fc615857be1d4c7345c82045e2aded2  github.com/dreamsxin/go-kit/v2/interaction
+561b1ab909c627efe6324be4a2cbf49a152841c518326f8b1c13ca8353b6da21  github.com/dreamsxin/go-kit/v2/interaction/mcp
 1698fffcb780b611ee94e48df6fe785f21c9fedd0e5b2f82903de9c07e197708  github.com/dreamsxin/go-kit/v2/kit
 cd020b94098c712cdd72ce98a5a40d28a56a8e5358673db1121f9126b68f665d  github.com/dreamsxin/go-kit/v2/kit/grpc
 b1b59c0cbafd9475a404974370b091b54613aa6827325fdc7bb6fd2c272adb7a  github.com/dreamsxin/go-kit/v2/observability/otel
 713438679bb5b904d53b2e3792a64e15cbe29422f44b76459dd41c7c017f0ae7  github.com/dreamsxin/go-kit/v2/observability/slog
-6c6c3199cd55b04f0ac1df6e7b3e2561470ef4b5f841df0b0393fc4107ab5cc4  github.com/dreamsxin/go-kit/v2/sd
+4778df27a54b3735e6bc9a64746d002a9b6ff49e07b959b9342410da484509b0  github.com/dreamsxin/go-kit/v2/sd
 0689319779d15b786ae91aa0b4cda912711062c5146915cee115cc5ac5f0a05b  github.com/dreamsxin/go-kit/v2/sd/balancer
 f27ebf4be5d00d397f096c87c5f86e7a76eaf9c8e68a1469f2e7e4a3ee93246c  github.com/dreamsxin/go-kit/v2/sd/client
 728b09c8fbed65f6a7e052eb34acd542b2808bfdb24b73ea9ec3cba7cbeffd30  github.com/dreamsxin/go-kit/v2/sd/endpointer

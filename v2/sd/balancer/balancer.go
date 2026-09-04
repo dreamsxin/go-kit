@@ -4,6 +4,7 @@ package balancer
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"github.com/dreamsxin/go-kit/v2/sd"
 	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
@@ -32,12 +33,19 @@ type strategyBalancer struct {
 	strategy  selector.Strategy
 	closeOnce sync.Once
 	closeErr  error
+	closed    atomic.Bool
 }
 
 func (b *strategyBalancer) Pick(ctx context.Context, request any) (sd.Picked, error) {
+	if b.closed.Load() {
+		return sd.Picked{}, sd.ErrClosed
+	}
 	items, err := b.source.InstanceEndpoints()
 	if err != nil {
 		return sd.Picked{}, err
+	}
+	if b.closed.Load() {
+		return sd.Picked{}, sd.ErrClosed
 	}
 	instances := instancesOf(items)
 	index, strategyDone, err := b.strategy.Pick(ctx, request, instances)
@@ -67,6 +75,7 @@ func (b *strategyBalancer) Pick(ctx context.Context, request any) (sd.Picked, er
 
 func (b *strategyBalancer) Close() error {
 	b.closeOnce.Do(func() {
+		b.closed.Store(true)
 		b.closeErr = selector.CloseStrategy(b.strategy)
 	})
 	return b.closeErr

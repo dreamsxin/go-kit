@@ -4,6 +4,20 @@ package config
 // Load resolves defaults -> local YAML -> remote -> final env overrides, then
 // validates the complete runtime configuration.
 func Load(path string) (*Config, error) {
+	cfg, err := LoadUnvalidated(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// LoadUnvalidated resolves defaults, local YAML, remote config, and final
+// environment overrides. Callers that apply command-line flags must validate
+// the returned config after those overrides are applied.
+func LoadUnvalidated(path string) (*Config, error) {
 	cfg, err := LoadLocal(path)
 	if err != nil {
 		return nil, err
@@ -16,9 +30,6 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	if err := ApplyEnv(cfg); err != nil {
-		return nil, err
-	}
-	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return cfg, nil

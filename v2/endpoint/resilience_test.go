@@ -3,6 +3,7 @@ package endpoint_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -104,6 +105,58 @@ func TestCircuitBreaker_HonorsSuccessThreshold(t *testing.T) {
 	}
 	if got := breaker.State(); got != endpoint.BreakerClosed {
 		t.Fatalf("after 3 successes: got %v, want closed", got)
+	}
+}
+
+func TestCircuitBreaker_DoesNotCountCallerCancellation(t *testing.T) {
+	breaker := endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(1))
+	base := func(ctx context.Context, _ any) (any, error) { return nil, ctx.Err() }
+	ep := breaker.Middleware()(base)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := ep(ctx, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+	if got := breaker.State(); got != endpoint.BreakerClosed {
+		t.Fatalf("state after caller cancellation: got %v, want closed", got)
+	}
+}
+
+func TestRecoveryMiddlewareConvertsPanicAndKeepsRecoveredValueOutOfError(t *testing.T) {
+	var recovered any
+	ep := endpoint.RecoveryMiddleware(func(_ context.Context, _ any, value any) error {
+		recovered = value
+		return apperror.Internal("panic", "request failed")
+	})(func(context.Context, any) (any, error) {
+		panic("secret stack detail")
+	})
+
+	_, err := ep(context.Background(), nil)
+	var appErr *apperror.Error
+	if err == nil || !errors.As(err, &appErr) {
+		t.Fatalf("error = %v, want classified internal error", err)
+	}
+	if recovered != "secret stack detail" {
+		t.Fatalf("recovered = %#v, want panic value", recovered)
+	}
+	if strings.Contains(err.Error(), "secret stack detail") {
+		t.Fatalf("panic value leaked into returned error: %v", err)
+	}
+}
+
+func TestRecoveryMiddlewareProtectsAgainstPanickingPanicHandler(t *testing.T) {
+	ep := endpoint.RecoveryMiddleware(func(context.Context, any, any) error {
+		panic("handler panic")
+	})(func(context.Context, any) (any, error) {
+		panic("endpoint panic")
+	})
+	_, err := ep(context.Background(), nil)
+	if err == nil {
+		t.Fatal("recovery handler panic should still return an error")
+	}
+	if strings.Contains(err.Error(), "handler panic") {
+		t.Fatalf("panic detail leaked: %v", err)
 	}
 }
 

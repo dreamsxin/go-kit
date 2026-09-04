@@ -129,3 +129,8 @@ type Balancer interface {
 
 // ErrNoEndpoints indicates that a balancer currently has no endpoint to select.
 var ErrNoEndpoints = errors.New("no endpoints available")
+
+// ErrClosed indicates that a selector or balancer has been closed and cannot
+// accept new picks. Close prevents new selections; an already returned
+// endpoint remains the caller's responsibility to finish.
+var ErrClosed = errors.New("selector or balancer is closed")

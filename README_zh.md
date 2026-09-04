@@ -42,7 +42,7 @@ if err != nil {
 
 | 组件 | 提供的能力 | 指南 |
 | --- | --- | --- |
-| `endpoint` | 类型化端点、中间件（校验、超时、熔断、限流、降级、舱壁、追踪） | [指南](v2/endpoint/README_zh.md) |
+| `endpoint` | 类型化端点、中间件（校验、超时、恢复、熔断、限流、降级、舱壁、追踪） | [指南](v2/endpoint/README_zh.md) |
 | `apperror` | 传输中立的错误分类，由各传输一致映射 | [指南](v2/docs/errors_zh.md) |
 | `transport/http` | JSON server/client、SSE、multipart、分页、响应信封 | [指南](v2/transport/README_zh.md) |
 | `kit` | 服务组装、健康检查、生命周期 | [指南](v2/README_zh.md) |

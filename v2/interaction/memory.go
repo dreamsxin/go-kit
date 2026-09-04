@@ -102,15 +102,32 @@ type MemoryEventSink struct {
 	mu     sync.RWMutex
 	events map[SessionID][]Event
 	now    func() time.Time
+	// MaxEventsPerSession bounds retained history. Zero means unlimited for
+	// callers that explicitly construct the sink value; constructors choose a
+	// bounded default suitable for lightweight services.
+	MaxEventsPerSession int
 }
+
+const defaultMemoryEventsPerSession = 10000
 
 // NewMemoryEventSink returns an in-memory EventSink suitable for tests and
 // lightweight usage.
 func NewMemoryEventSink() *MemoryEventSink {
 	return &MemoryEventSink{
-		events: make(map[SessionID][]Event),
-		now:    time.Now,
+		events:              make(map[SessionID][]Event),
+		now:                 time.Now,
+		MaxEventsPerSession: defaultMemoryEventsPerSession,
 	}
+}
+
+// NewMemoryEventSinkWithLimit returns an in-memory sink retaining at most max
+// events per session. A non-positive max uses the default bounded limit.
+func NewMemoryEventSinkWithLimit(max int) *MemoryEventSink {
+	sink := NewMemoryEventSink()
+	if max > 0 {
+		sink.MaxEventsPerSession = max
+	}
+	return sink
 }
 
 // Emit records an event. If event.At is zero it is set to the current time.
@@ -121,11 +138,21 @@ func (s *MemoryEventSink) Emit(ctx context.Context, event Event) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.events == nil {
+		s.events = make(map[SessionID][]Event)
+	}
+	if s.now == nil {
+		s.now = time.Now
+	}
 	if event.At.IsZero() {
 		event.At = s.now()
 	}
 	event.Metadata = cloneStringMap(event.Metadata)
-	s.events[event.SessionID] = append(s.events[event.SessionID], event)
+	items := append(s.events[event.SessionID], event)
+	if s.MaxEventsPerSession > 0 && len(items) > s.MaxEventsPerSession {
+		items = items[len(items)-s.MaxEventsPerSession:]
+	}
+	s.events[event.SessionID] = items
 	return nil
 }
 

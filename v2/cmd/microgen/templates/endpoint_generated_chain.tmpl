@@ -1,6 +1,7 @@
 package {{.Service.ServiceName | lower}}
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 
@@ -27,7 +28,16 @@ func generatedMetrics(name string) *endpoint.Metrics {
 }
 
 func generatedMiddlewareChain(logger *slog.Logger, cfg MiddlewareConfig, name string) []endpoint.Middleware {
-	var middlewares []endpoint.Middleware
+	// Recovery is outermost so a panic in any generated or custom endpoint
+	// middleware becomes a classified 500 instead of crashing the process.
+	panicHandler := endpoint.PanicHandler(nil)
+	if logger != nil {
+		panicHandler = func(ctx context.Context, _ any, recovered any) error {
+			logger.ErrorContext(ctx, "endpoint panic", "operation", name, "panic", recovered)
+			return endpoint.DefaultPanicHandler(ctx, nil, recovered)
+		}
+	}
+	middlewares := []endpoint.Middleware{endpoint.RecoveryMiddleware(panicHandler)}
 
 {{- range .GeneratedMiddlewares}}
 {{- if eq . "tracing"}}

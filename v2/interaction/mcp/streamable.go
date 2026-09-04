@@ -18,6 +18,7 @@ const (
 	headerSessionID       = "Mcp-Session-Id"
 	headerProtocolVersion = "MCP-Protocol-Version"
 	defaultMaxPostBody    = 4 << 20
+	defaultMaxSessions    = 10000
 )
 
 // StreamableHandler is a Streamable HTTP MCP transport that supports:
@@ -47,9 +48,17 @@ type StreamableHandler struct {
 	// without Origin are allowed; same-origin requests are always allowed.
 	AllowedOrigins []string
 
+	// MaxSessions caps concurrently active MCP sessions. When zero, a safe
+	// default of 10000 is used. Set it explicitly for a smaller deployment.
+	MaxSessions int
+
 	cleanupMu     sync.Mutex
 	cleanupCancel context.CancelFunc
 	cleanupWG     sync.WaitGroup
+	lifecycleMu   sync.Mutex
+	closed        bool
+	closeErr      error
+	closeDone     chan struct{}
 }
 
 // NewStreamableHandler creates a StreamableHandler backed by the given runtime.
@@ -58,15 +67,20 @@ func NewStreamableHandler(runtime *interaction.Runtime) *StreamableHandler {
 		runtime = interaction.NewRuntime()
 	}
 	return &StreamableHandler{
-		core:    dispatchCore{Runtime: runtime},
-		Sampler: NewSampler(),
-		store:   newSessionStore(),
+		core:        dispatchCore{Runtime: runtime},
+		Sampler:     NewSampler(),
+		store:       newSessionStore(),
+		MaxSessions: defaultMaxSessions,
 	}
 }
 
 // ServeHTTP dispatches an HTTP request to the appropriate handler based on
 // the HTTP method (POST, GET, DELETE).
 func (h *StreamableHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if h.isClosed() {
+		writeHTTPError(w, http.StatusServiceUnavailable, "server_closed", "MCP server is shutting down")
+		return
+	}
 	w.Header().Set(headerProtocolVersion, protocolVersion)
 	if err := h.validateOrigin(r); err != nil {
 		writeHTTPError(w, http.StatusForbidden, "origin_not_allowed", err.Error())
@@ -139,7 +153,7 @@ func (h *StreamableHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 			writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32602, "unsupported protocol version", fmt.Sprintf("server supports %q", protocolVersion))})
 			return
 		}
-		sess, err := h.store.create()
+		sess, err := h.store.create(h.maxSessions())
 		if err != nil {
 			writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32603, "internal error", err.Error())})
 			return
@@ -282,15 +296,15 @@ func (h *StreamableHandler) handleDelete(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (h *StreamableHandler) releaseRuntimeSession(ctx context.Context, sess *sseSession) {
+func (h *StreamableHandler) releaseRuntimeSession(ctx context.Context, sess *sseSession) error {
 	if sess == nil {
-		return
+		return nil
 	}
 	runtimeID := sess.runtimeSessionID()
 	if runtimeID == "" {
-		return
+		return nil
 	}
-	_ = h.core.Runtime.ReleaseSession(ctx, interaction.SessionID(runtimeID))
+	return h.core.Runtime.ReleaseSession(ctx, interaction.SessionID(runtimeID))
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -380,11 +394,17 @@ func validateProtocolVersion(r *http.Request) error {
 // sessions. It checks every SessionTTL/2 (minimum 30 seconds). Call StopCleanup
 // to terminate the goroutine. If SessionTTL is zero, this is a no-op.
 func (h *StreamableHandler) StartCleanup() {
+	if h.isClosed() {
+		return
+	}
 	if h.SessionTTL <= 0 {
 		return
 	}
 	h.cleanupMu.Lock()
 	defer h.cleanupMu.Unlock()
+	if h.isClosed() {
+		return
+	}
 	if h.cleanupCancel != nil {
 		return
 	}
@@ -428,4 +448,62 @@ func (h *StreamableHandler) StopCleanup() {
 	h.cleanupCancel()
 	h.cleanupWG.Wait()
 	h.cleanupCancel = nil
+}
+
+// Close stops cleanup, closes all active SSE streams, and releases the
+// interaction sessions owned by this handler. It is idempotent. Use
+// Shutdown when the caller needs to bound runtime-session teardown with a
+// context.
+func (h *StreamableHandler) Close() error {
+	return h.Shutdown(context.Background())
+}
+
+// Shutdown closes the handler and releases all sessions. No new HTTP requests
+// are accepted after shutdown starts. In-flight HTTP handlers continue under
+// their request contexts; callers that need cancellation should cancel those
+// contexts or shut down the owning http.Server first.
+func (h *StreamableHandler) Shutdown(ctx context.Context) error {
+	if ctx == nil {
+		return fmt.Errorf("mcp: nil shutdown context")
+	}
+	h.lifecycleMu.Lock()
+	if h.closed {
+		done := h.closeDone
+		h.lifecycleMu.Unlock()
+		if done != nil {
+			<-done
+		}
+		h.lifecycleMu.Lock()
+		err := h.closeErr
+		h.lifecycleMu.Unlock()
+		return err
+	}
+	h.closed = true
+	h.closeDone = make(chan struct{})
+	h.lifecycleMu.Unlock()
+
+	h.StopCleanup()
+	var closeErr error
+	for _, sess := range h.store.removeAll() {
+		h.Sampler.UnregisterSession(sess.ID)
+		closeErr = errors.Join(closeErr, h.releaseRuntimeSession(ctx, sess))
+	}
+	h.lifecycleMu.Lock()
+	h.closeErr = closeErr
+	close(h.closeDone)
+	h.lifecycleMu.Unlock()
+	return closeErr
+}
+
+func (h *StreamableHandler) isClosed() bool {
+	h.lifecycleMu.Lock()
+	defer h.lifecycleMu.Unlock()
+	return h.closed
+}
+
+func (h *StreamableHandler) maxSessions() int {
+	if h.MaxSessions > 0 {
+		return h.MaxSessions
+	}
+	return defaultMaxSessions
 }

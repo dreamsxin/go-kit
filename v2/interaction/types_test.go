@@ -3,6 +3,7 @@ package interaction
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -228,6 +229,23 @@ func TestMemoryEventSink_List_Empty(t *testing.T) {
 	}
 	if len(events) != 0 {
 		t.Fatalf("expected 0 events, got %d", len(events))
+	}
+}
+
+func TestMemoryEventSink_LimitsHistory(t *testing.T) {
+	sink := NewMemoryEventSinkWithLimit(2)
+	ctx := context.Background()
+	for i := 0; i < 3; i++ {
+		if err := sink.Emit(ctx, Event{SessionID: "s1", Type: EventType(fmt.Sprintf("event-%d", i))}); err != nil {
+			t.Fatalf("Emit: %v", err)
+		}
+	}
+	events, err := sink.List(ctx, "s1")
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(events) != 2 || events[0].Type != "event-1" || events[1].Type != "event-2" {
+		t.Fatalf("events = %#v, want the two newest events", events)
 	}
 }
 

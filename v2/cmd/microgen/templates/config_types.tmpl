@@ -187,17 +187,20 @@ func (cfg *Config) Validate() error {
 
 	if cfg.Remote.Enabled {
 		provider := strings.ToLower(strings.TrimSpace(cfg.Remote.Provider))
-		if provider != "consul" {
-			return fmt.Errorf("config: unsupported remote.provider %q", cfg.Remote.Provider)
-		}
-		if strings.TrimSpace(cfg.Remote.Endpoint) == "" {
-			return fmt.Errorf("config: remote.endpoint is required")
-		}
-		if strings.TrimSpace(cfg.Remote.DataID) == "" {
-			return fmt.Errorf("config: remote.data_id is required")
-		}
-		if cfg.Remote.Timeout <= 0 {
-			return fmt.Errorf("config: remote.timeout must be > 0")
+		localOnly := cfg.Remote.FallbackToLocal && (strings.TrimSpace(cfg.Remote.Endpoint) == "" || strings.TrimSpace(cfg.Remote.DataID) == "")
+		if !localOnly {
+			if provider != "consul" {
+				return fmt.Errorf("config: unsupported remote.provider %q", cfg.Remote.Provider)
+			}
+			if strings.TrimSpace(cfg.Remote.Endpoint) == "" {
+				return fmt.Errorf("config: remote.endpoint is required")
+			}
+			if strings.TrimSpace(cfg.Remote.DataID) == "" {
+				return fmt.Errorf("config: remote.data_id is required")
+			}
+			if cfg.Remote.Timeout <= 0 {
+				return fmt.Errorf("config: remote.timeout must be > 0")
+			}
 		}
 	}
 	if err := cfg.Custom.Validate(); err != nil {

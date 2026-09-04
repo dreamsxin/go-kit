@@ -67,4 +67,7 @@ Implementation notes:
 
 - In-memory implementations are suitable for tests, demos, and local experiments.
   Production deployments should provide durable implementations.
+- `NewMemoryEventSink` retains at most 10,000 events per session by default;
+  use `NewMemoryEventSinkWithLimit` for a smaller bound or construct
+  `MemoryEventSink` directly for an explicitly unbounded test sink.
 - This is not a WebSocket runtime; WebSocket should remain an adapter decision.

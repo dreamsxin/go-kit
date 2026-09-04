@@ -54,4 +54,7 @@
 实现说明：
 
 - 内存实现适合用于测试、演示和本地实验。生产部署应提供可持久化的实现。
+- `NewMemoryEventSink` 默认每个会话最多保留 10,000 条事件；可用
+  `NewMemoryEventSinkWithLimit` 设置更小的上限，或直接构造 `MemoryEventSink`
+  作为明确无界的测试 sink。
 - 这不是一个 WebSocket 运行时；WebSocket 应仍然由适配器层面来决策。

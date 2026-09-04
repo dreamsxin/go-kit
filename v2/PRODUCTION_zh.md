@@ -111,8 +111,14 @@ host, err := kit.NewHost(kit.WithLifecycle(httpComponent, runner))
 严格 JSON endpoint 拒绝未知字段与尾部多余 JSON 值。除非某条路由有明确
 记录的理由需要接受更大载荷，否则保持请求体限制开启。
 
+把 `endpoint.RecoveryMiddleware` 放在每条 endpoint 链的最外层。它会把业务或
+中间件 panic 转成已分类且脱敏的 500；自定义 `PanicHandler` 可以把恢复值上报到
+日志或错误服务，但绝不能写入响应体。
+
 流式协议需要不同的超时选择。MCP SSE 响应是长生命周期的，HTTP 写超时
-必须为 `0` 或长于支持的会话时长。
+必须为 `0` 或长于支持的会话时长。为 MCP 设置 `SessionTTL`、`MaxSessions`、
+`MaxPostBodyBytes` 与 `AllowedOrigins`，启动清理，并在退出时调用
+`StreamableHandler.Shutdown(ctx)`（或使用 `mcp.Serve`），释放 SSE writer 和交互会话。
 
 启用生成契约支持时，`/openapi.json`、`/schema.json` 与 `/swagger/`
 会暴露服务契约。仅在这是明确的产品决策时才保持公开；否则在部署边界

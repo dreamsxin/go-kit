@@ -189,8 +189,8 @@ func TestNewEndpoint_CloserReleasesFactoryResources(t *testing.T) {
 		t.Fatal("factory resource was not closed")
 	}
 	_, err = ep(context.Background(), nil)
-	if !errors.Is(err, endpointer.ErrCacheClosed) {
-		t.Fatalf("call after Close error = %v, want ErrCacheClosed", err)
+	if !errors.Is(err, sd.ErrClosed) {
+		t.Fatalf("call after Close error = %v, want sd.ErrClosed", err)
 	}
 }
 

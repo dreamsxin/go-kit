@@ -26,6 +26,15 @@ func LoadRemote(cfg *Config) (*Config, error) {
 	}
 
 	provider := strings.ToLower(strings.TrimSpace(cfg.Remote.Provider))
+	// Hybrid mode may intentionally omit remote coordinates and use the local
+	// file until deployment injects them. Treat that as local-only startup when
+	// fallback is enabled; a strict remote profile still fails validation.
+	if cfg.Remote.FallbackToLocal && (strings.TrimSpace(cfg.Remote.Endpoint) == "" || strings.TrimSpace(cfg.Remote.DataID) == "") {
+		if provider != "" && provider != "consul" {
+			return nil, fmt.Errorf("config: unsupported remote provider %q", cfg.Remote.Provider)
+		}
+		return cfg, nil
+	}
 	var loaded *Config
 	var err error
 

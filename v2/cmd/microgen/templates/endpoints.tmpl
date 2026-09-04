@@ -37,8 +37,10 @@ func MakeServerEndpointsWithConfig(
 ) {{.Service.ServiceName}}Endpoints {
 {{- if .UnaryMethods}}
 	build := func(ep endpoint.Endpoint, name string) endpoint.Endpoint {
-		ep = applyGeneratedMiddleware(ep, logger, cfg, name)
-		return applyCustomMiddleware(ep, logger, cfg, name)
+		// User middleware is inner to the generated policies, so it receives
+		// tracing context and is protected by generated recovery.
+		ep = applyCustomMiddleware(ep, logger, cfg, name)
+		return applyGeneratedMiddleware(ep, logger, cfg, name)
 	}
 
 {{- end}}

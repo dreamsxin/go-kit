@@ -7,6 +7,13 @@
 
 ### 新增
 
+- Endpoint panic 恢复：`RecoveryMiddleware`、可配置 `PanicHandler` 与默认脱敏的
+  `apperror` 结果；熔断器支持失败判定函数，默认不把调用方取消计为依赖失败。
+- MCP 生命周期控制：支持上下文的 `mcp.Serve`、`StreamableHandler.Shutdown`、
+  活跃会话上限、活跃 SSE 感知的清理，以及通过 `NewMemoryEventSinkWithLimit` 限制
+  内存事件历史。
+- `sd.ErrClosed` 让已关闭 selector/balancer 对新选择稳定返回关闭错误。
+
 - `selector.CloseStrategy(strategy)`：策略持有资源时释放它，不持有时是空操作，
   因此包装型策略可以一行透传 `Close`，不必自己写类型断言。
 - `sd/balancer` 新增三种选择策略，轮询不再是唯一选项：`NewRandom`（均匀抽样，

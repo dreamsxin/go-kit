@@ -8,6 +8,15 @@ through the immutable v0 and v1 tags.
 
 ### Added
 
+- Endpoint panic recovery with `RecoveryMiddleware`, configurable
+  `PanicHandler`, and a redacted default `apperror` result. Circuit breakers
+  now accept a failure predicate and exclude caller cancellation by default.
+- MCP lifecycle controls: context-aware `mcp.Serve`, `StreamableHandler.Shutdown`,
+  active-session limits, active-SSE-aware cleanup, and bounded in-memory event
+  history through `NewMemoryEventSinkWithLimit`.
+- `sd.ErrClosed` makes closed selectors and balancers reject new picks
+  deterministically.
+
 - `selector.CloseStrategy(strategy)` releases a strategy that owns something and
   is a no-op for one that does not, so a decorating strategy can forward `Close`
   in one line instead of type-asserting.

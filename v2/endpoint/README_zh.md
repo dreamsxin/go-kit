@@ -64,6 +64,7 @@ API 的适配器）。它**不是**"用 200 携带错误字段"的手段：那�
 - `TimeoutMiddleware`
 - `RecordingMiddleware` / `MetricsMiddleware`
 - `ErrorHandlingMiddleware`
+- `RecoveryMiddleware` / `WithRecovery`
 - `TracingMiddleware`
 - `BackpressureMiddleware`
 - `NewCircuitBreaker`
@@ -242,6 +243,19 @@ typed := endpoint.Unwrap[HelloReq, HelloResp](
 - `DelayRateLimitMiddleware`
 - `RetryMiddleware`
 - `Fallback`
+
+`RecoveryMiddleware` 是 endpoint panic 的进程边界保护。应把它放在最外层，覆盖所有
+内部中间件；默认处理器返回已分类的内部错误，内置传输会将其脱敏为 500。需要上报
+堆栈时传入 `PanicHandler`，但应返回分类错误，不要把 panic 值暴露给客户端：
+
+```go
+ep := endpoint.NewBuilder(base).
+    WithRecovery(func(ctx context.Context, request, recovered any) error {
+        logger.ErrorContext(ctx, "endpoint panic", "panic", recovered)
+        return endpoint.DefaultPanicHandler(ctx, request, recovered)
+    }).
+    Build()
+```
 
 `CircuitBreaker` 本身不是 `Middleware`：它是被所有请求共享的有状态对象，因此用
 `NewCircuitBreaker()` 构造一次，再装上 `breaker.Middleware()`（或

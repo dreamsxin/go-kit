@@ -622,6 +622,26 @@ func TestSessionTTL_ExpiredIDs(t *testing.T) {
 	}
 }
 
+func TestSessionTTL_KeepsActiveSSESession(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	h.SessionTTL = 50 * time.Millisecond
+	sid := initSessionHelper(t, h)
+	sess, ok := h.store.get(sid)
+	if !ok {
+		t.Fatal("session not found")
+	}
+	sw, err := newSSEWriter(httptest.NewRecorder())
+	if err != nil {
+		t.Fatalf("newSSEWriter: %v", err)
+	}
+	sess.addGETWriter("active", sw)
+	defer sess.removeGETWriter("active")
+	time.Sleep(100 * time.Millisecond)
+	if ids := h.store.expiredIDs(h.SessionTTL); len(ids) != 0 {
+		t.Fatalf("active SSE session was expired: %v", ids)
+	}
+}
+
 func TestSessionTTL_StartStopCleanup(t *testing.T) {
 	rt := interaction.NewRuntime()
 	h := NewStreamableHandler(rt)
@@ -663,6 +683,52 @@ func TestSessionTTL_ZeroDisablesExpiry(t *testing.T) {
 	_, ok := h.store.get(sid)
 	if !ok {
 		t.Fatal("session should still exist when SessionTTL is zero")
+	}
+}
+
+func TestStreamableHandler_MaxSessions(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	h.MaxSessions = 1
+	first := initSessionHelper(t, h)
+	if first == "" {
+		t.Fatal("first session was not created")
+	}
+
+	body := map[string]any{
+		"jsonrpc": "2.0", "id": 2, "method": "initialize",
+		"params": map[string]any{"protocolVersion": protocolVersion},
+	}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "maximum active sessions") {
+		t.Fatalf("second initialize: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestStreamableHandler_CloseReleasesSessionsAndRejectsRequests(t *testing.T) {
+	rt := interaction.NewRuntime()
+	h := NewStreamableHandler(rt)
+	sid := initSessionHelper(t, h)
+	sess, ok := h.store.get(sid)
+	if !ok {
+		t.Fatal("session not found")
+	}
+	runtimeID := interaction.SessionID(sess.runtimeSessionID())
+
+	if err := h.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if _, err := rt.Sessions.Get(context.Background(), runtimeID); !errors.Is(err, interaction.ErrSessionNotFound) {
+		t.Fatalf("runtime session still exists: %v", err)
+	}
+	if err := h.Close(); err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+	code, _ := streamPostJSON(t, h, sid, "tools/list", nil)
+	if code != http.StatusServiceUnavailable {
+		t.Fatalf("request after Close: status=%d, want 503", code)
 	}
 }
 

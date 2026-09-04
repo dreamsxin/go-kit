@@ -23,6 +23,7 @@ import (
 	"context"
 	"io"
 	"sync"
+	"sync/atomic"
 
 	"github.com/dreamsxin/go-kit/v2/sd"
 )
@@ -139,21 +140,29 @@ type bound struct {
 	strategy  Strategy
 	closeOnce sync.Once
 	closeErr  error
+	closed    atomic.Bool
 }
 
 // Close releases the strategy. The source is not closed: an Instancer
 // subscription or a shared snapshot outlives any one Selector built on it.
 func (b *bound) Close() error {
 	b.closeOnce.Do(func() {
+		b.closed.Store(true)
 		b.closeErr = CloseStrategy(b.strategy)
 	})
 	return b.closeErr
 }
 
 func (b *bound) Select(ctx context.Context, request any) (sd.Instance, sd.Done, error) {
+	if b.closed.Load() {
+		return sd.Instance{}, nil, sd.ErrClosed
+	}
 	instances, err := b.source.Instances()
 	if err != nil {
 		return sd.Instance{}, nil, err
+	}
+	if b.closed.Load() {
+		return sd.Instance{}, nil, sd.ErrClosed
 	}
 	index, strategyDone, err := b.strategy.Pick(ctx, request, instances)
 	if err != nil {

@@ -65,6 +65,7 @@ For most services, these are the main entry points:
 - `TimeoutMiddleware`
 - `RecordingMiddleware` / `MetricsMiddleware`
 - `ErrorHandlingMiddleware`
+- `RecoveryMiddleware` / `WithRecovery`
 - `TracingMiddleware`
 - `BackpressureMiddleware`
 - `NewCircuitBreaker`
@@ -254,6 +255,21 @@ Core middleware in `endpoint`:
 - `DelayRateLimitMiddleware`
 - `RetryMiddleware`
 - `Fallback`
+
+`RecoveryMiddleware` is the process-boundary guard for endpoint panics. Put it
+outermost so it covers all inner middleware; the default handler returns a
+classified internal error that built-in transports redact as 500. Supply a
+`PanicHandler` when you need stack/error reporting, but return a classified
+error rather than exposing the recovered value:
+
+```go
+ep := endpoint.NewBuilder(base).
+    WithRecovery(func(ctx context.Context, request, recovered any) error {
+        logger.ErrorContext(ctx, "endpoint panic", "panic", recovered)
+        return endpoint.DefaultPanicHandler(ctx, request, recovered)
+    }).
+    Build()
+```
 
 `CircuitBreaker` is not itself a `Middleware`: it is a stateful object shared by
 every request, so you construct it once with `NewCircuitBreaker()` and install

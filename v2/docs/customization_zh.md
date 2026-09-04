@@ -98,6 +98,8 @@ func AuditMiddleware(audit AuditLog) endpoint.Middleware {
   `TraceContextFromContext`），不要另造管道。
 - 有意识地选择模式：不调用 `next` 直接短路（校验、舱壁），或包裹调用（超
   时、指标）。四种模式见[中间件](middleware_zh.md#流控)。
+- 需要把 endpoint 或中间件 panic 转成分类错误时，将 `endpoint.RecoveryMiddleware` 放在最外层；
+  下方的 HTTP 恢复则用于协议处理器与原始路由的 panic。
 
 security 包提供了打包好的中间件范例：
 

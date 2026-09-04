@@ -85,7 +85,7 @@ func newSessionStore() *sessionStore {
 	return &sessionStore{sessions: make(map[string]*sseSession)}
 }
 
-func (ss *sessionStore) create() (*sseSession, error) {
+func (ss *sessionStore) create(maxSessions int) (*sseSession, error) {
 	id, err := generateSessionID()
 	if err != nil {
 		return nil, err
@@ -98,6 +98,10 @@ func (ss *sessionStore) create() (*sseSession, error) {
 		logLevel:     "info",
 	}
 	ss.mu.Lock()
+	if maxSessions > 0 && len(ss.sessions) >= maxSessions {
+		ss.mu.Unlock()
+		return nil, fmt.Errorf("mcp: maximum active sessions (%d) reached", maxSessions)
+	}
 	ss.sessions[id] = sess
 	ss.mu.Unlock()
 	return sess, nil
@@ -132,6 +136,29 @@ func (ss *sessionStore) remove(id string) *sseSession {
 		return s
 	}
 	return nil
+}
+
+// removeAll closes and removes every active session. The returned sessions
+// retain their runtime IDs so the handler can release corresponding runtime
+// sessions outside the store lock.
+func (ss *sessionStore) removeAll() []*sseSession {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	sessions := make([]*sseSession, 0, len(ss.sessions))
+	for id, s := range ss.sessions {
+		s.mu.Lock()
+		s.closed = true
+		for _, w := range s.getWriters {
+			w.close()
+		}
+		for _, w := range s.postWriters {
+			w.close()
+		}
+		s.mu.Unlock()
+		sessions = append(sessions, s)
+		delete(ss.sessions, id)
+	}
+	return sessions
 }
 
 // writeToGET sends a JSON-RPC message to one active GET SSE writer.
@@ -278,7 +305,10 @@ func (ss *sessionStore) expiredIDs(ttl time.Duration) []string {
 	var ids []string
 	for id, s := range ss.sessions {
 		s.mu.RLock()
-		if s.lastActivity.Before(cutoff) {
+		// An active SSE stream is a live session even if no event has moved
+		// recently. Expiring it would terminate a healthy long-lived client.
+		active := len(s.getWriters) > 0 || len(s.postWriters) > 0
+		if !active && s.lastActivity.Before(cutoff) {
 			ids = append(ids, id)
 		}
 		s.mu.RUnlock()

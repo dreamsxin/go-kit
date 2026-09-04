@@ -56,6 +56,22 @@ Register the pattern without a method verb. The handler dispatches POST, GET,
 and DELETE itself and answers anything else with 405 and an `Allow` header;
 registering only `POST /mcp` would break session termination.
 
+For a service that owns the HTTP lifecycle, use `Serve` so cancellation drains
+the HTTP server and releases MCP sessions:
+
+```go
+ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+defer stop()
+if err := mcp.Serve(ctx, ":8080", rt); err != nil {
+	log.Fatal(err)
+}
+```
+
+When mounting the handler yourself, call `StartCleanup` after setting
+`SessionTTL`, and call `Shutdown(ctx)` before the process exits. Shut down the
+owning `http.Server` first when in-flight tool calls must be cancelled. Configure
+`MaxSessions`, `MaxPostBodyBytes`, and `AllowedOrigins` for the deployment.
+
 ## 4. Call it
 
 MCP sessions require the initialize handshake before tools are called:

@@ -2,6 +2,7 @@ package endpoint
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
@@ -39,6 +40,11 @@ type BreakerSettings struct {
 	// OpenTimeout is the time the breaker stays open before a probe is
 	// allowed through. Non-positive selects DefaultBreakerOpenTimeout.
 	OpenTimeout time.Duration
+	// FailurePredicate reports whether an endpoint error represents a
+	// dependency failure. Caller cancellation is excluded by default because
+	// it does not say anything about dependency health. Set this to customize
+	// classification, for example to exclude transport-specific errors.
+	FailurePredicate func(error) bool
 }
 
 // BreakerOption mutates BreakerSettings. See NewCircuitBreaker.
@@ -59,6 +65,12 @@ func WithBreakerSuccessThreshold(n int) BreakerOption {
 // WithBreakerOpenTimeout sets how long the breaker stays open before probing.
 func WithBreakerOpenTimeout(d time.Duration) BreakerOption {
 	return func(s *BreakerSettings) { s.OpenTimeout = d }
+}
+
+// WithBreakerFailurePredicate configures which endpoint errors count toward
+// the failure threshold. A nil predicate restores the default policy.
+func WithBreakerFailurePredicate(predicate func(error) bool) BreakerOption {
+	return func(s *BreakerSettings) { s.FailurePredicate = predicate }
 }
 
 // CircuitBreaker is a dependency-free endpoint circuit breaker middleware.
@@ -101,6 +113,11 @@ func NewCircuitBreaker(options ...BreakerOption) *CircuitBreaker {
 	}
 	if settings.OpenTimeout <= 0 {
 		settings.OpenTimeout = DefaultBreakerOpenTimeout
+	}
+	if settings.FailurePredicate == nil {
+		settings.FailurePredicate = func(err error) bool {
+			return err != nil && !errors.Is(err, context.Canceled)
+		}
 	}
 	return &CircuitBreaker{settings: settings, now: time.Now}
 }
@@ -172,6 +189,12 @@ func (cb *CircuitBreaker) openRejection() error {
 func (cb *CircuitBreaker) afterRequest(err error) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
+	if err != nil && !cb.settings.FailurePredicate(err) {
+		if cb.state == BreakerHalfOpen {
+			cb.probeInFlight = false
+		}
+		return
+	}
 
 	switch cb.state {
 	case BreakerClosed:

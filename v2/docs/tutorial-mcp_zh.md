@@ -54,6 +54,21 @@ mux.Handle("/mcp", mcp.NewHandler(rt)) // NewStreamableHandler 的别名
 注册模式时不要带方法动词。handler 自己分发 POST、GET 与 DELETE，其他方法返回 405
 并带 `Allow` 头；只注册 `POST /mcp` 会导致会话终止无法工作。
 
+如果服务自己管理 HTTP 生命周期，使用 `Serve` 可以在取消时优雅停止 HTTP 服务并释放
+MCP 会话：
+
+```go
+ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+defer stop()
+if err := mcp.Serve(ctx, ":8080", rt); err != nil {
+	log.Fatal(err)
+}
+```
+
+手动挂载 handler 时，设置 `SessionTTL` 后调用 `StartCleanup`，进程退出前调用
+`Shutdown(ctx)`。如果需要取消进行中的工具调用，应先关闭所属的 `http.Server`。
+生产环境应配置 `MaxSessions`、`MaxPostBodyBytes` 和 `AllowedOrigins`。
+
 ## 4. 调用它
 
 MCP 会话要求先完成初始化握手，然后才能调用工具：

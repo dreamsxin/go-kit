@@ -109,6 +109,9 @@ Rules that keep it safe:
 - Decide the pattern consciously: short-circuit without calling `next`
   (validation, bulkhead), or wrap the call (timeout, metrics). See the four
   patterns in [middleware](middleware.md#flow-control).
+- Put `endpoint.RecoveryMiddleware` outermost when the chain must convert
+  endpoint or middleware panics into classified errors; use HTTP recovery below
+  for panics in protocol handlers and raw routes.
 
 Security ships a ready-made example of packaged middleware:
 

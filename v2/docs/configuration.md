@@ -23,22 +23,21 @@ defaults               (Default)
   -> environment       (ApplyEnv)
   -> optional remote   (LoadRemote)
   -> environment again (ApplyEnv)
-  -> Config.Validate
   -> command-line flags
+  -> Config.Validate
 ```
 
 Both environment passes are the same full `ApplyEnv`. The first one runs before
 the remote source so that `APP_REMOTE_*` can point at it; the second one runs
 after, so environment always wins over remote values.
 
-Validation runs before the logger, database, middleware, and servers are
-created, so a misconfigured deployment fails fast.
+Validation runs after command-line overrides and before the logger, database,
+middleware, and servers are created, so a misconfigured deployment fails fast.
 
-Command-line flags are applied *after* validation, because `flag` uses the
-loaded config as its default values (`-http.addr` defaults to
-`cfg.Server.HTTPAddr`). This means a flag value is not validated: pass
-`-http.addr=""` and the process fails at listen time, not at load time. Flags
-are meant for local overrides; use YAML or the environment for deployments.
+Command-line flags use the loaded config as their defaults (`-http.addr`
+defaults to `cfg.Server.HTTPAddr`), are applied to the config, and then go
+through the same final validation. Flags are convenient local overrides; use
+YAML or the environment for deployment configuration.
 
 The generated `main` accepts `-config`, `-http.addr`, plus `-grpc.addr` when the
 project has gRPC and `-db.dsn` / `-auto-migrate` when it has a database.
@@ -120,6 +119,11 @@ decides which loader code is emitted, not a runtime setting:
 | `file` | local file plus environment; no remote loader is generated |
 | `hybrid` | remote loading enabled with local fallback |
 | `remote` | remote loading required; startup fails on remote error |
+
+In `hybrid` mode, an empty remote endpoint or data ID is treated as
+local-only startup while fallback is enabled. This lets the generated default
+config run locally and lets deployment inject remote coordinates later. The
+`remote` mode remains strict and requires complete coordinates.
 
 To change modes, regenerate with a different `-config-mode`.
 

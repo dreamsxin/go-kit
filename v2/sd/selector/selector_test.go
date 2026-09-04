@@ -57,6 +57,17 @@ func TestNew_EmptySnapshotReportsNoEndpoints(t *testing.T) {
 	}
 }
 
+func TestNew_CloseRejectsSubsequentSelections(t *testing.T) {
+	sel := selector.New(selector.Static(instances("a:80")...), selector.RoundRobin())
+	if err := sel.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	_, _, err := sel.Select(context.Background(), nil)
+	if !errors.Is(err, sd.ErrClosed) {
+		t.Fatalf("Select after Close = %v, want ErrClosed", err)
+	}
+}
+
 func TestNew_NilArgumentsPanic(t *testing.T) {
 	for name, build := range map[string]func(){
 		"nil source":   func() { selector.New(nil, selector.RoundRobin()) },

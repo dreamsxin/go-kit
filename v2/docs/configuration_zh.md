@@ -8,7 +8,7 @@
 
 - 用 YAML 提供部署默认值，用 `APP_*` 环境变量提供部署时覆盖。
 - `file`、`hybrid`、`remote` 是生成期模式，不是运行时字段。
-- `Config.Validate` 在运行时组装前执行；生成命令行参数在此之后应用，适合本地覆盖。
+- `Config.Validate` 在命令行覆盖之后、运行时组装前执行；参数和配置文件走同一套校验。
 - `config/custom.go` 归应用所有，必须在 `*CustomConfig` 上保留
   `SetDefaults`、`ApplyEnv() error` 和 `Validate() error`。
 
@@ -20,20 +20,17 @@
   -> 环境变量        (ApplyEnv)
   -> 可选远程配置    (LoadRemote)
   -> 再次环境变量    (ApplyEnv)
-  -> Config.Validate
   -> 命令行 flag
+  -> Config.Validate
 ```
 
 两次环境变量应用是同一个完整的 `ApplyEnv`。第一次在远程配置之前运行，好让
 `APP_REMOTE_*` 指向远程源；第二次在其之后运行，因此环境变量始终优先于远程值。
 
-校验在 logger、数据库、中间件与服务器创建之前运行，因此配置错误的部署会快速
-失败。
+校验在命令行覆盖之后、logger、数据库、中间件与服务器创建之前运行，因此配置错误的部署会快速失败。
 
-命令行 flag 在校验**之后**才生效：`flag` 用已加载的配置作为默认值
-（`-http.addr` 默认取 `cfg.Server.HTTPAddr`）。这意味着 flag 的值不会被校验——
-传入 `-http.addr=""` 会在监听时失败，而不是在加载时失败。flag 适合本地临时覆盖，
-部署请用 YAML 或环境变量。
+命令行 flag 使用已加载配置作为默认值（`-http.addr` 默认取 `cfg.Server.HTTPAddr`），
+应用到配置后再走同一套最终校验。flag 适合本地临时覆盖，部署请用 YAML 或环境变量。
 
 生成的 `main` 支持 `-config`、`-http.addr`；带 gRPC 时还有 `-grpc.addr`，带数据库
 时还有 `-db.dsn` 与 `-auto-migrate`。
@@ -109,6 +106,9 @@ YAML 键不会有任何效果。
 | `file` | 本地文件加环境变量；不生成远程加载器 |
 | `hybrid` | 启用远程加载，本地作为降级兜底 |
 | `remote` | 必须远程加载；远程出错则启动失败 |
+
+在 `hybrid` 模式下，只要开启本地回退，远程 endpoint 或 data ID 为空就按仅本地启动处理。
+这样生成的默认配置可以直接本地运行，部署时再注入远程坐标；`remote` 模式仍然严格要求完整配置。
 
 要切换模式，请用不同的 `-config-mode` 重新生成。
 
