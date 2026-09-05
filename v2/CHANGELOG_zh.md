@@ -9,6 +9,17 @@
 
 ### 变更
 
+- 严格 JSON 服务端对自己不说的媒体类型在读取 body 之前回 415，由
+  `JSONDecodeOptions.RequireJSONContentType` 控制——`StrictJSONDecodeOptions` 默认开启，因此
+  所有高层 JSON 辅助函数都有。此前声明 `text/plain` 的请求只要字节恰好能解析就被接受。完全
+  不带 `Content-Type` 的请求仍被接受：无 body 的请求本来就不带，强制要求会拒绝本来正确的请求。
+  接受 `application/json`、任意 `+json` 后缀，以及 UTF-8 的 charset 参数；其他 charset 不接受，
+  因为 JSON 按 RFC 8259 就是 UTF-8。
+
+- 空 body 会说自己是空的。此前消息是字面量 `EOF`——那是解码器的处境，不是调用方的错误——
+  code 也是 `bad_request.invalid_json`。现在消息为 `request body is empty`，code 为
+  `bad_request.empty_body`，并且 `ErrJSONBodyEmpty` 可用 `errors.Is` 匹配。
+
 - 挂在 `Host` 上、却没有任何组件服务就绪探针的 `ReadinessProvider`，现在是 `NewHost` 的一个错误。
   它此前被收集然后丢弃：实现这个契约的意义就在于让编排系统能看到答案，而一个组件在报告"就绪"的
   探针背后默默预热，比它从未声称要预热更糟。`kit.ReadinessSink` 就是 Host 要找的那个契约——

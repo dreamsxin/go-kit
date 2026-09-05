@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"strings"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 )
@@ -125,7 +127,7 @@ func DecodeJSONRequest[T any]() DecodeRequestFunc {
 	return func(_ context.Context, r *http.Request) (any, error) {
 		var v T
 		if err := DecodeJSONBody(r, &v, StrictJSONDecodeOptions(DefaultMaxJSONBodyBytes)); err != nil {
-			return nil, JSONDecodeError{Err: err}
+			return nil, decodeFailure(err)
 		}
 		return v, nil
 	}
@@ -137,10 +139,23 @@ func DecodeJSONRequestWithOptions[T any](options JSONDecodeOptions) DecodeReques
 	return func(_ context.Context, r *http.Request) (any, error) {
 		var v T
 		if err := DecodeJSONBody(r, &v, options); err != nil {
-			return nil, JSONDecodeError{Err: err}
+			return nil, decodeFailure(err)
 		}
 		return v, nil
 	}
+}
+
+// decodeFailure classifies a decode error for the wire.
+//
+// A refused media type is passed through as itself rather than wrapped: the body
+// was never read, so calling it a body decode failure would answer 400 for a
+// question HTTP answers with 415.
+func decodeFailure(err error) error {
+	var mediaType UnsupportedMediaTypeError
+	if errors.As(err, &mediaType) {
+		return mediaType
+	}
+	return JSONDecodeError{Err: err}
 }
 
 // JSONDecodeOptions controls optional safety checks for JSON request bodies.
@@ -152,6 +167,14 @@ type JSONDecodeOptions struct {
 	DisallowUnknownFields bool
 	// RejectTrailingData requires exactly one JSON value followed by whitespace.
 	RejectTrailingData bool
+	// RequireJSONContentType answers a request whose media type is not JSON with
+	// 415, before the body is read.
+	//
+	// A request with no Content-Type at all is accepted: a body-less request
+	// carries none, and demanding one would refuse requests that are correct.
+	// What this rejects is a caller that named a type the route does not speak,
+	// which without the check was accepted whenever the bytes happened to parse.
+	RequireJSONContentType bool
 }
 
 // DefaultMaxJSONBodyBytes is the default body limit used by generated and
@@ -161,9 +184,10 @@ const DefaultMaxJSONBodyBytes int64 = 1 << 20
 // StrictJSONDecodeOptions returns options suitable for public JSON APIs.
 func StrictJSONDecodeOptions(maxBodyBytes int64) JSONDecodeOptions {
 	return JSONDecodeOptions{
-		MaxBodyBytes:          maxBodyBytes,
-		DisallowUnknownFields: true,
-		RejectTrailingData:    true,
+		MaxBodyBytes:           maxBodyBytes,
+		DisallowUnknownFields:  true,
+		RejectTrailingData:     true,
+		RequireJSONContentType: true,
 	}
 }
 
@@ -172,7 +196,29 @@ var (
 	ErrJSONBodyTooLarge = errors.New("json request body too large")
 	// ErrJSONTrailingData indicates that a JSON request contained more than one value.
 	ErrJSONTrailingData = errors.New("json request body contains trailing data")
+	// ErrJSONBodyEmpty indicates that a request that needed a JSON body had none.
+	// It is separated from a parse failure because "EOF" — which is what the
+	// decoder reports and what the caller used to receive — describes the
+	// decoder's situation rather than the caller's mistake.
+	ErrJSONBodyEmpty = errors.New("request body is empty")
 )
+
+// UnsupportedMediaTypeError reports a request whose media type the route does
+// not speak. It classifies as 415, the status HTTP defines for exactly this.
+//
+// The received type is kept for logs and is not put on the wire: the value is
+// caller-supplied, and a public error message is not the place to echo it.
+type UnsupportedMediaTypeError struct {
+	Received string
+}
+
+func (e UnsupportedMediaTypeError) Error() string { return "unsupported media type" }
+
+func (e UnsupportedMediaTypeError) StatusCode() int { return http.StatusUnsupportedMediaType }
+
+func (e UnsupportedMediaTypeError) ErrorCode() string { return "unsupported_media_type" }
+
+func (e UnsupportedMediaTypeError) PublicMessage() string { return "unsupported media type" }
 
 // JSONDecodeError marks request body decode failures as client errors while
 // preserving the underlying error for errors.Is/errors.As.
@@ -204,6 +250,9 @@ func (e JSONDecodeError) ErrorCode() string {
 	if errors.Is(e.Err, ErrJSONBodyTooLarge) {
 		return "request_too_large"
 	}
+	if errors.Is(e.Err, ErrJSONBodyEmpty) {
+		return "bad_request.empty_body"
+	}
 	return "bad_request.invalid_json"
 }
 
@@ -212,6 +261,11 @@ func (e JSONDecodeError) ErrorCode() string {
 func DecodeJSONBody(r *http.Request, target any, options JSONDecodeOptions) error {
 	if r == nil {
 		return errors.New("nil HTTP request")
+	}
+	if options.RequireJSONContentType {
+		if contentType := r.Header.Get("Content-Type"); contentType != "" && !isJSONMediaType(contentType) {
+			return UnsupportedMediaTypeError{Received: contentType}
+		}
 	}
 
 	var reader io.Reader = r.Body
@@ -224,6 +278,9 @@ func DecodeJSONBody(r *http.Request, target any, options JSONDecodeOptions) erro
 		decoder.DisallowUnknownFields()
 	}
 	if err := decoder.Decode(target); err != nil {
+		if errors.Is(err, io.EOF) {
+			return ErrJSONBodyEmpty
+		}
 		return err
 	}
 	if !options.RejectTrailingData {
@@ -242,6 +299,24 @@ func DecodeJSONBody(r *http.Request, target any, options JSONDecodeOptions) erro
 		return ErrJSONTrailingData
 	}
 	return fmt.Errorf("%w: %v", ErrJSONTrailingData, err)
+}
+
+// isJSONMediaType reports whether a Content-Type names JSON.
+//
+// It accepts application/json and any structured suffix such as
+// application/merge-patch+json, because those are JSON as far as decoding is
+// concerned. A charset parameter must be UTF-8: JSON is UTF-8 by RFC 8259, so a
+// caller declaring another encoding is describing bytes this decoder will not
+// read correctly.
+func isJSONMediaType(contentType string) bool {
+	mediaType, parameters, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return false
+	}
+	if charset, ok := parameters["charset"]; ok && !strings.EqualFold(charset, "utf-8") {
+		return false
+	}
+	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
 }
 
 // bodyTooLargeError is what limitedBodyReader reports. It unwraps to

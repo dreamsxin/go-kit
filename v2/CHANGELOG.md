@@ -10,6 +10,20 @@ than described.
 
 ### Changed
 
+- The strict JSON server answers a media type it does not speak with 415, before
+  the body is read, through `JSONDecodeOptions.RequireJSONContentType` — on in
+  `StrictJSONDecodeOptions`, so every high-level JSON helper gets it. A request
+  naming `text/plain` used to be accepted whenever its bytes happened to parse. A
+  request with no `Content-Type` at all is still accepted: a body-less request
+  carries none, and demanding one would refuse requests that are correct.
+  `application/json`, any `+json` suffix, and a UTF-8 charset parameter are
+  accepted; another charset is not, because JSON is UTF-8 by RFC 8259.
+
+- An empty body reports itself. The message was the literal string `EOF` — the
+  decoder's situation, not the caller's mistake — and the code was
+  `bad_request.invalid_json`. It is now `request body is empty` with code
+  `bad_request.empty_body`, and `ErrJSONBodyEmpty` is matchable with `errors.Is`.
+
 - A `ReadinessProvider` attached to a `Host` with no component that serves
   readiness probes is now a `NewHost` error. It used to be collected and
   discarded: the point of implementing the contract is that an orchestrator can
