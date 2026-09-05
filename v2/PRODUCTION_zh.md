@@ -194,9 +194,10 @@ HTTP 状态码：gRPC 客户端用 `sdclient.WithRetryable(grpc.Retryable)` 补�
 至少审查：
 
 - 允许的 origin、方法、头部与凭据；
-- cookie 认证状态变更的 CSRF 保护；
+- cookie 认证状态变更的 CSRF 保护，包括把令牌绑定到单个会话的 `SessionID`
+  访问器与其 `TokenTTL`；
 - 转发头部的信任边界；
-- TLS 终止与重定向行为；
+- TLS 终止与重定向行为，以及 TLS 在上游终止时的 `AssumeHTTPS`；
 - 缓存与 Content-Type 头。
 
 先安装可信代理解析，再安装 IP 策略与依赖 HTTPS 的响应头。只有配置的

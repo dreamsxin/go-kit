@@ -9,8 +9,14 @@ import (
 // SecurityHeadersConfig controls response hardening. The zero value applies
 // conservative API-safe defaults. Set DisableDefaults to emit only explicitly
 // configured values.
+//
+// Set AssumeHTTPS when TLS terminates upstream and this process serves
+// plaintext. Strict-Transport-Security is emitted for HTTPS requests, and
+// without either a trusted-proxy forwarded scheme or this declaration a
+// plaintext listener has no way to know it is serving an HTTPS deployment.
 type SecurityHeadersConfig struct {
 	DisableDefaults         bool
+	AssumeHTTPS             bool
 	FrameOptions            string
 	ReferrerPolicy          string
 	ContentSecurityPolicy   string
@@ -20,8 +26,9 @@ type SecurityHeadersConfig struct {
 }
 
 type securityHeaders struct {
-	values map[string]string
-	hsts   string
+	values      map[string]string
+	hsts        string
+	assumeHTTPS bool
 }
 
 // NewSecurityHeaders creates middleware that writes security headers before
@@ -56,13 +63,13 @@ func NewSecurityHeaders(config SecurityHeadersConfig) (Middleware, error) {
 	if !validHeaderValue(hsts) {
 		return nil, fmt.Errorf("httpsecurity: invalid Strict-Transport-Security value")
 	}
-	policy := securityHeaders{values: values, hsts: hsts}
+	policy := securityHeaders{values: values, hsts: hsts, assumeHTTPS: config.AssumeHTTPS}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 			for name, value := range policy.values {
 				w.Header().Set(name, value)
 			}
-			if policy.hsts != "" && effectiveScheme(request) == "https" {
+			if policy.hsts != "" && resolvedScheme(request, policy.assumeHTTPS) == "https" {
 				w.Header().Set("Strict-Transport-Security", policy.hsts)
 			}
 			next.ServeHTTP(w, request)

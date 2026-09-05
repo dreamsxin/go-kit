@@ -21,6 +21,7 @@ headers, err := httpsecurity.NewSecurityHeaders(httpsecurity.SecurityHeadersConf
 })
 csrf, err := httpsecurity.NewCSRF(httpsecurity.CSRFConfig{
     Secret:        csrfSecretFromEnvironment,
+    SessionID:     sessionIDFromRequest,
     RequireOrigin: true,
     SecureCookie:  true,
 })
@@ -54,8 +55,10 @@ service, err := kit.NewHTTP(":8080",
 
 - 除非直接对端位于 `TrustedProxies` 中，否则转发头会被忽略。只配置那些会覆写或正确追加 `X-Forwarded-For` 和 `X-Forwarded-Proto` 的代理。
 - 拒绝网络的优先级高于允许网络。非空的允许列表会拒绝所有未匹配的地址。
-- CORS origin 必须是精确的 HTTP(S) origin。通配符 origin 不能与凭证（credentials）同时使用。
+- CORS origin 必须是精确的 HTTP(S) origin。通配符 origin 不能与凭证（credentials）同时使用；不透明的 `null` origin 不指向任何调用方。
 - CSRF 使用经 HMAC 签名的双重提交（double-submit）cookie。其至少 32 字节的密钥应从应用的密钥管理中加载，并且只作用于真正使用浏览器 cookie 做认证的路由。基于 Bearer 令牌的 API 通常不需要这个中间件。
+- CSRF 令牌与 `SessionID(request)` 及签发时间一起签名，因此它在 `TokenTTL`（默认 12 小时）内只为一个会话授权。返回标识调用方会话的值——通常就是会话 cookie。
+- `AssumeHTTPS` 声明 TLS 在上游终止。当本进程提供明文服务时，在 `SecurityHeadersConfig` 与 `CSRFConfig` 上设置它，HSTS 与同源比较即可在负载均衡器之后成立。来自 `NewTrustedProxy` 的转发 scheme 优先于该声明。
 - 认证与业务授权仍然属于应用装配以及 endpoint/service 逻辑的职责范围。
 
 ## 流式传输与 MCP

@@ -93,9 +93,19 @@ func effectiveClientIP(request *http.Request) (net.IP, error) {
 	return remoteIP(request.RemoteAddr)
 }
 
-func effectiveScheme(request *http.Request) string {
+// resolvedScheme reports the scheme the caller reached the deployment with.
+//
+// A forwarded scheme installed by NewTrustedProxy is a measurement and wins.
+// assumeHTTPS is the operator's declaration that TLS terminates upstream, which
+// is what makes HSTS and same-origin comparison hold in a deployment where this
+// process only ever sees plaintext. Absent both, the scheme is what this
+// listener observes.
+func resolvedScheme(request *http.Request, assumeHTTPS bool) string {
 	if scheme, ok := SchemeFromContext(request.Context()); ok {
 		return scheme
+	}
+	if assumeHTTPS {
+		return "https"
 	}
 	return requestScheme(request)
 }

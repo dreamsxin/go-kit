@@ -215,9 +215,11 @@ client-IP policy. Enable each middleware only with deployment-specific policy.
 At minimum, review:
 
 - allowed origins, methods, headers, and credentials;
-- CSRF protection for cookie-authenticated state changes;
+- CSRF protection for cookie-authenticated state changes, including the
+  `SessionID` accessor that binds a token to one session and its `TokenTTL`;
 - forwarded-header trust boundaries;
-- TLS termination and redirect behavior;
+- TLS termination and redirect behavior, and `AssumeHTTPS` where TLS terminates
+  upstream;
 - cache and content-type headers.
 
 Install trusted-proxy resolution before IP policy and HTTPS-dependent headers.

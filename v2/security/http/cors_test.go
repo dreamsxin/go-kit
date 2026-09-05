@@ -86,6 +86,7 @@ func TestCORSConfigurationValidation(t *testing.T) {
 		{},
 		{AllowedOrigins: []string{"*"}, AllowCredentials: true},
 		{AllowedOrigins: []string{"https://app.example.com/path"}},
+		{AllowedOrigins: []string{"null"}},
 		{AllowedOrigins: []string{"https://app.example.com"}, AllowedMethods: []string{"bad method"}},
 		{AllowedOrigins: []string{"https://app.example.com"}, AllowedHeaders: []string{"bad header"}},
 		{AllowedOrigins: []string{"https://app.example.com"}, MaxAge: -time.Second},
@@ -93,6 +94,32 @@ func TestCORSConfigurationValidation(t *testing.T) {
 	for _, config := range tests {
 		if _, err := NewCORS(config); err == nil {
 			t.Errorf("expected error for %#v", config)
+		}
+	}
+}
+
+// TestCORSVariesOnOriginOnEveryPath keeps a shared cache from serving one
+// origin's answer to another, including the answers that decline.
+func TestCORSVariesOnOriginOnEveryPath(t *testing.T) {
+	middleware, err := NewCORS(CORSConfig{AllowedOrigins: []string{"https://app.example.com"}})
+	if err != nil {
+		t.Fatalf("NewCORS: %v", err)
+	}
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	requests := map[string]*http.Request{
+		"rejected origin": httpRequestWithHeaders(http.MethodGet, "Origin", "https://evil.example.com"),
+		"rejected method": httpRequestWithHeaders(http.MethodDelete, "Origin", "https://app.example.com"),
+		"allowed":         httpRequestWithHeaders(http.MethodGet, "Origin", "https://app.example.com"),
+		"no origin":       httptest.NewRequest(http.MethodGet, "https://api.example.com", nil),
+	}
+	for name, request := range requests {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if vary := strings.Join(recorder.Header().Values("Vary"), ","); !strings.Contains(vary, "Origin") {
+			t.Errorf("%s: Vary = %q, want it to contain Origin", name, vary)
 		}
 	}
 }

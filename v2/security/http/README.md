@@ -22,6 +22,7 @@ headers, err := httpsecurity.NewSecurityHeaders(httpsecurity.SecurityHeadersConf
 })
 csrf, err := httpsecurity.NewCSRF(httpsecurity.CSRFConfig{
     Secret:        csrfSecretFromEnvironment,
+    SessionID:     sessionIDFromRequest,
     RequireOrigin: true,
     SecureCookie:  true,
 })
@@ -62,11 +63,19 @@ recommended order unless the application has a specific reason to change it:
 - Deny networks take precedence over allow networks. A non-empty allow list
   denies every unmatched address.
 - CORS origins are exact HTTP(S) origins. Wildcard origin cannot be combined
-  with credentials.
+  with credentials, and the opaque `null` origin names no caller.
 - CSRF uses an HMAC-signed double-submit cookie. Load its 32-byte-or-longer
   secret from application secret management and scope it only to routes that
   authenticate browsers with cookies. Bearer-token APIs generally do not need
   this middleware.
+- A CSRF token is signed together with `SessionID(request)` and its issue time,
+  so it authorizes one session for `TokenTTL` (12 hours by default). Return the
+  value that identifies the caller's session — the session cookie is the usual
+  answer.
+- `AssumeHTTPS` states that TLS terminates upstream. Set it on
+  `SecurityHeadersConfig` and `CSRFConfig` when this process serves plaintext,
+  so HSTS and same-origin comparison hold behind a load balancer. A forwarded
+  scheme from `NewTrustedProxy` takes precedence over the declaration.
 - Authentication and business authorization still belong in application
   assembly and endpoint/service logic.
 

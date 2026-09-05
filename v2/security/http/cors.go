@@ -43,6 +43,9 @@ func NewCORS(config CORSConfig) (Middleware, error) {
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+			// Every answer below depends on the request origin, including the
+			// ones that decline, so the cache key includes it either way.
+			addVary(w.Header(), "Origin")
 			origin := request.Header.Get("Origin")
 			if origin == "" {
 				next.ServeHTTP(w, request)
@@ -71,7 +74,7 @@ func NewCORS(config CORSConfig) (Middleware, error) {
 
 			policy.writeOriginHeaders(w.Header(), origin)
 			if preflight {
-				addVary(w.Header(), "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers")
+				addVary(w.Header(), "Access-Control-Request-Method", "Access-Control-Request-Headers")
 				w.Header().Set("Access-Control-Allow-Methods", policy.methodHeader)
 				if policy.headerHeader != "" {
 					w.Header().Set("Access-Control-Allow-Headers", policy.headerHeader)
@@ -82,7 +85,6 @@ func NewCORS(config CORSConfig) (Middleware, error) {
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
-			addVary(w.Header(), "Origin")
 			if policy.exposedHeader != "" {
 				w.Header().Set("Access-Control-Expose-Headers", policy.exposedHeader)
 			}
@@ -109,6 +111,12 @@ func compileCORS(config CORSConfig) (*corsPolicy, error) {
 		normalized, err := normalizedOrigin(origin)
 		if err != nil {
 			return nil, fmt.Errorf("httpsecurity: CORS: %w", err)
+		}
+		// The opaque "null" origin is shared by sandboxed documents, data: and
+		// file: pages, and laundered redirects, so it names no caller. CSRF
+		// declines it for the same reason.
+		if normalized == "null" {
+			return nil, fmt.Errorf("httpsecurity: CORS cannot allow the opaque origin %q", origin)
 		}
 		policy.origins[normalized] = struct{}{}
 	}

@@ -57,6 +57,25 @@ func TestSecurityHeadersTrustEffectiveProxyScheme(t *testing.T) {
 	}
 }
 
+// TestSecurityHeadersEmitHSTSWhenTheDeploymentDeclaresHTTPS covers the common
+// deployment where TLS terminates upstream and no forwarded scheme is
+// configured: the declaration is what makes HSTS reach the browser.
+func TestSecurityHeadersEmitHSTSWhenTheDeploymentDeclaresHTTPS(t *testing.T) {
+	middleware, err := NewSecurityHeaders(SecurityHeadersConfig{
+		AssumeHTTPS:             true,
+		StrictTransportSecurity: "max-age=60",
+	})
+	if err != nil {
+		t.Fatalf("NewSecurityHeaders: %v", err)
+	}
+	recorder := httptest.NewRecorder()
+	middleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).
+		ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "http://service.test", nil))
+	if got := recorder.Header().Get("Strict-Transport-Security"); got != "max-age=60" {
+		t.Fatalf("HSTS = %q, want %q", got, "max-age=60")
+	}
+}
+
 func TestSecurityHeadersRejectHeaderInjection(t *testing.T) {
 	if _, err := NewSecurityHeaders(SecurityHeadersConfig{ContentSecurityPolicy: "default-src 'none'\r\nX-Bad: yes"}); err == nil {
 		t.Fatal("expected invalid header value error")
@@ -99,7 +118,10 @@ func TestSecurityMiddlewarePreservesStreamingInterfaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCORS: %v", err)
 	}
-	csrf, err := NewCSRF(CSRFConfig{Secret: bytes.Repeat([]byte{0x51}, minCSRFSecretBytes)})
+	csrf, err := NewCSRF(CSRFConfig{
+		Secret:    bytes.Repeat([]byte{0x51}, minCSRFSecretBytes),
+		SessionID: sessionFromCookie,
+	})
 	if err != nil {
 		t.Fatalf("NewCSRF: %v", err)
 	}
