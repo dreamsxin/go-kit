@@ -97,6 +97,17 @@ server round trip, `balancer.Pick`, `feedback.Table`, `Metrics.Observe`, and
 can be seen. Figures below are `go test -bench . -benchmem` on one machine;
 they are ratios worth trusting, not absolutes.
 
+- `feedback.Table` reads without a lock. A selection asks every candidate for its
+  load or score, and each of those asks took a read lock on the one mutex the
+  recording path also holds. The entry table is now published copy-on-write and
+  each measurement is an atomic field; recording, resetting, and retaining still
+  take the mutex, so in-flight accounting and the retirement lifecycle keep the
+  ordering they had. A reader can see fields from either side of one recording,
+  which is what a load heuristic can afford. Measured over nine candidates:
+  566 ns → 46 ns per selection read with eight callers in flight, 543 ns → 37 ns
+  with sixty-four. The whole read-then-record round trip goes 1567 ns → 534 ns at
+  eight callers and 1549 ns → 533 ns at sixty-four, and `balancer.Pick` with
+  least request goes 779 ns → 489 ns under twelve.
 - One client-side request no longer copies the instance snapshot or allocates a
   callback it does not need. `endpointer.Cache.InstanceEndpoints` returns the
   published snapshot instead of a copy of it — the slice is replaced whole on

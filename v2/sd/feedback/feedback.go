@@ -54,38 +54,52 @@ func WithClock(now func() time.Time) Option {
 // should therefore follow the discovery snapshot — see Follow — or be told what
 // to keep with Retain. Without either, the table holds one entry per address it
 // has ever observed.
+//
+// Reading is lock-free and writing is serialized. A selection reads every
+// candidate, so the read path is the one that has to scale: the entry table is
+// published copy-on-write and each measurement is an atomic field. Recording,
+// resetting, and retaining take the mutex, which keeps the in-flight accounting
+// and the retirement lifecycle exactly as ordered as they were.
 type Table struct {
-	mu    sync.RWMutex
+	mu    sync.Mutex
 	alpha float64
 	now   func() time.Time
-	items map[string]*entry
+	items atomic.Pointer[map[string]*entry]
 }
 
+// entry holds one address's measurements.
+//
+// The fields are atomic so a selection can read them without taking the table's
+// mutex. Writes still happen under it, so a recorded outcome is never lost to a
+// concurrent one. A reader can see fields from either side of one recording —
+// a sample count from before and a latency from after — which is what a load
+// heuristic can afford: the next selection reads again a moment later.
 type entry struct {
-	// samples, latencyNS, errorRate, bytes, firstSeen, generation and retired
-	// are guarded by Table.mu.
-	samples   uint64
-	latencyNS float64
-	errorRate float64
-	bytes     int64
-	firstSeen time.Time
+	samples   atomic.Uint64
+	latencyNS atomic.Uint64 // float64 bits
+	errorRate atomic.Uint64 // float64 bits
+	bytes     atomic.Int64
+	// firstSeen is Unix nanoseconds, or zero for an instance that has none.
+	firstSeen atomic.Int64
 	// generation counts how many times Reset has cleared this entry. A call
 	// tracked before a Reset carries the older generation and its result is
 	// discarded, because Reset means "forget what happened before now".
-	generation uint64
+	generation atomic.Uint64
 	// retired marks an address Retain wanted to drop but could not, because a
-	// call was still in flight. The last completion deletes it.
+	// call was still in flight. The last completion deletes it. It is read and
+	// written under Table.mu only.
 	retired bool
 
 	// inflight is incremented and decremented under Table.mu, so Retain cannot
-	// observe zero for a call that is about to start. It stays atomic because
-	// Stats reads it under the read lock.
+	// observe zero for a call that is about to start.
 	inflight atomic.Int64
 }
 
 // NewTable creates an empty feedback table.
 func NewTable(options ...Option) *Table {
-	table := &Table{alpha: 0.2, now: time.Now, items: make(map[string]*entry)}
+	table := &Table{alpha: 0.2, now: time.Now}
+	items := map[string]*entry{}
+	table.items.Store(&items)
 	for _, option := range options {
 		if option != nil {
 			option(table)
@@ -94,13 +108,47 @@ func NewTable(options ...Option) *Table {
 	return table
 }
 
-func (t *Table) entryForLocked(address string) *entry {
-	item := t.items[address]
-	if item == nil {
-		item = &entry{firstSeen: t.now()}
-		t.items[address] = item
+// entries returns the published entry table. It is read-only: every mutation
+// publishes a new map under Table.mu.
+func (t *Table) entries() map[string]*entry {
+	if items := t.items.Load(); items != nil {
+		return *items
 	}
+	return nil
+}
+
+// entryForLocked must be called with Table.mu held. Admitting an address
+// publishes a new map, so a concurrent reader sees either the old table or the
+// new one and never a half-built map.
+func (t *Table) entryForLocked(address string) *entry {
+	current := t.entries()
+	if item := current[address]; item != nil {
+		return item
+	}
+	item := &entry{}
+	item.firstSeen.Store(t.now().UnixNano())
+	next := make(map[string]*entry, len(current)+1)
+	for name, existing := range current {
+		next[name] = existing
+	}
+	next[address] = item
+	t.items.Store(&next)
 	return item
+}
+
+// deleteLocked must be called with Table.mu held.
+func (t *Table) deleteLocked(address string) {
+	current := t.entries()
+	if _, ok := current[address]; !ok {
+		return
+	}
+	next := make(map[string]*entry, len(current))
+	for name, existing := range current {
+		if name != address {
+			next[name] = existing
+		}
+	}
+	t.items.Store(&next)
 }
 
 // Observe records one completed call for instance. It is safe to call
@@ -122,15 +170,23 @@ func (t *Table) recordLocked(item *entry, outcome sd.Outcome) {
 	}
 
 	// The first sample seeds the EWMA; subsequent samples decay older data.
-	if item.samples == 0 {
-		item.latencyNS = float64(outcome.Latency)
-		item.errorRate = failed
+	if item.samples.Load() == 0 {
+		storeFloat(&item.latencyNS, float64(outcome.Latency))
+		storeFloat(&item.errorRate, failed)
 	} else {
-		item.latencyNS = t.alpha*float64(outcome.Latency) + (1-t.alpha)*item.latencyNS
-		item.errorRate = t.alpha*failed + (1-t.alpha)*item.errorRate
+		storeFloat(&item.latencyNS, t.alpha*float64(outcome.Latency)+(1-t.alpha)*loadFloat(&item.latencyNS))
+		storeFloat(&item.errorRate, t.alpha*failed+(1-t.alpha)*loadFloat(&item.errorRate))
 	}
-	item.samples++
-	item.bytes += outcome.Bytes
+	item.samples.Add(1)
+	item.bytes.Add(outcome.Bytes)
+}
+
+func storeFloat(target *atomic.Uint64, value float64) {
+	target.Store(math.Float64bits(value))
+}
+
+func loadFloat(source *atomic.Uint64) float64 {
+	return math.Float64frombits(source.Load())
 }
 
 // Track marks a call in flight and returns the callback to pass as
@@ -155,7 +211,7 @@ func (t *Table) begin(address string) (*entry, uint64) {
 	defer t.mu.Unlock()
 	item := t.entryForLocked(address)
 	item.inflight.Add(1)
-	return item, item.generation
+	return item, item.generation.Load()
 }
 
 // complete records the result, releases the in-flight slot, and drops an
@@ -170,7 +226,7 @@ func (t *Table) complete(address string, item *entry, generation uint64, outcome
 	// it would reverse the recovery: Reset zeroes the sample count, so the
 	// stale result seeds the average instead of decaying into it, and one
 	// straggling failure would re-eject the instance at full weight.
-	if item.generation == generation {
+	if item.generation.Load() == generation {
 		t.recordLocked(item, outcome)
 	}
 
@@ -178,8 +234,8 @@ func (t *Table) complete(address string, item *entry, generation uint64, outcome
 		return
 	}
 	// Compare identities: a re-registered address may already own a new entry.
-	if t.items[address] == item {
-		delete(t.items, address)
+	if t.entries()[address] == item {
+		t.deleteLocked(address)
 	}
 }
 
@@ -198,15 +254,15 @@ func (t *Table) Reset(instance sd.Instance) {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	item := t.items[instance.Address]
+	item := t.entries()[instance.Address]
 	if item == nil {
 		return
 	}
-	item.samples = 0
-	item.latencyNS = 0
-	item.errorRate = 0
-	item.bytes = 0
-	item.generation++
+	item.samples.Store(0)
+	item.latencyNS.Store(0)
+	item.errorRate.Store(0)
+	item.bytes.Store(0)
+	item.generation.Add(1)
 }
 
 // Retain aligns the table with the discovery snapshot. Addresses in the
@@ -245,7 +301,7 @@ func (t *Table) Retain(instances []sd.Instance) {
 		// so an earlier retirement must not outlive it.
 		t.entryForLocked(instance.Address).retired = false
 	}
-	for address, item := range t.items {
+	for address, item := range t.entries() {
 		if _, wanted := keep[address]; wanted {
 			continue
 		}
@@ -253,7 +309,7 @@ func (t *Table) Retain(instances []sd.Instance) {
 			item.retired = true
 			continue
 		}
-		delete(t.items, address)
+		t.deleteLocked(address)
 	}
 }
 
@@ -359,29 +415,32 @@ type Stats struct {
 
 // Stats returns the current measurements for instance. An unknown instance has
 // zero values.
+//
+// It takes no lock: a selection asks for every candidate, and making that wait
+// on the recording path is what turns a load heuristic into a bottleneck.
 func (t *Table) Stats(instance sd.Instance) Stats {
 	if t == nil {
 		return Stats{}
 	}
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	item := t.items[instance.Address]
+	item := t.entries()[instance.Address]
 	if item == nil {
 		return Stats{}
 	}
 	return statsOf(item)
 }
 
-// statsOf must be called with Table.mu held.
 func statsOf(item *entry) Stats {
-	return Stats{
-		Samples:   item.samples,
-		Latency:   time.Duration(item.latencyNS),
-		ErrorRate: item.errorRate,
-		Bytes:     item.bytes,
+	stats := Stats{
+		Samples:   item.samples.Load(),
+		Latency:   time.Duration(loadFloat(&item.latencyNS)),
+		ErrorRate: loadFloat(&item.errorRate),
+		Bytes:     item.bytes.Load(),
 		InFlight:  item.inflight.Load(),
-		FirstSeen: item.firstSeen,
 	}
+	if nanos := item.firstSeen.Load(); nanos != 0 {
+		stats.FirstSeen = time.Unix(0, nanos)
+	}
+	return stats
 }
 
 // Score returns a selector score function. Higher scores are better.
