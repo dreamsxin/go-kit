@@ -9,6 +9,31 @@
 
 ### 变更
 
+- CSRF 令牌现在在有限时间内只为一个会话授权。`CSRFConfig.SessionID` 为必填，
+  `TokenTTL` 默认 12 小时；HMAC 覆盖 nonce、签发时间与会话，因此为某个调用方铸造的
+  令牌对另一个会被拒绝，泄漏的令牌也会失效。此前签名只覆盖一个随机 nonce，这意味着
+  服务端签发过的每个令牌对每个用户永久有效——只要有任何办法往受害者 jar 里放一个
+  cookie，就足以做登录 CSRF 或令牌固定。
+
+  无法解析会话的非安全请求被拒绝。没有会话的安全请求照常服务但不铸造令牌，令牌随登录
+  后的第一个请求到达。
+
+- 铸造 CSRF 令牌的响应声明 `Cache-Control: no-store` 与 `Vary: Cookie`。标识某个会话的
+  `Set-Cookie` 不是共享缓存可以重放给下一个用户的响应。
+
+- `SecurityHeadersConfig.AssumeHTTPS` 与 `CSRFConfig.AssumeHTTPS` 声明 TLS 在上游终止。
+  HSTS 只对 HTTPS 请求发出，CSRF 的同源检查也要与请求自身的来源比较，而当本进程在负载
+  均衡器之后提供明文服务时，这个 scheme 是它观察不到的。来自 `NewTrustedProxy` 的转发
+  scheme 依然优先——它是测量，而不是声明。
+
+- 最低 Go 版本为 1.26.0。每个模块的 `go` 指令、workspace、CI 通道、README 徽章以及
+  生成项目模板一并更新。
+- 已评审的 API 快照只哈希导出声明，不再哈希 doc comment 正文。此前正文在哈希内，因此
+  改一个注释里的错别字就是一次发布门禁事件，任何文档改进都要重刷快照。真正值得保留的
+  是测试在结构上给不了的那个保证：没有任何东西断言"导出的就是这些、且只有这些"，而
+  已发布的库无法收回一次误导出。注释是否准确属于评审问题。`TestDeclarationsOnly*`
+  从两侧钉住新行为——改正文不动哈希，新增、删除、改名、改签名都会动。
+
 - `endpoint` 只导入标准库。它定义了 `Endpoint`、`Middleware` 与 `Chain` 是什么，却
   同时导入 `apperror`，导致没人能只要这三个而不一并接受框架的错误分类体系。现在它使用
   结构化分类契约 `interface{ ErrorKindName() string }`——这正是 `apperror` 本来就
@@ -28,12 +53,46 @@
 
 ### 新增
 
+- `kit.WithRegistrar` 与 `kit.RegistrarLifecycle`：在 Host 运行期间发布一个服务实例。
+  `sd.Registrar` 与 `kit.Lifecycle` 一直都在，却没有相遇，于是每个服务都自己手写那层
+  适配——同样的三行，一个服务写一遍。
+
+  doc comment 里写了签名表达不了的两件事。把注册挂在真正承载流量的 server *之后*：
+  组件按声明顺序启动、逆序停止，这样地址才会在监听已经 accept 之后才出现，并在监听消失
+  之前先撤下。以及不要把 go-kit `sd/etcd` 那个 `Deregister(); Register()` 的写法带过来
+  ——它绕的是那个实现：不带 TTL 时用 etcd 的 `Create` 注册，key 已存在就失败，所以非正常
+  退出后重启注册不上。这里 `Register` 覆盖的是按实例区分的 key，由租约持有，并且它把错误
+  返回而不是只记一条日志。
+
 - `tools` 中的 `TestComponentsDoNotDependOnAssembly`：除 `kit` 与 `cmd/microgen`
   自身外，任何包都不得依赖它们，因此组件无法悄悄反向依赖装配层。只写在文档里的分层
   留不住。
 
+### 性能
+
+现在每个请求都会经过的路径都有了基准——`Chain`、JSON 服务端往返、`balancer.Pick`、
+`feedback.Table`、`Metrics.Observe` 与 `TracingMiddleware`——因此一次优化可以被证明有效，
+一次回退可以被看见。下列数字来自同一台机器上的 `go test -bench . -benchmem`，值得信的是
+比例而不是绝对值。
+
+- 关联标识用一个 context 值携带，而不是三个。`TracingMiddleware` 每请求写一个节点而不是最多
+  三个，`TraceContextFromContext`、`TraceIDFromContext`、`RequestIDFromContext` 各做一次
+  查找。后写的 `With*` 依然覆盖先前的值——因为它替换的是整组。实测：铸造新 trace
+  495 ns/296 B/10 allocs → 341 ns/192 B/5 allocs；延续入站 trace 487 ns/9 allocs →
+  317 ns/4 allocs；五中间件链从 1074 ns/14 allocs 降到 791 ns/9 allocs。
+- 请求 ID 走与 span ID 相同的低分配 hex 路径，不再用 `fmt.Sprintf`。熵源失败时的降级路径现在
+  产出符合 W3C 规范长度与字母表的标识；此前它把一个 64 位值补零拉长到 32 个字符。
+- `endpoint.Metrics` 保留它那把互斥锁。改成原子计数试过并实测更慢——单线程每次记录
+  23.6 ns → 46.4 ns，12 线程 60 ns → 109 ns——因为一把锁覆盖十个字段更新，而原子操作每个都要
+  付一次竞争的 cache line。数字写在该类型的 doc comment 里，让这个想法不会被再次盲目尝试。
+
 ### 修复
 
+- `NewCORS` 拒绝不透明的 `null` origin——`NewCSRF` 本来就拒绝它。sandbox 文档、
+  `data:`/`file:` 页面以及被重定向洗过的请求都呈现这个 origin，允许它并带凭证等于给它们
+  开了一条带凭证的跨域通道。
+- 每条 CORS 应答都声明 `Vary: Origin`，包括拒绝与无 origin 的直通。否则共享缓存可能存下
+  一条不按 origin 归键的 403，再把它投给一个合法来源。
 - `TestEndpointHasOnlyStandardLibraryImports` 里有一处显式豁免，恰好放过了它本该拦住的
   `apperror` 导入。已删除。
 - `apperror.KindNamer` 声称框架里每个分类点都先读 `Kinder` 再回落到它。endpoint 现在

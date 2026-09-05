@@ -358,6 +358,157 @@ git status --porcelain
 
 已完成：每项能力都附带专项测试、导出 API 变更之处经过评审的契约快照，以及所属文档中的文档记录；完整的多模块验证套件通过。
 
+## 里程碑 8（进行中）：有证据支撑的质量
+
+目标：让框架声明的每一条性质都由一个会失败的东西来保证——一个测试、一道门禁，或
+一个基准；优先处理那些目前只由文档或注释来声明的地方。
+
+本里程碑来自对 v2.9.0 候选版的一轮完整架构评审。下列每个工作包陈述应当成立的性质，
+并各自带一条验收命令。
+
+### 工作包 1：浏览器安全完备性
+
+目标：一个 CSRF 令牌在有限时间内只为一个会话授权，且每个面向浏览器的判定都自己声明
+方案与缓存范围。
+
+- CSRF 令牌绑定调用方提供的会话身份与签发时间，超出配置生命周期即拒绝。`CSRFConfig`
+  携带会话访问器；无法解析会话的非安全请求被拒绝。
+- 铸造令牌的响应声明 `Cache-Control: no-store` 与 `Vary: Cookie`，因此中间设施为一个
+  用户存下的令牌只属于这一个用户。
+- CORS 与 CSRF 对来源合法性取得一致：不透明的 `null` 来源两者都拒绝；CORS 的每条分支
+  ——放行、拒绝、无来源——都声明 `Vary: Origin`。
+- HTTPS 的判定来自声明而非推断。`SecurityHeadersConfig` 与 CSRF 来源检查声明是否由受
+  信代理终止 TLS，因此 HSTS 与同源比较在负载均衡器之后依然成立。
+
+验收：
+
+```bash
+go test ./security/... -run 'CSRF|CORS|Headers|Proxy' -count=1
+go test -race ./security/...
+```
+
+测试断言：为某会话铸造的令牌对另一会话被拒；超出生命周期的令牌被拒；铸造响应带两个
+缓存头；`null` 使 CORS 构造失败；被拒的预检仍然按来源 Vary；代理声明 HTTPS 时发出
+HSTS。
+
+### 工作包 2：可测量的性能基线
+
+目标：性能陈述建立在基准之上，因此一次优化可以被证明有效，一次回退可以被看见。
+
+- 基准覆盖每个请求都会经过的路径：零个与五个中间件的 `Chain`、一次 JSON 往返的
+  `Server.ServeHTTP`、`balancer.Pick`、8 与 64 并发下的 `feedback.Table`、
+  `Metrics.Observe`、`TracingMiddleware`。
+- 优化在其基准存在之后才落地，每项在 `CHANGELOG.md` 记录前后数值。
+- 关联标识经由一个 context 节点抵达请求。
+- 实例快照以写时复制发布，读取时不加锁不拷贝；单次尝试的调用在调用方 goroutine 上执行。
+- 为性能而做的改动只在其基准显示收益时保留。被测量否证的改动回滚，并把数字记录在代码所在
+  之处，让这个想法不会被再次盲目尝试。`Metrics` 收集器的单把互斥锁是第一条这样的记录。
+
+验收：
+
+```bash
+go test -run '^$' -bench . -benchmem ./endpoint ./sd/... ./transport/http/server
+go test -race ./endpoint ./sd/...
+```
+
+### 工作包 3：探针与关联标识的归属
+
+目标：就绪、存活与请求关联属于任何传输都能挂载的组件，因此 gRPC 服务拥有与 HTTP 服务
+相同的运维面。
+
+- 探针引擎——每检查超时、单飞门控、panic 收容与响应结构——独立成包，导出注册表与
+  handler。
+- `kit` 与 `kit/grpc` 都挂载该注册表；挂在 `Host` 上的 `ReadinessProvider` 无论存在哪些
+  传输都能抵达一个探针面。
+- 探针路径，以及它们共用应用监听器还是独立管理监听器，都是选项。
+- 请求 ID 的 HTTP 半边归 `transport/http`，因此由传输包直接组装的服务获得与 `kit` 相同
+  的头名称、校验与生成器。
+
+验收：
+
+```bash
+go test ./kit/... ./transport/http/... -count=1
+go test ./tools -run TestArchitectureDependencyGates -count=1
+```
+
+测试中，仅 gRPC 的装配能回答自己的就绪探针。
+
+### 工作包 4：可观测性装配完备性
+
+目标：一次调用即正确搭好 OpenTelemetry，遥测命名遵循语义约定，trace context 默认穿过
+每种传输。
+
+- `observability/otel` 在现有中间件之外，提供 provider、exporter、resource、全局 W3C
+  propagator 与 shutdown 的装配。
+- instrument 名称与单位遵循 OpenTelemetry 语义约定；HTTP 遥测携带 `http.route` 与
+  `http.status_code`，因此响应状态可从指标告警。
+- gRPC 服务端与客户端双向传播 `traceparent`；`kit` 与 `kit/grpc` 无需额外接线即提取。
+- `interaction` 通过与请求路径相同的 logger 与关联契约上报工具调用。
+- `NewTelemetry` 可逐个选择信号，其中间件自带名称而不依赖位置。
+
+验收：
+
+```bash
+go test ./observability/... ./integrations/grpc/... ./interaction/... -count=1
+go list -deps ./observability/slog | Select-String opentelemetry
+```
+
+依赖检查无匹配：只取日志依然零成本。
+
+### 工作包 5：服务发现的可组装性
+
+目标：能编译的发现装配就是能工作的装配，且一套订阅状态机服务所有消费者。
+
+- 订阅、错误宽限与失效状态机只有一份实现，由 selector 与 endpointer 共用，
+  `sortInstances` 只有一份。
+- `sd/balancer` 覆盖 `sd/selector` 提供的每种策略。
+- 依赖测量的策略与喂养它的统计一同取得，因此 scored 或 slow-start 选择器无法在缺少其
+  table 包装的情况下被构造出来。
+- `sd.Registrar` 以选项声明冲突语义——覆盖、仅创建、或比较并交换——每个提供者说明自己
+  支持哪些。
+
+验收：
+
+```bash
+go test ./sd/... ./integrations/etcd/... ./integrations/consul/... -count=1
+go test -race ./sd/...
+```
+
+### 工作包 6：HTTP 协议语义
+
+目标：JSON 服务端用协议层面的答案回答协议层面的问题。
+
+- 媒体类型不是 JSON 的请求收到 415，且媒体类型在读取 body 之前检查。
+- 解码失败携带写给调用方的消息；空 body 就说空 body。
+- `JSONDecodeOptions` 携带解码后钩子，因此希望在解码处做 schema 校验的服务可以在那里做。
+
+验收：
+
+```bash
+go test ./transport/http/... -count=1
+```
+
+### 工作包 7：生成代码的类型安全
+
+目标：生成代码以与手写框架代码相同的方式失败——返回一个被分类的错误。
+
+- 生成的传输与 SDK 经 `endpoint.Unwrap` 转换 endpoint 响应，因此改变响应类型的中间件
+  产生可诊断的错误而不是 panic。
+- `microgen -from-db` 在打开连接之前校验自己的必填输入。
+- 生成的依赖版本由发布清单派生，因此生成的项目总能解析。
+
+验收：
+
+```bash
+go -C ./tools run ./releaseverify -suites test
+go test ./cmd/microgen/... -count=1
+```
+
+### 完成定义
+
+里程碑 8 仅在以下全部为真时才算完成：每个工作包的验收命令通过；经评审的 API 快照反映
+有意的接口变更；`CHANGELOG.md` 记录每项行为变更，其中为性能而做的变更附带实测效果。
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

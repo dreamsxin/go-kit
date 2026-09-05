@@ -3,8 +3,8 @@ package endpoint
 import (
 	"context"
 	cryptorand "crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"math/rand"
 )
 
@@ -14,10 +14,7 @@ type TraceID string
 // SpanID is a unique identifier for a single operation within a trace.
 type SpanID string
 
-type traceKey struct{}
-type spanKey struct{}
-type requestIDKey struct{}
-type traceContextKey struct{}
+type correlationKey struct{}
 
 // TraceContext carries the W3C Trace Context fields for the active request,
 // as defined by the W3C Trace Context specification's traceparent header:
@@ -89,12 +86,9 @@ func NewTraceContext() TraceContext {
 	var b [24]byte
 	if _, err := cryptorand.Read(b[:]); err != nil {
 		// Fall back to a weaker ID rather than failing the request path;
-		// correlation degrades but the call still proceeds.
-		return TraceContext{
-			TraceID: fmt.Sprintf("%032x", rand.Uint64()),
-			SpanID:  fmt.Sprintf("%016x", rand.Uint64()),
-			Flags:   "00",
-		}
+		// correlation degrades but the call still proceeds, and the result is
+		// still the shape the specification requires.
+		fillWeakRandom(b[:])
 	}
 	return TraceContext{
 		TraceID: hex.EncodeToString(b[0:16]),
@@ -105,51 +99,87 @@ func NewTraceContext() TraceContext {
 
 // WithTraceContext injects a W3C TraceContext into the context.
 func WithTraceContext(ctx context.Context, tc TraceContext) context.Context {
-	return context.WithValue(ctx, traceContextKey{}, tc)
+	values := correlationFromContext(ctx)
+	values.trace = tc
+	return withCorrelation(ctx, values)
 }
 
 // TraceContextFromContext extracts the W3C TraceContext from the context.
 // The zero value is returned when none is present.
 func TraceContextFromContext(ctx context.Context) TraceContext {
-	tc, _ := ctx.Value(traceContextKey{}).(TraceContext)
-	return tc
+	return correlationFromContext(ctx).trace
 }
 
 // WithTraceID injects a trace ID into the context.
 func WithTraceID(ctx context.Context, id TraceID) context.Context {
-	return context.WithValue(ctx, traceKey{}, id)
+	values := correlationFromContext(ctx)
+	values.traceID = id
+	return withCorrelation(ctx, values)
 }
 
 // TraceIDFromContext extracts the trace ID from the context.
 // Returns an empty string if not set.
 func TraceIDFromContext(ctx context.Context) TraceID {
-	id, _ := ctx.Value(traceKey{}).(TraceID)
-	return id
+	return correlationFromContext(ctx).traceID
 }
 
 // WithRequestID injects a request ID into the context.
 func WithRequestID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, requestIDKey{}, id)
+	values := correlationFromContext(ctx)
+	values.requestID = id
+	return withCorrelation(ctx, values)
 }
 
 // RequestIDFromContext extracts the request ID from the context.
 func RequestIDFromContext(ctx context.Context) string {
-	id, _ := ctx.Value(requestIDKey{}).(string)
-	return id
+	return correlationFromContext(ctx).requestID
+}
+
+// correlation holds the request's correlation identifiers in one context value.
+//
+// One key means one node per write and one lookup per read, and it also means
+// precedence follows the order the values were installed: a later With* wins
+// because it replaces the whole set, which is what a caller overriding an
+// identifier expects.
+type correlation struct {
+	trace     TraceContext
+	traceID   TraceID
+	requestID string
+}
+
+func withCorrelation(ctx context.Context, values correlation) context.Context {
+	return context.WithValue(ctx, correlationKey{}, values)
+}
+
+func correlationFromContext(ctx context.Context) correlation {
+	values, _ := ctx.Value(correlationKey{}).(correlation)
+	return values
 }
 
 // newID generates a short random hex ID.
 func newID() string {
-	return fmt.Sprintf("%016x", rand.Int63()) //nolint:gosec
-}
-
-// newSpanID generates a random W3C-conformant span ID.
-func newSpanID() string {
 	var b [8]byte
 	if _, err := cryptorand.Read(b[:]); err != nil {
-		return fmt.Sprintf("%016x", rand.Uint64())
+		fillWeakRandom(b[:])
 	}
 	return hex.EncodeToString(b[:])
+}
+
+// newSpanID generates a random W3C-conformant span ID, which is the same 8
+// random bytes a request ID is.
+func newSpanID() string {
+	return newID()
+}
+
+// fillWeakRandom is the degraded path for a system whose entropy source failed.
+// Correlation gets weaker; the identifier keeps the length and alphabet the
+// specification requires, and the request still proceeds.
+func fillWeakRandom(b []byte) {
+	for i := 0; i < len(b); i += 8 {
+		var word [8]byte
+		binary.LittleEndian.PutUint64(word[:], rand.Uint64()) //nolint:gosec
+		copy(b[i:], word[:])
+	}
 }
 
 // TracingMiddleware returns a Middleware that propagates or generates a W3C
@@ -179,26 +209,25 @@ func newSpanID() string {
 func TracingMiddleware() Middleware {
 	return func(next Endpoint) Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
-			tc := TraceContextFromContext(ctx)
+			values := correlationFromContext(ctx)
 			switch {
-			case tc.Valid():
-				tc.SpanID = newSpanID()
-			case TraceIDFromContext(ctx) != "":
-				tc = TraceContext{TraceID: string(TraceIDFromContext(ctx)), SpanID: newSpanID(), Flags: "00"}
-				if !tc.Valid() {
-					tc = NewTraceContext()
+			case values.trace.Valid():
+				values.trace.SpanID = newSpanID()
+			case values.traceID != "":
+				values.trace = TraceContext{TraceID: string(values.traceID), SpanID: newSpanID(), Flags: "00"}
+				if !values.trace.Valid() {
+					values.trace = NewTraceContext()
 				}
 			default:
-				tc = NewTraceContext()
+				values.trace = NewTraceContext()
 			}
-			ctx = WithTraceContext(ctx, tc)
-			if TraceIDFromContext(ctx) == "" {
-				ctx = WithTraceID(ctx, TraceID(tc.TraceID))
+			if values.traceID == "" {
+				values.traceID = TraceID(values.trace.TraceID)
 			}
-			if RequestIDFromContext(ctx) == "" {
-				ctx = WithRequestID(ctx, newID())
+			if values.requestID == "" {
+				values.requestID = newID()
 			}
-			return next(ctx, request)
+			return next(withCorrelation(ctx, values), request)
 		}
 	}
 }

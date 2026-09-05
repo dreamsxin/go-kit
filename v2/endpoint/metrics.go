@@ -73,6 +73,13 @@ func (c *counters) snapshot() MetricsSnapshot {
 // operation labels must come from a bounded set such as route patterns, never
 // from request data. For latency distributions or exported time series,
 // implement Recorder against a metrics backend instead.
+//
+// One mutex covers both the recording path and the snapshot path deliberately.
+// Replacing the tallies with atomic fields was tried and measured slower —
+// 23.6 ns to 46.4 ns per record single-threaded, 60 ns to 109 ns across twelve
+// — because one lock covers ten field updates while atomics pay a contended
+// cache line each. See BenchmarkMetricsObserve and
+// BenchmarkMetricsSnapshotUnderLoad before changing this.
 type Metrics struct {
 	mu          sync.Mutex
 	total       counters

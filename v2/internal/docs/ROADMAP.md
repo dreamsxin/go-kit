@@ -485,6 +485,192 @@ Completed: every capability ships with focused tests, reviewed contract
 snapshots where exported APIs changed, and documentation in the owning
 document; the full multi-module verification suite passes.
 
+## Milestone 8 (Active): Evidence-Backed Quality / 有证据支撑的质量
+
+Goal: make every property the framework claims checkable by something that
+fails — a test, a gate, or a benchmark — starting with the places where a
+claim is currently made only by a document or a doc comment.
+
+This milestone comes from a full architecture review of the v2.9.0 candidate.
+Each work package below states the property to hold, not the defect to avoid,
+and each carries its own acceptance command.
+
+### Work Package 1: Browser Security Completeness
+
+Goal: a CSRF token authorizes one session for a bounded time, and every
+browser-facing decision states its own scheme and cache scope.
+
+- Bind a CSRF token to a caller-supplied session identity and an issue time,
+  and reject tokens outside a configured lifetime. `CSRFConfig` carries the
+  session accessor, and an unsafe request whose session cannot be resolved is
+  refused.
+- Responses that mint a token declare `Cache-Control: no-store` and
+  `Vary: Cookie`, so an intermediary stores one user's token for one user.
+- CORS and CSRF agree on origin validity: the opaque `null` origin is a value
+  both reject, and every CORS branch — allow, reject, and no-origin — declares
+  `Vary: Origin`.
+- HTTPS detection is declared, not inferred. `SecurityHeadersConfig` and the
+  CSRF origin check state whether a trusted proxy terminates TLS, so HSTS and
+  same-origin comparison hold behind a load balancer.
+
+Acceptance:
+
+```bash
+go test ./security/... -run 'CSRF|CORS|Headers|Proxy' -count=1
+go test -race ./security/...
+```
+
+Tests assert: a token minted for one session is refused for another; a token
+past its lifetime is refused; a minting response carries both cache headers;
+`null` fails CORS construction; a rejected preflight still varies on origin;
+HSTS is emitted when the proxy declares HTTPS.
+
+### Work Package 2: Measured Performance Baseline
+
+Goal: performance statements rest on benchmarks, so an optimization can be
+shown to work and a regression can be seen.
+
+- Benchmarks cover the paths every request crosses: `Chain` with zero and five
+  middlewares, `Server.ServeHTTP` over a JSON round trip, `balancer.Pick`,
+  `feedback.Table` under 8 and 64 concurrent callers, `Metrics.Observe`, and
+  `TracingMiddleware`.
+- Optimizations land after their benchmark exists, and each records the
+  before/after figure in `CHANGELOG.md`.
+- Correlation values reach the request through one context node.
+- Instance snapshots are published copy-on-write and read without a lock or a
+  copy; a single-attempt call runs on the caller's goroutine.
+- A change made for performance is kept only when its benchmark shows a gain. A
+  change the measurement refutes is reverted, and the figures are recorded where
+  the code is so the idea is not retried blind. The `Metrics` collector's single
+  mutex is the first such record.
+
+Acceptance:
+
+```bash
+go test -run '^$' -bench . -benchmem ./endpoint ./sd/... ./transport/http/server
+go test -race ./endpoint ./sd/...
+```
+
+### Work Package 3: Probe And Correlation Ownership
+
+Goal: readiness, liveness, and request correlation belong to a component any
+transport can mount, so a gRPC service has the same operational surface as an
+HTTP one.
+
+- The probe engine — per-check timeout, single-flight gating, panic
+  containment, and the response schema — lives in its own package with an
+  exported registry and handler.
+- `kit` and `kit/grpc` both mount that registry; a `ReadinessProvider`
+  attached to a `Host` reaches a probe surface whatever transports are present.
+- Probe paths, and whether they share the application listener or an admin
+  listener, are options.
+- The HTTP half of request-ID handling lives in `transport/http`, so a service
+  assembled from the transport packages gets the same header name, validation,
+  and generator that `kit` uses.
+
+Acceptance:
+
+```bash
+go test ./kit/... ./transport/http/... -count=1
+go test ./tools -run TestArchitectureDependencyGates -count=1
+```
+
+A gRPC-only assembly answers its readiness probe in a test.
+
+### Work Package 4: Observability Assembly Completeness
+
+Goal: one call sets up OpenTelemetry correctly, telemetry names follow the
+semantic conventions, and trace context crosses every transport by default.
+
+- `observability/otel` provides provider, exporter, resource, global W3C
+  propagator, and shutdown assembly, in addition to the middleware it has now.
+- Instrument names and units follow the OpenTelemetry semantic conventions,
+  and HTTP telemetry carries `http.route` and `http.status_code` so response
+  status is alertable from metrics.
+- gRPC server and client propagate `traceparent` in both directions; `kit` and
+  `kit/grpc` extract it without extra wiring.
+- `interaction` reports tool invocations through the same logger and
+  correlation contract as the request path.
+- `NewTelemetry` selects signals individually, and its middlewares carry their
+  own names rather than relying on position.
+
+Acceptance:
+
+```bash
+go test ./observability/... ./integrations/grpc/... ./interaction/... -count=1
+go list -deps ./observability/slog | Select-String opentelemetry
+```
+
+The dependency check finds nothing: taking logging alone still costs nothing.
+
+### Work Package 5: Discovery Composition
+
+Goal: a discovery assembly that compiles is an assembly that works, and one
+subscription state machine serves every consumer.
+
+- The subscribe, error-grace, and invalidation state machine has one
+  implementation shared by the selector and the endpointer, with one
+  `sortInstances`.
+- `sd/balancer` covers every strategy `sd/selector` offers.
+- Measurement-driven strategies are obtained together with the accounting that
+  feeds them, so a scored or slow-start selector cannot be built without its
+  table wrapper.
+- An `sd.Registrar` states its conflict semantics — overwrite, create-only, or
+  compare-and-swap — as an option, and each provider documents which it
+  supports.
+
+Acceptance:
+
+```bash
+go test ./sd/... ./integrations/etcd/... ./integrations/consul/... -count=1
+go test -race ./sd/...
+```
+
+### Work Package 6: HTTP Protocol Semantics
+
+Goal: the JSON server answers protocol-level questions with protocol-level
+answers.
+
+- A request whose media type is not JSON receives 415, and media type is
+  checked before the body is read.
+- Decode failures carry a message written for the caller; an empty body says
+  so.
+- `JSONDecodeOptions` carries a post-decode hook, so schema validation runs
+  where decoding happens for services that want it there.
+
+Acceptance:
+
+```bash
+go test ./transport/http/... -count=1
+```
+
+### Work Package 7: Generated Code Type Safety
+
+Goal: generated code fails the way hand-written framework code fails — with a
+classified error.
+
+- Generated transports and SDKs convert endpoint responses through
+  `endpoint.Unwrap`, so a middleware that changes a response type produces a
+  diagnosable error instead of a panic.
+- `microgen -from-db` validates its own required inputs before opening a
+  connection.
+- The generated dependency version is derived from the release manifest, so a
+  generated project always resolves.
+
+Acceptance:
+
+```bash
+go -C ./tools run ./releaseverify -suites test
+go test ./cmd/microgen/... -count=1
+```
+
+### Completion Definition / 完成定义
+
+Milestone 8 is complete when every work package's acceptance command passes,
+the reviewed API snapshot reflects the deliberate surface changes, and
+`CHANGELOG.md` records each behavior change with its measured effect where the
+change was made for performance.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

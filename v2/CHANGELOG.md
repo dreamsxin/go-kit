@@ -10,6 +10,41 @@ than described.
 
 ### Changed
 
+- A CSRF token now authorizes one session for a bounded time. `CSRFConfig.SessionID`
+  is required and `TokenTTL` defaults to 12 hours; the HMAC covers the nonce, the
+  issue time, and the session, so a token minted for one caller is refused for
+  another and a leaked token stops working. Previously the signature covered only
+  a random nonce, which made every token the server ever minted valid for every
+  user forever — enough for login CSRF or token fixation given any way to place a
+  cookie in the victim's jar.
+
+  An unsafe request whose session cannot be resolved is refused. A safe request
+  without a session is served without a token, so the token arrives with the
+  first request after sign-in.
+
+- Responses that mint a CSRF token declare `Cache-Control: no-store` and
+  `Vary: Cookie`. A `Set-Cookie` that identifies one session is not a response a
+  shared cache may replay to the next user.
+
+- `SecurityHeadersConfig.AssumeHTTPS` and `CSRFConfig.AssumeHTTPS` declare that
+  TLS terminates upstream. HSTS is emitted for HTTPS requests and the CSRF
+  same-origin check compares against the request's own origin, both of which
+  needed a scheme this process cannot observe when it serves plaintext behind a
+  load balancer. A forwarded scheme from `NewTrustedProxy` still wins, being a
+  measurement rather than a declaration.
+
+- Go 1.26.0 is the minimum. Every module's `go` directive, the workspace, the CI
+  lanes, the README badges, and the generated project template move together.
+- The reviewed API snapshot hashes exported declarations only, not doc-comment
+  prose. Prose used to be in the hash, so fixing a typo in a comment was a
+  release-gate event and every documentation improvement needed a snapshot
+  refresh. The guarantee worth keeping is the one tests structurally cannot
+  give: nothing asserts "these and only these symbols are exported", and a
+  published library cannot take an accidental export back. Whether a comment is
+  accurate is a review question. `TestDeclarationsOnly*` pins the new behaviour
+  from both sides — prose edits do not move the hash, added, removed, renamed,
+  and re-signatured symbols do.
+
 - `endpoint` imports only the standard library. It defined what an `Endpoint`, a
   `Middleware`, and a `Chain` are while importing `apperror`, so nobody could
   take those three without also taking the framework's error taxonomy. It now
@@ -35,12 +70,59 @@ than described.
 
 ### Added
 
+- `kit.WithRegistrar` and `kit.RegistrarLifecycle` publish a service instance for
+  as long as the Host runs. `sd.Registrar` and `kit.Lifecycle` existed but did not
+  meet, so every service hand-wrote the adapter — the same three lines, once per
+  service, in the projects this came from.
+
+  The doc comment carries two things a signature cannot. Attach the registration
+  *after* the server that serves the traffic: components start in declaration
+  order and stop in reverse, so that is what publishes the address only once the
+  listener accepts and withdraws it before the listener goes away. And do not
+  carry over the `Deregister(); Register()` idiom from go-kit's `sd/etcd` — it
+  worked around that implementation registering with etcd's `Create`, which fails
+  when the key already exists, so a restart after an unclean exit could not
+  re-register. Here `Register` overwrites a per-instance key held on a lease, and
+  it returns its error instead of logging it.
+
 - `TestComponentsDoNotDependOnAssembly` in `tools`: no package outside `kit` and
   `cmd/microgen` may depend on them, so a component cannot quietly reach back
   into the assembly layer. Layering that is only written down does not survive.
 
+### Performance
+
+Benchmarks now exist for the paths every request crosses — `Chain`, the JSON
+server round trip, `balancer.Pick`, `feedback.Table`, `Metrics.Observe`, and
+`TracingMiddleware` — so an optimization can be shown to work and a regression
+can be seen. Figures below are `go test -bench . -benchmem` on one machine;
+they are ratios worth trusting, not absolutes.
+
+- Correlation identifiers travel in one context value instead of three.
+  `TracingMiddleware` writes one node per request rather than up to three, and
+  `TraceContextFromContext`, `TraceIDFromContext`, and `RequestIDFromContext`
+  each do one lookup. A later `With*` still wins over an earlier value, because
+  it replaces the whole set. Measured: 495 ns/296 B/10 allocs → 341 ns/192 B/5
+  allocs minting a trace, 487 ns/9 allocs → 317 ns/4 allocs joining one; a
+  five-middleware chain drops from 1074 ns/14 allocs to 791 ns/9 allocs.
+- Request IDs come from the same allocation-lean hex path span IDs use, rather
+  than `fmt.Sprintf`. The degraded path taken when the entropy source fails now
+  produces an identifier of the length and alphabet the W3C specification
+  requires; it previously padded a single 64-bit value out to 32 characters.
+- `endpoint.Metrics` keeps its single mutex. Atomic tallies were tried and
+  measured slower — 23.6 ns to 46.4 ns per record single-threaded, 60 ns to
+  109 ns across twelve — because one lock covers ten field updates while atomics
+  pay a contended cache line each. The figures are in the type's doc comment so
+  the idea is not retried blind.
+
 ### Fixed
 
+- `NewCORS` declines the opaque `null` origin, which `NewCSRF` already declined.
+  Sandboxed documents, `data:` and `file:` pages, and laundered redirects all
+  present that origin, so allowing it with credentials granted them a
+  credentialed cross-origin path.
+- Every CORS answer declares `Vary: Origin`, including the rejections and the
+  no-origin passthrough. A shared cache could otherwise store a 403 keyed without
+  the origin and serve it to a legitimate one.
 - `TestEndpointHasOnlyStandardLibraryImports` had an explicit carve-out
   permitting the `apperror` import it was supposed to prevent. Removed.
 - `apperror.KindNamer` claimed every classification site in the framework reads
