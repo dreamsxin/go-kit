@@ -374,7 +374,7 @@ OpenAPI/JSON Schema validators, pinned TypeScript compiler, cross-SDK HTTP
 behavior contract, and deterministic generated-contract snapshots:
 
 ```bash
-make verify-release
+make verify
 ```
 
 After committing the release candidate, verify that the v2 scope is clean:

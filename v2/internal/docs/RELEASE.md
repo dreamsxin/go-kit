@@ -75,7 +75,7 @@ The v2.8.1 candidate satisfies these criteria:
 Install Node.js with `npx`, then run from `v2`:
 
 ```bash
-make verify-release
+make verify
 ```
 
 The release target includes the normal Go validation plus generated OpenAPI

@@ -64,7 +64,7 @@ v2.8.1 候选版本满足以下条件：
 安装带 `npx` 的 Node.js，然后在 `v2` 目录下运行：
 
 ```bash
-make verify-release
+make verify
 ```
 
 发布目标包括常规的 Go 验证，以及生成的 OpenAPI 3.1 解析、JSON Schema 2020-12 编译、TypeScript SDK 类型检查、跨 SDK HTTP 行为检查，和针对 Go IDL、Protobuf 与数据库源模式的确定性契约快照。它还验证经过评审的公开 API 快照、文档链接与 UTF-8、专项竞态测试、`go vet`，以及根模块和仓库内部模块的 tidy 文件。

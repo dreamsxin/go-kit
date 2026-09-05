@@ -110,5 +110,5 @@ defer closer.Close()
 ```bash
 go test ./examples/...                # compile + unit tests
 go test ./tools/... -run TestAll      # integration smoke tests
-make verify                           # full validation (runtime + microgen + integration)
+make verify                           # everything CI runs (needs a committed tree)
 ```

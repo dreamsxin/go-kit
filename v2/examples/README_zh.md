@@ -109,5 +109,5 @@ defer closer.Close()
 ```bash
 go test ./examples/...                # 编译 + 单元测试
 go test ./tools/... -run TestAll      # 集成冒烟测试
-make verify                           # 完整校验（运行时 + microgen + 集成）
+make verify                           # CI 跑的全部内容（需要工作树已提交）
 ```

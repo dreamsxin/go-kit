@@ -6,8 +6,8 @@
         coverage \
         deps tools \
         test-runtime test-microgen test-contracts test-docs test-examples \
-        test-observability test-security test-api test-boundaries test-race test-fmt test-vet test-modules \
-        release-check-clean verify-cross-platform verify-published verify verify-release
+        test-observability test-security test-api test-snapshots update-snapshots test-boundaries test-race test-fmt test-vet test-modules \
+        release-check-clean verify-published verify
 
 # Default variables, overridable from the command line.
 IDL         ?= ./examples/usersvc/idl.go
@@ -114,19 +114,17 @@ release-check-clean:
 	@echo ">>> Verifying the v2 release scope is clean..."
 	@go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-tags
 
-verify-cross-platform:
-	@echo ">>> Running cross-platform release suites..."
+## verify: run exactly what CI runs, so local green means CI green
+##
+## The tidy suite diffs the worktree, so run this from a committed tree. Use
+## `make test` and the focused test-* targets while iterating.
+verify: test-fmt
+	@echo ">>> Running the release suites CI runs..."
 	@go -C ./tools run ./releaseverify -root .. -suites test,standalone,vet,tidy,race
 
 verify-published:
 	@echo ">>> Verifying the published module..."
 	@go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-published
-
-verify: build test-fmt test-runtime test-microgen test-docs test-examples test-observability test-security
-	@echo ">>> Verification pass completed."
-
-verify-release: verify test-contracts test-api test-boundaries test-race test-vet test-modules
-	@echo ">>> Release verification pass completed."
 
 ## install-microgen: build and install microgen into GOPATH/bin
 install-microgen:
@@ -224,7 +222,7 @@ build:
 	@go -C ./tools build ./...
 	@go -C ./tools/contractcheck build ./...
 
-## test: run all tests with the race detector
+## test: run the focused runtime and generator tests
 test:
 	@echo ">>> Running tests..."
 	@$(MAKE) test-runtime test-microgen test-docs test-examples test-observability test-security test-race
@@ -291,10 +289,8 @@ help:
 	@echo "  make test-fmt      Verify every Go file is gofmt-formatted"
 	@echo "  make test-vet      Run go vet across maintained modules"
 	@echo "  make test-modules  Verify all maintained go.mod files are tidy"
-	@echo "  make verify        Run recommended pre-merge validation pass"
-	@echo "  make verify-release Run the full release validation pass"
+	@echo "  make verify        Run exactly what CI runs (needs a committed tree)"
 	@echo "  make release-check-clean Verify the committed v2 scope and release tag phase"
-	@echo "  make verify-cross-platform Run the same release suites used by Linux/Windows CI"
 	@echo "  make verify-published Verify the published module from the manifest"
 	@echo "  make coverage      Generate coverage report"
 	@echo "  make lint          Run golangci-lint"

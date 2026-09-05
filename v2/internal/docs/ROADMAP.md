@@ -85,8 +85,8 @@ Completed: common HTTP hardening can be enabled explicitly with standard
 
 ## Milestone 5 (Complete): v2 Release Closure / v2 发布收口
 
-- `make verify-release` runs full functional validation, generated-project and
-  contract checks, pinned TypeScript checks, focused race tests, vet, module
+- `make verify` runs full functional validation, generated-project and
+  contract checks, pinned TypeScript checks, race tests, vet, module
   tidy checks, UTF-8/link checks, and the reviewed public API snapshot.
 - README examples, CLI behavior, generated ownership,
   and exported runtime packages are covered by executable checks or snapshots.
@@ -414,7 +414,7 @@ Goal: prove the refactor is complete before selecting the publication path.
 Required final commands:
 
 ```bash
-make verify-release
+make verify
 make release-check-clean
 go test -race ./endpoint ./kit ./transport/http/... ./sd/... ./interaction/...
 git diff --check

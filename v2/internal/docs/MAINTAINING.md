@@ -156,8 +156,8 @@ relative and must resolve on a case-sensitive filesystem.
 2. Review exported API and generated-output diffs.
 3. Update `CHANGELOG.md`, `RELEASE.md`, and `ROADMAP.md`.
 4. Commit the final release candidate.
-5. Run `make verify-release` and `make verify-cross-platform` from that
-   committed candidate, or require the equivalent Linux/Windows CI jobs.
+5. Run `make verify` from that committed candidate, or require the equivalent
+   Linux/Windows CI jobs.
 6. Run `make release-check-clean` from the same commit.
 7. Confirm that no historical v2 module tag exists.
 

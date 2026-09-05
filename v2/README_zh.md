@@ -345,7 +345,7 @@ go -C ./cmd/microgen test -race ./internal/generator
 确定性快照：
 
 ```bash
-make verify-release
+make verify
 ```
 
 提交发布候选版本后，检查 v2 范围没有未提交修改：

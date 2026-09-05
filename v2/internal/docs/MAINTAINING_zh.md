@@ -137,7 +137,7 @@ go test ./tools -run TestPublicAPISurfaceSnapshot -count=1 \
 2. 评审导出 API 和生成输出的差异。
 3. 更新 `CHANGELOG.md`、`RELEASE.md` 和 `ROADMAP.md`。
 4. 提交最终发布候选。
-5. 从该已提交的候选运行 `make verify-release` 和 `make verify-cross-platform`，或要求等价的 Linux/Windows CI 作业。
+5. 从该已提交的候选运行 `make verify`，或要求等价的 Linux/Windows CI 作业。
 6. 从同一提交运行 `make release-check-clean`。
 7. 确认不存在历史 v2 模块标签。
 

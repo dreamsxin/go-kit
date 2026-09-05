@@ -58,7 +58,7 @@
 
 ## 里程碑 5（已完成）：v2 发布收口
 
-- `make verify-release` 运行完整功能验证、生成项目和契约检查、固定的 TypeScript 检查、专项竞态测试、vet、模块 tidy 检查、UTF-8/链接检查以及经过评审的公开 API 快照。
+- `make verify` 运行完整功能验证、生成项目和契约检查、固定的 TypeScript 检查、竞态测试、vet、模块 tidy 检查、UTF-8/链接检查以及经过评审的公开 API 快照。
 - README 示例、CLI 行为、生成物所有权和导出的运行时包由可执行检查或快照覆盖。
 - `make release-check-clean` 在打标签之前验证已提交的 v2 范围。
 - 运行时收口现在包括 MCP 生命周期/版本/Origin/能力检查、单流 SSE 投递、会话级日志级别和工具结果错误语义；HTTP/gRPC 元数据和流式资源所有权；可取消的 Consul 阻塞查询；以及流安全的 `kit` 默认值。
@@ -307,7 +307,7 @@ go test ./...
 必需的最终命令：
 
 ```bash
-make verify-release
+make verify
 make release-check-clean
 go test -race ./endpoint ./kit ./transport/http/... ./sd/... ./interaction/...
 git diff --check
