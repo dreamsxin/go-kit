@@ -15,6 +15,17 @@ import (
 
 var updateAPISnapshot = flag.Bool("update-api-snapshot", false, "update the reviewed public API snapshot")
 
+// TestPublicAPISurfaceSnapshot pins the exported declarations of every runtime
+// package, so an exported symbol cannot appear, disappear, or change shape
+// without someone signing off.
+//
+// It hashes declarations only, not doc-comment prose. Prose used to be in the
+// hash, which made a typo fix in a comment a release-gate event and put every
+// documentation improvement behind a snapshot refresh. The guarantee worth
+// keeping is the one tests structurally cannot give: no test asserts "these and
+// only these symbols are exported", and for a published library an accidental
+// export cannot be taken back. Whether a comment is accurate is a review
+// question, not a hash question.
 func TestPublicAPISurfaceSnapshot(t *testing.T) {
 	t.Parallel()
 	cwd, err := os.Getwd()
@@ -28,7 +39,8 @@ func TestPublicAPISurfaceSnapshot(t *testing.T) {
 	snapshot.WriteString("go-kit-v2 public API\n")
 	for _, pkg := range packages {
 		doc := commandOutput(t, pkg.root, "go", "doc", "-all", pkg.importPath)
-		fmt.Fprintf(&snapshot, "%x  %s\n", sha256.Sum256(normalizeCommandOutput(doc)), pkg.importPath)
+		declarations := declarationsOnly(normalizeCommandOutput(doc))
+		fmt.Fprintf(&snapshot, "%x  %s\n", sha256.Sum256(declarations), pkg.importPath)
 	}
 
 	snapshotPath := filepath.Join(cwd, "testdata", "api_surface.sha256")
@@ -46,6 +58,44 @@ func TestPublicAPISurfaceSnapshot(t *testing.T) {
 	if got != wantText {
 		t.Fatalf("public API surface changed\n--- want\n%s--- got\n%s\nreview the exported API change, then refresh with: make update-snapshots", wantText, got)
 	}
+}
+
+// declarationsOnly strips doc-comment prose from `go doc -all` output, keeping
+// the declarations.
+//
+// The format it relies on: declarations and section headers sit at column 0,
+// the body of a struct, interface, or grouped const/var block is indented with a
+// tab, and prose is indented with four spaces. The package clause is kept; the
+// package doc paragraph that follows it is at column 0 too, which is why the
+// column-0 case matches on keywords rather than on indentation alone.
+func declarationsOnly(doc []byte) []byte {
+	var kept strings.Builder
+	for _, line := range strings.Split(string(doc), "\n") {
+		switch {
+		case strings.HasPrefix(line, "\t"):
+			// Struct field, interface method, or grouped const/var entry.
+			kept.WriteString(line)
+		case line == "}" || line == ")":
+			kept.WriteString(line)
+		case isDeclarationLine(line):
+			kept.WriteString(line)
+		default:
+			continue
+		}
+		kept.WriteString("\n")
+	}
+	return []byte(kept.String())
+}
+
+func isDeclarationLine(line string) bool {
+	for _, keyword := range []string{"package ", "type ", "func ", "const ", "var "} {
+		if strings.HasPrefix(line, keyword) {
+			return true
+		}
+	}
+	// Section headers such as TYPES, CONSTANTS, FUNCTIONS, VARIABLES. Keeping
+	// them means a symbol moving between sections is still a visible change.
+	return line != "" && line == strings.ToUpper(line) && !strings.ContainsAny(line, " \t")
 }
 
 type publicPackage struct {

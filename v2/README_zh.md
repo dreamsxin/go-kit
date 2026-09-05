@@ -1,6 +1,6 @@
 # go-kit v2
 
-[![Go Version](https://img.shields.io/badge/go-1.25.8+-blue.svg)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/go-1.26.0+-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
 [English](README.md) | 简体中文
@@ -26,7 +26,7 @@ github.com/dreamsxin/go-kit/v2
 
 `v2.9.0` 是本次发布的版本。它以单一模块发布：一行 `require`、一个 tag，框架与各 provider 之间不存在版本错配。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)。
 
-需要 Go 1.25.8 或更高版本。
+需要 Go 1.26.0 或更高版本。
 
 ## 按任务查找
 

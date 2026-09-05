@@ -3,7 +3,7 @@
 English | [简体中文](getting-started_zh.md)
 
 This page takes you from an empty directory to a running service that answers
-HTTP requests, in about five minutes. All you need is Go 1.25.8 or later.
+HTTP requests, in about five minutes. All you need is Go 1.26.0 or later.
 
 ## Install
 

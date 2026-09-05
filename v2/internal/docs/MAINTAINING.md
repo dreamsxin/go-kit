@@ -16,7 +16,7 @@ v1 source is not maintained on `main`. Do not recreate it or rewrite immutable
 legacy tags while implementing a v2 change.
 
 All maintained modules intentionally use the same minimum Go version declared
-in their `go.mod` files, currently Go 1.25.8. Changing that floor is a
+in their `go.mod` files, currently Go 1.26.0. Changing that floor is a
 repository-wide compatibility decision: update every module, CI lane, README
 badge, generated-project check, and release gate together.
 

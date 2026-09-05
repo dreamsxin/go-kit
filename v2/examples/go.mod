@@ -1,6 +1,6 @@
 module github.com/dreamsxin/go-kit-examples/v2
 
-go 1.25.8
+go 1.26.0
 
 require (
 	github.com/dreamsxin/go-kit/v2 v2.9.0

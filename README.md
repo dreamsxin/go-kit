@@ -1,6 +1,6 @@
 # go-kit
 
-[![Go Version](https://img.shields.io/badge/go-1.25.8+-blue.svg)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/go-1.26.0+-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
 English | [简体中文](README_zh.md)

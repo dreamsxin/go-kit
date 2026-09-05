@@ -1,6 +1,6 @@
 # go-kit v2
 
-[![Go Version](https://img.shields.io/badge/go-1.25.8+-blue.svg)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/go-1.26.0+-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
 
 English | [Simplified Chinese](README_zh.md)
@@ -30,7 +30,7 @@ github.com/dreamsxin/go-kit/v2
 `require`, one tag, no version skew between the framework and its providers.
 Per-release changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
-Requires Go 1.25.8 or later.
+Requires Go 1.26.0 or later.
 
 ## Find Your Task
 

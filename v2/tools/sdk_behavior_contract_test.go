@@ -75,7 +75,7 @@ func runGoSDKBehaviorProbe(t *testing.T, root string) sdkBehaviorResult {
 	}
 	moduleRoot := filepath.Dir(cwd)
 	goMod := "module example.com/sdkbehaviorprobe\n\n" +
-		"go 1.25.8\n\n" +
+		"go 1.26.0\n\n" +
 		"require example.com/gen_fromdb_sqlite v0.0.0\n\n" +
 		"replace example.com/gen_fromdb_sqlite => " + strconv.Quote(filepath.ToSlash(root)) + "\n" +
 		"replace github.com/dreamsxin/go-kit/v2 => " + strconv.Quote(filepath.ToSlash(moduleRoot)) + "\n"
