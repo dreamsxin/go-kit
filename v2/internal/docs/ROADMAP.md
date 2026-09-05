@@ -537,8 +537,12 @@ shown to work and a regression can be seen.
 - Optimizations land after their benchmark exists, and each records the
   before/after figure in `CHANGELOG.md`.
 - Correlation values reach the request through one context node.
-- Instance snapshots are published copy-on-write and read without a lock or a
-  copy; a single-attempt call runs on the caller's goroutine.
+- Instance snapshots and feedback measurements are published copy-on-write and
+  read without a lock or a copy, so a selection that consults every candidate
+  does not wait on the path that records outcomes.
+- Retry runs each attempt on its own goroutine at every attempt count. The
+  goroutine is what lets a caller abandon an instance that ignores its context,
+  which a deadline needs whether or not a second attempt would follow.
 - A change made for performance is kept only when its benchmark shows a gain. A
   change the measurement refutes is reverted, and the figures are recorded where
   the code is so the idea is not retried blind. The `Metrics` collector's single
