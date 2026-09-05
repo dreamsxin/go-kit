@@ -688,6 +688,144 @@ accounting, protocol-level JSON answers, and generated code that reports a type
 mismatch as a classified error. The performance figures include the change
 measurement refuted, so the idea is not retried blind.
 
+## Milestone 9 (Active): A Freeze Worth Declaring / 值得宣布的冻结
+
+Goal: the compatibility contract is enforced by something that fails before it is
+promised.
+
+v2 is pre-freeze, and `RELEASE.md` already names the six things the contract will
+cover. Auditing each against the gate suite in `tools` found two enforced only by
+prose and four enforced only in part. A freeze declared over that is a promise the
+tooling cannot hold, and the first accidental break would be found by a consumer
+rather than by CI.
+
+Each work package below states the property to hold, and each carries its own
+acceptance command.
+
+### Work Package 1: Breaking Changes Are Named, Not Only Detected
+
+Goal: a change to an exported API says whether it is additive or incompatible.
+
+- `TestPublicAPISurfaceSnapshot` stores one digest per package, so adding an
+  exported function and deleting one fail identically — a changed hex string — and
+  the reviewer diffs `go doc` output by hand to find out which happened. A removal,
+  a signature change, and a narrowed interface are reported as incompatible, and
+  an addition passes.
+- The comparison is against the last released tag, so the question asked is the
+  one the contract asks: is this release compatible with the one consumers pinned.
+- Refreshing the reviewed surface stays deliberate. `-update-api-snapshot` records
+  the new surface; it must not be the way an incompatible change gets waved
+  through.
+
+Acceptance:
+
+```bash
+go -C ./tools test . -run 'TestPublicAPISurfaceSnapshot|TestAPICompatibility' -count=1
+```
+
+The compatibility test fails on a removal and passes on an addition, both proven
+by a case in the test itself rather than by trying it on the real surface.
+
+### Work Package 2: The Exported Package Set Is Pinned Deliberately
+
+Goal: moving or renaming an exported package fails a test that exists for that
+purpose.
+
+- Today the package path set is written down only as the second column of
+  `api_surface.sha256`, so it is protected as a side effect. It is pinned on
+  purpose, with a failure message that names the path that moved.
+- `cmd/microgen`'s exported surface is either covered or documented as exempt.
+  It is excluded from the snapshot now, which is defensible for an internal
+  generator but is nowhere stated.
+
+Acceptance:
+
+```bash
+go -C ./tools test . -run 'TestExportedPackagePaths' -count=1
+```
+
+### Work Package 3: Documented Generator Flags Exist, And Existing Flags Are Documented
+
+Goal: the `microgen` command line and its documentation cannot drift apart.
+
+- `main.go` defines 23 flags; no test reads `MICROGEN.md`, the tutorial, or the
+  README flag tables. A documented flag that is renamed breaks nothing but the
+  integration tests that happen to pass it. Every flag named in the documentation
+  is defined, and every defined flag is documented or explicitly marked internal.
+- Extend-mode usage text is hand-written in `newExtendFlagSet`, and
+  `TestNewExtendFlagSetUsage` pins the string rather than the correspondence. The
+  usage text is derived from, or checked against, the flag set.
+
+Acceptance:
+
+```bash
+go -C ./tools test . -run 'TestMicrogenFlagsAreDocumented' -count=1
+go test ./cmd/microgen/... -count=1
+```
+
+### Work Package 4: Generated File Locations Are Pinned Where They Are Promised
+
+Goal: the layout a consumer edits is the layout the contract covers.
+
+- The contract snapshots pin four fixed paths, two globs, and an optional
+  `idl.go`. `main.go`, `service/`, `transport/`, `config/custom.go`, the generated
+  `Makefile` and README are user-owned and unpinned: relocating any of them fails
+  nothing. The snapshot covers every generated path the contract promises, or the
+  contract narrows to what is covered.
+- The snapshots are cut from fixture projects, so they describe the layout for
+  those flag combinations only. Which combinations are covered is stated.
+
+Acceptance:
+
+```bash
+go -C ./tools test . -run 'TestMicrogen.*(Contract|Integration)' -count=1
+```
+
+### Work Package 5: Every Documented Configuration Key And Stage Is Exercised
+
+Goal: the precedence chain the documentation draws is the chain the generated
+loader runs.
+
+- `TestMicrogenConfigIntegration` proves file over default, env over file, remote
+  over file, and env over remote. The flag stage and `Config.Validate` after it —
+  documented in `docs/configuration.md` — are not exercised, so an inverted flag
+  precedence fails nothing. Every documented stage is covered.
+- Of the six documented `APP_*` keys, two are touched. Each documented key is
+  read by a test, and a key the loader no longer reads fails one.
+
+Acceptance:
+
+```bash
+go -C ./tools test . -run 'TestMicrogenConfigIntegration' -count=1
+```
+
+### Work Package 6: Stable Protocol Behaviour Says So
+
+Goal: "documented as stable" is a property of a named behaviour, not a sentence in
+a release document.
+
+- Nothing in the codebase or the docs distinguishes protocol behaviour promised to
+  be stable from behaviour that merely happens to work, so the contract's sixth
+  item currently covers an unnamed set. The stable behaviours are enumerated
+  where they are implemented, and each is covered by a test that fails if it
+  changes.
+- Behaviour deliberately left unstable is marked too, so the absence of a promise
+  is also written down.
+
+Acceptance:
+
+```bash
+go -C ./tools test . -run 'TestStableProtocolBehaviour' -count=1
+go test ./transport/... ./interaction/... -count=1
+```
+
+### Completion Definition / 完成定义
+
+Milestone 9 is complete when every work package's acceptance command passes and
+each of the six contract items in `RELEASE.md` names the gate that enforces it.
+Declaring the freeze is the decision that follows, not part of this milestone: the
+milestone's job is to make the declaration safe to make.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria
