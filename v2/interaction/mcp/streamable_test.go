@@ -237,7 +237,7 @@ func TestStreamableGETAllowsMultipleConcurrentStreams(t *testing.T) {
 	defer cancel1()
 	defer cancel2()
 
-	waitFor(t, func() bool {
+	waitFor(t, "both GET streams to register their writers", func() bool {
 		sess, ok := h.store.get(sid)
 		if !ok {
 			return false
@@ -657,16 +657,22 @@ func TestSessionTTL_StartStopCleanup(t *testing.T) {
 	h.StartCleanup()
 	defer h.StopCleanup()
 
-	// Wait for the session to expire and cleanup to run.
-	time.Sleep(200 * time.Millisecond)
+	// Read the map directly rather than through store.get, which refreshes
+	// lastActivity: polling for expiry through it is a keep-alive, so the session
+	// under test would never go idle and the cleanup being asserted could never
+	// fire. Waiting for a removal has to be done without touching the thing.
+	live := func() bool {
+		h.store.mu.RLock()
+		defer h.store.mu.RUnlock()
+		_, ok := h.store.sessions[sid]
+		return ok
+	}
 
-	_, ok = h.store.get(sid)
-	if ok {
-		t.Fatal("session should have been cleaned up")
-	}
-	if _, err := rt.Sessions.Get(context.Background(), runtimeID); !errors.Is(err, interaction.ErrSessionNotFound) {
-		t.Fatalf("runtime session should be released by TTL cleanup: %v", err)
-	}
+	waitFor(t, "the expired transport session to be cleaned up", func() bool { return !live() })
+	waitFor(t, "the runtime session to be released by TTL cleanup", func() bool {
+		_, err := rt.Sessions.Get(context.Background(), runtimeID)
+		return errors.Is(err, interaction.ErrSessionNotFound)
+	})
 }
 
 func TestSessionTTL_ZeroDisablesExpiry(t *testing.T) {
@@ -746,14 +752,18 @@ func startGETStream(t *testing.T, h http.Handler, sessionID string) (context.Can
 	return cancel, done
 }
 
-func waitFor(t *testing.T, ok func() bool) {
+// waitFor polls until what holds. The budget is generous because these
+// conditions are reached by a background goroutine: what has to be waited on is
+// the scheduler getting to it, which a loaded machine bounds far more loosely
+// than the interval that triggered it.
+func waitFor(t *testing.T, what string, ok func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		if ok() {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatal("condition was not met before timeout")
+	t.Fatalf("timed out waiting for %s", what)
 }
