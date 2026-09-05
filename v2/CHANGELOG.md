@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.9.0] - Release Candidate
+## [2.9.0] - 2026-09-05
 
 Layering. The goal is that the pieces be usable one at a time, so the contract
 layer stops carrying a policy and the dependency direction is enforced rather
