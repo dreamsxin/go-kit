@@ -767,13 +767,19 @@ go test ./cmd/microgen/... -count=1
 
 Goal: the layout a consumer edits is the layout the contract covers.
 
-- The contract snapshots pin four fixed paths, two globs, and an optional
-  `idl.go`. `main.go`, `service/`, `transport/`, `config/custom.go`, the generated
-  `Makefile` and README are user-owned and unpinned: relocating any of them fails
-  nothing. The snapshot covers every generated path the contract promises, or the
-  contract narrows to what is covered.
-- The snapshots are cut from fixture projects, so they describe the layout for
-  those flag combinations only. Which combinations are covered is stated.
+- The generated layout is decided in one place, `internal/generator/layout.go`,
+  and checked by roughly sixty scattered `mustExistFile` calls across nine test
+  files. Coverage follows whichever fixture happened to need a file, so
+  `cmd/generated_runtime.go`, `cmd/generated_services.go`, and every file `config/`
+  emits except `config.yaml` and `custom.go` are asserted nowhere. The layout
+  `layout.go` declares is pinned as one reviewed list.
+- The contract snapshot pins four fixed paths plus two globs, and a glob is not a
+  location pin: a directory that stops emitting shrinks the snapshot rather than
+  failing it, and `make update-snapshots` then blesses the smaller set. What the
+  snapshot promises is stated in terms of paths.
+- Which flag combinations the fixtures exercise is stated, because a path emitted
+  only under `-interaction` or `-tests` is pinned only if some fixture passes that
+  flag.
 
 Acceptance:
 

@@ -586,11 +586,16 @@ go test ./cmd/microgen/... -count=1
 
 目标：使用方会去编辑的那套布局，就是契约覆盖的那套布局。
 
-- 契约快照钉住了四个固定路径、两个 glob 和一个可选的 `idl.go`。`main.go`、`service/`、
-  `transport/`、`config/custom.go`、生成的 `Makefile` 和 README 属于用户所有却没被钉住：
-  挪动它们中任何一个都不会让任何东西失败。快照覆盖契约承诺的每一个生成路径，或者契约收窄到
-  被覆盖的那些。
-- 快照是从 fixture 项目切出来的，因此只描述那些 flag 组合下的布局。覆盖了哪些组合应当写明。
+- 生成布局在一处决定——`internal/generator/layout.go`——而检查它的是散落在九个测试文件里约六十次
+  `mustExistFile` 调用。覆盖范围取决于哪个 fixture 恰好需要某个文件，于是
+  `cmd/generated_runtime.go`、`cmd/generated_services.go`，以及 `config/` 除 `config.yaml`
+  和 `custom.go` 之外发出的每个文件，都没有任何测试断言其位置。`layout.go` 声明的布局应当被
+  钉成一份受评审的清单。
+- 契约快照钉住四个固定路径加两个 glob，而 glob 不是位置约束：某个目录不再产出文件只会让快照
+  变小而不是失败，接着 `make update-snapshots` 就把变小后的集合认可了。快照承诺什么，应当以
+  路径的形式说明。
+- fixture 覆盖了哪些 flag 组合应当写明，因为只在 `-interaction` 或 `-tests` 下产出的路径，
+  只有在某个 fixture 传了该 flag 时才真的被钉住。
 
 验收：
 
