@@ -187,6 +187,11 @@ func (c *Cache) Endpoints() ([]endpoint.Endpoint, error) {
 
 // InstanceEndpoints returns a snapshot of the active endpoints together with
 // the instance address each one was built from, ordered by address.
+//
+// The result is the published snapshot itself, not a copy: it is replaced whole
+// on every discovery update and never edited in place, so a reader keeps a
+// consistent view for as long as it holds the slice. Do not modify it — sort or
+// filter into a slice of your own.
 func (c *Cache) InstanceEndpoints() ([]InstanceEndpoint, error) {
 	c.mtx.RLock()
 	if c.closed {
@@ -195,7 +200,7 @@ func (c *Cache) InstanceEndpoints() ([]InstanceEndpoint, error) {
 	}
 
 	if c.err == nil || c.timeNow().Before(c.invalidateDeadline) {
-		instances := append([]InstanceEndpoint(nil), c.instances...)
+		instances := c.instances
 		c.mtx.RUnlock()
 		return instances, nil
 	}
@@ -207,7 +212,7 @@ func (c *Cache) InstanceEndpoints() ([]InstanceEndpoint, error) {
 		return nil, ErrCacheClosed
 	}
 	if c.err == nil || c.timeNow().Before(c.invalidateDeadline) {
-		instances := append([]InstanceEndpoint(nil), c.instances...)
+		instances := c.instances
 		c.mtx.Unlock()
 		return instances, nil
 	}

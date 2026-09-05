@@ -75,6 +75,13 @@
 一次回退可以被看见。下列数字来自同一台机器上的 `go test -bench . -benchmem`，值得信的是
 比例而不是绝对值。
 
+- 客户端一次请求不再拷贝实例快照，也不再分配一个用不上的回调。
+  `endpointer.Cache.InstanceEndpoints` 返回已发布的快照本身而不是它的拷贝——这个 slice 在每次
+  发现更新时被整体替换、从不原地修改，因此读者持有它期间视图始终一致；不要修改它。
+  `balancer.Pick` 在策略不保存反馈状态时返回共享的空回调，保存时返回一个带守卫的回调。
+  RoundRobin 实测：单实例 130 ns/96 B/4 allocs → 55 ns/24 B/1 alloc，9 实例
+  224 ns/552 B/4 → 102 ns/224 B/1，12 并发 203 ns → 87 ns。每候选都要查反馈表的 LeastRequest
+  从 471 ns/7 allocs 到 372 ns/6。
 - 关联标识用一个 context 值携带，而不是三个。`TracingMiddleware` 每请求写一个节点而不是最多
   三个，`TraceContextFromContext`、`TraceIDFromContext`、`RequestIDFromContext` 各做一次
   查找。后写的 `With*` 依然覆盖先前的值——因为它替换的是整组。实测：铸造新 trace

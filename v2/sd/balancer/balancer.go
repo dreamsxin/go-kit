@@ -57,21 +57,40 @@ func (b *strategyBalancer) Pick(ctx context.Context, request any) (sd.Picked, er
 		return sd.Picked{}, sd.ErrNoEndpoints
 	}
 
-	// A callback is always returned, even when a strategy has no feedback
-	// state, so callers can unconditionally defer picked.Done(outcome).
-	var once sync.Once
-	done := func(outcome sd.Outcome) {
-		once.Do(func() {
-			if strategyDone != nil {
-				strategyDone(outcome)
-			}
-		})
-	}
 	return sd.Picked{
 		Instance: items[index].Instance,
 		Endpoint: items[index].Endpoint,
-		Done:     done,
+		Done:     guardDone(strategyDone),
 	}, nil
+}
+
+// guardDone returns the callback handed to the caller. A callback is always
+// returned, even when a strategy keeps no feedback state, so callers can
+// unconditionally defer picked.Done(outcome) — and a strategy without state
+// costs nothing, because the no-op is shared.
+//
+// The guard is defensive: sd.Done asks callers to invoke it once per successful
+// Pick, and a strategy that reserved an in-flight slot would have it released
+// twice by a caller that got that wrong.
+func guardDone(strategyDone sd.Done) sd.Done {
+	if strategyDone == nil {
+		return discardOutcome
+	}
+	return (&onceDone{strategy: strategyDone}).report
+}
+
+func discardOutcome(sd.Outcome) {}
+
+type onceDone struct {
+	strategy sd.Done
+	reported atomic.Bool
+}
+
+func (d *onceDone) report(outcome sd.Outcome) {
+	if d.reported.Swap(true) {
+		return
+	}
+	d.strategy(outcome)
 }
 
 func (b *strategyBalancer) Close() error {
@@ -82,9 +101,10 @@ func (b *strategyBalancer) Close() error {
 	return b.closeErr
 }
 
-// instancesOf projects the instances of one snapshot for the strategy. Both
-// the snapshot and this projection are per-selection copies, so a strategy can
-// never be handed a view that a concurrent discovery update rewrites under it.
+// instancesOf projects the instances of one snapshot for the strategy. The
+// projection is per-selection, so a strategy can never be handed a view that a
+// concurrent discovery update rewrites under it: the snapshot itself is
+// published whole and never edited in place.
 func instancesOf(items []endpointer.InstanceEndpoint) []sd.Instance {
 	instances := make([]sd.Instance, len(items))
 	for i, item := range items {

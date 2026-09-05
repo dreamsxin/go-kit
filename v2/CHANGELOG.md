@@ -97,6 +97,16 @@ server round trip, `balancer.Pick`, `feedback.Table`, `Metrics.Observe`, and
 can be seen. Figures below are `go test -bench . -benchmem` on one machine;
 they are ratios worth trusting, not absolutes.
 
+- One client-side request no longer copies the instance snapshot or allocates a
+  callback it does not need. `endpointer.Cache.InstanceEndpoints` returns the
+  published snapshot instead of a copy of it — the slice is replaced whole on
+  every discovery update and never edited in place, so a reader keeps a
+  consistent view; do not modify it. `balancer.Pick` returns a shared no-op
+  callback when the strategy keeps no feedback state, and one guarded callback
+  when it does. Measured for round robin: 130 ns/96 B/4 allocs → 55 ns/24 B/1
+  alloc over one instance, 224 ns/552 B/4 → 102 ns/224 B/1 over nine, and
+  203 ns → 87 ns across twelve callers. Least request, which consults the
+  feedback table per candidate, goes 471 ns/7 allocs → 372 ns/6.
 - Correlation identifiers travel in one context value instead of three.
   `TracingMiddleware` writes one node per request rather than up to three, and
   `TraceContextFromContext`, `TraceIDFromContext`, and `RequestIDFromContext`
