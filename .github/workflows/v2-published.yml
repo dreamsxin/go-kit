@@ -1,0 +1,51 @@
+name: v2 published
+
+# The release record and the tag no longer require each other, which means
+# nothing automatic proved the version was actually fetchable: releasecheck
+# -check-published is the only check that answers it, and the verify workflow
+# does not run it. This job does, on the tag itself, so a manifest reading
+# "released" has evidence behind it rather than an intention.
+on:
+  push:
+    tags:
+      - "v2.*"
+  workflow_dispatch:
+
+concurrency:
+  group: v2-published-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  published:
+    name: published module resolves
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository and tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.0"
+          cache-dependency-path: |
+            v2/**/go.sum
+
+      # The proxy fetches a tag on demand, so the first request after a push can
+      # arrive before it has one. Retrying is what separates "not published" from
+      # "not published yet"; only the first should fail the job.
+      - name: Verify the published module resolves through the public proxy
+        working-directory: v2/tools
+        run: |
+          set -o pipefail
+          for attempt in $(seq 1 6); do
+            if go run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-published; then
+              exit 0
+            fi
+            echo "attempt ${attempt} did not resolve yet; waiting 30s"
+            sleep 30
+          done
+          echo "the published module did not resolve within the retry budget"
+          exit 1
