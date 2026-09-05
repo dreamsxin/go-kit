@@ -156,7 +156,12 @@ make verify-published
 ### 记录这次发布
 
 将清单阶段改为 `released`，填上 `releaseDate`，用同一个日期替换变更日志中的候选标记，
-然后提交。在此阶段，`make release-check-clean` 要求标签已存在。
+然后提交。
+
+`released` 阶段对本地标签不作任何要求，因此这次提交与推送标签互不依赖。只有
+`candidate` 阶段约束标签——它要求标签尚不存在，因为此时标签已经存在意味着清单是上一次
+发布留下来的。清单写着 `released` 却并未真正发布，由 `make verify-published` 检查：它
+通过公共代理解析该版本，而不是相信一个本地 ref。
 
 ## 发布说明
 

@@ -90,20 +90,18 @@ func resolveScope(repoRoot, cwd, requestedScope string) (string, string, error) 
 // directory-prefixed tag would mean a nested module is being versioned
 // separately, which the single-module layout does not do.
 func verifyTagState(repoRoot string, manifest releaseconfig.Manifest) error {
-	want, err := expectedTagState(manifest.Phase)
+	requirement, err := tagRequirementFor(manifest.Phase)
 	if err != nil {
 		return err
 	}
-	got, err := tagExists(repoRoot, manifest.Tag)
-	if err != nil {
-		return err
-	}
-	if got != want {
-		state := "absent"
-		if want {
-			state = "present"
+	if requirement == tagMustBeAbsent {
+		exists, err := tagExists(repoRoot, manifest.Tag)
+		if err != nil {
+			return err
 		}
-		return fmt.Errorf("tag %s must be %s in phase %s", manifest.Tag, state, manifest.Phase)
+		if exists {
+			return fmt.Errorf("tag %s must be absent in phase %s", manifest.Tag, manifest.Phase)
+		}
 	}
 	nested := strings.Fields(run(repoRoot, "git", "tag", "--list", "v2/*"))
 	if len(nested) > 0 {
@@ -112,15 +110,40 @@ func verifyTagState(repoRoot string, manifest releaseconfig.Manifest) error {
 	return nil
 }
 
-// expectedTagState reports whether the release tag may exist in the given phase.
-func expectedTagState(phase string) (bool, error) {
+// tagRequirement is what a manifest phase says about the release tag.
+type tagRequirement int
+
+const (
+	// tagMustBeAbsent belongs to the candidate phase. A tag that already exists
+	// means the manifest was left behind by the previous release, so the next one
+	// would be cut against a version that is already published and immutable.
+	tagMustBeAbsent tagRequirement = iota
+
+	// tagUnconstrained belongs to the released phase, which says nothing about
+	// the local tag.
+	//
+	// Requiring the tag here would make the last two release steps require each
+	// other: recording the release is a commit, every commit runs this check, and
+	// a tag pushed before that commit is green is a tag pushed at a commit
+	// nothing verified. Whichever order you pick, one of the two is refused.
+	//
+	// What is given up is the guarantee that a manifest reading "released" has a
+	// tag behind it. That claim is checked by -check-published instead, which
+	// resolves the manifest version through the public proxy — a stronger answer
+	// than a local ref, because it says the version is actually fetchable rather
+	// than merely tagged here.
+	tagUnconstrained
+)
+
+// tagRequirementFor reports what the given phase requires of the release tag.
+func tagRequirementFor(phase string) (tagRequirement, error) {
 	switch phase {
 	case "candidate":
-		return false, nil
+		return tagMustBeAbsent, nil
 	case "released":
-		return true, nil
+		return tagUnconstrained, nil
 	default:
-		return false, fmt.Errorf("unsupported release phase %q", phase)
+		return tagMustBeAbsent, fmt.Errorf("unsupported release phase %q", phase)
 	}
 }
 

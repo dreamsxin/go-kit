@@ -5,25 +5,38 @@ import (
 	"testing"
 )
 
-func TestExpectedTagState(t *testing.T) {
+func TestTagRequirementForPhase(t *testing.T) {
 	tests := []struct {
 		phase string
-		want  bool
+		want  tagRequirement
 	}{
-		{phase: "candidate", want: false},
-		{phase: "released", want: true},
+		{phase: "candidate", want: tagMustBeAbsent},
+		{phase: "released", want: tagUnconstrained},
 	}
 	for _, test := range tests {
-		got, err := expectedTagState(test.phase)
+		got, err := tagRequirementFor(test.phase)
 		if err != nil {
-			t.Fatalf("expectedTagState(%q): %v", test.phase, err)
+			t.Fatalf("tagRequirementFor(%q): %v", test.phase, err)
 		}
 		if got != test.want {
-			t.Errorf("expectedTagState(%q) = %t, want %t", test.phase, got, test.want)
+			t.Errorf("tagRequirementFor(%q) = %d, want %d", test.phase, got, test.want)
 		}
 	}
-	if _, err := expectedTagState("unknown"); err == nil {
+	if _, err := tagRequirementFor("unknown"); err == nil {
 		t.Fatal("expected unsupported phase to fail")
+	}
+}
+
+// The released phase deliberately says nothing about the local tag: recording
+// the release is a commit, that commit runs this check, and requiring the tag
+// would make the record commit and the tag push require each other.
+func TestReleasedPhaseDoesNotRequireTheTag(t *testing.T) {
+	requirement, err := tagRequirementFor("released")
+	if err != nil {
+		t.Fatalf("tagRequirementFor: %v", err)
+	}
+	if requirement == tagMustBeAbsent {
+		t.Fatal("the released phase must not constrain the tag; -check-published proves publication")
 	}
 }
 

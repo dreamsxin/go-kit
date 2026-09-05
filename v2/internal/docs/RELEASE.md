@@ -184,8 +184,14 @@ check. Do not bypass it with `GOPROXY=direct` or a local `replace`.
 ### Record the release
 
 Change the manifest phase to `released`, set `releaseDate`, replace the changelog
-candidate marker with that date, and commit. In this phase
-`make release-check-clean` requires the tag to exist.
+candidate marker with that date, and commit.
+
+The `released` phase places no requirement on the local tag, so this commit and
+the tag push do not depend on each other. Only the `candidate` phase constrains
+the tag, by requiring it to be absent — a tag that already exists there means the
+manifest was left behind by the previous release. That a manifest reading
+`released` was actually published is checked by `make verify-published`, which
+resolves the version through the public proxy rather than trusting a local ref.
 
 ## Release Notes
 
