@@ -82,8 +82,14 @@ func resolveScope(repoRoot, cwd, requestedScope string) (string, string, error) 
 	return scopeDir, scope, nil
 }
 
-// verifyTagState checks the release tag against the manifest phase. v2 ships as
-// one module, so there is one current tag and no historical v2 tags to retain.
+// verifyTagState checks the release tag against the manifest phase, and that no
+// nested-module tags exist.
+//
+// v2 ships as one module living in the major-version subdirectory, so its tags
+// are plain versions and they accumulate: v2.8.0 stays after v2.8.1 is cut. Only
+// a directory-prefixed tag such as v2/integrations/etcd/v0.1.0 is debris — it
+// exists solely to version a nested module, and one of those going missing is
+// what broke this check before the layout was consolidated.
 func verifyTagState(repoRoot string, manifest releaseconfig.Manifest) error {
 	want, err := expectedTagState(manifest.Phase)
 	if err != nil {
@@ -100,15 +106,9 @@ func verifyTagState(repoRoot string, manifest releaseconfig.Manifest) error {
 		}
 		return fmt.Errorf("tag %s must be %s in phase %s", manifest.Tag, state, manifest.Phase)
 	}
-	allV2Tags := strings.Fields(run(repoRoot, "git", "tag", "--list", "v2.*", "v2/*"))
-	var historical []string
-	for _, tag := range allV2Tags {
-		if tag != manifest.Tag {
-			historical = append(historical, tag)
-		}
-	}
-	if len(historical) > 0 {
-		return fmt.Errorf("historical v2 tags must be absent:\n%s", strings.Join(historical, "\n"))
+	nested := strings.Fields(run(repoRoot, "git", "tag", "--list", "v2/*"))
+	if len(nested) > 0 {
+		return fmt.Errorf("nested module tags must be absent:\n%s", strings.Join(nested, "\n"))
 	}
 	return nil
 }

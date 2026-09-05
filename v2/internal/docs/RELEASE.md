@@ -3,22 +3,26 @@ English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
-v2.8.0 is the release being published from `main` for the module:
+v2.8.1 is the release being published from `main` for the module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.8.0` is the release that establishes one published module.
 Runtime, generator, providers, and adapters ship together: one `require`, one
 tag, and no version skew between the framework and the things that plug into it.
+`v2.8.0` was the release that established that single published module.
 Behaviour changes in this release are recorded in
 [CHANGELOG.md](../../CHANGELOG.md).
 
 The published module is stored in the repository's `v2` major-version
-subdirectory, but consumers request normal module versions such as `v2.8.0`.
-Its tag is the root tag `v2.8.0`. Historical v2 module tags, both root and
-nested, have been removed; future releases use only the root tag.
+subdirectory, but consumers request normal module versions such as `v2.8.1`.
+Its tag is the plain root tag `v2.8.1`. Root version tags accumulate — a released
+tag is immutable and stays. Nested module tags such as
+`v2/integrations/etcd/v0.1.0` were removed with the single-module consolidation
+and must never come back; `releasecheck -check-tags` enforces exactly that, plus
+that the tag being released is absent in phase `candidate` and present in phase
+`released`.
 
 ## Versioning
 
@@ -50,7 +54,7 @@ but their generated public behavior is a product surface.
 
 ## Release Entry Criteria
 
-The v2.8.0 candidate satisfies these criteria:
+The v2.8.1 candidate satisfies these criteria:
 
 - `kit`, endpoint, HTTP/gRPC transport, service discovery, and interaction
   lifecycles have explicit error and cancellation contracts.
@@ -157,8 +161,8 @@ tag check fail if another published module or old v2 tag is introduced.
 3. Create and push the tag:
 
 ```bash
-git tag -a v2.8.0 -m "go-kit v2.8.0"
-git push origin v2.8.0
+git tag -a v2.8.1 -m "go-kit v2.8.1"
+git push origin v2.8.1
 make verify-published
 ```
 

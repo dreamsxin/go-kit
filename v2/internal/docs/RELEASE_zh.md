@@ -3,17 +3,21 @@
 
 ## 当前状态
 
-v2.8.0 是本次从 `main` 发布的模块版本：
+v2.8.1 是本次从 `main` 发布的模块版本：
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.8.0` 是建立单一已发布 module 的版本。运行时、生成器、provider 与适配器一起
-发布：一行 `require`、一个 tag，框架与插在它上面的东西之间不存在版本错配。本次的行为
-变更记录在 [CHANGELOG_zh.md](../../CHANGELOG_zh.md)。
+运行时、生成器、provider 与适配器一起发布：一行 `require`、一个 tag，框架与插在它
+上面的东西之间不存在版本错配。`v2.8.0` 是建立这个单一已发布 module 的版本。本次的
+行为变更记录在 [CHANGELOG_zh.md](../../CHANGELOG_zh.md)。
 
-已发布模块存储在仓库的 `v2` 主版本子目录中，但使用方请求的是正常的模块版本，例如 `v2.8.0`。它的标签是根标签 `v2.8.0`。历史 v2 module tag（根标签和嵌套标签）已删除；未来版本只使用根标签。
+已发布模块存储在仓库的 `v2` 主版本子目录中，但使用方请求的是正常的模块版本，例如
+`v2.8.1`。它的标签是普通根标签 `v2.8.1`。根版本 tag 会累积——已发布的 tag 不可变，会
+一直留着。像 `v2/integrations/etcd/v0.1.0` 这样的嵌套 module tag 在单模块合并时已删除，
+且不允许再出现；`releasecheck -check-tags` 检查的正是这一点，外加"本次发布的 tag 在
+`candidate` 阶段必须不存在、在 `released` 阶段必须存在"。
 
 ## 版本策略
 
@@ -42,7 +46,7 @@ v2 处于冻结前阶段。在宣布冻结之前，minor 版本允许改变行�
 
 ## 发布准入条件
 
-v2.8.0 候选版本满足以下条件：
+v2.8.1 候选版本满足以下条件：
 
 - `kit`、endpoint、HTTP/gRPC 传输、服务发现和交互生命周期都具有明确的错误与取消契约。
 - 生成的项目使用 `/v2` 模块，并能在框架仓库之外构建。
@@ -133,8 +137,8 @@ module 或旧的 v2 标签时失败。
 3. 创建并推送标签：
 
 ```bash
-git tag -a v2.8.0 -m "go-kit v2.8.0"
-git push origin v2.8.0
+git tag -a v2.8.1 -m "go-kit v2.8.1"
+git push origin v2.8.1
 make verify-published
 ```
 
