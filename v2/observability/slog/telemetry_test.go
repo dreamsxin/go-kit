@@ -76,3 +76,63 @@ func TestTelemetryApplyLabels(t *testing.T) {
 		}
 	}
 }
+
+// TestTelemetrySelectsSignalsIndividually: a service whose metrics come from an
+// OpenTelemetry meter wants the logging dimension without recording every call
+// twice.
+func TestTelemetrySelectsSignalsIndividually(t *testing.T) {
+	telemetry, err := NewTelemetry(TelemetryConfig{
+		Operation: "op",
+		Logger:    slog.New(&captureHandler{}),
+		Signals:   SignalTracing | SignalLogging,
+	})
+	if err != nil {
+		t.Fatalf("NewTelemetry: %v", err)
+	}
+	if telemetry.Metrics != nil {
+		t.Fatal("a metrics collector was created although metrics were not selected")
+	}
+
+	builder := endpoint.NewBuilder(endpoint.Nop)
+	telemetry.Apply(builder)
+	labels := builder.Describe()
+	want := []string{"telemetry:tracing", "telemetry:logging"}
+	if len(labels) != len(want) || labels[0] != want[0] || labels[1] != want[1] {
+		t.Fatalf("labels = %v, want %v", labels, want)
+	}
+}
+
+// TestTelemetryLabelsSurviveAnAppendedMiddleware is what naming by position
+// cost: appending a fourth middleware used to index past the label list.
+func TestTelemetryLabelsSurviveAnAppendedMiddleware(t *testing.T) {
+	telemetry, err := NewTelemetry(TelemetryConfig{Operation: "op"})
+	if err != nil {
+		t.Fatalf("NewTelemetry: %v", err)
+	}
+	telemetry.Middlewares = append(telemetry.Middlewares, NamedMiddleware{
+		Name:       "vendor:otel",
+		Middleware: func(next endpoint.Endpoint) endpoint.Endpoint { return next },
+	})
+
+	builder := endpoint.NewBuilder(endpoint.Nop)
+	telemetry.Apply(builder)
+	labels := builder.Describe()
+	if len(labels) != 4 || labels[3] != "vendor:otel" {
+		t.Fatalf("labels = %v, want the appended middleware named last", labels)
+	}
+}
+
+// TestTelemetryWithoutLoggingNeedsNoOperation: the operation names the log
+// record, so requiring it when nothing logs would be a rule with no reason.
+func TestTelemetryWithoutLoggingNeedsNoOperation(t *testing.T) {
+	telemetry, err := NewTelemetry(TelemetryConfig{Signals: SignalMetrics})
+	if err != nil {
+		t.Fatalf("NewTelemetry: %v", err)
+	}
+	if len(telemetry.Middlewares) != 1 || telemetry.Middlewares[0].Name != "telemetry:metrics" {
+		t.Fatalf("middlewares = %#v, want metrics alone", telemetry.Middlewares)
+	}
+	if telemetry.Metrics == nil {
+		t.Fatal("metrics collector = nil, want a private collector")
+	}
+}

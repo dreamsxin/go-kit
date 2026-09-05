@@ -31,33 +31,63 @@ if err != nil {
 ep := telemetry.Apply(endpoint.NewBuilder(createUser)).Build()
 ```
 
+`Signals` 可以逐个选择维度——比如指标来自 OpenTelemetry meter 的服务用
+`SignalTracing | SignalLogging`，这样没有一次调用被记录两遍。每个装配好的中间件
+自带名称，因此少一个维度、或者往 `telemetry.Middlewares` 追加自己的适配器时，
+`Builder.Describe` 依然正确。
+
 如果服务需要内部快照或健康计数，保留 `telemetry.Metrics`。需要 HTTP 状态和响应
 字节时，通过 `kit.WithHTTPMiddleware` 安装 `server.AccessLogMiddleware(logger)`。
 
 ## OpenTelemetry
 
-可选的 `observability/otel` 模块使用应用提供的 provider：
+`oteladapter.Setup` 装配 provider、OTLP exporter、resource、全局 W3C propagator
+以及唯一的 `Shutdown`：
 
 ```go
-metrics, err := oteladapter.NewMetrics(otel.Meter("users"))
+providers, err := oteladapter.Setup(ctx, oteladapter.Config{
+    ServiceName: "users",
+    Endpoint:    "collector:4317",
+    Insecure:    true,
+})
+if err != nil {
+    return err
+}
+defer providers.Shutdown(context.Background())
+
+metrics, err := oteladapter.NewMetrics(providers.Meter())
 if err != nil {
     return err
 }
 
 ep := endpoint.NewBuilder(createUser).
-    Use(oteladapter.TracingMiddleware(otel.Tracer("users"), "users.create")).
+    Use(oteladapter.TracingMiddleware(providers.Tracer(), "users.create")).
     Use(endpoint.RecordingMiddleware("users.create", metrics)).
     Build()
 ```
 
 `oteladapter.Metrics` 实现了 `endpoint.Recorder`，也可以传给 `kit.WithRecorder`，
-覆盖所有 JSON endpoint。provider、exporter、采样、资源属性和关闭都由应用拥有。
+覆盖所有 JSON endpoint。instrument 遵循语义约定：耗时以秒计，失败的调用携带
+`error.type`，而不是再喂一个独立的错误计数器。
+
+要从指标看响应状态，用 `oteladapter.NewHTTPMetrics` 记录
+`http.server.request.duration`，携带 `http.route` 与 `http.response.status_code`。
+用 `kit.WithHTTPRecorder(httpMetrics)` 安装——它把 recorder 接在每条路由上，那是
+匹配到的 pattern 唯一存在的地方。
+
+应用自己管理 provider 配置时可以跳过 `Setup`：传入任意 `trace.Tracer` 与
+`metric.Meter`，关闭仍归你。
 
 ## 关联与基数
 
 - 启用 `kit.WithRequestID()`，响应会带 `X-Request-ID`，端点日志使用同一个 ID。
   `AccessLogMiddleware` 会从 request context 或响应 header 读取它。
-- 在传输边界传播 W3C `traceparent`；端点 middleware 记录当前 trace ID。
+- W3C `traceparent` 在传输边界无需接线就会被提取：`kit.NewHTTP` 与 `kit/grpc.New`
+  都会做，`integrations/grpc/client` 在出方向注入。端点 middleware 随后记录当前
+  trace ID。手工装配的服务端与客户端可用 `transporthttp.ExtractTraceparent` /
+  `InjectTraceparent` 和 `transportgrpc.ExtractTraceparent` / `InjectTraceparent`。
+- `interaction.Runtime.WithLogger(logger)` 用同一个 logger 与同样的 `trace_id` /
+  `request_id` 上报工具调用，于是一次 MCP 工具调用能和承载它的请求对上。
 - 指标 label 使用路由 pattern 或固定 operation 名称。不要用用户 ID、任意 URL、
   原始错误文本或请求 body 作为维度。
 - 需要记录传输错误时安装 `ServerErrorHandler`。默认 handler 是 no-op；错误编码器

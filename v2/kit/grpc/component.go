@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/dreamsxin/go-kit/v2/health"
+	transportgrpc "github.com/dreamsxin/go-kit/v2/integrations/grpc"
 	"github.com/dreamsxin/go-kit/v2/kit"
 	googlegrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -45,6 +46,11 @@ type Component struct {
 }
 
 // New creates a gRPC lifecycle component listening on addr.
+//
+// The server extracts the incoming W3C trace context without extra wiring, so
+// a gRPC service continues a trace the same way an HTTP one does. The
+// interceptors are chained, which leaves grpc.UnaryInterceptor and
+// grpc.ChainUnaryInterceptor free for the caller.
 func New(addr string, options ...googlegrpc.ServerOption) (*Component, error) {
 	if strings.TrimSpace(addr) == "" {
 		return nil, fmt.Errorf("kit/grpc: address cannot be empty")
@@ -54,9 +60,13 @@ func New(addr string, options ...googlegrpc.ServerOption) (*Component, error) {
 			return nil, fmt.Errorf("kit/grpc: server option %d is nil", i)
 		}
 	}
+	serverOptions := append([]googlegrpc.ServerOption{
+		googlegrpc.ChainUnaryInterceptor(transportgrpc.TraceparentUnaryServerInterceptor()),
+		googlegrpc.ChainStreamInterceptor(transportgrpc.TraceparentStreamServerInterceptor()),
+	}, options...)
 	component := &Component{
 		addr:   addr,
-		server: googlegrpc.NewServer(options...),
+		server: googlegrpc.NewServer(serverOptions...),
 		probes: health.NewRegistry(),
 		errors: make(chan error, 1),
 	}

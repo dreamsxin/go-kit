@@ -33,6 +33,7 @@ type HTTP struct {
 	middleware         []endpoint.Middleware
 	metrics            *endpoint.Metrics
 	recorders          []endpoint.Recorder
+	httpRecorders      []httpserver.Recorder
 	httpConfig         HTTPServerConfig
 	requestID          bool
 	requestIDValidator RequestIDValidator
@@ -217,7 +218,7 @@ func (h *HTTP) applyEndpointMiddleware(operation string, base endpoint.Endpoint)
 }
 
 func (h *HTTP) withHTTPContext(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	routed := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := h.prepareHTTPContext(r.Context(), r, w)
 		if h.timeout > 0 {
 			// The deadline is applied here, not only in the endpoint chain, so
@@ -230,10 +231,24 @@ func (h *HTTP) withHTTPContext(handler http.Handler) http.Handler {
 		}
 		handler.ServeHTTP(w, r.WithContext(ctx))
 	})
+	if len(h.httpRecorders) == 0 {
+		return routed
+	}
+	// Recording wraps the route rather than the mux: the matched pattern only
+	// exists on the request a ServeMux dispatched, so this is the outermost
+	// place that can report http.route. It also wraps the response writer,
+	// which is why it sits outside the context preparation — the writer the
+	// handler and the context see must be the one that counts the status.
+	return httpserver.RecordingMiddleware(h.httpRecorders...)(routed)
 }
 
 func (h *HTTP) prepareHTTPContext(ctx context.Context, r *http.Request, w http.ResponseWriter) context.Context {
 	ctx = withHTTPContext(ctx, r, w)
+	// Trace context is extracted unconditionally: a service that had to opt in
+	// would break every trace that reaches it until somebody noticed. An
+	// absent or malformed traceparent leaves the context untouched, and
+	// endpoint.TracingMiddleware then mints a new trace.
+	ctx = transporthttp.ExtractTraceparent(ctx, r)
 	if !h.requestID {
 		return ctx
 	}

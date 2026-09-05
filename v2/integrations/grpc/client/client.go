@@ -66,7 +66,10 @@ func NewClient(
 		enc:       enc,
 		dec:       dec,
 		grpcReply: grpcReply,
-		before:    []RequestFunc{},
+		// Trace context propagates by default: a client that had to opt in
+		// would silently break a trace at the first hop somebody forgot.
+		// ClientBefore hooks run after this one and can overwrite the key.
+		before:    []RequestFunc{transportgrpc.InjectTraceparent},
 		after:     []ResponseFunc{},
 		replyType: replyType,
 	}

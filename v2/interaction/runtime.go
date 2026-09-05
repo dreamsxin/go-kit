@@ -3,6 +3,8 @@ package interaction
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
 )
 
 // Runtime coordinates sessions, events, tools, hooks, resources, and prompts.
@@ -13,6 +15,10 @@ type Runtime struct {
 	Hooks     []Hook
 	Resources ResourceProvider
 	Prompts   PromptProvider
+
+	// Logger reports every tool call. nil reports nothing; set it through
+	// WithLogger with the logger the request path already uses.
+	Logger *slog.Logger
 
 	// OnEmitError is called when event emission fails during tool calls.
 	// If nil, emit errors are silently discarded.
@@ -195,6 +201,7 @@ func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, erro
 				Name:      call.Name,
 				Payload:   err.Error(),
 			})
+			r.logToolCall(ctx, call, 0, err, true)
 			return ToolResult{}, err
 		}
 	}
@@ -207,7 +214,9 @@ func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, erro
 		Metadata:  call.Metadata,
 	})
 
+	start := time.Now()
 	result, err := r.Tools.Call(ctx, call)
+	duration := time.Since(start)
 	r.emit(ctx, Event{
 		SessionID: call.SessionID,
 		Type:      EventToolResult,
@@ -223,6 +232,10 @@ func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, erro
 			Payload:   err.Error(),
 		})
 	}
+	// Logged before the after-hooks run: the duration being reported is the
+	// tool's, and an after-hook that fails is a separate failure from the
+	// call's own outcome.
+	r.logToolCall(ctx, call, duration, err, false)
 
 	for i := len(r.Hooks) - 1; i >= 0; i-- {
 		if hookErr := r.Hooks[i].AfterToolCall(ctx, session, call, result, err); hookErr != nil && err == nil {

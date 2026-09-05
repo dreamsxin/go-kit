@@ -10,6 +10,28 @@ than described.
 
 ### Changed
 
+- Trace context now crosses every transport without wiring. `kit.NewHTTP`
+  extracts an incoming `traceparent` on every route, `kit/grpc.New` installs the
+  extracting unary and stream interceptors — chained, so `grpc.UnaryInterceptor`
+  stays free for the caller — and `integrations/grpc/client.NewClient` injects
+  the context's trace context into outgoing metadata by default. Propagation
+  that has to be opted into is propagation that breaks at the first hop somebody
+  forgot.
+
+- `oteladapter` instruments follow the OpenTelemetry conventions.
+  `go_kit.endpoint.duration` is in seconds rather than milliseconds, and a failed
+  call is the same `go_kit.endpoint.requests` series carrying `error.type` — the
+  kind the error names through `interface{ ErrorKindName() string }` — instead of
+  a second counter. `go_kit.endpoint.errors` and the `outcome` attribute are
+  gone: error rate is now a ratio over one instrument. Dashboards reading the old
+  names or the millisecond unit need updating.
+
+- `slogadapter.Telemetry.Middlewares` is `[]NamedMiddleware`, each entry
+  carrying the label it reports under, instead of `[]endpoint.Middleware` labeled
+  by position. Appending a fourth middleware and calling `Apply` used to index
+  past the label list and panic. `TelemetryConfig.Operation` is required only
+  when the logging dimension is assembled, since it names the log record.
+
 - The strict JSON server answers a media type it does not speak with 415, before
   the body is read, through `JSONDecodeOptions.RequireJSONContentType` — on in
   `StrictJSONDecodeOptions`, so every high-level JSON helper gets it. A request
@@ -92,15 +114,44 @@ than described.
 
 ### Added
 
-- `transport/http` owns request-ID correlation: `RequestIDHeader`,
-  `MaxRequestIDLength`, `RequestIDValidator`, `DefaultRequestIDValidator`,
-  `NewRequestID`, `RequestID`, `ValidRequestID`, and the hooks
-  `ExtractRequestID` / `RequestIDExtractor` / `EchoRequestID`. The header name,
-  the trust policy, and the generator were in `kit`, so a service built on the
-  transport packages — the documented path past `kit` — had to reimplement all
-  three to correlate a request. `kit.RequestIDValidator` is the transport type
-  and `kit.MaxRequestIDLength` its constant, so existing configuration keeps
-  compiling.
+- `observability/otel` assembles the pipeline, not only the middleware:
+  `Setup(ctx, Config)` builds the tracer and meter providers, the OTLP exporters
+  over gRPC or HTTP, and the resource from `ServiceName`, `ServiceVersion`, and
+  `Environment`; installs them globally together with the W3C trace context and
+  baggage propagator; and returns `Providers` with `Tracer()`, `Meter()`, and one
+  idempotent `Shutdown`. `Config.Signals` selects traces, metrics, or both, and
+  `SpanExporter` / `MetricReader` replace the OTLP pipeline. Correct
+  OpenTelemetry wiring used to be several dozen lines of application code, and
+  the piece most often missing was the global propagator — without it a service
+  emits spans no downstream service can join.
+
+- `oteladapter.NewHTTPMetrics` records `http.server.request.duration` under the
+  HTTP semantic conventions, with `http.request.method`, `url.scheme`,
+  `http.route`, and `http.response.status_code`, so response status is alertable
+  from metrics. `transport/http/server` gained the contract it reports through —
+  `Observation`, `Recorder`, `RecorderFunc`, `RecordingMiddleware` — and
+  `kit.WithHTTPRecorder` installs it per route, which is the only place the
+  matched pattern exists. A request that matched no route carries no
+  `http.route` rather than the raw URL path.
+
+- `integrations/grpc` propagates W3C trace context in both directions:
+  `TraceparentKey`, `ExtractTraceparent`, `InjectTraceparent`,
+  `TraceparentUnaryServerInterceptor`, `TraceparentStreamServerInterceptor`, and
+  `TraceparentUnaryClientInterceptor`. A gRPC service had no correlation
+  plumbing at all, so a trace ended at the first gRPC hop.
+
+- `interaction.Runtime.WithLogger` reports every tool call through the caller's
+  `*slog.Logger` with the request path's own attributes — `duration`, `success`,
+  `error`, `trace_id`, `request_id` — so an MCP tool call joins the HTTP request
+  that carried it. A failed or rejected call logs at Error because nothing else
+  reports it: a tool failure travels back to the model as a result, not as a
+  transport error. A nil logger reports nothing, which is the default.
+
+- `slogadapter.Signals` selects the telemetry dimensions `NewTelemetry`
+  assembles — `SignalTracing`, `SignalMetrics`, `SignalLogging`, zero meaning
+  all — so a service whose metrics come from an OpenTelemetry meter can take the
+  logging dimension without recording every call twice.
+
 
   The validator's rejection of control characters is not cosmetic: the ID is
   echoed into a response header, so a value carrying CR or LF would be header

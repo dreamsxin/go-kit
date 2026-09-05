@@ -233,6 +233,34 @@ func WithRecorder(recorders ...endpoint.Recorder) Option {
 	}
 }
 
+// WithHTTPRecorder reports every request to the given HTTP recorders with the
+// protocol facts an endpoint recorder cannot see: the matched route pattern,
+// the method, and the response status code.
+//
+// It covers the application's routes — JSON endpoints, generated routes, and
+// raw handlers registered with Handle. The probe routes are not recorded:
+// orchestrator traffic is not application traffic, and a liveness check every
+// second would dominate every rate this measures.
+//
+// observability/otel implements the interface against the OpenTelemetry HTTP
+// semantic conventions:
+//
+//	metrics, err := oteladapter.NewHTTPMetrics(providers.Meter())
+//	component, err := kit.NewHTTP(":8080", kit.WithHTTPRecorder(metrics))
+//
+// Use WithRecorder for business outcomes; use this for response status.
+func WithHTTPRecorder(recorders ...httpserver.Recorder) Option {
+	return func(h *HTTP) error {
+		for i, recorder := range recorders {
+			if recorder == nil {
+				return fmt.Errorf("HTTP recorder %d is nil", i)
+			}
+		}
+		h.httpRecorders = append(h.httpRecorders, recorders...)
+		return nil
+	}
+}
+
 // WithRequestID injects a request ID into the context and response headers.
 // A valid ID is taken from X-Request-ID if present, otherwise a new ID is
 // generated. Use WithRequestIDValidator to replace the default trust policy.

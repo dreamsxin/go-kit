@@ -6,12 +6,12 @@ package oteladapter
 import (
 	"context"
 	"errors"
-	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
@@ -105,11 +105,17 @@ func WithMetricAttributes(attributes ...attribute.KeyValue) MetricsOption {
 	}
 }
 
-// Metrics records endpoint request counts, error counts, and duration in
-// milliseconds. It owns instruments but not the provider lifecycle.
+// Metrics records endpoint request counts and duration. It owns instruments
+// but not the provider lifecycle.
+//
+// The instruments follow the OpenTelemetry conventions: duration is a
+// histogram in seconds, and a failed call is a request carrying the
+// error.type attribute rather than a second counter. Error rate is therefore
+// a ratio over one time series, and the taxonomy an error names through
+// interface{ ErrorKindName() string } — every apperror value does — becomes
+// the error.type value.
 type Metrics struct {
 	requests metric.Int64Counter
-	errors   metric.Int64Counter
 	duration metric.Float64Histogram
 	attrs    []attribute.KeyValue
 }
@@ -130,29 +136,21 @@ func NewMetrics(meter metric.Meter, options ...MetricsOption) (*Metrics, error) 
 	attrs := append([]attribute.KeyValue(nil), cfg.attributes...)
 	requests, err := meter.Int64Counter(
 		"go_kit.endpoint.requests",
-		metric.WithDescription("Endpoint requests"),
+		metric.WithDescription("Endpoint requests."),
 		metric.WithUnit("{request}"),
-	)
-	if err != nil {
-		return nil, err
-	}
-	errorsCounter, err := meter.Int64Counter(
-		"go_kit.endpoint.errors",
-		metric.WithDescription("Endpoint errors"),
-		metric.WithUnit("{error}"),
 	)
 	if err != nil {
 		return nil, err
 	}
 	duration, err := meter.Float64Histogram(
 		"go_kit.endpoint.duration",
-		metric.WithDescription("Endpoint duration"),
-		metric.WithUnit("ms"),
+		metric.WithDescription("Duration of endpoint calls."),
+		metric.WithUnit("s"),
 	)
 	if err != nil {
 		return nil, err
 	}
-	return &Metrics{requests: requests, errors: errorsCounter, duration: duration, attrs: attrs}, nil
+	return &Metrics{requests: requests, duration: duration, attrs: attrs}, nil
 }
 
 // Observe implements endpoint.Recorder, so the adapter plugs into the same
@@ -163,16 +161,13 @@ func (m *Metrics) Observe(ctx context.Context, obs endpoint.Observation) {
 		return
 	}
 	attrs := append([]attribute.KeyValue(nil), m.attrs...)
-	attrs = append(attrs,
-		attribute.String("operation", obs.Operation),
-		attribute.String("outcome", outcome(obs.Err)),
-	)
+	attrs = append(attrs, attribute.String("operation", obs.Operation))
+	if obs.Err != nil {
+		attrs = append(attrs, errorType(obs.Err))
+	}
 	options := metric.WithAttributes(attrs...)
 	m.requests.Add(ctx, 1, options)
-	m.duration.Record(ctx, float64(obs.Duration)/float64(time.Millisecond), options)
-	if obs.Err != nil {
-		m.errors.Add(ctx, 1, options)
-	}
+	m.duration.Record(ctx, obs.Duration.Seconds(), options)
 }
 
 // Middleware returns endpoint metrics middleware for a bounded operation name.
@@ -184,9 +179,17 @@ func (m *Metrics) Middleware(operation string) endpoint.Middleware {
 	return endpoint.RecordingMiddleware(operation, m)
 }
 
-func outcome(err error) string {
-	if err != nil {
-		return "error"
+// errorType maps an error to the semantic conventions' error.type attribute.
+// An error that names its kind through the structural classification contract
+// — interface{ ErrorKindName() string }, which every apperror value satisfies
+// — reports that kind, so the dimension stays bounded and readable. Anything
+// else reports the conventions' _OTHER.
+func errorType(err error) attribute.KeyValue {
+	var namer interface{ ErrorKindName() string }
+	if errors.As(err, &namer) {
+		if kind := namer.ErrorKindName(); kind != "" {
+			return semconv.ErrorTypeKey.String(kind)
+		}
 	}
-	return "success"
+	return semconv.ErrorTypeOther
 }

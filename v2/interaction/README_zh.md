@@ -15,7 +15,7 @@
 
 当前入口点：
 
-- `NewRuntime` — 构建器模式，提供 `WithSessions`、`WithEvents`、`WithTools`、`WithHooks`、`WithResources`、`WithPrompts`
+- `NewRuntime` — 构建器模式，提供 `WithSessions`、`WithEvents`、`WithTools`、`WithHooks`、`WithResources`、`WithPrompts`、`WithLogger`
 - `Runtime.ListTools`
 - `Runtime.ReleaseSession`，用于由传输层负责的会话清理
 - `NewMemorySessionStore`
@@ -50,6 +50,15 @@
 - `AuditHook` 通过应用提供的 `AuditSink` 记录工具调用前后的审计记录。
 
 这些钩子有意保持传输层无关。HTTP、gRPC 流式、WebSocket 和 MCP 适配器应把主体（subject）和请求元数据传入运行时，而不是为每种传输层分别实现独立的策略栈。
+
+上报：
+
+- `Runtime.WithLogger(logger)` 用调用方的 `*slog.Logger` 上报每一次工具调用，字段与请求
+  路径一致：`tool`、`session`、`duration`、`success`、`error`，以及调用 context 携带时的
+  `trace_id` 与 `request_id`。于是一次工具调用能和承载它的请求对上，而不是另一个世界。
+- 失败或被钩子拒绝的调用记在 Error 级。别处不会报告它：工具失败是以结果的形式回到模型，
+  而不是一个传输错误。
+- logger 为 nil 时什么都不记，这也是默认值。
 
 实现说明：
 

@@ -41,7 +41,7 @@ func TestTracingMiddlewareUsesApplicationTracer(t *testing.T) {
 		t.Fatalf("span attributes = %#v", spans[0].Attributes)
 	}
 }
-func TestMetricsMiddlewareRecordsOutcomeAndDuration(t *testing.T) {
+func TestMetricsRecordSemanticConventionInstruments(t *testing.T) {
 	reader := metric.NewManualReader()
 	provider := metric.NewMeterProvider(metric.WithReader(reader))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
@@ -56,7 +56,7 @@ func TestMetricsMiddlewareRecordsOutcomeAndDuration(t *testing.T) {
 	if _, err := wrapped(context.Background(), nil); err != nil {
 		t.Fatalf("wrapped error = %v", err)
 	}
-	wantErr := errors.New("failed")
+	wantErr := &kindError{kind: "not_found"}
 	errorWrapped := metrics.Middleware("GetUser")(func(context.Context, any) (any, error) {
 		return nil, wantErr
 	})
@@ -71,23 +71,83 @@ func TestMetricsMiddlewareRecordsOutcomeAndDuration(t *testing.T) {
 	if count := metricDataCount(data, "go_kit.endpoint.requests"); count != 2 {
 		t.Fatalf("request count = %d, want 2", count)
 	}
-	if count := metricDataCount(data, "go_kit.endpoint.errors"); count != 1 {
-		t.Fatalf("error count = %d, want 1", count)
+	// A duration in milliseconds is not what the conventions ask for, and a
+	// backend converting units by name would read it wrong.
+	if unit := metricDataUnit(data, "go_kit.endpoint.duration"); unit != "s" {
+		t.Fatalf("duration unit = %q, want %q", unit, "s")
 	}
-	if !metricDataExists(data, "go_kit.endpoint.duration") {
-		t.Fatal("duration histogram was not recorded")
+	// The failure is the same request series carrying error.type, so error
+	// rate is a ratio over one instrument rather than two.
+	if got := errorTypeValues(data, "go_kit.endpoint.requests"); len(got) != 1 || got[0] != "not_found" {
+		t.Fatalf("error.type values = %v, want [not_found]", got)
 	}
 }
 
-func metricDataExists(data metricdata.ResourceMetrics, name string) bool {
+func TestMetricsReportUnclassifiedErrorsAsOther(t *testing.T) {
+	reader := metric.NewManualReader()
+	provider := metric.NewMeterProvider(metric.WithReader(reader))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+
+	metrics, err := NewMetrics(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewMetrics: %v", err)
+	}
+	wrapped := metrics.Middleware("GetUser")(func(context.Context, any) (any, error) {
+		return nil, errors.New("failed")
+	})
+	if _, err := wrapped(context.Background(), nil); err == nil {
+		t.Fatal("wrapped error = nil, want error")
+	}
+
+	var data metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &data); err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if got := errorTypeValues(data, "go_kit.endpoint.requests"); len(got) != 1 || got[0] != "_OTHER" {
+		t.Fatalf("error.type values = %v, want [_OTHER]", got)
+	}
+}
+
+type kindError struct {
+	kind string
+}
+
+func (e *kindError) Error() string { return e.kind }
+
+func (e *kindError) ErrorKindName() string { return e.kind }
+
+func metricDataUnit(data metricdata.ResourceMetrics, name string) string {
 	for _, scope := range data.ScopeMetrics {
 		for _, item := range scope.Metrics {
 			if item.Name == name {
-				return true
+				return item.Unit
 			}
 		}
 	}
-	return false
+	return ""
+}
+
+// errorTypeValues returns the error.type attribute of every data point that
+// carries one, so a test can assert both the value and its absence.
+func errorTypeValues(data metricdata.ResourceMetrics, name string) []string {
+	var values []string
+	for _, scope := range data.ScopeMetrics {
+		for _, item := range scope.Metrics {
+			if item.Name != name {
+				continue
+			}
+			sum, ok := item.Data.(metricdata.Sum[int64])
+			if !ok {
+				continue
+			}
+			for _, point := range sum.DataPoints {
+				if value, found := point.Attributes.Value(attribute.Key("error.type")); found {
+					values = append(values, value.AsString())
+				}
+			}
+		}
+	}
+	return values
 }
 
 func metricDataCount(data metricdata.ResourceMetrics, name string) int64 {

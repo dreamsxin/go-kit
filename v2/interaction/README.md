@@ -17,7 +17,7 @@ business logic.
 
 Current entry points:
 
-- `NewRuntime` — builder pattern with `WithSessions`, `WithEvents`, `WithTools`, `WithHooks`, `WithResources`, `WithPrompts`
+- `NewRuntime` — builder pattern with `WithSessions`, `WithEvents`, `WithTools`, `WithHooks`, `WithResources`, `WithPrompts`, `WithLogger`
 - `Runtime.ListTools`
 - `Runtime.ReleaseSession` for transport-owned session cleanup
 - `NewMemorySessionStore`
@@ -62,6 +62,18 @@ Policy hooks:
 These hooks are intentionally transport-neutral. HTTP, gRPC streaming,
 WebSocket, and MCP adapters should pass subject and request metadata into the
 runtime rather than implementing separate policy stacks per transport.
+
+Reporting:
+
+- `Runtime.WithLogger(logger)` reports every tool call through the caller's
+  `*slog.Logger` with the request path's own attributes: `tool`, `session`,
+  `duration`, `success`, `error`, plus `trace_id` and `request_id` when the
+  call's context carries them. A tool call therefore joins the request that
+  carried it instead of being a separate world.
+- A failed or hook-rejected call is reported at Error level. Nothing else
+  reports it: a tool failure travels back to the model as a result, not as a
+  transport error.
+- A nil logger reports nothing, which is the default.
 
 Implementation notes:
 

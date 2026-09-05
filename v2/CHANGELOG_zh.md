@@ -9,6 +9,23 @@
 
 ### 变更
 
+- trace context 现在无需接线就能穿过每种传输。`kit.NewHTTP` 在每条路由上提取进来的
+  `traceparent`，`kit/grpc.New` 装上提取用的一元与流式拦截器——以 chain 方式安装，
+  所以 `grpc.UnaryInterceptor` 仍然留给调用方——`integrations/grpc/client.NewClient`
+  默认把 context 里的 trace context 注入出方向 metadata。需要显式打开的传播，就是会在
+  某个人忘记的第一跳断掉的传播。
+
+- `oteladapter` 的 instrument 遵循 OpenTelemetry 约定。`go_kit.endpoint.duration`
+  的单位从毫秒改为秒；失败的调用是同一条 `go_kit.endpoint.requests` 序列携带
+  `error.type`——即错误通过 `interface{ ErrorKindName() string }` 自报的 kind——而不是
+  第二个计数器。`go_kit.endpoint.errors` 与 `outcome` 属性已移除：错误率现在是同一个
+  instrument 上的比值。读旧名字或旧单位的仪表盘需要更新。
+
+- `slogadapter.Telemetry.Middlewares` 的类型改为 `[]NamedMiddleware`，每一项自带
+  它所报告的标签，不再按位置贴标签。原先追加第四个中间件再调用 `Apply` 会越过标签
+  列表并 panic。`TelemetryConfig.Operation` 现在只在装配日志维度时必填——它命名的是
+  日志记录。
+
 - 严格 JSON 服务端对自己不说的媒体类型在读取 body 之前回 415，由
   `JSONDecodeOptions.RequireJSONContentType` 控制——`StrictJSONDecodeOptions` 默认开启，因此
   所有高层 JSON 辅助函数都有。此前声明 `text/plain` 的请求只要字节恰好能解析就被接受。完全
@@ -69,12 +86,36 @@
 
 ### 新增
 
-- `transport/http` 接管请求 ID 关联：`RequestIDHeader`、`MaxRequestIDLength`、
-  `RequestIDValidator`、`DefaultRequestIDValidator`、`NewRequestID`、`RequestID`、
-  `ValidRequestID`，以及钩子 `ExtractRequestID` / `RequestIDExtractor` / `EchoRequestID`。
-  头名称、信任策略与生成器原先都在 `kit`，因此建立在传输包之上的服务——文档推荐的 `kit` 之后
-  那条路——要关联一个请求就得把三者全部重写一遍。`kit.RequestIDValidator` 现在就是传输包的那个
-  类型，`kit.MaxRequestIDLength` 就是它的常量，现有配置照旧编译。
+- `observability/otel` 现在装配的是整条流水线，而不只是中间件：`Setup(ctx, Config)`
+  构建 tracer/meter provider、走 gRPC 或 HTTP 的 OTLP exporter，以及由 `ServiceName`、
+  `ServiceVersion`、`Environment` 构成的 resource；把它们连同 W3C trace context 与
+  baggage propagator 装到全局；并返回带 `Tracer()`、`Meter()` 与幂等 `Shutdown` 的
+  `Providers`。`Config.Signals` 选择 traces、metrics 或两者，`SpanExporter` /
+  `MetricReader` 可替换 OTLP 流水线。正确的 OpenTelemetry 接线原先是应用里几十行代码，
+  而最常被漏掉的正是全局 propagator——没有它，服务发出的 span 下游谁也接不上。
+
+- `oteladapter.NewHTTPMetrics` 按 HTTP 语义约定记录 `http.server.request.duration`，
+  携带 `http.request.method`、`url.scheme`、`http.route` 与 `http.response.status_code`，
+  于是响应状态可从指标告警。`transport/http/server` 新增了它所依据的契约——
+  `Observation`、`Recorder`、`RecorderFunc`、`RecordingMiddleware`——`kit.WithHTTPRecorder`
+  把它装在每条路由上，那是匹配到的 pattern 唯一存在的地方。未匹配任何路由的请求不带
+  `http.route`，也不会退化成原始 URL 路径。
+
+- `integrations/grpc` 双向传播 W3C trace context：`TraceparentKey`、
+  `ExtractTraceparent`、`InjectTraceparent`、`TraceparentUnaryServerInterceptor`、
+  `TraceparentStreamServerInterceptor`、`TraceparentUnaryClientInterceptor`。gRPC 服务
+  原先完全没有关联管路，一条 trace 在第一个 gRPC 跳就断了。
+
+- `interaction.Runtime.WithLogger` 用调用方的 `*slog.Logger` 上报每一次工具调用，
+  字段与请求路径一致——`duration`、`success`、`error`、`trace_id`、`request_id`——于是一次
+  MCP 工具调用能和承载它的 HTTP 请求对上。失败或被拒的调用记在 Error 级：别处不会报告它
+  ——工具失败是以结果的形式回到模型，而不是一个传输错误。logger 为 nil 时什么都不记，
+  这也是默认值。
+
+- `slogadapter.Signals` 用来选择 `NewTelemetry` 装配哪些遥测维度——`SignalTracing`、
+  `SignalMetrics`、`SignalLogging`，零值表示全部——因此指标来自 OpenTelemetry meter 的
+  服务可以只取日志维度，而不会把每次调用记两遍。
+
 
   校验器拒绝控制字符不是为了美观：这个 ID 会被回写到响应头，携带 CR 或 LF 的值就是一次头注入。
   测试把这点写明了。

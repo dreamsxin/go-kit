@@ -47,8 +47,13 @@ func TestArchitectureDependencyGates(t *testing.T) {
 			allowedTrees: []string{coreModulePath + "/health"},
 		},
 		{
+			// interaction reads the correlation identifiers a transport put in
+			// the context, which is what makes a tool call attributable to the
+			// request that carried it. endpoint is the stdlib-only layer that
+			// owns that contract, so this is the whole allowance.
 			name:         "interaction",
 			pattern:      "./interaction",
+			allowedExact: []string{coreModulePath + "/endpoint"},
 			allowedTrees: []string{coreModulePath + "/interaction"},
 		},
 		{
