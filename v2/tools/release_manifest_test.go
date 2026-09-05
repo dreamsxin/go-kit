@@ -148,23 +148,24 @@ func TestNestedModuleTagsAreGone(t *testing.T) {
 	}
 }
 
-// TestReleasedTagExists pairs with the manifest phase: a candidate must not
-// already be tagged, and a released version must be.
-func TestReleasedTagExists(t *testing.T) {
+// TestManifestPhaseMatchesTagState pins the one direction that a local checkout
+// can answer: a candidate must not already own its tag, or the next release would
+// be cut against a version that is already published and immutable.
+//
+// The released phase is deliberately not checked here. Recording the release is a
+// commit, that commit runs this suite, and requiring the tag would make the record
+// commit and the tag push require each other — see tagRequirement in
+// ./releasecheck. That a released manifest was actually published is checked by
+// `releasecheck -check-published`, which resolves the version through the public
+// proxy rather than trusting a local ref.
+func TestManifestPhaseMatchesTagState(t *testing.T) {
 	root := moduleRoot(t)
 	manifest := readReleaseManifest(t, root)
 	output := commandOutput(t, root, "git", "tag", "--list", manifest.Tag)
 	tagged := len(strings.Fields(string(output))) > 0
 
-	switch manifest.Phase {
-	case "candidate":
-		if tagged {
-			t.Fatalf("tag %s already exists while the manifest is a candidate", manifest.Tag)
-		}
-	case "released":
-		if !tagged {
-			t.Fatalf("tag %s must exist in phase released", manifest.Tag)
-		}
+	if manifest.Phase == "candidate" && tagged {
+		t.Fatalf("tag %s already exists while the manifest is a candidate", manifest.Tag)
 	}
 }
 

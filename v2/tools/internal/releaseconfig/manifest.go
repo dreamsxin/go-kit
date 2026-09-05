@@ -10,7 +10,11 @@ import (
 // Manifest describes the release being cut.
 //
 // v2 ships as one module, so a release is one commit and one tag. Phase is
-// "candidate" while that tag does not exist yet and "released" once it does.
+// "candidate" until the release is recorded and "released" afterwards. Only the
+// candidate phase constrains the tag — it must not exist yet, or the release
+// would be cut against a version that is already published and immutable. The
+// released phase says nothing about the local tag, because recording the release
+// is itself a commit that the release checks run against.
 type Manifest struct {
 	SchemaVersion int    `json:"schemaVersion"`
 	Phase         string `json:"phase"`
