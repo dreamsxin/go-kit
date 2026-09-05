@@ -36,7 +36,11 @@ func (s *grpcServer) {{.Name}}(ctx context.Context, req *idl.{{.InputName}}) (*i
 	if err != nil {
 		return nil, err
 	}
-	return resp.(*idl.{{.OutputName}}), nil
+	reply, ok := resp.(*idl.{{.OutputName}})
+	if !ok {
+		return nil, endpoint.NewTypeAssertError[*idl.{{.OutputName}}](resp)
+	}
+	return reply, nil
 }
 {{end}}
 
@@ -121,23 +125,39 @@ func NewGRPC{{.Name}}Client(ctx context.Context, client idl.{{$.Service.ServiceN
 {{end}}
 
 {{range .UnaryMethods}}
+// The codecs sit between the wire and the endpoint, where values arrive as any
+// and the pointer/value shape differs on each side. A mismatch is a wiring bug,
+// and it is reported as an error the transport can classify rather than as a
+// panic in a request handler.
 func decodeGRPC{{.Name}}Request(_ context.Context, grpcReq any) (any, error) {
-	req := grpcReq.(*idl.{{.InputName}})
+	req, ok := grpcReq.(*idl.{{.InputName}})
+	if !ok {
+		return nil, endpoint.NewTypeAssertError[*idl.{{.InputName}}](grpcReq)
+	}
 	return *req, nil
 }
 
 func encodeGRPC{{.Name}}Response(_ context.Context, response any) (any, error) {
-	resp := response.(idl.{{.OutputName}})
+	resp, ok := response.(idl.{{.OutputName}})
+	if !ok {
+		return nil, endpoint.NewTypeAssertError[idl.{{.OutputName}}](response)
+	}
 	return &resp, nil
 }
 
 func EncodeGRPC{{.Name}}Request(_ context.Context, request any) (any, error) {
-	req := request.(idl.{{.InputName}})
+	req, ok := request.(idl.{{.InputName}})
+	if !ok {
+		return nil, endpoint.NewTypeAssertError[idl.{{.InputName}}](request)
+	}
 	return &req, nil
 }
 
 func DecodeGRPC{{.Name}}Response(_ context.Context, grpcReply any) (any, error) {
-	resp := grpcReply.(*idl.{{.OutputName}})
+	resp, ok := grpcReply.(*idl.{{.OutputName}})
+	if !ok {
+		return nil, endpoint.NewTypeAssertError[*idl.{{.OutputName}}](grpcReply)
+	}
 	return *resp, nil
 }
 {{end}}

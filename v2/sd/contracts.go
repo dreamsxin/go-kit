@@ -97,10 +97,66 @@ type DerivedInstancer interface {
 // contexts — so a caller never needs a second teardown call. A Registrar may be
 // reused: Register after Deregister registers the same instance again. Clients
 // and connections handed to the constructor stay the caller's to close.
+//
+// A Registrar owns one instance key, and Conflict is what it does when that key
+// is already taken. Overwrite is the default; a provider takes anything
+// stricter as a constructor option and documents which values it can enforce,
+// because the guarantee comes from the registry rather than from this package.
 type Registrar interface {
 	Register() error
 	Deregister() error
 }
+
+// Conflict is the semantics a Registrar applies when the instance key it owns
+// already exists in the registry.
+//
+// The distinction only matters for a registry that can compare before it
+// writes. A provider that cannot — Consul registers through its local agent,
+// which upserts by service ID — supports overwrite alone and says so rather
+// than pretending to check.
+type Conflict int
+
+const (
+	// ConflictOverwrite claims the key unconditionally. It is the default
+	// because it is the semantics that always recovers: an instance whose
+	// previous run exited uncleanly, or whose lease expired during a partition,
+	// registers again without a human deleting the key it left behind.
+	ConflictOverwrite Conflict = iota
+
+	// ConflictCreateOnly registers only while the key is absent and reports
+	// ErrConflict otherwise. Choose it when a duplicate instance identity is a
+	// deployment mistake worth failing start-up over — two processes configured
+	// with the same instance ID — and accept that a key outliving an unclean
+	// exit blocks registration until it expires.
+	ConflictCreateOnly
+
+	// ConflictCompareAndSwap registers while the key is absent or still holds
+	// what this Registrar last wrote, and reports ErrConflict once another
+	// writer has taken it. It is create-only for a first registration and
+	// overwrite for the registrar's own renewals, so an instance recovers from
+	// a lost lease without stealing a key that now belongs to somebody else.
+	ConflictCompareAndSwap
+)
+
+func (c Conflict) String() string {
+	switch c {
+	case ConflictOverwrite:
+		return "overwrite"
+	case ConflictCreateOnly:
+		return "create-only"
+	case ConflictCompareAndSwap:
+		return "compare-and-swap"
+	default:
+		return "unknown"
+	}
+}
+
+// ErrConflict reports that a registration was refused because another writer
+// holds the instance key. It is a permanent condition as far as the registrar
+// is concerned: retrying writes the same key with the same identity and is
+// refused again, so a caller treats it as a configuration or ownership problem
+// rather than a transient registry error.
+var ErrConflict = errors.New("instance key already registered")
 
 // Outcome is the result of one call made through a Picked endpoint.
 // Latency includes endpoint execution time, not time spent waiting to pick an

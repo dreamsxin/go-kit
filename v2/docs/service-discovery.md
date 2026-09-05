@@ -501,6 +501,13 @@ renews it, and resumes prefix watching from the last revision after a watch
 disconnect. See the provider guides for registration options and operational
 requirements.
 
+Registration is overwrite by default in both providers: a registrar claims its
+instance key rather than failing on a key its previous run left behind. etcd
+compares before it writes, so `etcd.ConflictRegistrarOptions` can narrow that to
+`sd.ConflictCreateOnly` or `sd.ConflictCompareAndSwap`, both of which report
+`sd.ErrConflict` when another writer holds the key. Consul registers through its
+local agent, which upserts by service ID, and supports overwrite alone.
+
 ## Long-lived connections
 
 An L4 balancer chooses once when a connection is opened. Requests carried by a

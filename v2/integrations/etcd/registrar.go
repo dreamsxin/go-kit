@@ -2,12 +2,15 @@ package etcd
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dreamsxin/go-kit/v2/sd"
 )
 
 // DefaultTTL is the lease lifetime of a registration. The client renews it at
@@ -23,6 +26,9 @@ const DefaultTTL = 15 * time.Second
 // matter — the key is gone while the process is still healthy. Registrar
 // watches for exactly that and registers again, because an instance that is
 // serving traffic but missing from discovery is worse than one that is down.
+//
+// etcd compares before it writes, so this provider supports all three
+// sd.Conflict semantics; see ConflictRegistrarOptions.
 type Registrar struct {
 	client    Client
 	logger    *slog.Logger
@@ -32,6 +38,7 @@ type Registrar struct {
 	id        string
 	ttl       time.Duration
 	metadata  map[string]string
+	conflict  sd.Conflict
 	retryBase time.Duration
 
 	mu      sync.Mutex
@@ -103,6 +110,20 @@ func MetaRegistrarOptions(meta map[string]string) RegistrarOption {
 	}
 }
 
+// ConflictRegistrarOptions sets what Register does when the instance key is
+// already taken. The default is sd.ConflictOverwrite, which is the only setting
+// that recovers unaided from a key left behind by an unclean exit.
+//
+// Anything stricter turns a contested key into sd.ErrConflict from Register, and
+// the supervisor stops re-registering after a lost lease if the key has since
+// been taken: a refused registration means the identity belongs to another
+// process, and retrying it would either fail forever or steal it back.
+func ConflictRegistrarOptions(conflict sd.Conflict) RegistrarOption {
+	return func(r *Registrar) {
+		r.conflict = conflict
+	}
+}
+
 // NewRegistrar describes one instance of service reachable at address:port.
 func NewRegistrar(client Client, logger *slog.Logger, service, address string, port int, options ...RegistrarOption) *Registrar {
 	if logger == nil {
@@ -130,6 +151,9 @@ func NewRegistrar(client Client, logger *slog.Logger, service, address string, p
 //
 // Calling it twice without an intervening Deregister is a no-op on the second
 // call: one Registrar owns one key.
+//
+// Under a conflict setting stricter than sd.ConflictOverwrite it returns an
+// error wrapping sd.ErrConflict when the key belongs to another writer.
 func (r *Registrar) Register() error {
 	r.lifecycle.Lock()
 	defer r.lifecycle.Unlock()
@@ -147,7 +171,7 @@ func (r *Registrar) Register() error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	lost, err := r.client.Register(ctx, r.key, value, r.ttl)
+	lost, err := r.client.Register(ctx, r.key, value, r.ttl, r.conflict)
 	if err != nil {
 		cancel()
 		return err
@@ -215,6 +239,11 @@ func (r *Registrar) Deregister() error {
 // supervise re-registers whenever the lease stops being renewed. Backoff is
 // bounded so a cluster that is down for a while does not turn one instance into
 // a hot loop, and resets on success so a single blip is recovered promptly.
+//
+// A refused registration ends supervision: sd.ErrConflict says the key is held
+// by another writer, and no amount of retrying makes this instance the owner
+// again. Reporting it and stopping keeps the log readable and leaves the
+// contested key to whoever holds it.
 func (r *Registrar) supervise(ctx context.Context, value string, lost <-chan struct{}) {
 	delay := r.retryBase
 	for {
@@ -233,7 +262,7 @@ func (r *Registrar) supervise(ctx context.Context, value string, lost <-chan str
 			if !waitForRetry(delay, ctx.Done()) {
 				return
 			}
-			again, err := r.client.Register(ctx, r.key, value, r.ttl)
+			again, err := r.client.Register(ctx, r.key, value, r.ttl, r.conflict)
 			if err == nil {
 				lost = again
 				delay = r.retryBase
@@ -241,6 +270,11 @@ func (r *Registrar) supervise(ctx context.Context, value string, lost <-chan str
 				break
 			}
 			if ctx.Err() != nil {
+				return
+			}
+			if errors.Is(err, sd.ErrConflict) {
+				r.logger.Error("etcd registration refused, giving up",
+					"key", r.key, "conflict", r.conflict, "err", err)
 				return
 			}
 			r.logger.Debug("etcd re-registration failed", "key", r.key, "err", err, "retry_after", delay)

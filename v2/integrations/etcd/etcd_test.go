@@ -3,15 +3,19 @@ package etcd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/dreamsxin/go-kit/v2/sd"
 )
 
 type registerCall struct {
-	key   string
-	value string
-	ttl   time.Duration
+	key      string
+	value    string
+	ttl      time.Duration
+	conflict sd.Conflict
 }
 
 // fakeClient stands in for etcd. Every behaviour these tests care about —
@@ -77,10 +81,10 @@ func (f *fakeClient) Watch(_ context.Context, _ string, revision int64) (<-chan 
 	return changes, nil
 }
 
-func (f *fakeClient) Register(_ context.Context, key, value string, ttl time.Duration) (<-chan struct{}, error) {
+func (f *fakeClient) Register(_ context.Context, key, value string, ttl time.Duration, conflict sd.Conflict) (<-chan struct{}, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.registers = append(f.registers, registerCall{key: key, value: value, ttl: ttl})
+	f.registers = append(f.registers, registerCall{key: key, value: value, ttl: ttl, conflict: conflict})
 	if f.registerErr != nil {
 		return nil, f.registerErr
 	}
@@ -343,6 +347,78 @@ func TestRegistrarRegistersAgainWhenTheLeaseIsLost(t *testing.T) {
 	calls := client.registerCalls()
 	if calls[1].key != calls[0].key || calls[1].value != calls[0].value {
 		t.Fatalf("re-registration differs from the original: %+v vs %+v", calls[1], calls[0])
+	}
+}
+
+func TestRegistrarCarriesConflictSemanticsIntoEveryWrite(t *testing.T) {
+	client := newFakeClient()
+	registrar := NewRegistrar(client, nil, "users", "10.0.0.1", 8080,
+		ConflictRegistrarOptions(sd.ConflictCompareAndSwap),
+	)
+	registrar.retryBase = time.Millisecond
+
+	if err := registrar.Register(); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	defer registrar.Deregister()
+
+	// The recovery path has to ask for the same semantics as the first write.
+	// A renewal that silently fell back to overwrite would let an instance take
+	// back a key another process had claimed in the meantime.
+	client.loseLease(t)
+	waitUntil(t, time.Second, func() bool { return len(client.registerCalls()) >= 2 })
+
+	for i, call := range client.registerCalls() {
+		if call.conflict != sd.ConflictCompareAndSwap {
+			t.Fatalf("register call %d used %v, want %v", i, call.conflict, sd.ConflictCompareAndSwap)
+		}
+	}
+}
+
+func TestRegistrarStopsRegisteringAgainWhenTheKeyIsTaken(t *testing.T) {
+	client := newFakeClient()
+	registrar := NewRegistrar(client, nil, "users", "10.0.0.1", 8080,
+		ConflictRegistrarOptions(sd.ConflictCreateOnly),
+	)
+	registrar.retryBase = time.Millisecond
+
+	if err := registrar.Register(); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	defer registrar.Deregister()
+
+	// Somebody else owns the key now, so every retry is refused.
+	client.mu.Lock()
+	client.registerErr = fmt.Errorf("register %s: %w", "/services/users/10.0.0.1:8080", sd.ErrConflict)
+	client.mu.Unlock()
+
+	client.loseLease(t)
+	waitUntil(t, time.Second, func() bool { return len(client.registerCalls()) >= 2 })
+
+	// A conflict is permanent: retrying writes the same identity and is refused
+	// again, so the supervisor must stop instead of spinning for the life of the
+	// process. With a 1ms base delay a running retry loop would be well past
+	// two attempts by now.
+	time.Sleep(50 * time.Millisecond)
+	if calls := client.registerCalls(); len(calls) != 2 {
+		t.Fatalf("register calls = %d, want 2: the supervisor kept retrying a refused registration", len(calls))
+	}
+}
+
+func TestRegistrarReportsAConflictFromTheFirstRegistration(t *testing.T) {
+	client := newFakeClient()
+	client.mu.Lock()
+	client.registerErr = fmt.Errorf("register %s: %w", "/services/users/users-1", sd.ErrConflict)
+	client.mu.Unlock()
+
+	registrar := NewRegistrar(client, nil, "users", "10.0.0.1", 8080,
+		IDRegistrarOptions("users-1"),
+		ConflictRegistrarOptions(sd.ConflictCreateOnly),
+	)
+
+	err := registrar.Register()
+	if !errors.Is(err, sd.ErrConflict) {
+		t.Fatalf("Register error = %v, want one wrapping sd.ErrConflict", err)
 	}
 }
 

@@ -44,6 +44,29 @@ than described.
   and no behaviour changed; the reviewed API snapshot gained only the new
   internal package.
 
+- An `sd.Registrar` states its conflict semantics. `sd.Conflict` names the three
+  — `ConflictOverwrite`, `ConflictCreateOnly`, `ConflictCompareAndSwap` — and
+  `etcd.ConflictRegistrarOptions` selects one; a refused registration returns an
+  error wrapping the new `sd.ErrConflict`, and the etcd supervisor stops
+  re-registering rather than retrying an identity another writer holds. Overwrite
+  stays the default, because it is the only setting that recovers from a key an
+  unclean exit left behind. Create-only and compare-and-swap are enforced by an
+  etcd transaction: create-only writes while the key is absent, compare-and-swap
+  writes while it is absent or still holds what this client wrote, so a lost lease
+  is still recovered without stealing a key that has moved on. Consul supports
+  overwrite alone and now documents that — its agent API upserts by service ID and
+  cannot compare before it writes. `etcd.Client.Register` takes the semantics as a
+  parameter, so a custom implementation of that interface needs the new argument.
+
+- Generated code classifies a type mismatch instead of panicking on it. The
+  endpoint adapters, gRPC codecs, gRPC server methods, and the SDK's gRPC client
+  convert through `endpoint.TypedEndpoint.Wrap`, `endpoint.Unwrap`, or a checked
+  assertion reporting `endpoint.NewTypeAssertError`. A middleware that replaced a
+  response with another type — a cache layer, a fallback returning nil — used to
+  panic inside a request handler, which read as a framework crash rather than as
+  the wiring mistake it is. Regenerate to pick this up; hand-edited generated
+  files keep their old behaviour.
+
 - Trace context now crosses every transport without wiring. `kit.NewHTTP`
   extracts an incoming `traceparent` on every route, `kit/grpc.New` installs the
   extracting unary and stream interceptors — chained, so `grpc.UnaryInterceptor`

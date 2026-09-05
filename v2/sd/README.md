@@ -619,6 +619,45 @@ measure load in the balancer.
 `Instancer.Close` cancels and joins the active Consul blocking query, so call it
 after endpoint-owned resources have been closed.
 
+## Registration conflict semantics
+
+A `sd.Registrar` owns one instance key. `sd.Conflict` says what it does when that
+key is already taken, and the default is `sd.ConflictOverwrite`: claim it. That
+is the only setting that always recovers, because a key left behind by an
+unclean exit, or by a lease that expired during a partition, would otherwise
+block the instance from coming back.
+
+etcd compares before it writes, so its registrar takes the other two:
+
+```go
+registrar := etcd.NewRegistrar(client, logger, "users", "10.0.0.1", 8080,
+    etcd.ConflictRegistrarOptions(sd.ConflictCreateOnly),
+)
+if err := registrar.Register(); err != nil {
+    // errors.Is(err, sd.ErrConflict) means another writer holds the key.
+    return err
+}
+```
+
+- `sd.ConflictCreateOnly` registers only while the key is absent. Use it when a
+  duplicate instance ID is a deployment mistake worth failing start-up over, and
+  accept that a key outliving a crash blocks registration until its lease
+  expires.
+- `sd.ConflictCompareAndSwap` registers while the key is absent or still holds
+  what this registrar wrote. A first registration behaves like create-only and a
+  renewal after a lost lease behaves like overwrite, so an instance recovers on
+  its own but cannot take a key back from whoever claimed it in the meantime.
+
+Both report an error wrapping `sd.ErrConflict`, and the etcd supervisor treats
+that as final: it stops re-registering rather than retrying an identity it does
+not own.
+
+Consul supports overwrite only, and takes no option to say otherwise.
+Registration goes through the local agent, which upserts by service ID and has
+no compare-before-write; emulating the others by reading the catalog first would
+answer about the past rather than about the write. A unique instance ID is a
+deployment invariant there.
+
 ## See also
 
 - [Service discovery and routing](../docs/service-discovery.md) — how these

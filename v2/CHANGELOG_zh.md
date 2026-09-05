@@ -32,6 +32,22 @@
   etcd 与 consul 提供者通过 `sd/instance.Cache` 广播而不再各自持有一份私有副本。没有导出
   API 变化，也没有行为变化；受评审的 API 快照只多了那个新的 internal 包。
 
+- `sd.Registrar` 现在声明自己的冲突语义。`sd.Conflict` 给出三种——`ConflictOverwrite`、
+  `ConflictCreateOnly`、`ConflictCompareAndSwap`——由 `etcd.ConflictRegistrarOptions`
+  选择；被拒绝的注册返回包装了新增 `sd.ErrConflict` 的错误，etcd 的守护逻辑随之停止
+  重注册，而不是反复重试一个属于别人的身份。默认仍是覆盖，因为它是唯一能从"非正常退出
+  留下的 key"里自愈的设置。仅创建与比较并交换由一次 etcd 事务保证：仅创建在 key 不存在时
+  写入，比较并交换在 key 不存在、或仍是本 client 写下的内容时写入——于是租约丢失依然能恢复，
+  同时不会去抢一个已经易主的 key。Consul 只支持覆盖，并且现在把这点写进了文档：它的 agent
+  接口按 service ID upsert，写入前无法比较。`etcd.Client.Register` 把语义作为参数接收，
+  因此自行实现该接口的代码需要补上这个新参数。
+
+- 生成代码把类型不匹配归类成错误，而不是 panic。端点适配器、gRPC 编解码、gRPC 服务端方法
+  与 SDK 的 gRPC 客户端改为通过 `endpoint.TypedEndpoint.Wrap`、`endpoint.Unwrap` 或带
+  comma-ok 检查并上报 `endpoint.NewTypeAssertError` 的断言来转换。中间件把响应换成另一个
+  类型时——缓存层、返回 nil 的兜底——原先会在请求处理器内部 panic，看起来像框架崩溃，而它
+  其实是接线错误。重新生成即可获得该行为；手工改过的生成文件保持原样。
+
 - trace context 现在无需接线就能穿过每种传输。`kit.NewHTTP` 在每条路由上提取进来的
   `traceparent`，`kit/grpc.New` 装上提取用的一元与流式拦截器——以 chain 方式安装，
   所以 `grpc.UnaryInterceptor` 仍然留给调用方——`integrations/grpc/client.NewClient`

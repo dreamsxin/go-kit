@@ -2,6 +2,7 @@ package etcd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -10,6 +11,8 @@ import (
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
+
+	"github.com/dreamsxin/go-kit/v2/sd"
 )
 
 // These tests run against a real etcd. They are skipped unless
@@ -208,7 +211,7 @@ func TestLiveLeaseExpiresWhenRenewalStops(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encodeRegistration: %v", err)
 	}
-	lost, err := client.Register(ctx, key, value, 2*time.Second)
+	lost, err := client.Register(ctx, key, value, 2*time.Second, sd.ConflictOverwrite)
 	if err != nil {
 		cancel()
 		t.Fatalf("Register: %v", err)
@@ -242,7 +245,7 @@ func TestLiveDeregisterRevokesTheLease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encodeRegistration: %v", err)
 	}
-	if _, err := client.Register(ctx, key, value, 30*time.Second); err != nil {
+	if _, err := client.Register(ctx, key, value, 30*time.Second, sd.ConflictOverwrite); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
 	waitForKeys(t, etcd, prefix, 1, 5*time.Second)
@@ -315,4 +318,72 @@ func TestLiveConcurrentRegisterDeregisterEndsRegistered(t *testing.T) {
 		t.Fatalf("final Register: %v", err)
 	}
 	waitForKeys(t, etcd, prefix, 1, 10*time.Second)
+}
+
+// Conflict semantics are decided by etcd's transaction, so only etcd can say
+// whether they hold. A second Client stands in for a second process: it has no
+// memory of the key, which is exactly the position a restarted or duplicated
+// instance is in.
+func TestLiveCreateOnlyRefusesAKeyThatExists(t *testing.T) {
+	etcd, namespace := liveEtcd(t)
+	prefix := servicePrefix(namespace, "users")
+	key := prefix + "127.0.0.1:8085"
+
+	value, err := encodeRegistration("127.0.0.1:8085", nil)
+	if err != nil {
+		t.Fatalf("encodeRegistration: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	owner := NewClient(etcd)
+	if _, err := owner.Register(ctx, key, value, 30*time.Second, sd.ConflictCreateOnly); err != nil {
+		t.Fatalf("first create-only Register: %v", err)
+	}
+	waitForKeys(t, etcd, prefix, 1, 5*time.Second)
+
+	other := NewClient(etcd)
+	if _, err := other.Register(ctx, key, value, 30*time.Second, sd.ConflictCreateOnly); !errors.Is(err, sd.ErrConflict) {
+		t.Fatalf("second create-only Register error = %v, want sd.ErrConflict", err)
+	}
+	// Overwrite is the semantics that ignores the holder, and it still does.
+	if _, err := other.Register(ctx, key, value, 30*time.Second, sd.ConflictOverwrite); err != nil {
+		t.Fatalf("overwrite Register: %v", err)
+	}
+}
+
+// Compare-and-swap has to allow the one case a registrar depends on — rewriting
+// its own key after a lost lease — while refusing the one it exists for.
+func TestLiveCompareAndSwapKeepsItsOwnKeyAndLosesATakenOne(t *testing.T) {
+	etcd, namespace := liveEtcd(t)
+	prefix := servicePrefix(namespace, "users")
+	key := prefix + "127.0.0.1:8086"
+
+	value, err := encodeRegistration("127.0.0.1:8086", nil)
+	if err != nil {
+		t.Fatalf("encodeRegistration: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	owner := NewClient(etcd)
+	if _, err := owner.Register(ctx, key, value, 30*time.Second, sd.ConflictCompareAndSwap); err != nil {
+		t.Fatalf("first compare-and-swap Register: %v", err)
+	}
+	waitForKeys(t, etcd, prefix, 1, 5*time.Second)
+
+	// The key still holds what this Client wrote, so writing again is allowed.
+	if _, err := owner.Register(ctx, key, value, 30*time.Second, sd.ConflictCompareAndSwap); err != nil {
+		t.Fatalf("compare-and-swap over its own registration: %v", err)
+	}
+
+	other := NewClient(etcd)
+	if _, err := other.Register(ctx, key, value, 30*time.Second, sd.ConflictOverwrite); err != nil {
+		t.Fatalf("competing overwrite Register: %v", err)
+	}
+
+	// The key moved on, so the original owner must not take it back.
+	if _, err := owner.Register(ctx, key, value, 30*time.Second, sd.ConflictCompareAndSwap); !errors.Is(err, sd.ErrConflict) {
+		t.Fatalf("compare-and-swap after another writer took the key: err = %v, want sd.ErrConflict", err)
+	}
 }

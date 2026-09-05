@@ -388,11 +388,9 @@ type grpcClient struct {
 
 {{range .UnaryMethods}}
 func (c *grpcClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
-	resp, err := c.{{.Name | lower}}(ctx, req)
-	if err != nil {
-		return idl.{{.OutputName}}{}, err
-	}
-	return resp.(idl.{{.OutputName}}), nil
+	// A middleware or codec that returns another type is a diagnosable error
+	// here, not a panic in the caller's request path.
+	return endpoint.Unwrap[idl.{{.InputName}}, idl.{{.OutputName}}](c.{{.Name | lower}})(ctx, req)
 }
 {{end}}
 {{range .ServerStreamMethods}}

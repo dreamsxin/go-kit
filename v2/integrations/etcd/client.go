@@ -14,6 +14,8 @@ import (
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
+
+	"github.com/dreamsxin/go-kit/v2/sd"
 )
 
 // DefaultRequestTimeout bounds a single etcd request. Discovery reads happen on
@@ -39,7 +41,12 @@ type Client interface {
 	// registration is no longer being kept alive — a lost lease, a restarted
 	// cluster — so the caller can register again instead of silently vanishing
 	// from discovery.
-	Register(ctx context.Context, key, value string, ttl time.Duration) (lost <-chan struct{}, err error)
+	//
+	// conflict decides what happens when the key already exists: it is written
+	// unconditionally, only while absent, or only while absent or unchanged
+	// since this Client last wrote it. The latter two report sd.ErrConflict
+	// instead of taking a key another writer holds.
+	Register(ctx context.Context, key, value string, ttl time.Duration, conflict sd.Conflict) (lost <-chan struct{}, err error)
 
 	// Deregister removes key.
 	Deregister(ctx context.Context, key string) error
@@ -60,7 +67,12 @@ func WithRequestTimeout(timeout time.Duration) ClientOption {
 
 // NewClient wraps a concrete etcd client.
 func NewClient(etcd *clientv3.Client, options ...ClientOption) Client {
-	c := &client{etcd: etcd, timeout: DefaultRequestTimeout, leases: map[string]clientv3.LeaseID{}}
+	c := &client{
+		etcd:      etcd,
+		timeout:   DefaultRequestTimeout,
+		leases:    map[string]clientv3.LeaseID{},
+		revisions: map[string]int64{},
+	}
 	for _, option := range options {
 		option(c)
 	}
@@ -73,6 +85,10 @@ type client struct {
 
 	mu     sync.Mutex
 	leases map[string]clientv3.LeaseID
+	// revisions records the store revision each key was last written at, which
+	// is the "compare" half of compare-and-swap: a renewal recognises its own
+	// key by it, and any other value means somebody else wrote in between.
+	revisions map[string]int64
 }
 
 func (c *client) Entries(ctx context.Context, prefix string) (map[string]string, int64, error) {
@@ -119,7 +135,7 @@ func (c *client) Watch(ctx context.Context, prefix string, revision int64) (<-ch
 	return changes, nil
 }
 
-func (c *client) Register(ctx context.Context, key, value string, ttl time.Duration) (<-chan struct{}, error) {
+func (c *client) Register(ctx context.Context, key, value string, ttl time.Duration, conflict sd.Conflict) (<-chan struct{}, error) {
 	seconds := int64(ttl.Seconds())
 	if seconds < 1 {
 		// A sub-second lease would be revoked between keepalives.
@@ -134,7 +150,7 @@ func (c *client) Register(ctx context.Context, key, value string, ttl time.Durat
 	}
 
 	putCtx, cancel := context.WithTimeout(ctx, c.timeout)
-	_, err = c.etcd.Put(putCtx, key, value, clientv3.WithLease(lease.ID))
+	revision, err := c.write(putCtx, key, value, lease.ID, conflict)
 	cancel()
 	if err != nil {
 		// The lease is granted but nothing is attached to it, so nothing will
@@ -151,6 +167,7 @@ func (c *client) Register(ctx context.Context, key, value string, ttl time.Durat
 
 	c.mu.Lock()
 	c.leases[key] = lease.ID
+	c.revisions[key] = revision
 	c.mu.Unlock()
 
 	lost := make(chan struct{})
@@ -163,6 +180,59 @@ func (c *client) Register(ctx context.Context, key, value string, ttl time.Durat
 		}
 	}()
 	return lost, nil
+}
+
+// write puts the registration under the requested conflict semantics and
+// reports the revision it was written at. The revision is what a later
+// compare-and-swap compares against, so every path returns the one etcd
+// committed rather than the one the caller expected.
+func (c *client) write(ctx context.Context, key, value string, lease clientv3.LeaseID, conflict sd.Conflict) (int64, error) {
+	put := clientv3.OpPut(key, value, clientv3.WithLease(lease))
+	absent := clientv3.Compare(clientv3.CreateRevision(key), "=", 0)
+
+	switch conflict {
+	case sd.ConflictCreateOnly:
+		response, err := c.etcd.Txn(ctx).If(absent).Then(put).Commit()
+		if err != nil {
+			return 0, err
+		}
+		if !response.Succeeded {
+			return 0, fmt.Errorf("register %s: %w", key, sd.ErrConflict)
+		}
+		return response.Header.Revision, nil
+
+	case sd.ConflictCompareAndSwap:
+		c.mu.Lock()
+		previous, mine := c.revisions[key]
+		c.mu.Unlock()
+		if !mine {
+			// Nothing was written through this Client yet, so there is no
+			// version of the key it may claim: the first write is create-only.
+			return c.write(ctx, key, value, lease, sd.ConflictCreateOnly)
+		}
+		// etcd conditions are a conjunction, so "absent or still mine" needs
+		// the second test in the else branch of the first.
+		unchanged := clientv3.Compare(clientv3.ModRevision(key), "=", previous)
+		response, err := c.etcd.Txn(ctx).If(absent).Then(put).
+			Else(clientv3.OpTxn([]clientv3.Cmp{unchanged}, []clientv3.Op{put}, nil)).Commit()
+		if err != nil {
+			return 0, err
+		}
+		if response.Succeeded {
+			return response.Header.Revision, nil
+		}
+		if inner := response.Responses[0].GetResponseTxn(); inner == nil || !inner.Succeeded {
+			return 0, fmt.Errorf("register %s: %w", key, sd.ErrConflict)
+		}
+		return response.Header.Revision, nil
+
+	default:
+		response, err := c.etcd.Put(ctx, key, value, clientv3.WithLease(lease))
+		if err != nil {
+			return 0, err
+		}
+		return response.Header.Revision, nil
+	}
 }
 
 func (c *client) Deregister(ctx context.Context, key string) error {
@@ -204,6 +274,10 @@ func (c *client) Deregister(ctx context.Context, key string) error {
 	// be forgotten by an older teardown.
 	if current, ok := c.leases[key]; ok && leased && current == lease {
 		delete(c.leases, key)
+		// The recorded revision described the registration just removed, so a
+		// later compare-and-swap must start over as create-only rather than
+		// compare against a key that no longer exists.
+		delete(c.revisions, key)
 	}
 	c.mu.Unlock()
 	return nil

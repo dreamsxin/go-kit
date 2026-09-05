@@ -436,6 +436,11 @@ Consul 使用通过健康检查的服务条目，并可通过服务 metadata 携
 保存一个带租约的注册键，负责续租，并在 watch 断开后从上次 revision 恢复。注册选项与运维
 要求见各 provider 指南。
 
+两个 provider 的注册默认都是覆盖：registrar 直接占下自己的实例 key，而不是因为上一次运行
+留下的残留而失败。etcd 写入前可以比较，因此 `etcd.ConflictRegistrarOptions` 可以收紧为
+`sd.ConflictCreateOnly` 或 `sd.ConflictCompareAndSwap`，两者在 key 属于其他写入者时返回
+`sd.ErrConflict`。Consul 通过本地 agent 注册、按 service ID upsert，只支持覆盖。
+
 ## 长连接
 
 L4 均衡器在连接建立时选择一次，长连接隧道上的后续请求都会固定到同一个后端。对于 bridge

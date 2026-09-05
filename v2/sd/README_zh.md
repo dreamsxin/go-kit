@@ -563,6 +563,38 @@ defer func() { _ = registrar.Deregister() }()
 `Instancer.Close` 会取消并等待（join）活跃的 Consul 阻塞查询，因此要在端点
 持有的资源关闭之后再调用它。
 
+## 注册冲突语义
+
+一个 `sd.Registrar` 拥有一个实例 key。`sd.Conflict` 决定这个 key 已被占用时它
+怎么做，默认是 `sd.ConflictOverwrite`：直接占下来。这是唯一总能自愈的语义——
+否则进程非正常退出留下的 key，或分区期间过期的租约留下的残留，都会挡住实例
+重新注册。
+
+etcd 写入前可以比较，所以它的 registrar 支持另外两种：
+
+```go
+registrar := etcd.NewRegistrar(client, logger, "users", "10.0.0.1", 8080,
+    etcd.ConflictRegistrarOptions(sd.ConflictCreateOnly),
+)
+if err := registrar.Register(); err != nil {
+    // errors.Is(err, sd.ErrConflict) 表示 key 属于另一个写入者。
+    return err
+}
+```
+
+- `sd.ConflictCreateOnly`：仅当 key 不存在时注册。适用于"实例 ID 重复属于部署
+  错误、值得让启动失败"的场景，代价是崩溃后残留的 key 会挡住注册直到租约过期。
+- `sd.ConflictCompareAndSwap`：key 不存在、或仍是本 registrar 写下的内容时才
+  注册。首次注册等同于仅创建，租约丢失后的续注册等同于覆盖——实例能自行恢复，
+  但不会把已被别人占下的 key 抢回来。
+
+两者都返回包装了 `sd.ErrConflict` 的错误，且 etcd 的守护逻辑把它当作终态：
+不再重试一个不属于自己的身份。
+
+Consul 只支持覆盖，也不提供相应选项。它的注册走本地 agent，按 service ID
+upsert，没有"先比较再写入"的通路；靠先读目录来模拟只能回答过去的状态，而不是
+这次写入的状态。在那里，实例 ID 唯一是部署层面的约束。
+
 ## 另请参阅
 
 - [服务发现与路由](../docs/service-discovery_zh.md) — 这些包如何组合，以及生产

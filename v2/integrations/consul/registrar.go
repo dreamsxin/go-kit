@@ -7,7 +7,15 @@ import (
 	stdconsul "github.com/hashicorp/consul/api"
 )
 
-// 服务注册类
+// Registrar keeps one instance registered with the local Consul agent.
+//
+// It supports sd.ConflictOverwrite only, and takes no option to say otherwise.
+// Registration goes through the agent's service API, which upserts by service
+// ID and offers no compare-before-write, so create-only and compare-and-swap
+// could only be emulated by reading the catalog first — a check that answers
+// about the past, not about the write. An instance ID that has to be unique is
+// therefore a deployment invariant here, not something this provider enforces;
+// etcd is the provider that can.
 type Registrar struct {
 	client       Client
 	registration *stdconsul.AgentServiceRegistration

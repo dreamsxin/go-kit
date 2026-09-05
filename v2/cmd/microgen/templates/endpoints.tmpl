@@ -51,22 +51,16 @@ func MakeServerEndpointsWithConfig(
 
 {{range .UnaryMethods}}
 func Make{{.Name}}Endpoint(s svc.{{$.Service.ServiceName}}) endpoint.Endpoint {
-	return func(ctx context.Context, request any) (any, error) {
-		req := request.(idl.{{.InputName}})
-		resp, err := s.{{.Name}}(ctx, req)
-		if err != nil {
-			return nil, err
-		}
-		return resp, nil
-	}
+	// The service method is already typed, so Wrap is the whole adapter: it
+	// classifies a request of the wrong type instead of panicking on it.
+	typed := endpoint.TypedEndpoint[idl.{{.InputName}}, idl.{{.OutputName}}](s.{{.Name}})
+	return typed.Wrap()
 }
 {{end}}
 {{range .UnaryMethods}}
 func (e {{$.Service.ServiceName}}Endpoints) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
-	resp, err := e.{{.Name}}Endpoint(ctx, req)
-	if err != nil {
-		return idl.{{.OutputName}}{}, err
-	}
-	return resp.(idl.{{.OutputName}}), nil
+	// Middleware may replace the response; Unwrap reports that as an error
+	// rather than crashing the caller.
+	return endpoint.Unwrap[idl.{{.InputName}}, idl.{{.OutputName}}](e.{{.Name}}Endpoint)(ctx, req)
 }
 {{end}}
