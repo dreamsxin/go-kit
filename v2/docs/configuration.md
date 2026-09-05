@@ -42,16 +42,41 @@ YAML or the environment for deployment configuration.
 The generated `main` accepts `-config`, `-http.addr`, plus `-grpc.addr` when the
 project has gRPC and `-db.dsn` / `-auto-migrate` when it has a database.
 
-Environment variables use the `APP_` prefix:
+Environment variables use the `APP_` prefix. `ApplyEnv` reads every key below.
+Which of them exist depends on how the project was generated: `APP_DB_*` needs a
+database, `APP_GRPC_ADDR` needs gRPC, and `APP_REMOTE_*` needs a remote config
+mode.
 
 ```text
-APP_HTTP_ADDR
-APP_LOG_LEVEL
-APP_LOG_FORMAT
-APP_DB_DSN
-APP_DB_AUTO_MIGRATE
-APP_REMOTE_ENABLED
+APP_HTTP_ADDR                    Server.HTTPAddr
+APP_GRPC_ADDR                    Server.GRPCAddr
+APP_READ_TIMEOUT                 Server.ReadTimeout
+APP_READ_HEADER_TIMEOUT          Server.ReadHeaderTimeout
+APP_WRITE_TIMEOUT                Server.WriteTimeout
+APP_GRACEFUL_SHUTDOWN_TIMEOUT    Server.GracefulShutdownTimeout
+APP_LOG_LEVEL                    Logging.Level
+APP_LOG_FORMAT                   Logging.Format
+APP_MIDDLEWARE_TIMEOUT           Middleware.Timeout
+APP_DB_DRIVER                    Database.Driver
+APP_DB_DSN                       Database.DSN
+APP_DB_AUTO_MIGRATE              Database.AutoMigrate
+APP_DB_MAX_OPEN_CONNS            Database.MaxOpenConns
+APP_DB_MAX_IDLE_CONNS            Database.MaxIdleConns
+APP_DB_CONN_MAX_LIFETIME         Database.ConnMaxLifetime
+APP_DEBUG_ROUTES_ENABLED         Debug.RoutesEnabled
+APP_DEBUG_PRINT_ROUTES           Debug.PrintRoutes
+APP_REMOTE_ENABLED               Remote.Enabled
+APP_REMOTE_PROVIDER              Remote.Provider
+APP_REMOTE_ENDPOINT              Remote.Endpoint
+APP_REMOTE_NAMESPACE             Remote.Namespace
+APP_REMOTE_GROUP                 Remote.Group
+APP_REMOTE_DATA_ID               Remote.DataID
+APP_REMOTE_TIMEOUT               Remote.Timeout
+APP_REMOTE_FALLBACK_TO_LOCAL     Remote.FallbackToLocal
 ```
+
+This list is checked against the generated loader, so a key that is renamed or
+dropped fails a test instead of going quiet.
 
 ## Custom sections
 

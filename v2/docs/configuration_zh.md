@@ -35,16 +35,38 @@
 生成的 `main` 支持 `-config`、`-http.addr`；带 gRPC 时还有 `-grpc.addr`，带数据库
 时还有 `-db.dsn` 与 `-auto-migrate`。
 
-环境变量使用 `APP_` 前缀：
+环境变量使用 `APP_` 前缀。`ApplyEnv` 会读取下面每一个键。其中哪些存在取决于项目是怎么
+生成的：`APP_DB_*` 需要数据库，`APP_GRPC_ADDR` 需要 gRPC，`APP_REMOTE_*` 需要远端配置模式。
 
 ```text
-APP_HTTP_ADDR
-APP_LOG_LEVEL
-APP_LOG_FORMAT
-APP_DB_DSN
-APP_DB_AUTO_MIGRATE
-APP_REMOTE_ENABLED
+APP_HTTP_ADDR                    Server.HTTPAddr
+APP_GRPC_ADDR                    Server.GRPCAddr
+APP_READ_TIMEOUT                 Server.ReadTimeout
+APP_READ_HEADER_TIMEOUT          Server.ReadHeaderTimeout
+APP_WRITE_TIMEOUT                Server.WriteTimeout
+APP_GRACEFUL_SHUTDOWN_TIMEOUT    Server.GracefulShutdownTimeout
+APP_LOG_LEVEL                    Logging.Level
+APP_LOG_FORMAT                   Logging.Format
+APP_MIDDLEWARE_TIMEOUT           Middleware.Timeout
+APP_DB_DRIVER                    Database.Driver
+APP_DB_DSN                       Database.DSN
+APP_DB_AUTO_MIGRATE              Database.AutoMigrate
+APP_DB_MAX_OPEN_CONNS            Database.MaxOpenConns
+APP_DB_MAX_IDLE_CONNS            Database.MaxIdleConns
+APP_DB_CONN_MAX_LIFETIME         Database.ConnMaxLifetime
+APP_DEBUG_ROUTES_ENABLED         Debug.RoutesEnabled
+APP_DEBUG_PRINT_ROUTES           Debug.PrintRoutes
+APP_REMOTE_ENABLED               Remote.Enabled
+APP_REMOTE_PROVIDER              Remote.Provider
+APP_REMOTE_ENDPOINT              Remote.Endpoint
+APP_REMOTE_NAMESPACE             Remote.Namespace
+APP_REMOTE_GROUP                 Remote.Group
+APP_REMOTE_DATA_ID               Remote.DataID
+APP_REMOTE_TIMEOUT               Remote.Timeout
+APP_REMOTE_FALLBACK_TO_LOCAL     Remote.FallbackToLocal
 ```
+
+这份清单会与生成的加载器互相核对，因此某个键被改名或删掉会让测试失败，而不是悄无声息。
 
 ## 自定义配置段
 
