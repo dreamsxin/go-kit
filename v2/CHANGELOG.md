@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.8.1] - Release Candidate
+## [2.8.1] - 2026-09-05
 
 A contract audit of every runtime package. Each item below is a place where the
 code and its own documented contract disagreed. The version is a patch because
