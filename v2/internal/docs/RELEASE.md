@@ -3,7 +3,7 @@ English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
-v2.8.1 is the release being published from `main` for the module:
+v2.9.0 is the release being published from `main` for the module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
@@ -16,7 +16,7 @@ Behaviour changes in this release are recorded in
 [CHANGELOG.md](../../CHANGELOG.md).
 
 The published module is stored in the repository's `v2` major-version
-subdirectory, but consumers request normal module versions such as `v2.8.1`.
+subdirectory, but consumers request normal module versions such as `v2.9.0`.
 Every release is one plain root tag, `vX.Y.Z`, and a released tag is immutable:
 tags accumulate as releases are cut.
 
@@ -50,7 +50,7 @@ but their generated public behavior is a product surface.
 
 ## Release Entry Criteria
 
-The v2.8.1 candidate satisfies these criteria:
+The v2.9.0 candidate satisfies these criteria:
 
 - `kit`, endpoint, HTTP/gRPC transport, service discovery, and interaction
   lifecycles have explicit error and cancellation contracts.
@@ -66,6 +66,22 @@ The v2.8.1 candidate satisfies these criteria:
 - Database introspection is read-only and startup migration is opt-in.
 - HTTP/MCP limits, protocol checks, streaming timeouts, and concurrency behavior
   are covered by tests.
+- A CSRF token is bound to a session identity and a lifetime, and every
+  browser-facing decision declares its own scheme and cache scope.
+- Benchmarks cover the paths every request crosses, and a change made for
+  performance records its measured effect in `CHANGELOG.md` — including the ones
+  measurement refuted.
+- Readiness and liveness belong to a probe registry any transport mounts, so a
+  gRPC-only assembly answers the same operational surface as an HTTP one.
+- OpenTelemetry assembles in one call, instrument names follow the semantic
+  conventions, and trace context crosses every transport without extra wiring.
+- A discovery assembly that compiles is one that works: one subscription state
+  machine serves every consumer, and a measured balancer cannot be built without
+  the accounting that feeds it.
+- The JSON server answers protocol-level questions with protocol-level answers:
+  415 before the body is read, and decode failures written for the caller.
+- Generated code reports a type mismatch as a classified error rather than a
+  panic.
 - README quick starts and release examples compile against the release API.
 - `go test ./...` and the targeted race suite pass on a clean checkout.
 - `CHANGELOG.md` contains only v2 history and has no unresolved release blockers.
@@ -157,8 +173,8 @@ tag check fail if another published module or old v2 tag is introduced.
 3. Create and push the tag:
 
 ```bash
-git tag -a v2.8.1 -m "go-kit v2.8.1"
-git push origin v2.8.1
+git tag -a v2.9.0 -m "go-kit v2.9.0"
+git push origin v2.9.0
 make verify-published
 ```
 
