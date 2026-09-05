@@ -58,7 +58,7 @@ func assertGeneratedContractSnapshot(t *testing.T, name, root string) {
 	got := string(normalizeCommandOutput([]byte(snapshot.String())))
 	wantText := string(normalizeCommandOutput(want))
 	if got != wantText {
-		t.Fatalf("generated %s contract changed\n--- want\n%s--- got\n%s\nreview the public contract, then rerun with -args -update-contract-snapshots", name, wantText, got)
+		t.Fatalf("generated %s contract changed\n--- want\n%s--- got\n%s\nreview the public contract, then refresh with: make update-snapshots", name, wantText, got)
 	}
 }
 

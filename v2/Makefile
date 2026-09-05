@@ -74,8 +74,19 @@ test-boundaries:
 	@go -C ./tools test -v . -run "Test(ArchitectureDependencyGates|KitHTTPAssemblyDoesNotResolveOptionalDependencies|MicrogenImplementationPackagesAreInternal|OnlyOneModuleIsPublishable|PublishableModulesDoNotUseLocalReplacements|ReleaseManifestMatchesRepository)" -count=1
 
 test-race:
-	@echo ">>> Running focused race tests..."
-	@go test -race ./kit/... ./interaction/... ./transport/... ./sd/... ./security/http ./observability/... ./integrations/... ./cmd/microgen/internal/generator
+	@echo ">>> Running race tests..."
+	@go -C ./tools run ./releaseverify -root .. -suites race
+
+test-snapshots:
+	@echo ">>> Verifying the reviewed snapshots..."
+	@go -C ./tools test . -run "Test(PublicAPISurfaceSnapshot|Microgen(IDLContract|Proto|FromDB)Integration)" -count=1
+
+update-snapshots:
+	@echo ">>> Refreshing the reviewed public API snapshot..."
+	@go -C ./tools test . -run TestPublicAPISurfaceSnapshot -count=1 -args -update-api-snapshot
+	@echo ">>> Refreshing the reviewed generated contract snapshots..."
+	@go -C ./tools test . -run TestMicrogen -count=1 -args -update-contract-snapshots
+	@echo ">>> Review the diff before committing: git diff -- v2/tools/testdata"
 
 test-fmt:
 	@echo ">>> Verifying gofmt formatting..."
@@ -273,8 +284,10 @@ help:
 	@echo "  make test-observability Test slog and optional OpenTelemetry adapters"
 	@echo "  make test-security Test optional HTTP security middleware"
 	@echo "  make test-api      Verify the reviewed exported API snapshot"
+	@echo "  make test-snapshots Verify every reviewed snapshot (API and generated contracts)"
+	@echo "  make update-snapshots Refresh those snapshots after an intended change"
 	@echo "  make test-boundaries Verify architecture and module dependency boundaries"
-	@echo "  make test-race     Run focused race tests across release-critical packages"
+	@echo "  make test-race     Run the race detector over every core package"
 	@echo "  make test-fmt      Verify every Go file is gofmt-formatted"
 	@echo "  make test-vet      Run go vet across maintained modules"
 	@echo "  make test-modules  Verify all maintained go.mod files are tidy"

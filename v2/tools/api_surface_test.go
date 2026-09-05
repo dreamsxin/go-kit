@@ -44,7 +44,7 @@ func TestPublicAPISurfaceSnapshot(t *testing.T) {
 	got := string(normalizeCommandOutput([]byte(snapshot.String())))
 	wantText := string(normalizeCommandOutput(want))
 	if got != wantText {
-		t.Fatalf("public API surface changed\n--- want\n%s--- got\n%s\nreview exported API changes, then rerun with -args -update-api-snapshot", wantText, got)
+		t.Fatalf("public API surface changed\n--- want\n%s--- got\n%s\nreview the exported API change, then refresh with: make update-snapshots", wantText, got)
 	}
 }
 
