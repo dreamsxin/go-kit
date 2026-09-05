@@ -118,9 +118,9 @@ release-check-clean:
 ##
 ## The tidy suite diffs the worktree, so run this from a committed tree. Use
 ## `make test` and the focused test-* targets while iterating.
-verify: test-fmt
+verify:
 	@echo ">>> Running the release suites CI runs..."
-	@go -C ./tools run ./releaseverify -root .. -suites test,standalone,vet,tidy,race
+	@go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 
 verify-published:
 	@echo ">>> Verifying the published module..."

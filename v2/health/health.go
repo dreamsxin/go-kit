@@ -63,7 +63,7 @@ type Report struct {
 	// assembly supplied a counter through WithRequestCount. It gives an
 	// operator reading a probe response one number that says the process is
 	// doing work rather than merely answering.
-	Requests *int64 `json:"requests,omitempty"`
+	Requests *int64        `json:"requests,omitempty"`
 	Checks   []CheckResult `json:"checks,omitempty"`
 }
 

@@ -90,7 +90,6 @@ func loadOf(table *feedback.Table) func(sd.Instance) int64 {
 	return func(instance sd.Instance) int64 { return table.Stats(instance).InFlight }
 }
 
-
 func BenchmarkTableLoadAcrossCandidatesConcurrent(b *testing.B) {
 	for _, callers := range []int{8, 64} {
 		b.Run(callerLabel(callers), func(b *testing.B) {

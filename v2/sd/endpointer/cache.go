@@ -205,4 +205,3 @@ func closeEndpointClosers(closers []io.Closer) error {
 	}
 	return errors.Join(errs...)
 }
-

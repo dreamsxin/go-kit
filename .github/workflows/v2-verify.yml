@@ -52,7 +52,7 @@ jobs:
 
       - name: Run release suites
         working-directory: v2/tools
-        run: go run ./releaseverify -root .. -suites test,standalone,vet,tidy
+        run: go run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy
 
       - name: Verify clean scope and release phase
         working-directory: v2/tools

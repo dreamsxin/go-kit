@@ -69,7 +69,6 @@ func TestWithHTTPRecorderSkipsProbeRoutes(t *testing.T) {
 	}
 }
 
-
 type recordingHTTPRecorder struct {
 	mu           sync.Mutex
 	observations []httpserver.Observation

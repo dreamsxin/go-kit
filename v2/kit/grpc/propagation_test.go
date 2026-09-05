@@ -76,4 +76,3 @@ func TestServerAcceptsCallerInterceptors(t *testing.T) {
 		t.Fatalf("caller interceptor calls = %d, want 1", calls.Load())
 	}
 }
-

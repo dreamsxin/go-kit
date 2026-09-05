@@ -106,4 +106,3 @@ func scheme(s string) string {
 	}
 	return s
 }
-

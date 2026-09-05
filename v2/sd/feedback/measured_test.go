@@ -376,7 +376,6 @@ func (c *shiftedClock) set(offset time.Duration) {
 	c.mtx.Unlock()
 }
 
-
 // One subscription serves the table and the ejector, so they cannot disagree
 // about which instances exist. Eject joins the subscription Measure opened, and
 // is handed the snapshot that already arrived rather than waiting for the next
@@ -477,4 +476,3 @@ func TestWrapDoesNotStackOnItsOwnTable(t *testing.T) {
 		t.Fatalf("in-flight after the call = %d, want 0", got)
 	}
 }
-

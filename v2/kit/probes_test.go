@@ -82,10 +82,10 @@ func TestProbeReportCarriesTheRequestCount(t *testing.T) {
 // bridges into a probe surface.
 type warming struct{ ready atomic.Bool }
 
-func (w *warming) Name() string                    { return "warming" }
-func (w *warming) Start() error                    { return nil }
-func (w *warming) Errors() <-chan error            { return nil }
-func (w *warming) Shutdown(context.Context) error  { return nil }
+func (w *warming) Name() string                   { return "warming" }
+func (w *warming) Start() error                   { return nil }
+func (w *warming) Errors() <-chan error           { return nil }
+func (w *warming) Shutdown(context.Context) error { return nil }
 func (w *warming) Ready(context.Context) error {
 	if w.ready.Load() {
 		return nil

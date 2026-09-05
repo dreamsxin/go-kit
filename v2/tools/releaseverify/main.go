@@ -17,7 +17,7 @@ type module struct {
 
 func main() {
 	rootFlag := flag.String("root", "..", "v2 module root, resolved from the current directory")
-	suitesFlag := flag.String("suites", "test,standalone,vet,tidy", "comma-separated suites: test,standalone,vet,tidy,race")
+	suitesFlag := flag.String("suites", "test,standalone,vet,tidy", "comma-separated suites: fmt,test,standalone,vet,tidy,race")
 	flag.Parse()
 
 	root, err := filepath.Abs(*rootFlag)
@@ -36,6 +36,12 @@ func main() {
 	for _, suite := range suites {
 		fmt.Printf("\n>>> release suite: %s\n", suite)
 		switch suite {
+		case "fmt":
+			// Formatting used to be checked only by `make verify`, which means
+			// drift reached main whenever somebody did not run it. The check
+			// itself lives in makeguard, so the local target and this suite
+			// cannot disagree about what counts as formatted.
+			run(filepath.Join(root, "tools"), nil, "go", "run", "./makeguard", "gofmt", root)
 		case "test":
 			runForModules(maintained, nil, "go", "test", "./...", "-count=1")
 		case "standalone":
@@ -61,7 +67,7 @@ func main() {
 
 func parseSuites(value string) ([]string, error) {
 	allowed := map[string]struct{}{
-		"test": {}, "standalone": {}, "vet": {}, "tidy": {}, "race": {},
+		"fmt": {}, "test": {}, "standalone": {}, "vet": {}, "tidy": {}, "race": {},
 	}
 	seen := make(map[string]struct{})
 	var suites []string

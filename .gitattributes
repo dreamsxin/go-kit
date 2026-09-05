@@ -1,2 +1,7 @@
 *.mod text eol=lf
 *.sum text eol=lf
+
+# Go files are checked out with LF everywhere. gofmt output is LF, and the fmt
+# release suite compares file bytes against it, so a CRLF checkout would report
+# every file as unformatted on Windows while the committed content is fine.
+*.go text eol=lf

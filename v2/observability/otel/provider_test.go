@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -146,7 +145,6 @@ func (e *countingExporter) Shutdown(context.Context) error {
 	e.shutdowns++
 	return nil
 }
-
 
 func contains(values []string, want string) bool {
 	for _, value := range values {
