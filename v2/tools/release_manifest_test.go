@@ -137,12 +137,9 @@ func TestOnlyOneModuleIsPublishable(t *testing.T) {
 
 // TestNestedModuleTagsAreGone keeps the single-module tag scheme intact.
 //
-// The published module lives in the v2 major-version subdirectory, so its tags
-// are plain versions. A directory-prefixed tag such as
-// v2/integrations/etcd/v0.1.0 only exists to version a nested module, and one of
-// those going missing is what broke the release check before the layout was
-// consolidated. Root version tags accumulate with every release and are not
-// historical debris, so they are not checked here.
+// A release is one plain vX.Y.Z tag, so those accumulate and are not checked
+// here. A directory-prefixed tag would mean a nested module is being versioned
+// separately, which this layout does not do.
 func TestNestedModuleTagsAreGone(t *testing.T) {
 	root := moduleRoot(t)
 	output := commandOutput(t, root, "git", "tag", "--list", "v2/*")

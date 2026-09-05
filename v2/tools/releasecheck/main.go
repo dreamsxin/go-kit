@@ -85,11 +85,10 @@ func resolveScope(repoRoot, cwd, requestedScope string) (string, string, error) 
 // verifyTagState checks the release tag against the manifest phase, and that no
 // nested-module tags exist.
 //
-// v2 ships as one module living in the major-version subdirectory, so its tags
-// are plain versions and they accumulate: v2.8.0 stays after v2.8.1 is cut. Only
-// a directory-prefixed tag such as v2/integrations/etcd/v0.1.0 is debris — it
-// exists solely to version a nested module, and one of those going missing is
-// what broke this check before the layout was consolidated.
+// The published module lives in the v2 major-version subdirectory, so a release
+// is one plain vX.Y.Z tag. Released tags are immutable, so they accumulate. A
+// directory-prefixed tag would mean a nested module is being versioned
+// separately, which the single-module layout does not do.
 func verifyTagState(repoRoot string, manifest releaseconfig.Manifest) error {
 	want, err := expectedTagState(manifest.Phase)
 	if err != nil {

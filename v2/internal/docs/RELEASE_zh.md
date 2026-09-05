@@ -14,10 +14,8 @@ github.com/dreamsxin/go-kit/v2
 行为变更记录在 [CHANGELOG_zh.md](../../CHANGELOG_zh.md)。
 
 已发布模块存储在仓库的 `v2` 主版本子目录中，但使用方请求的是正常的模块版本，例如
-`v2.8.1`。它的标签是普通根标签 `v2.8.1`。根版本 tag 会累积——已发布的 tag 不可变，会
-一直留着。像 `v2/integrations/etcd/v0.1.0` 这样的嵌套 module tag 在单模块合并时已删除，
-且不允许再出现；`releasecheck -check-tags` 检查的正是这一点，外加"本次发布的 tag 在
-`candidate` 阶段必须不存在、在 `released` 阶段必须存在"。
+`v2.8.1`。每次发布对应一个普通根 tag，形如 `vX.Y.Z`；已发布的 tag 不可变，随着版本
+推进逐个累积。
 
 ## 版本策略
 

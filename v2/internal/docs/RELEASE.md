@@ -17,12 +17,8 @@ Behaviour changes in this release are recorded in
 
 The published module is stored in the repository's `v2` major-version
 subdirectory, but consumers request normal module versions such as `v2.8.1`.
-Its tag is the plain root tag `v2.8.1`. Root version tags accumulate — a released
-tag is immutable and stays. Nested module tags such as
-`v2/integrations/etcd/v0.1.0` were removed with the single-module consolidation
-and must never come back; `releasecheck -check-tags` enforces exactly that, plus
-that the tag being released is absent in phase `candidate` and present in phase
-`released`.
+Every release is one plain root tag, `vX.Y.Z`, and a released tag is immutable:
+tags accumulate as releases are cut.
 
 ## Versioning
 
