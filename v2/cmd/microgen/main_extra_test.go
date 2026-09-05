@@ -33,8 +33,8 @@ func TestConfigValidate_ProtoIDL(t *testing.T) {
 }
 
 func TestConfigValidate_BothFromDBAndIDL(t *testing.T) {
-	// fromDB=true 优先，即使 idlPath 也有值也应通过
-	cfg := config{fromDB: true, idlPath: "service.go"}
+	// fromDB=true 优先，即使 idlPath 也有值也应通过；但 -from-db 仍然需要 -dsn。
+	cfg := config{fromDB: true, idlPath: "service.go", dbDSN: "user:pass@tcp(localhost:3306)/shop"}
 	if err := cfg.validate(); err != nil {
 		t.Errorf("validate with both fromDB and idlPath: unexpected error: %v", err)
 	}

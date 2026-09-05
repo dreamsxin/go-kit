@@ -158,6 +158,13 @@ func (c config) validate() error {
 	if !c.fromDB && c.idlPath == "" {
 		return fmt.Errorf("either -idl or -from-db is required")
 	}
+	// Checked here rather than left to the driver: sql.Open(driver, "") fails
+	// with a parse error about an empty DSN, which names nothing the caller can
+	// act on. -dbname is not required alongside it, because a file-backed
+	// database such as SQLite has no database name to give.
+	if c.fromDB && strings.TrimSpace(c.dbDSN) == "" {
+		return fmt.Errorf("-from-db requires -dsn")
+	}
 	return c.generatorOptions("", "").Normalize().Validate()
 }
 

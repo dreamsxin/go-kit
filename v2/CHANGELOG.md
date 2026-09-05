@@ -197,6 +197,10 @@ they are ratios worth trusting, not absolutes.
 
 ### Fixed
 
+- `microgen -from-db` validates that it was given a `-dsn`. Without one it
+  reached `sql.Open(driver, "")` and surfaced the driver's empty-DSN parse error,
+  which names nothing the caller can act on. `-dbname` stays optional: a
+  file-backed database such as SQLite has no database name to give.
 - `NewCORS` declines the opaque `null` origin, which `NewCSRF` already declined.
   Sandboxed documents, `data:` and `file:` pages, and laundered redirects all
   present that origin, so allowing it with credentials granted them a

@@ -53,7 +53,12 @@ func TestConfigValidate(t *testing.T) {
 		pass bool
 	}{
 		{config{fromDB: false, idlPath: ""}, false},
-		{config{fromDB: true, idlPath: ""}, true},
+		// -from-db has to introspect a live schema: without -dsn the driver
+		// reports an empty-DSN parse error instead of naming the flag that was
+		// left out. -dbname is not required, because a file-backed database has
+		// no database name to give.
+		{config{fromDB: true, idlPath: ""}, false},
+		{config{fromDB: true, dbDSN: "user:pass@tcp(localhost:3306)/shop"}, true},
 		{config{fromDB: false, idlPath: "test.go"}, true},
 		{config{fromDB: false, idlPath: "test.go", withConfig: true, configMode: "file"}, true},
 		{config{fromDB: false, idlPath: "test.go", withConfig: true, configMode: "hybrid", remoteProvider: "consul"}, true},

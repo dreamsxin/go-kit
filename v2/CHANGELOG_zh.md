@@ -144,6 +144,9 @@
 
 ### 修复
 
+- `microgen -from-db` 校验自己是否拿到了 `-dsn`。没有它就会一路走到
+  `sql.Open(driver, "")`，抛出驱动的空 DSN 解析错误——那句话没有指向调用方能处理的任何东西。
+  `-dbname` 仍是可选的：像 SQLite 这样基于文件的数据库没有库名可给。
 - `NewCORS` 拒绝不透明的 `null` origin——`NewCSRF` 本来就拒绝它。sandbox 文档、
   `data:`/`file:` 页面以及被重定向洗过的请求都呈现这个 origin，允许它并带凭证等于给它们
   开了一条带凭证的跨域通道。
