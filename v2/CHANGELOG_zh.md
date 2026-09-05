@@ -9,6 +9,29 @@
 
 ### 变更
 
+- 依赖测量的负载均衡由 `sd/feedback.Measure` 装配，那些静默什么也不做的组合被消掉了。
+  `Measured` 在一个已经绑定到发现订阅的 `Table` 之上提供 `LeastRequest`、`Scored`、
+  `SlowStartWeighted`、`Balancer` 与 `Ranking`，而 `Measured.Eject` 加入的正是那条订阅，
+  不再另开一条可能报出不同快照的订阅。`Table.Score`、`Table.Load` 与 `Table.FirstSeen`
+  被移除，因为裸函数恰恰是它们唯一不工作的形态：分数函数交给 `selector.Scored` 而不经过
+  `Table.Wrap`，就没有任何东西写入 table，于是每个实例得分相同、选择退化成随机；而在一张
+  没有跟随发现的 table 上做 slow start，每个实例永远看起来是全新的，每个权重都坍缩成 1。
+  `Table.Scored` 以"已经 Wrap 好的策略"取代前者；`Table.LeastRequest`、`Table.Wrap`、
+  `Table.Stats` 与 `feedback.Follow` 保持不变，供自己装配这些部件的调用方使用。
+  `sd/balancer` 未变，仍是不需要测量的那些策略所在的层——`NewScored` 依然接收 ORCA 或 LRS
+  那类进程外上报，不需要 table——这也是它没有 `NewLeastRequest` 的原因。
+
+- 反馈统计自己就跟随注册而不是健康判定。`health.Checker` 现在实现了
+  `sd.DerivedInstancer`，`feedback.Follow` 与 `Measure` 据此把过滤视图解析回它所派生的
+  Instancer。把健康检查视图交给 `Follow` 曾经让主动与被动健康检查相互抵消：对 retainer
+  来说撤下与注销无法区分，于是探测把实例撤下的那一刻，正是摘除它的那些测量被丢掉的时刻，
+  实例带着一份干净记录回来。
+
+- 服务发现背后的订阅、错误宽限与失效状态机只有一份实现。`sd/selector.Subscription`、
+  `sd/endpointer.Cache` 与 `feedback.Follow` 共用它，`sortInstances` 从五份变成一份，
+  etcd 与 consul 提供者通过 `sd/instance.Cache` 广播而不再各自持有一份私有副本。没有导出
+  API 变化，也没有行为变化；受评审的 API 快照只多了那个新的 internal 包。
+
 - trace context 现在无需接线就能穿过每种传输。`kit.NewHTTP` 在每条路由上提取进来的
   `traceparent`，`kit/grpc.New` 装上提取用的一元与流式拦截器——以 chain 方式安装，
   所以 `grpc.UnaryInterceptor` 仍然留给调用方——`integrations/grpc/client.NewClient`

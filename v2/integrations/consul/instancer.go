@@ -10,15 +10,30 @@ import (
 	"time"
 
 	consul "github.com/hashicorp/consul/api"
+
+	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/instance"
 )
 
 const defaultIndex = 0
 
 var errStopped = errors.New("quit and closed consul instancer")
 
-// 服务实例发现类
+// Instance and Event are aliases for the core discovery snapshot types, so a
+// value built here is interchangeable with sd.Instance and sd.Event and the
+// compiler keeps the two sides from drifting apart.
+type Instance = sd.Instance
+
+type Event = sd.Event
+
+// Instancer discovers the instances of one service.
+//
+// Snapshot fan-out — sorting, dropping an update that changed nothing, and
+// delivering the latest event to a subscriber that has not drained the previous
+// one — is sd/instance.Cache, so every provider in this repository broadcasts
+// identically.
 type Instancer struct {
-	cache       *eventCache
+	cache       *instance.Cache
 	client      Client
 	logger      *slog.Logger
 	service     string
@@ -44,7 +59,7 @@ func NewInstancer(client Client, logger *slog.Logger, service string, passingOnl
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Instancer{
-		cache:       newEventCache(),
+		cache:       instance.NewCache(),
 		client:      client,
 		logger:      logger,
 		service:     service,

@@ -136,7 +136,10 @@ func TestResetDiscardsResultsFromCallsAlreadyInFlight(t *testing.T) {
 func TestRetainRegistersTheArrivalTimeOfNewInstances(t *testing.T) {
 	now := time.Unix(1000, 0)
 	table := feedback.NewTable(feedback.WithClock(func() time.Time { return now }))
-	firstSeen := table.FirstSeen()
+	firstSeen := func(instance sd.Instance) (time.Time, bool) {
+		at := table.Stats(instance).FirstSeen
+		return at, !at.IsZero()
+	}
 
 	early := sd.Instance{Address: "early:80"}
 	table.Retain([]sd.Instance{early})

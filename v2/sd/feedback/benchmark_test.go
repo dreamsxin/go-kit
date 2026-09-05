@@ -75,7 +75,7 @@ func BenchmarkTableLoadAcrossCandidates(b *testing.B) {
 	for _, instance := range instances {
 		table.Observe(instance, sd.Outcome{Latency: time.Millisecond})
 	}
-	load := table.Load()
+	load := loadOf(table)
 	b.ReportAllocs()
 	for b.Loop() {
 		for _, instance := range instances {
@@ -83,6 +83,13 @@ func BenchmarkTableLoadAcrossCandidates(b *testing.B) {
 		}
 	}
 }
+
+// loadOf is the per-candidate read a least-request selection performs, through
+// the same lock-free Stats path the strategy uses.
+func loadOf(table *feedback.Table) func(sd.Instance) int64 {
+	return func(instance sd.Instance) int64 { return table.Stats(instance).InFlight }
+}
+
 
 func BenchmarkTableLoadAcrossCandidatesConcurrent(b *testing.B) {
 	for _, callers := range []int{8, 64} {
@@ -92,7 +99,7 @@ func BenchmarkTableLoadAcrossCandidatesConcurrent(b *testing.B) {
 			for _, instance := range instances {
 				table.Observe(instance, sd.Outcome{Latency: time.Millisecond})
 			}
-			load := table.Load()
+			load := loadOf(table)
 			b.ReportAllocs()
 			runConcurrent(b, callers, func(int, int) {
 				for _, instance := range instances {
@@ -110,7 +117,7 @@ func BenchmarkTableSelectionRoundTrip(b *testing.B) {
 		b.Run(callerLabel(callers), func(b *testing.B) {
 			table := feedback.NewTable()
 			instances := benchInstances(9)
-			load := table.Load()
+			load := loadOf(table)
 			outcome := sd.Outcome{Latency: time.Millisecond}
 			b.ReportAllocs()
 			runConcurrent(b, callers, func(caller, iteration int) {

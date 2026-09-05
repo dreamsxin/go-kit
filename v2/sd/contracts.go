@@ -74,6 +74,22 @@ type Instancer interface {
 	Close() error
 }
 
+// DerivedInstancer is an Instancer publishing a filtered view of another one —
+// active health checking, for one.
+//
+// Withdrawing an instance is not the same claim as deregistering it, so a
+// consumer that releases per-instance state when an instance disappears has to
+// follow the Instancer a view derives from rather than the view itself: to that
+// consumer a withdrawal and a deregistration look alike, and releasing the state
+// that caused the withdrawal would admit the instance again the moment probing
+// recovered. Declaring the source is what lets such a consumer resolve it
+// instead of relying on the caller to remember — see sd/feedback.Measure.
+type DerivedInstancer interface {
+	Instancer
+	// Underlying reports the Instancer this view derives from.
+	Underlying() Instancer
+}
+
 // Registrar registers and deregisters one service instance.
 //
 // Deregister is the whole shutdown story: it must be idempotent and must

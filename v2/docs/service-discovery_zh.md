@@ -16,7 +16,7 @@
 | 固定地址或测试池 | `selector.Static` + `selector.New` |
 | 动态端点与连接复用 | `Instancer` -> `Endpointer` -> `Balancer` |
 | 带明确策略的重试 | 加入 `sd/retry` 或 `sd/client` |
-| 最少请求或被动摘除 | `feedback.Table` + `feedback.Follow` |
+| 最少请求或被动摘除 | `feedback.Measure` |
 | 主动存活检查 | 在 endpointer/selector 之前使用 `health.Check` |
 | 调用方拥有的长连接 | 选择一次，连接结束时调用 `Done(Outcome)` |
 
@@ -198,8 +198,9 @@ lb := balancer.New(set, strategy)
 | 均匀分布 | `selector.RoundRobin` | 一个原子计数器 |
 | 独立随机分布 | `selector.Random` | 避免多客户端步调一致 |
 | 静态容量权重 | `selector.WeightedRandom` | 0 权重可排空实例 |
-| 测量或上报分数 | `selector.Scored` | 最高分胜出 |
-| 本地在途公平 | `table.LeastRequest` | power of two choices；裸的 `selector.LeastRequest` 接受任意 `LoadFunc` |
+| 本进程测量出的分数 | `Measured.Scored` | 错误率、时延与本地并发，取自记录它们的那张表 |
+| 外部上报的分数 | `selector.Scored` / `balancer.NewScored` | 最高分胜出；接受调用方自己的 `ScoreFunc` |
+| 本地在途公平 | `Measured.LeastRequest` | power of two choices；裸的 `selector.LeastRequest` 接受任意 `LoadFunc` |
 | 请求亲和 | `selector.ConsistentHash` | 每次选择都能拿到 request |
 
 候选排序——`selector.Ranker`，返回有序的 `[]sd.Instance`：
@@ -229,7 +230,7 @@ type ScoreFunc func(
 | 需求 | 组件 | 说明 |
 | --- | --- | --- |
 | 每次选择前排除候选 | `selector.Filtered` | 接收 `sd.InstanceFilter` |
-| 让冷实例逐步承接流量 | `selector.SlowStart` | 装饰 `WeightFunc` |
+| 让冷实例逐步承接流量 | `Measured.SlowStartWeighted` | 装配好的形态；`selector.SlowStart` 供自带 `FirstSeenFunc` 的调用方装饰 `WeightFunc` |
 
 `Ranker` 有意不做成 `Strategy`。策略为一次调用指名实例，并通过 `Done` 拥有这次
 调用的生命周期；ranker 返回的是候选，什么都不拥有，因为没有单次调用可归属。
@@ -238,8 +239,16 @@ type ScoreFunc func(
 "下一个是谁"，而不是所有实例上的全序。
 
 端点构造器是同一批 selector 策略的薄封装：`balancer.NewRoundRobin`、`NewRandom`、
-`NewWeightedRandom`、`NewScored` 与 `NewConsistentHash`。组合过滤、反馈或自定义策略时，
+`NewWeightedRandom`、`NewScored` 与 `NewConsistentHash`。组合过滤或自定义策略时，
 使用 `balancer.New(set, strategy)`。
+
+两个包的分工沿着"是否需要测量"划开。`sd/balancer` 覆盖不需要测量的策略：原子计数轮询、
+随机、静态权重、按请求哈希，以及用于本进程并未自己测量的负载信号的
+`balancer.NewScored(set, score)`——ORCA 或 LRS 式的带外上报，调用方已经拿到了分数，
+不需要表。`sd/feedback.Measured` 覆盖需要测量的策略，并连同喂给它们的记账一起提供，
+所以 `sd/balancer` 有意没有最少请求构造器：在途数不是候选集的属性，而是本进程发出的
+调用的实时计数；一个不拥有该计数却返回最少请求的构造器，等于用一个承诺公平的名字返回
+随机选择。
 
 ## 自定义中间件与组件
 
@@ -286,79 +295,96 @@ lb := balancer.New(set, strategy)
 `feedback.Table` 是进程内的记分板，记录 EWMA 时延、错误率、字节数、在途请求，以及
 地址进入表的时间。它不会把采样写回注册中心。
 
-需要多个策略对同一份流量达成一致时，让它们共享一张表：
+入口是 `feedback.Measure`：它创建表，并在返回之前就打开 discovery 订阅。从返回的
+`Measured` 取到的一切，读的都是同一份记账，写的也是同一份：
 
 ```go
-table := feedback.NewTable()
-ejector := feedback.NewEjector(table, feedback.EjectionPolicy{
+measured := feedback.Measure(instancer)
+defer measured.Close()
+
+ejector := measured.Eject(feedback.EjectionPolicy{
     MaxErrorRate: 0.5,
     MinSamples:   5,
 })
 
-following := feedback.Follow(instancer, table, ejector)
-defer following.Close()
-
-strategy := table.Wrap(selector.Filtered(
-    selector.Scored(table.Score()),
+lb := measured.Balancer(set, selector.Filtered(
+    selector.RoundRobin(),
     ejector.Filter(),
 ))
-lb := balancer.New(set, strategy)
+defer lb.Close()
 ```
 
-真正把调用写进表里的是 `table.Wrap`：它在 `Pick` 时累加在途、在 `Done` 时记录结果。
-少了它，表里永远没有数据，所有实例分数相同，`selector.Scored` 退化成随机选择。没有
-采样的实例拿到的是最高分——它得先拿到调用才能被测量；如果这一批冷启动流量太猛，配套
-使用基于 `table.FirstSeen()` 的 `selector.SlowStart`。
+从 `Measured` 取到的每个 balancer 都会把它派发出去的调用记进表里：`Pick` 时累加在途，
+`Done` 时记录时延、错误与字节数。这就是为什么 balancer 由记账给出，而不是把记账交给
+balancer——建立在没人写入的表之上的评分或最少请求策略，看到的所有实例都一模一样，
+最终退化成随机选择，而现在的 API 已经无法构造出这种组合。`measured.Balancer` 是命名
+构造器覆盖不到的策略的出口，比如挂在摘除过滤器后面的策略，或者仍需记录观测的一致性
+哈希；如果测量出的分数本身就是目的，用 `measured.Scored(set)`。
 
-`feedback.Follow` 必须针对完整 discovery 快照保留状态，不要针对已经过滤过的候选集保留；
-否则会抹掉导致实例被摘除的测量值。
+没有采样的实例拿到的是最高分——它得先拿到调用才能被测量；如果这一批冷启动流量太猛，
+配套使用 `Measured.SlowStartWeighted`。
 
-这里也包括包裹同一个 instancer 的 `health.Check`——要传 `instancer`，不要传 `checked`。
-checker 会撤下它判定为不健康的实例，而 retainer 分不清"被撤下"和"已注销"：ejector 会
-丢掉它的摘除记录、table 会丢掉它的测量值，于是探测一恢复，实例就以一份干净的记录回到
-池里，主动与被动健康检查互相抵消。`health.Check` 仍然装饰喂给 endpointer 或 selector
-的那个 instancer，只有 `Follow` 需要未装饰的原始 instancer。
+`Measured.Eject` 加入这个 `Measured` 已经持有的订阅，并直接拿到已经到达的那份快照，
+因此摘除状态与它背后的测量不会对"有哪些实例"产生分歧。订阅针对的是完整 discovery
+快照，而不是已经过滤过的候选集——后者会抹掉导致实例被摘除的测量值。
+
+从另一个 instancer 派生出来的视图——主动健康检查就是其中之一——会通过
+`sd.DerivedInstancer { sd.Instancer; Underlying() sd.Instancer }` 解析回它派生自的那个
+instancer，`*health.Checker` 实现了这个接口。所以传 `checked` 等于跟随 `instancer`。
+这一点之所以重要：checker 会撤下它判定为不健康的实例，而 retainer 分不清"被撤下"和
+"已注销"——ejector 会丢掉它的摘除记录、table 会丢掉它的测量值，于是探测一恢复，实例
+就以一份干净的记录回到池里，主动与被动健康检查互相抵消。`health.Check` 仍然装饰喂给
+endpointer 或 selector 的那个 instancer。
+
+`measured.Close` 停止 discovery 订阅，且是幂等的。它既不关闭 Instancer，也不关闭从它
+取出的任何 Balancer：Balancer 由自己的 `Close` 关闭，Instancer 由创建它的人关闭。
 
 Ejector 按错误率、时延和在途阈值移除不健康候选。摘除在 `BaseDuration` 后到期，连续
 违规地址的窗口会翻倍，直到 `MaxDuration`，并清理导致摘除的测量。`MaxEjectionPercent`
 默认是 50%；整池看起来都坏时进入 panic 模式，保留未摘除的候选集合。
 
-最少请求也是同样的组合，只是没有 endpoint 专用构造器：
+最少请求是同一套装配上的一个命名构造器：
 
 ```go
-strategy := table.LeastRequest(selector.WithChoices(2))
-lb := balancer.New(set, strategy)
+lb := measured.LeastRequest(set, selector.WithChoices(2))
+defer lb.Close()
 ```
 
-外部负载报告直接使用 `selector.Scored`。需要候选短名单时使用 `selector.NewRanker`；
-两者都会通过统一的 `ScoreFunc` 接收 request：
+外部负载报告用 `balancer.NewScored` 加上自己的 `ScoreFunc`，不涉及表。需要候选短名单
+而不是单次选择时，`Measured.Ranking` 用这张表给候选评分：
 
 ```go
 pool := selector.Subscribe(instancer)   // 或 selector.Static(...)
 defer pool.Close()
 
-ranker := selector.NewRanker(pool, table.Score(), ejector.Filter())
+ranker := measured.Ranking(pool, ejector.Filter())
 top, err := ranker.Rank(ctx, request, 3)
 ```
 
+Ranker 不拥有任何一次调用，因此它什么也不记录——一份短名单没有单一结果可归属。它读到
+的分数好不好，取决于还有谁在喂这张表：来自同一个 `Measured` 的 balancer，或者在真正
+发起调用的地方调用 `Table.Observe`。
+
 ## 慢启动
 
-新实例通常是冷的：缓存为空、JIT 未预热、连接池也未建立。`selector.SlowStart` 装饰
-权重函数，在一个时间窗口内逐步恢复到完整权重：
+新实例通常是冷的：缓存为空、JIT 未预热、连接池也未建立。`Measured.SlowStartWeighted`
+按权重函数分配流量，并在一个时间窗口内把每个实例逐步拉升到完整权重：
 
 ```go
-weight := selector.SlowStart(
+lb := measured.SlowStartWeighted(set,
     selector.MetadataWeight("weight", 1),
-    table.FirstSeen(),
     30*time.Second,
 )
-strategy := table.Wrap(selector.WeightedRandom(weight))
+defer lb.Close()
 ```
 
 权重至少为 1，因此预热实例不会完全饿死；权重为 0 不会被拉升，因为 0 的含义就是
-"永远不要选我"。`table.FirstSeen()` 报告实例进入表的时间，所以让表跟随 discovery——
-`feedback.Follow`——爬坡就从实例加入服务的那一刻开始。否则表只会在首次调用时才知道
-这个实例，而没有被调用过的实例是未知的，慢启动会一直按全新实例处理。
+"永远不要选我"。窗口小于等于 0 表示不做爬坡。爬坡从 discovery 首次报告该实例的时刻
+起算，而不是从它的第一次调用起算，而这一点现在是结构性的：`feedback.Measure` 在返回
+之前就打开了订阅，所以"没有跟随任何 discovery 的表"已经无法构造出来。在那样的表上，
+每个实例永远看起来都是全新的，爬坡永远走不完，所有权重都会坍缩成 1。
+
+`selector.SlowStart` 仍是更底层的接缝，供自带 `FirstSeenFunc` 的调用方使用。
 
 ## 主动健康检查
 
@@ -459,7 +485,7 @@ retry 停止调用
 | 所有实例消失 | 主动探针配置、摘除 panic 阈值、服务发现错误处理 |
 | 重试始终落到同一后端 | 一致性哈希本来就是固定的；需要故障转移时换策略 |
 | 停机卡住 | 自定义 Probe 或 endpoint closer 是否忽略取消或耗时过长 |
-| 表随部署持续增长 | 用完整 discovery instancer 调用 `feedback.Follow` |
+| 表随部署持续增长 | `feedback.Measure` 会替你打开那个订阅，它负责释放已经离开的地址 |
 
 重试分类仍由应用决定。`sd/retry` 会为已完成的失败记录
 `retry.Attempt{Address, Err, Latency}`，但不会替应用判断业务操作是否可以重复执行。

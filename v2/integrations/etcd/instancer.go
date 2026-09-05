@@ -8,11 +8,26 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/instance"
 )
 
+// Instance and Event are aliases for the core discovery snapshot types, so a
+// value built here is interchangeable with sd.Instance and sd.Event and the
+// compiler keeps the two sides from drifting apart.
+type Instance = sd.Instance
+
+type Event = sd.Event
+
 // Instancer watches one service prefix in etcd and publishes snapshots.
+//
+// Snapshot fan-out — sorting, dropping an update that changed nothing, and
+// delivering the latest event to a subscriber that has not drained the previous
+// one — is sd/instance.Cache, so every provider in this repository broadcasts
+// identically.
 type Instancer struct {
-	cache     *eventCache
+	cache     *instance.Cache
 	client    Client
 	logger    *slog.Logger
 	namespace string
@@ -49,7 +64,7 @@ func NewInstancer(client Client, logger *slog.Logger, service string, options ..
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Instancer{
-		cache:     newEventCache(),
+		cache:     instance.NewCache(),
 		client:    client,
 		logger:    logger,
 		ctx:       ctx,

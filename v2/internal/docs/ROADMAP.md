@@ -613,12 +613,16 @@ Goal: a discovery assembly that compiles is an assembly that works, and one
 subscription state machine serves every consumer.
 
 - The subscribe, error-grace, and invalidation state machine has one
-  implementation shared by the selector and the endpointer, with one
-  `sortInstances`.
-- `sd/balancer` covers every strategy `sd/selector` offers.
+  implementation shared by the selector, the endpointer, and feedback
+  accounting, with one `sortInstances`.
+- `sd/balancer` covers every strategy that needs no measurement, and that is the
+  whole of its job: the measured ones are assembled by `sd/feedback`, so the
+  optional layer stays optional in the build as well as in the API.
 - Measurement-driven strategies are obtained together with the accounting that
-  feeds them, so a scored or slow-start selector cannot be built without its
-  table wrapper.
+  feeds them, so a scored, least-request, or slow-start balancer cannot be built
+  without its table, its subscription, or its wrapper. Accounting follows
+  registration rather than a health verdict without the caller having to know
+  that it must.
 - An `sd.Registrar` states its conflict semantics — overwrite, create-only, or
   compare-and-swap — as an option, and each provider documents which it
   supports.

@@ -18,57 +18,6 @@ func addresses(addrs ...string) []Instance {
 	return instances
 }
 
-func TestEventCacheCopiesAndKeepsLatestSnapshot(t *testing.T) {
-	cache := newEventCache()
-	instances := addresses("b:8080", "a:8080")
-	cache.Update(Event{Instances: instances})
-	instances[0] = Instance{Address: "mutated"}
-
-	state := cache.Register(nil)
-	if want := addresses("a:8080", "b:8080"); !reflect.DeepEqual(state.Instances, want) {
-		t.Fatalf("initial state = %v, want %v", state.Instances, want)
-	}
-	state.Instances[0] = Instance{Address: "mutated"}
-	if got := cache.Register(nil).Instances[0].Address; got != "a:8080" {
-		t.Fatalf("cached state was mutated through subscriber result: %q", got)
-	}
-
-	updates := make(chan Event, 1)
-	cache.Register(updates)
-	cache.Update(Event{Instances: addresses("c:8080")})
-	cache.Update(Event{Instances: addresses("d:8080")})
-	if got := <-updates; !reflect.DeepEqual(got.Instances, addresses("d:8080")) {
-		t.Fatalf("buffered update = %v, want latest snapshot", got.Instances)
-	}
-	cache.Deregister(updates)
-}
-
-func TestEventCacheBroadcastsMetadataOnlyChanges(t *testing.T) {
-	cache := newEventCache()
-	cache.Update(Event{Instances: []Instance{{Address: "a:8080", Metadata: map[string]any{"zone": "z1"}}}})
-
-	updates := make(chan Event, 1)
-	cache.Register(updates)
-	defer cache.Deregister(updates)
-
-	cache.Update(Event{Instances: []Instance{{Address: "a:8080", Metadata: map[string]any{"zone": "z2"}}}})
-	select {
-	case got := <-updates:
-		if zone := got.Instances[0].Metadata["zone"]; zone != "z2" {
-			t.Fatalf("broadcast zone = %v, want z2", zone)
-		}
-	default:
-		t.Fatal("a relabelled instance was not broadcast as a change")
-	}
-
-	cache.Update(Event{Instances: []Instance{{Address: "a:8080", Metadata: map[string]any{"zone": "z2"}}}})
-	select {
-	case got := <-updates:
-		t.Fatalf("identical snapshot was broadcast: %v", got.Instances)
-	default:
-	}
-}
-
 type fakeClient struct {
 	mu              sync.Mutex
 	calls           int

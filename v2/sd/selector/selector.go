@@ -12,8 +12,8 @@
 //     and no connection is created for an instance nobody calls.
 //
 // Every strategy lives here, including the ones that need to observe the calls
-// they selected: LeastRequest reads a load function and sd/feedback.Table
-// supplies both that function and the accounting behind it. Signals that arrive
+// they selected: LeastRequest reads a load function, and sd/feedback.Measure
+// assembles it with the accounting that supplies one. Signals that arrive
 // out of band — a push report, ORCA, your own metrics table — belong in Scored,
 // and their staleness is a property of that reporting channel, not of this
 // package.

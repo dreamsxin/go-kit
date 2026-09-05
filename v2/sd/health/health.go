@@ -271,6 +271,13 @@ func Check(source sd.Instancer, probe Probe, options ...Option) *Checker {
 // Register subscribes to the checked view of the instance set.
 func (c *Checker) Register(ch chan sd.Event) sd.Event { return c.cache.Register(ch) }
 
+// Underlying reports the Instancer this Checker derives its view from, so a
+// consumer that must follow registrations rather than health verdicts can
+// resolve it — see sd.DerivedInstancer. Without it, feedback accounting told to
+// follow a Checker would release an instance's measurements the moment a probe
+// withdrew it, and active and passive health checking would cancel out.
+func (c *Checker) Underlying() sd.Instancer { return c.source }
+
 // Deregister removes a subscriber.
 func (c *Checker) Deregister(ch chan sd.Event) { c.cache.Deregister(ch) }
 

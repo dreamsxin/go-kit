@@ -7,6 +7,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/internal/subscription"
 )
 
 // Endpointer resolves a set of live Endpoints from a service-discovery source.
@@ -35,49 +36,24 @@ func NewEndpointer(src sd.Instancer, f Factory, logger *slog.Logger, options ...
 	for _, opt := range options {
 		opt(&opts)
 	}
-	se := &DefaultEndpointer{
-		cache:     NewCache(f, logger, opts),
-		instancer: src,
-		ch:        make(chan sd.Event, 1),
-		done:      make(chan struct{}),
-	}
-	initial := src.Register(se.ch)
-	se.cache.Update(initial)
-	se.receiveWG.Add(1)
-	go se.receive()
+	se := &DefaultEndpointer{cache: NewCache(f, logger, opts)}
+	se.feed = subscription.Start(src, se.cache.Update)
 	return se
 }
 
 type DefaultEndpointer struct {
 	cache     *Cache
-	instancer sd.Instancer
-	ch        chan sd.Event
-	done      chan struct{}
+	feed      *subscription.Feed
 	closeOnce sync.Once
-	receiveWG sync.WaitGroup
 	closeErr  error
 }
 
-func (de *DefaultEndpointer) receive() {
-	defer de.receiveWG.Done()
-	for {
-		select {
-		case event, ok := <-de.ch:
-			if !ok {
-				return
-			}
-			de.cache.Update(event)
-		case <-de.done:
-			return
-		}
-	}
-}
-
+// Close stops the subscription and releases every endpoint resource the cache
+// owns. The pump is joined before the cache closes, so an event already in
+// flight is applied rather than dropped half-way.
 func (de *DefaultEndpointer) Close() error {
 	de.closeOnce.Do(func() {
-		de.instancer.Deregister(de.ch)
-		close(de.done)
-		de.receiveWG.Wait()
+		de.feed.Stop()
 		de.closeErr = de.cache.Close()
 	})
 	return de.closeErr

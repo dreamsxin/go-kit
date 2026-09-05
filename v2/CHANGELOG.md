@@ -10,6 +10,40 @@ than described.
 
 ### Changed
 
+- Measurement-driven balancing is assembled by `sd/feedback.Measure`, and the
+  combinations that silently did nothing are gone. A `Measured` hands out
+  `LeastRequest`, `Scored`, `SlowStartWeighted`, `Balancer` and `Ranking` over a
+  `Table` it has already bound to a discovery subscription, and `Measured.Eject`
+  joins that subscription instead of opening a second one that could report a
+  different snapshot. `Table.Score`, `Table.Load` and `Table.FirstSeen` are
+  removed, because a bare function was the one shape of them that did not work: a
+  score handed to `selector.Scored` without `Table.Wrap` recorded nothing, so
+  every instance scored the same and selection degraded to random, and a
+  slow-start ramp over a table following nothing saw every instance as brand new
+  forever and collapsed every weight to one. `Table.Scored` replaces the first as
+  an already-wrapped strategy; `Table.LeastRequest`, `Table.Wrap`, `Table.Stats`
+  and `feedback.Follow` are unchanged for a caller assembling the pieces itself.
+  `sd/balancer` is unchanged and remains the layer for strategies that need no
+  measurement — `NewScored` still takes an out-of-band ORCA or LRS style report
+  and needs no table — which is why it has no `NewLeastRequest`.
+
+- Feedback accounting follows registrations rather than health verdicts on its
+  own. `sd.DerivedInstancer`, which `health.Checker` now implements, lets
+  `feedback.Follow` and `Measure` resolve a filtered view to the Instancer it
+  derives from. Handing the checked view to `Follow` used to cancel active and
+  passive health checking against each other: a withdrawal is indistinguishable
+  from a deregistration to a retainer, so the measurements that ejected an
+  instance were dropped the moment probing withdrew it, and it returned with a
+  clean record.
+
+- The subscribe, error-grace, and invalidation state machine behind service
+  discovery has one implementation. `sd/selector.Subscription`,
+  `sd/endpointer.Cache` and `feedback.Follow` share it, `sortInstances` exists
+  once instead of five times, and the etcd and consul providers broadcast through
+  `sd/instance.Cache` rather than a private copy of it. No exported API changed
+  and no behaviour changed; the reviewed API snapshot gained only the new
+  internal package.
+
 - Trace context now crosses every transport without wiring. `kit.NewHTTP`
   extracts an incoming `traceparent` on every route, `kit/grpc.New` installs the
   extracting unary and stream interceptors — chained, so `grpc.UnaryInterceptor`

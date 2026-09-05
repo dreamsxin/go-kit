@@ -162,19 +162,27 @@ filtered set closes the source it wraps.
 
 ## Selection strategies
 
-`sd/selector` owns the strategies; `sd/balancer` applies them to an endpoint
-set. Six ship today, named after their Envoy/gRPC equivalents.
+`sd/selector` owns the strategies, and they are named after their Envoy/gRPC
+equivalents. Which package applies them follows one line: `sd/balancer` covers
+the strategies that need no measurement, and `sd/feedback.Measured` covers the
+measured ones together with the accounting that feeds them. That is why
+`sd/balancer` has no least-request constructor — one would have to hide a table
+that follows nothing, and a table nobody records into or retains against
+discovery makes every instance look equally idle forever.
 
 | Strategy | Balancer | Strategy (instance layer) | Picks by |
 |----------|----------|---------------------------|----------|
 | Round robin | `balancer.NewRoundRobin` | `selector.RoundRobin` | atomic counter |
 | Random | `balancer.NewRandom` | `selector.Random` | uniform draw |
 | Weighted random | `balancer.NewWeightedRandom` | `selector.WeightedRandom` | weight per instance |
-| Scored | `balancer.NewScored` | `selector.Scored` | caller-supplied score, highest wins |
-| Least request | `balancer.New` + `table.LeastRequest()` | `selector.LeastRequest` | in-flight count, power-of-two-choices |
+| Slow start | `Measured.SlowStartWeighted` | `selector.SlowStart` | weight ramped from first seen |
+| Scored, reported | `balancer.NewScored` | `selector.Scored` | caller-supplied score, highest wins |
+| Scored, measured | `Measured.Scored` | `selector.Scored` | this table's error rate, latency, in flight |
+| Least request | `Measured.LeastRequest` | `selector.LeastRequest` | in-flight count, power-of-two-choices |
 | Consistent hash | `balancer.NewConsistentHash` | `selector.ConsistentHash` | hash of a request key |
 
 ```go
+
 // Uniform random
 client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
 	return balancer.NewRandom(set)
@@ -186,14 +194,18 @@ client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
 	return balancer.NewWeightedRandom(set, balancer.MetadataWeight(balancer.DefaultWeightKey, 1))
 })
 
-// Least request: two random candidates, lower in-flight count wins. The table
-// is the caller's, because the same measurements also drive scoring, ejection,
-// and slow start — see "Writing a strategy" below.
+// Least request: two random candidates, lower in-flight count wins. The
+// balancer comes from the accounting, because the same measurements also drive
+// scoring, ejection, and slow start — see "Writing a strategy" below.
+measured := feedback.Measure(instancer)
+defer measured.Close()
+
 client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
-	return balancer.New(set, table.LeastRequest(selector.WithChoices(2)))
+	return measured.LeastRequest(set, selector.WithChoices(2))
 })
 
 // Scored: follow a load signal this process did not measure itself. The unified
+
 // ScoreFunc also receives ctx and request for request-specific routing.
 client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
 	return balancer.NewScored(set, func(_ context.Context, _ any, instance sd.Instance) (float64, bool) {
@@ -234,11 +246,11 @@ Four behaviours are worth knowing before you pick one:
   weight is zero or below. That is a selectable-instance shortage, and the
   default retry classifier treats it as temporary. `Scored` reports the same
   when every instance is excluded.
-- Least request reads in-flight depth from a `feedback.Table` and records into
-  the same one, so picking and accounting cannot drift apart. Nothing is
-  published to the registry, and one table can also feed scoring and passive
-  health. It is available at both layers: `selector.LeastRequest` takes any
-  `LoadFunc`.
+- Least request reads in-flight depth from the `feedback.Table` behind a
+  `feedback.Measured` and records into the same one, so picking and accounting
+  cannot drift apart. Nothing is published to the registry, and one table also
+  feeds scoring, ejection, and slow start. The strategy is available at both
+  layers: `selector.LeastRequest` takes any `LoadFunc`.
 - `Scored` is the seam for signals measured elsewhere — a report the instances
   push, ORCA/LRS style out-of-band reporting, your own table. Such a signal is
   stale by at least one reporting interval; that is inherent to the channel, not
@@ -351,25 +363,25 @@ A strategy that owns nothing — every built-in one — needs no `Close` at all;
 `selector.CloseStrategy` is a no-op for it.
 
 
-To collect feedback from the calls themselves, use `sd/feedback.Table`. One
+To collect feedback from the calls themselves, use `sd/feedback.Measure`. One
 process-local table serves every policy: it scores, it counts what is in flight,
-and it records when an address was first seen:
+and it records when an address was first seen. `Measure` subscribes to discovery
+before it returns, so everything taken from it reads accounting aligned with the
+live snapshot:
 
 ```go
-table := feedback.NewTable()
-ejector := feedback.NewEjector(table, feedback.EjectionPolicy{
+// Keep the table the size of the service, not of the deployment history:
+// addresses that leave discovery take their measurements with them.
+measured := feedback.Measure(instancer)
+defer measured.Close()
+
+ejector := measured.Eject(feedback.EjectionPolicy{
 	MaxErrorRate: 0.5,
 	MinSamples:   5,
 })
 
-// Keep the table the size of the service, not of the deployment history:
-// addresses that leave discovery take their measurements with them.
-following := feedback.Follow(instancer, table, ejector)
-defer following.Close()
-
-strategy := table.Wrap(selector.Filtered(selector.Scored(table.Score()), ejector.Filter()))
-
-lb := balancer.New(set, strategy)
+lb := measured.Balancer(set,
+	selector.Filtered(selector.RoundRobin(), ejector.Filter()))
 defer lb.Close()
 
 picked, err := lb.Pick(ctx, request)
@@ -380,13 +392,27 @@ picked.Done(sd.Outcome{Err: err, Latency: time.Since(started)})
 _ = response
 ```
 
-`feedback.Follow` takes one subscription to the instancer and feeds every
-`feedback.Retainer` — the table and any ejector — so a departed address is
-forgotten in one place. A discovery error is not treated as "everything is
-gone": the last good set stays. Subscribe it to the raw instancer, not to a
-`health.Check` wrapping it: a retainer cannot tell a health withdrawal from a
-deregistration, so it would forget the ejection record and the measurements
-behind it every time probing dipped.
+`Measured.Balancer` is the escape hatch, for a strategy the named constructors
+do not cover — one behind an ejection filter, or a consistent hash that should
+still record what it observes. Where the measurements should also choose rather
+than only exclude, `measured.Scored(set)` and `measured.LeastRequest(set)` are
+the same assembly with scoring or in-flight depth in place of round robin, and
+`measured.Table()` reaches the table itself to read `Stats` or to record an
+outcome observed where no balancer can see it. One `Close` stops the
+subscription, and it closes neither the instancer nor any balancer taken from
+here. A nil instancer panics: there is no table worth having without one.
+
+`feedback.Measure` takes one subscription to the instancer and feeds every
+`feedback.Retainer` behind it — the table, and every ejector `Measured.Eject`
+joins to it — so a departed address is forgotten in one place. An ejector that
+joins after the first snapshot arrived is handed that snapshot instead of waiting
+for the next one. A discovery error is not treated as "everything is gone": the
+last good set stays. A view derived from another instancer — active health
+checking, for one — is resolved to the instancer it derives from through
+`sd.DerivedInstancer`, which `*health.Checker` implements, so handing over a
+checked view is structurally the same subscription as handing over the raw one: a
+retainer cannot tell a health withdrawal from a deregistration, and no longer has
+to. `feedback.Follow` remains the lower-level seam, for retainers of your own.
 
 `sd.Match` is a per-instance predicate for static labels; passive ejection is an
 `sd.InstanceFilter`, which receives the whole candidate set, because whether one
@@ -429,13 +455,17 @@ gateway, an agent — connects on its own:
 pool := selector.Subscribe(instancer)   // any selector.Source, not a slice
 defer pool.Close()
 
-rank := selector.NewRanker(pool, table.Score(), ejector.Filter())
+rank := measured.Ranking(pool, ejector.Filter())
 top, err := rank.Rank(ctx, request, 3)   // best first, deterministic on ties
 ```
 
 `n <= 0` returns everything scorable, ordered. Ties break on address so two
 
-processes ranking the same snapshot agree.
+processes ranking the same snapshot agree. `Measured.Ranking` scores from the
+same table the balancers use, and records nothing itself: a shortlist has no one
+outcome to attribute, so its scores are only as good as what else feeds the
+table — a balancer taken from the same `Measured`, or `Table.Observe` called
+where the calls actually run.
 
 ### Slow start
 
@@ -445,16 +475,19 @@ handed the full share of traffic before its caches, pools, and JIT are warm.
 `selector.SlowStart` ramps its weight up over a window instead:
 
 ```go
-weight := selector.SlowStart(selector.MetadataWeight("weight", 1), table.FirstSeen(), 30*time.Second)
-strategy := table.Wrap(selector.WeightedRandom(weight))
+lb := measured.SlowStartWeighted(set, selector.MetadataWeight("weight", 1),
+	30*time.Second)
+defer lb.Close()
 ```
 
 The instance reaches its configured weight when the window elapses; before that
-it holds at least 1, so it is never starved, and a weight of 0 is left at 0.
-`table.FirstSeen` supplies the timestamps, which is why the ramp survives a
-strategy being rebuilt. Drive the table from discovery (`feedback.Follow`) so
-those timestamps are arrival times; a table that only learns of an instance on
-its first call reports it as unknown until then, and unknown ramps from scratch.
+it holds at least 1, so it is never starved, and a weight of 0 is left at 0. The
+ramp is dated from the discovery subscription rather than from the instance's
+first call, which is why it survives a strategy being rebuilt: a table that only
+learns of an instance when something calls it reports every instance as brand new
+forever, and the ramp never finishes. Taking the balancer from a `Measured` makes
+that structural instead of a rule to remember. `selector.SlowStart` remains the
+lower-level seam for a caller supplying its own `FirstSeenFunc`.
 
 ### Draining
 
@@ -509,8 +542,8 @@ only when reaching a dead instance is worse than reaching none.
 Instancer → [health.Check] → [selector.Filter] → Selector             → instance
 Instancer → [health.Check] → Endpointer → [Filter] → Balancer → Retry → endpoint
                                                         ↑ Outcome ↓
-Instancer → feedback.Follow ───────────────────────→ feedback.Table + Ejector
-            (the raw one, never the checked one)
+Instancer → feedback.Measure ──────────────────────→ feedback.Table + Ejector
+            (a checked view resolves to the instancer under it)
 ```
 
 Two assemblies, one set of strategies; callers that never issue the call

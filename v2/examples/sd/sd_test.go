@@ -342,12 +342,11 @@ func TestFeedback_EjectsFailingInstanceAndForgetsRemovedOnes(t *testing.T) {
 	set := endpointer.NewEndpointer(cache, failing, nopLogger)
 	t.Cleanup(func() { _ = set.Close() })
 
-	table := feedback.NewTable(feedback.WithAlpha(1))
-	ejector := feedback.NewEjector(table, feedback.EjectionPolicy{MaxErrorRate: 0.5, MinSamples: 1})
-	following := feedback.Follow(cache, table, ejector)
-	t.Cleanup(func() { _ = following.Close() })
+	measured := feedback.Measure(cache, feedback.WithAlpha(1))
+	t.Cleanup(func() { _ = measured.Close() })
+	ejector := measured.Eject(feedback.EjectionPolicy{MaxErrorRate: 0.5, MinSamples: 1})
 
-	lb := balancer.New(set, table.Wrap(selector.Filtered(selector.RoundRobin(), ejector.Filter())))
+	lb := measured.Balancer(set, selector.Filtered(selector.RoundRobin(), ejector.Filter()))
 	t.Cleanup(func() { _ = lb.Close() })
 
 	failures := 0
@@ -363,7 +362,7 @@ func TestFeedback_EjectsFailingInstanceAndForgetsRemovedOnes(t *testing.T) {
 
 	cache.Update(sd.Event{Instances: sd.Addresses("good:80")})
 	time.Sleep(20 * time.Millisecond)
-	if got := table.Stats(sd.Instance{Address: "bad:80"}).Samples; got != 0 {
+	if got := measured.Table().Stats(sd.Instance{Address: "bad:80"}).Samples; got != 0 {
 		t.Fatalf("samples retained for a removed instance = %d, want 0", got)
 	}
 }

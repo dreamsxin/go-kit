@@ -151,16 +151,21 @@ func TestSubscribe_InvalidateOnErrorDropsSnapshotAfterGracePeriod(t *testing.T) 
 	cache.Update(sd.Event{Instances: instances("a:80")})
 
 	failing := errors.New("registry down")
-	subscription := selector.Subscribe(cache, selector.InvalidateOnError(40*time.Millisecond))
+	// The margins are wide because this asserts against the wall clock. A
+	// scheduling delay on a loaded machine has to fit inside the grace period, or
+	// the first read lands past the deadline and the test fails for the opposite
+	// of the reason it exists. The state machine's own deadline arithmetic is
+	// covered against a fake clock in sd/internal/subscription.
+	subscription := selector.Subscribe(cache, selector.InvalidateOnError(400*time.Millisecond))
 	t.Cleanup(func() { _ = subscription.Close() })
 
 	cache.Update(sd.Event{Err: failing})
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
 	if got := snapshot(t, subscription); len(got) != 1 {
 		t.Fatalf("snapshot within the grace period = %v, want the cached instance", got)
 	}
 
-	time.Sleep(60 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	if _, err := subscription.Instances(); !errors.Is(err, failing) {
 		t.Fatalf("Instances error = %v, want the discovery error after the grace period", err)
 	}

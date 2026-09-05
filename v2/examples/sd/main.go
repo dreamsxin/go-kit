@@ -380,19 +380,19 @@ func demo8_Feedback(logger *slog.Logger) {
 	defer set.Close() //nolint:errcheck
 
 	// One table serves every policy: it ejects, it scores, and it counts what is
-	// in flight. Follow keeps it the size of the service rather than the size of
-	// the deployment history, and drives the ejector's state with the same
-	// subscription.
-	table := feedback.NewTable(feedback.WithAlpha(1))
-	ejector := feedback.NewEjector(table, feedback.EjectionPolicy{
+	// in flight. Measure opens the discovery subscription that keeps it the size
+	// of the service rather than the size of the deployment history, and Eject
+	// joins that same subscription, so the ejection state and the measurements
+	// behind it cannot disagree about which instances exist.
+	measured := feedback.Measure(cache, feedback.WithAlpha(1))
+	defer measured.Close() //nolint:errcheck
+	ejector := measured.Eject(feedback.EjectionPolicy{
 		MaxErrorRate: 0.5,
 		MinSamples:   1,
 		BaseDuration: 50 * time.Millisecond,
 	})
-	following := feedback.Follow(cache, table, ejector)
-	defer following.Close() //nolint:errcheck
 
-	lb := balancer.New(set, table.Wrap(selector.Filtered(selector.RoundRobin(), ejector.Filter())))
+	lb := measured.Balancer(set, selector.Filtered(selector.RoundRobin(), ejector.Filter()))
 	defer lb.Close() //nolint:errcheck
 
 	seen := map[string]int{}
@@ -406,7 +406,7 @@ func demo8_Feedback(logger *slog.Logger) {
 	}
 	fmt.Printf("  30 calls → %v\n", seen)
 	fmt.Printf("  bad:80 error rate %.0f%%, ejected after its first failure\n",
-		table.Stats(sd.Instance{Address: "bad:80"}).ErrorRate*100)
+		measured.Table().Stats(sd.Instance{Address: "bad:80"}).ErrorRate*100)
 
 	// Ejection expires. Without that, an instance receiving no traffic produces
 	// no new measurements, so nothing would ever clear the ones that ejected it.
@@ -421,7 +421,7 @@ func demo8_Feedback(logger *slog.Logger) {
 	cache.Update(sd.Event{Instances: sd.Addresses("good-A:80", "good-B:80")})
 	time.Sleep(10 * time.Millisecond)
 	fmt.Printf("  after bad:80 leaves discovery, samples retained for it: %d\n",
-		table.Stats(sd.Instance{Address: "bad:80"}).Samples)
+		measured.Table().Stats(sd.Instance{Address: "bad:80"}).Samples)
 }
 
 // ── main ──────────────────────────────────────────────────────────────────────
@@ -551,8 +551,9 @@ func demo11_SlowStart() {
 		"warming:80": time.Now().Add(-window / 4),
 		"cold:80":    time.Now(),
 	}
-	// In a real assembly this is table.FirstSeen(), so the ramp survives the
-	// strategy being rebuilt.
+	// In a real assembly this comes from feedback.Measure, which dates each
+	// instance from the discovery subscription — see Measured.SlowStartWeighted.
+	// Supplying it by hand, as here, is the lower-level seam.
 	first := selector.FirstSeenFunc(func(item sd.Instance) (time.Time, bool) {
 		at, known := seen[item.Address]
 		return at, known

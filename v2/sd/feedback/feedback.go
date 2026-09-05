@@ -7,6 +7,14 @@
 // its in-flight depth, Scored reads its latency and error rate, slow start reads
 // when an instance was first seen, and Ejector reads all of them. Keeping one
 // store means those policies cannot disagree about what is happening.
+//
+// Measure is the entry point. It binds a Table to a discovery subscription and
+// hands out the balancers that read it, so a measurement-driven assembly that
+// compiles is one that works: the strategy comes with its accounting, the
+// accounting comes with its subscription, and an Ejector joins the subscription
+// that is already there. Table, Follow, and Wrap remain for a caller assembling
+// those pieces itself — recording outcomes observed somewhere no balancer can
+// see them, for one.
 package feedback
 
 import (
@@ -18,6 +26,7 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/internal/subscription"
 	"github.com/dreamsxin/go-kit/v2/sd/selector"
 )
 
@@ -324,77 +333,103 @@ type Retainer interface {
 // cannot drift apart. The returned Closer unsubscribes; it does not close the
 // Instancer.
 //
-// Pass the raw Instancer, not a health.Check decorating it. A checker withdraws
-// an instance it considers unhealthy, and to a retainer a withdrawal is
-// indistinguishable from deregistration: Ejector.Retain drops the ejection
-// state, so the instance returns with a clean record the moment probing
+// Follow is the primitive. Measure is the assembly: it builds the table, follows
+// it, and hands out balancers that read it, which is the path that cannot be
+// wired up wrong.
+//
+// A view derived from another Instancer — active health checking, for one — is
+// resolved to the Instancer it derives from through sd.DerivedInstancer. A
+// checker withdraws an instance it considers unhealthy, and to a retainer a
+// withdrawal is indistinguishable from deregistration: Ejector.Retain drops the
+// ejection state, so the instance returns with a clean record the moment probing
 // recovers, and Table.Retain drops the measurements that ejected it. Active and
 // passive health checking would cancel each other out. Following registration
 // instead means a retainer only forgets an instance that has actually left the
 // service.
 func Follow(instancer sd.Instancer, retainers ...Retainer) io.Closer {
+	return follow(instancer, retainers...)
+}
+
+// follower is the subscription behind Follow and Measure. A retainer can join
+// after it starts, which is what lets an Ejector share the subscription the
+// Table it reads already has instead of opening a second one that could report a
+// different snapshot.
+type follower struct {
+	feed *subscription.Feed
+
+	mtx       sync.Mutex
+	retainers []Retainer
+	snapshot  []sd.Instance
+	known     bool
+}
+
+func follow(instancer sd.Instancer, retainers ...Retainer) *follower {
 	if instancer == nil {
 		panic("feedback: nil instancer")
 	}
-	kept := make([]Retainer, 0, len(retainers))
+	f := &follower{retainers: make([]Retainer, 0, len(retainers))}
 	for _, retainer := range retainers {
 		if retainer != nil {
-			kept = append(kept, retainer)
+			f.retainers = append(f.retainers, retainer)
 		}
 	}
-
-	events := make(chan sd.Event, 1)
-	initial := instancer.Register(events)
-	if initial.Err == nil {
-		retain(kept, initial.Instances)
-	}
-
-	follower := &follower{instancer: instancer, events: events, done: make(chan struct{})}
-	follower.wg.Add(1)
-	go func() {
-		defer follower.wg.Done()
-		for {
-			select {
-			case <-follower.done:
-				return
-			case event, ok := <-events:
-				// A provider must not close a channel it was handed (see
-				// sd.Instancer), but this loop is not the place to spin if one
-				// does.
-				if !ok {
-					return
-				}
-				// A failed snapshot says nothing about which instances exist,
-				// so it must not be treated as "everything else is gone".
-				if event.Err == nil {
-					retain(kept, event.Instances)
-				}
-			}
-		}
-	}()
-	return follower
+	f.feed = subscription.Start(registrations(instancer), f.update)
+	return f
 }
 
-func retain(retainers []Retainer, instances []sd.Instance) {
+// registrations resolves a derived view to the Instancer it derives from, so
+// what a retainer follows is registration rather than a filtered verdict.
+func registrations(instancer sd.Instancer) sd.Instancer {
+	for {
+		derived, ok := instancer.(sd.DerivedInstancer)
+		if !ok {
+			return instancer
+		}
+		source := derived.Underlying()
+		// A view that reports no source, or itself, is as far as this goes.
+		if source == nil || source == instancer {
+			return instancer
+		}
+		instancer = source
+	}
+}
+
+func (f *follower) update(event sd.Event) {
+	// A failed snapshot says nothing about which instances exist, so it must not
+	// be treated as "everything else is gone".
+	if event.Err != nil {
+		return
+	}
+	f.mtx.Lock()
+	f.snapshot = event.Instances
+	f.known = true
+	retainers := append([]Retainer(nil), f.retainers...)
+	f.mtx.Unlock()
+	// Outside the lock: a retainer walks its own state, and add must not wait on
+	// it to publish the snapshot to a newcomer.
 	for _, retainer := range retainers {
-		retainer.Retain(instances)
+		retainer.Retain(event.Instances)
 	}
 }
 
-type follower struct {
-	instancer sd.Instancer
-	events    chan sd.Event
-	done      chan struct{}
-	wg        sync.WaitGroup
-	once      sync.Once
+// add registers a retainer and hands it the snapshot already seen, so one that
+// joins after the first event is not left waiting for the next one — which, for
+// a service whose instance set never changes again, is never.
+func (f *follower) add(retainer Retainer) {
+	if retainer == nil {
+		return
+	}
+	f.mtx.Lock()
+	f.retainers = append(f.retainers, retainer)
+	snapshot, known := f.snapshot, f.known
+	f.mtx.Unlock()
+	if known {
+		retainer.Retain(snapshot)
+	}
 }
 
 func (f *follower) Close() error {
-	f.once.Do(func() {
-		f.instancer.Deregister(f.events)
-		close(f.done)
-		f.wg.Wait()
-	})
+	f.feed.Stop()
 	return nil
 }
 
@@ -443,27 +478,25 @@ func statsOf(item *entry) Stats {
 	return stats
 }
 
-// Score returns a selector score function. Higher scores are better.
+// score rates an instance from what this table measured. Higher is better.
 //
 // The formula is (1-errorRate) / (1 + latencyMilliseconds + inFlight): errors
 // scale the score down, while latency and local concurrency are summed, which
 // treats one millisecond of latency as equivalent to one call in flight. That
-// equivalence is a default, not a law. A caller who wants different weights
-// reads Stats and writes its own selector.ScoreFunc.
+// equivalence is a default, not a law. A caller who wants different weights reads
+// Stats and writes its own selector.ScoreFunc, which balancer.NewScored takes.
 //
-// The score is only as good as what the table was told, so wrap the strategy
-// that consumes it:
+// It is unexported because a bare score function is the one shape of this that
+// does not work: handed to selector.Scored without Wrap, nothing records into the
+// table, every instance scores the same, and selection degrades to random. Scored
+// and Measured.Scored are the two ways to spend it, and both wrap.
 //
-//	strategy := table.Wrap(selector.Scored(table.Score()))
-//
-// Without Wrap nothing records into the table, every instance scores the same,
-// and Scored degrades to a random pick. An instance with no samples yet scores
-// the maximum 1: no errors, no latency, nothing in flight. That is intentional —
-// an unmeasured instance has to receive calls before it can be measured — and it
-// is self-limiting under Wrap, because in-flight rises at Pick and drops the
-// score before the first outcome arrives. To ramp a cold instance more gently
-// than that, weight it with selector.SlowStart over Table.FirstSeen.
-func (t *Table) Score() selector.ScoreFunc {
+// An instance with no samples yet scores the maximum 1: no errors, no latency,
+// nothing in flight. That is intentional — an unmeasured instance has to receive
+// calls before it can be measured — and it is self-limiting under Wrap, because
+// in-flight rises at Pick and drops the score before the first outcome arrives.
+// To ramp a cold instance more gently than that, see Measured.SlowStartWeighted.
+func (t *Table) score() selector.ScoreFunc {
 	return func(_ context.Context, _ any, instance sd.Instance) (float64, bool) {
 		stats := t.Stats(instance)
 		latencyMS := float64(stats.Latency) / float64(time.Millisecond)
@@ -478,18 +511,19 @@ func (t *Table) Score() selector.ScoreFunc {
 	}
 }
 
-// Load returns the in-flight depth of an instance, for
-// selector.LeastRequest.
-func (t *Table) Load() selector.LoadFunc {
+// load reports the in-flight depth of an instance, for selector.LeastRequest.
+func (t *Table) load() selector.LoadFunc {
 	return func(instance sd.Instance) int64 { return t.Stats(instance).InFlight }
 }
 
-// FirstSeen returns when each instance entered the table, for
-// selector.SlowStart. Follow the discovery snapshot so this is the instance's
-// arrival time; without that, an instance is unknown until its first call and
-// slow start treats unknown as brand new, so the ramp never starts. Instances
-// the table has not seen report false.
-func (t *Table) FirstSeen() selector.FirstSeenFunc {
+// firstSeen reports when each instance entered the table, for selector.SlowStart.
+//
+// It is unexported because it is only meaningful on a table that follows
+// discovery: without that, an instance is unknown until its first call, slow
+// start treats unknown as brand new, and every weight collapses to 1 — uniform
+// selection wearing a ramp's name. Measured.SlowStartWeighted is the assembly
+// that has the subscription by construction.
+func (t *Table) firstSeen() selector.FirstSeenFunc {
 	return func(instance sd.Instance) (time.Time, bool) {
 		stats := t.Stats(instance)
 		return stats.FirstSeen, !stats.FirstSeen.IsZero()
@@ -500,18 +534,42 @@ func (t *Table) FirstSeen() selector.FirstSeenFunc {
 // in-flight depth and records into the same table, so picking and accounting
 // cannot drift apart.
 func (t *Table) LeastRequest(options ...selector.LeastRequestOption) selector.Strategy {
-	return t.Wrap(selector.LeastRequest(t.Load(), options...))
+	return t.Wrap(selector.LeastRequest(t.load(), options...))
+}
+
+// Scored is the assembled scored strategy: it rates each instance by what this
+// table measured — see the score formula on Stats — and records into the same
+// table, so the scores it reads are the scores its own traffic produced.
+//
+// For a load signal this process did not measure itself — a report pushed by the
+// instances, ORCA or LRS style out-of-band reporting — balancer.NewScored takes
+// the caller's own selector.ScoreFunc and needs no table.
+func (t *Table) Scored() selector.Strategy {
+	return t.Wrap(selector.Scored(t.score()))
 }
 
 // Wrap augments a strategy with local accounting. The selected strategy's
 // callback, when present, runs before the table records the same outcome.
 //
+// Wrapping a strategy this table already wraps returns it unchanged, because
+// doubling the layer would count one call as two in flight — the misreading a
+// measured strategy exists to prevent. `measured.Balancer(set, table.Scored())`
+// is the reachable way to ask for that, and it is now harmless. The check is one
+// level deep and by identity: a wrapper buried under another decorator is not
+// found, and a different table's wrapper is left alone, since two tables
+// deliberately recording the same traffic is a composition rather than a
+// mistake.
+//
 // Close forwards to strategy, so a strategy that owns something still gets
 // closed through this layer. The table itself holds no goroutine and needs no
-// closing; a table that follows discovery is closed through the Follow closer.
+// closing; a table that follows discovery is closed through the Follow closer,
+// or through Measured.Close.
 func (t *Table) Wrap(strategy selector.Strategy) selector.Strategy {
 	if strategy == nil {
 		panic("feedback: nil strategy")
+	}
+	if already, ok := strategy.(*wrapped); ok && already.table == t {
+		return already
 	}
 	return &wrapped{table: t, strategy: strategy}
 }

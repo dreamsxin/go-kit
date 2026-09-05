@@ -8,9 +8,9 @@ import (
 )
 
 // LoadFunc reports the current load of an instance; lower is better. It exists
-// so the strategy stays independent of who measures: sd/feedback.Table.Load is
-// the in-process measurement, but a caller with its own accounting can supply
-// that instead.
+// so the strategy stays independent of who measures: sd/feedback.Measured
+// supplies the in-process measurement together with the accounting that
+// produces it, but a caller with its own accounting can supply this instead.
 type LoadFunc func(instance sd.Instance) int64
 
 // DefaultChoices is how many candidates a least-request selection samples. Two

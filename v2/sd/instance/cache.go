@@ -3,10 +3,10 @@ package instance
 import (
 	"maps"
 	"reflect"
-	"sort"
 	"sync"
 
 	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/internal/subscription"
 )
 
 // Cache is an in-memory Instancer backed by explicit Update calls.
@@ -33,7 +33,7 @@ func NewCache() *Cache {
 // are silently dropped.
 func (c *Cache) Update(event sd.Event) {
 	event = copyEvent(event)
-	sortInstances(event.Instances)
+	subscription.SortInstances(event.Instances)
 
 	c.mtx.Lock()
 	if c.closed {
@@ -128,10 +128,4 @@ func valuesEqual(a, b any) bool {
 		return true
 	}
 	return reflect.DeepEqual(a, b)
-}
-
-func sortInstances(instances []sd.Instance) {
-	sort.Slice(instances, func(i, j int) bool {
-		return instances[i].Address < instances[j].Address
-	})
 }

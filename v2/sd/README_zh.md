@@ -153,19 +153,25 @@ sd.And(
 
 ## 选择策略
 
-策略由 `sd/selector` 拥有，`sd/balancer` 负责把它们应用到端点集合上。目前内置
-六种，命名对齐 Envoy/gRPC 的同名实现。
+策略由 `sd/selector` 拥有，命名对齐 Envoy/gRPC 的同名实现。由哪个包应用它们只有
+一条线：`sd/balancer` 负责无需度量的策略，`sd/feedback.Measured` 负责需要度量的
+策略，并连带提供喂给它们的统计。这也是为什么 `sd/balancer` 没有最少请求构造器——
+这样的构造器只能藏一张什么都不跟随的表，而没人记录、也不随服务发现回收的表，
+会让每个实例永远看起来一样空闲。
 
 | 策略 | 均衡器 | 策略（实例层） | 依据 |
 |----------|--------|----------------|------|
 | 轮询 | `balancer.NewRoundRobin` | `selector.RoundRobin` | 原子计数器 |
 | 随机 | `balancer.NewRandom` | `selector.Random` | 均匀抽样 |
 | 加权随机 | `balancer.NewWeightedRandom` | `selector.WeightedRandom` | 每个实例的权重 |
-| 评分 | `balancer.NewScored` | `selector.Scored` | 调用方给出的分数，最高者胜 |
-| 最少请求 | `balancer.New` + `table.LeastRequest()` | `selector.LeastRequest` | 在途请求数，二选一（P2C） |
+| 慢启动 | `Measured.SlowStartWeighted` | `selector.SlowStart` | 从首次出现时间爬升的权重 |
+| 评分（外部上报） | `balancer.NewScored` | `selector.Scored` | 调用方给出的分数，最高者胜 |
+| 评分（本进程度量） | `Measured.Scored` | `selector.Scored` | 本表的错误率、时延、在途数 |
+| 最少请求 | `Measured.LeastRequest` | `selector.LeastRequest` | 在途请求数，二选一（P2C） |
 | 一致性哈希 | `balancer.NewConsistentHash` | `selector.ConsistentHash` | 请求键的哈希 |
 
 ```go
+
 // 均匀随机
 client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
 	return balancer.NewRandom(set)
@@ -177,13 +183,17 @@ client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
 	return balancer.NewWeightedRandom(set, balancer.MetadataWeight(balancer.DefaultWeightKey, 1))
 })
 
-// 最少请求：随机取两个候选，在途请求少的胜出。表由调用方持有，因为同一份
+// 最少请求：随机取两个候选，在途请求少的胜出。均衡器由统计给出，因为同一份
 // 测量数据还要驱动评分、摘除与慢启动——见下文"自定义策略"。
+measured := feedback.Measure(instancer)
+defer measured.Close()
+
 client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
-	return balancer.New(set, table.LeastRequest(selector.WithChoices(2)))
+	return measured.LeastRequest(set, selector.WithChoices(2))
 })
 
 // 评分：跟随本进程并未亲自度量的负载信号。统一的 ScoreFunc 也会收到 ctx 和 request，
+
 // 可用于按请求路由。
 client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
 	return balancer.NewScored(set, func(_ context.Context, _ any, instance sd.Instance) (float64, bool) {
@@ -220,9 +230,9 @@ client.WithBalancer(func(set endpointer.InstanceEndpointer) sd.Balancer {
 - 当端点存在但所有权重都不大于 0 时，加权随机返回 `sd.ErrNoEndpoints`。
   这属于"可选实例不足"，默认重试分类器会把它当作临时状况。所有实例都被排除时，
   `Scored` 返回同一个错误。
-- 最少请求从 `feedback.Table` 读取在途深度，并把结果记回同一张表，
-  因此"依据什么选"和"记录了什么"不会脱节。它不向注册中心上报，
-  同一张表还能同时供评分和被动健康检查使用。两层都可用：
+- 最少请求从 `feedback.Measured` 背后的 `feedback.Table` 读取在途深度，并把结果
+  记回同一张表，因此"依据什么选"和"记录了什么"不会脱节。它不向注册中心上报，
+  同一张表还能同时供评分、摘除与慢启动使用。两层都可用：
   `selector.LeastRequest` 接受任意 `LoadFunc`。
 - `Scored` 是外部信号的接入点——实例推送的报告、ORCA/LRS 式的带外上报、你自己的
   指标表。这类信号至少陈旧一个上报周期，这是通道的固有属性而非缺陷。本进程在
@@ -323,25 +333,24 @@ func (d *myDecorator) Close() error { return selector.CloseStrategy(d.inner) }
 `selector.CloseStrategy` 对它是空操作。
 
 
-若要从调用本身采集反馈——时延、失败、在途深度——请使用 `sd/feedback.Table`。
+若要从调用本身采集反馈——时延、失败、在途深度——请使用 `sd/feedback.Measure`。
 一张进程内的表服务于所有策略：既能评分，也能统计在途，还会记录地址第一次
-出现的时间：
+出现的时间。`Measure` 在返回之前就已订阅服务发现，因此从它拿到的一切读到的统计
+都与当前快照对齐：
 
 ```go
-table := feedback.NewTable()
-ejector := feedback.NewEjector(table, feedback.EjectionPolicy{
+// 让表的规模等于服务规模，而不是部署历史的规模：
+// 离开服务发现的地址，其测量数据一并丢弃。
+measured := feedback.Measure(instancer)
+defer measured.Close()
+
+ejector := measured.Eject(feedback.EjectionPolicy{
 	MaxErrorRate: 0.5,
 	MinSamples:   5,
 })
 
-// 让表的规模等于服务规模，而不是部署历史的规模：
-// 离开服务发现的地址，其测量数据一并丢弃。
-following := feedback.Follow(instancer, table, ejector)
-defer following.Close()
-
-strategy := table.Wrap(selector.Filtered(selector.Scored(table.Score()), ejector.Filter()))
-
-lb := balancer.New(set, strategy)
+lb := measured.Balancer(set,
+	selector.Filtered(selector.RoundRobin(), ejector.Filter()))
 defer lb.Close()
 
 picked, err := lb.Pick(ctx, request)
@@ -352,11 +361,23 @@ picked.Done(sd.Outcome{Err: err, Latency: time.Since(started)})
 _ = response
 ```
 
-`feedback.Follow` 只向 instancer 订阅一次，然后驱动所有 `feedback.Retainer`
-——表以及任意 ejector——因此"地址已离开"这件事只在一个地方被遗忘。服务发现
-报错不会被当成"实例全没了"：最后一份可用集合继续保留。要订阅原始 instancer，
-不要订阅包在外面的 `health.Check`：retainer 分不清"主动健康检查把实例摘掉"和
-"实例注销"，探测一旦下探，摘除记录以及支撑它的测量数据就会被一并遗忘。
+`Measured.Balancer` 是逃生口，用于具名构造器覆盖不到的策略——架在摘除过滤器
+之后的策略，或者一个仍要记录观测结果的一致性哈希。如果测量数据不只该用来排除、
+还该用来做选择，`measured.Scored(set)` 与 `measured.LeastRequest(set)` 就是同一套
+装配，只是把轮询换成评分或在途深度；而 `measured.Table()` 直接拿到表本身，用于读
+`Stats`，或记录一次发生在任何均衡器都看不到的地方的调用结果。一次 `Close` 停掉
+订阅，它既不关闭 instancer，也不关闭从这里取到的任何均衡器。instancer 为 nil 会
+panic：没有它，这张表毫无意义。
+
+`feedback.Measure` 只向 instancer 订阅一次，然后驱动它背后的所有
+`feedback.Retainer`——表，以及每一个由 `Measured.Eject` 加入的 ejector——因此
+"地址已离开"这件事只在一个地方被遗忘。在首份快照之后才加入的 ejector 会直接拿到
+那份快照，而不必等下一份。服务发现报错不会被当成"实例全没了"：最后一份可用集合
+继续保留。派生自另一个 instancer 的视图——比如主动健康检查——会通过
+`sd.DerivedInstancer` 解析回它派生的那个 instancer，`*health.Checker` 已实现该接口，
+所以传入被 check 包过的视图与传入原始 instancer 在结构上是同一个订阅：retainer
+分不清"主动健康检查把实例摘掉"和"实例注销"，而现在它也不需要分得清。
+`feedback.Follow` 仍是更底层的接入点，供你自己的 retainer 使用。
 
 `sd.Match` 是针对单个实例的静态标签谓词；被动摘除是 `sd.InstanceFilter`，
 它拿到的是整个候选集——因为"某个实例能不能摘"取决于"还有多少个也在失败"。
@@ -393,12 +414,15 @@ Envoy 称之为 panic 模式。这个上限把已处于摘除窗口内的实例�
 pool := selector.Subscribe(instancer)   // 任意 selector.Source，不是切片
 defer pool.Close()
 
-rank := selector.NewRanker(pool, table.Score(), ejector.Filter())
+rank := measured.Ranking(pool, ejector.Filter())
 top, err := rank.Rank(ctx, request, 3)   // 最优在前，同分时结果确定
 ```
 
 `n <= 0` 返回所有可评分实例（已排序）。同分按地址排序，因此两个进程对同一份
-快照排序会得到一致结果。
+快照排序会得到一致结果。`Measured.Ranking` 用的就是均衡器读写的那张表，而它自己
+不记录任何东西：一份候选列表没有唯一的调用结果可归因，所以它读到的分数只取决于
+还有谁在喂这张表——同一个 `Measured` 取出的均衡器，或者在真正发起调用的地方
+调用 `Table.Observe`。
 
 ### 慢启动
 
@@ -407,14 +431,16 @@ top, err := rank.Rank(ctx, request, 3)   // 最优在前，同分时结果确定
 `selector.SlowStart` 让它的权重在一个窗口内逐步爬升：
 
 ```go
-weight := selector.SlowStart(selector.MetadataWeight("weight", 1), table.FirstSeen(), 30*time.Second)
-strategy := table.Wrap(selector.WeightedRandom(weight))
+lb := measured.SlowStartWeighted(set, selector.MetadataWeight("weight", 1),
+	30*time.Second)
+defer lb.Close()
 ```
 
 窗口走完时实例达到配置权重；在此之前至少保持 1，因此不会被完全饿死，而权重 0 仍是 0。
-时间戳由 `table.FirstSeen` 提供，所以重建策略不会让爬升过程重新开始。让表跟随
-discovery（`feedback.Follow`），这些时间戳才是实例的到达时间；只靠调用驱动的表在首次
-调用前把实例视为未知，而未知会从零开始爬坡。
+爬升的起点是服务发现的订阅，而不是实例的首次调用，所以重建策略不会让爬升过程重新
+开始：一张只在有人调用时才知道实例存在的表，会永远把每个实例看成全新的，爬坡也就
+永远走不完。从 `Measured` 取均衡器把这件事变成结构上的保证，而不是一条需要记住的
+规则。`selector.SlowStart` 仍是更底层的接入点，供调用方自带 `FirstSeenFunc` 使用。
 
 ### 排空
 
@@ -464,8 +490,8 @@ checker 会原样发布未经检查的集合而不是空集——探针自己坏
 Instancer → [health.Check] → [selector.Filter] → Selector             → 实例
 Instancer → [health.Check] → Endpointer → [Filter] → Balancer → Retry → 端点
                                                         ↑ Outcome ↓
-Instancer → feedback.Follow ───────────────────────→ feedback.Table + Ejector
-            （原始的那个，不是被 check 包过的）
+Instancer → feedback.Measure ──────────────────────→ feedback.Table + Ejector
+            （被 check 包过的视图会解析回它下面的那个 instancer）
 ```
 
 两条装配路径，共用一套策略；不自己发请求的调用方到第一行为止。每一层各自拥有

@@ -7,7 +7,10 @@ import (
 )
 
 // FirstSeenFunc reports when an instance was first observed, and whether it is
-// known at all. sd/feedback.Table.FirstSeen is the in-process implementation.
+// known at all. sd/feedback.Measured.SlowStartWeighted is the in-process
+// implementation, and it supplies the discovery subscription that dates each
+// instance — which is what a ramp needs and what a caller supplying this itself
+// has to provide some other way.
 type FirstSeenFunc func(instance sd.Instance) (time.Time, bool)
 
 // SlowStart ramps an instance's weight from nothing to its full value over

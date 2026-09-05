@@ -462,11 +462,13 @@ go list -deps ./observability/slog | Select-String opentelemetry
 
 目标：能编译的发现装配就是能工作的装配，且一套订阅状态机服务所有消费者。
 
-- 订阅、错误宽限与失效状态机只有一份实现，由 selector 与 endpointer 共用，
+- 订阅、错误宽限与失效状态机只有一份实现，由 selector、endpointer 与 feedback 统计共用，
   `sortInstances` 只有一份。
-- `sd/balancer` 覆盖 `sd/selector` 提供的每种策略。
-- 依赖测量的策略与喂养它的统计一同取得，因此 scored 或 slow-start 选择器无法在缺少其
-  table 包装的情况下被构造出来。
+- `sd/balancer` 覆盖每一种不需要测量的策略，这也是它的全部职责：需要测量的那些由
+  `sd/feedback` 装配，于是可选层在构建里和在 API 里同样保持可选。
+- 依赖测量的策略与喂养它的统计一同取得，因此 scored、least-request 或 slow-start 均衡器
+  无法在缺少其 table、订阅或包装的情况下被构造出来。统计跟随注册而非健康判定，调用方
+  不必知道它必须这样做。
 - `sd.Registrar` 以选项声明冲突语义——覆盖、仅创建、或比较并交换——每个提供者说明自己
   支持哪些。
 

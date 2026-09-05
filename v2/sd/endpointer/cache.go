@@ -4,12 +4,11 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"sort"
-	"sync"
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/internal/subscription"
 )
 
 // Factory creates an endpoint for a discovered service instance. The closer,
@@ -60,17 +59,22 @@ type endpointCloser struct {
 }
 
 // Cache maps discovered instance addresses to live endpoints.
+//
+// Subscribing, holding the last good snapshot through a registry outage, and
+// dropping it once the grace period has elapsed are the shared state machine in
+// sd/internal/subscription, so a Cache and a selector Subscription answer an
+// outage the same way. What belongs here is the projection: build one endpoint
+// per address, keep the one that is already live, and close the ones a snapshot
+// retired.
 type Cache struct {
-	options            Options
-	mtx                sync.RWMutex
-	factory            Factory
-	cache              map[string]endpointCloser
-	err                error
-	instances          []InstanceEndpoint
-	logger             *slog.Logger
-	invalidateDeadline time.Time
-	timeNow            func() time.Time
-	closed             bool
+	factory Factory
+	logger  *slog.Logger
+	state   *subscription.State[[]InstanceEndpoint]
+
+	// live maps each published address to its endpoint. Only reconcile touches
+	// it, and the state machine runs reconcile under its own lock, so it needs
+	// no lock here.
+	live map[string]endpointCloser
 }
 
 // NewCache creates an endpoint cache owned by the service-discovery layer.
@@ -81,63 +85,47 @@ func NewCache(factory Factory, logger *slog.Logger, options Options) *Cache {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
-	return &Cache{
-		options: options,
+	cache := &Cache{
 		factory: factory,
-		cache:   map[string]endpointCloser{},
 		logger:  logger,
-		timeNow: time.Now,
+		live:    map[string]endpointCloser{},
 	}
+	cache.state = subscription.NewState(cache.reconcile, ErrCacheClosed, logger, subscription.Options{
+		InvalidateOnError: options.InvalidateOnError,
+		InvalidateTimeout: options.InvalidateTimeout,
+	})
+	return cache
 }
 
 // Update reconciles the cache with a service-discovery event.
 func (c *Cache) Update(event sd.Event) {
-	c.mtx.Lock()
-	if c.closed {
-		c.mtx.Unlock()
-		return
-	}
-
-	if event.Err == nil {
-		stale := c.updateCacheLocked(event.Instances)
-		c.err = nil
-		c.mtx.Unlock()
-		c.closeStale(stale)
-		return
-	}
-
-	c.logger.Debug("service discovery update failed", "err", event.Err)
-	if !c.options.InvalidateOnError || c.err != nil {
-		c.mtx.Unlock()
-		return
-	}
-	c.err = event.Err
-	c.invalidateDeadline = c.timeNow().Add(c.options.InvalidateTimeout)
-	c.mtx.Unlock()
+	c.state.Update(event)
 }
 
-func (c *Cache) updateCacheLocked(instances []sd.Instance) []io.Closer {
+// reconcile builds the endpoint set for one snapshot and reports the resources
+// the previous set owned and this one does not. A nil snapshot is how the state
+// machine expresses invalidation and closing, and it falls out of the same walk:
+// nothing is kept, so everything becomes stale.
+func (c *Cache) reconcile(instances []sd.Instance) ([]InstanceEndpoint, func() error) {
 	instances = append([]sd.Instance(nil), instances...)
-	sort.Slice(instances, func(i, j int) bool {
-		return instances[i].Address < instances[j].Address
-	})
+	subscription.SortInstances(instances)
 
-	cache := make(map[string]endpointCloser, len(instances))
-	stale := make([]io.Closer, 0, len(c.cache))
+	live := make(map[string]endpointCloser, len(instances))
+	stale := make([]io.Closer, 0, len(c.live))
 	endpoints := make([]InstanceEndpoint, 0, len(instances))
 	for _, instance := range instances {
-		if _, duplicate := cache[instance.Address]; duplicate {
+		if _, duplicate := live[instance.Address]; duplicate {
 			// Building a second endpoint for the same address would leak the
 			// first, because the cache holds one closer per address.
 			c.logger.Debug("duplicate instance in snapshot", "instance", instance.Address)
 			continue
 		}
-		if item, ok := c.cache[instance.Address]; ok {
+		if item, ok := c.live[instance.Address]; ok {
 			// Labels can change without the address changing. Reuse the live
 			// endpoint and publish the new labels; rebuilding would drop a
 			// working connection over a relabel.
-			cache[instance.Address] = item
-			delete(c.cache, instance.Address)
+			live[instance.Address] = item
+			delete(c.live, instance.Address)
 			endpoints = append(endpoints, InstanceEndpoint{Instance: instance, Endpoint: item.Endpoint})
 			continue
 		}
@@ -157,19 +145,21 @@ func (c *Cache) updateCacheLocked(instances []sd.Instance) []io.Closer {
 			}
 			continue
 		}
-		cache[instance.Address] = endpointCloser{Endpoint: service, Closer: closer}
+		live[instance.Address] = endpointCloser{Endpoint: service, Closer: closer}
 		endpoints = append(endpoints, InstanceEndpoint{Instance: instance, Endpoint: service})
 	}
 
-	for _, item := range c.cache {
+	for _, item := range c.live {
 		if item.Closer != nil {
 			stale = append(stale, item.Closer)
 		}
 	}
+	c.live = live
 
-	c.instances = endpoints
-	c.cache = cache
-	return stale
+	if len(stale) == 0 {
+		return endpoints, nil
+	}
+	return endpoints, func() error { return closeEndpointClosers(stale) }
 }
 
 // Endpoints returns a snapshot of the active endpoints.
@@ -193,56 +183,17 @@ func (c *Cache) Endpoints() ([]endpoint.Endpoint, error) {
 // consistent view for as long as it holds the slice. Do not modify it — sort or
 // filter into a slice of your own.
 func (c *Cache) InstanceEndpoints() ([]InstanceEndpoint, error) {
-	c.mtx.RLock()
-	if c.closed {
-		c.mtx.RUnlock()
-		return nil, ErrCacheClosed
-	}
-
-	if c.err == nil || c.timeNow().Before(c.invalidateDeadline) {
-		instances := c.instances
-		c.mtx.RUnlock()
-		return instances, nil
-	}
-	c.mtx.RUnlock()
-
-	c.mtx.Lock()
-	if c.closed {
-		c.mtx.Unlock()
-		return nil, ErrCacheClosed
-	}
-	if c.err == nil || c.timeNow().Before(c.invalidateDeadline) {
-		instances := c.instances
-		c.mtx.Unlock()
-		return instances, nil
-	}
-
-	stale := c.updateCacheLocked(nil)
-	err := c.err
-	c.mtx.Unlock()
-	c.closeStale(stale)
-	return nil, err
+	return c.state.Value()
 }
 
-// Close releases all endpoint resources owned by the cache.
+// Close releases all endpoint resources owned by the cache. It reports the
+// errors closing them, joined, and returns nil on a second call.
 func (c *Cache) Close() error {
-	c.mtx.Lock()
-	if c.closed {
-		c.mtx.Unlock()
+	release := c.state.Close()
+	if release == nil {
 		return nil
 	}
-	c.closed = true
-	closers := make([]io.Closer, 0, len(c.cache))
-	for _, item := range c.cache {
-		if item.Closer != nil {
-			closers = append(closers, item.Closer)
-		}
-	}
-	c.cache = map[string]endpointCloser{}
-	c.instances = nil
-	c.err = ErrCacheClosed
-	c.mtx.Unlock()
-	return closeEndpointClosers(closers)
+	return release()
 }
 
 func closeEndpointClosers(closers []io.Closer) error {
@@ -255,8 +206,3 @@ func closeEndpointClosers(closers []io.Closer) error {
 	return errors.Join(errs...)
 }
 
-func (c *Cache) closeStale(closers []io.Closer) {
-	if err := closeEndpointClosers(closers); err != nil {
-		c.logger.Warn("close stale endpoint resources", "err", err)
-	}
-}
