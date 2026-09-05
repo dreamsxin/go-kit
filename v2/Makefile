@@ -84,6 +84,8 @@ test-snapshots:
 update-snapshots:
 	@echo ">>> Refreshing the reviewed public API snapshot..."
 	@go -C ./tools test . -run TestPublicAPISurfaceSnapshot -count=1 -args -update-api-snapshot
+	@echo ">>> Refreshing the reviewed package path list..."
+	@go -C ./tools test . -run TestExportedPackagePaths -count=1 -args -update-package-paths
 	@echo ">>> Refreshing the reviewed generated contract snapshots..."
 	@go -C ./tools test . -run TestMicrogen -count=1 -args -update-contract-snapshots
 	@echo ">>> Review the diff before committing: git diff -- v2/tools/testdata"
