@@ -58,6 +58,16 @@
 
 ### 新增
 
+- `transport/http` 接管请求 ID 关联：`RequestIDHeader`、`MaxRequestIDLength`、
+  `RequestIDValidator`、`DefaultRequestIDValidator`、`NewRequestID`、`RequestID`、
+  `ValidRequestID`，以及钩子 `ExtractRequestID` / `RequestIDExtractor` / `EchoRequestID`。
+  头名称、信任策略与生成器原先都在 `kit`，因此建立在传输包之上的服务——文档推荐的 `kit` 之后
+  那条路——要关联一个请求就得把三者全部重写一遍。`kit.RequestIDValidator` 现在就是传输包的那个
+  类型，`kit.MaxRequestIDLength` 就是它的常量，现有配置照旧编译。
+
+  校验器拒绝控制字符不是为了美观：这个 ID 会被回写到响应头，携带 CR 或 LF 的值就是一次头注入。
+  测试把这点写明了。
+
 - `kit/grpc` 提供标准 gRPC 健康服务。`grpc.health.v1.Health/Check` 从组件的探针注册表作答，
   每次调用都实际求值，而不是读某个人记得去设置的状态，因此 `grpc_health_probe` 与 Kubernetes
   原生 gRPC 探针可以用与 HTTP 服务 `/readyz` 同一个答案来编排一个纯 gRPC 服务。带服务名的查询

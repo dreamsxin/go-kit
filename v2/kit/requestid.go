@@ -2,76 +2,46 @@ package kit
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"net/http"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 )
 
-const requestIDHeader = "X-Request-ID"
+// RequestIDValidator decides whether a caller-supplied request ID is trusted.
+//
+// It is transporthttp.RequestIDValidator: the header name, the trust policy, and
+// the generator belong to the HTTP transport, so a service assembled from the
+// transport packages correlates requests the same way this assembly does.
+type RequestIDValidator = transporthttp.RequestIDValidator
 
 // MaxRequestIDLength is the largest request ID accepted by the default policy.
-const MaxRequestIDLength = 128
-
-// RequestIDValidator decides whether a caller-supplied request ID is trusted.
-type RequestIDValidator func(string) bool
-
-func requestIDMiddleware(h *HTTP) endpoint.Middleware {
-	return func(next endpoint.Endpoint) endpoint.Endpoint {
-		return func(ctx context.Context, req any) (any, error) {
-			requestID := requestIDFromContextOrHeader(ctx, h.requestIDValidator)
-			ctx = endpoint.WithRequestID(ctx, requestID)
-			if rw := responseWriterFromContext(ctx); rw != nil {
-				rw.Header().Set(requestIDHeader, requestID)
-			} else if rw, ok := req.(http.ResponseWriter); ok {
-				rw.Header().Set(requestIDHeader, requestID)
-			}
-			return next(ctx, req)
-		}
-	}
-}
-
-func requestIDFromContextOrHeader(ctx context.Context, validator RequestIDValidator) string {
-	if id := endpoint.RequestIDFromContext(ctx); validateRequestID(validator, id) {
-		return id
-	}
-	if r := requestFromContext(ctx); r != nil {
-		if id := r.Header.Get(requestIDHeader); validateRequestID(validator, id) {
-			return id
-		}
-	}
-	return newRequestID()
-}
-
-func validateRequestID(validator RequestIDValidator, id string) bool {
-	if validator == nil {
-		validator = DefaultRequestIDValidator
-	}
-	return validator(id)
-}
+const MaxRequestIDLength = transporthttp.MaxRequestIDLength
 
 // DefaultRequestIDValidator accepts common ASCII token characters and rejects
 // empty, oversized, whitespace-containing, or control-character values.
 func DefaultRequestIDValidator(id string) bool {
-	if len(id) == 0 || len(id) > MaxRequestIDLength {
-		return false
-	}
-	for i := 0; i < len(id); i++ {
-		c := id[i]
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-			(c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == ':' {
-			continue
-		}
-		return false
-	}
-	return true
+	return transporthttp.DefaultRequestIDValidator(id)
 }
 
-func newRequestID() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err == nil {
-		return hex.EncodeToString(b[:])
+// requestIDMiddleware puts the request's correlation ID in the context and
+// echoes it to the caller. The decision of which ID to use is the transport's;
+// what belongs here is reaching the request and the writer through this
+// assembly's context plumbing.
+//
+// The validator is read per call, not captured when the middleware is built, so
+// WithRequestID and WithRequestIDValidator work in either order.
+func requestIDMiddleware(h *HTTP) endpoint.Middleware {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, req any) (any, error) {
+			ctx = transporthttp.RequestIDExtractor(h.requestIDValidator)(ctx, requestFromContext(ctx))
+			requestID := endpoint.RequestIDFromContext(ctx)
+			if rw := responseWriterFromContext(ctx); rw != nil {
+				rw.Header().Set(transporthttp.RequestIDHeader, requestID)
+			} else if rw, ok := req.(http.ResponseWriter); ok {
+				rw.Header().Set(transporthttp.RequestIDHeader, requestID)
+			}
+			return next(ctx, req)
+		}
 	}
-	return "request-id-unavailable"
 }

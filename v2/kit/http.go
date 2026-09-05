@@ -11,6 +11,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/health"
+	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -236,9 +237,8 @@ func (h *HTTP) prepareHTTPContext(ctx context.Context, r *http.Request, w http.R
 	if !h.requestID {
 		return ctx
 	}
-	requestID := requestIDFromContextOrHeader(ctx, h.requestIDValidator)
-	w.Header().Set(requestIDHeader, requestID)
-	return endpoint.WithRequestID(ctx, requestID)
+	ctx = transporthttp.RequestIDExtractor(h.requestIDValidator)(ctx, r)
+	return transporthttp.EchoRequestID(ctx, w)
 }
 
 func (h *HTTP) applyHTTPMiddleware(handler http.Handler) http.Handler {

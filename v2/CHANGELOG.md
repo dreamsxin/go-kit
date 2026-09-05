@@ -78,6 +78,20 @@ than described.
 
 ### Added
 
+- `transport/http` owns request-ID correlation: `RequestIDHeader`,
+  `MaxRequestIDLength`, `RequestIDValidator`, `DefaultRequestIDValidator`,
+  `NewRequestID`, `RequestID`, `ValidRequestID`, and the hooks
+  `ExtractRequestID` / `RequestIDExtractor` / `EchoRequestID`. The header name,
+  the trust policy, and the generator were in `kit`, so a service built on the
+  transport packages — the documented path past `kit` — had to reimplement all
+  three to correlate a request. `kit.RequestIDValidator` is the transport type
+  and `kit.MaxRequestIDLength` its constant, so existing configuration keeps
+  compiling.
+
+  The validator's rejection of control characters is not cosmetic: the ID is
+  echoed into a response header, so a value carrying CR or LF would be header
+  injection. The tests say so.
+
 - `kit/grpc` serves the standard gRPC health service. `grpc.health.v1.Health/Check`
   is answered from the component's probe registry, evaluated per call rather than
   read from a status somebody remembered to set, so `grpc_health_probe` and
