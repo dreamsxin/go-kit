@@ -232,7 +232,7 @@ L3 可选组合（独立包，不引入新依赖）
 
 L4 可选 provider（第三方依赖；仅在导入对应 package 时进入构建闭包）
    observability/otel · integrations/zap · integrations/grpc ·
-   integrations/consul
+   integrations/consul · integrations/etcd
 
 L5 构建期工具（不进运行时依赖图）
    cmd/microgen
@@ -253,6 +253,6 @@ L5 构建期工具（不进运行时依赖图）
 
 ## 稳定性
 
-`v2.8.0` 是当前发布候选契约。它建立了发布清单和 API 快照记录的 package
+`v2.9.0` 是当前已发布契约。它建立了发布清单和 API 快照记录的 package
 图、生命周期所有权、传输错误模型和生成项目布局。在 v2 兼容性冻结之前，minor
 版本允许改变行为或移除 API；冻结之后，不兼容变更需要新的主 module 版本。

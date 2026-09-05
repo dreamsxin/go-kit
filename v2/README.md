@@ -26,7 +26,7 @@ This directory is the independent Go module:
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.9.0` is the release being published. It ships as a single module: one
+`v2.9.0` is the current release. It ships as a single module: one
 `require`, one tag, no version skew between the framework and its providers.
 Per-release changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
@@ -296,8 +296,10 @@ observations, implement `endpoint.Recorder` and register it with
 | `transport/http` | HTTP server and client adapters |
 | `integrations/grpc` | Optional gRPC server and client adapters |
 | `integrations/consul` | Optional Consul service-discovery provider |
+| `integrations/etcd` | Optional etcd service-discovery provider |
 | `sd` | Provider-neutral service-discovery contracts |
-| `sd/endpointer`, `sd/balancer`, `sd/retry` | Independently composable discovery runtime |
+| `sd/instance`, `sd/endpointer`, `sd/selector`, `sd/balancer`, `sd/retry` | Independently composable discovery runtime |
+| `sd/feedback`, `sd/health` | Optional passive accounting and active probing |
 | `sd/client` | Optional discovery, balancing, and retry composition |
 | `interaction` | Tools, resources, prompts, sessions, and policy hooks |
 | `interaction/mcp` | MCP Streamable HTTP adapter |

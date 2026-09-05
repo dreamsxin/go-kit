@@ -485,7 +485,7 @@ Completed: every capability ships with focused tests, reviewed contract
 snapshots where exported APIs changed, and documentation in the owning
 document; the full multi-module verification suite passes.
 
-## Milestone 8 (Active): Evidence-Backed Quality / 有证据支撑的质量
+## Milestone 8 (Complete): Evidence-Backed Quality / 有证据支撑的质量
 
 Goal: make every property the framework claims checkable by something that
 fails — a test, a gate, or a benchmark — starting with the places where a
@@ -678,6 +678,15 @@ Milestone 8 is complete when every work package's acceptance command passes,
 the reviewed API snapshot reflects the deliberate surface changes, and
 `CHANGELOG.md` records each behavior change with its measured effect where the
 change was made for performance.
+
+Completed: every claim this milestone examined is now checked by something that
+fails. The properties shipped in v2.9.0 — session-bound CSRF, benchmarked request
+paths with their measured effects recorded, a transport-independent probe
+registry, one-call OpenTelemetry assembly, one discovery subscription state
+machine with measurement-driven balancing that cannot be assembled without its
+accounting, protocol-level JSON answers, and generated code that reports a type
+mismatch as a classified error. The performance figures include the change
+measurement refuted, so the idea is not retried blind.
 
 ## Maintenance Rules / 维护规则
 

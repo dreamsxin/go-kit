@@ -434,7 +434,7 @@ Avoid:
 
 ## Stability Notes
 
-The v2.8.0 candidate establishes the reviewed endpoint contract captured in
+The v2.9.0 release establishes the reviewed endpoint contract captured in
 `tools/testdata/api_surface.sha256`. Until the v2 compatibility freeze, minor
 releases may change behavior or remove APIs; after the freeze, compatibility
 covers:

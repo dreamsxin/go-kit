@@ -292,7 +292,7 @@ server. `cmd/microgen` output depends on L0–L3 only.
 
 ## Stability
 
-`v2.8.0` is the current release-candidate contract. It establishes the reviewed
+`v2.9.0` is the current released contract. It establishes the reviewed
 package graph, lifecycle ownership, transport error model, and generated
 project layout captured by the release manifest and API snapshot. Until the v2
 compatibility freeze, minor releases may change behavior or remove APIs; after

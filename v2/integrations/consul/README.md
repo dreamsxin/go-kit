@@ -59,7 +59,20 @@ Two boundaries are deliberate:
   rest locally).
 - Live load does not belong in the catalog. A registry write per metric sample
   would hammer Consul and consumers would still read stale numbers; use
-  `feedback.Table.LeastRequest`, which measures in-flight requests in process.
+  `feedback.Measure`, whose `LeastRequest` measures in-flight requests in process.
 
 A metadata-only change counts as a change: relabelling an instance is broadcast
 to subscribers even when the address set is identical.
+
+## Registration conflict semantics
+
+This provider supports `sd.ConflictOverwrite` only, and takes no option to say
+otherwise. Registration goes through the local agent's service API, which upserts
+by service ID and offers no compare-before-write, so create-only and
+compare-and-swap could only be emulated by reading the catalog first — a check
+that answers about the past, not about the write.
+
+An instance ID that has to be unique is therefore a deployment invariant here
+rather than something this provider enforces. `integrations/etcd` is the provider
+that can enforce it; see its README.
+

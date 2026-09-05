@@ -1,5 +1,7 @@
 # etcd Integration
 
+English | [简体中文](README_zh.md)
+
 `integrations/etcd` is an optional discovery provider package in the published
 v2 module. It stores one leased registration per
 instance below a service prefix and publishes immutable snapshots through the
@@ -17,10 +19,40 @@ instancer := etcd.NewInstancer(client, slog.Default(), "users")
 defer instancer.Close() //nolint:errcheck
 ```
 
-Registrations renew their lease and re-register after a lost keepalive. The
-instancer re-reads the prefix on watch notifications and resumes from the last
-revision after a watch disconnect. Call `Close` to cancel the watch and release
-provider resources.
+The instancer re-reads the prefix on watch notifications and resumes from the
+last revision after a watch disconnect. Call `Close` to cancel the watch and
+release provider resources.
+
+## Registration conflict semantics
+
+etcd compares before it writes, so this is the one provider that can enforce all
+three `sd.Conflict` values:
+
+```go
+registrar := etcd.NewRegistrar(client, slog.Default(), "users", "10.0.0.4", 8080,
+    etcd.ConflictRegistrarOptions(sd.ConflictCompareAndSwap),
+)
+```
+
+- `sd.ConflictOverwrite` is the default, and the only one that recovers unaided:
+  an instance whose previous run exited uncleanly registers again without a human
+  deleting the key it left behind.
+- `sd.ConflictCreateOnly` registers only while the key is absent. Choose it when a
+  duplicate instance identity is a deployment mistake worth failing start-up
+  over, and accept that a key outliving an unclean exit blocks registration until
+  its lease expires.
+- `sd.ConflictCompareAndSwap` registers while the key is absent or still holds
+  what this registrar last wrote. It is create-only for a first registration and
+  overwrite for the registrar's own renewals, so a lost lease is recovered
+  without stealing a key that now belongs to somebody else.
+
+Under anything stricter than overwrite, a contested key makes `Register` return
+an error wrapping `sd.ErrConflict`. That is a permanent condition for this
+instance: the supervisor that re-registers after a lost lease stops instead of
+retrying, because retrying the same identity either fails forever or steals the
+key back. Registrations renew their lease and re-register after a lost keepalive
+in the default overwrite mode; under a stricter setting that recovery ends the
+moment another writer owns the key.
 
 ## Tests
 

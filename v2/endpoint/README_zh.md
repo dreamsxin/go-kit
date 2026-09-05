@@ -392,7 +392,7 @@ ep = zapadapter.LoggingMiddleware(logger, "CreateUser")(ep)
 
 ## 稳定性说明
 
-v2.8.0 候选版本建立了 `tools/testdata/api_surface.sha256` 中记录的 endpoint
+v2.9.0 发布版本建立了 `tools/testdata/api_surface.sha256` 中记录的 endpoint
 契约。在 v2 兼容性冻结之前，minor 版本允许改变行为或移除 API；冻结之后，
 兼容性覆盖：
 

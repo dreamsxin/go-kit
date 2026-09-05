@@ -24,7 +24,7 @@ v2 是独立 Go module：
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.9.0` 是本次发布的版本。它以单一模块发布：一行 `require`、一个 tag，框架与各 provider 之间不存在版本错配。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)。
+`v2.9.0` 是当前发布版本。它以单一模块发布：一行 `require`、一个 tag，框架与各 provider 之间不存在版本错配。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)。
 
 需要 Go 1.26.0 或更高版本。
 
@@ -277,8 +277,10 @@ Server-Sent Events 流使用 `kit.HandleSSETyped` 注册，使 endpoint 中间�
 | `transport/http` | HTTP server/client adapter |
 | `integrations/grpc` | 可选的 gRPC server/client adapter |
 | `integrations/consul` | 可选的 Consul 服务发现 provider |
+| `integrations/etcd` | 可选的 etcd 服务发现 provider |
 | `sd` | 与 provider 无关的服务发现契约 |
-| `sd/endpointer`、`sd/balancer`、`sd/retry` | 可独立组合的服务发现运行时组件 |
+| `sd/instance`、`sd/endpointer`、`sd/selector`、`sd/balancer`、`sd/retry` | 可独立组合的服务发现运行时组件 |
+| `sd/feedback`、`sd/health` | 可选的被动统计与主动探测 |
 | `sd/client` | 可选的发现、负载均衡和重试装配入口 |
 | `interaction` | tool、resource、prompt、session 和策略 hook |
 | `interaction/mcp` | MCP Streamable HTTP adapter |
