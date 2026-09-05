@@ -1,13 +1,13 @@
 package kit
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/health"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -99,37 +99,58 @@ func WithJSONServerOptions(opts ...httpserver.ServerOption) Option {
 	}
 }
 
-// WithLivenessCheck adds a check used by /livez and /health.
+// WithLivenessCheck adds a check used by the liveness and combined probe
+// routes.
 func WithLivenessCheck(name string, check HealthCheck) Option {
 	return func(h *HTTP) error {
 		if err := validateHealthCheck(name, check); err != nil {
 			return err
 		}
-		h.checksMu.Lock()
-		defer h.checksMu.Unlock()
-		h.livenessChecks = append(h.livenessChecks, newNamedHealthCheck(name, check))
+		h.pendingLiveness = append(h.pendingLiveness, pendingProbe{name: name, check: check})
 		return nil
 	}
 }
 
-// WithReadinessCheck adds a check used by /readyz and /health.
+// WithReadinessCheck adds a check used by the readiness and combined probe
+// routes.
 func WithReadinessCheck(name string, check HealthCheck) Option {
 	return func(h *HTTP) error {
 		if err := validateHealthCheck(name, check); err != nil {
 			return err
 		}
-		h.checksMu.Lock()
-		defer h.checksMu.Unlock()
-		h.readinessChecks = append(h.readinessChecks, newNamedHealthCheck(name, check))
+		h.pendingReadiness = append(h.pendingReadiness, pendingProbe{name: name, check: check})
 		return nil
 	}
 }
 
-// WithHealthCheckTimeout configures the per-check timeout for /health, /livez,
-// and /readyz. A value <= 0 disables the timeout.
+// WithHealthCheckTimeout configures the per-check timeout for the probe routes.
+// A value <= 0 disables the timeout.
 func WithHealthCheckTimeout(timeout time.Duration) Option {
 	return func(h *HTTP) error {
 		h.healthTimeout = timeout
+		return nil
+	}
+}
+
+// WithProbePaths serves the probes on routes of your choosing. An empty path
+// omits that route, so a deployment that only orchestrates on readiness can
+// expose readiness alone.
+//
+// The paths are registered on the component's mux, alongside the application's
+// routes and behind WithHTTPMiddleware. To keep probes off the traffic port
+// entirely, omit them here and mount Probes() on a second listener of your own.
+func WithProbePaths(paths health.Paths) Option {
+	return func(h *HTTP) error {
+		h.probePaths = paths
+		return nil
+	}
+}
+
+// WithoutProbes serves no probe routes. Use it when the probes belong on a
+// separate administrative listener, which Probes() can serve.
+func WithoutProbes() Option {
+	return func(h *HTTP) error {
+		h.probePaths = health.Paths{}
 		return nil
 	}
 }
@@ -141,15 +162,6 @@ func validateHealthCheck(name string, check HealthCheck) error {
 	if check == nil {
 		return fmt.Errorf("health check cannot be nil")
 	}
-	return nil
-}
-
-func newNamedHealthCheck(name string, check HealthCheck) namedHealthCheck {
-	return namedHealthCheck{name: name, check: check, gate: make(chan struct{}, 1)}
-}
-
-// Healthy is a convenience health check that always succeeds.
-func Healthy(context.Context) error {
 	return nil
 }
 

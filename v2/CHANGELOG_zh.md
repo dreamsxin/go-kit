@@ -53,6 +53,16 @@
 
 ### 新增
 
+- `health` 包持有探针引擎：liveness 与 readiness 检查的 `Registry`、带每检查超时的并发求值、
+  单飞门控与 panic 收容、探针一直返回的那个 `Report` 结构，以及它的 HTTP handler 与 `Mount`。
+  这些原来是 `kit` 里的 213 行，全部不可导出且绑死在 `*kit.HTTP` 上，因此 gRPC 服务根本没有
+  就绪面，而由传输包直接组装的服务只能自己重写一份。现在 `kit` 是挂载这个注册表，而不是拥有它。
+
+  `kit.HealthCheck` 就是 `health.Check`，`kit.DefaultHealthCheckTimeout` 就是
+  `health.DefaultTimeout`，因此现有配置照旧编译。`kit.WithProbePaths` 把探针放到你选的路由上，
+  `kit.WithoutProbes` 一条都不放，`kit.HTTP.Probes()` 返回那个注册表——足够在构造之后追加一个
+  检查，或者把探针放到独立的管理监听器上。
+
 - `kit.WithRegistrar` 与 `kit.RegistrarLifecycle`：在 Host 运行期间发布一个服务实例。
   `sd.Registrar` 与 `kit.Lifecycle` 一直都在，却没有相遇，于是每个服务都自己手写那层
   适配——同样的三行，一个服务写一遍。

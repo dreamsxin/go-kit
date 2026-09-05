@@ -2,211 +2,60 @@ package kit
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
-	"time"
+
+	"github.com/dreamsxin/go-kit/v2/health"
 )
 
 // HealthCheck reports whether a runtime dependency is healthy. Implementations
 // must stop promptly when ctx is canceled.
-type HealthCheck func(context.Context) error
+//
+// It is health.Check: the probe engine lives in the health package so that
+// gRPC assemblies and services built directly on the transport packages report
+// readiness the same way this one does.
+type HealthCheck = health.Check
 
-// DefaultHealthCheckTimeout is the per-check timeout used by /health, /livez,
-// and /readyz unless WithHealthCheckTimeout overrides it.
-const DefaultHealthCheckTimeout = 2 * time.Second
+// DefaultHealthCheckTimeout is the per-check timeout used by the probe routes
+// unless WithHealthCheckTimeout overrides it.
+const DefaultHealthCheckTimeout = health.DefaultTimeout
 
-type namedHealthCheck struct {
+// Healthy is a convenience health check that always succeeds.
+func Healthy(ctx context.Context) error { return health.Healthy(ctx) }
+
+// DefaultProbePaths are the routes an HTTP component serves unless
+// WithProbePaths or WithoutProbes says otherwise.
+func DefaultProbePaths() health.Paths { return health.DefaultPaths() }
+
+// Probes returns the component's probe registry, so an application can add a
+// check after construction or mount the same registry somewhere else.
+func (h *HTTP) Probes() *health.Registry { return h.probes }
+
+// buildProbes assembles the registry from the options that were applied and
+// mounts it. It runs after the options so the per-check timeout and the request
+// counter are known, whatever order the options came in.
+func (h *HTTP) buildProbes() error {
+	options := []health.Option{health.WithTimeout(h.healthTimeout)}
+	if h.metrics != nil {
+		metrics := h.metrics
+		options = append(options, health.WithRequestCount(func() int64 {
+			return metrics.Snapshot().RequestCount
+		}))
+	}
+	h.probes = health.NewRegistry(options...)
+	for _, pending := range h.pendingLiveness {
+		if err := h.probes.AddLiveness(pending.name, pending.check); err != nil {
+			return err
+		}
+	}
+	for _, pending := range h.pendingReadiness {
+		if err := h.probes.AddReadiness(pending.name, pending.check); err != nil {
+			return err
+		}
+	}
+	h.probes.Mount(h.mux, h.probePaths)
+	return nil
+}
+
+type pendingProbe struct {
 	name  string
-	check HealthCheck
-	gate  chan struct{}
-}
-
-type healthResponse struct {
-	Status   string              `json:"status"`
-	Requests *int64              `json:"requests,omitempty"`
-	Checks   []healthCheckResult `json:"checks,omitempty"`
-}
-
-type healthCheckResult struct {
-	Name   string `json:"name"`
-	Status string `json:"status"`
-	Error  string `json:"error,omitempty"`
-}
-
-func (h *HTTP) registerHealthEndpoints() {
-	h.mux.HandleFunc("/health", h.healthHandler(healthScopeAll))
-	h.mux.HandleFunc("/livez", h.healthHandler(healthScopeLiveness))
-	h.mux.HandleFunc("/readyz", h.healthHandler(healthScopeReadiness))
-}
-
-type healthScope int
-
-const (
-	healthScopeAll healthScope = iota
-	healthScopeLiveness
-	healthScopeReadiness
-)
-
-// snapshotChecks returns copies of the current checks for the scope. Checks
-// are read under the mutex because Host may bridge lifecycle readiness after
-// construction.
-func (h *HTTP) snapshotChecks(scope healthScope) []namedHealthCheck {
-	h.checksMu.Lock()
-	defer h.checksMu.Unlock()
-	var liveness, readiness []namedHealthCheck
-	switch scope {
-	case healthScopeAll:
-		liveness = append(liveness, h.livenessChecks...)
-		readiness = append(readiness, h.readinessChecks...)
-	case healthScopeLiveness:
-		liveness = append(liveness, h.livenessChecks...)
-	case healthScopeReadiness:
-		readiness = append(readiness, h.readinessChecks...)
-	}
-	return appendHealthChecks(liveness, readiness)
-}
-
-func (h *HTTP) healthHandler(scope healthScope) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		status, results := runHealthChecks(r.Context(), h.snapshotChecks(scope), h.healthTimeout)
-		resp := healthResponse{
-			Status: status,
-			Checks: results,
-		}
-		if h.metrics != nil {
-			requests := h.metrics.Snapshot().RequestCount
-			resp.Requests = &requests
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		if status != "ok" {
-			w.WriteHeader(http.StatusServiceUnavailable)
-		}
-		_ = json.NewEncoder(w).Encode(resp)
-	}
-}
-
-func runHealthChecks(ctx context.Context, checks []namedHealthCheck, timeout time.Duration) (string, []healthCheckResult) {
-	if len(checks) == 0 {
-		return "ok", nil
-	}
-	checksCtx := ctx
-	cancel := func() {}
-	if timeout > 0 {
-		checksCtx, cancel = context.WithTimeout(ctx, timeout)
-	}
-	defer cancel()
-
-	type outcome struct {
-		index int
-		err   error
-	}
-	results := make([]healthCheckResult, len(checks))
-	completed := make([]bool, len(checks))
-	outcomes := make(chan outcome, len(checks))
-	for i, hc := range checks {
-		results[i] = healthCheckResult{Name: hc.name, Status: "ok"}
-		go func(index int, check namedHealthCheck) {
-			outcomes <- outcome{index: index, err: runHealthCheck(checksCtx, check)}
-		}(i, hc)
-	}
-
-	remaining := len(checks)
-	for remaining > 0 {
-		select {
-		case result := <-outcomes:
-			remaining--
-			completed[result.index] = true
-			applyHealthCheckOutcome(checksCtx, &results[result.index], result.err)
-		case <-checksCtx.Done():
-			draining := true
-			for draining {
-				select {
-				case result := <-outcomes:
-					remaining--
-					completed[result.index] = true
-					applyHealthCheckOutcome(checksCtx, &results[result.index], result.err)
-				default:
-					draining = false
-				}
-			}
-			for i := range results {
-				if !completed[i] {
-					results[i].Status = "error"
-					results[i].Error = healthCheckErrorMessage(checksCtx, checksCtx.Err())
-				}
-			}
-			return "unavailable", results
-		}
-	}
-
-	for _, result := range results {
-		if result.Status != "ok" {
-			return "unavailable", results
-		}
-	}
-	return "ok", results
-}
-
-func applyHealthCheckOutcome(ctx context.Context, result *healthCheckResult, err error) {
-	if err == nil {
-		return
-	}
-	result.Status = "error"
-	result.Error = healthCheckErrorMessage(ctx, err)
-}
-
-func healthCheckErrorMessage(ctx context.Context, err error) string {
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return "check timed out"
-	}
-	if errors.Is(err, errHealthCheckInProgress) {
-		return "check already running"
-	}
-	if errors.Is(err, errHealthCheckPanicked) {
-		return "check panicked"
-	}
-	return "check failed"
-}
-
-var errHealthCheckInProgress = errors.New("health check is already running")
-
-// errHealthCheckPanicked reports a check that panicked. The panic is converted
-// rather than propagated: checks run in their own goroutines, where an
-// unrecovered panic takes the process down, and a probe is an unauthenticated
-// request — a buggy check must not become a remote kill switch. Reporting the
-// check as unhealthy is the honest answer.
-var errHealthCheckPanicked = errors.New("health check panicked")
-
-func runHealthCheck(ctx context.Context, check namedHealthCheck) (err error) {
-	if check.gate != nil {
-		select {
-		case check.gate <- struct{}{}:
-			defer func() { <-check.gate }()
-		default:
-			return errHealthCheckInProgress
-		}
-	}
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = fmt.Errorf("%w: %v", errHealthCheckPanicked, recovered)
-		}
-	}()
-
-	return check.check(ctx)
-}
-
-func appendHealthChecks(a, b []namedHealthCheck) []namedHealthCheck {
-	if len(a) == 0 {
-		return b
-	}
-	if len(b) == 0 {
-		return a
-	}
-	out := make([]namedHealthCheck, 0, len(a)+len(b))
-	out = append(out, a...)
-	out = append(out, b...)
-	return out
+	check health.Check
 }

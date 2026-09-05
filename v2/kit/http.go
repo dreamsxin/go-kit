@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/health"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -39,9 +40,10 @@ type HTTP struct {
 	healthTimeout      time.Duration
 	timeout            time.Duration
 
-	checksMu        sync.Mutex
-	livenessChecks  []namedHealthCheck
-	readinessChecks []namedHealthCheck
+	probePaths       health.Paths
+	pendingLiveness  []pendingProbe
+	pendingReadiness []pendingProbe
+	probes           *health.Registry
 
 	lifecycleMu   sync.Mutex
 	srv           *http.Server
@@ -65,6 +67,7 @@ func NewHTTP(addr string, opts ...Option) (*HTTP, error) {
 		httpConfig:       DefaultHTTPServerConfig(),
 		jsonMaxBodyBytes: DefaultJSONMaxBodyBytes,
 		healthTimeout:    DefaultHealthCheckTimeout,
+		probePaths:       DefaultProbePaths(),
 		serveErrors:      make(chan error, 1),
 	}
 	for i, option := range opts {
@@ -75,7 +78,9 @@ func NewHTTP(addr string, opts ...Option) (*HTTP, error) {
 			return nil, fmt.Errorf("kit: apply option %d: %w", i, err)
 		}
 	}
-	h.registerHealthEndpoints()
+	if err := h.buildProbes(); err != nil {
+		return nil, fmt.Errorf("kit: %w", err)
+	}
 	h.httpHandler = h.applyHTTPMiddleware(h.mux)
 	return h, nil
 }
@@ -95,11 +100,9 @@ func MustNewHTTP(addr string, opts ...Option) *HTTP {
 func (h *HTTP) Name() string { return "http" }
 
 // registerLifecycleReadiness bridges a lifecycle component's readiness probe
-// into the /readyz and /health checks. Host calls it during assembly.
+// into the readiness and combined probe routes. Host calls it during assembly.
 func (h *HTTP) registerLifecycleReadiness(name string, check HealthCheck) {
-	h.checksMu.Lock()
-	defer h.checksMu.Unlock()
-	h.readinessChecks = append(h.readinessChecks, newNamedHealthCheck(name, check))
+	_ = h.probes.AddReadiness(name, check)
 }
 
 // Start binds the listener and serves HTTP in the background. Listener

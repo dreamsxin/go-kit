@@ -1,6 +1,7 @@
 go-kit-v2 public API
 39b39fd7e0b072b645e9529ad738152f88a5845f85ced905180936e411c08295  github.com/dreamsxin/go-kit/v2/apperror
 ce986556aec7e07fdfd74ee9b9aab123217ae2768a9c1f5840a74f8ef678ccd9  github.com/dreamsxin/go-kit/v2/endpoint
+488bf5a62bf5d9be684c7a66ad8eb9e586dde695cf37072e4858a8e670f7d287  github.com/dreamsxin/go-kit/v2/health
 7f572336981100a3168e4e6f0645ac65617256da91932aba9bf38a5df23ddafd  github.com/dreamsxin/go-kit/v2/integrations/consul
 6cb68b5341f6cc18b72a6a4830210709772dca3a461edbc533941e16fac06ec0  github.com/dreamsxin/go-kit/v2/integrations/etcd
 c72e3e2aec766e71c630a8c8d76758509bad680ef7a0c8fe6634121f22d1b2bc  github.com/dreamsxin/go-kit/v2/integrations/grpc
@@ -9,7 +10,7 @@ b863fd566be9a2b5367c85d5ec361ac041afb280192fd84471e7fe89efa9c799  github.com/dre
 5576e6159b61e5f9129392372d781ee54addb511df238779927b47fb23b2691b  github.com/dreamsxin/go-kit/v2/integrations/zap
 77994c06a4c766ffd58804e0516d72233ef63936077c740bea7dc5692a44b2b3  github.com/dreamsxin/go-kit/v2/interaction
 57d75ef3fcffab81ba712bcc921ac4b8a6654454b94fff68ec853d607445c083  github.com/dreamsxin/go-kit/v2/interaction/mcp
-8a5be284991f4cef76855594916eb79ba119095874235b8f4f0ff360a4b57b86  github.com/dreamsxin/go-kit/v2/kit
+73f7724e0046ad7d86c094bf5a29709e57505d213e72174ffd7f588753c32ac2  github.com/dreamsxin/go-kit/v2/kit
 1bbefb91ce74012150bb852153135c310508159f91e4703845b5e408de6f4dde  github.com/dreamsxin/go-kit/v2/kit/grpc
 6aaf0d986cbea1a88df70b8b8a110561cc8a09d252b3f50b6ede4f7068c773bf  github.com/dreamsxin/go-kit/v2/observability/otel
 f17897b820b651001b06b030ab724f4a1a56a67190529c5f7ab4734e190218e1  github.com/dreamsxin/go-kit/v2/observability/slog

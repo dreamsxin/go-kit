@@ -70,6 +70,21 @@ than described.
 
 ### Added
 
+- `health` holds the probe engine: a `Registry` of liveness and readiness
+  checks, the concurrent evaluation with its per-check timeout, single-flight
+  gating and panic containment, the `Report` shape probes have always returned,
+  and an HTTP handler and `Mount` for it. It was 213 lines inside `kit`, all of
+  it unexported and bound to `*kit.HTTP`, so a gRPC service had no readiness
+  surface at all and a service assembled from the transport packages had to
+  reimplement one. `kit` now mounts the registry rather than owning it.
+
+  `kit.HealthCheck` is `health.Check` and `kit.DefaultHealthCheckTimeout` is
+  `health.DefaultTimeout`, so existing configuration keeps compiling.
+  `kit.WithProbePaths` serves the probes on routes of your choosing,
+  `kit.WithoutProbes` serves none, and `kit.HTTP.Probes()` returns the registry
+  — enough to add a check after construction or to put the probes on a separate
+  administrative listener.
+
 - `kit.WithRegistrar` and `kit.RegistrarLifecycle` publish a service instance for
   as long as the Host runs. `sd.Registrar` and `kit.Lifecycle` existed but did not
   meet, so every service hand-wrote the adapter — the same three lines, once per
