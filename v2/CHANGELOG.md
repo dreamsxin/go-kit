@@ -10,6 +10,14 @@ than described.
 
 ### Changed
 
+- A `ReadinessProvider` attached to a `Host` with no component that serves
+  readiness probes is now a `NewHost` error. It used to be collected and
+  discarded: the point of implementing the contract is that an orchestrator can
+  see the answer, and a component warming up silently behind a probe that reports
+  ready is worse than one that never claimed to warm up. `kit.ReadinessSink` is
+  the contract a Host looks for — `Probes() *health.Registry` — which both the
+  HTTP component and the gRPC component satisfy.
+
 - A CSRF token now authorizes one session for a bounded time. `CSRFConfig.SessionID`
   is required and `TokenTTL` defaults to 12 hours; the HMAC covers the nonce, the
   issue time, and the session, so a token minted for one caller is refused for
@@ -69,6 +77,15 @@ than described.
     message are unchanged.
 
 ### Added
+
+- `kit/grpc` serves the standard gRPC health service. `grpc.health.v1.Health/Check`
+  is answered from the component's probe registry, evaluated per call rather than
+  read from a status somebody remembered to set, so `grpc_health_probe` and
+  Kubernetes' native gRPC probe orchestrate a gRPC-only service on the same
+  answer an HTTP service serves at `/readyz`. A named service reports `NotFound`,
+  because the registry describes the process rather than one service within it;
+  `Watch` is not implemented, since it would have to poll the checks to
+  synthesise transitions.
 
 - `health` holds the probe engine: a `Registry` of liveness and readiness
   checks, the concurrent evaluation with its per-check timeout, single-flight

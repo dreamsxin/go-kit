@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
@@ -73,5 +75,55 @@ func TestProbeReportCarriesTheRequestCount(t *testing.T) {
 	report := component.Probes().Report(context.Background(), health.ScopeAll)
 	if report.Requests == nil {
 		t.Fatal("requests missing from the probe report")
+	}
+}
+
+// warming is a lifecycle component that reports readiness, which is what a Host
+// bridges into a probe surface.
+type warming struct{ ready atomic.Bool }
+
+func (w *warming) Name() string                    { return "warming" }
+func (w *warming) Start() error                    { return nil }
+func (w *warming) Errors() <-chan error            { return nil }
+func (w *warming) Shutdown(context.Context) error  { return nil }
+func (w *warming) Ready(context.Context) error {
+	if w.ready.Load() {
+		return nil
+	}
+	return errors.New("still warming up")
+}
+
+// TestHostRefusesReadinessWithNowhereToReport: the point of implementing
+// ReadinessProvider is that an orchestrator can see the answer. Collecting the
+// provider and discarding it, which is what a Host without a probe surface used
+// to do, is worse than a component that never claimed to warm up.
+func TestHostRefusesReadinessWithNowhereToReport(t *testing.T) {
+	_, err := kit.NewHost(kit.WithLifecycle(&warming{}))
+	if err == nil {
+		t.Fatal("expected an error for a readiness provider with no probe surface")
+	}
+	if !strings.Contains(err.Error(), "readiness") {
+		t.Fatalf("error = %v, want it to mention readiness", err)
+	}
+}
+
+func TestHostBridgesReadinessIntoTheProbes(t *testing.T) {
+	component := kit.MustNewHTTP(":0")
+	warmup := &warming{}
+	if _, err := kit.NewHost(kit.WithLifecycle(component), kit.WithLifecycle(warmup)); err != nil {
+		t.Fatalf("NewHost: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	component.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status while warming = %d, want %d", recorder.Code, http.StatusServiceUnavailable)
+	}
+
+	warmup.ready.Store(true)
+	recorder = httptest.NewRecorder()
+	component.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status once ready = %d, want %d", recorder.Code, http.StatusOK)
 	}
 }

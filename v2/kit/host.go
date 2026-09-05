@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"sync"
 	"time"
+
+	"github.com/dreamsxin/go-kit/v2/health"
 )
 
 // Host orchestrates lifecycle components without owning any transport. A
@@ -47,7 +49,9 @@ func NewHost(opts ...HostOption) (*Host, error) {
 		}
 	}
 	h.serveErrors = make(chan error, len(h.components)+1)
-	h.bridgeReadiness()
+	if err := h.bridgeReadiness(); err != nil {
+		return nil, err
+	}
 	return h, nil
 }
 
@@ -89,32 +93,42 @@ func WithShutdownTimeout(timeout time.Duration) HostOption {
 }
 
 // bridgeReadiness registers every ReadinessProvider with a mounted component
-// that serves readiness probes, so asynchronous warm-up is visible through
-// the serving component's readiness surface.
-func (h *Host) bridgeReadiness() {
-	var sink readinessSink
+// that serves readiness probes, so asynchronous warm-up is visible through the
+// serving component's readiness surface.
+//
+// A provider with nowhere to report is a configuration error rather than a
+// no-op: the point of implementing ReadinessProvider is that an orchestrator
+// can see the answer, and a component that warms up silently while the probe
+// reports ready is worse than one that never claimed to warm up.
+func (h *Host) bridgeReadiness() error {
+	var sink ReadinessSink
 	for _, component := range h.components {
-		if candidate, ok := component.(readinessSink); ok {
+		if candidate, ok := component.(ReadinessSink); ok && candidate.Probes() != nil {
 			sink = candidate
 			break
 		}
 	}
-	if sink == nil {
-		return
-	}
 	for i, component := range h.components {
-		if provider, ok := component.(ReadinessProvider); ok {
-			check := provider.Ready
-			sink.registerLifecycleReadiness("lifecycle:"+lifecycleLabel(i, component), check)
+		provider, ok := component.(ReadinessProvider)
+		if !ok {
+			continue
+		}
+		label := lifecycleLabel(i, component)
+		if sink == nil {
+			return fmt.Errorf("kit: lifecycle component %s reports readiness but no attached component serves readiness probes", label)
+		}
+		if err := sink.Probes().AddReadiness("lifecycle:"+label, provider.Ready); err != nil {
+			return fmt.Errorf("kit: bridge readiness for lifecycle component %s: %w", label, err)
 		}
 	}
+	return nil
 }
 
-// readinessSink is implemented by components that serve readiness probes
-// (the HTTP component). It is unexported on purpose: only kit-provided
-// serving surfaces aggregate lifecycle readiness.
-type readinessSink interface {
-	registerLifecycleReadiness(name string, check HealthCheck)
+// ReadinessSink is a component that serves readiness probes. A Host registers
+// every attached ReadinessProvider with the first one it finds, so a warm-up
+// answer reaches an orchestrator whichever protocol the service speaks.
+type ReadinessSink interface {
+	Probes() *health.Registry
 }
 
 // Run starts the attached components and blocks until ctx is cancelled or a

@@ -99,12 +99,6 @@ func MustNewHTTP(addr string, opts ...Option) *HTTP {
 // Name identifies the component in Host diagnostics.
 func (h *HTTP) Name() string { return "http" }
 
-// registerLifecycleReadiness bridges a lifecycle component's readiness probe
-// into the readiness and combined probe routes. Host calls it during assembly.
-func (h *HTTP) registerLifecycleReadiness(name string, check HealthCheck) {
-	_ = h.probes.AddReadiness(name, check)
-}
-
 // Start binds the listener and serves HTTP in the background. Listener
 // failures are returned directly.
 func (h *HTTP) Start() error {

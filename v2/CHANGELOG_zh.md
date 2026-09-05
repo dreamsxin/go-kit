@@ -9,6 +9,11 @@
 
 ### 变更
 
+- 挂在 `Host` 上、却没有任何组件服务就绪探针的 `ReadinessProvider`，现在是 `NewHost` 的一个错误。
+  它此前被收集然后丢弃：实现这个契约的意义就在于让编排系统能看到答案，而一个组件在报告"就绪"的
+  探针背后默默预热，比它从未声称要预热更糟。`kit.ReadinessSink` 就是 Host 要找的那个契约——
+  `Probes() *health.Registry`——HTTP 组件与 gRPC 组件都满足它。
+
 - CSRF 令牌现在在有限时间内只为一个会话授权。`CSRFConfig.SessionID` 为必填，
   `TokenTTL` 默认 12 小时；HMAC 覆盖 nonce、签发时间与会话，因此为某个调用方铸造的
   令牌对另一个会被拒绝，泄漏的令牌也会失效。此前签名只覆盖一个随机 nonce，这意味着
@@ -52,6 +57,12 @@
     kind（`internal`）、code（`endpoint.panic`）与消息均不变。
 
 ### 新增
+
+- `kit/grpc` 提供标准 gRPC 健康服务。`grpc.health.v1.Health/Check` 从组件的探针注册表作答，
+  每次调用都实际求值，而不是读某个人记得去设置的状态，因此 `grpc_health_probe` 与 Kubernetes
+  原生 gRPC 探针可以用与 HTTP 服务 `/readyz` 同一个答案来编排一个纯 gRPC 服务。带服务名的查询
+  返回 `NotFound`——注册表描述的是进程而不是其中某个服务；`Watch` 未实现，因为它必须轮询检查
+  才能合成状态变迁。
 
 - `health` 包持有探针引擎：liveness 与 readiness 检查的 `Registry`、带每检查超时的并发求值、
   单飞门控与 panic 收容、探针一直返回的那个 `Report` 结构，以及它的 HTTP handler 与 `Mount`。

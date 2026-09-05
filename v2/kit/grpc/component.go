@@ -9,19 +9,33 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/dreamsxin/go-kit/v2/health"
 	"github.com/dreamsxin/go-kit/v2/kit"
 	googlegrpc "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/status"
 )
 
 // Component implements kit.Lifecycle; the assertion keeps the contract honest
 // at compile time, in this module, instead of inside an application build.
 var _ kit.Lifecycle = (*Component)(nil)
 
+// Component also serves readiness, so a Host bridges lifecycle readiness into
+// it the same way it does for the HTTP component.
+var _ kit.ReadinessSink = (*Component)(nil)
+
 // Component owns a gRPC server and implements kit.Lifecycle. Register services
 // through Server before attaching the component to a kit.Host.
+//
+// The standard gRPC health service is registered on the server, answering
+// grpc.health.v1.Health/Check from the component's probe registry. That is what
+// grpc_health_probe and Kubernetes' native gRPC probe call, so a gRPC-only
+// service is orchestrated on the same answer an HTTP service serves at /readyz.
 type Component struct {
 	addr   string
 	server *googlegrpc.Server
+	probes *health.Registry
 	errors chan error
 
 	mu       sync.Mutex
@@ -40,11 +54,14 @@ func New(addr string, options ...googlegrpc.ServerOption) (*Component, error) {
 			return nil, fmt.Errorf("kit/grpc: server option %d is nil", i)
 		}
 	}
-	return &Component{
+	component := &Component{
 		addr:   addr,
 		server: googlegrpc.NewServer(options...),
+		probes: health.NewRegistry(),
 		errors: make(chan error, 1),
-	}, nil
+	}
+	grpc_health_v1.RegisterHealthServer(component.server, &healthService{probes: component.probes})
+	return component, nil
 }
 
 // MustNew creates a Component and panics if its configuration is invalid.
@@ -62,6 +79,42 @@ func (c *Component) Server() *googlegrpc.Server {
 		return nil
 	}
 	return c.server
+}
+
+// Probes returns the component's probe registry, the source the gRPC health
+// service answers from. A Host bridges lifecycle readiness into it; an
+// application can add a readiness check of its own.
+func (c *Component) Probes() *health.Registry {
+	if c == nil {
+		return nil
+	}
+	return c.probes
+}
+
+// healthService answers grpc.health.v1.Health from a probe registry.
+//
+// Check evaluates the readiness scope on every call rather than reading a status
+// somebody remembered to set, so the answer cannot go stale. Watch is not
+// implemented: it would have to poll the checks to synthesise transitions, and
+// the tools that orchestrate on gRPC health — grpc_health_probe and Kubernetes'
+// native gRPC probe — call Check.
+type healthService struct {
+	grpc_health_v1.UnimplementedHealthServer
+	probes *health.Registry
+}
+
+func (s *healthService) Check(ctx context.Context, request *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
+	// The registry describes the process, not one service within it, so a
+	// per-service question has no honest answer here. The protocol's own reply
+	// for that is NotFound.
+	if request != nil && request.GetService() != "" {
+		return nil, status.Error(codes.NotFound, "kit/grpc: readiness is reported for the process, not per service")
+	}
+	serving := grpc_health_v1.HealthCheckResponse_SERVING
+	if s.probes.Report(ctx, health.ScopeReadiness).Status != health.StatusOK {
+		serving = grpc_health_v1.HealthCheckResponse_NOT_SERVING
+	}
+	return &grpc_health_v1.HealthCheckResponse{Status: serving}, nil
 }
 
 // Addr returns the bound listener address after Start, or nil before Start.
