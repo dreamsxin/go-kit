@@ -303,8 +303,9 @@ local rejections (`ErrCircuitOpen`, `ErrBulkheadFull`, `ErrBackpressure`,
 `ErrRateLimited`) are never retried; then an error implementing
 `interface{ Retryable() bool }` decides for itself — this **overrides** its
 `apperror` kind, which is how a 408 or 429 from an upstream becomes retryable;
-otherwise only `apperror.KindUnavailable` is retried, read from either
-`apperror.Kinder` or `apperror.KindNamer`. Unclassified errors are not retried.
+otherwise only the `unavailable` kind is retried, read from an error that names
+its kind through `interface{ ErrorKindName() string }` — `apperror` values
+implement it. Unclassified errors are not retried.
 A retry hint on the error (`RetryAfterReporter`) overrides the schedule up to
 `MaxRetryAfterHint`, and the caller owns idempotency. A transport client is an
 `Endpoint` too, so the same stack applies to outbound calls:

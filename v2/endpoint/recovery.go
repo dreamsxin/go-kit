@@ -2,8 +2,6 @@ package endpoint
 
 import (
 	"context"
-
-	"github.com/dreamsxin/go-kit/v2/apperror"
 )
 
 // PanicHandler decides how a recovered endpoint panic is reported. The
@@ -28,7 +26,11 @@ type PanicHandler func(ctx context.Context, request any, recovered any) error
 // whatever was passed to panic and carries no stack of its own, and by the time
 // the middleware returns the frames are gone.
 func DefaultPanicHandler(context.Context, any, any) error {
-	return apperror.Internal("endpoint.panic", "endpoint panic recovered")
+	return &classifiedError{
+		kind:    kindInternal,
+		code:    "endpoint.panic",
+		message: "endpoint panic recovered",
+	}
 }
 
 // RecoveryMiddleware converts panics raised by the wrapped endpoint or inner

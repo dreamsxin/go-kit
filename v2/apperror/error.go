@@ -35,13 +35,15 @@ type Kinder interface {
 	ErrorKind() Kind
 }
 
-// KindNamer is the minimal structural contract used by optional transports
-// that must not depend on this package directly.
+// KindNamer is the minimal structural contract for errors that name their kind
+// without depending on this package.
 //
-// Implementing either contract is enough: every classification site in the
-// framework — the HTTP and gRPC error encoders and the retry classifier — reads
-// Kinder first and falls back to KindNamer, so a custom error does not have to
-// implement both to be classified consistently across transports.
+// It is the portable half of the classification contract, and the one to
+// implement when in doubt. The HTTP and gRPC error encoders read Kinder first
+// and fall back to this, so either contract maps to the same status. The
+// endpoint package reads only this one — it does not import apperror, so an
+// error that implements Kinder alone is classified correctly on the wire but is
+// invisible to endpoint.DefaultRetryable.
 type KindNamer interface {
 	ErrorKindName() string
 }

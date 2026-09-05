@@ -110,17 +110,54 @@ func isAllowedImport(importPath string, exact, trees []string) bool {
 	return false
 }
 
+// TestEndpointHasOnlyStandardLibraryImports keeps the contract layer at the
+// bottom of the layering.
+//
+// endpoint defines what an Endpoint, a Middleware, and a Chain are. Nobody
+// should have to adopt a framework policy — error taxonomy included — to use
+// those three. It speaks the structural classification contract instead, the
+// same one apperror documents for callers that must not depend on it.
 func TestEndpointHasOnlyStandardLibraryImports(t *testing.T) {
 	root := moduleRoot(t)
 	output := commandOutput(t, root, "go", "list", "-f", "{{join .Imports \"\\n\"}}", "./endpoint")
 	for _, importPath := range strings.Fields(string(output)) {
-		// apperror is the zero-dependency error classification package; it is
-		// the only framework package endpoint may import.
-		if importPath == coreModulePath+"/apperror" {
-			continue
-		}
 		if !isStandardLibraryImport(importPath) {
 			t.Errorf("endpoint imports non-standard package %q", importPath)
+		}
+	}
+}
+
+// TestComponentsDoNotDependOnAssembly keeps the dependency direction one-way.
+//
+// The layering is: the contract (endpoint), then components that build on it,
+// then the assembly that wires components into a service. A component reaching
+// back into the assembly layer is what turns a set of libraries into a
+// framework you cannot take pieces of.
+func TestComponentsDoNotDependOnAssembly(t *testing.T) {
+	root := moduleRoot(t)
+	assembly := []string{
+		coreModulePath + "/kit",
+		coreModulePath + "/cmd/microgen",
+	}
+	isAssembly := func(importPath string) bool {
+		for _, prefix := range assembly {
+			if importPath == prefix || strings.HasPrefix(importPath, prefix+"/") {
+				return true
+			}
+		}
+		return false
+	}
+
+	packages := strings.Fields(string(commandOutput(t, root, "go", "list", "./...")))
+	for _, pkg := range packages {
+		if isAssembly(pkg) || !strings.HasPrefix(pkg, coreModulePath) {
+			continue
+		}
+		deps := strings.Fields(string(commandOutput(t, root, "go", "list", "-deps", pkg)))
+		for _, dep := range deps {
+			if isAssembly(dep) {
+				t.Errorf("component %s depends on assembly package %s", pkg, dep)
+			}
 		}
 	}
 }

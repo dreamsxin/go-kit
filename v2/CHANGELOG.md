@@ -2,6 +2,51 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.9.0] - Release Candidate
+
+Layering. The goal is that the pieces be usable one at a time, so the contract
+layer stops carrying a policy and the dependency direction is enforced rather
+than described.
+
+### Changed
+
+- `endpoint` imports only the standard library. It defined what an `Endpoint`, a
+  `Middleware`, and a `Chain` are while importing `apperror`, so nobody could
+  take those three without also taking the framework's error taxonomy. It now
+  speaks the structural classification contract — `interface{ ErrorKindName()
+  string }` — which is the one `apperror` already documents for callers that must
+  not depend on it, and the one the generated SDKs use.
+
+  Consequences for an application:
+
+  - `endpoint.ErrCircuitOpen`, `ErrBulkheadFull`, `ErrBackpressure`,
+    `ErrRateLimited`, `ValidationError`, and the bulkhead's wait error implement
+    `apperror.KindNamer` and no longer implement the typed `apperror.Kinder`.
+    Statuses and gRPC codes are unchanged: both encoders read `Kinder` first and
+    fall back to `KindNamer`. Code matching on the typed contract must switch to
+    the string one.
+  - `endpoint.DefaultRetryable` reads only `ErrorKindName`. An `apperror`
+    implements both, so nothing changes for it; a custom error that implements
+    only `Kinder` is still classified correctly on the wire but is no longer
+    retried.
+  - `DefaultPanicHandler` returns a framework-owned classified error instead of
+    an `*apperror.Error`. Its kind (`internal`), code (`endpoint.panic`), and
+    message are unchanged.
+
+### Added
+
+- `TestComponentsDoNotDependOnAssembly` in `tools`: no package outside `kit` and
+  `cmd/microgen` may depend on them, so a component cannot quietly reach back
+  into the assembly layer. Layering that is only written down does not survive.
+
+### Fixed
+
+- `TestEndpointHasOnlyStandardLibraryImports` had an explicit carve-out
+  permitting the `apperror` import it was supposed to prevent. Removed.
+- `apperror.KindNamer` claimed every classification site in the framework reads
+  `Kinder` first and falls back to it. The endpoint package now reads only
+  `KindNamer`; the doc says so.
+
 ## [2.8.1] - 2026-09-05
 
 A contract audit of every runtime package. Each item below is a place where the

@@ -5,8 +5,6 @@ import (
 	"errors"
 	"math/rand/v2"
 	"time"
-
-	"github.com/dreamsxin/go-kit/v2/apperror"
 )
 
 // Retry defaults. RetryMiddleware falls back to these for any non-positive
@@ -63,7 +61,12 @@ func WithRetryable(retryable func(error) bool) RetryOption {
 //     decides for itself; transport client errors such as
 //     *client.HTTPStatusError use it to expose protocol knowledge the endpoint
 //     layer does not have
-//  4. otherwise only apperror.KindUnavailable is retried
+//  4. otherwise only the "unavailable" kind is retried, read from an error that
+//     names its kind through interface{ ErrorKindName() string }. An apperror
+//     implements it, as does anything following the same structural contract.
+//     An error that implements only the typed apperror.Kinder is not seen here
+//     — this package does not import apperror — though the transports still
+//     classify it correctly.
 //
 // Unclassified errors are not retried, because a business failure is not
 // transient.
@@ -82,26 +85,23 @@ func DefaultRetryable(err error) bool {
 	if errors.As(err, &classified) {
 		return classified.Retryable()
 	}
-	// Both classification contracts are read, so an error is retryable under
-	// the same rule whether it implements apperror.Kinder or only the minimal
-	// apperror.KindNamer that optional transports use.
 	kind, ok := errorKind(err)
 	if !ok {
 		return false
 	}
-	return kind == apperror.KindUnavailable
+	return kind == kindUnavailable
 }
 
-// errorKind reads the classification from either the typed apperror.Kinder
-// contract or the minimal apperror.KindNamer contract.
-func errorKind(err error) (apperror.Kind, bool) {
-	var kinder apperror.Kinder
-	if errors.As(err, &kinder) {
-		return kinder.ErrorKind(), true
-	}
-	var namer apperror.KindNamer
+// errorKind reads the classification from the structural kindNamer contract.
+//
+// apperror values implement it alongside the typed apperror.Kinder, so an
+// apperror is classified here exactly as it is at the transports. An error that
+// implements only the typed contract is not retried — it is still classified
+// correctly on the wire, because the transports read both.
+func errorKind(err error) (string, bool) {
+	var namer kindNamer
 	if errors.As(err, &namer) {
-		return apperror.Kind(namer.ErrorKindName()), true
+		return namer.ErrorKindName(), true
 	}
 	return "", false
 }

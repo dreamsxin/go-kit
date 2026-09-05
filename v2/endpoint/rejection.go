@@ -4,28 +4,22 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/dreamsxin/go-kit/v2/apperror"
 )
 
 // rejectionError is a framework-owned admission-control failure. It carries a
 // transport-neutral classification so every transport maps it through the
-// normal apperror rules instead of special-casing the sentinel values, which
-// kept HTTP and gRPC from agreeing on a status.
+// normal classification rules instead of special-casing the sentinel values,
+// which kept HTTP and gRPC from agreeing on a status.
 type rejectionError struct {
 	message string
-	kind    apperror.Kind
+	kind    string
 }
 
 func (e *rejectionError) Error() string { return e.message }
 
-// ErrorKind classifies the rejection through the transport-neutral apperror
-// contract.
-func (e *rejectionError) ErrorKind() apperror.Kind { return e.kind }
-
-// ErrorKindName exposes the kind name for transports that use the minimal
-// apperror.KindNamer contract instead of importing apperror directly.
-func (e *rejectionError) ErrorKindName() string { return string(e.kind) }
+// ErrorKindName classifies the rejection through the structural contract every
+// transport reads.
+func (e *rejectionError) ErrorKindName() string { return e.kind }
 
 // Rejection errors reported by the admission-control middleware. Each one
 // classifies itself, so HTTP and gRPC derive the same meaning from it:
@@ -42,19 +36,19 @@ func (e *rejectionError) ErrorKindName() string { return string(e.kind) }
 var (
 	ErrBackpressure error = &rejectionError{
 		message: "too many concurrent requests",
-		kind:    apperror.KindUnavailable,
+		kind:    kindUnavailable,
 	}
 	ErrBulkheadFull error = &rejectionError{
 		message: "bulkhead full",
-		kind:    apperror.KindUnavailable,
+		kind:    kindUnavailable,
 	}
 	ErrCircuitOpen error = &rejectionError{
 		message: "circuit breaker open",
-		kind:    apperror.KindUnavailable,
+		kind:    kindUnavailable,
 	}
 	ErrRateLimited error = &rejectionError{
 		message: "rate limit exceeded",
-		kind:    apperror.KindResourceExhausted,
+		kind:    kindResourceExhausted,
 	}
 )
 
@@ -81,15 +75,15 @@ type RetryAfterReporter interface {
 type shedWaitError struct {
 	cause error // the context error that ended the wait
 	shed  error // the sentinel of the gate that was full, e.g. ErrBulkheadFull
-	kind  apperror.Kind
+	kind  string
 }
 
 // newShedWaitError classifies cause, the context error that ended a wait at the
 // gate reported by shed.
 func newShedWaitError(cause, shed error) error {
-	kind := apperror.KindDeadlineExceeded
+	kind := kindDeadlineExceeded
 	if errors.Is(cause, context.Canceled) {
-		kind = apperror.KindCanceled
+		kind = kindCanceled
 	}
 	return &shedWaitError{cause: cause, shed: shed, kind: kind}
 }
@@ -102,16 +96,12 @@ func (e *shedWaitError) Error() string {
 // matches context.DeadlineExceeded and ErrBulkheadFull alike.
 func (e *shedWaitError) Unwrap() []error { return []error{e.cause, e.shed} }
 
-// ErrorKind classifies the failure as the caller's timeout or cancellation.
-func (e *shedWaitError) ErrorKind() apperror.Kind { return e.kind }
-
-// ErrorKindName exposes the kind name for transports that use the minimal
-// apperror.KindNamer contract.
-func (e *shedWaitError) ErrorKindName() string { return string(e.kind) }
+// ErrorKindName classifies the failure as the caller's timeout or cancellation.
+func (e *shedWaitError) ErrorKindName() string { return e.kind }
 
 // RetryAfterError annotates an error with a retry delay without changing its
 // identity: errors.Is and errors.As still see the wrapped error, including its
-// apperror classification.
+// classification.
 type RetryAfterError struct {
 	// Err is the wrapped error.
 	Err error

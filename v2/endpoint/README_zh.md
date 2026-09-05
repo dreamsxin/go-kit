@@ -283,8 +283,8 @@ ep := endpoint.NewBuilder(base).
 context 错误与本地拒绝（`ErrCircuitOpen`、`ErrBulkheadFull`、`ErrBackpressure`、
 `ErrRateLimited`）永不重试；随后实现 `interface{ Retryable() bool }` 的错误自行
 决定——它**优先于** `apperror` 分类，上游返回的 408 或 429 正是靠这一点变成可重试；
-否则只重试 `apperror.KindUnavailable`，该分类从 `apperror.Kinder` 或
-`apperror.KindNamer` 任一契约读取。未分类的错误不重试。错误自带的重试提示
+否则只重试 `unavailable` 这个 kind，分类从 `interface{ ErrorKindName() string }`
+读取——`apperror` 的值实现了它。未分类的错误不重试。错误自带的重试提示
 （`RetryAfterReporter`）优先于退避计划，上限为 `MaxRetryAfterHint`；幂等性由调用方
 负责。传输层客户端同样是 `Endpoint`，因此同一套组合也适用于对外调用：
 `transport/http/client.HTTPStatusError` 按状态码自我分类，并上报服务端的

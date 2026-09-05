@@ -786,7 +786,7 @@ func TestGenerateFull_GoMod_Created(t *testing.T) {
 	mustExist(t, goModPath)
 	mustContain(t, goModPath, "module example.com/myproject")
 	mustContain(t, goModPath, "go 1.25.8")
-	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2 v2.8.1")
+	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2 v2.9.0")
 	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker")
 	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/ratelimit")
 	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/zap")

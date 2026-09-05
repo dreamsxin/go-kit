@@ -484,11 +484,11 @@ func TestBulkheadMiddleware_ReportsTheCallerContextThatEndedTheWait(t *testing.T
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("error = %v, want it to wrap context.DeadlineExceeded", err)
 	}
-	var kinder apperror.Kinder
-	if !errors.As(err, &kinder) {
+	var namer apperror.KindNamer
+	if !errors.As(err, &namer) {
 		t.Fatalf("error %v does not classify itself", err)
 	}
-	if got := kinder.ErrorKind(); got != apperror.KindDeadlineExceeded {
+	if got := namer.ErrorKindName(); got != string(apperror.KindDeadlineExceeded) {
 		t.Fatalf("kind = %q, want %q", got, apperror.KindDeadlineExceeded)
 	}
 }
@@ -511,11 +511,11 @@ func TestBulkheadMiddleware_ClassifiesCancellationAsCanceled(t *testing.T) {
 	_, err := ep(ctx, "second")
 	close(release)
 
-	var kinder apperror.Kinder
-	if !errors.As(err, &kinder) {
+	var namer apperror.KindNamer
+	if !errors.As(err, &namer) {
 		t.Fatalf("error %v does not classify itself", err)
 	}
-	if got := kinder.ErrorKind(); got != apperror.KindCanceled {
+	if got := namer.ErrorKindName(); got != string(apperror.KindCanceled) {
 		t.Fatalf("kind = %q, want %q", got, apperror.KindCanceled)
 	}
 }

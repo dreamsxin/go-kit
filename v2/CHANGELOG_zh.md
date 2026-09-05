@@ -2,6 +2,43 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [2.9.0] - 发布候选
+
+分层。目标是各个部件可以单独使用，所以契约层不再携带策略，依赖方向由门禁保证而不是
+靠文档描述。
+
+### 变更
+
+- `endpoint` 只导入标准库。它定义了 `Endpoint`、`Middleware` 与 `Chain` 是什么，却
+  同时导入 `apperror`，导致没人能只要这三个而不一并接受框架的错误分类体系。现在它使用
+  结构化分类契约 `interface{ ErrorKindName() string }`——这正是 `apperror` 本来就
+  推荐给"不能依赖它"的调用方的那个契约，也是生成 SDK 使用的那个。
+
+  对应用的影响：
+
+  - `endpoint.ErrCircuitOpen`、`ErrBulkheadFull`、`ErrBackpressure`、
+    `ErrRateLimited`、`ValidationError` 以及舱壁的等待错误实现
+    `apperror.KindNamer`，不再实现带类型的 `apperror.Kinder`。HTTP 状态码与 gRPC
+    code 不变：两个编码器都是先读 `Kinder` 再回落到 `KindNamer`。按带类型契约做匹配的
+    代码需改用字符串契约。
+  - `endpoint.DefaultRetryable` 只读 `ErrorKindName`。`apperror` 两个都实现，所以对它
+    没有变化；只实现 `Kinder` 的自定义错误在线上仍被正确分类，但不再被重试。
+  - `DefaultPanicHandler` 返回框架自有的已分类错误而不是 `*apperror.Error`。它的
+    kind（`internal`）、code（`endpoint.panic`）与消息均不变。
+
+### 新增
+
+- `tools` 中的 `TestComponentsDoNotDependOnAssembly`：除 `kit` 与 `cmd/microgen`
+  自身外，任何包都不得依赖它们，因此组件无法悄悄反向依赖装配层。只写在文档里的分层
+  留不住。
+
+### 修复
+
+- `TestEndpointHasOnlyStandardLibraryImports` 里有一处显式豁免，恰好放过了它本该拦住的
+  `apperror` 导入。已删除。
+- `apperror.KindNamer` 声称框架里每个分类点都先读 `Kinder` 再回落到它。endpoint 现在
+  只读 `KindNamer`；注释已如实说明。
+
 ## [2.8.1] - 2026-09-05
 
 对全部运行时 package 做了一轮契约审计。下列每一条都是代码与它自身文档化契约不
