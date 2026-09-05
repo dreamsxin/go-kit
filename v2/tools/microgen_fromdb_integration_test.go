@@ -10,6 +10,7 @@ import (
 )
 
 func TestMicrogenFromDBIntegration(t *testing.T) {
+	t.Parallel()
 
 	t.Run("FromDB_SQLite_GeneratedProject_BuildsAndRuns", func(t *testing.T) {
 		outDir := generatedProjectDir(t, "gen_fromdb_sqlite")

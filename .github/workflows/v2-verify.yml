@@ -18,18 +18,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  release:
-    name: release (${{ matrix.os }})
+  # verify and race are split so they run concurrently, and because only race
+  # needs a C toolchain: this job skips the Windows mingw install entirely.
+  verify:
+    name: verify (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         os:
           - ubuntu-latest
           - windows-latest
-    env:
-      CGO_ENABLED: "1"
     steps:
       - name: Check out repository and tags
         uses: actions/checkout@v4
@@ -43,10 +43,43 @@ jobs:
           cache-dependency-path: |
             v2/**/go.sum
 
+      # The tools module generates a TypeScript SDK and validates its behaviour
+      # against the Go one.
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24"
+
+      - name: Run release suites
+        working-directory: v2/tools
+        run: go run ./releaseverify -root .. -suites test,standalone,vet,tidy
+
+      - name: Verify clean scope and release phase
+        working-directory: v2/tools
+        run: go run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-tags
+
+  race:
+    name: race (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.8"
+          cache-dependency-path: |
+            v2/**/go.sum
 
       - name: Ensure a Windows C compiler is available
         if: runner.os == 'Windows'
@@ -57,10 +90,6 @@ jobs:
           }
           gcc --version
 
-      - name: Run all release suites
+      - name: Run the race suite
         working-directory: v2/tools
-        run: go run ./releaseverify -root .. -suites test,standalone,vet,tidy,race
-
-      - name: Verify clean scope and release phase
-        working-directory: v2/tools
-        run: go run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-tags
+        run: go run ./releaseverify -root .. -suites race

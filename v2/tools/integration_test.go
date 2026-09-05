@@ -19,6 +19,12 @@ import (
 )
 
 // TestAllExamples builds and runs all examples to ensure they still work.
+// TestAllExamples builds and smoke-tests every example.
+//
+// It deliberately does not call t.Parallel: its cases bind fixed ports, so it
+// has to own the port space while it runs. Go schedules serial tests before
+// parallel ones, so this runs first and the rest of the suite overlaps after it.
+// Switching the cases to freeTCPAddr would let it join them.
 func TestAllExamples(t *testing.T) {
 	cwd, _ := os.Getwd()
 	root := filepath.Dir(cwd)

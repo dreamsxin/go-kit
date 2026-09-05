@@ -16,6 +16,7 @@ import (
 var updateAPISnapshot = flag.Bool("update-api-snapshot", false, "update the reviewed public API snapshot")
 
 func TestPublicAPISurfaceSnapshot(t *testing.T) {
+	t.Parallel()
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)

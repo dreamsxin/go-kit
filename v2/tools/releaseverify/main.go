@@ -108,14 +108,14 @@ func runForModules(modules []module, extraEnv []string, name string, args ...str
 	}
 }
 
+// runRace runs the core module's tests under the race detector.
+//
+// Every package, not a curated list: a list has to be edited whenever a package
+// is added, and the ones that get forgotten are the ones nobody thought about
+// concurrency for. The extra packages cost a few seconds against a suite that
+// already takes tens.
 func runRace(root string) {
-	packages := []string{
-		"./endpoint", "./kit", "./kit/grpc", "./interaction/...", "./transport/...",
-		"./sd/...", "./security/http", "./observability/...",
-		"./integrations/...", "./cmd/microgen/internal/generator",
-	}
-	args := append([]string{"test", "-race"}, packages...)
-	run(root, []string{"CGO_ENABLED=1"}, "go", args...)
+	run(root, []string{"CGO_ENABLED=1"}, "go", "test", "-race", "./...", "-count=1")
 }
 
 func run(dir string, extraEnv []string, name string, args ...string) {

@@ -14,6 +14,7 @@ import (
 )
 
 func TestMicrogenInteractionIntegration(t *testing.T) {
+	t.Parallel()
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)

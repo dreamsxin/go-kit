@@ -12,26 +12,33 @@ import (
 // important when tools tests run with GOWORK=off: the generator imports
 // cmd/microgen/internal packages, which Go permits only when the command is
 // built from within the owning module.
+//
+// MICROGEN_GO_KIT_ROOT goes on the child's environment rather than the test
+// process's. Only the generator reads it, and setting it with t.Setenv would
+// mutate process-global state, which bars every caller from t.Parallel.
 func microgenCommand(t *testing.T, args ...string) *exec.Cmd {
+	t.Helper()
+	root := goKitRoot(t)
+	commandArgs := append([]string{"run", "./cmd/microgen"}, args...)
+	cmd := exec.Command("go", commandArgs...)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "MICROGEN_GO_KIT_ROOT="+filepath.ToSlash(root))
+	return cmd
+}
+
+// goKitRoot is the v2 module root, the parent of the tools module this test
+// binary runs in.
+func goKitRoot(t *testing.T) string {
 	t.Helper()
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
-	root := filepath.Dir(cwd)
-	commandArgs := append([]string{"run", "./cmd/microgen"}, args...)
-	cmd := exec.Command("go", commandArgs...)
-	cmd.Dir = root
-	return cmd
+	return filepath.Dir(cwd)
 }
 
 func generatedProjectDir(t *testing.T, name string) string {
 	t.Helper()
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd: %v", err)
-	}
-	t.Setenv("MICROGEN_GO_KIT_ROOT", filepath.ToSlash(filepath.Dir(cwd)))
 	return filepath.Join(t.TempDir(), name)
 }
 
