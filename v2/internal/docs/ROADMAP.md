@@ -688,7 +688,7 @@ accounting, protocol-level JSON answers, and generated code that reports a type
 mismatch as a classified error. The performance figures include the change
 measurement refuted, so the idea is not retried blind.
 
-## Milestone 9 (Active): A Freeze Worth Declaring / 值得宣布的冻结
+## Milestone 9 (Complete): A Freeze Worth Declaring / 值得宣布的冻结
 
 Goal: the compatibility contract is enforced by something that fails before it is
 promised.
@@ -831,6 +831,18 @@ Milestone 9 is complete when every work package's acceptance command passes and
 each of the six contract items in `RELEASE.md` names the gate that enforces it.
 Declaring the freeze is the decision that follows, not part of this milestone: the
 milestone's job is to make the declaration safe to make.
+
+Completed: each of the six contract surfaces now names a gate, and
+`TestCompatibilityContractNamesItsGates` fails when a named gate stops existing.
+An incompatible API change is reported as incompatible rather than as a moved
+digest, the published package path set and the generated project layout are
+reviewed lists rather than side effects of a hash, the generator's flags and the
+generated program's flags are checked against the documents that tabulate them,
+and the configuration chain is exercised through the flag stage and the validation
+after it, with every documented `APP_*` key proven to reach its field. The sixth
+item is no longer an unnamed set: forty-nine protocol behaviours are declared
+where they are implemented, each naming a test in its own package, and the two
+behaviours deliberately left unstable say so in the same form.
 
 ## Maintenance Rules / 维护规则
 

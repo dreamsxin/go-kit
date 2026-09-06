@@ -19,6 +19,9 @@ var (
 )
 
 // QueryError reports an invalid query or path parameter.
+//
+// Stable: http.query-error — an unusable query or path parameter is 400 bad_request.invalid_query and names the field.
+// Covered by: TestDecodeQueryRequestReportsFieldError
 type QueryError struct {
 	Field string
 	Err   error
@@ -119,6 +122,9 @@ func EncodePath(path string, request any) (string, error) {
 
 // DecodeQueryRequest decodes path and query parameters into a struct pointer.
 // Path parameters take precedence over query parameters with the same name.
+//
+// Stable: http.query-param-names — a parameter is named by the form tag, else the json tag, else the lowercased field name.
+// Covered by: TestDecodeQueryRequest, TestEncodePathAndQuery
 func DecodeQueryRequest(r *nethttp.Request, target any) error {
 	if r == nil {
 		return &QueryError{Err: fmt.Errorf("nil HTTP request")}

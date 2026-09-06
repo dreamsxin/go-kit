@@ -47,6 +47,9 @@ type MultipartLimits struct {
 // Errors classify as client errors: bodies and files beyond the limits map
 // to 413, malformed or non-multipart requests to 415/400, so they render
 // correctly through JSONErrorEncoder.
+//
+// Stable: http.multipart-limits — an over-limit body or file is 413 request_too_large, a non-multipart request 415.
+// Covered by: TestParseMultipartForm_BodyTooLargeIs413, TestParseMultipartForm_FileTooLargeIs413, TestParseMultipartForm_NonMultipartIs415
 func ParseMultipartForm(r *http.Request, limits MultipartLimits) (*multipart.Form, error) {
 	if r.MultipartForm != nil {
 		return r.MultipartForm, nil
@@ -136,6 +139,9 @@ func (r *limitedMultipartBody) Read(p []byte) (int, error) {
 // filename is encoded safely (RFC 2231 for non-ASCII names), the content
 // type is derived from the filename extension, and a known size becomes the
 // Content-Length header.
+//
+// Stable: http.attachment-headers — a download carries Content-Disposition attachment with an escaped filename, a type from its extension, and Content-Length when the size is known.
+// Covered by: TestWriteAttachment_SetsHeadersAndStreamsContent, TestWriteAttachment_SanitizesHostileFilename, TestWriteAttachment_UnknownExtensionIsOctetStream
 func WriteAttachment(w http.ResponseWriter, filename string, size int64, content io.Reader) error {
 	disposition := mime.FormatMediaType("attachment", map[string]string{"filename": filename})
 	if disposition == "" {

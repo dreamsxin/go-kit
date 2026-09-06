@@ -17,12 +17,18 @@ import (
 // StatusClientClosedRequest is the non-standard 499 status used when the caller
 // disconnects or cancels before the response is written. It follows the nginx
 // and gRPC-gateway convention and keeps client disconnects out of the 5xx rate.
+//
+// Stable: http.status-client-closed — a caller that disconnects is answered 499 "Client Closed Request".
+// Covered by: TestTextErrorEncoderNamesClientClosedRequest
 const StatusClientClosedRequest = 499
 
 // ErrorEncoder writes an endpoint or transport error to an HTTP response.
 type ErrorEncoder func(ctx context.Context, err error, w http.ResponseWriter)
 
 // ErrorResponse is the default JSON shape emitted by JSONErrorEncoder.
+//
+// Stable: http.error-envelope — a JSON error body is {"code","message"}, plus "request_id" when one exists.
+// Covered by: TestJSONErrorEncoder_DefaultStatus, TestJSONErrorEncoder_IncludesRequestID
 type ErrorResponse struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
@@ -96,6 +102,12 @@ func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 // classifications (501, 503, 504) still carry their message, because reaching
 // them takes an explicit kind. An encoder that must say more at 500 is one the
 // application writes itself.
+//
+// Stable: http.error-message-redacted-at-500 — a 500 body reads "Internal Server Error", never the error's own message.
+// Covered by: TestErrorEncoders_RedactTheMessageAt500, TestEncodersDoNotLeakWrapCauseBelow500
+//
+// Stable: http.error-public-message — an error that implements PublicMessager decides its own body text.
+// Covered by: TestEncodersForwardPublicMessage, TestEmptyPublicMessageDoesNotFallBackToTheCode
 func publicErrorMessage(err error, status int) string {
 	fallback := statusText(status)
 	if fallback == "" {
@@ -245,6 +257,8 @@ var JSONErrorEncoder ErrorEncoder = func(ctx context.Context, err error, w http.
 }
 
 func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
+	// Stable: http.error-content-type — a JSON error response is application/json; charset=utf-8.
+	// Covered by: TestJSONErrorEncoder_Default500
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 	var h transporthttp.Headerer
@@ -261,10 +275,14 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 	message := publicErrorMessage(err, code)
 
 	errorCode := defaultErrorCode(code)
+	// Stable: http.error-code-validation — a validation failure is 400 with code bad_request.validation.
+	// Covered by: TestValidationErrorEncodesAs400, TestWrappedValidationErrorEncodesAs400
 	var verr *endpoint.ValidationError
 	if errors.As(err, &verr) {
 		errorCode = "bad_request.validation"
 	}
+	// Stable: http.error-coder-wins — an error naming its own code puts that code in the body.
+	// Covered by: TestJSONErrorEncoder_ProtocolErrorCodeAndMessage, TestJSONErrorEncoder_UsesWrappedProtocolError
 	var ec transporthttp.ErrorCoder
 	if errors.As(err, &ec) && ec.ErrorCode() != "" {
 		errorCode = ec.ErrorCode()
@@ -290,6 +308,8 @@ func HTTPStatusForError(err error) int {
 }
 
 func httpStatus(err error) int {
+	// Stable: http.status-coder-wins — an error naming its own status decides the response status.
+	// Covered by: TestJSONErrorEncoder_StatusCoder, TestJSONErrorEncoderWithKindMapper_ExplicitStatusWins
 	var sc transporthttp.StatusCoder
 	if errors.As(err, &sc) {
 		if status := sc.StatusCode(); status >= 100 && status <= 999 {
@@ -304,6 +324,9 @@ func httpStatus(err error) int {
 	// Unclassified context errors map like their apperror kinds so a timeout
 	// or a client disconnect reads the same whether the endpoint classified it
 	// or not. Explicit classification still wins over these fallbacks.
+	//
+	// Stable: http.status-context-fallback — an unclassified deadline is 504 and an unclassified cancellation 499.
+	// Covered by: TestTimeoutMiddlewareEncodesAs504, TestHTTPStatusForErrorReusesFrameworkMapping
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
 		return http.StatusGatewayTimeout
@@ -320,6 +343,8 @@ func HTTPStatusForErrorKind(kind apperror.Kind) int {
 }
 
 func statusForErrorKind(kind apperror.Kind) int {
+	// Stable: http.status-for-kind — each apperror kind maps to one status: 400, 401, 403, 404, 409, 412, 429, 503, 504, 499, 501, else 500.
+	// Covered by: TestHTTPStatusForErrorReusesFrameworkMapping, TestJSONErrorEncoder_ApplicationErrorStatusMapping
 	switch kind {
 	case apperror.KindInvalidArgument:
 		return http.StatusBadRequest
@@ -359,6 +384,9 @@ func statusText(status int) string {
 
 // applyRetryAfter emits a Retry-After header when the error knows how long the
 // client should wait. An explicit Headerer value already on the response wins.
+//
+// Stable: http.retry-after — an error reporting a wait emits Retry-After in whole seconds, at least 1.
+// Covered by: TestRetryAfterErrorEmitsHeader
 func applyRetryAfter(w http.ResponseWriter, err error) {
 	if w.Header().Get("Retry-After") != "" {
 		return
@@ -378,6 +406,8 @@ func applyRetryAfter(w http.ResponseWriter, err error) {
 	w.Header().Set("Retry-After", strconv.Itoa(seconds))
 }
 
+// Stable: http.error-code-default — without an ErrorCoder the body's code is the status text lower-snaked.
+// Covered by: TestJSONErrorEncoder_DefaultStatus, TestJSONErrorEncoder_MapsApplicationError
 func defaultErrorCode(status int) string {
 	text := statusText(status)
 	if text == "" {

@@ -65,6 +65,8 @@ func (ss *SSEStream) Retry(milliseconds int) error {
 	return nil
 }
 
+// Stable: http.sse-framing — an event is "event:" then one "data:" line per input line, ended by a blank line; comments are ":" and reconnect advice "retry:".
+// Covered by: TestSSEServer_MultiLineDataSplitsIntoDataLines, TestSSEServer_CommentAndRetryLines
 func (ss *SSEStream) writeEvent(name, data string) error {
 	var b strings.Builder
 	if name != "" {
@@ -195,6 +197,8 @@ func (s *SSEServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Stable: http.sse-headers — a stream answers 200 with text/event-stream, Cache-Control no-cache and X-Accel-Buffering no.
+	// Covered by: TestSSEServer_WritesEventsAndHeaders, TestSSEServer_DecodeFailureBeforeHeaders
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	// Disable proxy response buffering (e.g. nginx) so events reach the

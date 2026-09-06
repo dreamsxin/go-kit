@@ -39,6 +39,9 @@ func ListenAndServe(addr string, rt *interaction.Runtime) error {
 // NewHTTPServer constructs an HTTP server and its MCP handler without
 // starting either one. The handler is returned so callers can send
 // server-initiated notifications while the server is running.
+//
+// Stable: mcp.mount-path — the built-in server answers MCP at /mcp.
+// Covered by: TestNewHTTPServerMountsTheMCPPath
 func NewHTTPServer(addr string, rt *interaction.Runtime) (*http.Server, *StreamableHandler) {
 	h := NewStreamableHandler(rt)
 	mux := http.NewServeMux()

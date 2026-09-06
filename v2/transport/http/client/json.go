@@ -84,6 +84,9 @@ func (e *HTTPStatusError) Error() string {
 // err.Error() below 500, so an upstream 404 body would land verbatim in the
 // downstream response. Stating a public message is what takes that fallback out
 // of the picture.
+//
+// Stable: http.client-body-not-relayed — an upstream body never reaches a downstream response; the message names only the status.
+// Covered by: TestHTTPStatusErrorDoesNotLeakUpstreamBody, TestUpstreamBodyReachesNoBuiltInEncoder
 func (e *HTTPStatusError) PublicMessage() string {
 	if e == nil {
 		return ""
@@ -92,6 +95,9 @@ func (e *HTTPStatusError) PublicMessage() string {
 }
 
 // Retryable reports whether the status is generally safe to retry.
+//
+// Stable: http.client-retryable — 408, 429 and every 5xx are retryable, and no other status is.
+// Covered by: TestHTTPStatusError_Retryable, TestClientEndpointDoesNotRetryClientError
 func (e *HTTPStatusError) Retryable() bool {
 	if e == nil {
 		return false

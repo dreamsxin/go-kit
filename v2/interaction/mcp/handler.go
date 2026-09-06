@@ -16,6 +16,14 @@ import (
 	"github.com/dreamsxin/go-kit/v2/interaction"
 )
 
+// Stable: mcp.protocol-version — the server speaks MCP 2025-06-18 and answers with that version.
+// Covered by: TestInitialize, TestStreamableRejectsUnsupportedInitializeProtocol
+//
+// Stable: mcp.jsonrpc-version — every response carries jsonrpc "2.0".
+// Covered by: TestPing
+//
+// Stable: mcp.server-identity — serverInfo names "go-kit interaction" with this version.
+// Covered by: TestInitialize, TestE2E_InitializeResponseFormat
 const (
 	jsonRPCVersion  = "2.0"
 	protocolVersion = "2025-06-18"
@@ -33,6 +41,11 @@ type dispatchCore struct {
 	Runtime *interaction.Runtime
 }
 
+// Stable: mcp.method-names — these are the method names the server answers, and an unknown one is -32601.
+// Covered by: TestHandlerListsAndCallsTools, TestResourcesList, TestPromptsList, TestUnknownMethod
+//
+// Stable: mcp.error-codes — failures use the JSON-RPC codes -32700, -32600, -32601, -32602, -32603, and MCP's -32002 and -32001.
+// Covered by: TestHandlerReturnsJSONRPCErrors, TestResourcesReadNotFound, TestUnknownMethod
 func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 	resp := response{JSONRPC: jsonRPCVersion, ID: req.ID}
 	switch req.Method {

@@ -31,14 +31,20 @@ v2 处于冻结前阶段。在宣布冻结之前，minor 版本允许改变行�
 
 冻结宣布之后，不兼容变更需要新的主版本模块路径。
 
-届时的兼容性契约覆盖：
+届时的兼容性契约覆盖以下六个表面。每一项都写出使其失败的门禁，因为没有测试执行的
+承诺，第一次意外破坏是交给使用方而不是交给 CI 的：
 
-- 导出的运行时 API；
-- 模块和包路径；
-- 已记录的 `microgen` 标志；
-- 生成的用户所有文件位置；
-- 已记录的生成配置键及其优先级；
-- 记录为稳定的协议行为。
+- 导出的运行时 API —— `TestPublicAPISurfaceSnapshot`、`TestAPICompatibilityWithLastRelease`；
+- 模块和包路径 —— `TestExportedPackagePaths`、`TestOnlyOneModuleIsPublishable`；
+- 已记录的 `microgen` 标志 —— `TestMicrogenFlagsAreDocumented`、`TestGeneratedMainFlagsAreDocumented`；
+- 生成的用户所有文件位置 —— `TestGeneratedLayout`、`TestMicrogenIDLContractIntegration`；
+- 已记录的生成配置键及其优先级 —— `TestGeneratedConfigKeysAreDocumented`、`TestMicrogenConfigIntegration`；
+- 记录为稳定的协议行为 —— `TestStableProtocolBehaviour`。
+
+稳定的协议行为声明在实现它的位置，形式是紧邻代码的 `// Stable: <id> — <承诺>`，
+经过评审的集合保存在 `tools/testdata/protocol_behaviour.txt`。刻意不做承诺的行为同样
+声明出来，因此承诺的缺席也是写下来的。上面这份清单由
+`TestCompatibilityContractNamesItsGates` 检查。
 
 `cmd/microgen` 下的模板和包是内部实现细节，但它们生成的公开行为属于产品表面。
 

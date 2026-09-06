@@ -152,6 +152,30 @@ func TestEncodeJSONResponse_StatusCoder(t *testing.T) {
 	}
 }
 
+// TestEncodeJSONResponse_NoContentWritesNoBody proves a 204 answer carries no
+// body, which RFC 9110 requires and a proxy or client may enforce by closing the
+// connection. The response value is still a real one, so an encoder that ignored
+// the status would write it.
+func TestEncodeJSONResponse_NoContentWritesNoBody(t *testing.T) {
+	w := httptest.NewRecorder()
+	response := noContentResp{Ignored: "must not reach the wire"}
+	if err := server.EncodeJSONResponse(context.Background(), w, response); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if w.Code != http.StatusNoContent {
+		t.Errorf("status: got %d, want %d", w.Code, http.StatusNoContent)
+	}
+	if body := w.Body.String(); body != "" {
+		t.Errorf("body: got %q, want empty", body)
+	}
+}
+
+type noContentResp struct {
+	Ignored string `json:"ignored"`
+}
+
+func (noContentResp) StatusCode() int { return http.StatusNoContent }
+
 type headerResp struct{}
 
 func (r headerResp) Headers() http.Header {

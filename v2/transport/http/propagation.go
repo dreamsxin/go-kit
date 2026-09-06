@@ -16,6 +16,9 @@ import (
 //
 // Invalid or absent headers are ignored; endpoint.TracingMiddleware then
 // mints a fresh trace.
+//
+// Stable: http.traceparent — a trace is carried in the W3C traceparent header, and an unreadable one is ignored rather than rejected.
+// Covered by: TestExtractTraceparent, TestInjectTraceparent, TestExtractTraceparentIgnoresInvalidHeaders
 func ExtractTraceparent(ctx context.Context, r *http.Request) context.Context {
 	tc, ok := endpoint.ParseTraceparent(r.Header.Get("traceparent"))
 	if !ok {

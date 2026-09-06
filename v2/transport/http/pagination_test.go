@@ -1,6 +1,7 @@
 package http_test
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -98,6 +99,31 @@ func TestNewPageResult(t *testing.T) {
 	last := transporthttp.NewPageResult(page, 20, items)
 	if last.HasNext {
 		t.Error("page 2 of 20 items with size 10 is the last page")
+	}
+}
+
+// TestPageResultJSONFieldNames pins the field names a client reads. TestNewPageResult
+// above checks the Go fields, which a renamed json tag leaves untouched, and every
+// generated SDK and hand-written client indexes the JSON names instead.
+func TestPageResultJSONFieldNames(t *testing.T) {
+	encoded, err := json.Marshal(transporthttp.NewPageResult(
+		transporthttp.Page{Number: 2, Size: 10}, 25, []string{"a", "b"}))
+	if err != nil {
+		t.Fatalf("marshal page result: %v", err)
+	}
+
+	var body map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &body); err != nil {
+		t.Fatalf("decode page result: %v", err)
+	}
+	want := []string{"items", "total", "page", "size", "has_next"}
+	for _, name := range want {
+		if _, ok := body[name]; !ok {
+			t.Errorf("page body has no %q field: %s", name, encoded)
+		}
+	}
+	if len(body) != len(want) {
+		t.Errorf("page body has %d fields, want exactly %v: %s", len(body), want, encoded)
 	}
 }
 

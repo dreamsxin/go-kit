@@ -24,6 +24,8 @@ const requestIDResponseHeader = "X-Request-ID"
 // facts (status codes, bytes), not business outcomes. Business-level logging
 // belongs in endpoint middleware such as slogadapter.LoggingMiddleware, which
 // observes decoded requests and business errors.
+//
+// Unstable: http.access-log-line — the access line's message and attributes are a diagnostic, and may change in any release.
 func AccessLogMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()

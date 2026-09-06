@@ -33,6 +33,12 @@ type Page struct {
 //	    return err
 //	}
 //	rows := query(ctx, page.Limit(), page.Offset())
+//
+// Stable: http.pagination-params — a window is requested with page and size, defaulting to page 1 size 20, size capped at 100.
+// Covered by: TestParsePage_Defaults, TestParsePage_ValidParameters, TestParsePage_RejectsInvalidParameters
+//
+// Stable: http.pagination-invalid-400 — an unusable page or size is 400 and names the parameter at fault.
+// Covered by: TestParsePage_RejectsInvalidParameters
 func ParsePage(r *http.Request) (Page, error) {
 	if r == nil || r.URL == nil {
 		return Page{}, endpoint.NewValidationError("page", "missing request URL")
@@ -72,6 +78,9 @@ func (p Page) Offset() int { return (p.Number - 1) * p.Size }
 // PageResult is the standard wire shape for one page of items. Use it as the
 // response type of list endpoints so clients and generated SDKs see one
 // pagination contract.
+//
+// Stable: http.page-result-body — a page body is {"items","total","page","size","has_next"}.
+// Covered by: TestPageResultJSONFieldNames
 type PageResult[T any] struct {
 	Items   []T  `json:"items"`
 	Total   int  `json:"total"`

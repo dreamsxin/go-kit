@@ -10,6 +10,9 @@ import (
 )
 
 // RequestIDHeader is the header a request ID travels in.
+//
+// Stable: http.request-id-header — a request ID travels in X-Request-ID, in and out.
+// Covered by: TestExtractRequestIDReadsTheHeader, TestEchoRequestIDWritesTheHeader
 const RequestIDHeader = "X-Request-ID"
 
 // MaxRequestIDLength is the largest request ID the default policy accepts.
@@ -25,6 +28,9 @@ type RequestIDValidator func(string) bool
 // empty, oversized, whitespace-containing, or control-character values. The last
 // two matter because the ID is echoed into a response header, and a value
 // carrying CR or LF would be a header injection.
+//
+// Stable: http.request-id-unusable-is-replaced — a caller's unusable request ID is replaced, never a reason to reject the request.
+// Covered by: TestDefaultRequestIDValidator, TestRequestIDMintsOneWhenTheHeaderIsUnusable
 func DefaultRequestIDValidator(id string) bool {
 	if len(id) == 0 || len(id) > MaxRequestIDLength {
 		return false

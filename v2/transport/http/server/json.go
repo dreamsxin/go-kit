@@ -208,6 +208,9 @@ var (
 //
 // The received type is kept for logs and is not put on the wire: the value is
 // caller-supplied, and a public error message is not the place to echo it.
+//
+// Stable: http.media-type-415 — a declared non-JSON body is 415 unsupported_media_type, and the received type is not echoed.
+// Covered by: TestUnsupportedMediaTypeIsAnswered415, TestNonUTF8CharsetIsRejected
 type UnsupportedMediaTypeError struct {
 	Received string
 }
@@ -222,6 +225,12 @@ func (e UnsupportedMediaTypeError) PublicMessage() string { return "unsupported 
 
 // JSONDecodeError marks request body decode failures as client errors while
 // preserving the underlying error for errors.Is/errors.As.
+//
+// Stable: http.json-decode-400 — a malformed or unknown-field body is 400 bad_request.invalid_json, an empty one bad_request.empty_body.
+// Covered by: TestMalformedJSONStays400, TestNewJSONServer_RejectsUnknownFieldsByDefault, TestEmptyBodyReportsItself
+//
+// Stable: http.json-body-limit-413 — a body over the configured limit is 413 request_too_large.
+// Covered by: TestOverLimitBodyIs413, TestRawOverLimitBodyMessageIsNotJSONSpecific
 type JSONDecodeError struct {
 	Err error
 }
@@ -308,6 +317,9 @@ func DecodeJSONBody(r *http.Request, target any, options JSONDecodeOptions) erro
 // concerned. A charset parameter must be UTF-8: JSON is UTF-8 by RFC 8259, so a
 // caller declaring another encoding is describing bytes this decoder will not
 // read correctly.
+//
+// Stable: http.json-media-types — application/json, any +json suffix, and a request with no Content-Type are accepted.
+// Covered by: TestJSONMediaTypesAreAccepted
 func isJSONMediaType(contentType string) bool {
 	mediaType, parameters, err := mime.ParseMediaType(contentType)
 	if err != nil {

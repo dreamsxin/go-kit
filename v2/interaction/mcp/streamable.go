@@ -14,6 +14,11 @@ import (
 	"github.com/dreamsxin/go-kit/v2/interaction"
 )
 
+// Stable: mcp.session-header — a session is carried in Mcp-Session-Id, minted by initialize and required by every other method.
+// Covered by: TestStreamableInitialize, TestStreamableRequiresSession
+//
+// Stable: mcp.protocol-version-header — responses carry MCP-Protocol-Version, and a request naming another version is 400.
+// Covered by: TestStreamableAcceptsSupportedProtocolHeader, TestStreamableRejectsUnsupportedProtocolHeader
 const (
 	headerSessionID       = "Mcp-Session-Id"
 	headerProtocolVersion = "MCP-Protocol-Version"

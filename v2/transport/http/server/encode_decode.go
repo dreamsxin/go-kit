@@ -31,6 +31,12 @@ func NopResponseEncoder(context.Context, http.ResponseWriter, any) error {
 // It honours two optional interfaces on the response value:
 //   - transporthttp.StatusCoder: uses that HTTP status code (default 200)
 //   - transporthttp.Headerer: merges those headers into the response
+//
+// Stable: http.response-content-type — a successful JSON response is application/json; charset=utf-8.
+// Covered by: TestEncodeJSONResponse_Basic
+//
+// Stable: http.response-204-has-no-body — nothing is written after a 204 status.
+// Covered by: TestEncodeJSONResponse_NoContentWritesNoBody
 func EncodeJSONResponse(_ context.Context, w http.ResponseWriter, response any) error {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if headerer, ok := response.(transporthttp.Headerer); ok {
@@ -52,6 +58,12 @@ func EncodeJSONResponse(_ context.Context, w http.ResponseWriter, response any) 
 // outside the range net/http accepts is ignored rather than passed to
 // WriteHeader, which panics on it — the same range check the error encoders
 // already apply, so a response type cannot take the process down.
+//
+// Stable: http.response-status — a response naming its own status is answered with it, otherwise 200.
+// Covered by: TestEncodeJSONResponse_StatusCoder, TestSuccessEncodersIgnoreAnInvalidStatus
+//
+// Stable: http.response-headers — a response naming its own headers has them merged into the response.
+// Covered by: TestEncodeJSONResponse_Headerer
 func responseStatus(response any) int {
 	sc, ok := response.(transporthttp.StatusCoder)
 	if !ok {

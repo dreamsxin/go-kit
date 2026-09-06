@@ -12,8 +12,13 @@ package apperror
 // non-empty Kind is left as it is and falls into the same default at the
 // transports, which is what lets an application define its own kinds and route
 // them with a kind mapper.
+//
+// Stable: apperror.unclassified-is-internal — an error with no kind is answered 500 and codes.Internal.
+// Covered by: TestEmptyKindDefaultsToInternal
 type Kind string
 
+// Stable: apperror.kind-vocabulary — these thirteen strings are the kind names every transport maps.
+// Covered by: TestConvenienceConstructors
 const (
 	KindInternal           Kind = "internal"
 	KindInvalidArgument    Kind = "invalid_argument"
@@ -70,6 +75,9 @@ func Wrap(kind Kind, code, message string, cause error) *Error {
 // WrapCause creates a classified application error with an empty public
 // message that preserves cause. Use it when the cause must stay internal
 // and only the kind and code should drive transport mapping.
+//
+// Stable: apperror.wrapcause-hides-cause — a WrapCause cause never reaches a response body.
+// Covered by: TestWrapCauseKeepsCauseInternal
 func WrapCause(kind Kind, code string, cause error) *Error {
 	return &Error{kind: normalizeKind(kind), code: code, cause: cause}
 }

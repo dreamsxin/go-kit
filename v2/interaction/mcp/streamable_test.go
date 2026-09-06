@@ -738,6 +738,26 @@ func TestStreamableHandler_CloseReleasesSessionsAndRejectsRequests(t *testing.T)
 	}
 }
 
+// TestNewHTTPServerMountsTheMCPPath pins where the server answers. Every other
+// test drives the handler directly, so the mount point — the URL a client
+// configures — was decided in NewHTTPServer and asserted nowhere.
+func TestNewHTTPServerMountsTheMCPPath(t *testing.T) {
+	srv, h := NewHTTPServer(":0", interaction.NewRuntime())
+	defer h.Close() //nolint:errcheck
+
+	mounted := httptest.NewRecorder()
+	srv.Handler.ServeHTTP(mounted, httptest.NewRequest(http.MethodDelete, "/mcp", nil))
+	if mounted.Code == http.StatusNotFound {
+		t.Fatalf("DELETE /mcp answered 404, so the handler is not mounted there")
+	}
+
+	elsewhere := httptest.NewRecorder()
+	srv.Handler.ServeHTTP(elsewhere, httptest.NewRequest(http.MethodDelete, "/rpc", nil))
+	if elsewhere.Code != http.StatusNotFound {
+		t.Fatalf("DELETE /rpc answered %d, want 404", elsewhere.Code)
+	}
+}
+
 func startGETStream(t *testing.T, h http.Handler, sessionID string) (context.CancelFunc, <-chan struct{}) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())

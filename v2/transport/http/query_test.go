@@ -135,6 +135,9 @@ func TestDecodeQueryRequestReportsFieldError(t *testing.T) {
 	if queryErr.Field != "Limit" || queryErr.StatusCode() != 400 {
 		t.Fatalf("QueryError = %#v", queryErr)
 	}
+	if code := queryErr.ErrorCode(); code != "bad_request.invalid_query" {
+		t.Fatalf("QueryError code = %q, want bad_request.invalid_query", code)
+	}
 }
 
 func TestDecodePathRequestOverridesBodyWithoutReadingQuery(t *testing.T) {

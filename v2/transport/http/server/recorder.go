@@ -10,6 +10,8 @@ import (
 // facts only — the transport layer knows the route, the method, and the status
 // code, and does not know what the business outcome was. Business outcomes
 // reach a metrics backend through endpoint.Recorder instead.
+//
+// Unstable: http.observation-fields — what an Observation carries is a metrics input, not a wire promise, and grows as the transport learns more.
 type Observation struct {
 	// Method is the HTTP request method.
 	Method string

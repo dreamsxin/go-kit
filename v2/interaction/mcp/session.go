@@ -35,6 +35,8 @@ type sseWriter struct {
 	mu      sync.Mutex
 }
 
+// Stable: mcp.sse-framing — a streamed message is one "data: " line ended by a blank line, over text/event-stream.
+// Covered by: TestStreamableSSEResponse, TestE2E_GETSSEStream
 func newSSEWriter(w http.ResponseWriter) (*sseWriter, error) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {

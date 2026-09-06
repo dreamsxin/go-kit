@@ -55,6 +55,9 @@ func (e *HTTPStatusError) ErrorKindName() string {
 // The upstream message is deliberately not exposed as a public message: it
 // belongs to another service's contract and must not leak into your own
 // responses unreviewed.
+//
+// Stable: http.client-error-code-relay — an upstream JSON body's "code" becomes this error's code, and nothing else does.
+// Covered by: TestClientErrorRelayPreservesCodeAndStatus, TestHTTPStatusErrorCodeIgnoresNonJSONBodies
 func (e *HTTPStatusError) ErrorCode() string {
 	if e == nil || len(e.Body) == 0 {
 		return ""
@@ -73,6 +76,9 @@ func (e *HTTPStatusError) ErrorCode() string {
 // Both forms of the header are understood: delay-seconds and HTTP-date
 // (RFC 9110). It reports 0 when the header is absent, malformed, or already in
 // the past.
+//
+// Stable: http.client-retry-after — an upstream Retry-After is honoured in both delay-seconds and HTTP-date form.
+// Covered by: TestHTTPStatusErrorRetryAfterHeader, TestHTTPStatusErrorRetryAfterHTTPDate
 func (e *HTTPStatusError) RetryAfter() time.Duration {
 	if e == nil {
 		return 0
@@ -115,6 +121,9 @@ func parseRetryAfter(value string, now time.Time) time.Duration {
 //
 // Unknown 4xx statuses become KindInvalidArgument and every other unknown
 // status becomes KindInternal.
+//
+// Stable: http.client-status-to-kind — a status maps back to the kind the server encoders mapped it from, 499 included.
+// Covered by: TestHTTPStatusErrorClassifiesByStatus, TestHTTPStatusErrorMapsBackToStatus
 func KindForStatus(status int) apperror.Kind {
 	switch status {
 	case http.StatusBadRequest:

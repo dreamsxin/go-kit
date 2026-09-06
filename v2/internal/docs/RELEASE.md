@@ -36,14 +36,22 @@ version they have validated.
 
 Once the freeze is declared, incompatible changes require a new major module path.
 
-The compatibility contract at that point covers:
+The compatibility contract at that point covers the six surfaces below. Each one
+names the gate that fails when it moves, because a promise no test enforces is a
+promise the first accidental break hands to a consumer rather than to CI:
 
-- exported runtime APIs;
-- module and package paths;
-- documented `microgen` flags;
-- generated user-owned file locations;
-- documented generated configuration keys and precedence;
-- protocol behavior documented as stable.
+- exported runtime APIs — `TestPublicAPISurfaceSnapshot`, `TestAPICompatibilityWithLastRelease`;
+- module and package paths — `TestExportedPackagePaths`, `TestOnlyOneModuleIsPublishable`;
+- documented `microgen` flags — `TestMicrogenFlagsAreDocumented`, `TestGeneratedMainFlagsAreDocumented`;
+- generated user-owned file locations — `TestGeneratedLayout`, `TestMicrogenIDLContractIntegration`;
+- documented generated configuration keys and precedence — `TestGeneratedConfigKeysAreDocumented`, `TestMicrogenConfigIntegration`;
+- protocol behavior documented as stable — `TestStableProtocolBehaviour`.
+
+The stable protocol behaviours are declared where they are implemented, as
+`// Stable: <id> — <promise>` beside the code that keeps it, and the reviewed set
+lives in `tools/testdata/protocol_behaviour.txt`. Behaviour deliberately left
+unstable is declared the same way, so the absence of a promise is also written
+down. `TestCompatibilityContractNamesItsGates` checks the list above.
 
 Templates and packages under `cmd/microgen` are internal implementation details,
 but their generated public behavior is a product surface.
