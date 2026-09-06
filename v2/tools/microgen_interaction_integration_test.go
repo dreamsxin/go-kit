@@ -125,6 +125,52 @@ func TestMicrogenInteractionIntegration(t *testing.T) {
 		}
 	})
 
+	// The generated project serves the stateless revision as well, and this is
+	// the only place that runs it against a generated binary rather than the
+	// framework handler: no handshake, no session header, routing headers
+	// instead, and cache hints on the catalog.
+	t.Run("MCP_Stateless_ToolsListNeedsNoSession", func(t *testing.T) {
+		body := `{"jsonrpc":"2.0","id":9,"method":"tools/list","params":{"_meta":` +
+			`{"io.modelcontextprotocol/clientInfo":{"name":"integration","version":"1.0"}}}}`
+		req, err := http.NewRequest(http.MethodPost, baseURL+"/mcp", strings.NewReader(body))
+		if err != nil {
+			t.Fatalf("new request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("MCP-Protocol-Version", "2026-07-28")
+		req.Header.Set("Mcp-Method", "tools/list")
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("stateless tools/list: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("stateless tools/list: status=%d", resp.StatusCode)
+		}
+		if sid := resp.Header.Get("Mcp-Session-Id"); sid != "" {
+			t.Errorf("stateless response carries Mcp-Session-Id %q", sid)
+		}
+		if version := resp.Header.Get("MCP-Protocol-Version"); version != "2026-07-28" {
+			t.Errorf("MCP-Protocol-Version = %q, want 2026-07-28", version)
+		}
+
+		var decoded map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+			t.Fatalf("decode stateless tools/list: %v", err)
+		}
+		result, ok := decoded["result"].(map[string]any)
+		if !ok {
+			t.Fatalf("stateless tools/list result missing: %v", decoded)
+		}
+		if tools, _ := result["tools"].([]any); len(tools) == 0 {
+			t.Errorf("stateless tools/list returned no tools: %v", result)
+		}
+		if result["ttlMs"] == nil || result["cacheScope"] == nil {
+			t.Errorf("stateless tools/list carries no cache hints: %v", result)
+		}
+	})
+
 	// MCP tools/call — verify the call reaches the endpoint layer. Tool execution
 	// failures are represented by a CallToolResult with isError=true.
 	t.Run("MCP_ToolsCall_ReachesEndpoint", func(t *testing.T) {

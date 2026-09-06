@@ -16,8 +16,8 @@ import (
 	"github.com/dreamsxin/go-kit/v2/interaction"
 )
 
-// Stable: mcp.protocol-version — the server speaks MCP 2025-06-18 and answers with that version.
-// Covered by: TestInitialize, TestStreamableRejectsUnsupportedInitializeProtocol
+// Stable: mcp.protocol-version — the server speaks MCP 2026-07-28 and, for its deprecation window, 2025-06-18.
+// Covered by: TestInitialize, TestStatelessServerDiscover
 //
 // Stable: mcp.jsonrpc-version — every response carries jsonrpc "2.0".
 // Covered by: TestPing
@@ -26,11 +26,15 @@ import (
 // Covered by: TestInitialize, TestE2E_InitializeResponseFormat
 const (
 	jsonRPCVersion  = "2.0"
-	protocolVersion = "2025-06-18"
-	serverName      = "go-kit interaction"
-	serverTitle     = "Go Kit Interaction MCP Server"
-	defaultPageSize = 50
-	serverVersion   = "2.0.0"
+	protocolVersion = "2026-07-28"
+	// legacyProtocolVersion is the handshake revision, served until its
+	// twelve-month deprecation window closes.
+	legacyProtocolVersion = "2025-06-18"
+	serverName            = "go-kit interaction"
+	serverTitle           = "Go Kit Interaction MCP Server"
+	defaultPageSize       = 50
+	serverVersion         = "2.0.0"
+	serverInstructions    = "Expose go-kit service methods as MCP tools, resources, and prompts."
 )
 
 // ─── shared dispatch core ────────────────────────────────────────────────────
@@ -134,14 +138,14 @@ func (c *dispatchCore) buildCapabilities() map[string]any {
 
 func (c *dispatchCore) buildInitializeResult() map[string]any {
 	return map[string]any{
-		"protocolVersion": protocolVersion,
+		"protocolVersion": legacyProtocolVersion,
 		"serverInfo": map[string]any{
 			"name":    serverName,
 			"title":   serverTitle,
 			"version": serverVersion,
 		},
 		"capabilities": c.buildCapabilities(),
-		"instructions": "Expose go-kit service methods as MCP tools, resources, and prompts.",
+		"instructions": serverInstructions,
 	}
 }
 

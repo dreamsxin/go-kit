@@ -63,8 +63,8 @@ func (e *e2eEnv) initialize(t *testing.T) string {
 	var rpcResp map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&rpcResp)
 	result := rpcResp["result"].(map[string]any)
-	if result["protocolVersion"] != protocolVersion {
-		t.Fatalf("protocolVersion = %v, want %s", result["protocolVersion"], protocolVersion)
+	if result["protocolVersion"] != legacyProtocolVersion {
+		t.Fatalf("protocolVersion = %v, want %s", result["protocolVersion"], legacyProtocolVersion)
 	}
 	if code := e.postNotification(t, sid, "notifications/initialized"); code != http.StatusAccepted {
 		t.Fatalf("notifications/initialized: status=%d", code)
@@ -1067,7 +1067,7 @@ func TestE2E_CompletionComplete(t *testing.T) {
 	}
 
 	// Verify completions capability is advertised on re-initialize.
-	initResp := env.postJSON(t, sid, "initialize", map[string]any{"protocolVersion": protocolVersion})
+	initResp := env.postJSON(t, sid, "initialize", map[string]any{"protocolVersion": legacyProtocolVersion})
 	caps := initResp["result"].(map[string]any)["capabilities"].(map[string]any)
 	if caps["completions"] == nil {
 		t.Fatal("expected completions capability to be advertised")

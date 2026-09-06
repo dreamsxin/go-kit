@@ -315,7 +315,12 @@ closer. Handle the construction error and close the endpoint resources before
 stopping the underlying instancer. Consul registration and deregistration return
 errors, and `Instancer.Close` cancels and joins the active blocking query.
 
-MCP clients must initialize with protocol version `2025-06-18`, send
+MCP clients pick a revision with the `MCP-Protocol-Version` header. On
+`2026-07-28` every request stands alone: it carries its client identity in
+`params._meta`, names its method and target in the `Mcp-Method` and `Mcp-Name`
+headers, and needs no session, so any instance can answer it; `server/discover`
+reports capabilities and list results carry `ttlMs` and `cacheScope`. On
+`2025-06-18`, which an absent header selects, clients still initialize, send
 `notifications/initialized`, and declare `sampling` before the server may issue
 sampling requests. Browser requests with an `Origin` header are limited to the
 same origin or `StreamableHandler.AllowedOrigins`.

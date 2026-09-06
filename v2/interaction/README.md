@@ -30,23 +30,34 @@ Current entry points:
 - `mcp.NewHandler` — Streamable HTTP MCP transport (alias for `mcp.NewStreamableHandler`)
 
 The `interaction/mcp` subpackage provides a full MCP-compliant Streamable HTTP
-JSON-RPC adapter for the runtime:
+JSON-RPC adapter for the runtime. The `MCP-Protocol-Version` request header
+selects the revision: `2026-07-28` (stateless) or `2025-06-18` (handshake, also
+selected when the header is absent).
 
-- `initialize` / `notifications/initialized`
+- `server/discover` — capabilities and supported versions, on `2026-07-28`
+- `initialize` / `notifications/initialized` — on `2025-06-18` only
 - `ping`
 - `tools/list`, `tools/call`
 - `resources/list`, `resources/read`, `resources/templates/list`
 - `prompts/list`, `prompts/get`
 - `completion/complete`
 - `logging/setLevel`
-- SSE streaming (POST and GET)
-- Server-initiated sampling (`sampling/createMessage`)
+- SSE streaming (POST and GET), on `2025-06-18`
+- Server-initiated sampling (`sampling/createMessage`), on `2025-06-18`
 - Server-initiated notifications (log, progress, list-changed)
 
-Each MCP transport session owns one interaction runtime session. Tool calls
-without an explicit runtime `sessionId` reuse it, and DELETE or TTL expiry ends
-and releases it. This keeps hook and event identity stable across a conversation
-without retaining one closed runtime session per call.
+On `2026-07-28` a request carries its own client identity in `params._meta`,
+repeats its method and target in the `Mcp-Method` and `Mcp-Name` headers, and
+needs no session: `IdentityFromContext` and `ClientCapabilityFromContext` give a
+tool what session state used to. List and read results carry `ttlMs` and
+`cacheScope`, configured by `StreamableHandler.ListCacheTTL` and
+`ListCacheScope`. Tool calls without an explicit runtime `sessionId` run in a
+per-call runtime session.
+
+On `2025-06-18` each MCP transport session owns one interaction runtime session.
+Tool calls without an explicit runtime `sessionId` reuse it, and DELETE or TTL
+expiry ends and releases it. This keeps hook and event identity stable across a
+conversation without retaining one closed runtime session per call.
 
 `interaction/mcp` is the generated AI protocol surface. It discovers and
 executes registered runtime tools inside interaction sessions; the framework no

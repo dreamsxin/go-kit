@@ -74,7 +74,35 @@ owning `http.Server` first when in-flight tool calls must be cancelled. Configur
 
 ## 4. Call it
 
-MCP sessions require the initialize handshake before tools are called:
+On `2026-07-28` a request stands alone. Name the revision, the method and the
+target in headers, and call the tool:
+
+```bash
+curl -X POST http://localhost:8080/mcp \
+  -H 'MCP-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: tools/call' \
+  -H 'Mcp-Name: greet' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
+        "name":"greet","arguments":{"name":"World"},
+        "_meta":{"io.modelcontextprotocol/clientInfo":{"name":"curl","version":"1.0"}}}}'
+
+# Capabilities, when you want them before committing to anything
+curl -X POST http://localhost:8080/mcp \
+  -H 'MCP-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: server/discover' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"server/discover"}'
+```
+
+`Mcp-Method` must repeat the JSON-RPC method and `Mcp-Name` the target it
+addresses, so a gateway can route, meter and authorize on headers alone; a
+request whose headers disagree with its body is answered 400. `tools/list`,
+`prompts/list`, `resources/list`, `resources/templates/list` and `resources/read`
+carry `ttlMs` and `cacheScope`, which `StreamableHandler.ListCacheTTL` and
+`ListCacheScope` configure. There is no session to open or delete: GET and DELETE
+are answered 405 on this revision.
+
+A client on `2025-06-18` — which is also what an absent `MCP-Protocol-Version`
+header selects — still does the handshake:
 
 ```bash
 # Initialize a session (note the Mcp-Session-Id response header)

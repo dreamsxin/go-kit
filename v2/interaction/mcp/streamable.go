@@ -14,11 +14,11 @@ import (
 	"github.com/dreamsxin/go-kit/v2/interaction"
 )
 
-// Stable: mcp.session-header — a session is carried in Mcp-Session-Id, minted by initialize and required by every other method.
+// Stable: mcp.session-header — on 2025-06-18 a session is carried in Mcp-Session-Id, minted by initialize and required by every other method.
 // Covered by: TestStreamableInitialize, TestStreamableRequiresSession
 //
-// Stable: mcp.protocol-version-header — responses carry MCP-Protocol-Version, and a request naming another version is 400.
-// Covered by: TestStreamableAcceptsSupportedProtocolHeader, TestStreamableRejectsUnsupportedProtocolHeader
+// Stable: mcp.protocol-version-header — responses carry MCP-Protocol-Version echoing the revision the request selected, and an unknown revision is 400.
+// Covered by: TestStreamableAcceptsSupportedProtocolHeader, TestStreamableRejectsUnsupportedProtocolHeader, TestStatelessRequestNeedsNoSession
 const (
 	headerSessionID       = "Mcp-Session-Id"
 	headerProtocolVersion = "MCP-Protocol-Version"
@@ -57,6 +57,12 @@ type StreamableHandler struct {
 	// default of 10000 is used. Set it explicitly for a smaller deployment.
 	MaxSessions int
 
+	// ListCacheTTL and ListCacheScope are the caching contract 2026-07-28
+	// results carry. The scope defaults to "private" because a catalog may be
+	// authorization-filtered; widen it to "public" when it is not.
+	ListCacheTTL   time.Duration
+	ListCacheScope string
+
 	cleanupMu     sync.Mutex
 	cleanupCancel context.CancelFunc
 	cleanupWG     sync.WaitGroup
@@ -86,13 +92,28 @@ func (h *StreamableHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeHTTPError(w, http.StatusServiceUnavailable, "server_closed", "MCP server is shutting down")
 		return
 	}
-	w.Header().Set(headerProtocolVersion, protocolVersion)
 	if err := h.validateOrigin(r); err != nil {
 		writeHTTPError(w, http.StatusForbidden, "origin_not_allowed", err.Error())
 		return
 	}
-	if err := validateProtocolVersion(r); err != nil {
+	version, err := negotiateProtocolVersion(r)
+	if err != nil {
+		w.Header().Set(headerProtocolVersion, protocolVersion)
 		writeHTTPError(w, http.StatusBadRequest, "unsupported_protocol_version", err.Error())
+		return
+	}
+	w.Header().Set(headerProtocolVersion, version)
+
+	if version == protocolVersion {
+		// The stateless revision has no session to open, stream against, or
+		// terminate, so POST is the whole transport.
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", "POST")
+			writeHTTPError(w, http.StatusMethodNotAllowed,
+				"method_not_allowed", "expected POST; "+protocolVersion+" has no sessions to stream against or delete")
+			return
+		}
+		h.handleStatelessPost(w, r)
 		return
 	}
 
@@ -112,19 +133,10 @@ func (h *StreamableHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // ─── POST handler ────────────────────────────────────────────────────────────
 
 func (h *StreamableHandler) handlePost(w http.ResponseWriter, r *http.Request) {
-	body := http.MaxBytesReader(w, r.Body, h.maxPostBodyBytes())
-	defer body.Close()
-
-	// Read raw body first so we can extract response fields that the
+	// Read the raw body first so we can extract response fields that the
 	// request struct does not model (result, error).
-	rawBody, err := io.ReadAll(body)
-	if err != nil {
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
-			writeHTTPError(w, http.StatusRequestEntityTooLarge, "request_too_large", fmt.Sprintf("request body exceeds %d bytes", h.maxPostBodyBytes()))
-			return
-		}
-		writeResponse(w, response{JSONRPC: jsonRPCVersion, Error: newError(-32700, "parse error", err.Error())})
+	rawBody, ok := h.readPostBody(w, r)
+	if !ok {
 		return
 	}
 
@@ -154,8 +166,8 @@ func (h *StreamableHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 			writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32602, "invalid argument", "initialize params are required")})
 			return
 		}
-		if initParams.ProtocolVersion != protocolVersion {
-			writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32602, "unsupported protocol version", fmt.Sprintf("server supports %q", protocolVersion))})
+		if initParams.ProtocolVersion != legacyProtocolVersion {
+			writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32602, "unsupported protocol version", fmt.Sprintf("initialize belongs to %q; send MCP-Protocol-Version: %s for the stateless protocol", legacyProtocolVersion, protocolVersion))})
 			return
 		}
 		sess, err := h.store.create(h.maxSessions())
@@ -387,12 +399,24 @@ func (h *StreamableHandler) maxPostBodyBytes() int64 {
 	return defaultMaxPostBody
 }
 
-func validateProtocolVersion(r *http.Request) error {
-	version := strings.TrimSpace(r.Header.Get(headerProtocolVersion))
-	if version == "" || version == protocolVersion {
-		return nil
+// readPostBody reads a POST payload under the configured cap. It reports false
+// once it has answered the request itself.
+func (h *StreamableHandler) readPostBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
+	body := http.MaxBytesReader(w, r.Body, h.maxPostBodyBytes())
+	defer body.Close()
+
+	rawBody, err := io.ReadAll(body)
+	if err == nil {
+		return rawBody, true
 	}
-	return fmt.Errorf("unsupported MCP protocol version %q; server supports %q", version, protocolVersion)
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		writeHTTPError(w, http.StatusRequestEntityTooLarge, "request_too_large",
+			fmt.Sprintf("request body exceeds %d bytes", h.maxPostBodyBytes()))
+		return nil, false
+	}
+	writeResponse(w, response{JSONRPC: jsonRPCVersion, Error: newError(-32700, "parse error", err.Error())})
+	return nil, false
 }
 
 // StartCleanup begins a background goroutine that periodically expires idle

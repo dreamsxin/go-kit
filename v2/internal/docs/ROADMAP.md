@@ -844,6 +844,90 @@ item is no longer an unnamed set: forty-nine protocol behaviours are declared
 where they are implemented, each naming a test in its own package, and the two
 behaviours deliberately left unstable say so in the same form.
 
+## Milestone 10 (Active): A Protocol Worth Freezing / 值得冻结的协议
+
+Goal: the MCP behaviour v2 promises is the behaviour the current specification
+defines.
+
+Milestone 9 made the protocol promises checkable, and the first thing the check
+showed is that one of them is out of date. MCP published 2026-07-28 on
+2026-07-28: it retires the `initialize`/`initialized` handshake and the
+`Mcp-Session-Id` header, moves protocol version, client identity and client
+capabilities into per-request `_meta`, adds `server/discover`, requires
+`Mcp-Method` and `Mcp-Name` routing headers, and makes list results cacheable
+with `ttlMs`, `cacheScope` and a deterministic order. v2 speaks 2025-06-18. Older
+revisions keep a twelve-month deprecation window, so both are served rather than
+one replacing the other.
+
+### Work Package 1: The Protocol Version Decides The Request Model
+
+Goal: a request is answered by the revision it names, and the stateless one needs
+nothing the request did not carry.
+
+- `MCP-Protocol-Version` selects the request model per request. An absent header
+  selects 2025-06-18, which predates the header being mandatory, so nothing that
+  works today stops working.
+- On 2026-07-28 no session is minted, read or required, and `initialize` and
+  `notifications/initialized` are answered as retired rather than served. Client
+  identity and capabilities come from `params._meta` and reach a tool the way
+  session state used to. `server/discover` answers the client that wants
+  capabilities before it commits to anything.
+- POST is the whole transport on that revision: GET and DELETE existed for
+  sessions.
+
+Acceptance:
+
+```bash
+go test ./interaction/... -count=1
+go -C ./tools test . -run 'TestStableProtocolBehaviour' -count=1
+```
+
+### Work Package 2: Routing Headers Describe The Body
+
+Goal: what a gateway routes, meters and authorizes on is what the request does.
+
+- `Mcp-Method` repeats the JSON-RPC method and `Mcp-Name` the target it
+  addresses. A request whose headers disagree with its body is refused, because
+  a per-tool rate limit or policy decided on headers would otherwise be applied
+  to a different call than the one that runs.
+- A method that addresses no target must not carry a name, including a method
+  this server does not know.
+
+### Work Package 3: List Results Say How Long They May Be Cached
+
+Goal: a client can cache a catalog instead of re-fetching it on every reconnect.
+
+- `tools/list`, `prompts/list`, `resources/list`, `resources/templates/list` and
+  `resources/read` carry `ttlMs` and `cacheScope`, configurable on the handler.
+  The scope defaults to `private`, because a catalog may be
+  authorization-filtered.
+
+### Work Package 4: Server-Initiated Input Travels As A Multi Round-Trip Request
+
+Goal: a tool that needs a confirmation mid-call works without an open stream.
+
+- Sampling and elicitation currently need the GET SSE stream a session owns, so
+  they do not exist on the stateless path. 2026-07-28 answers `resultType:
+  "input_required"` with the requests it needs answered, and the client retries
+  the call with `inputResponses` attached.
+- `SendSamplingRequest` keeps working on 2025-06-18.
+
+### Work Package 5: Authorization And Extensions Are Named Surfaces
+
+Goal: the hardened authorization model and the extension framework are covered
+the way the rest of the protocol is.
+
+- The revision hardens authorization across six SEPs; each rule v2 implements is
+  declared where it is implemented, like every other protocol promise.
+- Extensions are versioned in the specification now. What v2 accepts and what it
+  ignores is stated.
+
+### Completion Definition / 完成定义
+
+Milestone 10 is complete when a client on either revision is served by tests that
+fail if it stops being, each new behaviour is declared beside the code that keeps
+it, and `RELEASE.md` still names a gate for every contract surface.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

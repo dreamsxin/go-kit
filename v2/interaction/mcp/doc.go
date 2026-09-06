@@ -4,13 +4,32 @@
 //
 // # Protocol Conformance
 //
-// The server implements the MCP specification dated 2025-06-18. It advertises
-// protocolVersion "2025-06-18" during the initialize handshake and declares
-// capabilities dynamically based on which providers are attached to the runtime.
+// The server speaks two revisions of the specification, chosen per request by
+// the MCP-Protocol-Version header:
+//
+//   - 2026-07-28, the stateless revision. A request carries its own protocol
+//     version, client identity and client capabilities in params._meta, names
+//     its method and target in the Mcp-Method and Mcp-Name headers, and needs no
+//     session of any kind: any request may land on any instance. server/discover
+//     reports capabilities for a client that wants them before it commits.
+//     tools/list, prompts/list, resources/list, resources/templates/list and
+//     resources/read carry ttlMs and cacheScope so a catalog can be cached.
+//   - 2025-06-18, the handshake revision, kept for its deprecation window. An
+//     absent MCP-Protocol-Version header selects it, because it predates the
+//     header being mandatory. initialize mints an Mcp-Session-Id that every
+//     later request repeats.
+//
+// Capabilities are declared dynamically from the providers attached to the
+// runtime, on both revisions.
 //
 // # Transport
 //
-// StreamableHandler implements the full MCP Streamable HTTP transport:
+// StreamableHandler implements the full MCP Streamable HTTP transport.
+//
+// On 2026-07-28, POST is the whole transport: there is no session to stream
+// against or to delete, so GET and DELETE are answered 405.
+//
+// On 2025-06-18 it serves:
 //   - POST for client JSON-RPC messages (requests, notifications, responses)
 //   - GET  for persistent SSE streams (server-initiated messages)
 //   - DELETE for explicit session termination
@@ -23,7 +42,9 @@
 //
 // # Supported Methods
 //
-// Base protocol: initialize, notifications/initialized, ping.
+// Base protocol: ping, and server/discover on 2026-07-28. initialize and
+// notifications/initialized belong to 2025-06-18; on the stateless revision they
+// are answered -32601 naming server/discover.
 //
 // Tools: tools/list, tools/call — discover and invoke service methods.
 //

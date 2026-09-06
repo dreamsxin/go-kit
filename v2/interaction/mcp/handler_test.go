@@ -52,7 +52,7 @@ func initSessionHelper(t *testing.T, handler http.Handler) string {
 	t.Helper()
 	body := map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params": map[string]any{"protocolVersion": protocolVersion, "capabilities": map[string]any{"sampling": map[string]any{}}},
+		"params": map[string]any{"protocolVersion": legacyProtocolVersion, "capabilities": map[string]any{"sampling": map[string]any{}}},
 	}
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
@@ -190,12 +190,12 @@ func TestInitialize(t *testing.T) {
 
 	resp := postJSON(t, handler, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params": map[string]any{"protocolVersion": protocolVersion},
+		"params": map[string]any{"protocolVersion": legacyProtocolVersion},
 	})
 	result := resp["result"].(map[string]any)
 
-	if result["protocolVersion"] != protocolVersion {
-		t.Fatalf("protocolVersion = %v, want %s", result["protocolVersion"], protocolVersion)
+	if result["protocolVersion"] != legacyProtocolVersion {
+		t.Fatalf("protocolVersion = %v, want %s", result["protocolVersion"], legacyProtocolVersion)
 	}
 	info := result["serverInfo"].(map[string]any)
 	if info["name"] != serverName {
@@ -215,7 +215,7 @@ func TestInitializeWithoutOptionalProviders(t *testing.T) {
 
 	resp := postJSON(t, handler, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params": map[string]any{"protocolVersion": protocolVersion},
+		"params": map[string]any{"protocolVersion": legacyProtocolVersion},
 	})
 	result := resp["result"].(map[string]any)
 	caps := result["capabilities"].(map[string]any)

@@ -50,7 +50,7 @@ func initSession(t *testing.T, handler http.Handler) string {
 	t.Helper()
 	body := map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params": map[string]any{"protocolVersion": protocolVersion, "capabilities": map[string]any{"sampling": map[string]any{}}},
+		"params": map[string]any{"protocolVersion": legacyProtocolVersion, "capabilities": map[string]any{"sampling": map[string]any{}}},
 	}
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
@@ -123,7 +123,7 @@ func TestStreamableInitialize(t *testing.T) {
 
 func TestStreamableRejectsUnsupportedProtocolHeader(t *testing.T) {
 	h := NewStreamableHandler(nil)
-	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{"protocolVersion": protocolVersion}}
+	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{"protocolVersion": legacyProtocolVersion}}
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
 	req.Header.Set(headerProtocolVersion, "2024-11-05")
@@ -141,10 +141,10 @@ func TestStreamableRejectsUnsupportedProtocolHeader(t *testing.T) {
 
 func TestStreamableAcceptsSupportedProtocolHeader(t *testing.T) {
 	h := NewStreamableHandler(nil)
-	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{"protocolVersion": protocolVersion}}
+	body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{"protocolVersion": legacyProtocolVersion}}
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
-	req.Header.Set(headerProtocolVersion, protocolVersion)
+	req.Header.Set(headerProtocolVersion, legacyProtocolVersion)
 	rec := httptest.NewRecorder()
 
 	h.ServeHTTP(rec, req)
@@ -152,8 +152,8 @@ func TestStreamableAcceptsSupportedProtocolHeader(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	if got := rec.Header().Get(headerProtocolVersion); got != protocolVersion {
-		t.Fatalf("%s = %q, want %q", headerProtocolVersion, got, protocolVersion)
+	if got := rec.Header().Get(headerProtocolVersion); got != legacyProtocolVersion {
+		t.Fatalf("%s = %q, want %q", headerProtocolVersion, got, legacyProtocolVersion)
 	}
 }
 
@@ -180,7 +180,7 @@ func TestStreamableRejectsCrossOriginRequest(t *testing.T) {
 	h := NewStreamableHandler(nil)
 	body := map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params": map[string]any{"protocolVersion": protocolVersion},
+		"params": map[string]any{"protocolVersion": legacyProtocolVersion},
 	}
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "http://localhost/mcp", bytes.NewReader(payload))
@@ -198,7 +198,7 @@ func TestStreamableRequiresInitializedNotification(t *testing.T) {
 	h := NewStreamableHandler(nil)
 	body := map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params": map[string]any{"protocolVersion": protocolVersion},
+		"params": map[string]any{"protocolVersion": legacyProtocolVersion},
 	}
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
@@ -281,7 +281,7 @@ func TestSamplingRequiresClientCapability(t *testing.T) {
 	h := NewStreamableHandler(nil)
 	body := map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "initialize",
-		"params": map[string]any{"protocolVersion": protocolVersion, "capabilities": map[string]any{}},
+		"params": map[string]any{"protocolVersion": legacyProtocolVersion, "capabilities": map[string]any{}},
 	}
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
@@ -702,7 +702,7 @@ func TestStreamableHandler_MaxSessions(t *testing.T) {
 
 	body := map[string]any{
 		"jsonrpc": "2.0", "id": 2, "method": "initialize",
-		"params": map[string]any{"protocolVersion": protocolVersion},
+		"params": map[string]any{"protocolVersion": legacyProtocolVersion},
 	}
 	payload, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))

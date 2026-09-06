@@ -71,7 +71,31 @@ if err := mcp.Serve(ctx, ":8080", rt); err != nil {
 
 ## 4. 调用它
 
-MCP 会话要求先完成初始化握手，然后才能调用工具：
+在 `2026-07-28` 下，一个请求自成一体。用头声明协议版本、方法和目标，然后调用工具：
+
+```bash
+curl -X POST http://localhost:8080/mcp \
+  -H 'MCP-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: tools/call' \
+  -H 'Mcp-Name: greet' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
+        "name":"greet","arguments":{"name":"World"},
+        "_meta":{"io.modelcontextprotocol/clientInfo":{"name":"curl","version":"1.0"}}}}'
+
+# 需要先了解服务端能力时
+curl -X POST http://localhost:8080/mcp \
+  -H 'MCP-Protocol-Version: 2026-07-28' \
+  -H 'Mcp-Method: server/discover' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"server/discover"}'
+```
+
+`Mcp-Method` 必须与 JSON-RPC 方法一致，`Mcp-Name` 必须与它寻址的目标一致，网关因此
+只看头就能路由、计量和鉴权；头与请求体不一致的请求返回 400。`tools/list`、
+`prompts/list`、`resources/list`、`resources/templates/list` 和 `resources/read`
+会带上 `ttlMs` 与 `cacheScope`，由 `StreamableHandler.ListCacheTTL` 和
+`ListCacheScope` 配置。这一版本没有会话可开或可删，GET 与 DELETE 返回 405。
+
+`2025-06-18` 的客户端（缺少 `MCP-Protocol-Version` 头时也选择这一版本）仍走握手流程：
 
 ```bash
 # Initialize a session (note the Mcp-Session-Id response header)

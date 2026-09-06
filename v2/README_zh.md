@@ -295,9 +295,12 @@ Server-Sent Events 流使用 `kit.HandleSSETyped` 注册，使 endpoint 中间�
 错误，并在停止底层 instancer 之前关闭 endpoint 资源。Consul 注册和注销会返回
 错误，`Instancer.Close` 会取消并等待正在执行的阻塞查询退出。
 
-MCP 客户端必须使用协议版本 `2025-06-18` 初始化，随后发送
-`notifications/initialized`；只有声明 `sampling` capability 后，服务端才能发起
-采样请求。带 `Origin` 的浏览器请求只允许同源或
+MCP 客户端通过 `MCP-Protocol-Version` 头选择协议版本。在 `2026-07-28` 下每个请求
+自成一体：客户端身份放在 `params._meta`，方法与目标放在 `Mcp-Method` 与 `Mcp-Name`
+头里，不需要任何会话，因此任何实例都能应答；`server/discover` 返回能力，列表结果带
+`ttlMs` 与 `cacheScope`。在 `2025-06-18`（缺少该头时选择的版本）下，客户端仍需
+initialize、随后发送 `notifications/initialized`；只有声明 `sampling` capability 后，
+服务端才能发起采样请求。带 `Origin` 的浏览器请求只允许同源或
 `StreamableHandler.AllowedOrigins` 中显式允许的来源。
 
 包边界和扩展规则见 [ARCHITECTURE.md](ARCHITECTURE_zh.md)。框架核心明确不包含

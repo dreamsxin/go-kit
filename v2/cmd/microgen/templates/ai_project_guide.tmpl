@@ -40,8 +40,9 @@ Generator-owned (do not hand-edit; use `microgen extend`):
 ## AI-Facing Endpoints
 
 {{- if .WithInteraction }}
-- `POST /mcp` — MCP JSON-RPC endpoint (protocol version 2025-06-18)
-  - `initialize` — capability negotiation and server info
+- `POST /mcp` — MCP JSON-RPC endpoint; the `MCP-Protocol-Version` header selects `2026-07-28` (stateless) or `2025-06-18` (handshake, also selected when the header is absent)
+  - `server/discover` — capabilities and supported versions, on `2026-07-28`
+  - `initialize` / `notifications/initialized` — handshake, on `2025-06-18` only
   - `ping` — liveness check
   - `tools/list` / `tools/call` — discover and invoke service methods
   - `resources/list` / `resources/read` — read server-exposed data artifacts
@@ -49,9 +50,9 @@ Generator-owned (do not hand-edit; use `microgen extend`):
   - `prompts/list` / `prompts/get` — list and render reusable prompt templates
   - `completion/complete` — auto-complete prompt argument values
   - `logging/setLevel` — adjust server log verbosity
-  - `notifications/initialized` — complete the MCP handshake (notification, no response)
-  - Supports Streamable HTTP transport: GET for SSE streams, DELETE for session termination
-  - Supports MCP Sampling: server can request LLM completions from connected clients
+  - On `2026-07-28`: `Mcp-Method` and `Mcp-Name` headers must repeat the method and its target; list results carry `ttlMs` and `cacheScope`; POST is the whole transport
+  - On `2025-06-18`: Streamable HTTP with GET for SSE streams and DELETE for session termination
+  - Supports MCP Sampling on `2025-06-18`: server can request LLM completions from connected clients
   - Server-initiated notifications: tools/list_changed, prompts/list_changed, resources/list_changed, resources/updated, message, progress
 {{- end }}
 {{- if .WithOpenAPI }}
