@@ -125,22 +125,110 @@ func loaderEnvironmentKeys(t *testing.T, configDir string) []string {
 	return keys
 }
 
-// documentedKeyPattern matches a row of the key table: the key, then the config
-// field it sets. Requiring both columns keeps prose out — `APP_DB_*` written in a
-// sentence, or an `APP_FEATURE_*` example belonging to user-owned custom config,
-// is not a claim about the generated loader.
+var mainFlagPattern = regexp.MustCompile(`flag\.[A-Za-z]+\(\s*"([a-z][a-z0-9.\-_]*)"`)
+
+// documentedFlagPattern matches a row of the flag table: the flag, then what it
+// overrides. Requiring both columns keeps microgen's own flags out — the
+// generator's -config-mode and -db appear in this document as prose about
+// generating a project, not as a claim about the program it generates.
+var documentedFlagPattern = regexp.MustCompile(`(?m)^(-[a-z][a-z0-9.\-_]*)\s+\S`)
+
+// TestGeneratedMainFlagsAreDocumented keeps the flags the generated main declares
+// and the flags the documentation tabulates in step.
+//
+// The claim used to be a sentence — "the generated main accepts -config,
+// -http.addr, plus -grpc.addr when the project has gRPC" — which no test could
+// read without also matching the generator's own flags mentioned nearby. As a
+// table it is checkable by shape rather than by phrasing, which is also why the
+// environment keys above it are a table.
+func TestGeneratedMainFlagsAreDocumented(t *testing.T) {
+	root := goKitRoot(t)
+	outDir := generatedProjectDir(t, "gen_main_flags")
+
+	idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
+	cmd := microgenCommand(t,
+		"-idl", idlFile,
+		"-out", outDir,
+		"-import", "example.com/gen_main_flags",
+		"-protocols", "http,grpc",
+		"-config",
+		"-db",
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("microgen failed: %v\n%s", err, out)
+	}
+
+	declared := declaredMainFlags(t, filepath.Join(outDir, "cmd"))
+	if len(declared) == 0 {
+		t.Fatal("the generated main declares no flags, so its shape changed")
+	}
+
+	for _, name := range configurationReferenceDocs {
+		data, err := os.ReadFile(filepath.Join(root, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		documented := tabulatedNames(documentedFlagPattern, string(data))
+
+		missing, stale := listDifference(declared, documented)
+		if len(stale) > 0 {
+			t.Errorf("%s does not document: %s\n\nA flag nobody documents is an override nobody reaches for.",
+				name, strings.Join(stale, " "))
+		}
+		if len(missing) > 0 {
+			t.Errorf("%s documents flags the generated main does not declare: %s\n\nA reader following this "+
+				"would have the service reject the argument on start-up.", name, strings.Join(missing, " "))
+		}
+	}
+}
+
+// declaredMainFlags reads the flag names the generated command declares.
+func declaredMainFlags(t *testing.T, cmdDir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(cmdDir)
+	if err != nil {
+		t.Fatalf("read generated cmd directory: %v", err)
+	}
+	seen := map[string]struct{}{}
+	var flags []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(cmdDir, entry.Name()))
+		if err != nil {
+			t.Fatalf("read %s: %v", entry.Name(), err)
+		}
+		for _, match := range mainFlagPattern.FindAllStringSubmatch(string(data), -1) {
+			name := "-" + match[1]
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			flags = append(flags, name)
+		}
+	}
+	sort.Strings(flags)
+	return flags
+}
+
+// tabulatedNames reads the first column of a two-column table.
+func tabulatedNames(pattern *regexp.Regexp, text string) []string {
+	seen := map[string]struct{}{}
+	for _, match := range pattern.FindAllStringSubmatch(text, -1) {
+		seen[match[1]] = struct{}{}
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 var documentedKeyPattern = regexp.MustCompile(`(?m)^(APP_[A-Z0-9_]+)\s+[A-Za-z]`)
 
 // documentedEnvironmentKeys reads the keys a document tabulates.
 func documentedEnvironmentKeys(text string) []string {
-	seen := map[string]struct{}{}
-	for _, match := range documentedKeyPattern.FindAllStringSubmatch(text, -1) {
-		seen[match[1]] = struct{}{}
-	}
-	keys := make([]string, 0, len(seen))
-	for key := range seen {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
+	return tabulatedNames(documentedKeyPattern, text)
 }

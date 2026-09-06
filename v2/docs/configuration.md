@@ -39,8 +39,17 @@ defaults to `cfg.Server.HTTPAddr`), are applied to the config, and then go
 through the same final validation. Flags are convenient local overrides; use
 YAML or the environment for deployment configuration.
 
-The generated `main` accepts `-config`, `-http.addr`, plus `-grpc.addr` when the
-project has gRPC and `-db.dsn` / `-auto-migrate` when it has a database.
+The generated `main` accepts the flags below, and which ones exist depends on how
+the project was generated, the same way the environment keys do. The second
+column is what each flag overrides.
+
+```text
+-config                          the config file to load
+-http.addr                       Server.HTTPAddr
+-grpc.addr                       Server.GRPCAddr
+-db.dsn                          Database.DSN
+-auto-migrate                    Database.AutoMigrate
+```
 
 Environment variables use the `APP_` prefix. `ApplyEnv` reads every key below.
 Which of them exist depends on how the project was generated: `APP_DB_*` needs a

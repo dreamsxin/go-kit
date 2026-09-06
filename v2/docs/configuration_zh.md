@@ -32,8 +32,16 @@
 命令行 flag 使用已加载配置作为默认值（`-http.addr` 默认取 `cfg.Server.HTTPAddr`），
 应用到配置后再走同一套最终校验。flag 适合本地临时覆盖，部署请用 YAML 或环境变量。
 
-生成的 `main` 支持 `-config`、`-http.addr`；带 gRPC 时还有 `-grpc.addr`，带数据库
-时还有 `-db.dsn` 与 `-auto-migrate`。
+生成的 `main` 支持下面这些 flag，其中哪些存在取决于项目是怎么生成的——和环境变量键一样。
+第二列是每个 flag 覆盖的目标。
+
+```text
+-config                          要加载的配置文件
+-http.addr                       Server.HTTPAddr
+-grpc.addr                       Server.GRPCAddr
+-db.dsn                          Database.DSN
+-auto-migrate                    Database.AutoMigrate
+```
 
 环境变量使用 `APP_` 前缀。`ApplyEnv` 会读取下面每一个键。其中哪些存在取决于项目是怎么
 生成的：`APP_DB_*` 需要数据库，`APP_GRPC_ADDR` 需要 gRPC，`APP_REMOTE_*` 需要远端配置模式。
