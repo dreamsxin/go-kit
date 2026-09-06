@@ -95,11 +95,10 @@ func main() {
 	cfg.Server.HTTPAddr = *httpAddr
 {{if .WithGRPC}}	cfg.Server.GRPCAddr = *grpcAddr
 {{end}}{{if .WithDB}}	cfg.Database.DSN = *dsn
+	cfg.Database.AutoMigrate = *autoMigrate
 {{end}}	if err := cfg.Validate(); err != nil {
 		panic("FATAL: invalid config: " + err.Error())
 	}
-{{if .WithDB}}	cfg.Database.AutoMigrate = *autoMigrate
-{{end}}
 
 	logger, err := newConfiguredLogger(cfg.Logging)
 	if err != nil {
