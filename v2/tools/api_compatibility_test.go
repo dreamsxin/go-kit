@@ -20,8 +20,8 @@ import (
 // both show up as a different hex string, and the reviewer diffs `go doc` by hand
 // to find out which happened. Once the compatibility freeze is declared that
 // distinction is the whole contract, so it is asked here instead — a removal, a
-// renamed symbol, a changed signature, or a changed struct field fails, and an
-// addition passes.
+// renamed symbol, a changed signature, a removed or reordered struct field, and a
+// new interface method fail; an addition passes, including a new struct field.
 //
 // The old surface comes from a detached worktree at the tag rather than from the
 // module proxy, so the comparison needs no network and no published version.
@@ -80,9 +80,14 @@ TYPES
 type Table struct {
 	// Samples counts what has been recorded.
 	Samples uint64
+	Weight  int
 }
 
 func (t *Table) Wrap(strategy Strategy) Strategy
+
+type Recorder interface {
+	Observe(ctx context.Context, obs Observation)
+}
 
 CONSTANTS
 
@@ -110,6 +115,11 @@ const (
 			want: "",
 		},
 		{
+			name:    "a new struct field is compatible",
+			changed: strings.Replace(base, "\tWeight  int\n", "\tWeight  int\n\tCeiling int\n", 1),
+			want:    "",
+		},
+		{
 			name:    "a removed function is incompatible",
 			changed: strings.Replace(base, "func Chain(outer Middleware, others ...Middleware) Middleware\n", "", 1),
 			want:    "removed: func Chain",
@@ -127,7 +137,23 @@ const (
 		{
 			name:    "a removed struct field is incompatible",
 			changed: strings.Replace(base, "\tSamples uint64\n", "", 1),
-			want:    "changed: type Table",
+			want:    "removed from type Table: Samples uint64",
+		},
+		{
+			name:    "reordered struct fields are incompatible",
+			changed: strings.Replace(base, "\tSamples uint64\n\tWeight  int\n", "\tWeight  int\n\tSamples uint64\n", 1),
+			want:    "reordered in type Table",
+		},
+		{
+			name: "a new interface method is incompatible",
+			changed: strings.Replace(base, "\tObserve(ctx context.Context, obs Observation)\n",
+				"\tObserve(ctx context.Context, obs Observation)\n\tFlush() error\n", 1),
+			want: "added to interface type Recorder: Flush() error",
+		},
+		{
+			name:    "a removed interface method is incompatible",
+			changed: strings.Replace(base, "\tObserve(ctx context.Context, obs Observation)\n", "", 1),
+			want:    "removed from type Recorder: Observe(ctx context.Context, obs Observation)",
 		},
 		{
 			name:    "a removed grouped constant is incompatible",
@@ -337,7 +363,12 @@ func incompatibleChanges(old, updated map[string]map[string]string) []string {
 			switch {
 			case !ok:
 				problems = append(problems, fmt.Sprintf("%s: removed: %s", importPath, name))
-			case current != declaration:
+			case current == declaration:
+			case strings.Contains(declaration, "\n") || strings.Contains(current, "\n"):
+				if problem := bodyProblem(name, declaration, current); problem != "" {
+					problems = append(problems, importPath+": "+problem)
+				}
+			default:
 				problems = append(problems, fmt.Sprintf("%s: changed: %s\n    was: %s\n    now: %s",
 					importPath, name, oneLine(declaration), oneLine(current)))
 			}
@@ -345,6 +376,73 @@ func incompatibleChanges(old, updated map[string]map[string]string) []string {
 	}
 	sort.Strings(problems)
 	return problems
+}
+
+// bodyProblem classifies a type whose body changed, which the whole-declaration
+// comparison cannot: a struct that gained a field is compatible, and the same
+// change to an interface is not, because every implementation outside this module
+// stops satisfying it.
+//
+// A removed entry breaks a field access, a method call, or an implementation. A
+// reordered one is worse than an addition rather than better: an unkeyed
+// composite literal keeps compiling and silently assigns to different fields.
+func bodyProblem(name, old, current string) string {
+	oldHead, oldEntries := bodyEntries(old)
+	newHead, newEntries := bodyEntries(current)
+	if oldHead != newHead {
+		return fmt.Sprintf("changed: %s\n    was: %s\n    now: %s", name, oneLine(old), oneLine(current))
+	}
+
+	position := map[string]int{}
+	for i, entry := range newEntries {
+		if _, seen := position[entry]; !seen {
+			position[entry] = i
+		}
+	}
+	previous := -1
+	for _, entry := range oldEntries {
+		at, ok := position[entry]
+		if !ok {
+			return fmt.Sprintf("removed from %s: %s", name, entry)
+		}
+		if at < previous {
+			return fmt.Sprintf("reordered in %s: %s\n    an unkeyed composite literal keeps compiling and "+
+				"assigns to a different field", name, entry)
+		}
+		previous = at
+	}
+
+	if !strings.Contains(oldHead, " interface {") {
+		return ""
+	}
+	for _, entry := range newEntries {
+		if !slicesContains(oldEntries, entry) {
+			return fmt.Sprintf("added to interface %s: %s\n    every implementation outside this module stops "+
+				"satisfying it", name, entry)
+		}
+	}
+	return ""
+}
+
+// bodyEntries splits a declaration into its head line and its body entries.
+func bodyEntries(declaration string) (string, []string) {
+	lines := strings.Split(declaration, "\n")
+	entries := make([]string, 0, len(lines))
+	for _, line := range lines[1:] {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			entries = append(entries, trimmed)
+		}
+	}
+	return strings.TrimSpace(lines[0]), entries
+}
+
+func slicesContains(entries []string, want string) bool {
+	for _, entry := range entries {
+		if entry == want {
+			return true
+		}
+	}
+	return false
 }
 
 func oneLine(declaration string) string {
