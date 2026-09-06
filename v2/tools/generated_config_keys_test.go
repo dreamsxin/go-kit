@@ -63,8 +63,8 @@ func TestGeneratedConfigKeysAreDocumented(t *testing.T) {
 		}
 		documented := documentedEnvironmentKeys(string(data))
 
-		missing, stale := pathSetDifference(read, documented)
-		// pathSetDifference reports what the second gained and lost against the
+		missing, stale := listDifference(read, documented)
+		// listDifference reports what the second gained and lost against the
 		// first: gained means documented but not read, lost means read but not
 		// documented.
 		if len(stale) > 0 {

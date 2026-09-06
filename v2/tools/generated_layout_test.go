@@ -3,7 +3,6 @@ package tools_test
 import (
 	"flag"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -11,6 +10,16 @@ import (
 )
 
 var updateGeneratedLayout = flag.Bool("update-generated-layout", false, "update the reviewed generated project layout")
+
+// generatedProjectLayout is the reviewed set of files microgen writes.
+var generatedProjectLayout = reviewedList{
+	subject:     "generated project layout",
+	file:        "generated_layout.txt",
+	gained:      "newly generated",
+	lost:        "no longer generated",
+	updateFlag:  "-update-generated-layout",
+	consequence: "A path that moves relocates a file the consumer owns and may have edited.",
+}
 
 // TestGeneratedLayout pins the set of files microgen writes, so the layout a
 // consumer edits is a reviewed decision rather than whatever the templates
@@ -57,37 +66,7 @@ func TestGeneratedLayout(t *testing.T) {
 		t.Fatalf("microgen wrote only %d files, so the run did not do its job:\n%s",
 			len(generated), strings.Join(generated, "\n"))
 	}
-	listing := strings.Join(generated, "\n") + "\n"
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd: %v", err)
-	}
-	listingPath := filepath.Join(cwd, "testdata", "generated_layout.txt")
-	if *updateGeneratedLayout {
-		if err := os.WriteFile(listingPath, []byte(listing), 0o644); err != nil {
-			t.Fatalf("update generated layout: %v", err)
-		}
-	}
-	want, err := os.ReadFile(listingPath)
-	if err != nil {
-		t.Fatalf("read generated layout: %v (rerun with -args -update-generated-layout)", err)
-	}
-
-	added, removed := pathSetDifference(reviewedPaths(want), generated)
-	if len(added) == 0 && len(removed) == 0 {
-		return
-	}
-	var report strings.Builder
-	for _, path := range removed {
-		report.WriteString("\n  no longer generated: " + path)
-	}
-	for _, path := range added {
-		report.WriteString("\n  newly generated:     " + path)
-	}
-	t.Fatalf("the generated project layout changed:%s\n\n"+
-		"A path that moves relocates a file the consumer owns and may have edited. Refresh with: "+
-		"make update-snapshots", report.String())
+	generatedProjectLayout.assert(t, generated, *updateGeneratedLayout)
 }
 
 // generatedFilePaths lists every file below root as a slash-separated relative
