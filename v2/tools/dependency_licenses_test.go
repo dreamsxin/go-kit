@@ -17,7 +17,7 @@ var licenseDocs = []string{
 
 // documentedDependency reads one entry of those lists:
 //
-//	- `google.golang.org/grpc` — Apache-2.0 — `integrations/grpc`
+//   - `google.golang.org/grpc` — Apache-2.0 — `integrations/grpc`
 //
 // The dash is an em dash in English and a double em dash in Chinese, so the
 // pattern accepts either.
@@ -101,6 +101,64 @@ func TestProjectLicenseIsOneText(t *testing.T) {
 	}
 	if !strings.Contains(module, "Copyright (c)") {
 		t.Error("the license names no copyright holder, which MIT requires it to carry")
+	}
+}
+
+// TestGeneratedOutputCarriesNoLicenseNotice pins the grant that docs/licenses.md
+// makes: what the generator writes is the user's, with nothing flowing back.
+//
+// A grant like that is worth only as much as the output agrees with it. A license
+// header added to a template, or a LICENSE file written into a generated project,
+// would contradict the document in the one place a user actually looks — their own
+// repository — and neither is the kind of change anyone would think to re-read a
+// licensing document over.
+func TestGeneratedOutputCarriesNoLicenseNotice(t *testing.T) {
+	t.Parallel()
+	root := goKitRoot(t)
+
+	layout, err := os.ReadFile(filepath.Join(root, "tools", "testdata", "generated_layout.txt"))
+	if err != nil {
+		t.Fatalf("read the reviewed generated layout: %v", err)
+	}
+	for _, entry := range reviewedEntries(layout) {
+		base := strings.ToUpper(filepath.Base(entry))
+		if strings.HasPrefix(base, "LICEN") || strings.HasPrefix(base, "COPYING") {
+			t.Errorf("a generated project contains %s, which decides a licensing question that is the "+
+				"user's to decide", entry)
+		}
+	}
+
+	templates := filepath.Join(root, "cmd", "microgen", "templates")
+	entries, err := os.ReadDir(templates)
+	if err != nil {
+		t.Fatalf("read %s: %v", templates, err)
+	}
+	var readme string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(templates, entry.Name()))
+		if err != nil {
+			t.Fatalf("read %s: %v", entry.Name(), err)
+		}
+		text := string(data)
+		if entry.Name() == "readme.tmpl" {
+			readme = text
+		}
+		for _, notice := range []string{"SPDX-License-Identifier", "Copyright (c)"} {
+			if strings.Contains(text, notice) {
+				t.Errorf("%s emits %q into generated code, which asks something of the user's project",
+					entry.Name(), notice)
+			}
+		}
+	}
+
+	// The grant is only useful if it reaches the person holding the output.
+	if !strings.Contains(readme, "## License") ||
+		!strings.Contains(readme, "github.com/dreamsxin/go-kit/v2") {
+		t.Error("the generated README does not say who owns the generated code and what the framework's " +
+			"license is")
 	}
 }
 

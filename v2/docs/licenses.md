@@ -9,6 +9,18 @@ repository root, because the published module is the `v2` subdirectory: a consum
 who vendors it gets the license beside the code either way. Both copies are the
 same file, and a gate keeps them that way.
 
+## Generated projects
+
+Code `microgen` writes into your project is yours. The copyright holder places no
+conditions on generated output: no notice, no attribution, no obligation flowing
+back to this project, and you license it however you choose. The generator writes
+no license header and no `LICENSE` file precisely so that the decision stays
+yours, and `TestGeneratedOutputCarriesNoLicenseNotice` keeps it that way.
+
+The framework your generated project imports is a separate thing, and it stays
+MIT: the grant above is about the files the generator wrote, not about
+`github.com/dreamsxin/go-kit/v2` itself.
+
 ## Dependency licenses
 
 `github.com/dreamsxin/go-kit/v2` is one module, so `go get` records every

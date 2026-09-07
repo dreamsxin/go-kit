@@ -56,6 +56,10 @@
   的协议，其中两个 MPL-2.0 被指名，并写出把它们带进来的包。
   `TestDependencyLicensesAreDocumented` 从每个模块自己的协议文件判定协议类型，在文档与
   模块图不一致时失败；`TestProjectLicenseIsOneText` 保持仓库与模块两份 `LICENSE.txt` 一致。
+- 生成的项目不承担任何协议义务。`microgen` 写下的内容属于使用者——不要求声明、不要求署名、
+  不产生回流义务，也不写 `LICENSE` 文件，选择权留给他们——而项目所 import 的框架仍是 MIT。
+  生成的 README 会这样写明，`TestGeneratedOutputCarriesNoLicenseNotice` 会在模板开始输出
+  声明、或经过评审的生成布局中出现协议文件时失败。
 
 ## [2.9.0] - 2026-09-05
 

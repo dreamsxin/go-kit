@@ -8,6 +8,16 @@ MIT。协议文本位于模块旁的 [`LICENSE.txt`](../LICENSE.txt) 以及仓�
 `v2` 子目录，因此无论使用方从哪一侧 vendor，协议都紧邻代码。两份是同一个文件，并由门禁
 保持一致。
 
+## 生成的项目
+
+`microgen` 写进你项目里的代码属于你。版权持有人对生成产物不附加任何条件：不要求声明、
+不要求署名、不产生任何回流到本项目的义务，你可以按自己的选择为它授予任何协议。生成器
+不写协议头、也不生成 `LICENSE` 文件，正是为了把这个决定留给你，并由
+`TestGeneratedOutputCarriesNoLicenseNotice` 保持这一点。
+
+你的生成项目所 import 的框架是另一回事，它仍然是 MIT：上面的授予针对生成器写下的文件，
+而不是 `github.com/dreamsxin/go-kit/v2` 本身。
+
 ## 依赖的协议
 
 `github.com/dreamsxin/go-kit/v2` 是单一模块，因此 `go get` 会把下列每条依赖都记录进你的

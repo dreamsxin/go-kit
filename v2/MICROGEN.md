@@ -379,6 +379,13 @@ the required ownership seams.
 Do not rely on templates or packages under `cmd/microgen` as runtime extension
 APIs.
 
+### Licensing
+
+Everything the generator writes is yours, generator-owned files included: no
+notice, no attribution, nothing flowing back to this project, and no `LICENSE`
+file is written so the choice stays yours. The framework the project imports stays
+MIT. See [Licensing](docs/licenses.md).
+
 ## After Generation
 
 ```bash

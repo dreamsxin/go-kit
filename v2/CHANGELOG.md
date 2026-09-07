@@ -78,6 +78,12 @@ speaks the current specification as well as the one it froze.
   classifies each license from the module's own license file and fails when the
   document and the module graph disagree, and `TestProjectLicenseIsOneText` keeps
   the repository and module copies of `LICENSE.txt` identical.
+- Generated projects carry no licensing obligation. What `microgen` writes is the
+  user's — no notice, no attribution, nothing flowing back, and no `LICENSE` file,
+  so the choice stays theirs — while the framework the project imports stays MIT.
+  The generated README says so, and `TestGeneratedOutputCarriesNoLicenseNotice`
+  fails if a template starts emitting a notice or a license file appears in the
+  reviewed generated layout.
 
 ## [2.9.0] - 2026-09-05
 
