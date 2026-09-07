@@ -1517,6 +1517,51 @@ restarting, a broken renewal leaves the listener serving the previous one, a gen
 service does the same on a documented signal, and the documentation lists what is
 fixed at startup.
 
+## Milestone 16 (Complete): A Health Check A Client Can Follow / 客户端能跟住的健康检查
+
+Goal: correct a declaration that was true of two tools and false of the library, and
+make the thing it excused work.
+
+Milestone 14's parity table said `Watch` was not implemented, because "the tools that
+orchestrate on gRPC health call `Check`". That is true of `grpc_health_probe` and of
+Kubernetes' native gRPC probe. It is false of the consumer that matters most:
+grpc-go's own client-side health checking — the one a service config turns on with
+`healthCheckConfig` — calls `Watch` (`health/client.go`, `healthCheckMethod`). When it
+receives `UNIMPLEMENTED` it marks the connection `Ready` and stops asking, so the
+drain announcement Milestone 11 built never reached the clients that were watching for
+it. A declaration with a hole that shape is worse than no declaration: it reads as a
+decision.
+
+### Work Package 1: Watch Streams What Check Answers
+
+- `Watch` sends the current serving status immediately, then one message per change,
+  from the same probe registry `Check` evaluates. A named service still gets
+  `NotFound`, because the registry describes the process.
+- The readiness checks are evaluated once per interval and shared by every watcher.
+  Evaluating them per watcher per message would let a fleet of clients turn a database
+  ping into load, which is how a health check becomes an outage.
+- The poller stops when the last watcher leaves, so a service nobody watches costs
+  nothing.
+
+Acceptance:
+
+```bash
+go test ./kit/grpc/ -run TestHealthWatch -count=1
+```
+
+Shipped as `grpc.health-watch`, with `kit/grpc.HealthWatchInterval` naming the
+resolution of the stream — a second, and the reason it is a constant rather than an
+option is that the component registers the health service itself, so there is nothing
+useful to hand a caller who wants a different one. A deployment that needs its own
+health service builds its own `grpc.Server`; that limit is now the interesting one, and
+it is stated here rather than discovered.
+
+### Completion Definition / 完成定义
+
+Milestone 16 is complete when a gRPC client with health checking enabled learns that an
+instance has started draining, the parity table says so, and nobody is told that
+`Watch` is unimplemented.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

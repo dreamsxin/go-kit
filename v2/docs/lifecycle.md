@@ -196,7 +196,7 @@ into your handler contexts and `kit.Stopping` works there too.
 
 | Question | HTTP (`kit.HTTP`) | gRPC (`kit/grpc.Component`) |
 | --- | --- | --- |
-| readiness | `/readyz`, `/livez`, `/health` | `grpc.health.v1` `Check`; `Watch` is not implemented — the tools that orchestrate on it call `Check` |
+| readiness | `/readyz`, `/livez`, `/health` | `grpc.health.v1` `Check` per call, and `Watch` streaming the current status then one message per change |
 | drain announcement | yes, `kit.Draining` | yes, `kit.Draining` |
 | stopping signal | `kit.Stopping(r.Context())` | `kit.Stopping(stream.Context())` |
 | shutdown budget | its own share; cancels in-flight requests and closes the rest, reporting how many | its own share; waits for the calls in flight, then closes the transports, reporting how many |

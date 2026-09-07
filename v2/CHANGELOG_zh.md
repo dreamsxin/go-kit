@@ -2,6 +2,24 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [2.16.0] - Release Candidate
+
+一次纠正，以及那句话曾经替谁开脱。
+
+### 修复
+
+- `kit/grpc` 实现了 `grpc.health.v1.Health/Watch`：先立即给出当前 serving 状态，之后每次变化发
+  一条，数据来源是 `Check` 求值的同一个探针注册表。Milestone 14 曾声明"`Watch` 未实现，因为按
+  gRPC 健康编排的工具调用的是 `Check`"——这对 `grpc_health_probe` 和 Kubernetes 原生 gRPC 探针
+  成立，但对最重要的那个消费者不成立：grpc-go 自己的客户端健康检查调用的是 `Watch`，而且在收到
+  `UNIMPLEMENTED` 时会把连接标为 ready 并从此不再问。于是开启了健康检查的客户端永远不会知道某个
+  实例开始 drain 了——而这正是 drain 通告存在的意义。
+- `kit/grpc.HealthWatchInterval` 写明了这条流的分辨率：一秒；并且就绪检查每个间隔求值一次、由所有
+  watcher 共享，而不是每个 watcher 每条消息求值一次——一群客户端不该把一次数据库 ping 变成负载。
+  最后一个 watcher 离开后轮询就停。它是常量而不是 option，因为健康服务是组件自己注册的；需要不同
+  行为的部署应当自己构造 `grpc.Server`——这个限制现在被写下来了。
+- `docs/lifecycle*.md` 里的传输对照表改成了事实。
+
 ## [2.15.0] - 2026-09-07
 
 不重启的轮换。Milestone 13 交付了进程内 TLS，然后自己把缺口写了下来：证书文件只读一次，所以

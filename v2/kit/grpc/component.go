@@ -20,9 +20,7 @@ import (
 	transportgrpc "github.com/dreamsxin/go-kit/v2/integrations/grpc"
 	"github.com/dreamsxin/go-kit/v2/kit"
 	googlegrpc "google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/status"
 )
 
 // Component implements kit.Lifecycle; the assertion keeps the contract honest
@@ -119,31 +117,7 @@ func (c *Component) Probes() *health.Registry {
 	return c.probes
 }
 
-// healthService answers grpc.health.v1.Health from a probe registry.
-//
-// Check evaluates the readiness scope on every call rather than reading a status
-// somebody remembered to set, so the answer cannot go stale. Watch is not
-// implemented: it would have to poll the checks to synthesise transitions, and
-// the tools that orchestrate on gRPC health — grpc_health_probe and Kubernetes'
-// native gRPC probe — call Check.
-type healthService struct {
-	grpc_health_v1.UnimplementedHealthServer
-	probes *health.Registry
-}
-
-func (s *healthService) Check(ctx context.Context, request *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
-	// The registry describes the process, not one service within it, so a
-	// per-service question has no honest answer here. The protocol's own reply
-	// for that is NotFound.
-	if request != nil && request.GetService() != "" {
-		return nil, status.Error(codes.NotFound, "kit/grpc: readiness is reported for the process, not per service")
-	}
-	serving := grpc_health_v1.HealthCheckResponse_SERVING
-	if s.probes.Report(ctx, health.ScopeReadiness).Status != health.StatusOK {
-		serving = grpc_health_v1.HealthCheckResponse_NOT_SERVING
-	}
-	return &grpc_health_v1.HealthCheckResponse{Status: serving}, nil
-}
+// The health service and its Check and Watch methods live in health.go.
 
 // Addr returns the bound listener address after Start, or nil before Start.
 func (c *Component) Addr() net.Addr {

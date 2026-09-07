@@ -2,6 +2,30 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.16.0] - Release Candidate
+
+A correction, and the thing it excused.
+
+### Fixed
+
+- `kit/grpc` implements `grpc.health.v1.Health/Watch`: the current serving status
+  immediately, then one message per change, from the same probe registry `Check`
+  evaluates. Milestone 14 declared `Watch` unimplemented because "the tools that
+  orchestrate on gRPC health call `Check`" — true of `grpc_health_probe` and of
+  Kubernetes' native gRPC probe, and false of grpc-go's own client-side health
+  checking, which calls `Watch` and, on `UNIMPLEMENTED`, marks the connection ready and
+  stops asking. A client with health checking enabled therefore never learned that an
+  instance had begun draining, which is exactly what the drain announcement exists to
+  tell it.
+- `kit/grpc.HealthWatchInterval` names the resolution of that stream: one second, and
+  the readiness checks are evaluated once per interval and shared by every watcher
+  rather than once per watcher per message — a fleet of clients should not turn a
+  database ping into load. The poller stops when the last watcher leaves. It is a
+  constant rather than an option because the component registers the health service
+  itself; a deployment that needs different behaviour builds its own `grpc.Server`, and
+  that limit is now written down.
+- The transport parity table in `docs/lifecycle*.md` says what is true.
+
 ## [2.15.0] - 2026-09-07
 
 Rotation without a restart. Milestone 13 shipped in-process TLS and then wrote its own

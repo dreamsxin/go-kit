@@ -2,6 +2,7 @@ stable/apperror.kind-vocabulary
 stable/apperror.unclassified-is-internal
 stable/apperror.wrapcause-hides-cause
 stable/grpc.drains
+stable/grpc.health-watch
 stable/grpc.recording-method-label
 stable/grpc.shutdown-ends
 stable/http.attachment-headers

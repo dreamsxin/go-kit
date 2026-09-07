@@ -174,7 +174,7 @@ handler goroutine，它随进程一起结束。
 
 | 问题 | HTTP（`kit.HTTP`） | gRPC（`kit/grpc.Component`） |
 | --- | --- | --- |
-| 就绪 | `/readyz`、`/livez`、`/health` | `grpc.health.v1` 的 `Check`；`Watch` 未实现——按 gRPC 健康编排的工具调用的是 `Check` |
+| 就绪 | `/readyz`、`/livez`、`/health` | `grpc.health.v1` 的 `Check` 每次调用求值，`Watch` 先发当前状态、之后每次变化发一条 |
 | draining 通告 | 有，`kit.Draining` | 有，`kit.Draining` |
 | 停止信号 | `kit.Stopping(r.Context())` | `kit.Stopping(stream.Context())` |
 | 停机预算 | 自己那一份；预算用尽则取消在途请求、关闭其余，并报告打断了多少 | 自己那一份；等在途调用结束，然后关闭传输，并报告打断了多少 |
