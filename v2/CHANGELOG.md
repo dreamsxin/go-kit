@@ -33,6 +33,14 @@ the thing scraping it.
   values are only the operations recording was given — bounded by the routes the
   server declared, escaped so a pattern with a quote in it cannot invalidate the
   whole response.
+- `httpserver.RouteRegistrar` and `httpserver.DecorateRoutes` name the place per-route
+  middleware has to be installed: registration, where a handler and its route pattern
+  are both in scope. A registrar takes the two methods `http.ServeMux` offers and
+  nothing else, so `*http.ServeMux` satisfies it and a caller can pass a decorator
+  instead — the handler the mux dispatches to is then the wrapped one, which is what
+  makes `http.Request.Pattern` the matched route rather than empty. Middleware wrapped
+  around a mux cannot see a pattern at all, which is the difference between per-route
+  metrics and one series called `/`.
 - `metrics.HTTPRecorder` bridges the HTTP transport's recorder to an
   `endpoint.Metrics` collector, so a service that wires only the HTTP layer — the
   generated projects have no endpoint chain around every handler — can feed the same

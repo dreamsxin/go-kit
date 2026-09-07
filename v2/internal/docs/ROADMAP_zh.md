@@ -891,6 +891,12 @@ go test ./kit/ -run TestSeriesCountIsBounded -count=1
   pattern 的地方"，也就是注册器内部，于是 `registerRoutes` 与每个生成的注册器都要接受一个
   registrar 接口，而不是具体的 mux。"先挂上一个没人喂的 exposition"不是可接受的中间态：它
   报告全零，读起来就是一个没有流量的服务，而 `kit` 已经拒绝了这种装配。
+- 迁移需要的接缝现在有了：`httpserver.RouteRegistrar` 与 `httpserver.DecorateRoutes`。剩下
+  的是把生成的签名改成接受它——`transport.tmpl` 的 `RegisterHTTPRoutes`、
+  `generated_routes.tmpl` 的 `httpRegistrars`、`generated_runtime.tmpl` 的
+  `registerRoutes`——再加上配置键与 `main.tmpl` 的接线。注意 `cmd/main.go` 与
+  `cmd/custom_routes.go` 只写一次、永不覆盖，所以生成签名可以自由改动，而这两个文件必须保持
+  原样仍能编译：`*http.ServeMux` 满足该接口，所以它们可以。
 
 ### 完成定义
 

@@ -1141,6 +1141,14 @@ Goal: a generated service exposes metrics because someone asked.
   of the concrete mux. Mounting an exposition over a collector nothing feeds is not
   an acceptable intermediate step: it reports zeros, which reads as a service with
   no traffic, and `kit` already refuses that assembly.
+- The seam that migration needs now exists: `httpserver.RouteRegistrar` and
+  `httpserver.DecorateRoutes`. What remains is changing the generated signatures to
+  take it — `RegisterHTTPRoutes` in `transport.tmpl`, `httpRegistrars` in
+  `generated_routes.tmpl`, `registerRoutes` in `generated_runtime.tmpl` — plus the
+  configuration key and the `main.tmpl` wiring. Note that `cmd/main.go` and
+  `cmd/custom_routes.go` are written once and never overwritten, so the generated
+  signatures may change freely while those two must keep compiling as they are:
+  `*http.ServeMux` satisfies the interface, so they do.
 
 ### Completion Definition / 完成定义
 

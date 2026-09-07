@@ -24,6 +24,12 @@
   两条性质被声明并被测试，而不是假设：不发出聚合序列，于是对带标签序列求和的查询不会重复计数；
   标签值只来自 recording 收到的操作——由服务端声明的路由限定其上界，并做了转义，使得一个带引号
   的路由模板不会让整份响应失效。
+- `httpserver.RouteRegistrar` 与 `httpserver.DecorateRoutes` 指名了"逐路由中间件必须安装在
+  哪里"：注册处——只有在那里 handler 和它的路由 pattern 同时在作用域内。registrar 只要
+  `http.ServeMux` 提供的那两个方法，所以 `*http.ServeMux` 天然满足它，调用方也可以传入一个
+  装饰器；于是 mux 分派到的就是被包装后的 handler，这才让 `http.Request.Pattern` 是匹配到的
+  路由而不是空值。包在 mux 外面的中间件根本看不到 pattern——这就是"逐路由指标"与"一条叫 `/`
+  的序列"之间的差别。
 - `metrics.HTTPRecorder` 把 HTTP 传输层的 recorder 桥接到 `endpoint.Metrics` 收集器，于是只接了
   HTTP 层的服务——生成项目并没有把每个 handler 都包进 endpoint 链——也能喂给 exposition 读取的
   同一份数字。它是翻译而不是第二次测量：一个请求只产生一次观测。未匹配任何路由的请求根本不记录，
