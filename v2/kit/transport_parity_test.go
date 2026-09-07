@@ -49,6 +49,7 @@ var transportContracts = map[string]struct {
 	"ReadinessSink":     {true, "each transport serves readiness in its own protocol: /readyz, grpc.health.v1"},
 	"NamedLifecycle":    {false, "diagnostics, not a contract: kit/grpc.Component is named by its type in Host output"},
 	"ReadinessProvider": {false, "implemented by application components with warm-up, not by transports"},
+	"CertificateSource": {false, "implemented by the deployment, not by a transport: it answers where a certificate comes from, and only the HTTP listener terminates TLS here"},
 }
 
 func TestEveryKitContractIsClassifiedForBothTransports(t *testing.T) {
