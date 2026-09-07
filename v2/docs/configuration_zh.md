@@ -183,6 +183,32 @@ component, err := kit.NewHTTP(":8443", kit.WithTLSConfig(&tls.Config{
 Go 在这里的零值对服务端意味着 TLS 1.0，没有哪个部署真想要它。这个值就是
 `kit.DefaultTLSMinVersion`；想要别的（包括为了兼容老客户端）请显式设置 `MinVersion`。
 
+### 轮换证书
+
+文件在你要求它被读的时候才读，不是每次握手都读，也不会由这个框架装的监听器去读：
+
+```go
+certificates, err := kit.NewCertificateFiles(cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile)
+if err != nil {
+    return err // 路径写错仍然让启动失败，并带上路径
+}
+component, err := kit.NewHTTP(":8443", kit.WithTLSCertificateSource(certificates))
+
+// 你的部署靠什么触发续期，就用什么触发它——信号、定时器、inotify 库：
+if err := certificates.Reload(); err != nil {
+    logger.Error("certificate reload failed; still serving the previous one", "err", err)
+}
+```
+
+`WithTLSCertificateSource` 每次握手都问 source，所以下一个客户端拿到的就是最后一次成功
+`Reload` 加载的东西——不需要重启。失败的 reload 返回错误并继续服务已加载的那一对，因为写了
+一半的 secret 应该只值一条日志，而不是整个监听器。
+
+什么时候去问 source，刻意留给你。文件监听、轮询间隔、`SIGHUP` 处理器，每一个都是某些部署得
+绕开的策略，所以框架只给接缝、不给触发器。`kit.CertificateSource` 就是那个接缝：你可以对着
+密钥管理服务、ACME 客户端、或给 SNI 用的按名字映射去实现它——记住它运行在握手路径上，要缓存，
+不要现取。
+
 ### 开了 TLS 还会变什么
 
 只要服务端有 TLS config，Go 就会通过 ALPN 提供 HTTP/2——所以组件拿到证书的同时也拿到了

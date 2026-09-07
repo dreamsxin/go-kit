@@ -189,9 +189,13 @@ What in-process termination changes operationally:
   needs the plaintext listener or a proxy that terminates TLS and speaks HTTP/1.1
   onwards.
 - Readiness and drain are unchanged, with one addition: a certificate mounted from a
-  secret is rotated by replacing files, and this process reads them once at startup.
-  A rotation therefore needs a restart unless you supply a `GetCertificate` callback.
-  Plan the rotation before the certificate expires, not after.
+  secret is rotated by replacing files. `kit.WithTLS` reads them once, so that
+  arrangement needs a restart; `kit.WithTLSCertificateSource` with
+  `kit.NewCertificateFiles` asks on every handshake and re-reads on
+  `Reload`, which is what lets a renewal be picked up without a deploy. The trigger is
+  yours — a signal handler, a timer, a filesystem watch — and a failed reload keeps the
+  previous certificate serving. Plan the rotation before the certificate expires, and
+  alert on the reload failing rather than on the expiry.
 - Health probes must speak the same scheme as the listener. A probe still configured
   for `http` against a TLS port reads as an unhealthy instance, and the kubelet will
   restart a process that is working.

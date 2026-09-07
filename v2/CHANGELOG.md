@@ -2,6 +2,34 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.15.0] - Release Candidate
+
+Rotation without a restart. Milestone 13 shipped in-process TLS and then wrote its own
+gap down: certificate files are read once, so renewing one meant restarting the
+process. That sentence was honest and the behaviour was poor — a certificate expires on
+a schedule, and the platform that renews it replaces files under a running service and
+expects it to notice. This release makes the certificate replaceable while the listener
+serves, and keeps a broken renewal from costing anyone their listener.
+
+### Added
+
+- `kit.CertificateSource` is the seam: one method, asked on every handshake, so nothing
+  about the certificate is captured when the listener starts. Where the certificate
+  comes from stays the deployment's — a file, a secret manager, an ACME client, a
+  per-name map for SNI — and `kit.CertificateSourceFunc` adapts a closure.
+  `kit.WithTLSCertificateSource` installs it, imposing nothing beyond the minimum
+  version `WithTLSConfig` already defaults.
+- `kit.CertificateFiles` is the file-backed source a mounted secret needs.
+  `NewCertificateFiles` loads the pair up front, so a bad path still fails startup with
+  the path in the error rather than a client's handshake, and `Reload` re-reads both
+  files when the deployment says so. When to say so is deliberately not the framework's:
+  no filesystem watch, no timer, no signal handler is installed, because each is a
+  policy a deployment would have to work around. `Certificate` never touches the disk,
+  so the handshake path cannot be slowed or failed by it.
+- A failed reload returns the error and keeps serving the pair already loaded. A
+  half-written secret is a log line, not an outage, and the test asserts the listener
+  still answers with the previous certificate.
+
 ## [2.14.0] - 2026-09-07
 
 Two transports, one contract. Thirteen releases were spent making the HTTP surface

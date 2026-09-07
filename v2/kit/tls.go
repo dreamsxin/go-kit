@@ -53,8 +53,9 @@ const DefaultTLSMinVersion = tls.VersionTLS12
 // rather than become a client's TLS error to report.
 //
 // It configures nothing else. For a deployment that needs a cipher policy, client
-// certificates, SNI, or rotation without a restart — the last of which means a
-// GetCertificate callback rather than a file read — use WithTLSConfig.
+// certificates, or SNI, use WithTLSConfig. For one that renews certificates while the
+// process runs, use WithTLSCertificateSource: the pair loaded here is captured, so
+// replacing the files underneath this option changes nothing until a restart.
 //
 // Stable: kit.tls-serves-when-configured — a component configured with a certificate serves TLS on its listener, and HTTP/2 is negotiated through ALPN.
 // Covered by: TestTLSServesHTTPSAndNegotiatesHTTP2

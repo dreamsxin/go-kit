@@ -208,6 +208,35 @@ becomes TLS 1.2, because Go's zero value there means TLS 1.0 for a server and no
 deployment means to ask for that. `kit.DefaultTLSMinVersion` is that value; set
 `MinVersion` explicitly to choose otherwise, including to accept older clients.
 
+### Rotating the certificate
+
+Files are read when you ask for them to be read, not on every handshake, and never
+by a watcher this framework installed:
+
+```go
+certificates, err := kit.NewCertificateFiles(cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile)
+if err != nil {
+    return err // a bad path still stops startup, with the path in the error
+}
+component, err := kit.NewHTTP(":8443", kit.WithTLSCertificateSource(certificates))
+
+// Whatever your deployment renews on — a signal, a timer, an inotify library:
+if err := certificates.Reload(); err != nil {
+    logger.Error("certificate reload failed; still serving the previous one", "err", err)
+}
+```
+
+`WithTLSCertificateSource` asks the source on every handshake, so the next client gets
+whatever the last successful `Reload` loaded — no restart. A failed reload returns the
+error and keeps serving the pair already loaded, because a half-written secret should
+cost a log line rather than the listener.
+
+When the source should be consulted is deliberately yours. A filesystem watch, a
+poll interval, or a `SIGHUP` handler would each be a policy some deployment has to work
+around, so the framework ships the seam and not the trigger. `kit.CertificateSource` is
+that seam: implement it against a secret manager, an ACME client, or a per-name map for
+SNI, and remember it runs on the handshake path, so cache rather than fetch.
+
 ### What TLS also changes
 
 Go offers HTTP/2 through ALPN as soon as the server has a TLS config, so a component

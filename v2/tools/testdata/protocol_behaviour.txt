@@ -53,7 +53,9 @@ stable/kit.shutdown-ends
 stable/kit.stopping-signal
 stable/kit.streaming-survives-http2
 stable/kit.tls-certificate-failure-is-immediate
+stable/kit.tls-certificate-per-handshake
 stable/kit.tls-policy-belongs-to-the-deployment
+stable/kit.tls-reload-keeps-serving
 stable/kit.tls-serves-when-configured
 stable/mcp.authorization-subject
 stable/mcp.client-extension-declaration

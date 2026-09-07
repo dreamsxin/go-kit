@@ -1423,6 +1423,75 @@ stream can end itself on the stopping signal, a scrape of a gRPC-only service
 reports per-method series, a generated service serves TLS and health on its gRPC
 port, and a test fails if one transport gains a lifecycle contract the other lacks.
 
+## Milestone 15 (Active): Rotation Without A Restart / 不重启的轮换
+
+Goal: the things a running service is handed — certificates first — can be replaced
+while it serves, and what cannot be replaced is named.
+
+Milestone 13 shipped in-process TLS and then wrote the gap down itself:
+`PRODUCTION.md` says certificate files are read once, so rotation means a restart.
+That sentence is honest and the behaviour is poor. A certificate expires on a
+schedule; the platform that renews it — a cert-manager secret, a Vault agent, an
+operator's cron — replaces files under a running process and expects the process to
+notice. "Restart to pick it up" turns a routine renewal into a deploy, and a missed
+renewal into an outage.
+
+The framework's part is the seam and the ordering guarantees around it. When to look
+again is a deployment's decision: this package does not watch the filesystem, poll a
+timer, or install a signal handler, because each of those is a policy some deployment
+would have to work around.
+
+### Work Package 1: A Certificate The Process Can Replace
+
+Goal: rotation is possible without a restart, and a bad rotation is not an outage.
+
+- A certificate source is asked on every handshake, so nothing about the certificate
+  is captured when the listener starts. Where it comes from is the deployment's:
+  a file, a secret manager, an ACME client, a per-name map for SNI.
+- A file-backed source that reloads on demand, because that is what a mounted secret
+  needs, and it still fails startup with the path when the pair is unreadable — the
+  promise Milestone 13 made.
+- A failed reload keeps the certificate already being served and returns the error. A
+  half-written secret should cost a log line, not the listener.
+
+Acceptance:
+
+```bash
+go test ./kit/ -run 'TestCertificate|TestWithTLSCertificateSource' -count=1
+```
+
+Shipped as `kit.CertificateSource`, `kit.WithTLSCertificateSource`,
+`kit.CertificateFiles` and `kit.CertificateSourceFunc`, declaring
+`kit.tls-certificate-per-handshake` and `kit.tls-reload-keeps-serving`. One decision
+worth recording: `CertificateFiles.Certificate` never touches the filesystem, so the
+handshake path cannot be slowed or failed by disk — the test asserts that replacing
+the files changes nothing until `Reload` is called.
+
+### Work Package 2: The Generated Service Rotates On A Signal It Documents
+
+Goal: a generated service picks up a renewed certificate without a deploy.
+
+- The generated entry point reloads its certificate when the process is asked to, on
+  a signal that is documented rather than guessed, and logs the paths and the outcome.
+  A failed reload is logged and the service keeps serving.
+- `PRODUCTION.md` stops saying rotation needs a restart and says what it does need,
+  including what a proxy-terminated deployment does instead.
+
+### Work Package 3: What Cannot Be Rotated Is Named
+
+Goal: nobody discovers the limit by trying it.
+
+- The listener address, the protocol options, and the cipher policy are fixed when the
+  listener starts. A reader is told which of the things they configured are read once
+  and which are read again, rather than inferring it from a table of options.
+
+### Completion Definition / 完成定义
+
+Milestone 15 is complete when a service can be handed a renewed certificate without
+restarting, a broken renewal leaves the listener serving the previous one, a generated
+service does the same on a documented signal, and the documentation lists what is
+fixed at startup.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

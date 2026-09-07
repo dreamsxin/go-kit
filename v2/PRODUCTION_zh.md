@@ -163,9 +163,11 @@ APP_TLS_KEY_FILE=/etc/tls/tls.key
 - HTTP/2 会随之而来，经 ALPN。流式仍然可用；基于 hijack 的协议升级不可用，因为 h2 没有
   `101 Switching Protocols`。所以 WebSocket 端点需要明文监听器，或者需要一个终止 TLS 后
   用 HTTP/1.1 往后讲的代理。
-- 就绪与 drain 不变，但多一条：从 secret 挂载的证书是通过替换文件轮换的，而这个进程只在
-  启动时读一次。因此轮换需要重启，除非你提供 `GetCertificate` 回调。请在证书过期之前就
-  规划轮换，而不是之后。
+- 就绪与 drain 不变，但多一条：从 secret 挂载的证书是通过替换文件轮换的。`kit.WithTLS` 只读
+  一次，所以那种接法需要重启；`kit.WithTLSCertificateSource` 配 `kit.NewCertificateFiles`
+  每次握手都问、并在 `Reload` 时重读，这才让续期不需要一次发布就能生效。触发器是你的——信号
+  处理器、定时器、文件监听——而失败的 reload 会继续用上一张证书服务。请在证书过期之前规划轮换，
+  并且告警应该打在"reload 失败"上，而不是打在"过期"上。
 - 健康探针必须和监听器讲同一种 scheme。仍然按 `http` 配置、去探一个 TLS 端口的探针，读出来
   就是"实例不健康"，而 kubelet 会去重启一个本来正常的进程。
 - 两种方案下"被 hijack 的连接都不会被 drain"——见生命周期一节的 drain 说明。在进程内终止
