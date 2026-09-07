@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
@@ -53,6 +54,15 @@ type HTTP struct {
 	lifecycleDone chan struct{}
 	started       bool
 	stopped       bool
+	listenerAddr  string
+
+	// stopping closes when the process announces that it is going away, so a
+	// long-lived handler can end its own response instead of being cut.
+	stopping    chan struct{}
+	stopOnce    sync.Once
+	serveCtx    context.Context
+	cancelServe context.CancelFunc
+	inFlight    atomic.Int64
 }
 
 // Option configures an HTTP component.
@@ -71,6 +81,7 @@ func NewHTTP(addr string, opts ...Option) (*HTTP, error) {
 		healthTimeout:    DefaultHealthCheckTimeout,
 		probePaths:       DefaultProbePaths(),
 		serveErrors:      make(chan error, 1),
+		stopping:         make(chan struct{}),
 	}
 	for i, option := range opts {
 		if option == nil {
@@ -118,15 +129,25 @@ func (h *HTTP) Start() error {
 		return fmt.Errorf("http listen: %w", err)
 	}
 
+	// Every request context descends from serveCtx, which is what lets Shutdown
+	// tell in-flight handlers to stop once the grace period is spent. Without
+	// it, a handler that never watches for the process going away can only be
+	// ended by closing its connection underneath it.
+	h.serveCtx, h.cancelServe = context.WithCancel(context.Background())
+	h.serveCtx = withStopping(h.serveCtx, h.stopping)
+	serveCtx := h.serveCtx
+
 	h.srv = &http.Server{
 		Addr:              h.addr,
 		Handler:           h.httpHandler,
+		BaseContext:       func(net.Listener) context.Context { return serveCtx },
 		ReadHeaderTimeout: h.httpConfig.ReadHeaderTimeout,
 		ReadTimeout:       h.httpConfig.ReadTimeout,
 		WriteTimeout:      h.httpConfig.WriteTimeout,
 		IdleTimeout:       h.httpConfig.IdleTimeout,
 		MaxHeaderBytes:    h.httpConfig.MaxHeaderBytes,
 	}
+	h.listenerAddr = httpLis.Addr().String()
 	h.lifecycleDone = make(chan struct{})
 	h.started = true
 	go func() {
@@ -135,6 +156,18 @@ func (h *HTTP) Start() error {
 		}
 	}()
 	return nil
+}
+
+// Addr reports the address the component is serving on: the resolved listener
+// address once Start has bound it, which is the only way to learn the port when
+// the configured address ends in ":0", and the configured address before that.
+func (h *HTTP) Addr() string {
+	h.lifecycleMu.Lock()
+	defer h.lifecycleMu.Unlock()
+	if h.listenerAddr != "" {
+		return h.listenerAddr
+	}
+	return h.addr
 }
 
 // Errors reports asynchronous serve failures after Start.
@@ -149,7 +182,18 @@ func (h *HTTP) reportServeError(err error) {
 	}
 }
 
-// Shutdown gracefully stops the HTTP server.
+// Shutdown gracefully stops the HTTP server, and then stops it.
+//
+// The graceful attempt is http.Server.Shutdown: idle connections close, and
+// in-flight handlers are given until ctx expires. What happens after that is the
+// part worth stating: a handler that never watches for cancellation — a stream,
+// a long poll — would otherwise leave this call returning a deadline error with
+// the connection still open and the goroutine still running. So the request
+// contexts are cancelled, handlers get a moment to unwind, and whatever is left
+// is closed. The error says how many requests that was.
+//
+// Stable: kit.shutdown-ends — when the graceful attempt runs out of budget, Shutdown cancels in-flight requests and closes the rest rather than returning while they are open, and reports how many it interrupted.
+// Covered by: TestShutdownClosesWhatTheGracePeriodLeftOpen, TestShutdownStaysGracefulWhenHandlersFinish
 func (h *HTTP) Shutdown(ctx context.Context) error {
 	if ctx == nil {
 		return fmt.Errorf("kit: nil shutdown context")
@@ -160,14 +204,20 @@ func (h *HTTP) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	srv := h.srv
+	cancelServe := h.cancelServe
 	h.started = false
 	h.stopped = true
 	h.lifecycleMu.Unlock()
 
+	h.announceStopping()
 	if srv == nil {
 		return nil
 	}
-	return srv.Shutdown(ctx)
+	gracefulErr := srv.Shutdown(ctx)
+	if gracefulErr == nil {
+		return nil
+	}
+	return h.closeWhatIsLeft(srv, cancelServe, gracefulErr)
 }
 
 // ServeHTTP implements http.Handler, allowing the component to be used
@@ -219,6 +269,8 @@ func (h *HTTP) applyEndpointMiddleware(operation string, base endpoint.Endpoint)
 
 func (h *HTTP) withHTTPContext(handler http.Handler) http.Handler {
 	routed := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.inFlight.Add(1)
+		defer h.inFlight.Add(-1)
 		ctx := h.prepareHTTPContext(r.Context(), r, w)
 		if h.timeout > 0 {
 			// The deadline is applied here, not only in the endpoint chain, so
@@ -244,6 +296,10 @@ func (h *HTTP) withHTTPContext(handler http.Handler) http.Handler {
 
 func (h *HTTP) prepareHTTPContext(ctx context.Context, r *http.Request, w http.ResponseWriter) context.Context {
 	ctx = withHTTPContext(ctx, r, w)
+	// The stopping signal is added here as well as through the server's base
+	// context, so a component mounted on someone else's server — httptest, an
+	// outer mux — still tells its handlers when the process is going away.
+	ctx = withStopping(ctx, h.stopping)
 	// Trace context is extracted unconditionally: a service that had to opt in
 	// would break every trace that reaches it until somebody noticed. An
 	// absent or malformed traceparent leaves the context untouched, and

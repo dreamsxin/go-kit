@@ -75,6 +75,35 @@ func (c *Consumer) Drain(ctx context.Context) error {
 会花掉排在它后面所有组件的预算。`Drain` 的错误会被上报，流程继续——一个无法停止接活的
 组件仍然必须被关闭。
 
+## 长连接响应
+
+流是没法"礼貌地摘掉"的：`http.Server.Shutdown` 会等 handler 返回，而每秒写一个事件的
+handler 永远不会返回。所以 HTTP 组件改为告诉它的 handler：
+
+```go
+component.HandleFunc("GET /events", func(w http.ResponseWriter, r *http.Request) {
+	for {
+		select {
+		case <-kit.Stopping(r.Context()):
+			return // 进程要走了；把流收尾
+		case <-r.Context().Done():
+			return // 这个客户端走了
+		case event := <-events:
+			// 写事件
+		}
+	}
+})
+```
+
+`kit.Stopping(ctx)` 在 draining 开始时关闭——早于任何连接被关闭，于是响应可以自己收尾，
+客户端看到的是"流结束"，而不是"连接断了"。在 kit HTTP 组件之外它返回 nil，而从 nil
+channel 接收会永久阻塞，所以上面的 select 两种情况下都是对的。
+
+对既不看信号、也不看 context 的 handler，宽限期同样会结束。`Shutdown` 先尝试
+`http.Server.Shutdown`；预算用尽时它取消请求 context，给 handler 一小段时间收尾，关闭
+剩下的连接，并返回一个包着 `kit.ErrShutdownIncomplete` 的错误，说明打断了多少个请求。
+它不会在自己拥有的连接仍然打开时返回。
+
 ## 健康探针
 
 `kit.NewHTTP` 无条件注册三条路由：

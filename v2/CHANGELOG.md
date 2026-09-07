@@ -23,6 +23,26 @@ to the components that know.
   by hand cannot tear down a component that is still claiming to be ready. A
   component's `Drain` error is reported and the sequence continues: something that
   cannot stop accepting work still has to be shut down.
+- `kit.Stopping`, `kit.ErrShutdownIncomplete`, and `kit.HTTP.Addr` end the grace
+  period instead of hoping it ends. `Stopping(ctx)` closes when draining begins, so
+  a stream or long poll ends its own response and the client sees the end of a
+  stream rather than a broken connection; outside a kit HTTP component it is nil,
+  which a `select` handles correctly. For a handler that watches nothing,
+  `HTTP.Shutdown` no longer returns a deadline error with the connection still open:
+  it cancels the request contexts, gives handlers a moment to unwind, closes what is
+  left, and reports how many requests it interrupted through
+  `ErrShutdownIncomplete`. `Addr` reports the address the listener actually bound,
+  which is the only way to learn the port after binding `:0`.
+
+### Changed
+
+- `Host.Shutdown` gives each component an equal share of the budget that is left
+  instead of passing one shared deadline down the line. A shared deadline let the
+  first component stopped spend all of it, and every component behind it was then
+  handed a context that had already expired — a teardown that reads as graceful in
+  the code and behaves as a hard close in production. The share is recomputed each
+  time, so a component that returns early leaves more for the rest, and a caller
+  that passed no deadline still has none imposed.
 
 ## [2.10.0] - 2026-09-07
 

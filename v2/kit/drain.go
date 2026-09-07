@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 )
 
@@ -156,3 +157,87 @@ func (h *Host) readinessSink() ReadinessSink {
 	}
 	return nil
 }
+
+// ─── the stopping signal a handler can watch ─────────────────────────────────
+
+// ErrShutdownIncomplete reports that the graceful attempt did not finish inside
+// its budget, so the remaining connections were closed. Its message says how many
+// requests that was: the number an operator needs to decide whether the grace
+// period or the handler is the thing to fix.
+var ErrShutdownIncomplete = errors.New("kit: graceful shutdown did not finish")
+
+// hardCloseGrace is how long Shutdown waits after cancelling request contexts
+// before closing connections. It is deliberately short and not configurable: the
+// configurable budget has already expired, and this is only the moment a
+// cancelled handler needs in order to return.
+const hardCloseGrace = 250 * time.Millisecond
+
+type stoppingKey struct{}
+
+func withStopping(ctx context.Context, stopping <-chan struct{}) context.Context {
+	return context.WithValue(ctx, stoppingKey{}, stopping)
+}
+
+// Stopping reports a channel that closes when the process announces it is going
+// away, before the grace period starts. A long-lived handler — a stream, a long
+// poll — selects on it to end its own response, which is the difference between a
+// client seeing the end of a stream and a client seeing a broken connection.
+//
+// The channel is nil when the request was not served by a kit HTTP component.
+// Receiving from a nil channel blocks forever, so a select that also watches
+// ctx.Done() behaves correctly either way.
+//
+//	for {
+//	    select {
+//	    case <-kit.Stopping(ctx):
+//	        return nil // the process is going away; end the stream
+//	    case <-ctx.Done():
+//	        return ctx.Err()
+//	    case event := <-events:
+//	        // ...
+//	    }
+//	}
+//
+// Stable: kit.stopping-signal — a handler learns the process is stopping through Stopping(ctx), which closes when draining begins and before any connection is closed.
+// Covered by: TestStoppingClosesWhenTheComponentDrains, TestStoppingIsNilOutsideAKitServer
+func Stopping(ctx context.Context) <-chan struct{} {
+	stopping, _ := ctx.Value(stoppingKey{}).(<-chan struct{})
+	return stopping
+}
+
+// Drain announces the stop to this component's handlers. The server keeps
+// serving: draining tells the responses in flight that the process is going away,
+// and the grace period they are given belongs to Shutdown.
+//
+// Stable: kit.http-drains — the HTTP component closes its stopping signal when the process drains, while it is still serving.
+// Covered by: TestStoppingClosesWhenTheComponentDrains
+func (h *HTTP) Drain(context.Context) error {
+	h.announceStopping()
+	return nil
+}
+
+func (h *HTTP) announceStopping() {
+	h.stopOnce.Do(func() { close(h.stopping) })
+}
+
+// closeWhatIsLeft ends a shutdown the grace period could not: it cancels the
+// request contexts, gives handlers a moment to return, and closes whatever is
+// still open.
+func (h *HTTP) closeWhatIsLeft(srv *http.Server, cancelServe context.CancelFunc, gracefulErr error) error {
+	if cancelServe != nil {
+		cancelServe()
+	}
+	deadline := time.Now().Add(hardCloseGrace)
+	for h.inFlight.Load() > 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	interrupted := h.inFlight.Load()
+	closeErr := srv.Close()
+	return errors.Join(
+		fmt.Errorf("%w: closed the listener and %d request(s) still in flight: %w",
+			ErrShutdownIncomplete, interrupted, gracefulErr),
+		closeErr,
+	)
+}
+
+var _ Draining = (*HTTP)(nil)

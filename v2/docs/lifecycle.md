@@ -82,6 +82,39 @@ and a `Drain` that blocks spends the budget of every component behind it. A
 `Drain` error is reported and the sequence continues -- a component that cannot
 stop accepting work still has to be shut down.
 
+## Long-lived responses
+
+A stream cannot be drained by asking politely: `http.Server.Shutdown` waits for
+handlers to return, and a handler writing an event every second never does. So an
+HTTP component tells its handlers instead:
+
+```go
+component.HandleFunc("GET /events", func(w http.ResponseWriter, r *http.Request) {
+	for {
+		select {
+		case <-kit.Stopping(r.Context()):
+			return // the process is going away; end the stream
+		case <-r.Context().Done():
+			return // this client went away
+		case event := <-events:
+			// write the event
+		}
+	}
+})
+```
+
+`kit.Stopping(ctx)` closes when draining begins -- before anything is closed, so
+the response can end itself and the client sees the end of a stream rather than a
+broken connection. Outside a kit HTTP component it returns nil, and receiving from
+a nil channel blocks forever, so the select above is correct either way.
+
+For a handler that watches neither signal, the grace period still ends.
+`Shutdown` tries `http.Server.Shutdown` first; when that runs out of budget it
+cancels the request contexts, gives handlers a moment to unwind, closes what is
+left, and returns an error wrapping `kit.ErrShutdownIncomplete` that says how many
+requests were interrupted. It does not return while a connection it owns is still
+open.
+
 ## Health probes
 
 `kit.NewHTTP` registers three routes unconditionally:

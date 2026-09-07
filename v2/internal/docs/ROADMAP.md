@@ -1015,6 +1015,13 @@ Goal: shutdown finishes, and says what it had to interrupt.
 - Each component's shutdown budget is stated. A slow component may not silently
   consume the budget of the components behind it.
 
+Acceptance:
+
+```bash
+go test ./kit/... -count=1
+go test -race ./kit/... -count=1
+```
+
 ### Work Package 3: Deregistration Comes First
 
 Goal: an instance leaves discovery before it stops answering, not after.

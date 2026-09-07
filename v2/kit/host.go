@@ -268,14 +268,45 @@ func (h *Host) Shutdown(ctx context.Context) error {
 	return errors.Join(drainErr, shutdownLifecycles(ctx, components))
 }
 
+// shutdownLifecycles stops components in reverse attachment order, giving each an
+// equal share of the budget that is left.
+//
+// One shared deadline sounds fairer than it is: the first component to be stopped
+// could spend all of it, and every component behind it would then be handed a
+// context that had already expired — a teardown that looks graceful in the code
+// and is a hard close in production. A share is recomputed each time, so a
+// component that returns early leaves more for the rest.
+//
+// Stable: kit.shutdown-budget-share — each component gets an equal share of the remaining shutdown budget, so a slow one cannot spend what the components behind it need.
+// Covered by: TestShutdownGivesEachComponentAShareOfTheBudget
 func shutdownLifecycles(ctx context.Context, components []Lifecycle) error {
 	var result error
+	remaining := len(components)
 	for i := len(components) - 1; i >= 0; i-- {
-		if err := components[i].Shutdown(ctx); err != nil {
+		componentCtx, cancel := shutdownBudget(ctx, remaining)
+		err := components[i].Shutdown(componentCtx)
+		cancel()
+		remaining--
+		if err != nil {
 			result = errors.Join(result, fmt.Errorf("shutdown lifecycle component %s: %w", lifecycleLabel(i, components[i]), err))
 		}
 	}
 	return result
+}
+
+// shutdownBudget derives one component's slice of what is left. Without a
+// deadline there is nothing to divide, and the last component gets the remainder
+// rather than a share of it.
+func shutdownBudget(ctx context.Context, remaining int) (context.Context, context.CancelFunc) {
+	deadline, ok := ctx.Deadline()
+	if !ok || remaining <= 1 {
+		return context.WithCancel(ctx)
+	}
+	share := time.Until(deadline) / time.Duration(remaining)
+	if share <= 0 {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(ctx, share)
 }
 
 func isNilLifecycle(component Lifecycle) bool {

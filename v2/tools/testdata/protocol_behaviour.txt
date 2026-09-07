@@ -41,6 +41,10 @@ stable/http.traceparent
 stable/kit.drain-delay
 stable/kit.drain-notification
 stable/kit.draining-readiness
+stable/kit.http-drains
+stable/kit.shutdown-budget-share
+stable/kit.shutdown-ends
+stable/kit.stopping-signal
 stable/mcp.authorization-subject
 stable/mcp.client-extension-declaration
 stable/mcp.error-codes
