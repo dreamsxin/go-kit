@@ -2,6 +2,70 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.10.0] - Release Candidate
+
+Promises you can check. The compatibility contract stopped being prose: every
+surface it covers names the gate that enforces it, and the protocol behaviours v2
+promises are declared beside the code that keeps them. The first thing that check
+showed is that the MCP promise was two revisions out of date, so this release
+speaks the current specification as well as the one it froze.
+
+### Added
+
+- MCP 2026-07-28, the stateless revision, served beside 2025-06-18. The
+  `MCP-Protocol-Version` header selects the request model per request; an absent
+  header selects 2025-06-18, which predates the header being mandatory, so
+  existing clients keep their behaviour for the twelve-month deprecation window.
+  On the new revision no session is minted, read, or required: a request carries
+  its protocol version, client identity and client capabilities in `params._meta`,
+  reachable from a tool through `mcp.IdentityFromContext` and
+  `mcp.ClientCapabilityFromContext`. `server/discover` replaces the handshake for
+  a client that wants capabilities before it commits; `initialize` and
+  `notifications/initialized` are answered as retired, naming it. POST is the
+  whole transport there, so GET and DELETE — which existed for sessions — are
+  answered 405 with `Allow: POST`.
+- Header-based routing on 2026-07-28: `Mcp-Method` repeats the JSON-RPC method
+  and `Mcp-Name` the target it addresses, so a gateway can route, meter and
+  authorize without parsing a body. A request whose headers disagree with its body
+  is refused with 400 `invalid_routing_header`, because a per-tool decision made
+  on headers would otherwise apply to a different call than the one that runs.
+- Cacheable catalogs: `tools/list`, `prompts/list`, `resources/list`,
+  `resources/templates/list` and `resources/read` carry `ttlMs` and `cacheScope`
+  on 2026-07-28, configured by `StreamableHandler.ListCacheTTL` and
+  `ListCacheScope`. The scope defaults to `private`, because a catalog may be
+  authorization-filtered.
+- Multi Round-Trip Requests, so a tool can ask its caller something without a
+  stream to ask over. A tool returns `interaction.InputRequired` with the
+  questions and the state it wants echoed; the transport answers `resultType:
+  "input_required"` with `inputRequests` and an opaque `requestState`, and the
+  caller repeats the call with `inputResponses`. The tool runs again with
+  `interaction.InputAnswersFromContext` returning the answers and state, which
+  makes it a guard rather than a suspended call — nothing is held open between
+  rounds. A question the caller never declared it can answer is refused with
+  `-32021` and `data.requiredCapabilities` instead of asked. On 2025-06-18 the
+  same return value is an error naming the revision that carries it.
+- `interaction.EventToolInputRequired`, emitted for a call that stopped to ask
+  something. An unfinished call is neither a result nor an error, and its log line
+  says the call needs input at `Info`: a conversation working as designed should
+  not page whoever watches error events.
+
+### Changed
+
+- The generated `main` applies every command-line flag before `Config.Validate`.
+  `-auto-migrate` was written back afterwards, making it the one flag whose value
+  never reached validation.
+- The compatibility contract in `internal/docs/RELEASE.md` names a gate for each
+  of its six surfaces, and `TestCompatibilityContractNamesItsGates` fails when a
+  named gate stops existing. Forty-nine protocol behaviours are declared where
+  they are implemented, as `// Stable: <id> — <promise>` beside the code, with the
+  reviewed set in `tools/testdata/protocol_behaviour.txt`; two behaviours
+  deliberately left unstable say so in the same form.
+- The API compatibility gate tells an addition from a break instead of reporting
+  both as "changed": a removed or reordered struct field and a new interface
+  method fail, while a new struct field and a re-aligned constant block pass.
+  Reordering is reported with its reason, because an unkeyed composite literal
+  keeps compiling and assigns to a different field.
+
 ## [2.9.0] - 2026-09-05
 
 Layering. The goal is that the pieces be usable one at a time, so the contract

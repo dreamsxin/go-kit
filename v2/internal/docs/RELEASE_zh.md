@@ -3,7 +3,7 @@
 
 ## 当前状态
 
-v2.9.0 是本次从 `main` 发布的模块版本：
+v2.10.0 是本次从 `main` 准备的候选模块版本：
 
 ```text
 github.com/dreamsxin/go-kit/v2
@@ -14,7 +14,7 @@ github.com/dreamsxin/go-kit/v2
 行为变更记录在 [CHANGELOG_zh.md](../../CHANGELOG_zh.md)。
 
 已发布模块存储在仓库的 `v2` 主版本子目录中，但使用方请求的是正常的模块版本，例如
-`v2.9.0`。每次发布对应一个普通根 tag，形如 `vX.Y.Z`；已发布的 tag 不可变，随着版本
+`v2.10.0`。每次发布对应一个普通根 tag，形如 `vX.Y.Z`；已发布的 tag 不可变，随着版本
 推进逐个累积。
 
 ## 版本策略
@@ -50,8 +50,11 @@ v2 处于冻结前阶段。在宣布冻结之前，minor 版本允许改变行�
 
 ## 发布准入条件
 
-v2.9.0 候选版本满足以下条件：
+v2.10.0 候选版本满足以下条件：
 
+- 兼容性契约覆盖的每个表面都指名了保证它的门禁，v2 承诺的协议行为都声明在守护它们的
+  代码旁边。
+- MCP 表面同时服务当前规范修订与它之前的一版，因此不会在一个过期的协议上宣布冻结。
 - `kit`、endpoint、HTTP/gRPC 传输、服务发现和交互生命周期都具有明确的错误与取消契约。
 - 生成的项目使用 `/v2` 模块，并能在框架仓库之外构建。
 - Go IDL、Protobuf、数据库、config、extend 和交互生成路径都具有确定性集成测试。
@@ -152,8 +155,8 @@ module 或旧的 v2 标签时失败。
 3. 创建并推送标签：
 
 ```bash
-git tag -a v2.9.0 -m "go-kit v2.9.0"
-git push origin v2.9.0
+git tag -a v2.10.0 -m "go-kit v2.10.0"
+git push origin v2.10.0
 make verify-published
 ```
 

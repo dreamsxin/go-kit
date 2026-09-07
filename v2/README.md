@@ -26,9 +26,9 @@ This directory is the independent Go module:
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.9.0` is the current release. It ships as a single module: one
-`require`, one tag, no version skew between the framework and its providers.
-Per-release changes are recorded in [CHANGELOG.md](CHANGELOG.md).
+`v2.9.0` is the current release and `v2.10.0` is in candidate. It ships as a
+single module: one `require`, one tag, no version skew between the framework and
+its providers. Per-release changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 Requires Go 1.26.0 or later.
 

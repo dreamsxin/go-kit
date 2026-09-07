@@ -2,6 +2,52 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [2.10.0] - Release Candidate
+
+可以被检查的承诺。兼容性契约不再只是文档：它覆盖的每个表面都指名了保证它的门禁，v2
+承诺的协议行为都声明在守护它们的代码旁边。这项检查发现的第一件事，就是 MCP 那条承诺
+已经落后两个修订版本——因此本次发布在冻结的那一版之外，也说当前规范。
+
+### 新增
+
+- MCP 2026-07-28 无状态版本，与 2025-06-18 并行提供。`MCP-Protocol-Version` 头逐请求
+  选择请求模型；缺少该头时选择 2025-06-18——头成为强制要求晚于该版本，因此既有客户端
+  在十二个月弃用窗口内行为不变。新版本下不铸造、不读取、也不要求任何会话：请求在
+  `params._meta` 中携带自己的协议版本、客户端身份与客户端能力，工具通过
+  `mcp.IdentityFromContext` 与 `mcp.ClientCapabilityFromContext` 读取。
+  `server/discover` 为"想先了解能力再决定"的客户端取代握手；`initialize` 与
+  `notifications/initialized` 被作为"已退役"应答并指向它。该版本的传输就是 POST，
+  为会话而存在的 GET 与 DELETE 返回 405 与 `Allow: POST`。
+- 2026-07-28 下基于头的路由：`Mcp-Method` 重复 JSON-RPC 方法，`Mcp-Name` 重复它寻址的
+  目标，网关因此无需解析请求体即可路由、计量与鉴权。头与请求体不一致的请求以 400
+  `invalid_routing_header` 被拒绝——否则按头做出的按工具决策，会落到与实际执行不同的
+  调用上。
+- 可缓存的目录：2026-07-28 下 `tools/list`、`prompts/list`、`resources/list`、
+  `resources/templates/list` 与 `resources/read` 带 `ttlMs` 与 `cacheScope`，由
+  `StreamableHandler.ListCacheTTL` 和 `ListCacheScope` 配置。scope 默认 `private`，
+  因为目录可能是按授权过滤的。
+- 多轮请求（MRTR），让工具在没有常开流的情况下也能向调用方提问。工具返回
+  `interaction.InputRequired`，携带问题与希望被回传的状态；传输层以
+  `resultType: "input_required"` 加 `inputRequests` 与不透明的 `requestState` 应答，
+  调用方带 `inputResponses` 重发调用。工具再跑一遍，`interaction.InputAnswersFromContext`
+  返回答案与状态——它因此是一道门禁而不是被挂起的调用，两轮之间不持有任何东西。调用方
+  没有声明能回答的问题会以 `-32021` 与 `data.requiredCapabilities` 被拒绝，而不是照问。
+  在 2025-06-18 下同一个返回值是错误，并指名承载它的版本。
+- `interaction.EventToolInputRequired`：为"停下来提问"的调用发出。未完成的调用既不是
+  结果也不是错误，其日志以 `Info` 记录"需要输入"——按设计工作的对话不应该把值班叫起来。
+
+### 变更
+
+- 生成的 `main` 在 `Config.Validate` 之前应用所有命令行标志。`-auto-migrate` 原本写在
+  校验之后，是唯一一个其值从未经过校验的标志。
+- `internal/docs/RELEASE.md` 中的兼容性契约为六个表面各指名门禁，被指名的门禁不再存在
+  时 `TestCompatibilityContractNamesItsGates` 失败。四十九条协议行为以
+  `// Stable: <id> — <承诺>` 的形式声明在其实现旁边，经过评审的集合保存在
+  `tools/testdata/protocol_behaviour.txt`；两条刻意保持不稳定的行为以同样形式说明。
+- API 兼容性门禁能区分"新增"与"破坏"，而不再把两者都报成 changed：删除或重排结构体字段、
+  为接口新增方法会失败，新增结构体字段与常量块重新对齐则通过。重排会连同原因一起报告——
+  未加 key 的复合字面量会继续编译并赋给别的字段。
+
 ## [2.9.0] - 2026-09-05
 
 分层。目标是各个部件可以单独使用，所以契约层不再携带策略，依赖方向由门禁保证而不是
