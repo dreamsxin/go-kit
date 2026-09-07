@@ -23,9 +23,13 @@ scrape 对 RPC 一句话都说不出来，生成代码构造的是一个没有�
   同一个 `select` 在所有地方都是对的。
 - drain 一个 gRPC 组件是通告，不拒绝调用，这是刻意的：在 drain 延迟里收到 `UNAVAILABLE` 的
   客户端会重试，而且可能重试到同一个实例，因为路由层还没跟上。真正让流量挪走的是 readiness
-  失败，而 gRPC 健康服务已经在报告它。`Component.Shutdown` 也会通告，所以被直接停掉的组件
-  同样会告诉它的 handler；同时它现在写明了自己的限制：`GracefulStop` 会等在途 RPC，所以一个
-  什么都不看的流会花掉整份停机预算、然后被从底下停掉——错误会说出来，而不是报告成功。
+  失败，而 gRPC 健康服务已经在报告它。  `Component.Shutdown` 也会通告，所以被直接停掉的组件同样会告诉它的 handler；而它现在自己给
+  等待设界，不再依赖 grpc 的 `GracefulStop`：那个调用在等 handler 返回时持有服务器自己的
+  互斥锁，而 `Stop` 需要同一把锁，所以一个永不返回的 handler 会让这一对死锁——建立在它上面的
+  "有界停机"根本没有界。组件通过自己的拦截器统计在途调用，关闭监听器以阻止新连接进来，在预算
+  用尽之前等在途调用结束，然后关闭传输，并通过包装 `kit.ErrShutdownIncomplete` 报告打断了
+  多少个——和 HTTP 组件报告的是同一个错误。
+
 - `grpcserver.Observation`、`grpcserver.Recorder`、`grpcserver.RecorderFunc`、
   `grpcserver.RecordingUnaryInterceptor` 与 `grpcserver.RecordingStreamInterceptor` 让 gRPC
   传输拥有了 HTTP 传输早就有的 recording 契约。标签是完整方法名，它不需要 HTTP 路由那样的

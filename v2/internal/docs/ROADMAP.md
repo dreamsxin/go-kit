@@ -1322,7 +1322,7 @@ Goal: draining a Host tells every server, not just the HTTP one.
 Acceptance:
 
 ```bash
-go test ./kit/grpc/ -run 'TestDrain|TestShutdownStopsAStreamThatIgnoresTheSignal' -count=1
+go test ./kit/grpc/ -run 'TestDrain|TestShutdown' -count=1
 ```
 
 Shipped as `grpc.drains` and `grpc.shutdown-ends`, with `kit.WithStopping` exported as
@@ -1331,6 +1331,14 @@ does not start refusing calls — `UNAVAILABLE` during the drain delay only make
 client retry at an instance the routing layer has not stopped choosing yet — and the
 interceptors are installed ahead of the caller's own options, so a handler cannot end
 up without the signal by adding one.
+
+The work package's own wording about `GracefulStop` turned out to be wrong, and CI
+found it: that call holds the server's mutex while waiting for handlers, and `Stop`
+needs the same mutex, so the pair deadlocks instead of timing out — a bounded stop
+built on it hangs the process. `Shutdown` counts calls through its own interceptors,
+closes the listener, waits, and then closes the transports, reporting
+`kit.ErrShutdownIncomplete` with the count. The generated entry point had the same
+pattern and now fires the hard stop without waiting on it.
 
 ### Work Package 2: A Scrape Says Something About RPCs
 

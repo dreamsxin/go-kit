@@ -406,11 +406,14 @@ func main() {
 	case <-grpcStopped:
 		logger.Info("gRPC stopped")
 	case <-grpcCtx.Done():
-		// GracefulStop waits for in-flight RPCs, so a stream that watches nothing
-		// holds the process until here; then it is stopped underneath.
-		grpcServer.Stop()
+		// Stop cannot preempt a GracefulStop that is still waiting on a handler:
+		// the graceful path holds the server's own mutex and Stop needs it. So ask
+		// for the hard stop without waiting for it — the process is on its way out,
+		// and blocking here is how a "graceful" shutdown becomes a hang.
+		go grpcServer.Stop()
 		logger.Error("gRPC graceful stop timed out", "err", grpcCtx.Err())
 	}
+
 {{end}}	logger.Info("server exited cleanly")
 
 }

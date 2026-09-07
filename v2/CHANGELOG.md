@@ -33,9 +33,14 @@ that gap where it can be closed and declares the difference where it cannot.
   same instance, because the routing layer has not caught up. Failing readiness is
   the signal that moves traffic, and the gRPC health service already reports it.
   `Component.Shutdown` also announces, so a component stopped directly still tells
-  its handlers, and it now declares its limit: `GracefulStop` waits for in-flight
-  RPCs, so a stream watching nothing costs the whole shutdown budget and is then
-  stopped underneath — the error says so instead of reporting success.
+  its handlers, and it now bounds the wait itself rather than through grpc's
+  `GracefulStop`: that call holds the server's mutex while it waits for handlers to
+  return, and `Stop` needs the same mutex, so a handler that never returns made the
+  pair deadlock — a bounded shutdown built on it was not bounded at all. The
+  component counts calls through its own interceptors, closes the listener to stop new
+  connections arriving, waits for the calls in flight until the budget expires, and
+  then closes the transports, reporting how many it interrupted by wrapping
+  `kit.ErrShutdownIncomplete` — the same error the HTTP component reports.
 - `grpcserver.Observation`, `grpcserver.Recorder`, `grpcserver.RecorderFunc`,
   `grpcserver.RecordingUnaryInterceptor` and `grpcserver.RecordingStreamInterceptor`
   give the gRPC transport the recording contract the HTTP one has had. The label is

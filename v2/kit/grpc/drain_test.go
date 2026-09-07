@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -125,10 +126,11 @@ func TestDrainKeepsServing(t *testing.T) {
 	}
 }
 
-// TestShutdownStopsAStreamThatIgnoresTheSignal states the limit. GracefulStop waits
-// for in-flight RPCs, so a stream that watches nothing holds the process until the
-// budget expires; then it is stopped underneath, and Shutdown says so rather than
-// reporting success.
+// TestShutdownStopsAStreamThatIgnoresTheSignal states the limit, and it is the test
+// that found the real one: building a bounded stop on grpc's GracefulStop plus Stop
+// deadlocks, because GracefulStop holds the server mutex while waiting for handlers
+// and Stop needs it. Shutdown counts calls itself instead, so the budget means
+// something and the connections are closed when it expires.
 func TestShutdownStopsAStreamThatIgnoresTheSignal(t *testing.T) {
 	component := MustNew("127.0.0.1:0")
 	release := make(chan struct{})
@@ -146,18 +148,68 @@ func TestShutdownStopsAStreamThatIgnoresTheSignal(t *testing.T) {
 		t.Fatalf("CloseSend: %v", err)
 	}
 	// The handler is in flight before shutdown starts, which is what makes the
-	// graceful attempt wait rather than return immediately.
+	// graceful wait wait rather than return immediately.
 	var message []byte
 	go func() { _ = stream.RecvMsg(&message) }()
-	time.Sleep(100 * time.Millisecond)
+	waitForCallsInFlight(t, component, 1)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	start := time.Now()
-	if err := component.Shutdown(ctx); err == nil {
-		t.Fatal("Shutdown = nil, want the deadline error: a stream ignoring the signal was still open")
+	err := component.Shutdown(ctx)
+	if err == nil {
+		t.Fatal("Shutdown = nil, want an incomplete-shutdown error: a stream ignoring the signal was still open")
+	}
+	if !errors.Is(err, kit.ErrShutdownIncomplete) {
+		t.Errorf("Shutdown error = %v, want it to wrap kit.ErrShutdownIncomplete", err)
 	}
 	if elapsed := time.Since(start); elapsed > 3*time.Second {
 		t.Errorf("Shutdown took %s, want it bounded by the context", elapsed)
 	}
+}
+
+// TestShutdownWaitsForACallToFinish is the other half: a call that does return is
+// waited for, and Shutdown reports success rather than an interrupted stop.
+func TestShutdownWaitsForACallToFinish(t *testing.T) {
+	component := MustNew("127.0.0.1:0")
+	registerStreamer(component, func(googlegrpc.ServerStream) error {
+		time.Sleep(150 * time.Millisecond)
+		return nil
+	})
+	if err := component.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	stream := openStream(t, dialComponent(t, component))
+	if err := stream.CloseSend(); err != nil {
+		t.Fatalf("CloseSend: %v", err)
+	}
+	var message []byte
+	go func() { _ = stream.RecvMsg(&message) }()
+	waitForCallsInFlight(t, component, 1)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := component.Shutdown(ctx); err != nil {
+		t.Fatalf("Shutdown = %v, want nil: the call finished inside the budget", err)
+	}
+	select {
+	case err := <-component.Errors():
+		t.Fatalf("closing the listener was reported as a serve failure: %v", err)
+	default:
+	}
+}
+
+// waitForCallsInFlight blocks until the component reports the expected number of
+// calls in flight, so a test does not race the client's stream setup.
+func waitForCallsInFlight(t *testing.T, component *Component, want int64) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if component.inFlight.Load() == want {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("in-flight calls = %d, want %d", component.inFlight.Load(), want)
 }

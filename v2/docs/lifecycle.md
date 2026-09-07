@@ -179,11 +179,15 @@ got `UNAVAILABLE` during the drain delay would retry, possibly at this same inst
 because the routing layer has not caught up yet — failing readiness is the signal
 that actually moves traffic, and the gRPC health service reports it.
 
-The limit is the mirror image of the HTTP one. `GracefulStop` does wait for in-flight
-RPCs, so a stream that watches nothing holds the process until the shutdown budget
-expires; then the server is stopped and `Shutdown` returns that deadline error rather
-than reporting success. Unlike a hijacked HTTP connection, nothing here escapes the
-shutdown — it just costs the whole budget.
+The limit is the mirror image of the HTTP one, and it is bounded the same way. The
+component counts the calls in flight itself, closes the listener so no new connections
+arrive, waits for those calls until the budget expires, and then closes the transports
+— reporting `kit.ErrShutdownIncomplete` with the number it interrupted. It does not
+use grpc's `GracefulStop`: that call holds the server's own mutex while it waits for
+handlers, and `Stop` needs the same mutex, so a handler that never returns makes the
+pair deadlock rather than time out. Unlike a hijacked HTTP connection, nothing here
+escapes the shutdown; what survives is a handler goroutine that watched neither its
+context nor the stopping signal, and it ends when the process does.
 
 If you write your own transport, `kit.WithStopping(ctx, ch)` is the seam: carry it
 into your handler contexts and `kit.Stopping` works there too.
@@ -195,8 +199,8 @@ into your handler contexts and `kit.Stopping` works there too.
 | readiness | `/readyz`, `/livez`, `/health` | `grpc.health.v1` `Check`; `Watch` is not implemented — the tools that orchestrate on it call `Check` |
 | drain announcement | yes, `kit.Draining` | yes, `kit.Draining` |
 | stopping signal | `kit.Stopping(r.Context())` | `kit.Stopping(stream.Context())` |
-| shutdown budget | its own share; cancels in-flight requests and closes the rest, reporting how many | its own share; `GracefulStop`, then `Stop` when the budget runs out |
-| what escapes shutdown | a hijacked connection — not waited for, not closed | nothing; a stream that watches nothing costs the whole budget instead |
+| shutdown budget | its own share; cancels in-flight requests and closes the rest, reporting how many | its own share; waits for the calls in flight, then closes the transports, reporting how many |
+| what escapes shutdown | a hijacked connection — not waited for, not closed | nothing; a handler goroutine that watched neither signal outlives its connection until the process exits |
 | TLS | `kit.WithTLS` / `WithTLSConfig`, ALPN gives HTTP/2 | `grpc.Creds` from a `tls.Config` you build, as a `ServerOption` |
 | metrics | `httpserver.Recorder` per route, labelled with the matched pattern | `grpcserver.Recorder` per call, labelled with the full method |
 | trace context | extracted at the boundary, no wiring | extracted at the boundary, no wiring |

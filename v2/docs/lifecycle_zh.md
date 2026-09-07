@@ -160,9 +160,12 @@ drain 一个 gRPC 组件是"通告"，不是"开始拒绝调用"。在 drain 延
 会重试，而且可能重试到同一个实例上——因为路由层还没跟上；真正让流量挪走的信号是 readiness
 失败，而 gRPC 健康服务报告的正是它。
 
-限制与 HTTP 那边正好互为镜像。`GracefulStop` 确实会等在途 RPC，所以一个什么都不看的流会把
-进程占到停机预算用尽；然后服务器被停掉，`Shutdown` 返回那个 deadline 错误，而不是报告成功。
-和被 hijack 的 HTTP 连接不同，这里没有任何东西逃出停机流程——它只是花掉了整份预算。
+限制与 HTTP 那边互为镜像，而且是用同样的方式设界的。组件自己统计在途调用，关闭监听器让新连接
+进不来，在预算用尽之前等这些调用结束，然后关闭传输——并用 `kit.ErrShutdownIncomplete` 报告
+打断了多少个。它不使用 grpc 的 `GracefulStop`：那个调用在等 handler 时持有服务器自己的互斥锁，
+而 `Stop` 需要同一把锁，所以一个永不返回的 handler 会让这一对死锁，而不是超时。和被 hijack 的
+HTTP 连接不同，这里没有任何东西逃出停机；活下来的只是一个既不看 context 也不看停止信号的
+handler goroutine，它随进程一起结束。
 
 如果你自己写传输，`kit.WithStopping(ctx, ch)` 就是那个接缝：把它带进你的 handler context，
 `kit.Stopping` 在那里同样有效。
@@ -174,8 +177,8 @@ drain 一个 gRPC 组件是"通告"，不是"开始拒绝调用"。在 drain 延
 | 就绪 | `/readyz`、`/livez`、`/health` | `grpc.health.v1` 的 `Check`；`Watch` 未实现——按 gRPC 健康编排的工具调用的是 `Check` |
 | draining 通告 | 有，`kit.Draining` | 有，`kit.Draining` |
 | 停止信号 | `kit.Stopping(r.Context())` | `kit.Stopping(stream.Context())` |
-| 停机预算 | 自己那一份；预算用尽则取消在途请求、关闭其余，并报告打断了多少 | 自己那一份；`GracefulStop`，预算用尽则 `Stop` |
-| 什么逃出了停机 | 被 hijack 的连接——既不等待也不关闭 | 没有；但什么都不看的流会花掉整份预算 |
+| 停机预算 | 自己那一份；预算用尽则取消在途请求、关闭其余，并报告打断了多少 | 自己那一份；等在途调用结束，然后关闭传输，并报告打断了多少 |
+| 什么逃出了停机 | 被 hijack 的连接——既不等待也不关闭 | 没有；只有既不看 context 也不看信号的 handler goroutine 会比它的连接活得久，直到进程退出 |
 | TLS | `kit.WithTLS` / `WithTLSConfig`，ALPN 带来 HTTP/2 | 用你构造的 `tls.Config` 做 `grpc.Creds`，作为 `ServerOption` |
 | 指标 | `httpserver.Recorder` 逐路由，标签是匹配到的 pattern | `grpcserver.Recorder` 逐调用，标签是完整方法名 |
 | trace 上下文 | 在边界提取，无需接线 | 在边界提取，无需接线 |

@@ -14,6 +14,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/dreamsxin/go-kit/v2/health"
 	transportgrpc "github.com/dreamsxin/go-kit/v2/integrations/grpc"
@@ -49,6 +50,7 @@ type Component struct {
 	// long-lived call can end itself instead of being cut. See drain.go.
 	stopping chan struct{}
 	stopOnce sync.Once
+	inFlight atomic.Int64
 
 	mu       sync.Mutex
 	listener net.Listener
@@ -77,9 +79,10 @@ func New(addr string, options ...googlegrpc.ServerOption) (*Component, error) {
 		errors:   make(chan error, 1),
 		stopping: make(chan struct{}),
 	}
-	// The stopping signal is installed first, then trace extraction, then the
-	// caller's options: a handler reached through any of them has the signal.
-	serverOptions := append(component.stoppingInterceptors(),
+	// The stopping signal and the call count are installed first, then trace
+	// extraction, then the caller's options: a handler reached through any of them
+	// has the signal and is counted.
+	serverOptions := append(component.lifecycleInterceptors(),
 		googlegrpc.ChainUnaryInterceptor(transportgrpc.TraceparentUnaryServerInterceptor()),
 		googlegrpc.ChainStreamInterceptor(transportgrpc.TraceparentStreamServerInterceptor()),
 	)
@@ -176,14 +179,33 @@ func (c *Component) Start() error {
 	c.listener = listener
 	c.started = true
 	go func() {
-		if err := c.server.Serve(listener); err != nil && !errors.Is(err, googlegrpc.ErrServerStopped) {
-			select {
-			case c.errors <- fmt.Errorf("kit/grpc: serve: %w", err):
-			default:
-			}
+		err := c.server.Serve(listener)
+		if err == nil || errors.Is(err, googlegrpc.ErrServerStopped) {
+			return
+		}
+		// Shutdown closes the listener to stop new connections arriving, so Serve
+		// returns net.ErrClosed on the way out. That is the stop working, not a
+		// failure to report.
+		if errors.Is(err, net.ErrClosed) && c.stoppingBegun() {
+			return
+		}
+		select {
+		case c.errors <- fmt.Errorf("kit/grpc: serve: %w", err):
+		default:
 		}
 	}()
 	return nil
+}
+
+// stoppingBegun reports whether the stop has been announced, which is what makes a
+// closed listener expected rather than a fault.
+func (c *Component) stoppingBegun() bool {
+	select {
+	case <-c.stopping:
+		return true
+	default:
+		return false
+	}
 }
 
 // Errors reports asynchronous serving failures after Start.
@@ -194,16 +216,22 @@ func (c *Component) Errors() <-chan error {
 	return c.errors
 }
 
-// Shutdown gracefully stops the gRPC server until ctx expires.
+// Shutdown stops the gRPC server: it announces, waits for the calls in flight until
+// ctx expires, and then closes the transports.
 //
-// The announcement happens here too, not only in Drain, so a component shut down
-// directly still tells its handlers. What gRPC cannot promise is the other half:
-// GracefulStop waits for in-flight RPCs, and a stream that never returns holds the
-// process until ctx expires — then Stop takes the connections away underneath it.
-// The seam is the same one HTTP has: watch kit.Stopping and end the stream.
+// The graceful wait is this package's, not grpc's GracefulStop. GracefulStop holds
+// the server's own mutex while it waits for handlers to return, and Stop needs that
+// mutex, so a handler that never returns makes GracefulStop wait forever and leaves
+// Stop unable to interrupt it — a bounded shutdown built on the pair is not bounded
+// at all. Counting the calls through the component's own interceptors keeps the
+// budget meaningful: when it runs out, Stop has not been blocked first and can still
+// close the connections.
 //
-// Stable: grpc.shutdown-ends — Shutdown announces the stop, waits for in-flight RPCs until ctx expires, and then stops the server rather than returning while calls are open.
-// Covered by: TestShutdownStopsAStreamThatIgnoresTheSignal
+// What is left after that is a handler goroutine that watched neither its context
+// nor kit.Stopping. Its connection is gone; the goroutine ends when the process does.
+//
+// Stable: grpc.shutdown-ends — Shutdown announces the stop, gives in-flight RPCs until ctx expires, then closes the transports and reports how many calls it interrupted rather than returning success.
+// Covered by: TestShutdownStopsAStreamThatIgnoresTheSignal, TestShutdownWaitsForACallToFinish
 func (c *Component) Shutdown(ctx context.Context) error {
 	if c == nil {
 		return nil
@@ -218,19 +246,22 @@ func (c *Component) Shutdown(ctx context.Context) error {
 	}
 	c.started = false
 	c.stopped = true
+	listener := c.listener
 	c.mu.Unlock()
 
 	c.announceStopping()
-	done := make(chan struct{})
-	go func() {
-		c.server.GracefulStop()
-		close(done)
-	}()
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		c.server.Stop()
-		return ctx.Err()
+	// Closing the listener stops new connections from arriving while the calls
+	// already here finish. Serve returns as a result, which Start reports as an
+	// expected stop rather than a failure.
+	if listener != nil {
+		_ = listener.Close()
 	}
+
+	interrupted := c.waitForCalls(ctx)
+	c.server.Stop()
+	if interrupted == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: closed the listener and %d call(s) still in flight: %w",
+		kit.ErrShutdownIncomplete, interrupted, ctx.Err())
 }
