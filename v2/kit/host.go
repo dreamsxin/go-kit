@@ -25,10 +25,12 @@ type Host struct {
 	serveErrors     chan error
 	lifecycleDone   chan struct{}
 	shutdownTimeout time.Duration
+	drainDelay      time.Duration
 
-	mu      sync.Mutex
-	started bool
-	stopped bool
+	mu       sync.Mutex
+	started  bool
+	stopped  bool
+	draining bool
 }
 
 // HostOption configures a Host.
@@ -51,6 +53,9 @@ func NewHost(opts ...HostOption) (*Host, error) {
 	h.serveErrors = make(chan error, len(h.components)+1)
 	if err := h.bridgeReadiness(); err != nil {
 		return nil, err
+	}
+	if err := h.registerDrainingProbe(); err != nil {
+		return nil, fmt.Errorf("kit: register draining readiness check: %w", err)
 	}
 	return h, nil
 }
@@ -101,13 +106,7 @@ func WithShutdownTimeout(timeout time.Duration) HostOption {
 // can see the answer, and a component that warms up silently while the probe
 // reports ready is worse than one that never claimed to warm up.
 func (h *Host) bridgeReadiness() error {
-	var sink ReadinessSink
-	for _, component := range h.components {
-		if candidate, ok := component.(ReadinessSink); ok && candidate.Probes() != nil {
-			sink = candidate
-			break
-		}
-	}
+	sink := h.readinessSink()
 	for i, component := range h.components {
 		provider, ok := component.(ReadinessProvider)
 		if !ok {
@@ -133,6 +132,12 @@ type ReadinessSink interface {
 
 // Run starts the attached components and blocks until ctx is cancelled or a
 // component fails. Signal handling belongs to the calling main package.
+//
+// Stopping is a sequence: Run announces the stop with Drain, waits the configured
+// drain delay, and only then shuts components down. The announcement and the
+// teardown each get their own shutdown timeout, so the worst case is the drain
+// delay plus twice that timeout — a Drain implementation is expected to return
+// promptly, because it announces rather than finishes.
 func (h *Host) Run(ctx context.Context) error {
 	if ctx == nil {
 		return fmt.Errorf("kit: nil run context")
@@ -151,9 +156,14 @@ func (h *Host) Run(ctx context.Context) error {
 	case runErr = <-h.Errors():
 	}
 
+	drainCtx, cancelDrain := context.WithTimeout(context.Background(), h.shutdownTimeout)
+	drainErr := h.Drain(drainCtx)
+	cancelDrain()
+	h.waitDrainDelay()
+
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), h.shutdownTimeout)
 	defer cancel()
-	return errors.Join(runErr, h.Shutdown(shutdownCtx))
+	return errors.Join(runErr, drainErr, h.Shutdown(shutdownCtx))
 }
 
 // Start starts all attached components in the background. Component startup
@@ -234,15 +244,17 @@ func lifecycleLabel(index int, component Lifecycle) string {
 }
 
 // Shutdown gracefully stops all attached components in reverse attachment
-// order.
+// order. It announces the stop first, so readiness fails before any component is
+// torn down even when a caller skips Run's drain delay.
 func (h *Host) Shutdown(ctx context.Context) error {
 	if ctx == nil {
 		return fmt.Errorf("kit: nil shutdown context")
 	}
+	drainErr := h.Drain(ctx)
 	h.mu.Lock()
 	if !h.started {
 		h.mu.Unlock()
-		return nil
+		return drainErr
 	}
 	lifecycleDone := h.lifecycleDone
 	components := append([]Lifecycle(nil), h.components...)
@@ -253,7 +265,7 @@ func (h *Host) Shutdown(ctx context.Context) error {
 	if lifecycleDone != nil {
 		close(lifecycleDone)
 	}
-	return shutdownLifecycles(ctx, components)
+	return errors.Join(drainErr, shutdownLifecycles(ctx, components))
 }
 
 func shutdownLifecycles(ctx context.Context, components []Lifecycle) error {

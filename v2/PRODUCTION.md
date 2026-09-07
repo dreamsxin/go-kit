@@ -391,8 +391,9 @@ budget with the framework's shutdown timeout:
   (`kit.WithShutdownTimeout`, default 10s) plus the platform's load-balancer
   deregistration delay, or in-flight requests are cut mid-shutdown;
 - the entry point already cancels `Host.Run` on `SIGTERM` (see
-  Lifecycle); add a `preStop` sleep only when the service mesh or ingress
-  keeps routing to the pod after the endpoint is deregistered;
+  Lifecycle); prefer `kit.WithDrainDelay` over a `preStop` sleep — the Host fails
+  readiness first and then waits, so the pod stops claiming to be ready while it is
+  still answering, which a `preStop` sleep alone cannot express;
 - prefer rolling updates with `maxUnavailable: 0` so readiness, not pod
   deletion, controls traffic shifts.
 

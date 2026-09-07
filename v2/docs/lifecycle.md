@@ -14,6 +14,8 @@ main creates signal context
   -> assemble components
   -> Host.Start
   -> serve and watch component errors
+  -> Host.Drain: readiness fails, Draining components are told
+  -> wait the drain delay
   -> bounded reverse-order shutdown
 ```
 
@@ -35,6 +37,7 @@ if err != nil {
 host, err := kit.NewHost(
 	kit.WithLifecycle(svc),
 	kit.WithShutdownTimeout(10*time.Second),
+	kit.WithDrainDelay(5*time.Second),
 )
 if err != nil {
 	return err
@@ -48,8 +51,36 @@ if err := host.Run(ctx); err != nil {
 - `kit.NewHTTP` and `kit.NewHost` validate configuration; startup failures
   are synchronous.
 - `host.Run(ctx)` blocks until the context is cancelled or a component fails,
-  then shuts down within the configured deadline.
+  then stops in three steps: announce, wait, tear down.
 - A host cannot be restarted after shutdown.
+
+## Draining
+
+Stopping starts with an announcement. `Host.Drain` -- which `Run` calls for you,
+and `Shutdown` calls if you did not -- fails readiness with `kit.ErrDraining` and
+tells every attached `kit.Draining` component, in reverse attachment order,
+*before* anything is torn down. Liveness keeps passing: a process finishing
+in-flight work should not be restarted.
+
+`kit.WithDrainDelay` is the wait between the announcement and the teardown. It
+defaults to zero, which stops immediately. Set it to a little more than the
+interval at which whatever routes traffic here re-reads readiness or discovery --
+otherwise the announcement has not been heard by the time the listener closes, and
+requests already in flight toward this instance fail.
+
+Implement `Draining` on a component that accepts work of its own:
+
+```go
+func (c *Consumer) Drain(ctx context.Context) error {
+	c.stopPulling() // announce; do not wait for in-flight work here
+	return nil
+}
+```
+
+`Drain` announces, `Shutdown` finishes: the grace period belongs to `Shutdown`,
+and a `Drain` that blocks spends the budget of every component behind it. A
+`Drain` error is reported and the sequence continues -- a component that cannot
+stop accepting work still has to be shut down.
 
 ## Health probes
 

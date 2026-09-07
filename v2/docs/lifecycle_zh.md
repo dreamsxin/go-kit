@@ -12,6 +12,8 @@ main 创建信号 context
   -> 组装组件
   -> Host.Start
   -> 服务运行并监听组件错误
+  -> Host.Drain：readiness 开始失败，Draining 组件被通知
+  -> 等待 drain 延迟
   -> 按逆序在期限内优雅停机
 ```
 
@@ -33,6 +35,7 @@ if err != nil {
 host, err := kit.NewHost(
 	kit.WithLifecycle(svc),
 	kit.WithShutdownTimeout(10*time.Second),
+	kit.WithDrainDelay(5*time.Second),
 )
 if err != nil {
 	return err
@@ -44,9 +47,33 @@ if err := host.Run(ctx); err != nil {
 ```
 
 - `kit.NewHTTP` 与 `kit.NewHost` 校验配置；启动失败是同步的。
-- `host.Run(ctx)` 阻塞直到 context 被取消或某个组件失败，然后在配置的截止时间
-  内完成停机。
+- `host.Run(ctx)` 阻塞直到 context 被取消或某个组件失败，然后分三步停止：宣布、
+  等待、拆解。
 - Host 在停机后不能重启。
+
+## Draining（摘流）
+
+停止从一次宣布开始。`Host.Drain`——`Run` 会替你调用，你没调用时 `Shutdown` 也会
+调用——让 readiness 以 `kit.ErrDraining` 失败，并按反向挂载顺序通知每个
+`kit.Draining` 组件，且发生在任何东西被拆解之前。liveness 保持通过：一个正在收尾
+在途工作的进程不该被重启。
+
+`kit.WithDrainDelay` 是宣布与拆解之间的等待。它默认为零，即立即停止。把它设成略大于
+"上游重新读取 readiness 或服务发现的间隔"——否则监听关闭时宣布还没被听到，已经在飞向
+这个实例的请求就会失败。
+
+对有自己工作来源的组件实现 `Draining`：
+
+```go
+func (c *Consumer) Drain(ctx context.Context) error {
+	c.stopPulling() // 只宣布；不要在这里等在途工作
+	return nil
+}
+```
+
+`Drain` 负责宣布，`Shutdown` 负责收尾：宽限期属于 `Shutdown`，而一个阻塞的 `Drain`
+会花掉排在它后面所有组件的预算。`Drain` 的错误会被上报，流程继续——一个无法停止接活的
+组件仍然必须被关闭。
 
 ## 健康探针
 

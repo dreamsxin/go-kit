@@ -38,6 +38,9 @@ stable/http.status-coder-wins
 stable/http.status-context-fallback
 stable/http.status-for-kind
 stable/http.traceparent
+stable/kit.drain-delay
+stable/kit.drain-notification
+stable/kit.draining-readiness
 stable/mcp.authorization-subject
 stable/mcp.client-extension-declaration
 stable/mcp.error-codes

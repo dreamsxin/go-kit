@@ -341,8 +341,9 @@ ENTRYPOINT ["/service"]
 - `terminationGracePeriodSeconds` 必须大于 kit 停机超时
   （`kit.WithShutdownTimeout`，默认 10 秒）加上平台负载均衡器注销延迟，
   否则在途请求会在停机途中被切断；
-- 入口已经在 `SIGTERM` 时取消 `Host.Run`（见生命周期）；仅当服务网格
-  或 ingress 在端点注销后仍向 Pod 路由流量时才添加 `preStop` sleep；
+- 入口已经在 `SIGTERM` 时取消 `Host.Run`（见生命周期）；优先用
+  `kit.WithDrainDelay` 而不是 `preStop` sleep——Host 先让 readiness 失败再等待，
+  于是 Pod 在仍然应答的同时就停止声称自己就绪，这是单靠 `preStop` sleep 表达不出来的；
 - 滚动更新优先使用 `maxUnavailable: 0`，让就绪状态而非 Pod 删除控制
   流量切换。
 

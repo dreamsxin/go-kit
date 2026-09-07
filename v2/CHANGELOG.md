@@ -10,6 +10,20 @@ connection it owns is still open. This release turns shutdown from one cancelled
 context into a sequence with a declared order — and leaves what draining *means*
 to the components that know.
 
+### Added
+
+- `kit.Host.Drain`, `kit.Draining`, `kit.WithDrainDelay`, `kit.Host.Draining`, and
+  `kit.ErrDraining` make stopping a sequence: readiness starts failing and every
+  attached `Draining` component is told, in reverse attachment order, before
+  anything is torn down. `Run` then waits the configured drain delay — zero by
+  default, which is the behaviour a Host had before — so whatever routes traffic
+  here has time to re-read readiness or discovery before the listener closes.
+  Liveness keeps passing while draining, because a process finishing in-flight work
+  should not be restarted. `Shutdown` announces too, so a caller assembling a Host
+  by hand cannot tear down a component that is still claiming to be ready. A
+  component's `Drain` error is reported and the sequence continues: something that
+  cannot stop accepting work still has to be shut down.
+
 ## [2.10.0] - 2026-09-07
 
 Promises you can check. The compatibility contract stopped being prose: every
