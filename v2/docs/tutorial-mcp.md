@@ -141,11 +141,16 @@ Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult
 
 On `2026-07-28` the call answers `resultType: "input_required"` with
 `inputRequests` and an opaque `requestState`; the caller collects the answers and
-repeats the call with `inputResponses` and that same state. Two things follow from
-the state making a round trip through the client: validate it like any other
-client input, and expect the tool to run from the top each round. A question the
-caller never declared it can answer is refused with `-32021` rather than asked,
-so declare `elicitation` in `_meta` when the client can render one.
+repeats the call with `inputResponses` and that same state. Expect the tool to run
+from the top each round. A question the caller never declared it can answer is
+refused with `-32021` rather than asked, so declare `elicitation` in `_meta` when
+the client can render one.
+
+Set `StreamableHandler.RequestStateKey` so the state comes back the way it left:
+with a key, an edited or expired `requestState` is refused before the tool sees
+it, and `RequestStateTTL` bounds replay. Without a key the state is whatever the
+caller returns, which is fine for a confirmation and not fine for a decision the
+tool means to trust. Every instance behind the same address needs the same key.
 
 On `2025-06-18` the same return value is an error — that revision asks over the
 session stream instead, with `StreamableHandler.SendSamplingRequest`.

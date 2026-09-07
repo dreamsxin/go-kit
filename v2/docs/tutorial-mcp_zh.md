@@ -135,9 +135,13 @@ Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult
 
 在 `2026-07-28` 下，这次调用返回 `resultType: "input_required"`，带 `inputRequests`
 与不透明的 `requestState`；调用方收集答案后，带 `inputResponses` 与同一个状态重发调用。
-状态经由客户端往返一圈，因此有两点：像对待任何客户端输入一样校验它；并且预期工具每一轮
-都从头跑。调用方没有声明能回答的问题会被 `-32021` 拒绝而不是照问，所以客户端能渲染表单
-时要在 `_meta` 中声明 `elicitation`。
+预期工具每一轮都从头跑。调用方没有声明能回答的问题会被 `-32021` 拒绝而不是照问，所以
+客户端能渲染表单时要在 `_meta` 中声明 `elicitation`。
+
+设置 `StreamableHandler.RequestStateKey`，让状态原样回来：配置了密钥时，被改动或已过期
+的 `requestState` 在工具看到它之前就被拒绝，`RequestStateTTL` 限制重放窗口。没有密钥时
+状态就是调用方返回的任意内容——用于一次确认没问题，用于工具打算信任的决策则不行。服务
+同一地址的所有实例需要使用相同的密钥。
 
 在 `2025-06-18` 下同一个返回值是错误——那一版改为通过会话流询问，对应
 `StreamableHandler.SendSamplingRequest`。

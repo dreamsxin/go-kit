@@ -59,11 +59,17 @@ A tool that needs something from the caller mid-call returns
 `resultType: "input_required"` with `inputRequests` and an opaque `requestState`;
 the caller answers and repeats the call with `inputResponses`, and the tool runs
 again with `interaction.InputAnswersFromContext` returning the answers and the
-state it asked to have echoed. The state has been outside the process, so a tool
-validates it like any other client input. A question the caller never declared it
-can answer is refused with `-32021` rather than asked. On `2025-06-18` the same
-return value is an error: that revision asks through the session stream, with
+state it asked to have echoed. A question the caller never declared it can answer
+is refused with `-32021` rather than asked. On `2025-06-18` the same return value
+is an error: that revision asks through the session stream, with
 `StreamableHandler.SendSamplingRequest`.
+
+Set `StreamableHandler.RequestStateKey` to authenticate that state. With a key,
+an edited or expired `requestState` is refused before a tool sees it, and
+`RequestStateTTL` bounds replay (five minutes by default); without one the state
+is accepted as the caller returns it, so a tool must validate it like any other
+client input. Every instance serving the same address needs the same key — a
+stateless deployment answers a resumed call on whichever instance takes it.
 
 On `2025-06-18` each MCP transport session owns one interaction runtime session.
 Tool calls without an explicit runtime `sessionId` reuse it, and DELETE or TTL

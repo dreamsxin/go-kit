@@ -1,7 +1,8 @@
 // Package mcp exposes an MCP-compliant JSON-RPC endpoint for interaction runtimes.
 //
-// The handler implements the Model Context Protocol (2025-06-18) server surface:
-// tools, resources, prompts, logging, ping, and capability negotiation.
+// The handler implements the Model Context Protocol server surface for two
+// revisions — 2026-07-28, the stateless one, and 2025-06-18, the handshake one —
+// covering tools, resources, prompts, logging, ping, and capability discovery.
 // See doc.go for full transport and protocol documentation.
 package mcp
 
@@ -12,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/dreamsxin/go-kit/v2/interaction"
 )
@@ -202,7 +204,7 @@ func (c *dispatchCore) callTool(ctx context.Context, raw json.RawMessage) (map[s
 	// A resumed call carries the answers to an earlier input_required result.
 	// The tool reads them with interaction.InputAnswersFromContext and decides
 	// whether it can finish this time.
-	state, err := decodeRequestState(params.RequestState)
+	state, err := requestStateCodecFromContext(ctx).open(params.RequestState, time.Now())
 	if err != nil {
 		return nil, err
 	}

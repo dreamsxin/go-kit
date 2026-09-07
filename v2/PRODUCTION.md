@@ -142,6 +142,13 @@ balancer — no sticky routing, no shared session store — and set `ListCacheTT
 and `ListCacheScope` to what the catalog can honestly promise, since clients
 cache on them.
 
+Set `RequestStateKey` when tools ask their callers questions, and give every
+instance the same key: without one, the `requestState` a tool receives is
+whatever the caller sent back, and with one an edited or expired state is refused
+before the tool runs. `RequestStateTTL` bounds replay; keep it short enough that a
+stale confirmation cannot be resubmitted later. Treat the key as a secret injected
+by the deployment, like any other signing key.
+
 When generated contract support is enabled, `/openapi.json`, `/schema.json`, and
 `/swagger/` expose the service contract. Keep them public only when that is an
 intentional product decision; otherwise restrict or disable them at the

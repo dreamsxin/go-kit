@@ -48,6 +48,13 @@ speaks the current specification as well as the one it froze.
   something. An unfinished call is neither a result nor an error, and its log line
   says the call needs input at `Info`: a conversation working as designed should
   not page whoever watches error events.
+- `StreamableHandler.RequestStateKey` and `RequestStateTTL` authenticate the
+  `requestState` a mid-call question hands to the caller. With a key configured,
+  a state that was edited or that has aged out is refused before a tool sees it,
+  and verification is driven by the server's configuration rather than by what the
+  token carries, so a caller cannot opt out by dropping the signature. Without a
+  key the state is accepted as returned, which the documentation states plainly.
+  Every instance serving the same address needs the same key.
 
 ### Changed
 

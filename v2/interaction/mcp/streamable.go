@@ -63,6 +63,19 @@ type StreamableHandler struct {
 	ListCacheTTL   time.Duration
 	ListCacheScope string
 
+	// RequestStateKey authenticates the requestState an input_required result
+	// hands to the caller. With a key set, a state that was edited or that has
+	// expired is refused; without one, the state is accepted as the caller
+	// returns it and a tool must validate it like any other client input.
+	//
+	// Every instance serving the same address needs the same key: a stateless
+	// deployment answers a resumed call on whichever instance takes it.
+	RequestStateKey []byte
+
+	// RequestStateTTL bounds how long a signed requestState may be replayed.
+	// When zero, five minutes.
+	RequestStateTTL time.Duration
+
 	cleanupMu     sync.Mutex
 	cleanupCancel context.CancelFunc
 	cleanupWG     sync.WaitGroup

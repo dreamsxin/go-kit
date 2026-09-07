@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -238,7 +240,9 @@ func (h *StreamableHandler) handleStatelessPost(w http.ResponseWriter, r *http.R
 		writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32600, "invalid request", err.Error())})
 		return
 	}
-	ctx := context.WithValue(r.Context(), statelessContextKey{}, identity)
+	ctx := withRequestStateCodec(
+		context.WithValue(r.Context(), statelessContextKey{}, identity),
+		requestStateCodec{key: h.RequestStateKey, ttl: h.RequestStateTTL})
 
 	if req.ID == nil {
 		w.WriteHeader(http.StatusAccepted)
@@ -325,6 +329,41 @@ var (
 	errInputRequiredNeedsStateless = errors.New("an input_required result belongs to " + protocolVersion)
 )
 
+const (
+	requestStateVersion = "v1"
+	// defaultRequestStateTTL bounds replay when a signing key is configured.
+	defaultRequestStateTTL = 5 * time.Minute
+	// defaultRequestStateSkew tolerates a caller resuming against an instance
+	// whose clock runs a little behind the one that issued the state.
+	defaultRequestStateSkew = time.Minute
+)
+
+// requestStateCodec seals and opens the state a tool asks to have echoed. A zero
+// codec has no key, which is the unauthenticated behaviour: the state is
+// accepted as the caller returns it.
+type requestStateCodec struct {
+	key []byte
+	ttl time.Duration
+}
+
+type requestStateEnvelope struct {
+	IssuedAt int64          `json:"iat"`
+	State    map[string]any `json:"state"`
+}
+
+type requestStateCodecContextKey struct{}
+
+func withRequestStateCodec(ctx context.Context, codec requestStateCodec) context.Context {
+	return context.WithValue(ctx, requestStateCodecContextKey{}, codec)
+}
+
+// requestStateCodecFromContext reports the codec a request is served under. The
+// zero value is the honest default for a transport that configured none.
+func requestStateCodecFromContext(ctx context.Context) requestStateCodec {
+	codec, _ := ctx.Value(requestStateCodecContextKey{}).(requestStateCodec)
+	return codec
+}
+
 // missingCapabilityError reports a question the caller never said it could
 // answer. Asking anyway would hang a client that has no code for it.
 type missingCapabilityError struct {
@@ -370,7 +409,7 @@ func inputRequiredResult(ctx context.Context, needsInput *interaction.InputRequi
 		return nil, &missingCapabilityError{kinds: missing, cause: needsInput}
 	}
 
-	state, err := encodeRequestState(needsInput.State)
+	state, err := requestStateCodecFromContext(ctx).seal(needsInput.State, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -411,34 +450,87 @@ func toolCallError(err error) *rpcError {
 	}
 }
 
-// encodeRequestState renders the state a tool wants echoed back. It is base64 so
-// a caller has no reason to read it, and JSON so this server can.
-func encodeRequestState(state map[string]any) (string, error) {
+// encodeRequestState renders the state a tool wants echoed back, as
+// "v1.<payload>" or "v1.<payload>.<mac>" when a key authenticates it. The
+// payload is base64 so a caller has no reason to read it, and JSON so this
+// server can.
+func (codec requestStateCodec) seal(state map[string]any, now time.Time) (string, error) {
 	if len(state) == 0 {
 		return "", nil
 	}
-	encoded, err := json.Marshal(state)
+	encoded, err := json.Marshal(requestStateEnvelope{IssuedAt: now.Unix(), State: state})
 	if err != nil {
 		return "", fmt.Errorf("encode request state: %w", err)
 	}
-	return base64.StdEncoding.EncodeToString(encoded), nil
+	payload := requestStateVersion + "." + base64.RawURLEncoding.EncodeToString(encoded)
+	if len(codec.key) == 0 {
+		return payload, nil
+	}
+	return payload + "." + base64.RawURLEncoding.EncodeToString(codec.sign(payload)), nil
 }
 
-// decodeRequestState reads back what a tool asked to have echoed. It arrives
-// from the caller, so it is client input: a tool validates it like any other.
-func decodeRequestState(encoded string) (map[string]any, error) {
-	if strings.TrimSpace(encoded) == "" {
+// open reads back what a tool asked to have echoed.
+//
+// With a key configured, a state that was edited or that has aged out is
+// refused: it arrives from the caller, and a tool that reads its own decision
+// out of it would otherwise be reading the caller's. Without a key the state is
+// accepted as returned, which is why the documentation says to validate it like
+// any other client input.
+//
+// Verification is driven by this server's configuration rather than by what the
+// token carries, so a caller cannot opt out by dropping the signature.
+//
+// Stable: mcp.request-state-authenticated — with a signing key configured, an edited or expired requestState is refused.
+// Covered by: TestRequestStateIsAuthenticated
+func (codec requestStateCodec) open(encoded string, now time.Time) (map[string]any, error) {
+	encoded = strings.TrimSpace(encoded)
+	if encoded == "" {
 		return nil, nil
 	}
-	raw, err := base64.StdEncoding.DecodeString(encoded)
+	version, rest, ok := strings.Cut(encoded, ".")
+	if !ok || version != requestStateVersion {
+		return nil, fmt.Errorf("requestState is not a %s envelope", requestStateVersion)
+	}
+	payload, mac, signed := strings.Cut(rest, ".")
+
+	if len(codec.key) > 0 {
+		if !signed {
+			return nil, errors.New("requestState carries no signature")
+		}
+		presented, err := base64.RawURLEncoding.DecodeString(mac)
+		if err != nil {
+			return nil, fmt.Errorf("requestState signature is not base64: %w", err)
+		}
+		if !hmac.Equal(presented, codec.sign(version+"."+payload)) {
+			return nil, errors.New("requestState signature does not verify")
+		}
+	}
+
+	raw, err := base64.RawURLEncoding.DecodeString(payload)
 	if err != nil {
 		return nil, fmt.Errorf("requestState is not base64: %w", err)
 	}
-	var state map[string]any
-	if err := json.Unmarshal(raw, &state); err != nil {
+	var envelope requestStateEnvelope
+	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return nil, fmt.Errorf("requestState is not a JSON object: %w", err)
 	}
-	return state, nil
+	if len(codec.key) > 0 {
+		ttl := codec.ttl
+		if ttl <= 0 {
+			ttl = defaultRequestStateTTL
+		}
+		if age := now.Sub(time.Unix(envelope.IssuedAt, 0)); age > ttl || age < -defaultRequestStateSkew {
+			return nil, fmt.Errorf("requestState is %s old, past the %s it may be replayed for",
+				age.Round(time.Second), ttl)
+		}
+	}
+	return envelope.State, nil
+}
+
+func (codec requestStateCodec) sign(payload string) []byte {
+	mac := hmac.New(sha256.New, codec.key)
+	mac.Write([]byte(payload))
+	return mac.Sum(nil)
 }
 
 // markResultType states that a result is final, so a caller can tell a finished

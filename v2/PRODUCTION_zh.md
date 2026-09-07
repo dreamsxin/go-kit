@@ -127,6 +127,11 @@ host, err := kit.NewHost(kit.WithLifecycle(httpComponent, runner))
 粘性路由，也不需要共享会话存储——并把 `ListCacheTTL` 与 `ListCacheScope` 设成目录
 真正能承诺的值，因为客户端会按它们缓存。
 
+当工具会向调用方提问时，设置 `RequestStateKey`，并让所有实例使用同一个密钥：没有密钥
+时，工具收到的 `requestState` 就是调用方送回来的任意内容；配置了密钥后，被改动或已过期
+的状态在工具运行之前就被拒绝。`RequestStateTTL` 限制重放窗口，应短到让过期的确认无法在
+之后被重新提交。密钥按部署注入的机密对待，与其他签名密钥一致。
+
 启用生成契约支持时，`/openapi.json`、`/schema.json` 与 `/swagger/`
 会暴露服务契约。仅在这是明确的产品决策时才保持公开；否则在部署边界
 限制或禁用它们。

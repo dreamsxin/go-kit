@@ -916,9 +916,10 @@ Goal: a tool that needs a confirmation mid-call works without an open stream.
   log line says the call needs input rather than that it failed.
 - A question the caller never declared it can answer is `-32021` naming the
   capability, because asking anyway hangs a client with no code for it.
-- The state comes back from the caller, so a tool validates it like any other
-  client input. Signing it server-side is the next step if a deployment needs the
-  server's word that it has not been edited.
+- The state comes back from the caller, so `RequestStateKey` authenticates it:
+  with a key, an edited or replayed state is refused before a tool sees it, and
+  `RequestStateTTL` bounds the window. Without a key it is accepted as returned,
+  which the documentation says plainly rather than implying the server remembers.
 - Sampling is deprecated in this revision and stays on 2025-06-18, where
   `SendSamplingRequest` keeps working over the session stream.
 

@@ -16,7 +16,8 @@
 //     resources/read carry ttlMs and cacheScope so a catalog can be cached. A
 //     tool that needs input mid-call answers resultType "input_required" with
 //     inputRequests and an opaque requestState, and the client repeats the call
-//     with inputResponses; see interaction.InputRequired.
+//     with inputResponses; see interaction.InputRequired. Set RequestStateKey to
+//     authenticate that state, and the same key on every instance.
 //   - 2025-06-18, the handshake revision, kept for its deprecation window. An
 //     absent MCP-Protocol-Version header selects it, because it predates the
 //     header being mandatory. initialize mints an Mcp-Session-Id that every
