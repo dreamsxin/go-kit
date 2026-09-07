@@ -71,5 +71,9 @@ stable/mcp.sse-framing
 stable/mcp.stateless-request
 stable/mcp.unknown-meta-preserved
 stable/mcp.version-negotiation
+stable/metrics.exposition-format
+stable/metrics.exposition-methods
+stable/metrics.label-cardinality
+stable/metrics.series-are-per-operation
 unstable/http.access-log-line
 unstable/http.observation-fields

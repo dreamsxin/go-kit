@@ -1081,15 +1081,16 @@ naming, not measurement.
 Goal: a metrics endpoint any assembly can mount, without the core dependency path
 gaining a metrics client.
 
-- The seam is the deployment's to fill: an exporter interface and a mountable
-  handler, so the application picks Prometheus, OpenMetrics, or its own format.
-  `tools` dependency gates keep the client out of `kit`, `endpoint`, and the
-  transports — an HTTP-only build must not pull a metrics library.
-- The concrete Prometheus implementation lives beside the other optional
-  integrations, the way `integrations/zap` and `observability/otel` do, and is
-  tested on its own.
-- The endpoint is mounted where probes are mounted, so a gRPC-only assembly is
-  scrapeable too.
+- The exposition is rendered by v2 itself, in `observability/metrics`, from the
+  numbers `endpoint.Metrics` already holds. No metrics client appears anywhere in
+  the module, so there is nothing for a `tools` gate to keep out of core; the gate
+  instead pins the package to `endpoint` and standard library only. An application
+  that wants histograms, exemplars or its own registry implements
+  `endpoint.Recorder` against its own library — the seam that predates this one.
+- Mounting is the application's decision. `kit` does not import the package and the
+  dependency gate keeps it that way, so the route, the listener it lives on, and
+  whether it exists at all stay with the deployment. A gRPC-only assembly mounts
+  the same `http.Handler` on its admin mux.
 
 ### Work Package 2: One Set Of Numbers, Two Ways Out
 

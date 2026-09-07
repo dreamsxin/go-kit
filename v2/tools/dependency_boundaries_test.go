@@ -78,6 +78,16 @@ func TestArchitectureDependencyGates(t *testing.T) {
 			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/transport"},
 			allowedTrees: []string{coreModulePath + "/observability/slog"},
 		},
+		{
+			// The scrape surface renders what endpoint recording already
+			// collected. A metrics client here would land in the dependency graph
+			// of every consumer, which is the thing this package exists to avoid:
+			// an application that wants its own library implements
+			// endpoint.Recorder instead.
+			name:         "metrics exposition",
+			pattern:      "./observability/metrics",
+			allowedExact: []string{coreModulePath + "/endpoint"},
+		},
 	}
 
 	for _, check := range checks {

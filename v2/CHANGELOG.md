@@ -12,6 +12,28 @@ seam, keeps the client library out of the core dependency path, and states what 
 labels may contain, because an unbounded label is how a metrics endpoint takes down
 the thing scraping it.
 
+### Added
+
+- `observability/metrics` answers a scrape from an `endpoint.Metrics` collector in
+  the Prometheus text exposition format: `metrics.Handler(collector)` is a plain
+  `http.Handler`, and `metrics.Write` renders the same bytes for an assembly that
+  serves them some other way. Three families are emitted —
+  `endpoint_requests_total` by operation and outcome, `endpoint_request_duration_seconds`
+  as a sum and count, and `endpoint_last_request_timestamp_seconds` — with
+  `metrics.WithNamespace` to rename the prefix.
+  No metrics client library is involved anywhere in the module: an application that
+  wants histograms, exemplars or its own registry implements `endpoint.Recorder`
+  against its own library, which has always been the seam. A dependency gate pins
+  the package to `endpoint` and the standard library, and `kit` deliberately does
+  not import it — where the route lives, and whether it exists, is the deployment's
+  disclosure decision, so mounting is one line the application writes:
+  `component.Handle("GET /metrics", metrics.Handler(collector))`.
+  Two properties are declared and tested rather than assumed: no aggregate series is
+  emitted, so a query that sums the labelled ones does not double count, and label
+  values are only the operations recording was given — bounded by the routes the
+  server declared, escaped so a pattern with a quote in it cannot invalidate the
+  whole response.
+
 ## [2.11.0] - 2026-09-07
 
 Stopping on purpose. A process that is going away should say so before it goes,

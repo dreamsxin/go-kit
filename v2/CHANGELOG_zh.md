@@ -9,6 +9,22 @@
 数字。这个版本给 scrape 表面一个接缝，把客户端库挡在核心依赖路径之外，并写明标签里可以放
 什么——无界标签正是一个指标端点拖垮采集方的方式。
 
+### 新增
+
+- `observability/metrics` 用 Prometheus 文本 exposition 格式回应针对 `endpoint.Metrics`
+  收集器的 scrape：`metrics.Handler(collector)` 就是一个普通 `http.Handler`，
+  `metrics.Write` 为以其他方式提供这些字节的装配渲染同样的内容。发出三个族——按操作与结果
+  维度的 `endpoint_requests_total`、以 sum/count 形式的
+  `endpoint_request_duration_seconds`、以及 `endpoint_last_request_timestamp_seconds`
+  ——并可用 `metrics.WithNamespace` 改前缀。
+  整个模块里不涉及任何指标客户端库：需要直方图、exemplar 或自有 registry 的应用，用自己的
+  库去实现 `endpoint.Recorder`，那一直是这里的接缝。依赖门禁把这个包钉在 `endpoint` 与标准
+  库上，而 `kit` 有意不导入它——路由放在哪、是否存在，是部署的信息暴露决策，所以挂载是应用
+  自己写的一行：`component.Handle("GET /metrics", metrics.Handler(collector))`。
+  两条性质被声明并被测试，而不是假设：不发出聚合序列，于是对带标签序列求和的查询不会重复计数；
+  标签值只来自 recording 收到的操作——由服务端声明的路由限定其上界，并做了转义，使得一个带引号
+  的路由模板不会让整份响应失效。
+
 ## [2.11.0] - 2026-09-07
 
 有意为之的停止。一个要离开的进程应该先说出来，把已经接下的活做完，并且自己结束宽限期，

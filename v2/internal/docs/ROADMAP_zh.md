@@ -842,12 +842,13 @@ v2 已经能推送遥测：`observability/otel` 一次调用完成装配，instr
 
 目标：任何装配都能挂载一个指标端点，而核心依赖路径不因此多出一个指标客户端。
 
-- 接缝交给部署去填：一个 exporter 接口加一个可挂载的 handler，应用自己选 Prometheus、
-  OpenMetrics 还是自有格式。`tools` 的依赖门禁把客户端挡在 `kit`、`endpoint` 与传输层之外
-  ——纯 HTTP 构建不应该被拖进一个指标库。
-- 具体的 Prometheus 实现放在其他可选集成旁边，与 `integrations/zap`、`observability/otel`
-  同样的位置，并有自己的专项测试。
-- 端点挂在探针挂载的地方，于是纯 gRPC 装配也可被 scrape。
+- exposition 由 v2 自己在 `observability/metrics` 中渲染，数据来自 `endpoint.Metrics`
+  已经持有的数字。整个模块里不出现任何指标客户端，所以也没有什么需要门禁"挡在核心之外"；
+  门禁改为把这个包钉在 `endpoint` 与标准库上。需要直方图、exemplar 或自己的 registry 的
+  应用，用自己的库去实现 `endpoint.Recorder`——那个接缝比这个更早存在。
+- 挂载是应用的决定。`kit` 不导入这个包，依赖门禁保证它继续不导入；于是路由、它所在的监听、
+  以及它是否存在，都留在部署手里。纯 gRPC 装配把同一个 `http.Handler` 挂到自己的 admin
+  mux 上。
 
 ### 工作包 2：一套数字，两条出口
 
