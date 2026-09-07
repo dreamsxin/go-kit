@@ -2,7 +2,7 @@
 
 [English](CHANGELOG.md) | 简体中文
 
-## [2.14.0] - Release Candidate
+## [2.14.0] - 2026-09-07
 
 两个传输，一套契约。前十三个版本把 HTTP 表面在就绪、draining、流式、指标与 TLS 上都说清楚了，
 而 gRPC 表面只跟上了其中一部分。缺口不在 RPC 层本身——它有分类错误、metadata 钩子和 trace

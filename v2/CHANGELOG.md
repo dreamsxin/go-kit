@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.14.0] - Release Candidate
+## [2.14.0] - 2026-09-07
 
 Two transports, one contract. Thirteen releases were spent making the HTTP surface
 honest about readiness, draining, streaming, metrics, and TLS; the gRPC surface came
