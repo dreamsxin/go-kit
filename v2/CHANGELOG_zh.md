@@ -2,6 +2,31 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [2.14.0] - Release Candidate
+
+两个传输，一套契约。前十三个版本把 HTTP 表面在就绪、draining、流式、指标与 TLS 上都说清楚了，
+而 gRPC 表面只跟上了其中一部分。缺口不在 RPC 层本身——它有分类错误、metadata 钩子和 trace
+传播——而在它周围的运维契约：`Host.Drain` 跳过 gRPC 组件，`kit.Stopping` 对 gRPC 流返回 nil，
+scrape 对 RPC 一句话都说不出来，生成代码构造的是一个没有凭据、没有健康服务的裸
+`grpc.NewServer()`。这个版本把能补的缺口补上，把补不了的差异写清楚。
+
+### 新增
+
+- `kit/grpc.Component` 实现了 `kit.Draining`，于是 `Host.Drain` 会按它对其他组件一样的
+  反向挂载顺序把"要停了"通告给 gRPC 服务器。在此之前它做类型断言、断言失败、然后静默跳过。
+- gRPC handler 用和 HTTP handler 一样的调用读取停止信号：`kit.Stopping(stream.Context())`
+  在 draining 开始时关闭，于是流可以在宽限期之内自己收尾。unary 与 stream 拦截器都会携带它，
+  并且装在 trace 提取之前、调用方自己的 option 之前，所以经由任何一条路径到达的 handler 都有。
+- `kit.WithStopping` 现在是导出的：这是传输层要实现的那个接缝。`kit` 的 HTTP 组件用它，gRPC
+  组件用它，想让 `kit.Stopping` 对自己 handler 生效的自定义传输，也用它传入一个自己会关闭的
+  channel。没有人装信号的地方 `Stopping` 依旧返回 nil，而从 nil channel 接收会永久阻塞，所以
+  同一个 `select` 在所有地方都是对的。
+- drain 一个 gRPC 组件是通告，不拒绝调用，这是刻意的：在 drain 延迟里收到 `UNAVAILABLE` 的
+  客户端会重试，而且可能重试到同一个实例，因为路由层还没跟上。真正让流量挪走的是 readiness
+  失败，而 gRPC 健康服务已经在报告它。`Component.Shutdown` 也会通告，所以被直接停掉的组件
+  同样会告诉它的 handler；同时它现在写明了自己的限制：`GracefulStop` 会等在途 RPC，所以一个
+  什么都不看的流会花掉整份停机预算、然后被从底下停掉——错误会说出来，而不是报告成功。
+
 ## [2.13.0] - 2026-09-07
 
 一个可以直接放到公网上的监听。v2 目前只服务明文 HTTP：库与生成代码里没有任何 TLS，所以每个

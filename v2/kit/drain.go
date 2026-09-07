@@ -174,7 +174,13 @@ const hardCloseGrace = 250 * time.Millisecond
 
 type stoppingKey struct{}
 
-func withStopping(ctx context.Context, stopping <-chan struct{}) context.Context {
+// WithStopping carries the stopping signal into a handler's context.
+//
+// It is the seam a transport implements against: kit's own HTTP component uses it,
+// the gRPC component uses it, and a custom transport that wants Stopping(ctx) to
+// work for its handlers calls it with a channel it closes when the process is going
+// away. Nothing else needs it — a handler reads the signal with Stopping.
+func WithStopping(ctx context.Context, stopping <-chan struct{}) context.Context {
 	return context.WithValue(ctx, stoppingKey{}, stopping)
 }
 
@@ -183,9 +189,11 @@ func withStopping(ctx context.Context, stopping <-chan struct{}) context.Context
 // poll — selects on it to end its own response, which is the difference between a
 // client seeing the end of a stream and a client seeing a broken connection.
 //
-// The channel is nil when the request was not served by a kit HTTP component.
-// Receiving from a nil channel blocks forever, so a select that also watches
-// ctx.Done() behaves correctly either way.
+// The channel is nil when nothing installed one — a handler outside a kit
+// component, or a transport that does not carry the signal. Receiving from a nil
+// channel blocks forever, so a select that also watches ctx.Done() behaves
+// correctly either way, and the same select is correct for an HTTP handler and a
+// gRPC stream.
 //
 //	for {
 //	    select {

@@ -39,6 +39,11 @@ type Component struct {
 	probes *health.Registry
 	errors chan error
 
+	// stopping closes when the process announces that it is going away, so a
+	// long-lived call can end itself instead of being cut. See drain.go.
+	stopping chan struct{}
+	stopOnce sync.Once
+
 	mu       sync.Mutex
 	listener net.Listener
 	started  bool
@@ -60,16 +65,20 @@ func New(addr string, options ...googlegrpc.ServerOption) (*Component, error) {
 			return nil, fmt.Errorf("kit/grpc: server option %d is nil", i)
 		}
 	}
-	serverOptions := append([]googlegrpc.ServerOption{
+	component := &Component{
+		addr:     addr,
+		probes:   health.NewRegistry(),
+		errors:   make(chan error, 1),
+		stopping: make(chan struct{}),
+	}
+	// The stopping signal is installed first, then trace extraction, then the
+	// caller's options: a handler reached through any of them has the signal.
+	serverOptions := append(component.stoppingInterceptors(),
 		googlegrpc.ChainUnaryInterceptor(transportgrpc.TraceparentUnaryServerInterceptor()),
 		googlegrpc.ChainStreamInterceptor(transportgrpc.TraceparentStreamServerInterceptor()),
-	}, options...)
-	component := &Component{
-		addr:   addr,
-		server: googlegrpc.NewServer(serverOptions...),
-		probes: health.NewRegistry(),
-		errors: make(chan error, 1),
-	}
+	)
+	serverOptions = append(serverOptions, options...)
+	component.server = googlegrpc.NewServer(serverOptions...)
 	grpc_health_v1.RegisterHealthServer(component.server, &healthService{probes: component.probes})
 	return component, nil
 }
@@ -180,6 +189,15 @@ func (c *Component) Errors() <-chan error {
 }
 
 // Shutdown gracefully stops the gRPC server until ctx expires.
+//
+// The announcement happens here too, not only in Drain, so a component shut down
+// directly still tells its handlers. What gRPC cannot promise is the other half:
+// GracefulStop waits for in-flight RPCs, and a stream that never returns holds the
+// process until ctx expires — then Stop takes the connections away underneath it.
+// The seam is the same one HTTP has: watch kit.Stopping and end the stream.
+//
+// Stable: grpc.shutdown-ends — Shutdown announces the stop, waits for in-flight RPCs until ctx expires, and then stops the server rather than returning while calls are open.
+// Covered by: TestShutdownStopsAStreamThatIgnoresTheSignal
 func (c *Component) Shutdown(ctx context.Context) error {
 	if c == nil {
 		return nil
@@ -196,6 +214,7 @@ func (c *Component) Shutdown(ctx context.Context) error {
 	c.stopped = true
 	c.mu.Unlock()
 
+	c.announceStopping()
 	done := make(chan struct{})
 	go func() {
 		c.server.GracefulStop()

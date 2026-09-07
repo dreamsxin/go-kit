@@ -2,6 +2,41 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.14.0] - Release Candidate
+
+Two transports, one contract. Thirteen releases were spent making the HTTP surface
+honest about readiness, draining, streaming, metrics, and TLS; the gRPC surface came
+along for some of that and not the rest. The RPC layer itself is not the gap — it has
+classified errors, metadata hooks, and trace propagation — the operational contract
+around it is: `Host.Drain` skips the gRPC component, `kit.Stopping` returns nil to a
+gRPC stream, a scrape says nothing about RPCs, and generated code builds a bare
+`grpc.NewServer()` with no credentials and no health service. This release closes
+that gap where it can be closed and declares the difference where it cannot.
+
+### Added
+
+- `kit/grpc.Component` implements `kit.Draining`, so `Host.Drain` announces the stop
+  to the gRPC server in the same reverse-attachment order it uses for everything
+  else. Before this it type-asserted, found nothing, and skipped it silently.
+- A gRPC handler reads the stopping signal with the same call an HTTP handler uses:
+  `kit.Stopping(stream.Context())` closes when draining begins, so a stream can end
+  itself inside the grace period. Unary and streaming interceptors carry it, ahead of
+  trace extraction and ahead of the caller's own options, so a handler reached
+  through any of them has it.
+- `kit.WithStopping` is now exported: the seam a transport implements against.
+  `kit`'s HTTP component uses it, the gRPC component uses it, and a custom transport
+  that wants `kit.Stopping` to work for its handlers calls it with a channel it
+  closes. `Stopping` still returns nil where nothing installed one, and receiving
+  from a nil channel blocks forever, so one `select` is correct everywhere.
+- Draining a gRPC component announces without refusing calls, which is deliberate: a
+  client that got `UNAVAILABLE` during the drain delay would retry, possibly at this
+  same instance, because the routing layer has not caught up. Failing readiness is
+  the signal that moves traffic, and the gRPC health service already reports it.
+  `Component.Shutdown` also announces, so a component stopped directly still tells
+  its handlers, and it now declares its limit: `GracefulStop` waits for in-flight
+  RPCs, so a stream watching nothing costs the whole shutdown budget and is then
+  stopped underneath — the error says so instead of reporting success.
+
 ## [2.13.0] - 2026-09-07
 
 A listener you can put on the internet. v2 serves plaintext HTTP and nothing else:

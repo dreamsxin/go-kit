@@ -1275,6 +1275,109 @@ certificate fails at startup with its path, the negotiation and hijack limits ar
 declared beside the code that has them, and a test fails if the stopping signal stops
 reaching an upgraded handler.
 
+## Milestone 14 (Active): Two Transports, One Contract / 两个传输，一套契约
+
+Goal: everything operational v2 promises about an HTTP listener is answered the same
+way by a gRPC one, or the difference is declared.
+
+Thirteen milestones were spent making the HTTP surface honest. The gRPC surface came
+along for some of it and not the rest, and the gap is not in the RPC layer —
+`integrations/grpc` has classified errors, metadata hooks, and traceparent
+propagation — but in the operational contract around it:
+
+- `kit/grpc.Component` does not implement `kit.Draining`, so `Host.Drain` skips it.
+  The announcement Milestone 11 built stops at the HTTP boundary.
+- `kit.Stopping` returns nil outside a kit HTTP component, so a long-lived gRPC
+  stream has no in-band way to learn the process is going away. Milestone 11's
+  answer to "a stream cannot be drained by asking politely" does not exist here.
+- There is no gRPC counterpart to `httpserver.Recorder` and no
+  `metrics.GRPCRecorder`, so Milestone 12's scrape reports nothing about RPC
+  traffic. A gRPC-only service exposes an endpoint that says almost nothing.
+- Generated code is worse than the library: `grpc.NewServer()` with no options, no
+  TLS credentials, no health server, no interceptors, and a `GracefulStop` that
+  shares the HTTP deadline. Milestone 13's certificate keys reach the HTTP listener
+  only, so a generated gRPC port is always plaintext.
+
+This is the kind of asymmetry a framework accumulates by shipping one transport
+first, and the kind a reader discovers in production. Parity here does not mean
+"the same code" — gRPC has no hijacking, no ALPN question, no route patterns — it
+means the same questions have answers.
+
+### Work Package 1: The Announcement Reaches Both Transports
+
+Goal: draining a Host tells every server, not just the HTTP one.
+
+- `kit/grpc.Component` implements `kit.Draining`: at the announcement it stops
+  accepting new work in whatever way gRPC allows, and its readiness starts failing
+  before `Shutdown` closes anything — the order Milestone 11 declared.
+- The stopping signal becomes transport-neutral. A gRPC handler, especially a
+  streaming one, learns from its own context that the process is going away, by the
+  same call an HTTP handler uses. Where the mechanism cannot be identical, the
+  behaviour is: `Stopping` on a context that no component owns still blocks forever
+  rather than firing, so a `select` written once is correct in both places.
+- What gRPC cannot promise is declared beside the code, the way the hijack limit is:
+  `GracefulStop` waits for in-flight RPCs but a stream that never returns holds the
+  process until the budget runs out, and then it is stopped underneath.
+
+Acceptance:
+
+```bash
+go test ./kit/grpc/ -run 'TestDrain|TestShutdownStopsAStreamThatIgnoresTheSignal' -count=1
+```
+
+Shipped as `grpc.drains` and `grpc.shutdown-ends`, with `kit.WithStopping` exported as
+the seam any transport uses to carry the signal. Two decisions worth keeping: draining
+does not start refusing calls — `UNAVAILABLE` during the drain delay only makes a
+client retry at an instance the routing layer has not stopped choosing yet — and the
+interceptors are installed ahead of the caller's own options, so a handler cannot end
+up without the signal by adding one.
+
+### Work Package 2: A Scrape Says Something About RPCs
+
+Goal: Milestone 12's numbers exist for gRPC, under the same names and with the same
+cardinality promise.
+
+- An observation contract for the gRPC server mirroring `httpserver.Recorder`:
+  method, outcome, duration — reported where the full method name is in scope.
+- `metrics.GRPCRecorder` bridges it to `endpoint.Metrics`, living beside
+  `metrics.HTTPRecorder` so the dependency gates stay as they are: the RPC transport
+  does not learn about metrics, and core does not learn about either.
+- The operation label is the full method name, which is bounded by the service
+  definition — the same reasoning that made route patterns the HTTP label. An
+  unrecognised method is not recorded rather than recorded as an empty series.
+
+### Work Package 3: The Generated gRPC Listener Is A Real Listener
+
+Goal: a generated service's second port is configured, secured, and observable like
+its first.
+
+- TLS credentials from the certificate keys Milestone 13 added, so one pair secures
+  both listeners, and a mismatch still fails startup with its path.
+- The health service registered, reflecting the same readiness state the HTTP probes
+  report, so a gRPC-only deployment has something to point a probe at.
+- The traceparent interceptors and the metrics recorder installed, and the drain
+  delay applied before `GracefulStop` rather than after readiness alone.
+- Each server gets its own share of the shutdown budget instead of racing for one
+  deadline — the rule `Host.shutdownLifecycles` already follows.
+
+### Work Package 4: The Difference Is Declared, Not Discovered
+
+Goal: a reader can see which operational surfaces each transport answers without
+reading both implementations.
+
+- One table in the documentation: readiness, drain announcement, stopping signal,
+  shutdown budget, TLS, metrics, tracing — with the honest entry where a transport
+  cannot answer, and why.
+- A gate that fails when a lifecycle contract is added to one component and not the
+  other, so the next asymmetry is a test failure rather than a discovery.
+
+### Completion Definition / 完成定义
+
+Milestone 14 is complete when draining a Host announces to both servers, a gRPC
+stream can end itself on the stopping signal, a scrape of a gRPC-only service
+reports per-method series, a generated service serves TLS and health on its gRPC
+port, and a test fails if one transport gains a lifecycle contract the other lacks.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

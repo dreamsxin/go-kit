@@ -154,6 +154,40 @@ hijack-based protocol therefore only works on the plaintext listener; see
 [Serving TLS](configuration.md#serving-tls) for what else changes when a certificate
 is configured.
 
+## gRPC drains the same way
+
+`kit/grpc.Component` is drained by the same sequence, and a gRPC handler reads the
+same signal:
+
+```go
+func (s *server) Watch(req *pb.WatchRequest, stream pb.Watcher_WatchServer) error {
+	for {
+		select {
+		case <-kit.Stopping(stream.Context()):
+			return nil // the process is going away; end the stream
+		case <-stream.Context().Done():
+			return stream.Context().Err()
+		case event := <-events:
+			// stream.Send(event)
+		}
+	}
+}
+```
+
+Draining a gRPC component announces; it does not start refusing calls. A client that
+got `UNAVAILABLE` during the drain delay would retry, possibly at this same instance,
+because the routing layer has not caught up yet — failing readiness is the signal
+that actually moves traffic, and the gRPC health service reports it.
+
+The limit is the mirror image of the HTTP one. `GracefulStop` does wait for in-flight
+RPCs, so a stream that watches nothing holds the process until the shutdown budget
+expires; then the server is stopped and `Shutdown` returns that deadline error rather
+than reporting success. Unlike a hijacked HTTP connection, nothing here escapes the
+shutdown — it just costs the whole budget.
+
+If you write your own transport, `kit.WithStopping(ctx, ch)` is the seam: carry it
+into your handler contexts and `kit.Stopping` works there too.
+
 ## Health probes
 
 `kit.NewHTTP` registers three routes unconditionally:

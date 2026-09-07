@@ -1,6 +1,8 @@
 stable/apperror.kind-vocabulary
 stable/apperror.unclassified-is-internal
 stable/apperror.wrapcause-hides-cause
+stable/grpc.drains
+stable/grpc.shutdown-ends
 stable/http.attachment-headers
 stable/http.client-body-not-relayed
 stable/http.client-error-code-relay

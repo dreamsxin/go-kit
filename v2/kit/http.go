@@ -136,7 +136,7 @@ func (h *HTTP) Start() error {
 	// it, a handler that never watches for the process going away can only be
 	// ended by closing its connection underneath it.
 	h.serveCtx, h.cancelServe = context.WithCancel(context.Background())
-	h.serveCtx = withStopping(h.serveCtx, h.stopping)
+	h.serveCtx = WithStopping(h.serveCtx, h.stopping)
 	serveCtx := h.serveCtx
 
 	h.srv = &http.Server{
@@ -321,7 +321,7 @@ func (h *HTTP) prepareHTTPContext(ctx context.Context, r *http.Request, w http.R
 	// The stopping signal is added here as well as through the server's base
 	// context, so a component mounted on someone else's server — httptest, an
 	// outer mux — still tells its handlers when the process is going away.
-	ctx = withStopping(ctx, h.stopping)
+	ctx = WithStopping(ctx, h.stopping)
 	// Trace context is extracted unconditionally: a service that had to opt in
 	// would break every trace that reaches it until somebody noticed. An
 	// absent or malformed traceparent leaves the context untouched, and

@@ -137,6 +137,36 @@ component.HandleFunc("GET /ws", func(w http.ResponseWriter, r *http.Request) {
 的协议只在明文监听器上可用；配置了证书之后还会变什么，见
 [提供 TLS](configuration_zh.md#提供-tls)。
 
+## gRPC 以同样的方式 drain
+
+`kit/grpc.Component` 被同一套时序 drain，gRPC handler 读的也是同一个信号：
+
+```go
+func (s *server) Watch(req *pb.WatchRequest, stream pb.Watcher_WatchServer) error {
+	for {
+		select {
+		case <-kit.Stopping(stream.Context()):
+			return nil // 进程要走了；结束这个流
+		case <-stream.Context().Done():
+			return stream.Context().Err()
+		case event := <-events:
+			// stream.Send(event)
+		}
+	}
+}
+```
+
+drain 一个 gRPC 组件是"通告"，不是"开始拒绝调用"。在 drain 延迟里收到 `UNAVAILABLE` 的客户端
+会重试，而且可能重试到同一个实例上——因为路由层还没跟上；真正让流量挪走的信号是 readiness
+失败，而 gRPC 健康服务报告的正是它。
+
+限制与 HTTP 那边正好互为镜像。`GracefulStop` 确实会等在途 RPC，所以一个什么都不看的流会把
+进程占到停机预算用尽；然后服务器被停掉，`Shutdown` 返回那个 deadline 错误，而不是报告成功。
+和被 hijack 的 HTTP 连接不同，这里没有任何东西逃出停机流程——它只是花掉了整份预算。
+
+如果你自己写传输，`kit.WithStopping(ctx, ch)` 就是那个接缝：把它带进你的 handler context，
+`kit.Stopping` 在那里同样有效。
+
 ## 健康探针
 
 `kit.NewHTTP` 无条件注册三条路由：
