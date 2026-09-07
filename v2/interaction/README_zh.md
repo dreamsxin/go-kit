@@ -43,6 +43,8 @@
 
 在 `2026-07-28` 下，请求自带客户端身份（`params._meta`），在 `Mcp-Method` 与 `Mcp-Name` 头中重复自己的方法与目标，并且不需要任何会话：`IdentityFromContext` 与 `ClientCapabilityFromContext` 提供过去由会话状态承载的信息。列表与读取结果带 `ttlMs` 与 `cacheScope`，由 `StreamableHandler.ListCacheTTL` 和 `ListCacheScope` 配置。未显式指定运行时 `sessionId` 的工具调用在一个仅限本次调用的运行时会话中执行。
 
+工具在调用中途需要调用方提供东西时，返回 `*interaction.InputRequired` 而不是结果。在 `2026-07-28` 下它变成 `resultType: "input_required"`，带 `inputRequests` 与不透明的 `requestState`；调用方作答后带 `inputResponses` 重发同一次调用，工具再跑一遍，此时 `interaction.InputAnswersFromContext` 返回答案以及它要求回传的状态。状态曾离开过本进程，工具应当像对待任何客户端输入一样校验它。调用方没有声明能回答的问题会被 `-32021` 拒绝，而不是照问。在 `2025-06-18` 下同一个返回值是错误：那一版通过会话流询问，对应 `StreamableHandler.SendSamplingRequest`。
+
 在 `2025-06-18` 下，每个 MCP 传输会话拥有一个交互运行时会话。未显式指定运行时 `sessionId` 的工具调用会复用该会话，而 DELETE 或 TTL 过期会将其结束并释放。这样可以在一段对话中保持钩子与事件身份的稳定，而不必为每次调用保留一个已关闭的运行时会话。
 
 `interaction/mcp` 是生成的 AI 协议接口层。它在交互会话内部发现并执行已注册的运行时工具；框架不再额外生成一个平行的 `/skill` 发现端点。

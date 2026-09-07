@@ -13,7 +13,10 @@
 //     session of any kind: any request may land on any instance. server/discover
 //     reports capabilities for a client that wants them before it commits.
 //     tools/list, prompts/list, resources/list, resources/templates/list and
-//     resources/read carry ttlMs and cacheScope so a catalog can be cached.
+//     resources/read carry ttlMs and cacheScope so a catalog can be cached. A
+//     tool that needs input mid-call answers resultType "input_required" with
+//     inputRequests and an opaque requestState, and the client repeats the call
+//     with inputResponses; see interaction.InputRequired.
 //   - 2025-06-18, the handshake revision, kept for its deprecation window. An
 //     absent MCP-Protocol-Version header selects it, because it predates the
 //     header being mandatory. initialize mints an Mcp-Session-Id that every

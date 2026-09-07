@@ -2,6 +2,7 @@ package interaction
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -217,6 +218,27 @@ func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, erro
 	start := time.Now()
 	result, err := r.Tools.Call(ctx, call)
 	duration := time.Since(start)
+
+	// A call that asked its caller for something is unfinished rather than
+	// failed: it produced no result to report and no error to alarm anyone.
+	var needsInput *InputRequired
+	if errors.As(err, &needsInput) {
+		r.emit(ctx, Event{
+			SessionID: call.SessionID,
+			Type:      EventToolInputRequired,
+			Name:      call.Name,
+			Payload:   needsInput.Kinds(),
+			Metadata:  call.Metadata,
+		})
+		r.logToolCall(ctx, call, duration, err, false)
+		// The unfinished call still passes through the after-hooks, so an audit
+		// sink sees the round and a hook that acquired something releases it.
+		// A hook error cannot replace the request for input: the caller has to
+		// answer it either way.
+		r.afterToolCall(ctx, session, call, result, err, len(r.Hooks)-1)
+		return result, err
+	}
+
 	r.emit(ctx, Event{
 		SessionID: call.SessionID,
 		Type:      EventToolResult,

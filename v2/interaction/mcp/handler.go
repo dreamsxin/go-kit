@@ -60,7 +60,7 @@ func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 	case "tools/call":
 		result, err := c.callTool(ctx, req.Params)
 		if err != nil {
-			resp.Error = newError(-32602, "invalid argument", err.Error())
+			resp.Error = toolCallError(err)
 			return resp
 		}
 		resp.Result = result
@@ -199,6 +199,14 @@ func (c *dispatchCore) callTool(ctx context.Context, raw json.RawMessage) (map[s
 	}
 
 	ctx = context.WithValue(ctx, runtimeSessionIDContextKey{}, string(sessionID))
+	// A resumed call carries the answers to an earlier input_required result.
+	// The tool reads them with interaction.InputAnswersFromContext and decides
+	// whether it can finish this time.
+	state, err := decodeRequestState(params.RequestState)
+	if err != nil {
+		return nil, err
+	}
+	ctx = interaction.WithInputAnswers(ctx, params.InputResponses, state)
 
 	result, err := c.Runtime.CallTool(ctx, interaction.ToolCall{
 		SessionID: sessionID,
@@ -206,6 +214,10 @@ func (c *dispatchCore) callTool(ctx context.Context, raw json.RawMessage) (map[s
 		Input:     params.Arguments,
 		Metadata:  params.Metadata,
 	})
+	var needsInput *interaction.InputRequired
+	if errors.As(err, &needsInput) {
+		return inputRequiredResult(ctx, needsInput)
+	}
 	if err != nil {
 		return map[string]any{
 			"content": []map[string]any{{
@@ -676,7 +688,7 @@ type response struct {
 type rpcError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
-	Data    string `json:"data,omitempty"`
+	Data    any    `json:"data,omitempty"`
 }
 
 type callParams struct {
@@ -685,4 +697,8 @@ type callParams struct {
 	Name      string            `json:"name"`
 	Arguments any               `json:"arguments,omitempty"`
 	Metadata  map[string]string `json:"metadata,omitempty"`
+	// InputResponses and RequestState carry the answers to an earlier
+	// input_required result, and the state that result asked to have echoed.
+	InputResponses map[string]any `json:"inputResponses,omitempty"`
+	RequestState   string         `json:"requestState,omitempty"`
 }

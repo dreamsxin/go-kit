@@ -113,7 +113,36 @@ curl -X POST http://localhost:8080/mcp \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"greet","arguments":{"name":"World"}}}'
 ```
 
-## 5. 策略钩子
+## 5. 向调用方提问
+
+需要确认或缺少字段的工具，返回一个问题而不是结果。答案到达时它会再跑一遍，所以把它
+写成一道门禁：
+
+```go
+Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
+	answers, state := interaction.InputAnswersFromContext(ctx)
+	if answers["confirm"] != true {
+		return interaction.ToolResult{}, &interaction.InputRequired{
+			Requests: map[string]interaction.InputRequest{
+				"confirm": {Kind: "elicitation", Params: map[string]any{"message": "Delete 42 rows?"}},
+			},
+			State: map[string]any{"rows": 42},
+		}
+	}
+	return interaction.ToolResult{Output: deleted(state)}, nil
+}
+```
+
+在 `2026-07-28` 下，这次调用返回 `resultType: "input_required"`，带 `inputRequests`
+与不透明的 `requestState`；调用方收集答案后，带 `inputResponses` 与同一个状态重发调用。
+状态经由客户端往返一圈，因此有两点：像对待任何客户端输入一样校验它；并且预期工具每一轮
+都从头跑。调用方没有声明能回答的问题会被 `-32021` 拒绝而不是照问，所以客户端能渲染表单
+时要在 `_meta` 中声明 `elicitation`。
+
+在 `2025-06-18` 下同一个返回值是错误——那一版改为通过会话流询问，对应
+`StreamableHandler.SendSamplingRequest`。
+
+## 6. 策略钩子
 
 授权与审计挂载到运行时，而不是传输层：
 

@@ -906,11 +906,27 @@ Goal: a client can cache a catalog instead of re-fetching it on every reconnect.
 
 Goal: a tool that needs a confirmation mid-call works without an open stream.
 
-- Sampling and elicitation currently need the GET SSE stream a session owns, so
-  they do not exist on the stateless path. 2026-07-28 answers `resultType:
-  "input_required"` with the requests it needs answered, and the client retries
-  the call with `inputResponses` attached.
-- `SendSamplingRequest` keeps working on 2025-06-18.
+- A tool returns `interaction.InputRequired` with the questions it needs answered
+  and the state it wants echoed; the transport answers `resultType:
+  "input_required"` with `inputRequests` and an opaque `requestState`, and the
+  caller repeats the call with `inputResponses`. The tool runs again from the top
+  with the answers in its context, so it reads as a guard rather than as a
+  suspended call: nothing is held open between rounds.
+- An unfinished call is its own outcome, not a failure: no error event, and the
+  log line says the call needs input rather than that it failed.
+- A question the caller never declared it can answer is `-32021` naming the
+  capability, because asking anyway hangs a client with no code for it.
+- The state comes back from the caller, so a tool validates it like any other
+  client input. Signing it server-side is the next step if a deployment needs the
+  server's word that it has not been edited.
+- Sampling is deprecated in this revision and stays on 2025-06-18, where
+  `SendSamplingRequest` keeps working over the session stream.
+
+Acceptance:
+
+```bash
+go test ./interaction/... -count=1
+```
 
 ### Work Package 5: Authorization And Extensions Are Named Surfaces
 

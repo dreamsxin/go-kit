@@ -39,12 +39,15 @@ stable/http.status-context-fallback
 stable/http.status-for-kind
 stable/http.traceparent
 stable/mcp.error-codes
+stable/mcp.input-required
 stable/mcp.jsonrpc-version
 stable/mcp.list-cache-hints
 stable/mcp.method-names
+stable/mcp.missing-client-capability
 stable/mcp.mount-path
 stable/mcp.protocol-version
 stable/mcp.protocol-version-header
+stable/mcp.result-type
 stable/mcp.server-discover
 stable/mcp.server-identity
 stable/mcp.session-header

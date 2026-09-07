@@ -698,10 +698,23 @@ go -C ./tools test . -run 'TestStableProtocolBehaviour' -count=1
 
 目标：需要中途确认的工具，在没有常开流的情况下也能工作。
 
-- sampling 与 elicitation 目前依赖会话拥有的 GET SSE 流，因此在无状态路径上并不存在。
-  2026-07-28 用 `resultType: "input_required"` 连同它需要被回答的请求一起返回，客户端
-  带上 `inputResponses` 重试原调用。
-- `SendSamplingRequest` 在 2025-06-18 下继续可用。
+- 工具返回 `interaction.InputRequired`，携带它需要被回答的问题以及希望被回传的状态；
+  传输层以 `resultType: "input_required"` 加 `inputRequests` 与不透明的
+  `requestState` 应答，调用方带 `inputResponses` 重发同一次调用。工具带着答案从头再跑
+  一遍，因此它读起来像一道门禁而不是被挂起的协程：两轮之间服务端不持有任何东西。
+- 未完成的调用是它自己的一种结果，而不是失败：不发 error 事件，日志说的是"需要输入"
+  而不是"调用失败"。
+- 调用方没有声明能回答的问题会得到 `-32021` 并指名所需能力——照问不误会把没有相应
+  代码的客户端挂住。
+- 状态是从调用方回来的，工具应当像对待任何客户端输入一样校验它。如果某个部署需要
+  服务端为"未被改动"背书，下一步是给它签名。
+- sampling 在这一版本被弃用，保留在 2025-06-18：`SendSamplingRequest` 继续通过会话流工作。
+
+验收：
+
+```bash
+go test ./interaction/... -count=1
+```
 
 ### 工作包 5：授权与扩展是被指名的表面
 

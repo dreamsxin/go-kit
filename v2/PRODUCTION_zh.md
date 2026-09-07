@@ -115,10 +115,17 @@ host, err := kit.NewHost(kit.WithLifecycle(httpComponent, runner))
 中间件 panic 转成已分类且脱敏的 500；自定义 `PanicHandler` 可以把恢复值上报到
 日志或错误服务，但绝不能写入响应体。
 
-流式协议需要不同的超时选择。MCP SSE 响应是长生命周期的，HTTP 写超时
-必须为 `0` 或长于支持的会话时长。为 MCP 设置 `SessionTTL`、`MaxSessions`、
-`MaxPostBodyBytes` 与 `AllowedOrigins`，启动清理，并在退出时调用
-`StreamableHandler.Shutdown(ctx)`（或使用 `mcp.Serve`），释放 SSE writer 和交互会话。
+流式协议需要不同的超时选择，而具体适用哪一套取决于客户端选择的 MCP 版本。在
+`2025-06-18` 下响应是长生命周期的，HTTP 写超时必须为 `0` 或长于支持的会话时长。
+为 MCP 设置 `SessionTTL`、`MaxSessions`、`MaxPostBodyBytes` 与 `AllowedOrigins`，
+启动清理，并在退出时调用 `StreamableHandler.Shutdown(ctx)`（或使用 `mcp.Serve`），
+释放 SSE writer 和交互会话。
+
+在 `2026-07-28` 下没有会话也没有流：每个请求都是一次有界的 POST，因此适用普通的写
+超时，`SessionTTL`/`MaxSessions` 只约束仍在旧版本上的客户端。`MaxPostBodyBytes` 与
+`AllowedOrigins` 对两者都适用。无状态版本可以部署在普通的轮询负载均衡后面——不需要
+粘性路由，也不需要共享会话存储——并把 `ListCacheTTL` 与 `ListCacheScope` 设成目录
+真正能承诺的值，因为客户端会按它们缓存。
 
 启用生成契约支持时，`/openapi.json`、`/schema.json` 与 `/swagger/`
 会暴露服务契约。仅在这是明确的产品决策时才保持公开；否则在部署边界

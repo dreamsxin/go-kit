@@ -2,11 +2,15 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/dreamsxin/go-kit/v2/interaction"
 )
 
 // The stateless request model of MCP 2026-07-28.
@@ -248,6 +252,7 @@ func (h *StreamableHandler) handleStatelessPost(w http.ResponseWriter, r *http.R
 
 	resp := h.core.dispatch(ctx, req)
 	h.applyCacheHints(req.Method, resp)
+	markResultType(req.Method, resp)
 	writeResponse(w, resp)
 }
 
@@ -304,4 +309,154 @@ func (h *StreamableHandler) addCacheHints(result map[string]any) {
 	}
 	result["ttlMs"] = ttl.Milliseconds()
 	result["cacheScope"] = scope
+}
+
+// ─── multi round-trip requests ───────────────────────────────────────────────
+//
+// A stateless server cannot hold a call open to ask the caller a question, so a
+// tool that needs one returns instead: resultType "input_required" with the
+// questions and an opaque requestState. The caller answers, repeats the call
+// with inputResponses and the same state, and the tool runs again — this time
+// with the answers in its context.
+
+var (
+	// errInputRequiredNeedsStateless reports a tool asking for input on the
+	// handshake revision, where the result type does not exist.
+	errInputRequiredNeedsStateless = errors.New("an input_required result belongs to " + protocolVersion)
+)
+
+// missingCapabilityError reports a question the caller never said it could
+// answer. Asking anyway would hang a client that has no code for it.
+type missingCapabilityError struct {
+	kinds []string
+	cause error
+}
+
+func (e *missingCapabilityError) Error() string {
+	return fmt.Sprintf("the client declared no %s capability", strings.Join(e.kinds, ", "))
+}
+
+func (e *missingCapabilityError) Unwrap() error { return e.cause }
+
+// requestIdentityFromContext reports the identity a stateless request carried,
+// and whether the request was a stateless one.
+func requestIdentityFromContext(ctx context.Context) (requestIdentity, bool) {
+	identity, ok := ctx.Value(statelessContextKey{}).(requestIdentity)
+	return identity, ok
+}
+
+// inputRequiredResult turns a tool's request for input into the interim result
+// the caller answers and retries.
+//
+// Stable: mcp.input-required — a tool that needs input answers resultType "input_required" with inputRequests and an opaque requestState.
+// Covered by: TestStatelessToolAsksForInputAndResumes
+//
+// Stable: mcp.missing-client-capability — a question the caller never declared it can answer is -32021 naming the capability.
+// Covered by: TestStatelessInputRequiresADeclaredCapability
+func inputRequiredResult(ctx context.Context, needsInput *interaction.InputRequired) (map[string]any, error) {
+	identity, stateless := requestIdentityFromContext(ctx)
+	if !stateless {
+		return nil, fmt.Errorf("%w, and this request selected %s: %w",
+			errInputRequiredNeedsStateless, legacyProtocolVersion, needsInput)
+	}
+
+	var missing []string
+	for _, kind := range needsInput.Kinds() {
+		if _, declared := identity.capabilities[kind]; !declared {
+			missing = append(missing, kind)
+		}
+	}
+	if len(missing) > 0 {
+		return nil, &missingCapabilityError{kinds: missing, cause: needsInput}
+	}
+
+	state, err := encodeRequestState(needsInput.State)
+	if err != nil {
+		return nil, err
+	}
+	requests := make(map[string]any, len(needsInput.Requests))
+	for id, request := range needsInput.Requests {
+		entry := map[string]any{"kind": request.Kind}
+		if len(request.Params) > 0 {
+			entry["params"] = request.Params
+		}
+		requests[id] = entry
+	}
+	result := map[string]any{
+		"resultType":    "input_required",
+		"inputRequests": requests,
+	}
+	if state != "" {
+		result["requestState"] = state
+	}
+	return result, nil
+}
+
+// toolCallError classifies what stopped a tool call. An unanswerable question is
+// not the caller's bad argument, and neither is a tool asking for input on a
+// revision that cannot carry the request.
+func toolCallError(err error) *rpcError {
+	var missing *missingCapabilityError
+	switch {
+	case errors.As(err, &missing):
+		return &rpcError{
+			Code:    -32021,
+			Message: "missing required client capability",
+			Data:    map[string]any{"requiredCapabilities": missing.kinds, "reason": missing.Error()},
+		}
+	case errors.Is(err, errInputRequiredNeedsStateless):
+		return newError(-32603, "internal error", err.Error())
+	default:
+		return newError(-32602, "invalid argument", err.Error())
+	}
+}
+
+// encodeRequestState renders the state a tool wants echoed back. It is base64 so
+// a caller has no reason to read it, and JSON so this server can.
+func encodeRequestState(state map[string]any) (string, error) {
+	if len(state) == 0 {
+		return "", nil
+	}
+	encoded, err := json.Marshal(state)
+	if err != nil {
+		return "", fmt.Errorf("encode request state: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(encoded), nil
+}
+
+// decodeRequestState reads back what a tool asked to have echoed. It arrives
+// from the caller, so it is client input: a tool validates it like any other.
+func decodeRequestState(encoded string) (map[string]any, error) {
+	if strings.TrimSpace(encoded) == "" {
+		return nil, nil
+	}
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("requestState is not base64: %w", err)
+	}
+	var state map[string]any
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return nil, fmt.Errorf("requestState is not a JSON object: %w", err)
+	}
+	return state, nil
+}
+
+// markResultType states that a result is final, so a caller can tell a finished
+// call from one waiting on an answer without inspecting the payload.
+//
+// Stable: mcp.result-type — a tools/call, resources/read or prompts/get result says whether it is "complete".
+// Covered by: TestStatelessToolAsksForInputAndResumes
+func markResultType(method string, resp response) {
+	switch method {
+	case "tools/call", "resources/read", "prompts/get":
+	default:
+		return
+	}
+	result, ok := resp.Result.(map[string]any)
+	if !ok {
+		return
+	}
+	if _, stated := result["resultType"]; !stated {
+		result["resultType"] = "complete"
+	}
 }

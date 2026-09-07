@@ -126,12 +126,21 @@ business or middleware panics into a classified, redacted 500; the supplied
 `PanicHandler` should report the recovered value to logs or an error service,
 never to the response body.
 
-Streaming protocols require different timeout choices. MCP SSE responses are
+Streaming protocols require different timeout choices, and which ones apply
+depends on the MCP revision a client selects. On `2025-06-18` responses are
 long-lived, so the HTTP write timeout must be `0` or longer than the supported
 session duration. Set MCP `SessionTTL`, `MaxSessions`, `MaxPostBodyBytes`, and
 `AllowedOrigins`, start cleanup, and call `StreamableHandler.Shutdown(ctx)` (or
 `mcp.Serve`) during termination so SSE writers and interaction sessions are
 released.
+
+On `2026-07-28` there is no session and no stream: every request is one bounded
+POST, so ordinary write timeouts apply and `SessionTTL`/`MaxSessions` bound only
+the clients still on the older revision. `MaxPostBodyBytes` and `AllowedOrigins`
+apply to both. Deploy the stateless revision behind an ordinary round-robin
+balancer — no sticky routing, no shared session store — and set `ListCacheTTL`
+and `ListCacheScope` to what the catalog can honestly promise, since clients
+cache on them.
 
 When generated contract support is enabled, `/openapi.json`, `/schema.json`, and
 `/swagger/` expose the service contract. Keep them public only when that is an

@@ -18,8 +18,12 @@ const (
 	EventSessionEnded   EventType = "session.ended"
 	EventToolCall       EventType = "tool.call"
 	EventToolResult     EventType = "tool.result"
-	EventError          EventType = "error"
-	EventMessage        EventType = "message"
+	// EventToolInputRequired reports a call that stopped to ask its caller
+	// something. It is neither a result nor an error: the tool runs again when
+	// the answers arrive.
+	EventToolInputRequired EventType = "tool.input_required"
+	EventError             EventType = "error"
+	EventMessage           EventType = "message"
 )
 
 // Session tracks the lifecycle of one AI-facing interaction.

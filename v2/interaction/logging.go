@@ -2,6 +2,7 @@ package interaction
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -62,10 +63,15 @@ func (r *Runtime) logToolCall(ctx context.Context, call ToolCall, duration time.
 	}
 
 	level, message := slog.LevelInfo, "tool call succeeded"
+	var needsInput *InputRequired
 	switch {
 	case rejected:
 		// The tool never ran: a hook refused the call.
 		level, message = slog.LevelError, "tool call rejected"
+	case errors.As(err, &needsInput):
+		// The tool ran and stopped to ask something. Reporting that at Error
+		// would page someone for a conversation working as designed.
+		message = "tool call needs input"
 	case err != nil:
 		level, message = slog.LevelError, "tool call failed"
 	}

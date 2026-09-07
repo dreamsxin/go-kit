@@ -103,7 +103,6 @@ are answered 405 on this revision.
 
 A client on `2025-06-18` — which is also what an absent `MCP-Protocol-Version`
 header selects — still does the handshake:
-
 ```bash
 # Initialize a session (note the Mcp-Session-Id response header)
 curl -i -X POST http://localhost:8080/mcp \
@@ -120,7 +119,38 @@ curl -X POST http://localhost:8080/mcp \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"greet","arguments":{"name":"World"}}}'
 ```
 
-## 5. Policy hooks
+## 5. Ask the caller something
+
+A tool that needs a confirmation or a missing field returns a question instead of
+a result. It runs again when the answer arrives, so write it as a guard:
+
+```go
+Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
+	answers, state := interaction.InputAnswersFromContext(ctx)
+	if answers["confirm"] != true {
+		return interaction.ToolResult{}, &interaction.InputRequired{
+			Requests: map[string]interaction.InputRequest{
+				"confirm": {Kind: "elicitation", Params: map[string]any{"message": "Delete 42 rows?"}},
+			},
+			State: map[string]any{"rows": 42},
+		}
+	}
+	return interaction.ToolResult{Output: deleted(state)}, nil
+}
+```
+
+On `2026-07-28` the call answers `resultType: "input_required"` with
+`inputRequests` and an opaque `requestState`; the caller collects the answers and
+repeats the call with `inputResponses` and that same state. Two things follow from
+the state making a round trip through the client: validate it like any other
+client input, and expect the tool to run from the top each round. A question the
+caller never declared it can answer is refused with `-32021` rather than asked,
+so declare `elicitation` in `_meta` when the client can render one.
+
+On `2025-06-18` the same return value is an error — that revision asks over the
+session stream instead, with `StreamableHandler.SendSamplingRequest`.
+
+## 6. Policy hooks
 
 Authorization and audit attach to the runtime, not the transport:
 
