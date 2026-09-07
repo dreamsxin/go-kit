@@ -1373,6 +1373,18 @@ its first.
 - Each server gets its own share of the shutdown budget instead of racing for one
   deadline — the rule `Host.shutdownLifecycles` already follows.
 
+Acceptance:
+
+```bash
+go -C ./tools test . -run 'TestMicrogen' -count=1
+```
+
+Shipped in `main.tmpl`. The health service is grpc-go's own `health.NewServer`
+rather than a hand-written one: `Shutdown()` already means "report NOT_SERVING for
+everything", which is exactly the drain announcement, and a generated file is the
+wrong place to reimplement a protocol service. Readiness therefore fails on both
+transports at the same moment rather than only on `/readyz`.
+
 ### Work Package 4: The Difference Is Declared, Not Discovered
 
 Goal: a reader can see which operational surfaces each transport answers without

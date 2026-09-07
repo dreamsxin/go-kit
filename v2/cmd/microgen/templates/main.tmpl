@@ -19,7 +19,14 @@ import (
 	"time"
 
 {{if .WithGRPC}}	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	transportgrpc "github.com/dreamsxin/go-kit/v2/integrations/grpc"
+{{end}}{{if and .WithGRPC .WithConfig}}	"google.golang.org/grpc/credentials"
+	grpcserver "github.com/dreamsxin/go-kit/v2/integrations/grpc/server"
+	metricsgrpc "github.com/dreamsxin/go-kit/v2/observability/metrics/grpc"
 {{end}}
+
 {{if .WithDB}}	"{{.DBImportPkg}}"
 	"gorm.io/gorm"
 	"{{$.ImportPath}}/repository"
@@ -206,8 +213,10 @@ func main() {
 	// handler and its route pattern are both in scope: middleware wrapped around
 	// the mux would record every request with an empty route.
 	var routes httpserver.RouteRegistrar = r
+	var metricsCollector *endpoint.Metrics
 	if cfg.Server.MetricsPath != "" {
-		metricsCollector := &endpoint.Metrics{}
+		metricsCollector = &endpoint.Metrics{}
+
 		routes = httpserver.DecorateRoutes(r, httpserver.RecordingMiddleware(metrics.HTTPRecorder(metricsCollector)))
 		// Mounted on the mux directly, outside the decorator: a scrape reports on
 		// the service rather than on itself.
@@ -280,9 +289,31 @@ func main() {
 		panic(fmt.Sprintf("FATAL: gRPC listen: %v", err))
 	}
 	defer lis.Close() //nolint:errcheck
-	grpcServer := grpc.NewServer()
+	// The gRPC port answers the same operational questions the HTTP one does.
+	// Trace context is extracted without wiring; the same certificate pair secures
+	// both listeners; and the standard health service reports the readiness state
+	// the HTTP probes report, so a gRPC-only client has something to check.
+	grpcOptions := []grpc.ServerOption{
+		grpc.ChainUnaryInterceptor(transportgrpc.TraceparentUnaryServerInterceptor()),
+		grpc.ChainStreamInterceptor(transportgrpc.TraceparentStreamServerInterceptor()),
+	}
+{{if .WithConfig}}	if httpServer.TLSConfig != nil {
+		grpcOptions = append(grpcOptions, grpc.Creds(credentials.NewTLS(httpServer.TLSConfig)))
+	}
+	if metricsCollector != nil {
+		// The label is the full method name, which the service definition bounds.
+		grpcOptions = append(grpcOptions,
+			grpc.ChainUnaryInterceptor(grpcserver.RecordingUnaryInterceptor(metricsgrpc.Recorder(metricsCollector))),
+			grpc.ChainStreamInterceptor(grpcserver.RecordingStreamInterceptor(metricsgrpc.Recorder(metricsCollector))),
+		)
+	}
+{{end}}	grpcServer := grpc.NewServer(grpcOptions...)
+	grpcHealth := health.NewServer()
+	healthpb.RegisterHealthServer(grpcServer, grpcHealth)
+	grpcHealth.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 	runtime.registerGRPCServices(grpcServer)
 {{end}}
+
 
 	go func() {
 		// ServeTLS with empty paths: the certificate is already in TLSConfig, and
@@ -326,7 +357,12 @@ func main() {
 	// Fail readiness first, so whatever routes traffic here stops sending new
 	// requests while the in-flight ones finish draining below.
 	ready.Store(false)
-	logger.Info("shutting down")
+{{if .WithGRPC}}	// The gRPC health service answers from its own state, so it has to be told
+	// too: a client checking grpc.health.v1 must see NOT_SERVING at the same
+	// moment /readyz starts failing.
+	grpcHealth.Shutdown()
+{{end}}	logger.Info("shutting down")
+
 
 {{if .WithConfig}}	// Then wait, if asked to. Failing readiness only helps once it has been read:
 	// a load balancer or registry refreshes on its own schedule, so closing the
@@ -336,13 +372,15 @@ func main() {
 		time.Sleep(cfg.Server.DrainDelay)
 	}
 
-	shutdownTimeout := cfg.Server.GracefulShutdownTimeout
-	if shutdownTimeout <= 0 {
-		shutdownTimeout = 30 * time.Second
+	shutdownBudget := cfg.Server.GracefulShutdownTimeout
+	if shutdownBudget <= 0 {
+		shutdownBudget = 30 * time.Second
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-{{else}}	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+{{else}}	shutdownBudget := 30 * time.Second
+{{end}}{{if .WithGRPC}}	ctx, cancel := context.WithTimeout(context.Background(), shutdownBudget/2)
+{{else}}	ctx, cancel := context.WithTimeout(context.Background(), shutdownBudget)
 {{end}}	defer cancel()
+
 
 	if err := httpServer.Shutdown(ctx); err != nil {
 		// The grace period is over and something is still holding a connection —
@@ -355,7 +393,11 @@ func main() {
 		}
 	}
 
-{{if .WithGRPC}}	grpcStopped := make(chan struct{})
+{{if .WithGRPC}}	// Each server gets its own share of the budget rather than racing for one
+	// deadline: with a shared context, a slow HTTP drain leaves gRPC nothing.
+	grpcCtx, cancelGRPC := context.WithTimeout(context.Background(), shutdownBudget/2)
+	defer cancelGRPC()
+	grpcStopped := make(chan struct{})
 	go func() {
 		grpcServer.GracefulStop()
 		close(grpcStopped)
@@ -363,11 +405,14 @@ func main() {
 	select {
 	case <-grpcStopped:
 		logger.Info("gRPC stopped")
-	case <-ctx.Done():
+	case <-grpcCtx.Done():
+		// GracefulStop waits for in-flight RPCs, so a stream that watches nothing
+		// holds the process until here; then it is stopped underneath.
 		grpcServer.Stop()
-		logger.Error("gRPC graceful stop timed out", "err", ctx.Err())
+		logger.Error("gRPC graceful stop timed out", "err", grpcCtx.Err())
 	}
 {{end}}	logger.Info("server exited cleanly")
+
 }
 
 {{- if .WithDB }}

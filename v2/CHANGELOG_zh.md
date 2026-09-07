@@ -37,6 +37,12 @@ scrape 对 RPC 一句话都说不出来，生成代码构造的是一个没有�
   package，并有自己的依赖门禁：`observability/metrics` 仍然只靠标准库就能用，所以纯 HTTP 服务
   不会因为"想被 scrape"而拿到 gRPC 库。描述调用方的状态码——`NotFound`、`InvalidArgument`、
   `PermissionDenied`、`Canceled` 之类——不算错误，这和"把 4xx 挡在 HTTP 错误率之外"是同一个理由。
+- 生成服务的 gRPC 端口现在和第一个端口一样是被配置过的。2.13.0 的证书对同时保护两个监听器——
+  用同一个 `tls.Config` 构造一个 `grpc.Creds`，所以不匹配仍然会带着路径让启动失败。标准
+  `grpc.health.v1` 服务被注册，并报告 HTTP 探针报告的同一个就绪状态，包括 draining 一开始就
+  `NOT_SERVING`，于是纯 gRPC 的部署终于有东西可以让探针去探。trace 提取会安装；设置了
+  `server.metrics_path` 时，recording 拦截器也会安装。而且每个 server 拿到自己那份停机预算，
+  不再抢同一个 deadline：以前 HTTP 排空慢一点，gRPC 就什么都不剩了。
 
 ## [2.13.0] - 2026-09-07
 

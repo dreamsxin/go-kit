@@ -53,6 +53,15 @@ that gap where it can be closed and declares the difference where it cannot.
   to be scraped. A status code that describes the caller — `NotFound`,
   `InvalidArgument`, `PermissionDenied`, `Canceled` and their kin — is not an error,
   the same reasoning that keeps 4xx out of the HTTP error rate.
+- A generated service's gRPC port is now configured like its first one. The
+  certificate pair from 2.13.0 secures both listeners — one `grpc.Creds` built from
+  the same `tls.Config`, so a mismatch still fails startup with its path. The
+  standard `grpc.health.v1` service is registered and reports the readiness state the
+  HTTP probes report, including `NOT_SERVING` the moment draining begins, so a
+  gRPC-only deployment finally has something to point a probe at. Trace extraction
+  and, when `server.metrics_path` is set, the recording interceptors are installed.
+  And each server gets its own share of the shutdown budget instead of racing for one
+  deadline: a slow HTTP drain used to leave gRPC nothing.
 
 ## [2.13.0] - 2026-09-07
 
