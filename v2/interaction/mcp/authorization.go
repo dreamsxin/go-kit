@@ -137,7 +137,6 @@ func (h *StreamableHandler) authorizeMethod(ctx context.Context, w http.Response
 	return false
 }
 
-
 // authorizationError renders a refusal. A refusal that names no known
 // interaction failure is unauthorized rather than an internal error: the
 // authorizer was asked whether to proceed and did not say yes, and reporting

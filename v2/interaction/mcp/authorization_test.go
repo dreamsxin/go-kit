@@ -202,7 +202,6 @@ func TestAuthorizationUsesTheAuthenticatedSubject(t *testing.T) {
 	}
 }
 
-
 // TestRefusedNotificationIsForbidden proves a refusal is visible even when the
 // request has no id to answer. Reporting 202 would tell the caller its message
 // was accepted.
