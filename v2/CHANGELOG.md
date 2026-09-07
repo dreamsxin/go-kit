@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.13.0] - Release Candidate
+## [2.13.0] - 2026-09-07
 
 A listener you can put on the internet. v2 serves plaintext HTTP and nothing else:
 there is no TLS anywhere in the library or in generated code, so every deployment
