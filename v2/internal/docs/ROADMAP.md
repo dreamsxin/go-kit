@@ -1102,6 +1102,12 @@ Goal: pull and push cannot disagree.
 - Where the two models genuinely differ — a counter reset on restart, a histogram
   bucket layout — the difference is stated rather than smoothed over.
 
+Acceptance:
+
+```bash
+go test ./observability/... -count=1
+```
+
 ### Work Package 3: Cardinality Is Bounded And Declared
 
 Goal: a metrics endpoint cannot take down the system scraping it.
@@ -1110,6 +1116,12 @@ Goal: a metrics endpoint cannot take down the system scraping it.
   label values a series can take is bounded by something the server controls.
 - The bound is declared beside the code and covered by a test that fails if an
   unbounded value reaches a label.
+
+Acceptance:
+
+```bash
+go test ./kit/ -run TestSeriesCountIsBounded -count=1
+```
 
 ### Work Package 4: On By Configuration, Not By Surprise
 

@@ -33,6 +33,17 @@ the thing scraping it.
   values are only the operations recording was given — bounded by the routes the
   server declared, escaped so a pattern with a quote in it cannot invalidate the
   whole response.
+- The pull and push paths are held to agreement by a test, not by intent: the same
+  observations go through `endpoint.RecordingMiddleware` into both the exposition and
+  the OpenTelemetry adapter, and the counts, the total duration, and the operation
+  labels are compared. Where the two genuinely differ, the package documentation says
+  so — counters here start at zero on restart because the collector is in memory, and
+  duration is a sum and a count rather than buckets, so a p99 comes from the
+  OpenTelemetry histogram and not from a scrape.
+- Cardinality has a test rather than a caveat: fifty distinct URLs under one route
+  pattern produce one series per outcome, no request path reaches a label, and a
+  request that matched no route is not recorded at all — so scanning for `/.env`
+  cannot grow the series count.
 
 ## [2.11.0] - 2026-09-07
 

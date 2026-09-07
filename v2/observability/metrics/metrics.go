@@ -14,10 +14,20 @@
 // that wants those implements endpoint.Recorder against its own client — that
 // seam has always been the extension point, and it stays the one.
 //
-//	component, err := kit.NewHTTP(":8080",
-//	    kit.WithMetrics(),                    // record per-operation numbers
-//	    kit.WithMetricsEndpoint("/metrics"),  // and let a scraper read them
-//	)
+// # The same numbers, and where the two models differ
+//
+// Both this exposition and observability/otel are fed by endpoint.Recorder, so a
+// dashboard built on the scraped series and an alert built on the pushed one
+// describe the same traffic. Two differences are real and neither is smoothed
+// over:
+//
+//   - Counters here start at zero when the process starts, because
+//     endpoint.Metrics is in memory. A scraper handles that — it detects the
+//     reset — but a query that subtracts raw values across a restart will not.
+//   - Duration is reported as a sum and a count, not as buckets. The collector
+//     measures a total, so quantiles are not available from this endpoint; the
+//     OpenTelemetry histogram is where a p99 comes from. Emitting invented
+//     buckets would make the two disagree while looking like they agree.
 package metrics
 
 import (
