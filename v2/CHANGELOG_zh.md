@@ -26,6 +26,17 @@ scrape 对 RPC 一句话都说不出来，生成代码构造的是一个没有�
   失败，而 gRPC 健康服务已经在报告它。`Component.Shutdown` 也会通告，所以被直接停掉的组件
   同样会告诉它的 handler；同时它现在写明了自己的限制：`GracefulStop` 会等在途 RPC，所以一个
   什么都不看的流会花掉整份停机预算、然后被从底下停掉——错误会说出来，而不是报告成功。
+- `grpcserver.Observation`、`grpcserver.Recorder`、`grpcserver.RecorderFunc`、
+  `grpcserver.RecordingUnaryInterceptor` 与 `grpcserver.RecordingStreamInterceptor` 让 gRPC
+  传输拥有了 HTTP 传输早就有的 recording 契约。标签是完整方法名，它不需要 HTTP 路由那样的
+  "防守"：方法集合由服务定义固定，调用一个不存在的方法在拦截器运行之前就被拒绝，所以流量
+  无法增加序列。流在结束时被记录并带 `Stream: true`，因为流的 duration 是一段生命周期而不是
+  一次延迟，把两者平均在一起得到的数字谁都不描述。
+- `observability/metrics/grpc.Recorder` 把这些 observation 桥接进 exposition 端点渲染的
+  `endpoint.Metrics` 收集器，于是纯 gRPC 服务的 scrape 终于说得出话来。它刻意是一个独立
+  package，并有自己的依赖门禁：`observability/metrics` 仍然只靠标准库就能用，所以纯 HTTP 服务
+  不会因为"想被 scrape"而拿到 gRPC 库。描述调用方的状态码——`NotFound`、`InvalidArgument`、
+  `PermissionDenied`、`Canceled` 之类——不算错误，这和"把 4xx 挡在 HTTP 错误率之外"是同一个理由。
 
 ## [2.13.0] - 2026-09-07
 

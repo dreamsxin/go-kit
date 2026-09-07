@@ -1346,6 +1346,19 @@ cardinality promise.
   definition — the same reasoning that made route patterns the HTTP label. An
   unrecognised method is not recorded rather than recorded as an empty series.
 
+Acceptance:
+
+```bash
+go test ./integrations/grpc/server/ ./observability/metrics/grpc/ -count=1
+```
+
+Shipped as `grpc.recording-method-label` and `metrics.grpc-bridge-error-class`. Two
+decisions the work package did not anticipate: a stream carries `Stream: true` and is
+recorded only when it ends, because a lifetime and a latency should not share a mean;
+and the bridge is a package of its own with its own dependency gate, because putting
+it in `observability/metrics` would have made every HTTP-only service that wants a
+scrape endpoint depend on the gRPC libraries.
+
 ### Work Package 3: The Generated gRPC Listener Is A Real Listener
 
 Goal: a generated service's second port is configured, secured, and observable like

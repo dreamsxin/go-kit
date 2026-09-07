@@ -39,6 +39,48 @@ ep := telemetry.Apply(endpoint.NewBuilder(createUser)).Build()
 如果服务需要内部快照或健康计数，保留 `telemetry.Metrics`。需要 HTTP 状态和响应
 字节时，通过 `kit.WithHTTPMiddleware` 安装 `server.AccessLogMiddleware(logger)`。
 
+## 被 scrape
+
+推送不是唯一的模型。`observability/metrics` 把 `endpoint.Metrics` 已经持有的数字渲染成
+Prometheus 文本 exposition，而模块里没有任何指标客户端：
+
+```go
+collector := &endpoint.Metrics{}
+
+var routes httpserver.RouteRegistrar = mux
+routes = httpserver.DecorateRoutes(mux,
+    httpserver.RecordingMiddleware(metrics.HTTPRecorder(collector)))
+routes.Handle("GET /users/{id}", usersHandler)
+
+mux.Handle("GET /metrics", metrics.Handler(collector))
+```
+
+两个细节承载了整个设计。recording 安装在**注册处**，通过 `httpserver.RouteRegistrar`——
+`http.Request.Pattern` 只在 mux 分派出去的那个请求上有值，所以包在 mux 外面的中间件会把
+每个请求都记到空路由下。而 exposition 挂在 mux 本身、在装饰器之外，于是 scrape 报告的是
+服务，而不是它自己。
+
+gRPC 这边 recorder 是拦截器，桥接放在独立的 package 里——为的是不让一个只想要 scrape 端点的
+纯 HTTP 服务被迫依赖 gRPC 库：
+
+```go
+component := kitgrpc.MustNew(":8081",
+    grpc.ChainUnaryInterceptor(grpcserver.RecordingUnaryInterceptor(metricsgrpc.Recorder(collector))),
+    grpc.ChainStreamInterceptor(grpcserver.RecordingStreamInterceptor(metricsgrpc.Recorder(collector))),
+)
+```
+
+operation 标签就是完整方法名 `/users.Users/Get`。它不像 HTTP 路由那样需要被"防守"：方法集合
+由服务定义固定，而调用一个不存在的方法在拦截器运行之前就被拒绝了。流在结束时被记录，并带
+`Stream: true`——它的 duration 是一段生命周期而不是一次延迟，不要和后者一起平均。
+
+exposition 给什么、不给什么：每个 operation 的次数、错误数与耗时总和——是均值，不是分位数。
+没有 bucket，因为收集器持有的是总量；p99 来自下面的 OpenTelemetry 直方图。计数器在进程启动
+时从零开始，采集方会把这识别为一次 reset。
+
+生成服务用 `server.metrics_path`（`APP_METRICS_PATH`），默认为空即关闭：该端点会公开你的路由名
+与流量形状，应该放在 admin 监听或网络策略之后。
+
 ## OpenTelemetry
 
 `oteladapter.Setup` 装配 provider、OTLP exporter、resource、全局 W3C propagator

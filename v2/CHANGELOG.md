@@ -36,6 +36,23 @@ that gap where it can be closed and declares the difference where it cannot.
   its handlers, and it now declares its limit: `GracefulStop` waits for in-flight
   RPCs, so a stream watching nothing costs the whole shutdown budget and is then
   stopped underneath — the error says so instead of reporting success.
+- `grpcserver.Observation`, `grpcserver.Recorder`, `grpcserver.RecorderFunc`,
+  `grpcserver.RecordingUnaryInterceptor` and `grpcserver.RecordingStreamInterceptor`
+  give the gRPC transport the recording contract the HTTP one has had. The label is
+  the full method name, which needs none of the defending an HTTP route does: the set
+  of methods is fixed by the service definition, and a call to a method that does not
+  exist is refused before an interceptor runs, so traffic cannot add a series. A
+  stream is recorded when it ends and carries `Stream: true`, because a stream's
+  duration is a lifetime rather than a latency and averaging the two together
+  produces a number that describes neither.
+- `observability/metrics/grpc.Recorder` bridges those observations into the
+  `endpoint.Metrics` collector the exposition endpoint renders, so a scrape of a
+  gRPC-only service finally says something. It is a separate package on purpose, with
+  its own dependency gate: `observability/metrics` stays reachable with the standard
+  library alone, so an HTTP-only service does not acquire the gRPC libraries by asking
+  to be scraped. A status code that describes the caller — `NotFound`,
+  `InvalidArgument`, `PermissionDenied`, `Canceled` and their kin — is not an error,
+  the same reasoning that keeps 4xx out of the HTTP error rate.
 
 ## [2.13.0] - 2026-09-07
 

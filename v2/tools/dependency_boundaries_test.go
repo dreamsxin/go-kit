@@ -89,6 +89,16 @@ func TestArchitectureDependencyGates(t *testing.T) {
 			allowedExact: []string{coreModulePath + "/endpoint"},
 			allowedTrees: []string{coreModulePath + "/transport"},
 		},
+		{
+			// The gRPC bridge is its own package for exactly this gate's sake: the
+			// exposition above must not drag the gRPC libraries into an HTTP-only
+			// service that only wanted to be scraped. A service that speaks gRPC
+			// already has them, so it pays for them here.
+			name:         "metrics grpc bridge",
+			pattern:      "./observability/metrics/grpc",
+			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/integrations/grpc/server"},
+			allowedTrees: []string{"google.golang.org/grpc"},
+		},
 	}
 
 	for _, check := range checks {

@@ -17,6 +17,7 @@ github.com/dreamsxin/go-kit/v2/interaction/mcp
 github.com/dreamsxin/go-kit/v2/kit
 github.com/dreamsxin/go-kit/v2/kit/grpc
 github.com/dreamsxin/go-kit/v2/observability/metrics
+github.com/dreamsxin/go-kit/v2/observability/metrics/grpc
 github.com/dreamsxin/go-kit/v2/observability/otel
 github.com/dreamsxin/go-kit/v2/observability/slog
 github.com/dreamsxin/go-kit/v2/sd

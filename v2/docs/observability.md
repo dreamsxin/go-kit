@@ -43,6 +43,55 @@ Keep `telemetry.Metrics` if the service exposes an internal snapshot or health
 counter. Add `server.AccessLogMiddleware(logger)` with
 `kit.WithHTTPMiddleware` when HTTP status and response bytes matter.
 
+## Being Scraped
+
+Pushing is not the only model. `observability/metrics` renders the numbers
+`endpoint.Metrics` already holds as Prometheus text exposition, with no metrics
+client anywhere in the module:
+
+```go
+collector := &endpoint.Metrics{}
+
+var routes httpserver.RouteRegistrar = mux
+routes = httpserver.DecorateRoutes(mux,
+    httpserver.RecordingMiddleware(metrics.HTTPRecorder(collector)))
+routes.Handle("GET /users/{id}", usersHandler)
+
+mux.Handle("GET /metrics", metrics.Handler(collector))
+```
+
+Two details carry the design. Recording is installed *at registration*, through
+`httpserver.RouteRegistrar` — `http.Request.Pattern` is only set on the request the
+mux dispatched, so middleware wrapped around the mux would report every request
+under an empty route. And the exposition is mounted on the mux itself, outside the
+decorator, so a scrape reports on the service instead of on itself.
+
+For gRPC, the recorder is an interceptor and the bridge lives in its own package so
+that an HTTP-only service is not made to depend on the gRPC libraries just because it
+wanted a scrape endpoint:
+
+```go
+component := kitgrpc.MustNew(":8081",
+    grpc.ChainUnaryInterceptor(grpcserver.RecordingUnaryInterceptor(metricsgrpc.Recorder(collector))),
+    grpc.ChainStreamInterceptor(grpcserver.RecordingStreamInterceptor(metricsgrpc.Recorder(collector))),
+)
+```
+
+The operation label is the full method name, `/users.Users/Get`. It needs no
+defending the way an HTTP route does: the set of methods is fixed by the service
+definition, and a call to a method that does not exist is refused before an
+interceptor runs. A stream is recorded when it ends, and carries `Stream: true` —
+its duration is a lifetime, not a latency, so do not average the two together.
+
+What the exposition does and does not give you: counts, error counts, and a duration
+sum per operation — a mean, not quantiles. There are no buckets because the collector
+holds a total; a p99 comes from the OpenTelemetry histogram below. Counters start at
+zero on process start, which a scraper detects as a reset.
+
+Generated services take `server.metrics_path` (`APP_METRICS_PATH`), empty and off by
+default: the endpoint publishes your route names and traffic shape, so it belongs on
+an admin listener or behind a network policy.
+
 ## OpenTelemetry
 
 `oteladapter.Setup` assembles providers, OTLP exporters, the resource, the
