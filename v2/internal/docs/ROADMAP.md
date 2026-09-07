@@ -967,6 +967,80 @@ Milestone 10 is complete when a client on either revision is served by tests tha
 fail if it stops being, each new behaviour is declared beside the code that keeps
 it, and `RELEASE.md` still names a gate for every contract surface.
 
+## Milestone 11 (Active): A Process That Stops On Purpose / 有意为之的停止
+
+Goal: stopping is a sequence with a declared order and a declared end, not a
+race between a cancelled context and whatever was still running.
+
+What exists today is a `Host` that, on cancellation, immediately tears components
+down in reverse attachment order under one shared deadline. That leaves three
+things unanswered, and each one is visible to a user as a failed request:
+
+- readiness still reports ready while teardown runs, so a load balancer and a
+  service registry keep sending work to a process that is closing;
+- a long-lived response — SSE, a streaming handler — is never told the process is
+  stopping, so `http.Server.Shutdown` waits for the whole budget and then returns
+  a deadline error with the connection still open;
+- one slow component can spend the entire budget, and the components after it get
+  a context that is already expired.
+
+### Work Package 1: Draining Is A State, Not A Moment
+
+Goal: a process announces that it is going away before it goes away.
+
+- `Host.Run` enters a drain phase before teardown: readiness starts failing, and
+  only after a configurable drain delay do components stop. Zero delay keeps
+  today's behaviour, so nothing changes for an assembly that does not ask for it.
+- Draining is observable, not guessed: readiness reports why it is failing, and a
+  component that wants to stop accepting its own work implements the seam and is
+  told. The framework does not decide what draining means for someone else's
+  component.
+- Liveness stays true while draining. A process that is finishing in-flight work
+  is not a process that should be killed.
+
+Acceptance:
+
+```bash
+go test ./kit/... ./health/... -count=1
+```
+
+### Work Package 2: A Grace Period That Ends
+
+Goal: shutdown finishes, and says what it had to interrupt.
+
+- A long-lived request learns that the process is stopping through its own
+  context, so a stream can end itself rather than be cut.
+- When the graceful attempt runs out of budget, the server closes what is left
+  instead of returning while it is still open — and reports what was interrupted.
+- Each component's shutdown budget is stated. A slow component may not silently
+  consume the budget of the components behind it.
+
+### Work Package 3: Deregistration Comes First
+
+Goal: an instance leaves discovery before it stops answering, not after.
+
+- The order between discovery deregistration, readiness failure, and closing
+  listeners is declared and tested rather than left to attachment order.
+- What a registrar cannot guarantee is stated too: a registry entry that a peer
+  has already cached outlives the deregistration, which is what the drain delay
+  is for.
+
+### Work Package 4: The Generated Service Stops Correctly Too
+
+Goal: the generated entry point uses the same sequence, and its knobs are
+documented configuration rather than constants in a template.
+
+- Drain delay and shutdown timeout are validated configuration keys with
+  documented precedence, like every other generated key.
+- `PRODUCTION.md` states the operational contract: what a rolling deploy should
+  set, and what happens to streams that outlive the budget.
+
+### Completion Definition / 完成定义
+
+Milestone 11 is complete when the shutdown sequence is declared beside the code
+that keeps it, a test fails if any step moves out of order, and no shutdown path
+can return while a connection it owns is still open.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

@@ -2,6 +2,14 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.11.0] - Release Candidate
+
+Stopping on purpose. A process that is going away should say so before it goes,
+finish what it accepted, and end its own grace period rather than return while a
+connection it owns is still open. This release turns shutdown from one cancelled
+context into a sequence with a declared order — and leaves what draining *means*
+to the components that know.
+
 ## [2.10.0] - 2026-09-07
 
 Promises you can check. The compatibility contract stopped being prose: every
