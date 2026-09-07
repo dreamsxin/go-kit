@@ -120,6 +120,17 @@ const (
 			want:    "",
 		},
 		{
+			// go doc aligns a grouped block on its longest name, so a new entry
+			// re-indents its neighbours. Reading that as a change reports every
+			// constant in the block, with a "was" and a "now" that look alike.
+			name: "realigning a grouped block around a longer name is compatible",
+			changed: strings.Replace(base,
+				"\tStateReady State = \"ready\"\n\tStateDraining State = \"draining\"\n",
+				"\tStateReady       State = \"ready\"\n\tStateDraining    State = \"draining\"\n"+
+					"\tStateTerminating State = \"terminating\"\n", 1),
+			want: "",
+		},
+		{
 			name:    "a removed function is incompatible",
 			changed: strings.Replace(base, "func Chain(outer Middleware, others ...Middleware) Middleware\n", "", 1),
 			want:    "removed: func Chain",
@@ -218,10 +229,13 @@ func exportedSurface(t *testing.T, root string) map[string]map[string]string {
 // grouped const or var block are separate symbols: they are declared together
 // only for brevity.
 //
-// Comment lines inside a body are dropped, and unexported names are ignored.
-// Without the first, rewording a field comment reads as an incompatible change,
-// which is the reason doc prose was taken out of the surface digest in the first
-// place. Without the second, the report names symbols no consumer can reach.
+// Comment lines inside a body are dropped, unexported names are ignored, and
+// interior whitespace is collapsed. Without the first, rewording a field comment
+// reads as an incompatible change, which is the reason doc prose was taken out of
+// the surface digest in the first place. Without the second, the report names
+// symbols no consumer can reach. Without the third, adding a longer name to a
+// grouped const block re-aligns its neighbours and reports every one of them as
+// changed — with a "was" and a "now" a reader cannot tell apart.
 func apiSymbols(declarations []byte) map[string]string {
 	symbols := map[string]string{}
 	current := ""
@@ -231,7 +245,7 @@ func apiSymbols(declarations []byte) map[string]string {
 		case line == "" || isSectionHeader(line):
 			current, grouped = "", false
 		case strings.HasPrefix(line, "\t"):
-			entry := strings.TrimSpace(line)
+			entry := oneLine(strings.TrimSpace(line))
 			if strings.HasPrefix(entry, "//") {
 				continue
 			}
@@ -254,7 +268,7 @@ func apiSymbols(declarations []byte) map[string]string {
 			}
 			current, grouped = key, isGroup
 			if !isGroup {
-				symbols[key] = line
+				symbols[key] = oneLine(line)
 			}
 		}
 	}
