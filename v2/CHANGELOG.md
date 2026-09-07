@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.10.0] - Release Candidate
+## [2.10.0] - 2026-09-07
 
 Promises you can check. The compatibility contract stopped being prose: every
 surface it covers names the gate that enforces it, and the protocol behaviours v2

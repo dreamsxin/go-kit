@@ -844,7 +844,7 @@ item is no longer an unnamed set: forty-nine protocol behaviours are declared
 where they are implemented, each naming a test in its own package, and the two
 behaviours deliberately left unstable say so in the same form.
 
-## Milestone 10 (Active): A Protocol Worth Freezing / 值得冻结的协议
+## Milestone 10 (Complete): A Protocol Worth Freezing / 值得冻结的协议
 
 Goal: the MCP behaviour v2 promises is the behaviour the current specification
 defines.
