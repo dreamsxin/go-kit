@@ -1477,6 +1477,22 @@ Goal: a generated service picks up a renewed certificate without a deploy.
 - `PRODUCTION.md` stops saying rotation needs a restart and says what it does need,
   including what a proxy-terminated deployment does instead.
 
+Acceptance:
+
+```bash
+go test ./cmd/microgen/... -count=1
+```
+
+Shipped in `main.tmpl`: the generated entry point serves its certificate through a
+per-handshake source of its own and re-reads on `SIGHUP`. Two decisions worth
+recording. The signal is `SIGHUP` because it is what an operator already reaches for
+and what a renewal job can send — a timer would have the process guessing, and a
+filesystem watch would add a dependency and a policy to a file the user owns. And the
+generated code carries its own small `certificateFiles` rather than importing
+`kit.CertificateFiles`: the generated `main` does not otherwise depend on `kit`, and
+pulling that package in for twenty lines would drag its dependency closure into every
+generated binary.
+
 ### Work Package 3: What Cannot Be Rotated Is Named
 
 Goal: nobody discovers the limit by trying it.

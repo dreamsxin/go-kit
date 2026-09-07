@@ -14,7 +14,9 @@ import (
 	"os"
 	"os/signal"
 {{if .WithConfig}}	"strings"
+	"sync"
 {{end}}	"sync/atomic"
+
 	"syscall"
 	"time"
 
@@ -264,20 +266,26 @@ func main() {
 	// loaded before anything is served, so a wrong path or a mismatched key stops
 	// startup with the path in the message instead of becoming a handshake error in
 	// somebody else's client log. Everything past a minimum version — cipher
-	// suites, client certificates, rotation — is policy: build a tls.Config here if
-	// your deployment has requirements, and see PRODUCTION.md before choosing to
+	// suites, client certificates — is policy: build a tls.Config here if your
+	// deployment has requirements, and see PRODUCTION.md before choosing to
 	// terminate here at all.
+	//
+	// The certificate is asked for on every handshake, so a renewal is picked up by
+	// sending this process SIGHUP — no deploy, no restart. See reloadCertificates.
+	var certificates *certificateFiles
 	if cfg.Server.TLSCertFile != "" {
-		certificate, certErr := tls.LoadX509KeyPair(cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile)
+		loaded, certErr := newCertificateFiles(cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile)
 		if certErr != nil {
-			panic(fmt.Sprintf("FATAL: load TLS certificate %s and key %s: %v", cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile, certErr))
+			panic(fmt.Sprintf("FATAL: %v", certErr))
 		}
+		certificates = loaded
 		httpServer.TLSConfig = &tls.Config{
-			MinVersion:   tls.VersionTLS12,
-			Certificates: []tls.Certificate{certificate},
+			MinVersion:     tls.VersionTLS12,
+			GetCertificate: certificates.certificate,
 		}
 	}
 {{end}}	httpListener, err := net.Listen("tcp", *httpAddr)
+
 
 	if err != nil {
 		panic(fmt.Sprintf("FATAL: HTTP listen: %v", err))
@@ -348,7 +356,26 @@ func main() {
 
 	runContext, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stopSignals()
-	select {
+{{if .WithConfig}}	if certificates != nil {
+		// A renewal is picked up on SIGHUP: the platform that replaced the files is
+		// what knows they changed, so it says when to look rather than this process
+		// polling. A failed reload is logged and the previous certificate keeps
+		// serving — a half-written secret should not cost the listener.
+		reloadSignal := make(chan os.Signal, 1)
+		signal.Notify(reloadSignal, syscall.SIGHUP)
+		defer signal.Stop(reloadSignal)
+		go func() {
+			for range reloadSignal {
+				if reloadErr := certificates.reload(); reloadErr != nil {
+					logger.Error("certificate reload failed; still serving the previous certificate", "err", reloadErr)
+					continue
+				}
+				logger.Info("certificate reloaded", "cert", cfg.Server.TLSCertFile, "key", cfg.Server.TLSKeyFile)
+			}
+		}()
+	}
+{{end}}	select {
+
 	case <-runContext.Done():
 		logger.Info("received shutdown signal")
 	case err := <-serverErr:
@@ -430,7 +457,47 @@ func redactDSN(dsn string) string {
 {{- end }}
 {{- if .WithConfig }}
 
+// certificateFiles serves the TLS certificate from disk and can re-read it while the
+// process is running, which is what makes a renewal a signal rather than a deploy.
+//
+// certificate runs on the handshake path, so it returns the pair the last successful
+// reload left behind and never touches the filesystem. reload is the call that reads,
+// and a failure leaves the previous pair in place.
+type certificateFiles struct {
+	certFile string
+	keyFile  string
+
+	mu      sync.RWMutex
+	current *tls.Certificate
+}
+
+func newCertificateFiles(certFile, keyFile string) (*certificateFiles, error) {
+	files := &certificateFiles{certFile: certFile, keyFile: keyFile}
+	if err := files.reload(); err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
+func (f *certificateFiles) reload() error {
+	certificate, err := tls.LoadX509KeyPair(f.certFile, f.keyFile)
+	if err != nil {
+		return fmt.Errorf("load TLS certificate %s and key %s: %w", f.certFile, f.keyFile, err)
+	}
+	f.mu.Lock()
+	f.current = &certificate
+	f.mu.Unlock()
+	return nil
+}
+
+func (f *certificateFiles) certificate(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.current, nil
+}
+
 func filterArgs(args []string, name string) []string {
+
 	var out []string
 	for i := 0; i < len(args); i++ {
 		arg := args[i]

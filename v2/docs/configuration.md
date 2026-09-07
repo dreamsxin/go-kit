@@ -231,6 +231,11 @@ whatever the last successful `Reload` loaded — no restart. A failed reload ret
 error and keeps serving the pair already loaded, because a half-written secret should
 cost a log line rather than the listener.
 
+A generated service does this for you: with `server.tls_cert_file` set, it serves the
+certificate through the same per-handshake seam and re-reads both files on `SIGHUP`,
+logging the paths on success and keeping the previous certificate on failure. Renewing
+a certificate is `kill -HUP`, not a deploy.
+
 When the source should be consulted is deliberately yours. A filesystem watch, a
 poll interval, or a `SIGHUP` handler would each be a policy some deployment has to work
 around, so the framework ships the seam and not the trigger. `kit.CertificateSource` is

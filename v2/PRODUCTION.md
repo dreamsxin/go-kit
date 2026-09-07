@@ -192,10 +192,10 @@ What in-process termination changes operationally:
   secret is rotated by replacing files. `kit.WithTLS` reads them once, so that
   arrangement needs a restart; `kit.WithTLSCertificateSource` with
   `kit.NewCertificateFiles` asks on every handshake and re-reads on
-  `Reload`, which is what lets a renewal be picked up without a deploy. The trigger is
-  yours — a signal handler, a timer, a filesystem watch — and a failed reload keeps the
-  previous certificate serving. Plan the rotation before the certificate expires, and
-  alert on the reload failing rather than on the expiry.
+  `Reload`, which is what lets a renewal be picked up without a deploy. A generated
+  service wires that for you and re-reads on `SIGHUP` — `kill -HUP` the process after
+  the renewal, or have the renewing job do it. A failed reload keeps the previous
+  certificate serving, so alert on the reload failing rather than on the expiry.
 - Health probes must speak the same scheme as the listener. A probe still configured
   for `http` against a TLS port reads as an unhealthy instance, and the kubelet will
   restart a process that is working.

@@ -165,9 +165,9 @@ APP_TLS_KEY_FILE=/etc/tls/tls.key
   用 HTTP/1.1 往后讲的代理。
 - 就绪与 drain 不变，但多一条：从 secret 挂载的证书是通过替换文件轮换的。`kit.WithTLS` 只读
   一次，所以那种接法需要重启；`kit.WithTLSCertificateSource` 配 `kit.NewCertificateFiles`
-  每次握手都问、并在 `Reload` 时重读，这才让续期不需要一次发布就能生效。触发器是你的——信号
-  处理器、定时器、文件监听——而失败的 reload 会继续用上一张证书服务。请在证书过期之前规划轮换，
-  并且告警应该打在"reload 失败"上，而不是打在"过期"上。
+  每次握手都问、并在 `Reload` 时重读，这才让续期不需要一次发布就能生效。生成的服务已经替你接好，
+  并在收到 `SIGHUP` 时重读——续期之后 `kill -HUP` 一下进程，或者让续期任务自己发信号。失败的
+  reload 会继续用上一张证书服务，所以告警应该打在"reload 失败"上，而不是打在"过期"上。
 - 健康探针必须和监听器讲同一种 scheme。仍然按 `http` 配置、去探一个 TLS 端口的探针，读出来
   就是"实例不健康"，而 kubelet 会去重启一个本来正常的进程。
 - 两种方案下"被 hijack 的连接都不会被 drain"——见生命周期一节的 drain 说明。在进程内终止

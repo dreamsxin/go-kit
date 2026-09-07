@@ -29,6 +29,11 @@ serves, and keeps a broken renewal from costing anyone their listener.
 - A failed reload returns the error and keeps serving the pair already loaded. A
   half-written secret is a log line, not an outage, and the test asserts the listener
   still answers with the previous certificate.
+- A generated service serves its certificate through the same per-handshake seam and
+  re-reads both files on `SIGHUP`, logging the paths on success and keeping the previous
+  certificate on failure. Renewing is `kill -HUP`, not a deploy. `SIGHUP` because it is
+  the signal an operator already reaches for and a renewal job can send; the process
+  does not poll, and nothing watches the filesystem on your behalf.
 
 ## [2.14.0] - 2026-09-07
 
