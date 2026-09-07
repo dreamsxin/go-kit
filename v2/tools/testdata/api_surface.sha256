@@ -12,7 +12,7 @@ e00b4d453e23c4c9ecca502c58f155919f836c6591025435b8fb8e0fe15e1f96  github.com/dre
 a4ff3e0c1a1fffe5abc30632b815f9fa7961c03bb2ae839c63908d0d4be1e7ad  github.com/dreamsxin/go-kit/v2/interaction/mcp
 3549fc2a9d79f0cf5db5df49eece251a74e76fd49e3e99c999cf2a3f2bc5d01f  github.com/dreamsxin/go-kit/v2/kit
 4355dd5976853eafbd9422f99ccb2b1413dd6e3f967317ebc780a83757e5f9a4  github.com/dreamsxin/go-kit/v2/kit/grpc
-adcd6a3c6c990c89faaa2f36f8e5ac64f325ef84347b95d759dd0319ace27618  github.com/dreamsxin/go-kit/v2/observability/metrics
+f159c973fef11a8ef5b71a69e7071deb1ffaa7e75a43088fae23c1a72cea8a33  github.com/dreamsxin/go-kit/v2/observability/metrics
 af7f3fbcdef3e3a88fe5bae83db0cb18f2c72fa1ba699b1dad76449aeebd17c3  github.com/dreamsxin/go-kit/v2/observability/otel
 328de07b48e6c75419a412d5e7bd2ab6cb8a917457fa1b6be97d237d80999517  github.com/dreamsxin/go-kit/v2/observability/slog
 d4c4cfab12378c14e9485184e228fcc957fd07f1d96c4d7883ebce23d10d57a4  github.com/dreamsxin/go-kit/v2/sd

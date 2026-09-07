@@ -87,6 +87,7 @@ func TestArchitectureDependencyGates(t *testing.T) {
 			name:         "metrics exposition",
 			pattern:      "./observability/metrics",
 			allowedExact: []string{coreModulePath + "/endpoint"},
+			allowedTrees: []string{coreModulePath + "/transport"},
 		},
 	}
 

@@ -73,6 +73,8 @@ stable/mcp.unknown-meta-preserved
 stable/mcp.version-negotiation
 stable/metrics.exposition-format
 stable/metrics.exposition-methods
+stable/metrics.http-bridge-error-class
+stable/metrics.http-bridge-ignores-unrouted
 stable/metrics.label-cardinality
 stable/metrics.series-are-per-operation
 unstable/http.access-log-line

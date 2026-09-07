@@ -33,6 +33,14 @@ the thing scraping it.
   values are only the operations recording was given — bounded by the routes the
   server declared, escaped so a pattern with a quote in it cannot invalidate the
   whole response.
+- `metrics.HTTPRecorder` bridges the HTTP transport's recorder to an
+  `endpoint.Metrics` collector, so a service that wires only the HTTP layer — the
+  generated projects have no endpoint chain around every handler — can feed the same
+  numbers the exposition reads. It is a translation, not a second measurement: one
+  request produces one observation. A request that matched no route is not recorded
+  at all, so a vulnerability scan cannot appear as traffic the service served, and
+  the outcome is the one the transport can honestly report — 5xx counts as an error,
+  4xx does not, because a caller being told no is a working server.
 - The pull and push paths are held to agreement by a test, not by intent: the same
   observations go through `endpoint.RecordingMiddleware` into both the exposition and
   the OpenTelemetry adapter, and the counts, the total duration, and the operation
