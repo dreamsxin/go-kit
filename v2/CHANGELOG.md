@@ -12,6 +12,22 @@ assumption instead of a decision. This release makes the terminating listener
 possible, states what it does and does not do about protocol negotiation, and pins
 down what a hijacked connection means for a shutdown that promised to end.
 
+### Added
+
+- `kit.WithTLS`, `kit.WithTLSConfig`, `kit.DefaultTLSMinVersion`, and
+  `HTTP.ServesTLS` let a component terminate TLS itself. A certificate that cannot be
+  loaded fails construction with the offending path, rather than becoming a handshake
+  error in somebody else's client log, and HTTP/2 arrives with TLS through ALPN — a
+  service that turns TLS on changes protocol version at the same time, which is worth
+  knowing before a streaming client finds out.
+  Policy stays with the deployment: a supplied `tls.Config` is served as given, cipher
+  suites, `ClientAuth`, SNI and `GetCertificate` included. The single imposed value is
+  a zero `MinVersion` becoming TLS 1.2, because Go's zero value there means TLS 1.0
+  for a server and no deployment means to ask for that. The config is cloned, so
+  mutating the caller's value later does not change what is already being served.
+  Plaintext remains the default, and is now a documented position rather than an
+  assumption.
+
 ## [2.12.0] - 2026-09-07
 
 Numbers someone can act on. v2 can already push telemetry through OpenTelemetry,

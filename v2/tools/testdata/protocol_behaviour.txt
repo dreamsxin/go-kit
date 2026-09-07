@@ -46,6 +46,9 @@ stable/kit.http-drains
 stable/kit.shutdown-budget-share
 stable/kit.shutdown-ends
 stable/kit.stopping-signal
+stable/kit.tls-certificate-failure-is-immediate
+stable/kit.tls-policy-belongs-to-the-deployment
+stable/kit.tls-serves-when-configured
 stable/mcp.authorization-subject
 stable/mcp.client-extension-declaration
 stable/mcp.error-codes

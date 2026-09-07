@@ -1184,11 +1184,18 @@ position rather than a gap.
   serving component. Everything beyond a stated minimum version is the deployment's:
   cipher suites, client authentication, and rotation are policy, and policy belongs
   where the compliance requirement is.
-- A certificate that cannot be loaded fails `Start`, synchronously, with the path in
-  the error — not at the first handshake, where the failure is a client's problem to
-  report.
+- A certificate that cannot be loaded fails construction, synchronously, with the
+  path in the error — not at the first handshake, where the failure is a client's
+  problem to report. Construction rather than `Start` because the pair can be read
+  before anything is listening, and the earliest honest failure is the best one.
 - Plaintext remains the default, and the documentation says why and what it assumes
   about the network the service is on.
+
+Acceptance:
+
+```bash
+go test ./kit/ -run 'TestTLS|TestNoTLS' -count=1
+```
 
 ### Work Package 2: Protocol Negotiation Is Stated, Not Assumed
 

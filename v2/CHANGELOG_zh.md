@@ -10,6 +10,17 @@
 它对协议协商做了什么、没做什么，并钉住"被 hijack 的连接"对一个承诺会结束的 shutdown 意味着
 什么。
 
+### 新增
+
+- `kit.WithTLS`、`kit.WithTLSConfig`、`kit.DefaultTLSMinVersion` 与 `HTTP.ServesTLS` 让组件
+  可以自己终止 TLS。无法加载的证书在构造时失败并带上出错的路径，而不是变成别人客户端日志里的
+  一个握手错误；HTTP/2 会随 TLS 经 ALPN 一起到来——开启 TLS 的服务同时也换了协议版本，这件事
+  值得在流式客户端发现之前就知道。
+  策略留在部署侧：传入的 `tls.Config` 按原样服务，包括密码套件、`ClientAuth`、SNI 与
+  `GetCertificate`。唯一被强加的值是"MinVersion 为零时变成 TLS 1.2"，因为 Go 在这里的零值对
+  服务器意味着 TLS 1.0，而没有哪个部署是想要那个的。该 config 会被克隆，所以之后修改调用方的
+  值不会改变已经在服务的内容。明文仍是默认，而且现在是一个被文档化的立场，不再是一个假设。
+
 ## [2.12.0] - 2026-09-07
 
 能被拿来做判断的数字。v2 已经能通过 OpenTelemetry 推送遥测，但多数部署真正在用的拉取模型

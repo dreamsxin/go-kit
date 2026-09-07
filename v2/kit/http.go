@@ -2,6 +2,7 @@ package kit
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -63,6 +64,7 @@ type HTTP struct {
 	serveCtx    context.Context
 	cancelServe context.CancelFunc
 	inFlight    atomic.Int64
+	tlsConfig   *tls.Config
 }
 
 // Option configures an HTTP component.
@@ -150,8 +152,19 @@ func (h *HTTP) Start() error {
 	h.listenerAddr = httpLis.Addr().String()
 	h.lifecycleDone = make(chan struct{})
 	h.started = true
+	tlsConfig := h.tlsConfig
 	go func() {
-		if err := h.srv.Serve(httpLis); err != nil && err != http.ErrServerClosed {
+		var err error
+		if tlsConfig != nil {
+			// The certificates are already loaded and in TLSConfig, so the file
+			// arguments are empty: ServeTLS only reads them when TLSConfig has no
+			// certificate of its own.
+			h.srv.TLSConfig = tlsConfig
+			err = h.srv.ServeTLS(httpLis, "", "")
+		} else {
+			err = h.srv.Serve(httpLis)
+		}
+		if err != nil && err != http.ErrServerClosed {
 			h.reportServeError(fmt.Errorf("http serve: %w", err))
 		}
 	}()
