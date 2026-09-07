@@ -18,6 +18,8 @@ endpoint middleware, and protocol facts in transport.
 | change public error shape | `ServerErrorEncoder` and, for JSON success, `ServerResponseEncoder` |
 | decide who may call which MCP method | `mcp.MethodAuthorizer` on `StreamableHandler.Authorizer` |
 | decide whether a tool call may run | `interaction.Authorizer` with `interaction.AuthorizationHook` |
+| add a namespaced MCP protocol extension | `mcp.Extension` with `StreamableHandler.RegisterExtension` |
+
 | add a protocol-specific concern | HTTP/gRPC transport hooks or middleware |
 
 Start with [Middleware](middleware.md) for ordering and [Error handling](errors.md)

@@ -65,6 +65,18 @@
 
 这些钩子有意保持传输层无关。HTTP、gRPC 流式、WebSocket 和 MCP 适配器应把主体（subject）和请求元数据传入运行时，而不是为每种传输层分别实现独立的策略栈。
 
+扩展：
+
+- `mcp.Extension` 配合 `StreamableHandler.RegisterExtension` 启用一个由应用实现的
+  命名空间协议扩展：反向 DNS id、它自己的版本与配置对象、以及它自己的 JSON-RPC
+  方法。传输层负责在 capabilities 中声明它、在两个版本上路由它的方法、并像对待其他
+  方法一样对它授权；框架自己不实现任何扩展。
+- 没有注册任何东西之前不会声明任何扩展；未注册扩展的方法是 `-32601`，于是客户端看到
+  的就是一台没有该扩展的服务器，从而回落到核心协议。
+- `mcp.ClientExtensionFromContext` 报告调用方声明了什么，`mcp.MetaFromContext` 报告
+  整个 `_meta` 块，包括本服务器不认识的键：不认识的键既不被拒绝也不被丢弃，因为它属于
+  别人实现的扩展。
+
 上报：
 
 - `Runtime.WithLogger(logger)` 用调用方的 `*slog.Logger` 上报每一次工具调用，字段与请求

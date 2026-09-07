@@ -67,6 +67,19 @@ speaks the current specification as well as the one it froze.
   the shape of the question and of a refusal, not the answer. On 2025-06-18 the
   SSE stream and session deletion are not authorized per request — the session
   they act on was authorized when `initialize` created it.
+- `mcp.Extension`, `mcp.ExtensionMethod`, `StreamableHandler.RegisterExtension`,
+  `mcp.ClientExtensionFromContext`, and `mcp.MetaFromContext` implement the
+  2026-07-28 extension framework without implementing any extension. A deployment
+  declares its own — reverse-DNS id, its own version, its own configuration object,
+  its own namespaced methods — and the transport declares it in capabilities and in
+  `server/discover`, routes its methods on both revisions, and authorizes them like
+  any other method. Extensions are off until one is registered; an unregistered
+  extension's methods stay `-32601`, so a client sees a server that never had it
+  and falls back to core protocol. The specification's `io.modelcontextprotocol/`
+  namespace is refused to an application, a method that leaves its own namespace or
+  takes over a core one is refused at registration, and an unrecognised
+  `params._meta` key is neither refused nor discarded: it reaches the
+  implementation, because it belongs to an extension someone else wrote.
 
 ### Changed
 

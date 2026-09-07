@@ -39,7 +39,11 @@ stable/http.status-context-fallback
 stable/http.status-for-kind
 stable/http.traceparent
 stable/mcp.authorization-subject
+stable/mcp.client-extension-declaration
 stable/mcp.error-codes
+stable/mcp.extension-declaration
+stable/mcp.extension-methods
+stable/mcp.extension-namespace
 stable/mcp.input-required
 stable/mcp.jsonrpc-version
 stable/mcp.list-cache-hints
@@ -57,6 +61,7 @@ stable/mcp.server-identity
 stable/mcp.session-header
 stable/mcp.sse-framing
 stable/mcp.stateless-request
+stable/mcp.unknown-meta-preserved
 stable/mcp.version-negotiation
 unstable/http.access-log-line
 unstable/http.observation-fields

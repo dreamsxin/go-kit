@@ -65,6 +65,10 @@ type requestIdentity struct {
 	protocol     string
 	info         map[string]any
 	capabilities map[string]any
+	// meta is the whole `_meta` block as the client sent it, including the keys
+	// this server does not know: extensions live there, and one this server has
+	// never heard of is still the caller's to use.
+	meta map[string]any
 }
 
 type statelessContextKey struct{}
@@ -145,6 +149,16 @@ func readRequestIdentity(params json.RawMessage) (requestIdentity, error) {
 		if err := json.Unmarshal(raw, &identity.capabilities); err != nil {
 			return requestIdentity{}, fmt.Errorf("%s must be an object", metaClientCapabilities)
 		}
+	}
+	for key, raw := range envelope.Meta {
+		var value any
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return requestIdentity{}, fmt.Errorf("_meta key %q is not valid JSON", key)
+		}
+		if identity.meta == nil {
+			identity.meta = make(map[string]any, len(envelope.Meta))
+		}
+		identity.meta[key] = value
 	}
 	return identity, nil
 }

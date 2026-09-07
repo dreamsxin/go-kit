@@ -87,6 +87,26 @@
 //   - interaction.Authorizer decides whether a tool call may run given its
 //     arguments, which is the decision that needs the runtime session.
 //
+// # Extensions
+//
+// 2026-07-28 gave extensions formal standing: a reverse-DNS id, a version that
+// moves independently of the protocol revision, and a configuration object,
+// declared by both sides in their capabilities. This package implements none of
+// them and invents none. A deployment describes its own with Extension and
+// enables it with StreamableHandler.RegisterExtension; the transport then declares
+// it in capabilities (and in server/discover), routes its namespaced methods on
+// both revisions, and authorizes them like any other method. Nothing is declared
+// until something is registered, and an extension that was not registered leaves
+// the server looking exactly like one that never had it: its methods are -32601,
+// which is the fallback a client is entitled to.
+//
+// The other direction is readable per request. ClientExtensionFromContext reports
+// what this caller declared, so an implementation can fall back to core behaviour
+// instead of assuming, and MetaFromContext reports the whole params._meta block
+// including keys this server does not know — an unrecognised key is never an
+// error and never dropped, because it belongs to an extension someone else
+// implements.
+//
 // # Notifications
 //
 // The handler can send server-initiated notifications to the client

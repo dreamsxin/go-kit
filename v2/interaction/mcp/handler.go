@@ -45,6 +45,12 @@ const (
 
 type dispatchCore struct {
 	Runtime *interaction.Runtime
+
+	// extensionsByName and extensionMethods hold what RegisterExtension
+	// enabled. Both are nil until a deployment registers something, which is
+	// what "extensions are off by default" means here.
+	extensionsByName map[string]Extension
+	extensionMethods map[string]ExtensionMethod
 }
 
 // Stable: mcp.method-names — these are the method names the server answers, and an unknown one is -32601.
@@ -116,7 +122,16 @@ func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 		}
 		resp.Result = result
 	default:
-		resp.Error = newError(-32601, "method not found", req.Method)
+		result, rpcErr, claimed := c.dispatchExtension(ctx, req)
+		if !claimed {
+			resp.Error = newError(-32601, "method not found", req.Method)
+			return resp
+		}
+		if rpcErr != nil {
+			resp.Error = rpcErr
+			return resp
+		}
+		resp.Result = result
 	}
 	return resp
 }
@@ -134,6 +149,9 @@ func (c *dispatchCore) buildCapabilities() map[string]any {
 		if _, ok := c.Runtime.Prompts.(interaction.PromptCompleter); ok {
 			caps["completions"] = map[string]any{}
 		}
+	}
+	if declared := c.declaredExtensions(); declared != nil {
+		caps["extensions"] = declared
 	}
 	return caps
 }

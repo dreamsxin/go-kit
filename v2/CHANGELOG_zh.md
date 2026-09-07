@@ -48,6 +48,15 @@
   从请求 body 里取一个主体。默认什么都不授权：`Authorizer` 为 nil，框架拥有的是这个问题
   的形状和拒绝的形状，而不是答案。在 2025-06-18 上，SSE 流与会话删除不逐请求授权——它们
   作用的会话在 `initialize` 创建时就已被授权。
+- `mcp.Extension`、`mcp.ExtensionMethod`、`StreamableHandler.RegisterExtension`、
+  `mcp.ClientExtensionFromContext` 与 `mcp.MetaFromContext` 实现了 2026-07-28 的扩展
+  框架，而不实现任何一个扩展。部署声明自己的扩展——反向 DNS id、它自己的版本、它自己的
+  配置对象、它自己的命名空间方法——传输层则在 capabilities 与 `server/discover` 中声明
+  它、在两个版本上路由它的方法、并像对待其他方法一样对它授权。注册之前扩展全部关闭；
+  未注册扩展的方法保持 `-32601`，于是客户端看到的是一台从来没有该扩展的服务器，并回落
+  到核心协议。规范的 `io.modelcontextprotocol/` 命名空间对应用是被拒绝的；离开自己命名
+  空间、或抢占核心方法的方法在注册时就被拒绝；不认识的 `params._meta` 键既不被拒绝也不
+  被丢弃：它会到达实现，因为它属于别人写的扩展。
 
 ### 变更
 

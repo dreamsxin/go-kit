@@ -101,6 +101,21 @@ These hooks are intentionally transport-neutral. HTTP, gRPC streaming,
 WebSocket, and MCP adapters should pass subject and request metadata into the
 runtime rather than implementing separate policy stacks per transport.
 
+Extensions:
+
+- `mcp.Extension` plus `StreamableHandler.RegisterExtension` enable one
+  namespaced protocol extension the application implements: a reverse-DNS id, its
+  own version and configuration object, and its own JSON-RPC methods. The
+  transport declares it in capabilities, routes its methods on both revisions, and
+  authorizes them like any other method; the framework implements none itself.
+- Nothing is declared until something is registered, and an unregistered
+  extension's methods are `-32601`, so a client sees a server without it and falls
+  back to core protocol.
+- `mcp.ClientExtensionFromContext` reports what the caller declared, and
+  `mcp.MetaFromContext` reports the whole `_meta` block including keys this server
+  does not know: an unrecognised key is neither refused nor dropped, because it
+  belongs to an extension someone else implements.
+
 Reporting:
 
 - `Runtime.WithLogger(logger)` reports every tool call through the caller's

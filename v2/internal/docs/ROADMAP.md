@@ -946,7 +946,13 @@ the way the rest of the protocol is.
   body: a subject a request asserts about itself stays a claim. That is the
   property most worth a gate.
 - Extensions are versioned in the specification now. What v2 accepts and what it
-  ignores is stated.
+  ignores is stated: a deployment declares its own with `mcp.Extension` and
+  `RegisterExtension`, nothing is declared until something is registered, an
+  unregistered extension's methods stay -32601 so a client falls back to core
+  protocol, and an unrecognised `_meta` key is carried to the implementation
+  rather than refused. The framework implements no extension itself, including the
+  official ones: the `io.modelcontextprotocol/` namespace is refused to an
+  application precisely so that claim stays true.
 
 Acceptance:
 
