@@ -239,6 +239,13 @@ func main() {
 `main`. A pure worker or gRPC-only service mounts its own components into a
 Host without any HTTP.
 
+Stopping is a sequence, not a single call: `Host.Run` announces (readiness starts
+failing and every `kit.Draining` component is told), waits `kit.WithDrainDelay`
+so whatever routes traffic can notice, then shuts down inside a budget and closes
+whatever the grace period left open. A long-lived handler — a stream, a long poll,
+an upgraded connection — watches `kit.Stopping(ctx)` and ends itself. See
+[docs/lifecycle.md](docs/lifecycle.md).
+
 Dependency-specific endpoint middleware is assembled explicitly. Circuit
 breaking and rate limiting are built into `endpoint` and hold no third-party
 dependencies:
@@ -270,6 +277,14 @@ headers to 1 MiB, and keeps `WriteTimeout` disabled so SSE and other streaming
 responses are not terminated unexpectedly. Override the complete policy with
 `kit.WithHTTPServerConfig` when a service needs different limits.
 
+Plaintext is the default, on the assumption that something in front of the process
+terminates TLS. To terminate it here instead, `kit.WithTLS(certFile, keyFile)` loads
+the pair at construction — a bad path fails startup with the path in the error —
+and `kit.WithTLSConfig` takes a `tls.Config` the deployment built, for cipher
+policy, client certificates, or rotation without a restart. HTTP/2 arrives with TLS
+through ALPN; `HTTP.ServesTLS` reports what is actually being served. See
+[Serving TLS](docs/configuration.md#serving-tls).
+
 Use `kit.HandleJSONTyped` for concrete request and response types,
 `kit.HandleJSON` for intentionally dynamic responses, and
 `kit.HandleJSONEndpoint` for an existing endpoint. For per-route middleware,
@@ -286,11 +301,21 @@ and use `AverageDuration()` for the mean request duration. To export the same
 observations, implement `endpoint.Recorder` and register it with
 `kit.WithRecorder`.
 
+To be scraped instead of pushing, `observability/metrics` renders those same
+numbers as Prometheus text exposition — `metrics.Handler(collector)` on a route you
+choose, fed per route by `kit.WithHTTPRecorder` or
+`httpserver.DecorateRoutes` with `metrics.HTTPRecorder`, and per method by
+`grpcserver.RecordingUnaryInterceptor` with `observability/metrics/grpc.Recorder`.
+No metrics client enters the dependency graph. See
+[docs/observability.md](docs/observability.md).
+
 ## Components
 
 | Package | Responsibility |
 | --- | --- |
 | `kit` | Small-service assembly and lifecycle |
+| `kit/grpc` | Optional gRPC lifecycle component with health, draining, and stopping |
+| `health` | Liveness and readiness probe registry any transport mounts |
 | `apperror` | Transport-neutral application error classification |
 | `endpoint` | Transport-independent endpoint and middleware composition |
 | `transport/http` | HTTP server and client adapters |
@@ -307,6 +332,8 @@ observations, implement `endpoint.Recorder` and register it with
 | `observability/slog` | Optional standard-library `slog` endpoint logging and telemetry assembly |
 | `integrations/zap` | Optional Zap endpoint logging adapter |
 | `observability/otel` | Optional OpenTelemetry endpoint tracing and metrics module |
+| `observability/metrics` | Prometheus text exposition of recorded numbers, standard library only |
+| `observability/metrics/grpc` | Optional bridge from gRPC observations into that collector |
 | `security/http` | Optional trusted-proxy/IP, CORS, CSRF, and security headers |
 | `cmd/microgen` | Contract-driven project generator |
 

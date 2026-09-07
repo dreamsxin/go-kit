@@ -226,6 +226,11 @@ func main() {
 
 `kit.NewHTTP` 与 `kit.NewHost` 会校验 Option 并返回错误。`Host.Run` 跟随调用方提供的 context；系统信号监听应放在 `main` 中。纯 worker 或纯 gRPC 服务可以直接把自己的组件挂载到 Host，无需任何 HTTP。
 
+停止是一个时序，不是一次调用：`Host.Run` 先通告（readiness 开始失败，每个 `kit.Draining`
+组件都被告知），再等 `kit.WithDrainDelay` 让路由层有时间反应，然后在预算内停机，并关闭宽限期
+没关完的东西。长生命周期的 handler——流、长轮询、升级后的连接——通过 `kit.Stopping(ctx)`
+自己收尾。见 [docs/lifecycle_zh.md](docs/lifecycle_zh.md)。
+
 带第三方依赖的 endpoint middleware 由应用显式装配。熔断与限流已内置于 `endpoint`，不持有第三方依赖：
 
 ```go
@@ -254,6 +259,12 @@ host, err := kit.NewHost(kit.WithLifecycle(svc, grpcComponent))
 `WriteTimeout=0`，避免 SSE 和其他流式响应被意外中断。需要不同策略时使用
 `kit.WithHTTPServerConfig` 显式覆盖完整配置。
 
+明文是默认，前提假设是进程前面有别的东西终止 TLS。要改成在这里终止：
+`kit.WithTLS(certFile, keyFile)` 在构造时就加载证书对——路径错误会带着路径让启动失败；
+`kit.WithTLSConfig` 接收部署自己构造的 `tls.Config`，用于加密套件策略、客户端证书、
+或不重启的轮换。HTTP/2 会随 TLS 经 ALPN 一起到来；`HTTP.ServesTLS` 报告实际在服务什么。
+见[提供 TLS](docs/configuration_zh.md#提供-tls)。
+
 请求和响应都有具体类型时使用 `kit.HandleJSONTyped`；有意返回动态响应时使用
 `kit.HandleJSON`；已有 endpoint 时使用 `kit.HandleJSONEndpoint`。
 需要路由级中间件时使用 `kit.HandleJSONTypedWithMiddleware` 或
@@ -267,11 +278,19 @@ Server-Sent Events 流使用 `kit.HandleSSETyped` 注册，使 endpoint 中间�
 （单条路由）与 `Operations()`；平均耗时使用 `AverageDuration()`。要把同一批观测
 导出到外部后端，实现 `endpoint.Recorder` 并通过 `kit.WithRecorder` 注册。
 
+要被 scrape 而不是推送：`observability/metrics` 把同一批数字渲染成 Prometheus 文本
+exposition——`metrics.Handler(collector)` 挂在你选的路由上；HTTP 侧通过
+`kit.WithHTTPRecorder` 或 `httpserver.DecorateRoutes` 配 `metrics.HTTPRecorder` 逐路由喂它，
+gRPC 侧通过 `grpcserver.RecordingUnaryInterceptor` 配 `observability/metrics/grpc.Recorder`
+逐方法喂它。依赖图里不会进入任何指标客户端。见 [docs/observability_zh.md](docs/observability_zh.md)。
+
 ## 组件
 
 | 包 | 职责 |
 | --- | --- |
 | `kit` | 小型服务装配和生命周期 |
+| `kit/grpc` | 可选的 gRPC 生命周期组件，带健康服务、draining 与停止信号 |
+| `health` | 任何传输都能挂载的存活/就绪探针注册表 |
 | `apperror` | 与 transport 无关的应用错误分类 |
 | `endpoint` | 与 transport 无关的 endpoint 和 middleware 组合 |
 | `transport/http` | HTTP server/client adapter |
@@ -288,6 +307,8 @@ Server-Sent Events 流使用 `kit.HandleSSETyped` 注册，使 endpoint 中间�
 | `observability/slog` | 可选的标准库 `slog` endpoint 日志适配器与遥测装配 |
 | `integrations/zap` | 可选的 Zap endpoint 日志适配器 |
 | `observability/otel` | 可选的 OpenTelemetry endpoint 追踪和指标模块 |
+| `observability/metrics` | 把已记录的数字渲染成 Prometheus 文本 exposition，只用标准库 |
+| `observability/metrics/grpc` | 可选：把 gRPC observation 桥接进该收集器 |
 | `security/http` | 可选的可信代理/IP、CORS、CSRF 和安全 Header |
 | `cmd/microgen` | 契约驱动的项目生成器 |
 

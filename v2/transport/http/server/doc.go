@@ -7,6 +7,15 @@
 // RequestFuncs, FinalizerFunc for post-response observation, a bounded request
 // body limit, and strict JSON decoding.
 //
+// The package also owns two things that belong to the transport rather than to a
+// single handler. RouteRegistrar and DecorateRoutes install middleware at
+// registration, which is the only place a handler and its route pattern are both in
+// scope — http.Request.Pattern is set on the request a ServeMux dispatched, so
+// middleware wrapped around the mux sees an empty route. Recorder,
+// RecordingMiddleware, and AccessLogMiddleware report what the transport knows and
+// the endpoint layer does not: the matched route, the status code, and the bytes
+// written.
+//
 // Handlers compose with any net/http middleware; see the transport README for
 // the role of this package in the Service -> Endpoint -> Transport path.
 package server

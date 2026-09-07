@@ -43,7 +43,7 @@ HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.C
 | --- | --- | --- | --- |
 | 日志 | 保持纯净；从 context 读关联 ID | `slogadapter.LoggingMiddleware`、`integrations/zap` 或 `slogadapter.NewTelemetry` | `server.AccessLogMiddleware` 记录协议事实；`ServerErrorHandler` 记录失败 |
 | 追踪 | context 携带 trace 与请求 ID | `TracingMiddleware`（W3C 关联）、`oteladapter.TracingMiddleware`（span） | `transporthttp.ExtractTraceparent` / `InjectTraceparent` 头传播 |
-| 指标 | — | `RecordingMiddleware` 搭配任意 `Recorder`——内存用 `endpoint.Metrics`，OpenTelemetry 用 `oteladapter.NewMetrics` | 访问日志的状态码/字节数；`ServerFinalizer` 钩子 |
+| 指标 | — | `RecordingMiddleware` 搭配任意 `Recorder`——内存用 `endpoint.Metrics`，OpenTelemetry 用 `oteladapter.NewMetrics` | `httpserver.Recorder` / `grpcserver.Recorder` 报告路由、状态码与方法；访问日志的状态码/字节数 |
 | 错误 | 返回 `apperror` 分类 | `ErrorHandlingMiddleware` 附操作名；`ValidationMiddleware` 短路 | `ErrorEncoder` 映射状态码；`ErrorHandler` 观察 |
 
 安放规则：
@@ -160,6 +160,12 @@ component, err := kit.NewHTTP(":8080",
 ```
 
 记录位于最外层，因此被限流或熔断拒绝的请求同样会被计入。
+
+endpoint recorder 看不到的是协议本身：真正写出去的状态码，以及 mux 匹配到的路由。这正是传输层
+recorder 的用途——`kit.WithHTTPRecorder(recorder)` 把它装在每条路由上，那是 `http.Request.Pattern`
+唯一有值的地方；`metrics.HTTPRecorder(collector)` 喂的是同一个 `endpoint.Metrics`，而
+`metrics.Handler(collector)` 把它渲染给 scrape。gRPC 侧对应的一对是
+`grpcserver.RecordingUnaryInterceptor` 配 `observability/metrics/grpc.Recorder`。
 
 ## 调试链路
 

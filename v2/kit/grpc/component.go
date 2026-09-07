@@ -1,4 +1,10 @@
 // Package grpc provides an optional gRPC lifecycle component for kit.Host.
+//
+// The component answers the same operational questions the HTTP component does: it
+// serves the standard gRPC health service from a probe registry, it is told when the
+// process begins draining, and it carries the stopping signal into every handler
+// context so a stream can end itself. See drain.go for what it can and cannot
+// promise about stopping.
 package grpc
 
 import (

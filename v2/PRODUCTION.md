@@ -444,7 +444,7 @@ The runtime is a static binary. Framework packages and the pure-Go SQLite
 driver need no CGO, so a two-stage container build ends in a minimal base:
 
 ```dockerfile
-FROM golang:1.25 AS build
+FROM golang:1.26 AS build
 WORKDIR /src
 COPY . .
 RUN CGO_ENABLED=0 go build -o /out/service ./cmd

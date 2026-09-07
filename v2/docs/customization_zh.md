@@ -17,8 +17,12 @@
 | 决定谁可以调用哪个 MCP 方法 | `StreamableHandler.Authorizer` 上的 `mcp.MethodAuthorizer` |
 | 决定某次工具调用是否可以执行 | `interaction.Authorizer` 配 `interaction.AuthorizationHook` |
 | 添加命名空间的 MCP 协议扩展 | `mcp.Extension` 配 `StreamableHandler.RegisterExtension` |
-
+| 在注册处装饰每一条路由 | `httpserver.RouteRegistrar` 配 `httpserver.DecorateRoutes` |
+| 观察只有传输层知道的事（路由、状态码、方法） | `httpserver.Recorder` / `grpcserver.Recorder` |
+| 告诉你自己传输层的 handler 进程要停了 | `kit.WithStopping`，读取用 `kit.Stopping` |
+| 决定 TLS 策略——加密套件、客户端证书、轮换 | `kit.WithTLSConfig` 配你自己构造的 `tls.Config` |
 | 添加协议专属能力 | HTTP/gRPC 传输 hook 或 middleware |
+
 
 顺序规则见[中间件](middleware_zh.md)，状态码和消息规则见[错误处理](errors_zh.md)。
 

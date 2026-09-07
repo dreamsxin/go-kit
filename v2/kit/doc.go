@@ -42,4 +42,16 @@
 //	    kit.WithMetrics(&metrics),
 //	    kit.WithReadinessCheck("database", checkDatabase),
 //	)
+//
+// Serving TLS is an option too: WithTLS loads a certificate and key at
+// construction, so a bad path stops startup rather than failing a handshake, and
+// WithTLSConfig takes a tls.Config the deployment built. Turning TLS on turns
+// HTTP/2 on with it, through ALPN.
+//
+// Stopping is a sequence. Host.Run announces that the process is going away —
+// readiness starts failing and every Draining component is told — waits
+// WithDrainDelay so the routing layer can notice, then shuts down inside a budget
+// and closes whatever the grace period left open. A long-lived handler watches
+// Stopping(ctx) and ends its own response; a hijacked connection is outside all of
+// it, and ending one is its handler's job.
 package kit

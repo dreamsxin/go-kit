@@ -14,7 +14,10 @@ settings.
 | request returns 4xx/5xx | error kind, status mapping, `ServerErrorHandler` logs |
 | latency rises before failures | timeout, bulkhead queue, backpressure, downstream pool |
 | all instances disappear | active health fail-open/closed and passive ejection cap |
+| requests fail during a rollout | drain delay shorter than the routing layer's readiness interval (`kit.WithDrainDelay`, `server.drain_delay`) |
 | shutdown hangs | component closer, probe cancellation, endpoint factory resource |
+| shutdown reports `kit.ErrShutdownIncomplete` | a handler outlived the budget and was cut; the message counts the interrupted requests. A hijacked connection is not counted — it is not drained at all |
+
 | generated project drifts | `.microgen/manifest.json` and `microgen extend -check -out .` |
 
 The detailed sections below explain the signal and the corrective action.
@@ -55,6 +58,9 @@ Startup failures are synchronous and name their cause:
 | config validation error | generated `Config.Validate` failed before anything started | the message names the offending key; fix config/env |
 | `connect database failed` (generated services) | DSN unreachable at startup | verify `database.dsn` / `APP_DB_DSN`, driver, network |
 | `start lifecycle component <name>` | a `kit.Lifecycle` component failed its `Start` | the component name is included when it implements `kit.NamedLifecycle` |
+| `load tls certificate <cert> and key <key>` | the pair could not be read or does not match | `kit.WithTLS` loads at construction on purpose; fix the paths, permissions, or the pair |
+| `server.tls_cert_file and server.tls_key_file must be set together` (generated services) | one half of the pair was configured | set both or neither — one alone would serve plaintext on a port a client expects TLS on |
+
 
 Configuration validation runs before the logger, database, middleware, and
 servers are created, so config problems never hide behind runtime logs.
@@ -67,6 +73,11 @@ servers are created, so config problems never hide behind runtime logs.
   implementing `kit.ReadinessProvider` has not finished warming up (check name
   is `lifecycle:<name>`), or a check exceeded `WithHealthCheckTimeout`
   (`"check timed out"`).
+- `/readyz` reporting `{"name":"draining","status":"error"}`: the process has begun
+  stopping. This is the Host's own check, registered so the routing layer learns
+  before anything is closed. Liveness stays green on purpose — restarting a process
+  that is finishing its work is the wrong response.
+
 - `/livez` failing while `/readyz` also fails: liveness checks are a separate
   set; a failing liveness check means the process itself should restart.
 - `/health` shows both sets plus the request count when `kit.WithMetrics` is

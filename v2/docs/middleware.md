@@ -50,7 +50,7 @@ layer:
 | --- | --- | --- | --- |
 | Logging | stays clean; reads correlation IDs from the context | `slogadapter.LoggingMiddleware`, `integrations/zap`, or `slogadapter.NewTelemetry` | `server.AccessLogMiddleware` for protocol facts; `ServerErrorHandler` records failures |
 | Tracing | the context carries trace and request IDs | `TracingMiddleware` (W3C correlation), `oteladapter.TracingMiddleware` (spans) | `transporthttp.ExtractTraceparent` / `InjectTraceparent` header propagation |
-| Metrics | — | `RecordingMiddleware` with any `Recorder` — `endpoint.Metrics` in memory, `oteladapter.NewMetrics` for OpenTelemetry | access-log status/bytes; `ServerFinalizer` hooks |
+| Metrics | — | `RecordingMiddleware` with any `Recorder` — `endpoint.Metrics` in memory, `oteladapter.NewMetrics` for OpenTelemetry | `httpserver.Recorder` / `grpcserver.Recorder` for route, status, and method; access-log status/bytes |
 | Errors | returns `apperror` classifications | `ErrorHandlingMiddleware` attaches the operation name; `ValidationMiddleware` short-circuits | `ErrorEncoder` maps kinds to statuses; `ErrorHandler` observes |
 
 Placement rules:
@@ -181,6 +181,14 @@ component, err := kit.NewHTTP(":8080",
 
 Recording is applied outermost, so it also measures requests that a rate limit
 or a breaker rejects.
+
+What an endpoint recorder cannot see is the protocol: the status code that was
+written, and the route the mux matched. That is what the transport recorders are
+for — `kit.WithHTTPRecorder(recorder)` installs one per route, which is the only
+place `http.Request.Pattern` is set, and `metrics.HTTPRecorder(collector)` feeds
+the same `endpoint.Metrics` a scrape renders through `metrics.Handler(collector)`.
+On the gRPC side the pair is `grpcserver.RecordingUnaryInterceptor` with
+`observability/metrics/grpc.Recorder`.
 
 ## Debugging the chain
 

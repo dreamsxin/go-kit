@@ -13,6 +13,8 @@
 | 先变慢再失败 | 超时、舱壁排队、背压、下游连接池 |
 | 所有实例消失 | 主动健康检查的 fail-open/closed 与被动摘除上限 |
 | 停机挂起 | component closer、探针取消、端点工厂资源 |
+| 滚动发布期间请求失败 | drain 延迟短于路由层重读 readiness 的间隔（`kit.WithDrainDelay`、`server.drain_delay`） |
+| 停机返回 `kit.ErrShutdownIncomplete` | 有 handler 活过了预算并被切断；消息里给出被打断的请求数。被 hijack 的连接不计入——它根本不被 drain |
 | 生成项目漂移 | `.microgen/manifest.json` 与 `microgen extend -check -out .` |
 
 下面各节说明信号含义和处理动作。
@@ -52,6 +54,9 @@ host, _ := kit.NewHost(kit.WithLifecycle(svc))
 | 配置校验错误 | 生成的 `Config.Validate` 在一切启动前失败 | 错误消息指明出错的键；修正配置/环境变量 |
 | `connect database failed`（生成服务） | 启动时 DSN 不可达 | 核对 `database.dsn` / `APP_DB_DSN`、驱动、网络 |
 | `start lifecycle component <name>` | 某个 `kit.Lifecycle` 组件的 `Start` 失败 | 实现 `kit.NamedLifecycle` 的组件会带名字 |
+| `load tls certificate <cert> and key <key>` | 证书对读不到或不匹配 | `kit.WithTLS` 刻意在构造时加载；修正路径、权限或证书对 |
+| `server.tls_cert_file and server.tls_key_file must be set together`（生成服务） | 只配了证书对的一半 | 要么都配、要么都不配——只配一个会在客户端期待 TLS 的端口上服务明文 |
+
 
 配置校验先于日志器、数据库、中间件与服务器创建，因此配置问题不会藏在运行时
 日志背后。
@@ -63,6 +68,10 @@ host, _ := kit.NewHost(kit.WithLifecycle(svc))
   （依赖宕机）、实现 `kit.ReadinessProvider` 的生命周期组件尚未预热完成
   （检查名为 `lifecycle:<name>`）、或检查超过 `WithHealthCheckTimeout`
   （`"check timed out"`）。
+- `/readyz` 里出现 `{"name":"draining","status":"error"}`：进程已经开始停止。这是 Host 自己
+  注册的检查，为的是让路由层在任何东西被关闭之前就知道。存活检查刻意保持通过——去重启一个
+  正在收尾的进程是错误的反应。
+
 - `/livez` 失败：存活检查是独立集合；存活检查失败意味着进程本身应当重启。
 - `/health` 同时显示两组检查；设置 `kit.WithMetrics` 时还会显示请求数——请求数
   停滞说明流量没有进入处理链。

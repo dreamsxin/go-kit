@@ -127,7 +127,10 @@ Provider 实现必须复制调用方可变数据，并且不得在持有内部�
 `observability/slog` 把 endpoint 结果与传输错误适配到标准库 `log/slog`
 API。`integrations/zap` 拥有等价的 Zap 专用适配器，使核心包保持供应商
 中立。`observability/otel` 把 endpoint 调用适配到应用自有的
-OpenTelemetry tracer 与 meter。这些适配器不记录请求/响应载荷；操作名和
+OpenTelemetry tracer 与 meter。`observability/metrics` 把 `endpoint.Metrics` 已经
+收集到的数字渲染成 Prometheus 文本 exposition，只用标准库——依赖门禁把任何指标
+客户端挡在外面，所以挂一个 scrape 端点不增加任何依赖；`observability/metrics/grpc`
+是 gRPC 桥接，独立成包正是为了让那道门禁成立。这些适配器不记录请求/响应载荷；操作名和
 应用属性必须保持有界。
 
 ### 可选安全
@@ -191,7 +194,9 @@ main creates signal context
     -> assemble dependencies
     -> start service
     -> wait for cancellation or serve error
-    -> bounded graceful shutdown
+    -> announce draining (readiness fails, Draining components told)
+    -> wait the drain delay
+    -> bounded graceful shutdown, then close what is left
     -> return final error to main
 ```
 
@@ -199,7 +204,8 @@ main creates signal context
 
 组件可以实现 `kit.NamedLifecycle`，为启动、异步故障与停机诊断提供稳定
 名称；实现 `kit.ReadinessProvider` 可把异步预热桥接到 `/readyz` 与
-`/health` 的就绪检查。组件的异步错误会持续汇报到服务错误通道直至停机。
+`/health` 的就绪检查；实现 `kit.Draining` 则会在任何 shutdown 之前被告知
+进程正在停止。组件的异步错误会持续汇报到服务错误通道直至停机。
 
 持有资源的构造函数返回 closer。停机按消费者到提供者的顺序进行：先关闭
 endpoint/endpointer 资源再停止其 Instancer，然后关闭传输与进程级依赖。
@@ -230,11 +236,11 @@ L2 组装层（依赖 L0+L1）
    kit · kit/grpc
 
 L3 可选组合（独立包，不引入新依赖）
-   observability/slog · sd/client
+   observability/slog · observability/metrics · sd/client
 
 L4 可选 provider（第三方依赖；仅在导入对应 package 时进入构建闭包）
-   observability/otel · integrations/zap · integrations/grpc ·
-   integrations/consul · integrations/etcd
+   observability/otel · observability/metrics/grpc · integrations/zap ·
+   integrations/grpc · integrations/consul · integrations/etcd
 
 L5 构建期工具（不进运行时依赖图）
    cmd/microgen

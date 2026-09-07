@@ -19,8 +19,12 @@ endpoint middleware, and protocol facts in transport.
 | decide who may call which MCP method | `mcp.MethodAuthorizer` on `StreamableHandler.Authorizer` |
 | decide whether a tool call may run | `interaction.Authorizer` with `interaction.AuthorizationHook` |
 | add a namespaced MCP protocol extension | `mcp.Extension` with `StreamableHandler.RegisterExtension` |
-
+| decorate every route at registration | `httpserver.RouteRegistrar` with `httpserver.DecorateRoutes` |
+| observe what only the transport knows (route, status, method) | `httpserver.Recorder` / `grpcserver.Recorder` |
+| tell your own transport's handlers the process is stopping | `kit.WithStopping`, read back with `kit.Stopping` |
+| decide TLS policy — ciphers, client certs, rotation | `kit.WithTLSConfig` with a `tls.Config` you built |
 | add a protocol-specific concern | HTTP/gRPC transport hooks or middleware |
+
 
 Start with [Middleware](middleware.md) for ordering and [Error handling](errors.md)
 for status and message rules.

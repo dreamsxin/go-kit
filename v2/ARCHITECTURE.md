@@ -146,7 +146,11 @@ return errors; process entry points decide when to terminate.
 standard-library `log/slog` API. `integrations/zap` owns equivalent
 Zap-specific adapters, so core packages remain provider-neutral.
 `observability/otel` adapts endpoint calls to
-application-owned OpenTelemetry tracers and meters. These adapters do not log
+application-owned OpenTelemetry tracers and meters. `observability/metrics`
+renders what `endpoint.Metrics` already collected as Prometheus text exposition,
+using the standard library only — a dependency gate keeps any metrics client out
+of it, so mounting a scrape endpoint costs nothing; `observability/metrics/grpc`
+is the gRPC bridge, kept separate so that gate holds. These adapters do not log
 or record request/response payloads; operation names and application attributes
 must remain bounded.
 
@@ -222,7 +226,9 @@ main creates signal context
     -> assemble dependencies
     -> start service
     -> wait for cancellation or serve error
-    -> bounded graceful shutdown
+    -> announce draining (readiness fails, Draining components told)
+    -> wait the drain delay
+    -> bounded graceful shutdown, then close what is left
     -> return final error to main
 ```
 
@@ -230,10 +236,11 @@ Startup errors must be synchronous when possible. A service instance cannot be
 started twice or restarted after shutdown.
 
 Components may implement `kit.NamedLifecycle` to attach a stable name to
-startup, asynchronous failure, and shutdown diagnostics, and
-`kit.ReadinessProvider` to bridge asynchronous warm-up into the `/readyz` and
-`/health` readiness checks. Asynchronous component errors are reported to the
-service error channel until shutdown.
+startup, asynchronous failure, and shutdown diagnostics, `kit.ReadinessProvider`
+to bridge asynchronous warm-up into the `/readyz` and `/health` readiness checks,
+and `kit.Draining` to be told the process is stopping before any shutdown runs.
+Asynchronous component errors are reported to the service error channel until
+shutdown.
 
 Resource-owning constructors return a closer. Shutdown proceeds from consumers
 to providers: close endpoint/endpointer resources before stopping their
@@ -265,11 +272,11 @@ L2 assembly (depends on L0+L1)
    kit · kit/grpc
 
 L3 optional composition (independent packages, no new dependencies)
-   observability/slog · sd/client
+   observability/slog · observability/metrics · sd/client
 
 L4 optional providers (third-party dependencies; linked only when imported)
-   observability/otel · integrations/zap · integrations/grpc ·
-   integrations/consul · integrations/etcd
+   observability/otel · observability/metrics/grpc · integrations/zap ·
+   integrations/grpc · integrations/consul · integrations/etcd
 
 L5 build-time tooling (never enters the runtime dependency graph)
    cmd/microgen
