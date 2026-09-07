@@ -2,6 +2,16 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.13.0] - Release Candidate
+
+A listener you can put on the internet. v2 serves plaintext HTTP and nothing else:
+there is no TLS anywhere in the library or in generated code, so every deployment
+terminates it somewhere else and no document says so. That is a defensible position
+and an undeclared one, which is the part that gets a service deployed with an
+assumption instead of a decision. This release makes the terminating listener
+possible, states what it does and does not do about protocol negotiation, and pins
+down what a hijacked connection means for a shutdown that promised to end.
+
 ## [2.12.0] - 2026-09-07
 
 Numbers someone can act on. v2 can already push telemetry through OpenTelemetry,

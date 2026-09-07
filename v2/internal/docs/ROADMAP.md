@@ -1163,6 +1163,74 @@ names and labels are declared beside the code that emits them, the dependency ga
 still keep the metrics client out of core, and a test fails if pull and push report
 different numbers for the same request.
 
+## Milestone 13 (Active): A Listener You Can Put On The Internet / 能直接放到公网上的监听
+
+Goal: a v2 service can terminate TLS itself, and everything it does or refuses to
+do about protocol negotiation and hijacked connections is written down.
+
+Today `ServeTLS`, `tls.Config`, `ListenAndServeTLS`, and `h2c` appear nowhere in the
+library or in generated code. Every deployment therefore terminates TLS somewhere
+else — a sidecar, an ingress, a load balancer — which is a reasonable default and an
+undeclared one. Undeclared is the part that matters: it is how a service reaches
+production with an assumption in place of a decision, and how the first
+"why is HTTP/2 not working" is discovered by a client rather than by a reader.
+
+### Work Package 1: TLS Is Configuration, And Its Absence Is A Statement
+
+Goal: terminating in-process is possible, and not terminating is a documented
+position rather than a gap.
+
+- A certificate and key, or a `*tls.Config` the deployment built, are options on the
+  serving component. Everything beyond a stated minimum version is the deployment's:
+  cipher suites, client authentication, and rotation are policy, and policy belongs
+  where the compliance requirement is.
+- A certificate that cannot be loaded fails `Start`, synchronously, with the path in
+  the error — not at the first handshake, where the failure is a client's problem to
+  report.
+- Plaintext remains the default, and the documentation says why and what it assumes
+  about the network the service is on.
+
+### Work Package 2: Protocol Negotiation Is Stated, Not Assumed
+
+Goal: nobody has to run a packet capture to learn which protocol they got.
+
+- Over TLS, HTTP/2 arrives through ALPN, which changes how streaming behaves. What
+  that means for SSE and for the streaming MCP transport is written where those
+  features are documented.
+- Cleartext HTTP/2 is not enabled, and the reason is stated: it needs either prior
+  knowledge or an upgrade exchange, and in the deployments that want it the proxy in
+  front already owns that decision.
+
+### Work Package 3: A Hijacked Connection Is Not Drained
+
+Goal: the shutdown sequence tells the truth about what it cannot end.
+
+- `http.Server.Shutdown` does not wait for a hijacked connection, and closing the
+  listener does not close one. A WebSocket or any other upgraded connection is
+  therefore outside the grace period the shutdown sequence promises, and that has to
+  be declared beside the code that promises it — Milestone 11 said no shutdown path
+  returns while a connection it owns is still open, and a hijacked connection is
+  precisely one it no longer owns.
+- The seam is the handler that upgraded: it gets the stopping signal like any other,
+  and ending the upgraded connection is its job. A test pins that the signal reaches
+  it.
+
+### Work Package 4: The Generated Service And The Operational Contract
+
+Goal: a generated service can serve TLS by configuration, and `PRODUCTION.md` says
+when it should.
+
+- Certificate and key are documented, validated configuration keys, off by default.
+- `PRODUCTION.md` states when in-process termination is the right choice and when a
+  proxy is, and what each implies for readiness, drain, and upgraded connections.
+
+### Completion Definition / 完成定义
+
+Milestone 13 is complete when a service can serve TLS from configuration, a bad
+certificate fails at startup with its path, the negotiation and hijack limits are
+declared beside the code that has them, and a test fails if the stopping signal stops
+reaching an upgraded handler.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria
