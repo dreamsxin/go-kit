@@ -65,6 +65,8 @@ APP_WRITE_TIMEOUT                Server.WriteTimeout
 APP_GRACEFUL_SHUTDOWN_TIMEOUT    Server.GracefulShutdownTimeout
 APP_DRAIN_DELAY                  Server.DrainDelay
 APP_METRICS_PATH                 Server.MetricsPath
+APP_TLS_CERT_FILE                Server.TLSCertFile
+APP_TLS_KEY_FILE                 Server.TLSKeyFile
 APP_LOG_LEVEL                    Logging.Level
 APP_LOG_FORMAT                   Logging.Format
 APP_MIDDLEWARE_TIMEOUT           Middleware.Timeout

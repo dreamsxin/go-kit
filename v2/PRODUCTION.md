@@ -154,6 +154,55 @@ When generated contract support is enabled, `/openapi.json`, `/schema.json`, and
 intentional product decision; otherwise restrict or disable them at the
 deployment boundary.
 
+## TLS Termination
+
+Decide where TLS ends, and write the decision down. Both places are supported and
+the default is a proxy.
+
+Terminate in front of the process — sidecar, ingress, load balancer — when the
+platform already rotates certificates, when several services share a hostname, or
+when mTLS and cipher policy are the mesh's job. The process then serves plaintext on
+a network only the proxy can reach, and that reachability is the assumption you are
+accepting; state it in the deployment, not in a reader's head.
+
+Terminate in the process when the hop to it is not trusted, when a compliance
+requirement names the service rather than the edge, or when there is no proxy —
+a single binary on a VM, or an admin port that must not be plaintext:
+
+```
+APP_TLS_CERT_FILE=/etc/tls/tls.crt
+APP_TLS_KEY_FILE=/etc/tls/tls.key
+```
+
+Both keys or neither: setting one fails validation instead of quietly serving
+plaintext on the port a client is about to speak TLS to. The pair is loaded before
+the listener serves, so a wrong path or a mismatched key stops startup with the path
+in the message. The minimum version is TLS 1.2. Cipher suites, client certificates,
+SNI, and rotation without a restart are policy — `kit.WithTLSConfig` takes a
+`tls.Config` you built, and in a generated service the same config is yours to set in
+`cmd/main.go`.
+
+What in-process termination changes operationally:
+
+- HTTP/2 arrives with it, through ALPN. Streaming still works; hijack-based upgrades
+  do not, because h2 has no `101 Switching Protocols`. A WebSocket endpoint therefore
+  needs the plaintext listener or a proxy that terminates TLS and speaks HTTP/1.1
+  onwards.
+- Readiness and drain are unchanged, with one addition: a certificate mounted from a
+  secret is rotated by replacing files, and this process reads them once at startup.
+  A rotation therefore needs a restart unless you supply a `GetCertificate` callback.
+  Plan the rotation before the certificate expires, not after.
+- Health probes must speak the same scheme as the listener. A probe still configured
+  for `http` against a TLS port reads as an unhealthy instance, and the kubelet will
+  restart a process that is working.
+- An upgraded connection is not drained in either arrangement — see the drain notes
+  under Lifecycle. Terminating in-process does not change that; it only removes the
+  option to have one.
+
+Cleartext HTTP/2 (h2c) is not served. If a proxy in front wants to speak h2 to the
+backend, configure it to speak HTTP/1.1, or give the backend a certificate and let
+ALPN do it.
+
 ## HTTP Clients
 
 Always set a client timeout or request deadline. JSON clients return

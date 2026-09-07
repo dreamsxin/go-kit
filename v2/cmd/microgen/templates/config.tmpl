@@ -11,6 +11,11 @@ server:
   graceful_shutdown_timeout: "30s"
   drain_delay: "0s"
   metrics_path: ""
+  # Both empty serves plaintext and assumes TLS is terminated in front of this
+  # process. Set both to terminate here; setting one is a validation error.
+  tls_cert_file: ""
+  tls_key_file: ""
+
 
 
 

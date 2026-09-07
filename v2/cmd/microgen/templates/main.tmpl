@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
-{{if .WithConfig}}	"encoding/json"
+{{if .WithConfig}}	"crypto/tls"
+	"encoding/json"
 {{end}}
+
 	"flag"
 	"fmt"
 	"log/slog"
@@ -32,17 +34,19 @@ import (
 {{end}})
 
 
-func printBanner(logger *slog.Logger, httpAddr string{{if .WithGRPC}}, grpcAddr string{{end}}, withOpenAPI bool{{if .WithInteraction}}, withInteraction bool{{end}}) {
-	logger.Info("service started", "service", "{{range .Project.Services}}{{.Name}} {{end}}", "http", "http://localhost"+httpAddr)
+func printBanner(logger *slog.Logger, httpAddr string, scheme string{{if .WithGRPC}}, grpcAddr string{{end}}, withOpenAPI bool{{if .WithInteraction}}, withInteraction bool{{end}}) {
+	base := scheme + "://localhost" + httpAddr
+	logger.Info("service started", "service", "{{range .Project.Services}}{{.Name}} {{end}}", "http", base)
 	if withOpenAPI {
-		logger.Info("API documentation", "openapi", "http://localhost"+httpAddr+"/openapi.json", "schema", "http://localhost"+httpAddr+"/schema.json", "ui", "http://localhost"+httpAddr+"/swagger/index.html")
+		logger.Info("API documentation", "openapi", base+"/openapi.json", "schema", base+"/schema.json", "ui", base+"/swagger/index.html")
 	}
 {{if .WithInteraction}}	if withInteraction {
-		logger.Info("MCP enabled", "url", "http://localhost"+httpAddr+"/mcp")
+		logger.Info("MCP enabled", "url", base+"/mcp")
 	}
 {{end}}{{if .WithGRPC}}	logger.Info("gRPC enabled", "address", grpcAddr)
 {{end}}	logger.Info("press Ctrl+C to stop")
 }
+
 
 func printAllRoutes(logger *slog.Logger, routes []generatedRouteEntry) {
 	logger.Info("registered routes", "count", len(routes))
@@ -247,7 +251,25 @@ func main() {
 {{end}}		IdleTimeout:  60 * time.Second,
 	}
 	serverErr := make(chan error, 2)
-	httpListener, err := net.Listen("tcp", *httpAddr)
+{{if .WithConfig}}	// TLS, when the deployment asked this process to terminate it. The pair is
+	// loaded before anything is served, so a wrong path or a mismatched key stops
+	// startup with the path in the message instead of becoming a handshake error in
+	// somebody else's client log. Everything past a minimum version — cipher
+	// suites, client certificates, rotation — is policy: build a tls.Config here if
+	// your deployment has requirements, and see PRODUCTION.md before choosing to
+	// terminate here at all.
+	if cfg.Server.TLSCertFile != "" {
+		certificate, certErr := tls.LoadX509KeyPair(cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile)
+		if certErr != nil {
+			panic(fmt.Sprintf("FATAL: load TLS certificate %s and key %s: %v", cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile, certErr))
+		}
+		httpServer.TLSConfig = &tls.Config{
+			MinVersion:   tls.VersionTLS12,
+			Certificates: []tls.Certificate{certificate},
+		}
+	}
+{{end}}	httpListener, err := net.Listen("tcp", *httpAddr)
+
 	if err != nil {
 		panic(fmt.Sprintf("FATAL: HTTP listen: %v", err))
 	}
@@ -263,10 +285,19 @@ func main() {
 {{end}}
 
 	go func() {
-		if err := httpServer.Serve(httpListener); err != nil && err != http.ErrServerClosed {
-			serverErr <- fmt.Errorf("HTTP server: %w", err)
+		// ServeTLS with empty paths: the certificate is already in TLSConfig, and
+		// the file arguments are only read when it is not.
+		var serveErr error
+		if httpServer.TLSConfig != nil {
+			serveErr = httpServer.ServeTLS(httpListener, "", "")
+		} else {
+			serveErr = httpServer.Serve(httpListener)
+		}
+		if serveErr != nil && serveErr != http.ErrServerClosed {
+			serverErr <- fmt.Errorf("HTTP server: %w", serveErr)
 		}
 	}()
+
 
 {{if .WithGRPC}}
 	go func() {
@@ -277,7 +308,12 @@ func main() {
 {{end}}
 
 	ready.Store(true)
-	printBanner(logger, *httpAddr{{if .WithGRPC}}, *grpcAddr{{end}}, {{if .WithOpenAPI}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}})
+	scheme := "http"
+	if httpServer.TLSConfig != nil {
+		scheme = "https"
+	}
+	printBanner(logger, *httpAddr, scheme{{if .WithGRPC}}, *grpcAddr{{end}}, {{if .WithOpenAPI}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}})
+
 
 	runContext, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stopSignals()

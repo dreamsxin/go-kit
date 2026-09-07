@@ -37,7 +37,7 @@ Read these in the order that matches your goal:
 - [Middleware](middleware.md): composition, ordering, and flow control.
 - [Error handling](errors.md): classification, status mapping, and safe messages.
 - [Lifecycle](lifecycle.md): startup, shutdown, health, and jobs.
-- [Configuration](configuration.md): generated configuration and precedence.
+- [Configuration](configuration.md): generated configuration, precedence, and TLS.
 - [Service discovery](service-discovery.md): snapshots, selection, feedback, and retry.
 - [Customization](customization.md): custom middleware, codecs, logs, and errors.
 - [Custom transports](custom-transport.md): HTTP codecs and new protocol adapters.

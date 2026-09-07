@@ -1253,6 +1253,21 @@ when it should.
 - `PRODUCTION.md` states when in-process termination is the right choice and when a
   proxy is, and what each implies for readiness, drain, and upgraded connections.
 
+Acceptance:
+
+```bash
+go -C ./tools test . -run 'TestMicrogenConfigIntegration|TestGeneratedConfigKeysAreDocumented' -count=1
+```
+
+Shipped as `server.tls_cert_file` / `server.tls_key_file` (`APP_TLS_CERT_FILE`,
+`APP_TLS_KEY_FILE`). Two decisions worth keeping: half a pair fails validation rather
+than silently serving plaintext, and the startup banner reports the scheme it is
+actually serving — a banner that says `http://` for a TLS listener is a wrong answer
+to the first question anybody asks it. `PRODUCTION.md` adds the operational
+consequences the roadmap did not list: certificate files are read once, so rotation
+means a restart unless the deployment supplies `GetCertificate`, and a health probe
+left on `http` against a TLS port reads as an unhealthy instance.
+
 ### Completion Definition / 完成定义
 
 Milestone 13 is complete when a service can serve TLS from configuration, a bad

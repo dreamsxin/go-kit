@@ -78,6 +78,9 @@ func ApplyEnv(cfg *Config) error {
 		return err
 	}
 	readString("METRICS_PATH", &cfg.Server.MetricsPath)
+	readString("TLS_CERT_FILE", &cfg.Server.TLSCertFile)
+	readString("TLS_KEY_FILE", &cfg.Server.TLSKeyFile)
+
 
 
 

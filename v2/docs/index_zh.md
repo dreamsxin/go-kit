@@ -36,7 +36,7 @@
 - [中间件](middleware_zh.md)：组合、顺序和流控。
 - [错误处理](errors_zh.md)：分类、状态映射和安全消息。
 - [生命周期](lifecycle_zh.md)：启动、停机、健康检查和任务。
-- [配置](configuration_zh.md)：生成配置与优先级。
+- [配置](configuration_zh.md)：生成配置、优先级与 TLS。
 - [服务发现](service-discovery_zh.md)：快照、选择、反馈与重试。
 - [自定义](customization_zh.md)：自定义中间件、编解码、日志和错误。
 - [自定义传输](custom-transport_zh.md)：HTTP 编解码与新协议适配器。

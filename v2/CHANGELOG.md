@@ -27,6 +27,17 @@ down what a hijacked connection means for a shutdown that promised to end.
   mutating the caller's value later does not change what is already being served.
   Plaintext remains the default, and is now a documented position rather than an
   assumption.
+- Generated projects gained the `server.tls_cert_file` and `server.tls_key_file`
+  configuration keys (`APP_TLS_CERT_FILE`, `APP_TLS_KEY_FILE`, both empty and off by
+  default), and the generated entry point serves TLS when they are set. Both or
+  neither: setting one fails validation instead of serving plaintext on the port a
+  client is about to speak TLS to, and the pair is loaded before the listener serves,
+  so a wrong path stops startup with the path in the message. The startup banner now
+  reports the scheme it is actually serving rather than assuming `http`.
+  `PRODUCTION.md` gained a TLS termination section saying when in-process termination
+  is the right choice and when a proxy is, and what each implies for readiness,
+  rotation (files are read once — a rotation means a restart unless you supply
+  `GetCertificate`), health probe scheme, and upgraded connections.
 
 ### Declared
 

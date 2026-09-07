@@ -42,7 +42,15 @@ type ServerConfig struct {
 	// per-route numbers. Empty means no metrics endpoint: publishing route names
 	// and traffic shape is a disclosure decision, so it is off until asked for.
 	MetricsPath string `yaml:"metrics_path" mapstructure:"metrics_path"`
+	// TLSCertFile and TLSKeyFile terminate TLS in this process. Both empty — the
+	// default — serves plaintext and assumes something in front (a sidecar, an
+	// ingress, a load balancer) terminates TLS instead. Setting one without the
+	// other fails validation rather than silently serving plaintext. Turning them
+	// on also turns on HTTP/2 through ALPN; see PRODUCTION.md.
+	TLSCertFile string `yaml:"tls_cert_file" mapstructure:"tls_cert_file"`
+	TLSKeyFile  string `yaml:"tls_key_file" mapstructure:"tls_key_file"`
 }
+
 
 
 
@@ -167,6 +175,13 @@ func (cfg *Config) Validate() error {
 	if cfg.Server.MetricsPath != "" && !strings.HasPrefix(cfg.Server.MetricsPath, "/") {
 		return fmt.Errorf("config: server.metrics_path %q must start with /", cfg.Server.MetricsPath)
 	}
+	// One half of a certificate pair is always a mistake, and the failure it would
+	// otherwise produce is a service quietly serving plaintext on the port a client
+	// is about to speak TLS to.
+	if (cfg.Server.TLSCertFile == "") != (cfg.Server.TLSKeyFile == "") {
+		return fmt.Errorf("config: server.tls_cert_file and server.tls_key_file must be set together")
+	}
+
 
 
 	if cfg.Server.GracefulShutdownTimeout <= 0 {
