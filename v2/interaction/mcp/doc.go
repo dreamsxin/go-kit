@@ -44,6 +44,16 @@
 //
 // NewHandler is a convenience alias for NewStreamableHandler.
 //
+// # Transport And HTTP/2
+//
+// The streams above are SSE over whatever the serving component negotiated. When
+// that component terminates TLS, Go offers HTTP/2 through ALPN, and h2 frames the
+// response through the stream layer rather than chunked transfer encoding. Flushing
+// still reaches the client, so an SSE stream behaves the same; what changes is that
+// intermediaries may buffer differently, and that a client stuck on HTTP/1.1 still
+// gets the same bytes. Nothing in this transport hijacks the connection, so the
+// absence of 101 Switching Protocols over h2 does not affect it.
+//
 // # Supported Methods
 //
 // Base protocol: ping, and server/discover on 2026-07-28. initialize and

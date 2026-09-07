@@ -28,6 +28,27 @@ down what a hijacked connection means for a shutdown that promised to end.
   Plaintext remains the default, and is now a documented position rather than an
   assumption.
 
+### Declared
+
+- A hijacked connection is not drained, and that is now stated beside the code that
+  makes the promise it breaks. `http.Server.Shutdown` does not track a connection a
+  handler took over, closing the listener does not close it, and the hard close added
+  in 2.11.0 cannot reach it — so `Shutdown` returns `nil` promptly while the upgraded
+  connection keeps carrying bytes. Milestone 11's promise still holds as written (no
+  shutdown path returns while a connection *it owns* is open); what was missing was
+  saying that a hijacked connection is not one of them. The seam is the handler that
+  upgraded: it receives `kit.Stopping` like any other, which closes when draining
+  begins, so it can end its own socket inside the grace period. Tests pin both halves,
+  including the uncomfortable one.
+- Protocol negotiation is stated instead of discovered. Over TLS, Go offers HTTP/2
+  through ALPN: a flushing response — SSE, the streaming MCP transport — still streams,
+  framed by the h2 stream layer rather than chunked transfer encoding, and a test now
+  fails if that stops being true. What does not survive is the upgrade: h2 has no
+  `101 Switching Protocols`, so a hijack-based protocol works only on the plaintext
+  listener. Cleartext HTTP/2 is deliberately not offered — negotiating it needs a
+  prior-knowledge client or an upgrade exchange, and where it is genuinely wanted the
+  proxy in front already owns that decision.
+
 ## [2.12.0] - 2026-09-07
 
 Numbers someone can act on. v2 can already push telemetry through OpenTelemetry,

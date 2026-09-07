@@ -172,3 +172,55 @@ The generated `main` never logs the config itself — it logs only
 `config loaded path=<path>`. In `-db` projects the DSN is logged once through
 `redactDSN`, which strips the credentials. Anything else you log about the
 config is yours to redact.
+
+## Serving TLS
+
+Plaintext is the default. It assumes something in front of the process terminates
+TLS — a sidecar, an ingress, a load balancer — which is a reasonable assumption in
+most deployments and a bad one to leave unwritten.
+
+To terminate in the process instead:
+
+```go
+component, err := kit.NewHTTP(":8443", kit.WithTLS(cfg.TLSCertFile, cfg.TLSKeyFile))
+```
+
+The pair is read by `NewHTTP`, not at the first handshake: a wrong path, an
+unreadable file, or a key that does not match its certificate stops startup with the
+path in the error, instead of becoming a client's TLS error to report.
+
+`WithTLS` sets nothing else. Cipher suites, client certificates, SNI, and rotation
+without a restart (a `GetCertificate` callback rather than a file read) are policy
+with a compliance requirement behind them, so they belong to the deployment:
+
+```go
+component, err := kit.NewHTTP(":8443", kit.WithTLSConfig(&tls.Config{
+	GetCertificate: reloader.GetCertificate,
+	ClientAuth:     tls.RequireAndVerifyClientCert,
+	ClientCAs:      pool,
+}))
+```
+
+The config is used as given and cloned, with one exception: a zero `MinVersion`
+becomes TLS 1.2, because Go's zero value there means TLS 1.0 for a server and no
+deployment means to ask for that. `kit.DefaultTLSMinVersion` is that value; set
+`MinVersion` explicitly to choose otherwise, including to accept older clients.
+
+### What TLS also changes
+
+Go offers HTTP/2 through ALPN as soon as the server has a TLS config, so a component
+that gains a certificate gains h2 with it. Two consequences are worth knowing before
+a client finds them:
+
+- Streaming still works. An `http.Flusher` response — SSE, the streaming MCP
+  transport — is framed by the h2 stream layer instead of chunked transfer encoding,
+  and flushing still reaches the client.
+- Upgrades do not. h2 has no `101 Switching Protocols`, so a handler that hijacks the
+  connection only works on the plaintext listener. See
+  [Upgraded connections are not drained](lifecycle.md#upgraded-connections-are-not-drained).
+
+Cleartext HTTP/2 (h2c) is not offered. Negotiating it needs either a
+prior-knowledge client or an upgrade exchange — both of which mean the caller already
+knows what it is talking to — and where it is actually wanted, for a proxy speaking
+h2 to the backend, the proxy's own configuration owns that decision. Serving it would
+put a protocol nobody asked for on the port every plaintext client already uses.

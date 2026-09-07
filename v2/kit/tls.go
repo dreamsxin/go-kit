@@ -21,6 +21,24 @@ import (
 // value imposed here is a minimum protocol version, and only when the deployment
 // did not set one.
 
+// What turning TLS on also changes is the protocol version. Go's server offers
+// HTTP/2 through ALPN as soon as it has a TLS config, so a component that gains a
+// certificate gains h2 with it. That is worth stating rather than discovering,
+// because two things a service is likely to be doing behave differently under h2:
+// a streaming response is framed by the stream layer instead of chunked transfer
+// encoding, and an upgraded connection is not available at all — h2 has no
+// 101 Switching Protocols, so a handler that hijacks the socket only works on the
+// HTTP/1.1 path. Flushing keeps working, which is what SSE and the streaming MCP
+// transport rely on; WebSocket over this listener does not, and needs either the
+// plaintext path or an h2 extension this package does not implement.
+//
+// Cleartext HTTP/2 — h2c — is deliberately not offered. It cannot be negotiated
+// without either a prior-knowledge client or an upgrade dance, both of which mean
+// the deployment already knows what it is talking to; and the usual reason to want
+// it, a proxy speaking h2 to the backend, is a decision for the proxy's own
+// configuration. Serving it would add a protocol nothing asked for on the port
+// every plaintext client already uses.
+
 // DefaultTLSMinVersion is the lowest protocol version a Host serves when the
 // deployment did not choose one. TLS 1.2 rather than 1.3 because a service that
 // must accept older clients should have to say so explicitly, not discover the
@@ -43,6 +61,12 @@ const DefaultTLSMinVersion = tls.VersionTLS12
 //
 // Stable: kit.tls-certificate-failure-is-immediate — an unloadable certificate fails construction with the offending path, not the first handshake.
 // Covered by: TestTLSCertificateFailureNamesThePath
+//
+// Stable: kit.streaming-survives-http2 — a flushing handler still streams when the listener negotiated HTTP/2, so SSE and the streaming MCP transport work with TLS on.
+// Covered by: TestSSEStillStreamsOverHTTP2
+//
+// Stable: kit.no-cleartext-http2 — a listener without TLS speaks HTTP/1.1; h2c is not negotiated, so hijack-based upgrades keep working there.
+// Covered by: TestPlaintextListenerSpeaksHTTP11
 func WithTLS(certFile, keyFile string) Option {
 	return func(h *HTTP) error {
 		certPath := strings.TrimSpace(certFile)

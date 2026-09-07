@@ -1208,6 +1208,17 @@ Goal: nobody has to run a packet capture to learn which protocol they got.
   knowledge or an upgrade exchange, and in the deployments that want it the proxy in
   front already owns that decision.
 
+Acceptance:
+
+```bash
+go test ./kit/ -run 'TestSSEStillStreamsOverHTTP2|TestPlaintextListenerSpeaksHTTP11' -count=1
+```
+
+Shipped as `kit.streaming-survives-http2` and `kit.no-cleartext-http2`. What the
+prose adds beyond the two tests: over h2 there is no 101 Switching Protocols at all,
+so a hijack-based upgrade only works on the plaintext path — which is the reason the
+h2c decision and the hijack decision are the same decision.
+
 ### Work Package 3: A Hijacked Connection Is Not Drained
 
 Goal: the shutdown sequence tells the truth about what it cannot end.
@@ -1221,6 +1232,17 @@ Goal: the shutdown sequence tells the truth about what it cannot end.
 - The seam is the handler that upgraded: it gets the stopping signal like any other,
   and ending the upgraded connection is its job. A test pins that the signal reaches
   it.
+
+Acceptance:
+
+```bash
+go test ./kit/ -run 'TestHijackedConnectionOutlivesShutdown|TestUpgradedHandlerIsToldTheProcessIsStopping' -count=1
+```
+
+Shipped as `kit.hijacked-connections-are-not-drained`. The test asserts the
+uncomfortable half too: after `Shutdown` returns nil, the hijacked connection still
+carries bytes. That is the fact a reader needs, not the one that flatters the
+framework.
 
 ### Work Package 4: The Generated Service And The Operational Contract
 

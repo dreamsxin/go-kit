@@ -151,3 +151,46 @@ YAML 键不会有任何效果。
 生成的 `main` 从不记录配置本身——它只记录 `config loaded path=<path>`。在 `-db`
 项目中，DSN 会经 `redactDSN` 脱敏后记录一次。除此之外你自己记录的配置内容，需要
 你自己负责脱敏。
+
+## 提供 TLS
+
+默认是明文。它假定进程前面有别的东西在终止 TLS——sidecar、ingress、负载均衡——这在多数
+部署里是个合理假设，但把它留着不写下来就不合理。
+
+要改成在进程内终止：
+
+```go
+component, err := kit.NewHTTP(":8443", kit.WithTLS(cfg.TLSCertFile, cfg.TLSKeyFile))
+```
+
+证书对由 `NewHTTP` 读取，而不是等到第一次握手：路径写错、文件读不了、私钥和证书不匹配，
+都会带着路径让启动失败，而不是变成某个客户端的 TLS 错误去汇报。
+
+`WithTLS` 不设置别的任何东西。加密套件、客户端证书、SNI、以及不重启的轮换（那意味着
+`GetCertificate` 回调而不是读文件），背后都有合规要求，属于部署方的决定：
+
+```go
+component, err := kit.NewHTTP(":8443", kit.WithTLSConfig(&tls.Config{
+	GetCertificate: reloader.GetCertificate,
+	ClientAuth:     tls.RequireAndVerifyClientCert,
+	ClientCAs:      pool,
+}))
+```
+
+传入的 config 会被克隆并原样使用，只有一个例外：`MinVersion` 为零时改为 TLS 1.2，因为
+Go 在这里的零值对服务端意味着 TLS 1.0，没有哪个部署真想要它。这个值就是
+`kit.DefaultTLSMinVersion`；想要别的（包括为了兼容老客户端）请显式设置 `MinVersion`。
+
+### 开了 TLS 还会变什么
+
+只要服务端有 TLS config，Go 就会通过 ALPN 提供 HTTP/2——所以组件拿到证书的同时也拿到了
+h2。有两个后果最好在客户端发现之前先知道：
+
+- 流式仍然可用。带 `http.Flusher` 的响应——SSE、流式 MCP 传输——由 h2 的流层分帧，而不是
+  chunked transfer encoding，flush 依然能到达客户端。
+- 协议升级不可用。h2 没有 `101 Switching Protocols`，所以 hijack 连接的 handler 只在明文
+  监听器上可用。见[被 hijack 的连接不会被 drain](lifecycle_zh.md#被-hijack-的连接不会被-drain)。
+
+明文 HTTP/2（h2c）不提供。协商它要么需要客户端"预先知道"，要么需要一次升级交换——两者都
+意味着调用方已经知道对面是什么；而真正想要它的场景（代理用 h2 连后端），这个决定属于代理
+自己的配置。提供 h2c 等于在每个明文客户端都在用的端口上，放一个没人要求的协议。

@@ -207,6 +207,15 @@ func (h *HTTP) reportServeError(err error) {
 //
 // Stable: kit.shutdown-ends — when the graceful attempt runs out of budget, Shutdown cancels in-flight requests and closes the rest rather than returning while they are open, and reports how many it interrupted.
 // Covered by: TestShutdownClosesWhatTheGracePeriodLeftOpen, TestShutdownStaysGracefulWhenHandlersFinish
+//
+// One kind of connection is outside all of that: a hijacked one. Once a handler
+// takes the socket — a WebSocket, or any other upgrade — the server stops tracking
+// it, so the graceful wait does not include it, closing the listener does not close
+// it, and the hard close cannot reach it. Ending it is the upgraded handler's job,
+// which is what Stopping is for.
+//
+// Stable: kit.hijacked-connections-are-not-drained — a hijacked connection is neither waited for nor closed by Shutdown; the upgraded handler ends it, using Stopping as the signal.
+// Covered by: TestHijackedConnectionOutlivesShutdown, TestUpgradedHandlerIsToldTheProcessIsStopping
 func (h *HTTP) Shutdown(ctx context.Context) error {
 	if ctx == nil {
 		return fmt.Errorf("kit: nil shutdown context")

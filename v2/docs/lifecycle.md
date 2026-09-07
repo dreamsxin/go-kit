@@ -122,6 +122,38 @@ left, and returns an error wrapping `kit.ErrShutdownIncomplete` that says how ma
 requests were interrupted. It does not return while a connection it owns is still
 open.
 
+## Upgraded connections are not drained
+
+One connection is outside all of it. Once a handler calls `Hijack` -- a WebSocket, or
+any other upgrade -- the server stops tracking that connection: the graceful wait does
+not include it, closing the listener does not close it, and the hard close cannot
+reach it. `Shutdown` returns `nil` promptly and the upgraded connection keeps
+carrying bytes.
+
+That is not a gap to be fixed by the framework; it is what hijacking means. The seam
+is the handler that did it, and the signal is the same one a stream uses:
+
+```go
+component.HandleFunc("GET /ws", func(w http.ResponseWriter, r *http.Request) {
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	go readFrames(conn)
+	<-kit.Stopping(r.Context()) // the process is going away; close the socket
+})
+```
+
+Note the ordering this relies on: `Stopping` closes when draining begins, which is
+before `Shutdown` runs, so an upgraded handler that watches it ends inside the grace
+period rather than after it. Set `kit.WithDrainDelay` long enough for that to happen.
+
+Over HTTP/2 there is no upgrade to hijack -- h2 has no `101 Switching Protocols`. A
+hijack-based protocol therefore only works on the plaintext listener; see
+[Serving TLS](configuration.md#serving-tls) for what else changes when a certificate
+is configured.
+
 ## Health probes
 
 `kit.NewHTTP` registers three routes unconditionally:

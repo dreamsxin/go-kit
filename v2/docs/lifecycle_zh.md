@@ -108,6 +108,35 @@ channel 接收会永久阻塞，所以上面的 select 两种情况下都是对�
 剩下的连接，并返回一个包着 `kit.ErrShutdownIncomplete` 的错误，说明打断了多少个请求。
 它不会在自己拥有的连接仍然打开时返回。
 
+## 被 hijack 的连接不会被 drain
+
+有一类连接在这一切之外。一旦 handler 调用了 `Hijack`——WebSocket，或任何其它协议升级——
+服务器就不再跟踪这条连接：优雅等待不包含它，关闭监听器不会关闭它，硬关闭也够不到它。
+`Shutdown` 会很快返回 `nil`，而那条升级后的连接照样在传字节。
+
+这不是框架该去补的窟窿，这就是 hijack 的含义。缝隙留在做了升级的那个 handler 上，信号
+和流式响应用的是同一个：
+
+```go
+component.HandleFunc("GET /ws", func(w http.ResponseWriter, r *http.Request) {
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	go readFrames(conn)
+	<-kit.Stopping(r.Context()) // 进程要走了；关掉这个 socket
+})
+```
+
+注意它依赖的次序：`Stopping` 在 draining 开始时关闭，早于 `Shutdown` 执行，所以看这个
+信号的升级 handler 是在宽限期之内收尾，而不是之后。请把 `kit.WithDrainDelay` 设得足够
+让这件事发生。
+
+在 HTTP/2 上没有升级可以 hijack —— h2 没有 `101 Switching Protocols`。因此基于 hijack
+的协议只在明文监听器上可用；配置了证书之后还会变什么，见
+[提供 TLS](configuration_zh.md#提供-tls)。
+
 ## 健康探针
 
 `kit.NewHTTP` 无条件注册三条路由：
