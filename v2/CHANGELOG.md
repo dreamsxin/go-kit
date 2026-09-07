@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.11.0] - Release Candidate
+## [2.11.0] - 2026-09-07
 
 Stopping on purpose. A process that is going away should say so before it goes,
 finish what it accepted, and end its own grace period rather than return while a
