@@ -73,6 +73,9 @@ The v2.14.0 candidate satisfies these criteria:
 - What a shutdown cannot end is declared as plainly as what it can: a hijacked
   connection is not drained, and the upgraded handler that owns it receives the
   stopping signal.
+- Both serving transports answer the same operational questions — readiness, drain
+  announcement, stopping signal, shutdown budget, TLS, metrics, tracing — or the
+  difference is declared and gated.
 - A listener can terminate TLS from configuration, in the library and in generated
   code; a certificate that cannot be loaded fails startup with its path; and the
   protocol that arrives with TLS is stated — HTTP/2 through ALPN, streaming intact,

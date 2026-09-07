@@ -62,6 +62,14 @@ that gap where it can be closed and declares the difference where it cannot.
   and, when `server.metrics_path` is set, the recording interceptors are installed.
   And each server gets its own share of the shutdown budget instead of racing for one
   deadline: a slow HTTP drain used to leave gRPC nothing.
+- The difference between the two transports is declared rather than discovered.
+  `docs/lifecycle.md` gains a table of what each one answers — readiness, drain
+  announcement, stopping signal, shutdown budget, TLS, metrics, tracing — including
+  the honest rows: only HTTP can have a connection escape shutdown, and gRPC's health
+  `Watch` is not implemented because the tools that orchestrate on it call `Check`.
+  A gate holds it in place: compile-time assertions fail when a contract is dropped
+  from either transport, and a test fails when `kit` declares an exported interface
+  nobody has classified for both, with the reason recorded for each "no".
 
 ## [2.13.0] - 2026-09-07
 

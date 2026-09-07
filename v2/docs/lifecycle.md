@@ -188,6 +188,22 @@ shutdown — it just costs the whole budget.
 If you write your own transport, `kit.WithStopping(ctx, ch)` is the seam: carry it
 into your handler contexts and `kit.Stopping` works there too.
 
+## What each transport answers
+
+| Question | HTTP (`kit.HTTP`) | gRPC (`kit/grpc.Component`) |
+| --- | --- | --- |
+| readiness | `/readyz`, `/livez`, `/health` | `grpc.health.v1` `Check`; `Watch` is not implemented — the tools that orchestrate on it call `Check` |
+| drain announcement | yes, `kit.Draining` | yes, `kit.Draining` |
+| stopping signal | `kit.Stopping(r.Context())` | `kit.Stopping(stream.Context())` |
+| shutdown budget | its own share; cancels in-flight requests and closes the rest, reporting how many | its own share; `GracefulStop`, then `Stop` when the budget runs out |
+| what escapes shutdown | a hijacked connection — not waited for, not closed | nothing; a stream that watches nothing costs the whole budget instead |
+| TLS | `kit.WithTLS` / `WithTLSConfig`, ALPN gives HTTP/2 | `grpc.Creds` from a `tls.Config` you build, as a `ServerOption` |
+| metrics | `httpserver.Recorder` per route, labelled with the matched pattern | `grpcserver.Recorder` per call, labelled with the full method |
+| trace context | extracted at the boundary, no wiring | extracted at the boundary, no wiring |
+
+A test fails if `kit` grows a lifecycle interface that has not been classified for
+both, so the next asymmetry is a build failure rather than a discovery.
+
 ## Health probes
 
 `kit.NewHTTP` registers three routes unconditionally:

@@ -167,6 +167,22 @@ drain 一个 gRPC 组件是"通告"，不是"开始拒绝调用"。在 drain 延
 如果你自己写传输，`kit.WithStopping(ctx, ch)` 就是那个接缝：把它带进你的 handler context，
 `kit.Stopping` 在那里同样有效。
 
+## 每个传输分别回答了什么
+
+| 问题 | HTTP（`kit.HTTP`） | gRPC（`kit/grpc.Component`） |
+| --- | --- | --- |
+| 就绪 | `/readyz`、`/livez`、`/health` | `grpc.health.v1` 的 `Check`；`Watch` 未实现——按 gRPC 健康编排的工具调用的是 `Check` |
+| draining 通告 | 有，`kit.Draining` | 有，`kit.Draining` |
+| 停止信号 | `kit.Stopping(r.Context())` | `kit.Stopping(stream.Context())` |
+| 停机预算 | 自己那一份；预算用尽则取消在途请求、关闭其余，并报告打断了多少 | 自己那一份；`GracefulStop`，预算用尽则 `Stop` |
+| 什么逃出了停机 | 被 hijack 的连接——既不等待也不关闭 | 没有；但什么都不看的流会花掉整份预算 |
+| TLS | `kit.WithTLS` / `WithTLSConfig`，ALPN 带来 HTTP/2 | 用你构造的 `tls.Config` 做 `grpc.Creds`，作为 `ServerOption` |
+| 指标 | `httpserver.Recorder` 逐路由，标签是匹配到的 pattern | `grpcserver.Recorder` 逐调用，标签是完整方法名 |
+| trace 上下文 | 在边界提取，无需接线 | 在边界提取，无需接线 |
+
+如果 `kit` 新增了一个没有为两个传输都分类过的生命周期接口，会有测试失败——于是下一次不对称
+是一次构建失败，而不是一次"发现"。
+
 ## 健康探针
 
 `kit.NewHTTP` 无条件注册三条路由：

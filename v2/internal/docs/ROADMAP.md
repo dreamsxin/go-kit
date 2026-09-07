@@ -1275,7 +1275,7 @@ certificate fails at startup with its path, the negotiation and hijack limits ar
 declared beside the code that has them, and a test fails if the stopping signal stops
 reaching an upgraded handler.
 
-## Milestone 14 (Active): Two Transports, One Contract / 两个传输，一套契约
+## Milestone 14 (Complete): Two Transports, One Contract / 两个传输，一套契约
 
 Goal: everything operational v2 promises about an HTTP listener is answered the same
 way by a gRPC one, or the difference is declared.
@@ -1395,6 +1395,18 @@ reading both implementations.
   cannot answer, and why.
 - A gate that fails when a lifecycle contract is added to one component and not the
   other, so the next asymmetry is a test failure rather than a discovery.
+
+Acceptance:
+
+```bash
+go test ./kit/ -run TestEveryKitContractIsClassifiedForBothTransports -count=1
+```
+
+Shipped as `kit/transport_parity_test.go` and a table in `docs/lifecycle*.md`. The
+gate has two halves, because one alone would not hold: compile-time assertions fail
+when a contract is dropped from either transport, and the test fails when `kit`
+declares an exported interface nobody has classified — with the reason recorded for
+each "no", since a `false` there is a decision and not an omission.
 
 ### Completion Definition / 完成定义
 
