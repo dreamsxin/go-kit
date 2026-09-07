@@ -76,6 +76,8 @@ The v2.15.0 candidate satisfies these criteria:
 - Both serving transports answer the same operational questions — readiness, drain
   announcement, stopping signal, shutdown budget, TLS, metrics, tracing — or the
   difference is declared and gated.
+- A certificate can be replaced while the process serves, a failed replacement keeps the
+  previous one serving, and the documentation names what is still read only once.
 - A listener can terminate TLS from configuration, in the library and in generated
   code; a certificate that cannot be loaded fails startup with its path; and the
   protocol that arrives with TLS is stated — HTTP/2 through ALPN, streaming intact,

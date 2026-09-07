@@ -242,6 +242,27 @@ around, so the framework ships the seam and not the trigger. `kit.CertificateSou
 that seam: implement it against a secret manager, an ACME client, or a per-name map for
 SNI, and remember it runs on the handshake path, so cache rather than fetch.
 
+### What is read again, and what is read once
+
+Only the certificate is re-read. Everything else about the listener is fixed when it
+starts, and knowing which is which is the difference between a renewal and a restart:
+
+- read again, on the trigger you choose: the certificate and key, through
+  `CertificateSource`. In a generated service, on `SIGHUP`.
+- read once, at construction: the rest of the `tls.Config` — minimum version, cipher
+  suites, `ClientAuth`, `ClientCAs`, `NextProtos`. `WithTLSConfig` clones what you pass,
+  so mutating your copy afterwards changes nothing.
+- read once, at `Start`: the listener address, the server timeouts
+  (`read_timeout`, `read_header_timeout`, `write_timeout`, idle), `MaxHeaderBytes`, and
+  every route and probe path that was registered.
+- read once, at process start: the configuration file and environment. Nothing in this
+  framework re-reads them, so a changed `server.metrics_path` or `server.drain_delay`
+  takes effect on the next start.
+
+Changing anything in the last three groups means a new listener, which means a restart —
+and a rolling restart is what the drain sequence in
+[Lifecycle](lifecycle.md) exists to make uneventful.
+
 ### What TLS also changes
 
 Go offers HTTP/2 through ALPN as soon as the server has a TLS config, so a component

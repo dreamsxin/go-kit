@@ -213,6 +213,22 @@ if err := certificates.Reload(); err != nil {
 密钥管理服务、ACME 客户端、或给 SNI 用的按名字映射去实现它——记住它运行在握手路径上，要缓存，
 不要现取。
 
+### 什么会被再读一次，什么只读一次
+
+只有证书会被再读。监听器的其他一切都在它启动时就固定了，而"分清哪个是哪个"正是续期与重启之间
+的差别：
+
+- 会被再读（触发时机由你选）：证书与私钥，通过 `CertificateSource`。生成的服务里是 `SIGHUP`。
+- 构造时读一次：`tls.Config` 的其余部分——最低版本、加密套件、`ClientAuth`、`ClientCAs`、
+  `NextProtos`。`WithTLSConfig` 会克隆你传进去的东西，之后修改你自己那份不会有任何影响。
+- `Start` 时读一次：监听地址、各项服务器超时（`read_timeout`、`read_header_timeout`、
+  `write_timeout`、idle）、`MaxHeaderBytes`，以及所有已注册的路由与探针路径。
+- 进程启动时读一次：配置文件与环境变量。这个框架不会重读它们，所以改了
+  `server.metrics_path` 或 `server.drain_delay` 要下次启动才生效。
+
+改动后三组里的任何东西都意味着一个新的监听器，也就意味着重启——而滚动重启之所以能不出事，
+正是[生命周期](lifecycle_zh.md)里那套 drain 时序存在的理由。
+
 ### 开了 TLS 还会变什么
 
 只要服务端有 TLS config，Go 就会通过 ALPN 提供 HTTP/2——所以组件拿到证书的同时也拿到了

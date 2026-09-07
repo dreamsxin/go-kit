@@ -1423,7 +1423,7 @@ stream can end itself on the stopping signal, a scrape of a gRPC-only service
 reports per-method series, a generated service serves TLS and health on its gRPC
 port, and a test fails if one transport gains a lifecycle contract the other lacks.
 
-## Milestone 15 (Active): Rotation Without A Restart / 不重启的轮换
+## Milestone 15 (Complete): Rotation Without A Restart / 不重启的轮换
 
 Goal: the things a running service is handed — certificates first — can be replaced
 while it serves, and what cannot be replaced is named.
@@ -1500,6 +1500,15 @@ Goal: nobody discovers the limit by trying it.
 - The listener address, the protocol options, and the cipher policy are fixed when the
   listener starts. A reader is told which of the things they configured are read once
   and which are read again, rather than inferring it from a table of options.
+
+Shipped as a section in `docs/configuration*.md`: what is read again on a trigger you
+choose (the certificate), what is read once at construction (the rest of the
+`tls.Config`), what is read once at `Start` (address, timeouts, routes, probe paths),
+and what is read once per process (the config file and environment). This work package
+is prose by nature — there is no behaviour to gate that is not already gated — so the
+honest deliverable is the list, ending where it should: changing anything else means a
+new listener, which means the rolling restart the drain sequence exists to make
+uneventful.
 
 ### Completion Definition / 完成定义
 

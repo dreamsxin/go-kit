@@ -34,6 +34,11 @@ serves, and keeps a broken renewal from costing anyone their listener.
   certificate on failure. Renewing is `kill -HUP`, not a deploy. `SIGHUP` because it is
   the signal an operator already reaches for and a renewal job can send; the process
   does not poll, and nothing watches the filesystem on your behalf.
+- The configuration guide now says which of the things you configured are read again and
+  which are read once: the certificate on your trigger, the rest of the `tls.Config` at
+  construction, the address and timeouts and routes at `Start`, and the config file and
+  environment once per process. Everything outside the first group means a new listener,
+  which means the rolling restart the drain sequence exists to make uneventful.
 
 ## [2.14.0] - 2026-09-07
 
