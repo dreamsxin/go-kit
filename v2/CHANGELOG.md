@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.12.0] - Release Candidate
+## [2.12.0] - 2026-09-07
 
 Numbers someone can act on. v2 can already push telemetry through OpenTelemetry,
 but the pull model most deployments actually run — a scrape endpoint — was left to
