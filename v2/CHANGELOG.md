@@ -72,6 +72,12 @@ speaks the current specification as well as the one it froze.
   method fail, while a new struct field and a re-aligned constant block pass.
   Reordering is reported with its reason, because an unkeyed composite literal
   keeps compiling and assigns to a different field.
+- [Licensing](docs/licenses.md) states what the MIT license covers and the license
+  of every direct dependency a consumer inherits, with the two MPL-2.0 ones named
+  and the packages that pull them in. `TestDependencyLicensesAreDocumented`
+  classifies each license from the module's own license file and fails when the
+  document and the module graph disagree, and `TestProjectLicenseIsOneText` keeps
+  the repository and module copies of `LICENSE.txt` identical.
 
 ## [2.9.0] - 2026-09-05
 

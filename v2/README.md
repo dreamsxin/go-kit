@@ -417,4 +417,6 @@ document by task.
 
 ## License
 
-MIT. See [LICENSE.txt](LICENSE.txt).
+MIT. See [LICENSE.txt](LICENSE.txt). [Licensing](docs/licenses.md) lists what the
+license covers and the license of every dependency a consumer inherits, including
+the two that are MPL-2.0.

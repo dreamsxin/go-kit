@@ -383,4 +383,5 @@ make release-check-clean
 
 ## License
 
-MIT，见 [LICENSE.txt](LICENSE.txt)。
+MIT，见 [LICENSE.txt](LICENSE.txt)。[开源协议](docs/licenses_zh.md) 说明协议覆盖的范围，
+以及使用方会一并继承的每个依赖的协议——其中两个是 MPL-2.0。

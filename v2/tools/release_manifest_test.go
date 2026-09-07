@@ -22,8 +22,9 @@ type moduleEdit struct {
 		Path string
 	}
 	Require []struct {
-		Path    string
-		Version string
+		Path     string
+		Version  string
+		Indirect bool
 	}
 }
 
