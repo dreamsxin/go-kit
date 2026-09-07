@@ -84,6 +84,11 @@ speaks the current specification as well as the one it froze.
   The generated README says so, and `TestGeneratedOutputCarriesNoLicenseNotice`
   fails if a template starts emitting a notice or a license file appears in the
   reviewed generated layout.
+- The TypeScript type-check gate tells a compiler that disagreed from a compiler
+  that died. Type errors fail on the first attempt as before; a process that was
+  killed or that failed inside its own runtime — tsc 7.0.2 exiting `0xC0000409`,
+  for instance — is retried once and, if it dies again, reported as a crashed
+  compiler rather than as a type error in the generated SDK.
 
 ## [2.9.0] - 2026-09-05
 
