@@ -1132,6 +1132,15 @@ Goal: a generated service exposes metrics because someone asked.
   disclosure decision the deployment makes.
 - `PRODUCTION.md` states what to scrape, at what interval, and what the series
   mean.
+- Constraint found while wiring this, which decides the shape of the change: the
+  generated route registrars take `*http.ServeMux` and register their own patterns,
+  and `httpserver.RecordingMiddleware` reads the route from `http.Request.Pattern`
+  — which only the handler a mux dispatched to can see. Recording therefore has to
+  be installed where the patterns are known, inside the registrars, so
+  `registerRoutes` and every generated registrar take a registrar interface instead
+  of the concrete mux. Mounting an exposition over a collector nothing feeds is not
+  an acceptable intermediate step: it reports zeros, which reads as a service with
+  no traffic, and `kit` already refuses that assembly.
 
 ### Completion Definition / 完成定义
 

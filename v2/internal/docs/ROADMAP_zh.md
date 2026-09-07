@@ -885,6 +885,12 @@ go test ./kit/ -run TestSeriesCountIsBounded -count=1
 - 一个有文档、有校验的配置键打开端点并设置路径；默认关闭，因为把指标端点放在公网监听上是
   一个由部署来做的信息暴露决策。
 - `PRODUCTION.md` 写明 scrape 什么、间隔多少、各序列是什么含义。
+- 接线过程中发现的约束，它决定了这次改动的形状：生成的路由注册器接受 `*http.ServeMux` 并
+  自己注册各自的 pattern，而 `httpserver.RecordingMiddleware` 从 `http.Request.Pattern`
+  读取路由——只有被 mux 分派到的那个 handler 才能看到它。因此 recording 必须安装在"知道
+  pattern 的地方"，也就是注册器内部，于是 `registerRoutes` 与每个生成的注册器都要接受一个
+  registrar 接口，而不是具体的 mux。"先挂上一个没人喂的 exposition"不是可接受的中间态：它
+  报告全零，读起来就是一个没有流量的服务，而 `kit` 已经拒绝了这种装配。
 
 ### 完成定义
 
