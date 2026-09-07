@@ -1163,7 +1163,7 @@ names and labels are declared beside the code that emits them, the dependency ga
 still keep the metrics client out of core, and a test fails if pull and push report
 different numbers for the same request.
 
-## Milestone 13 (Active): A Listener You Can Put On The Internet / 能直接放到公网上的监听
+## Milestone 13 (Complete): A Listener You Can Put On The Internet / 能直接放到公网上的监听
 
 Goal: a v2 service can terminate TLS itself, and everything it does or refuses to
 do about protocol negotiation and hijacked connections is written down.

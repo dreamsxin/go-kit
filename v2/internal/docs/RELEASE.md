@@ -70,6 +70,13 @@ The v2.13.0 candidate satisfies these criteria:
 - Stopping is a declared sequence rather than a race: readiness fails and the
   instance leaves discovery before the drain delay, and no shutdown path returns
   while a connection it owns is still open.
+- What a shutdown cannot end is declared as plainly as what it can: a hijacked
+  connection is not drained, and the upgraded handler that owns it receives the
+  stopping signal.
+- A listener can terminate TLS from configuration, in the library and in generated
+  code; a certificate that cannot be loaded fails startup with its path; and the
+  protocol that arrives with TLS is stated — HTTP/2 through ALPN, streaming intact,
+  no cleartext h2c.
 - Generated projects use the `/v2` module and build outside the framework
   repository.
 - Go IDL, Protobuf, database, config, extend, and interaction generation paths
