@@ -43,7 +43,7 @@ API 参考；根目录指南负责生成、架构、生产部署和升级。
 | 服务发现与均衡 | [`sd`](sd/README_zh.md)、[服务发现](docs/service-discovery_zh.md) |
 | interaction 与 MCP | [`interaction`](interaction/README_zh.md) |
 | 安全 | [`security/http`](security/http/README_zh.md) |
-| 可观测性 | [`observability/slog`](observability/slog/README_zh.md)、[`observability/otel`](observability/otel/README_zh.md)、[`integrations/zap`](integrations/zap/README_zh.md)、`observability/metrics` 与 `observability/metrics/grpc`（见[被 scrape](docs/observability_zh.md)） |
+| 可观测性 | [`observability/slog`](observability/slog/README_zh.md)、[`observability/otel`](observability/otel/README_zh.md)、[`observability/metrics`](observability/metrics/README_zh.md)、[`integrations/zap`](integrations/zap/README_zh.md) |
 | provider | [`consul`](integrations/consul/README_zh.md)、[`etcd`](integrations/etcd/README_zh.md) |
 | 项目生成器 | [`microgen`](MICROGEN_zh.md) |
 | 开源协议与依赖 | [开源协议](docs/licenses_zh.md) |

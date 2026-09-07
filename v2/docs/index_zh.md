@@ -56,6 +56,7 @@
 - [`security/http`](../security/http/README_zh.md)
 - [`observability/slog`](../observability/slog/README_zh.md)
 - [`observability/otel`](../observability/otel/README_zh.md)
+- [`observability/metrics`](../observability/metrics/README_zh.md)
 - [`integrations/grpc`](../integrations/grpc/README_zh.md)
 - [`integrations/consul`](../integrations/consul/README_zh.md)
 - [`integrations/etcd`](../integrations/etcd/README_zh.md)

@@ -44,7 +44,7 @@ generation, architecture, production, and upgrades.
 | discovery and balancing | [`sd`](sd/README.md), [Service discovery](docs/service-discovery.md) |
 | interaction and MCP | [`interaction`](interaction/README.md) |
 | security | [`security/http`](security/http/README.md) |
-| observability | [`observability/slog`](observability/slog/README.md), [`observability/otel`](observability/otel/README.md), [`integrations/zap`](integrations/zap/README.md), `observability/metrics` and `observability/metrics/grpc` (see [Being Scraped](docs/observability.md)) |
+| observability | [`observability/slog`](observability/slog/README.md), [`observability/otel`](observability/otel/README.md), [`observability/metrics`](observability/metrics/README.md), [`integrations/zap`](integrations/zap/README.md) |
 | providers | [`consul`](integrations/consul/README.md), [`etcd`](integrations/etcd/README.md) |
 | project generator | [`microgen`](MICROGEN.md) |
 | licensing and dependencies | [Licensing](docs/licenses.md) |

@@ -57,6 +57,7 @@ The detailed contracts live beside the implementation:
 - [`security/http`](../security/http/README.md)
 - [`observability/slog`](../observability/slog/README.md)
 - [`observability/otel`](../observability/otel/README.md)
+- [`observability/metrics`](../observability/metrics/README.md)
 - [`integrations/grpc`](../integrations/grpc/README.md)
 - [`integrations/consul`](../integrations/consul/README.md)
 - [`integrations/etcd`](../integrations/etcd/README.md)
