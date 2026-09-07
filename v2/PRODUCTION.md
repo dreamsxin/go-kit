@@ -222,6 +222,19 @@ features. Add them at the application boundary:
 Do not treat trusted proxy headers as identity unless the deployment has an
 explicit trusted-proxy policy.
 
+An MCP endpoint needs the same treatment, and has its own seam for it:
+`mcp.StreamableHandler.Authorizer` is asked about every request — method, target
+name, HTTP header, and the context the request is served under — before any
+provider or tool runs. It is nil by default, and a nil authorizer serves every
+implemented method, so an endpoint exposed beyond a trusted network needs one
+written for the deployment. A refused request is `-32001`, or 403 when it carried
+no id to answer. Two limits are worth knowing: the policy reads the principal
+from the context, so something must authenticate the caller first, and on
+`2025-06-18` the SSE stream (GET) and session teardown (DELETE) are not
+authorized per request — the session those act on was authorized when
+`initialize` created it, and its `Mcp-Session-Id` is a bearer credential from
+then on.
+
 ## Browser-Facing HTTP
 
 Use the optional [`security/http`](security/http/README.md) package for CORS,

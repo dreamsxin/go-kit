@@ -65,6 +65,28 @@
 //
 // Logging: logging/setLevel — adjust server log verbosity.
 //
+// # Request Authorization
+//
+// Who may call which method is a property of the deployment, so the transport
+// ships the seam and no policy: a handler with no Authorizer serves every method
+// it implements. Set StreamableHandler.Authorizer to a MethodAuthorizer and every
+// request — on both revisions, notifications included — reaches it with its
+// method, its target name, the HTTP header, and the context the request is served
+// under, before any registry, provider or tool is consulted. A nil error allows
+// the request; any other error refuses it, as -32001 for a refusal that names no
+// other failure, or 403 when the request has no id to answer.
+//
+// The three seams do different jobs:
+//
+//   - security.Middleware, or the deployment's own HTTP middleware,
+//     authenticates the caller and stores the subject with security.WithSubject.
+//   - MethodAuthorizer decides whether that subject may reach this method and
+//     target. It reads the principal from the context — this package has no
+//     opinion about how an identity is represented — and never takes one from
+//     the request body, where a subject is a claim rather than an authentication.
+//   - interaction.Authorizer decides whether a tool call may run given its
+//     arguments, which is the decision that needs the runtime session.
+//
 // # Notifications
 //
 // The handler can send server-initiated notifications to the client
@@ -102,6 +124,8 @@
 //	-32602  Invalid params (unknown tool, missing prompt, bad argument)
 //	-32603  Internal error
 //	-32002  Resource not found
+//	-32001  Unauthorized (a MethodAuthorizer or Authorizer refused the request)
+//	-32021  Missing required client capability (2026-07-28 input requests)
 //
 // Tool execution failures are CallToolResult values with isError=true. Invalid
 // calls, including unknown tools, use JSON-RPC invalid-params errors.

@@ -76,6 +76,12 @@ type StreamableHandler struct {
 	// When zero, five minutes.
 	RequestStateTTL time.Duration
 
+	// Authorizer decides which callers may reach which methods. It is the
+	// deployment's policy, not the framework's: when nil, every implemented
+	// method is served. See authorization.go for how it relates to
+	// security.Middleware and interaction.Authorizer.
+	Authorizer MethodAuthorizer
+
 	cleanupMu     sync.Mutex
 	cleanupCancel context.CancelFunc
 	cleanupWG     sync.WaitGroup
@@ -160,6 +166,9 @@ func (h *StreamableHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.JSONRPC != jsonRPCVersion {
 		writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: newError(-32600, "invalid request", "jsonrpc must be 2.0")})
+		return
+	}
+	if !h.authorizeMethod(r.Context(), w, r, req, legacyProtocolVersion) {
 		return
 	}
 

@@ -55,6 +55,13 @@
 
 - `AuthorizationHook` 在工具调用之前运行，当配置的 `Authorizer` 拒绝访问时返回 `ErrUnauthorized`。
 - `AuditHook` 通过应用提供的 `AuditSink` 记录工具调用前后的审计记录。
+- `mcp.StreamableHandler.Authorizer` 是传输层的对应物：由应用实现的
+  `mcp.MethodAuthorizer`，在任何 provider 或工具被触及之前，被问及每一个 MCP
+  请求——方法、目标名、HTTP 头，以及该请求被服务时的 context。它默认为 nil，没有
+  配置授权器的 handler 不施加任何自己的策略：框架不会替你发明“谁可以列出工具”这种
+  规则。拒绝是 `-32001`，没有 id 可回应的请求则是 403。主体由策略自己从 context 读
+  取——用 `security.SubjectFromContext`，或者部署的认证层存进去的任何东西；请求在
+  自己 body 里声称的主体是一项主张，不是一次认证，它永远不会到达策略。
 
 这些钩子有意保持传输层无关。HTTP、gRPC 流式、WebSocket 和 MCP 适配器应把主体（subject）和请求元数据传入运行时，而不是为每种传输层分别实现独立的策略栈。
 

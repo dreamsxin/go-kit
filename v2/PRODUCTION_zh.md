@@ -197,6 +197,14 @@ HTTP 状态码：gRPC 客户端用 `sdclient.WithRetryable(grpc.Retryable)` 补�
 
 除非部署有显式的可信代理策略，否则不要把可信代理头部当作身份。
 
+MCP 端点需要同等对待，并且有自己的接缝：`mcp.StreamableHandler.Authorizer` 在任何
+provider 或工具运行之前被问及每一个请求——方法、目标名、HTTP 头，以及该请求被服务时
+的 context。它默认为 nil，而 nil 授权器会服务所有已实现的方法，所以暴露到受信网络之
+外的端点需要一个为该部署写的授权器。被拒绝的请求是 `-32001`，没有 id 可回应时是
+403。两条边界值得知道：策略从 context 读取主体，所以必须先有东西认证调用方；而在
+`2025-06-18` 上，SSE 流（GET）与会话销毁（DELETE）不逐请求授权——它们作用的那个会话
+在 `initialize` 创建时就被授权过，此后它的 `Mcp-Session-Id` 就是一个 bearer 凭证。
+
 ## 面向浏览器的 HTTP
 
 使用可选的 [`security/http`](security/http/README_zh.md) 包处理 CORS、

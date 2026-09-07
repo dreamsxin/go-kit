@@ -723,7 +723,20 @@ go test ./interaction/... -count=1
 
 - 这一版本通过六个 SEP 加固授权；v2 实现的每条规则都声明在其实现处，与其他协议承诺
   一致。
+- 哪些调用方可以到达哪些方法，是部署的属性，所以 v2 只提供接缝、不提供策略：
+  `mcp.MethodAuthorizer` 在两个版本上都被问及每一个请求，带上方法、目标、请求头，以及
+  该请求被服务时的 context；没有配置授权器的 handler 服务所有已实现的方法。框架决定的
+  是这个问题的形状和拒绝的形状，不是答案。
+- 策略自己从 context 读取主体，所以框架对身份如何表示不持意见，也不从请求 body 里取
+  主体：请求对自己声称的主体仍然只是一项主张。这是最值得一道门禁的性质。
 - 扩展在规范中已经版本化。v2 接受什么、忽略什么，要写出来。
+
+验收：
+
+```bash
+go test ./interaction/... -count=1
+go -C ./tools test -run TestStableProtocolBehaviour . -count=1
+```
 
 ### 完成定义
 

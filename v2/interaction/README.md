@@ -86,6 +86,16 @@ Policy hooks:
   when the configured `Authorizer` denies access.
 - `AuditHook` records before/after tool-call audit records through an
   application-provided `AuditSink`.
+- `mcp.StreamableHandler.Authorizer` is the transport-level counterpart: a
+  `mcp.MethodAuthorizer` the application implements, asked about every MCP
+  request — method, target name, HTTP header, and the context the request is
+  served under — before any provider or tool is consulted. It is nil by default,
+  and a handler with no authorizer applies no policy of its own: the framework
+  does not invent rules about who may list tools. A refusal is `-32001`, or 403
+  for a request with no id to answer. The principal is read from the context by
+  the policy itself, with `security.SubjectFromContext` or whatever the
+  deployment's authentication layer stored; a subject a request asserts in its
+  own body is a claim, not an authentication, and never reaches the policy.
 
 These hooks are intentionally transport-neutral. HTTP, gRPC streaming,
 WebSocket, and MCP adapters should pass subject and request metadata into the

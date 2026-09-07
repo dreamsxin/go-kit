@@ -55,6 +55,18 @@ speaks the current specification as well as the one it froze.
   token carries, so a caller cannot opt out by dropping the signature. Without a
   key the state is accepted as returned, which the documentation states plainly.
   Every instance serving the same address needs the same key.
+- `mcp.MethodAuthorizer`, `mcp.MethodRequest`, `mcp.MethodAuthorizerFunc`, and
+  `StreamableHandler.Authorizer` decide which callers may reach which MCP methods.
+  Every request on both revisions — notifications included — reaches the
+  authorizer with its method, its target name, the HTTP header, and the context
+  the request is served under, before any registry, provider or tool is consulted;
+  a refusal is `-32001`, or 403 for a request with no id to answer. The policy
+  reads the principal from the context, so `mcp` keeps no opinion about how an
+  identity is represented, and it never takes one from the request body. Nothing
+  is authorized by default: `Authorizer` is nil, and what the framework owns is
+  the shape of the question and of a refusal, not the answer. On 2025-06-18 the
+  SSE stream and session deletion are not authorized per request — the session
+  they act on was authorized when `initialize` created it.
 
 ### Changed
 

@@ -244,6 +244,10 @@ func (h *StreamableHandler) handleStatelessPost(w http.ResponseWriter, r *http.R
 		context.WithValue(r.Context(), statelessContextKey{}, identity),
 		requestStateCodec{key: h.RequestStateKey, ttl: h.RequestStateTTL})
 
+	if !h.authorizeMethod(ctx, w, r, req, protocolVersion) {
+		return
+	}
+
 	if req.ID == nil {
 		w.WriteHeader(http.StatusAccepted)
 		return

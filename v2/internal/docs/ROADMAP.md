@@ -936,8 +936,24 @@ the way the rest of the protocol is.
 
 - The revision hardens authorization across six SEPs; each rule v2 implements is
   declared where it is implemented, like every other protocol promise.
+- Which callers may reach which methods is a deployment property, so v2 ships the
+  seam and no policy: `mcp.MethodAuthorizer` is asked about every request on both
+  revisions with its method, target, header and the context it is served under,
+  and a handler without one serves every implemented method. What the framework
+  decides is the shape of the question and the shape of a refusal, not the answer.
+- The policy reads the principal from the context, so the framework holds no
+  opinion about how an identity is represented, and takes none from the request
+  body: a subject a request asserts about itself stays a claim. That is the
+  property most worth a gate.
 - Extensions are versioned in the specification now. What v2 accepts and what it
   ignores is stated.
+
+Acceptance:
+
+```bash
+go test ./interaction/... -count=1
+go -C ./tools test -run TestStableProtocolBehaviour . -count=1
+```
 
 ### Completion Definition / 完成定义
 

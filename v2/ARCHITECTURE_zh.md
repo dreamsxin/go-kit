@@ -139,7 +139,9 @@ OpenTelemetry tracer 与 meter。这些适配器不记录请求/响应载荷；�
 
 `security/http` 以可信代理解析、客户端 IP 策略、CORS、签名双提交 CSRF
 和安全响应头包装标准库 handler。它围绕传输 handler 组装，不改变 endpoint
-契约。认证在协议边界确立主体；业务授权保留在 endpoint 或 service 策略中。
+契约。认证在协议边界确立主体；业务授权保留在 endpoint 或 service 策略中。MCP
+端点在两者之间多一道接缝：`mcp.MethodAuthorizer` 在任何 provider 或工具被触及
+之前，决定该主体可以到达哪些方法与目标。
 
 ### `cmd/microgen`
 

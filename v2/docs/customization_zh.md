@@ -14,6 +14,8 @@
 | 执行请求策略 | `endpoint.Middleware` / `endpoint.Builder` |
 | 修改 HTTP 解析或编码 | 传输层 decoder/encoder 选项 |
 | 修改对外错误格式 | `ServerErrorEncoder`；JSON 成功响应再用 `ServerResponseEncoder` |
+| 决定谁可以调用哪个 MCP 方法 | `StreamableHandler.Authorizer` 上的 `mcp.MethodAuthorizer` |
+| 决定某次工具调用是否可以执行 | `interaction.Authorizer` 配 `interaction.AuthorizationHook` |
 | 添加协议专属能力 | HTTP/gRPC 传输 hook 或 middleware |
 
 顺序规则见[中间件](middleware_zh.md)，状态码和消息规则见[错误处理](errors_zh.md)。

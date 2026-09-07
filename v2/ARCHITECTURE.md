@@ -163,7 +163,9 @@ and application owned.
 client-IP policy, CORS, signed double-submit CSRF, and security headers. It is
 assembled around transport handlers and does not change endpoint contracts.
 Authentication establishes a principal at the protocol boundary; business
-authorization remains in endpoint or service policy.
+authorization remains in endpoint or service policy. An MCP endpoint adds one
+seam between the two: `mcp.MethodAuthorizer` decides which methods and targets
+that principal may reach, before any provider or tool is consulted.
 
 ### `cmd/microgen`
 

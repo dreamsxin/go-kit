@@ -172,6 +172,37 @@ immediately. Put `AuthorizationHook` first if you want that; swap the two and
 denials become audited instead. The full policy walkthrough is
 [examples/interaction_policy/main.go](../examples/interaction_policy/main.go).
 
+That hook decides about tool calls. Everything else a client can ask -- listing
+tools, reading a resource, rendering a prompt -- is decided at the transport,
+where the HTTP credentials are:
+
+```go
+h := mcp.NewStreamableHandler(rt)
+h.Authorizer = mcp.MethodAuthorizerFunc(func(ctx context.Context, req mcp.MethodRequest) error {
+	if req.Method == "server/discover" || req.Method == "ping" {
+		return nil // let a client learn what this server is before signing in
+	}
+	subject, _ := security.SubjectFromContext(ctx)
+	if !subject.Authenticated() {
+		return fmt.Errorf("%w: %s needs a signed-in caller", interaction.ErrUnauthorized, req.Method)
+	}
+	if req.Method == "tools/call" && req.Target == "deploy" && !subject.HasRole("operator") {
+		return fmt.Errorf("%w: deploy is operator-only", interaction.ErrUnauthorized)
+	}
+	return nil
+})
+```
+
+The principal comes from the context, where whatever authenticated the request
+put it -- `security.Middleware`, or your own HTTP middleware calling
+`security.WithSubject`. `mcp` has no opinion about how you represent an identity,
+and it never reads one out of the request body: a `subject` field there is a claim
+the caller made about itself. `req.Header` is available for the tenant or
+credential your policy actually keys on.
+
+Leave `Authorizer` nil and every implemented method is served. The framework has
+no opinion about who may list your tools, because it cannot have one.
+
 ## Where to go next
 
 - [interaction guide](../interaction/README.md): resources, prompts, and SSE

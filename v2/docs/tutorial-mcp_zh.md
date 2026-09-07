@@ -162,6 +162,34 @@ rt := interaction.NewRuntime().WithHooks(
 `AuthorizationHook` 放在前面；两者调换顺序，被拒绝的调用就会被审计。完整的策略
 教程见 [examples/interaction_policy/main.go](../examples/interaction_policy/main.go)。
 
+那个钩子决定工具调用。客户端能问的其他一切——列出工具、读取资源、渲染提示——在
+传输层决定，因为 HTTP 凭证在那里：
+
+```go
+h := mcp.NewStreamableHandler(rt)
+h.Authorizer = mcp.MethodAuthorizerFunc(func(ctx context.Context, req mcp.MethodRequest) error {
+	if req.Method == "server/discover" || req.Method == "ping" {
+		return nil // 允许客户端在登录之前先弄清这台服务器是什么
+	}
+	subject, _ := security.SubjectFromContext(ctx)
+	if !subject.Authenticated() {
+		return fmt.Errorf("%w: %s needs a signed-in caller", interaction.ErrUnauthorized, req.Method)
+	}
+	if req.Method == "tools/call" && req.Target == "deploy" && !subject.HasRole("operator") {
+		return fmt.Errorf("%w: deploy is operator-only", interaction.ErrUnauthorized)
+	}
+	return nil
+})
+```
+
+主体来自 context，由认证了这个请求的那一层放进去——`security.Middleware`，或者你
+自己调用 `security.WithSubject` 的 HTTP 中间件。`mcp` 对身份如何表示没有意见，也
+绝不会从请求 body 里读出一个主体：那里的 `subject` 字段是调用方对自己的一项主张。
+`req.Header` 也在，供你的策略读取真正据以判断的租户或凭证。
+
+把 `Authorizer` 留成 nil，所有已实现的方法都会被服务。框架对“谁可以列出你的工具”
+没有意见，因为它不可能有。
+
 ## 接下来去哪
 
 - [interaction 指南](../interaction/README_zh.md)：资源、提示与 SSE
