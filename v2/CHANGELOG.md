@@ -12,6 +12,13 @@ to the components that know.
 
 ### Added
 
+- Generated projects gained the `server.drain_delay` configuration key
+  (`APP_DRAIN_DELAY`, default `0s`), and their entry point now uses the same
+  sequence the framework does: fail readiness, wait the drain delay, then stop. A
+  graceful shutdown that runs out of budget closes the remaining connections
+  instead of logging the deadline error and exiting with them open. The key is
+  documented, validated (a negative delay fails startup), and covered by the gate
+  that applies every documented `APP_*` key to a built binary.
 - `kit.Host.Drain`, `kit.Draining`, `kit.WithDrainDelay`, `kit.Host.Draining`, and
   `kit.ErrDraining` make stopping a sequence: readiness starts failing and every
   attached `Draining` component is told, in reverse attachment order, before

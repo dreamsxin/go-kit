@@ -266,12 +266,20 @@ func main() {
 	case err := <-serverErr:
 		logger.Error("server stopped unexpectedly", "err", err)
 	}
-	// Fail readiness first, so the load balancer stops sending new requests while
-	// the in-flight ones finish draining below.
+	// Fail readiness first, so whatever routes traffic here stops sending new
+	// requests while the in-flight ones finish draining below.
 	ready.Store(false)
 	logger.Info("shutting down")
 
-{{if .WithConfig}}	shutdownTimeout := cfg.Server.GracefulShutdownTimeout
+{{if .WithConfig}}	// Then wait, if asked to. Failing readiness only helps once it has been read:
+	// a load balancer or registry refreshes on its own schedule, so closing the
+	// listener immediately fails requests that were already routed here.
+	if cfg.Server.DrainDelay > 0 {
+		logger.Info("draining", "delay", cfg.Server.DrainDelay)
+		time.Sleep(cfg.Server.DrainDelay)
+	}
+
+	shutdownTimeout := cfg.Server.GracefulShutdownTimeout
 	if shutdownTimeout <= 0 {
 		shutdownTimeout = 30 * time.Second
 	}
@@ -280,8 +288,16 @@ func main() {
 {{end}}	defer cancel()
 
 	if err := httpServer.Shutdown(ctx); err != nil {
-		logger.Error("HTTP shutdown failed", "err", err)
+		// The grace period is over and something is still holding a connection —
+		// a stream, a long poll, a handler that never watched its context. Close
+		// it: returning here would leave the process "stopped" with connections
+		// still open.
+		logger.Error("HTTP shutdown failed; closing remaining connections", "err", err)
+		if closeErr := httpServer.Close(); closeErr != nil {
+			logger.Error("HTTP close failed", "err", closeErr)
+		}
 	}
+
 {{if .WithGRPC}}	grpcStopped := make(chan struct{})
 	go func() {
 		grpcServer.GracefulStop()

@@ -393,7 +393,10 @@ budget with the framework's shutdown timeout:
 - the entry point already cancels `Host.Run` on `SIGTERM` (see
   Lifecycle); prefer `kit.WithDrainDelay` over a `preStop` sleep — the Host fails
   readiness first and then waits, so the pod stops claiming to be ready while it is
-  still answering, which a `preStop` sleep alone cannot express;
+  still answering, which a `preStop` sleep alone cannot express. A generated
+  service does the same through `APP_DRAIN_DELAY` (`server.drain_delay`), which
+  defaults to `0s`: set it above the interval at which your platform re-reads
+  readiness, or the listener closes before the announcement has been read;
 - prefer rolling updates with `maxUnavailable: 0` so readiness, not pod
   deletion, controls traffic shifts.
 

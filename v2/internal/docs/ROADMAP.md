@@ -967,7 +967,7 @@ Milestone 10 is complete when a client on either revision is served by tests tha
 fail if it stops being, each new behaviour is declared beside the code that keeps
 it, and `RELEASE.md` still names a gate for every contract surface.
 
-## Milestone 11 (Active): A Process That Stops On Purpose / 有意为之的停止
+## Milestone 11 (Complete): A Process That Stops On Purpose / 有意为之的停止
 
 Goal: stopping is a sequence with a declared order and a declared end, not a
 race between a cancelled context and whatever was still running.
@@ -1047,6 +1047,13 @@ documented configuration rather than constants in a template.
   documented precedence, like every other generated key.
 - `PRODUCTION.md` states the operational contract: what a rolling deploy should
   set, and what happens to streams that outlive the budget.
+
+Acceptance:
+
+```bash
+go -C ./tools test -run TestGeneratedConfigKeysAreDocumented . -count=1
+go -C ./tools test -run TestMicrogenConfigIntegration . -count=1
+```
 
 ### Completion Definition / 完成定义
 

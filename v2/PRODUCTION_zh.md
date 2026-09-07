@@ -343,7 +343,9 @@ ENTRYPOINT ["/service"]
   否则在途请求会在停机途中被切断；
 - 入口已经在 `SIGTERM` 时取消 `Host.Run`（见生命周期）；优先用
   `kit.WithDrainDelay` 而不是 `preStop` sleep——Host 先让 readiness 失败再等待，
-  于是 Pod 在仍然应答的同时就停止声称自己就绪，这是单靠 `preStop` sleep 表达不出来的；
+  于是 Pod 在仍然应答的同时就停止声称自己就绪，这是单靠 `preStop` sleep 表达不出来的。
+  生成的服务用 `APP_DRAIN_DELAY`（`server.drain_delay`）做同一件事，默认 `0s`：把它设成
+  大于平台重新读取 readiness 的间隔，否则宣布还没被读到，监听就已经关了；
 - 滚动更新优先使用 `maxUnavailable: 0`，让就绪状态而非 Pod 删除控制
   流量切换。
 

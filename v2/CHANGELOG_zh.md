@@ -10,6 +10,10 @@
 
 ### 新增
 
+- 生成项目新增 `server.drain_delay` 配置键（`APP_DRAIN_DELAY`，默认 `0s`），入口现在使用与
+  框架相同的顺序：先让 readiness 失败，等待 drain 延迟，然后停止。优雅关闭用尽预算时会关闭
+  剩余连接，而不是打印一条超时日志、带着还开着的连接退出。该键有文档、有校验（负值会让启动
+  失败），并被"把每个已文档化的 `APP_*` 键应用到已构建二进制"的门禁覆盖。
 - `kit.Host.Drain`、`kit.Draining`、`kit.WithDrainDelay`、`kit.Host.Draining` 与
   `kit.ErrDraining` 把停止变成一个过程：在任何东西被拆解之前，readiness 开始失败，并且
   每个挂载的 `Draining` 组件都按反向挂载顺序被通知。随后 `Run` 等待配置的 drain 延迟——

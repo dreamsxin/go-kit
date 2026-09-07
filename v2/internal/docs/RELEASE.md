@@ -67,6 +67,9 @@ The v2.11.0 candidate satisfies these criteria:
   it, so a freeze would not be declared over an outdated protocol.
 - `kit`, endpoint, HTTP/gRPC transport, service discovery, and interaction
   lifecycles have explicit error and cancellation contracts.
+- Stopping is a declared sequence rather than a race: readiness fails and the
+  instance leaves discovery before the drain delay, and no shutdown path returns
+  while a connection it owns is still open.
 - Generated projects use the `/v2` module and build outside the framework
   repository.
 - Go IDL, Protobuf, database, config, extend, and interaction generation paths

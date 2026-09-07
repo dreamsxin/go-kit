@@ -747,7 +747,7 @@ go -C ./tools test -run TestStableProtocolBehaviour . -count=1
 里程碑 10 在以下全部为真时完成：两个版本的客户端都由"不再被服务就会失败"的测试覆盖；
 每条新行为都声明在守护它的代码旁边；`RELEASE.md` 仍为每个契约表面指名门禁。
 
-## 里程碑 11（进行中）：有意为之的停止
+## 里程碑 11（已完成）：有意为之的停止
 
 目标：停止是一个有声明顺序、也有声明终点的过程，而不是"被取消的 context"与"还在运行
 的东西"之间的一场竞速。
@@ -814,6 +814,13 @@ go test ./kit/... -count=1
 
 - drain 延迟与 shutdown 超时是经过校验的配置键，有文档化的优先级，与其他生成配置键一致。
 - `PRODUCTION.md` 写明运维契约：滚动发布应该怎么设，以及活得比预算更久的流会怎样。
+
+验收：
+
+```bash
+go -C ./tools test -run TestGeneratedConfigKeysAreDocumented . -count=1
+go -C ./tools test -run TestMicrogenConfigIntegration . -count=1
+```
 
 ### 完成定义
 
