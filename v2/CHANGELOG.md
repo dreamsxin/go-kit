@@ -36,6 +36,13 @@ to the components that know.
 
 ### Changed
 
+- A registration attached with `kit.WithRegistrar` now deregisters when the
+  process announces the stop instead of when it tears down, so an instance leaves
+  discovery before the drain delay rather than after it. Deregistering and then
+  immediately closing the listener left every peer that had already cached the
+  address talking to a closed port; the delay exists to cover that window, so the
+  withdrawal has to come first. `Shutdown` still deregisters for a caller that
+  skipped the announcement, and never twice.
 - `Host.Shutdown` gives each component an equal share of the budget that is left
   instead of passing one shared deadline down the line. A shared deadline let the
   first component stopped spend all of it, and every component behind it was then

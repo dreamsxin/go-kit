@@ -68,6 +68,13 @@ interval at which whatever routes traffic here re-reads readiness or discovery -
 otherwise the announcement has not been heard by the time the listener closes, and
 requests already in flight toward this instance fail.
 
+A registration attached with `kit.WithRegistrar` deregisters as part of the
+announcement, not as part of the teardown: the instance leaves discovery, then the
+drain delay gives the registry and every peer that cached its answer time to
+notice, and only then does the listener close. What no server can promise is the
+entry a peer has already read -- which is the reason the sequence waits instead of
+assuming.
+
 Implement `Draining` on a component that accepts work of its own:
 
 ```go

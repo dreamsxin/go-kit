@@ -136,18 +136,41 @@ func (r *registrarLifecycle) Start() error {
 // this adapter has no way to carry out.
 func (r *registrarLifecycle) Errors() <-chan error { return nil }
 
+// Drain deregisters the instance, because leaving discovery is part of announcing
+// the stop rather than part of tearing down. A caller that looks this service up
+// after the announcement should not be handed an address that is about to stop
+// answering, and the drain delay that follows is what gives the registry — and
+// every peer that cached its answer — time to notice.
+//
+// What this cannot promise: an entry a peer already read outlives the
+// deregistration. Nothing a server does can reach into a client's cache, which is
+// exactly why the sequence waits rather than assuming.
+//
+// Stable: kit.deregister-before-close — an instance leaves discovery when the process announces the stop, before the drain delay and before any listener closes.
+// Covered by: TestRegistrarDeregistersOnDrain, TestDeregistrationPrecedesTheDrainDelay
+func (r *registrarLifecycle) Drain(context.Context) error {
+	return r.deregister()
+}
+
 // Shutdown deregisters the instance so callers stop being handed an address that
-// is about to stop answering.
+// is about to stop answering. It is a no-op when Drain already did it, which is
+// the normal path: Host.Drain runs first, and this call is the fallback for a
+// caller that shut the Host down without one.
 //
 // ctx is unused: sd.Registrar.Deregister takes no context, and its
 // implementations are expected to release a lease promptly. A provider that
 // could block indefinitely would need the deadline threaded through the sd
 // contract, not enforced here.
 func (r *registrarLifecycle) Shutdown(context.Context) error {
+	return r.deregister()
+}
+
+func (r *registrarLifecycle) deregister() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.registered {
-		// Start never succeeded, so there is nothing published to withdraw.
+		// Either Start never succeeded or the announcement already withdrew the
+		// instance; there is nothing published to withdraw.
 		return nil
 	}
 	r.registered = false
@@ -166,3 +189,5 @@ func isNilRegistrar(registrar sd.Registrar) bool {
 		return false
 	}
 }
+
+var _ Draining = (*registrarLifecycle)(nil)

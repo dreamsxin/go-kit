@@ -1032,6 +1032,12 @@ Goal: an instance leaves discovery before it stops answering, not after.
   has already cached outlives the deregistration, which is what the drain delay
   is for.
 
+Acceptance:
+
+```bash
+go test ./kit/... -count=1
+```
+
 ### Work Package 4: The Generated Service Stops Correctly Too
 
 Goal: the generated entry point uses the same sequence, and its knobs are
