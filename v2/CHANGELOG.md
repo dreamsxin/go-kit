@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.15.0] - Release Candidate
+## [2.15.0] - 2026-09-07
 
 Rotation without a restart. Milestone 13 shipped in-process TLS and then wrote its own
 gap down: certificate files are read once, so renewing one meant restarting the
