@@ -2,8 +2,10 @@
 package main
 
 import (
-	"net/http"
 	"strings"
+
+	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
+
 {{- if .WithDB}}
 	"gorm.io/gorm"
 	"{{.ImportPath}}/model"
@@ -13,6 +15,7 @@ import (
 {{- end}}
 )
 
+
 type generatedRouteEntry struct {
 	Method  string
 	Path    string
@@ -21,17 +24,21 @@ type generatedRouteEntry struct {
 
 type generatedRuntime struct {
 	routeEntries []generatedRouteEntry
-	httpRegistrars []func(*http.ServeMux)
+	// Registrars take the interface rather than *http.ServeMux so main can pass a
+	// decorator: per-route middleware has to be installed at registration, which
+	// is the only point where a handler and its route pattern are both in scope.
+	httpRegistrars []func(httpserver.RouteRegistrar)
 {{- if .WithGRPC}}
 	grpcRegistrars []func(*grpc.Server)
 {{- end}}
 }
 
-func (rt generatedRuntime) registerRoutes(r *http.ServeMux) {
+func (rt generatedRuntime) registerRoutes(r httpserver.RouteRegistrar) {
 	for _, register := range rt.httpRegistrars {
 		register(r)
 	}
 }
+
 
 {{- if .WithDB}}
 func (rt generatedRuntime) autoMigrate(db *gorm.DB) error {

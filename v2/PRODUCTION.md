@@ -322,6 +322,30 @@ for protocol details. Recommended signals include:
 
 Avoid unbounded labels such as raw URL, user ID, request ID, or error text.
 
+To be scraped rather than to push, set `APP_METRICS_PATH` (`server.metrics_path`)
+on a generated service, or mount `metrics.Handler(collector)` yourself in an
+assembly built on `kit`. Both are off by default: the endpoint publishes your route
+names and traffic shape, so put it on an admin listener or behind network policy
+rather than on the port that serves users.
+
+What a scrape returns, and what it does not:
+
+- `endpoint_requests_total{operation,outcome}` — one series per route pattern and
+  outcome. `operation` is the matched pattern, never the request path, and a request
+  that matched no route is not recorded at all;
+- `endpoint_request_duration_seconds_sum` and `_count` by operation — a mean, not
+  quantiles. There are no buckets because the collector measures a total; a p99 comes
+  from the OpenTelemetry histogram, not from this endpoint;
+- `endpoint_last_request_timestamp_seconds` by operation — for spotting a route that
+  has gone quiet;
+- counters start at zero when the process starts, because the collector is in
+  memory. A scraper detects the reset; a query that subtracts raw values across a
+  restart will not.
+
+A scrape interval of 15–30s is enough for these series: they are counters and a
+sum, so the resolution you lose between scrapes is resolution the collector never
+had.
+
 ## Tracing
 
 OpenTelemetry support belongs in the optional

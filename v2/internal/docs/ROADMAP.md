@@ -1061,7 +1061,7 @@ Milestone 11 is complete when the shutdown sequence is declared beside the code
 that keeps it, a test fails if any step moves out of order, and no shutdown path
 can return while a connection it owns is still open.
 
-## Milestone 12 (Active): Numbers Someone Can Act On / 能拿来做判断的数字
+## Milestone 12 (Complete): Numbers Someone Can Act On / 能拿来做判断的数字
 
 Goal: an operator can scrape a v2 service and get the same numbers, under the same
 names, as every other v2 service — without the framework choosing a metrics client
@@ -1142,13 +1142,19 @@ Goal: a generated service exposes metrics because someone asked.
   an acceptable intermediate step: it reports zeros, which reads as a service with
   no traffic, and `kit` already refuses that assembly.
 - The seam that migration needs now exists: `httpserver.RouteRegistrar` and
-  `httpserver.DecorateRoutes`. What remains is changing the generated signatures to
-  take it — `RegisterHTTPRoutes` in `transport.tmpl`, `httpRegistrars` in
-  `generated_routes.tmpl`, `registerRoutes` in `generated_runtime.tmpl` — plus the
-  configuration key and the `main.tmpl` wiring. Note that `cmd/main.go` and
-  `cmd/custom_routes.go` are written once and never overwritten, so the generated
-  signatures may change freely while those two must keep compiling as they are:
-  `*http.ServeMux` satisfies the interface, so they do.
+  `httpserver.DecorateRoutes`. The generated signatures take it —
+  `RegisterHTTPRoutes`, `httpRegistrars`, `registerRoutes` — and `cmd/main.go` and
+  `cmd/custom_routes.go`, which are written once and never overwritten, keep
+  compiling because `*http.ServeMux` satisfies the interface. No manifest migration
+  was needed.
+
+Acceptance:
+
+```bash
+go test ./cmd/microgen/... -count=1
+go -C ./tools test -run TestMicrogen . -count=1
+go -C ./tools test -run TestGeneratedConfigKeysAreDocumented . -count=1
+```
 
 ### Completion Definition / 完成定义
 

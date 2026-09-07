@@ -25,8 +25,12 @@ import (
 {{if .WithOpenAPI}}	swaggerUI "github.com/swaggest/swgui/v5"
 	docs "{{$.ImportPath}}/docs"
 {{end}}{{if .WithInteraction}}	"github.com/dreamsxin/go-kit/v2/interaction/mcp"
-{{end}}{{if .WithConfig}}	"{{$.ImportPath}}/config"
+{{end}}{{if .WithConfig}}	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/observability/metrics"
+	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
+	"{{$.ImportPath}}/config"
 {{end}})
+
 
 func printBanner(logger *slog.Logger, httpAddr string{{if .WithGRPC}}, grpcAddr string{{end}}, withOpenAPI bool{{if .WithInteraction}}, withInteraction bool{{end}}) {
 	logger.Info("service started", "service", "{{range .Project.Services}}{{.Name}} {{end}}", "http", "http://localhost"+httpAddr)
@@ -193,8 +197,25 @@ func main() {
 	r.Handle("GET /swagger/", swaggerUI.New("{{range .Project.Services}}{{.Name}} {{end}}API", "/openapi.json", "/swagger/"))
 {{end}}
 
-	runtime.registerRoutes(r)
+{{if .WithConfig}}	// Per-route metrics, when the deployment asked for an endpoint to scrape.
+	// Recording is installed at registration because that is the only place a
+	// handler and its route pattern are both in scope: middleware wrapped around
+	// the mux would record every request with an empty route.
+	var routes httpserver.RouteRegistrar = r
+	if cfg.Server.MetricsPath != "" {
+		metricsCollector := &endpoint.Metrics{}
+		routes = httpserver.DecorateRoutes(r, httpserver.RecordingMiddleware(metrics.HTTPRecorder(metricsCollector)))
+		// Mounted on the mux directly, outside the decorator: a scrape reports on
+		// the service rather than on itself.
+		r.Handle("GET "+cfg.Server.MetricsPath, metrics.Handler(metricsCollector))
+		logger.Info("metrics endpoint enabled", "path", cfg.Server.MetricsPath)
+	}
+	runtime.registerRoutes(routes)
+{{else}}	runtime.registerRoutes(r)
+{{end}}	// Custom routes are registered on the mux itself: cmd/custom_routes.go is
+	// yours, and wrapping handlers you wrote is your call to make there.
 	registerCustomRoutes(r)
+
 
 {{if .WithConfig}}	if cfg.Debug.RoutesEnabled {
 		r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {

@@ -827,7 +827,7 @@ go -C ./tools test -run TestMicrogenConfigIntegration . -count=1
 里程碑 11 在以下全部为真时完成：关闭顺序声明在守护它的代码旁边；任何一步顺序被改动都会
 有测试失败；没有任何关闭路径能在它自己拥有的连接仍然打开时返回。
 
-## 里程碑 12（进行中）：能拿来做判断的数字
+## 里程碑 12（已完成）：能拿来做判断的数字
 
 目标：运维可以 scrape 任意一个 v2 服务，拿到与其他所有 v2 服务同名、同义的数字——而框架不
 替应用选择指标客户端库。
@@ -891,12 +891,18 @@ go test ./kit/ -run TestSeriesCountIsBounded -count=1
   pattern 的地方"，也就是注册器内部，于是 `registerRoutes` 与每个生成的注册器都要接受一个
   registrar 接口，而不是具体的 mux。"先挂上一个没人喂的 exposition"不是可接受的中间态：它
   报告全零，读起来就是一个没有流量的服务，而 `kit` 已经拒绝了这种装配。
-- 迁移需要的接缝现在有了：`httpserver.RouteRegistrar` 与 `httpserver.DecorateRoutes`。剩下
-  的是把生成的签名改成接受它——`transport.tmpl` 的 `RegisterHTTPRoutes`、
-  `generated_routes.tmpl` 的 `httpRegistrars`、`generated_runtime.tmpl` 的
-  `registerRoutes`——再加上配置键与 `main.tmpl` 的接线。注意 `cmd/main.go` 与
-  `cmd/custom_routes.go` 只写一次、永不覆盖，所以生成签名可以自由改动，而这两个文件必须保持
-  原样仍能编译：`*http.ServeMux` 满足该接口，所以它们可以。
+- 迁移需要的接缝现在有了：`httpserver.RouteRegistrar` 与 `httpserver.DecorateRoutes`。生成的
+  签名已经改为接受它——`RegisterHTTPRoutes`、`httpRegistrars`、`registerRoutes`；而只写一次、
+  永不覆盖的 `cmd/main.go` 与 `cmd/custom_routes.go` 仍能编译，因为 `*http.ServeMux` 满足该
+  接口。这次不需要 manifest 迁移。
+
+验收：
+
+```bash
+go test ./cmd/microgen/... -count=1
+go -C ./tools test -run TestMicrogen . -count=1
+go -C ./tools test -run TestGeneratedConfigKeysAreDocumented . -count=1
+```
 
 ### 完成定义
 

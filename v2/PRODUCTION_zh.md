@@ -281,6 +281,23 @@ logger := slog.New(slog.NewJSONHandler(file, &slog.HandlerOptions{Level: slog.Le
 
 避免无界标签，例如原始 URL、用户 ID、请求 ID 或错误文本。
 
+要被 scrape 而不是推送：生成服务设置 `APP_METRICS_PATH`（`server.metrics_path`）；基于
+`kit` 的装配自己挂 `metrics.Handler(collector)`。两者都默认关闭：该端点会公开你的路由名与
+流量形状，所以把它放在 admin 监听或网络策略之后，而不是对用户服务的那个端口上。
+
+一次 scrape 会返回什么、不会返回什么：
+
+- `endpoint_requests_total{operation,outcome}`——每个路由模板 × 结果一条序列。
+  `operation` 是匹配到的模板，绝不是请求路径；未匹配任何路由的请求根本不记录；
+- 按 operation 的 `endpoint_request_duration_seconds_sum` 与 `_count`——这是均值，不是分位数。
+  没有桶，因为收集器只测总量；p99 来自 OpenTelemetry 直方图，而不是这个端点；
+- 按 operation 的 `endpoint_last_request_timestamp_seconds`——用来发现某条路由已经没有流量；
+- 计数器在进程启动时从零开始，因为收集器在内存里。scraper 能识别这次 reset；跨重启做裸减法
+  的查询不能。
+
+对这些序列，15–30s 的 scrape 间隔已经够用：它们是计数器和一个总量，两次 scrape 之间"丢掉"
+的分辨率，本来收集器也没有。
+
 ## 链路追踪
 
 OpenTelemetry 支持属于可选的

@@ -64,6 +64,7 @@ APP_READ_HEADER_TIMEOUT          Server.ReadHeaderTimeout
 APP_WRITE_TIMEOUT                Server.WriteTimeout
 APP_GRACEFUL_SHUTDOWN_TIMEOUT    Server.GracefulShutdownTimeout
 APP_DRAIN_DELAY                  Server.DrainDelay
+APP_METRICS_PATH                 Server.MetricsPath
 APP_LOG_LEVEL                    Logging.Level
 APP_LOG_FORMAT                   Logging.Format
 APP_MIDDLEWARE_TIMEOUT           Middleware.Timeout
@@ -128,7 +129,7 @@ and final environment overrides follow the `APP_` prefix shown above:
 
 | Section | Keys | Purpose |
 | --- | --- | --- |
-| `server` | `http_addr`, `grpc_addr`, `read_timeout`, `read_header_timeout`, `write_timeout`, `graceful_shutdown_timeout`, `drain_delay` | listeners and timeouts; `write_timeout` stays `0` for streaming. `drain_delay` holds the process open after readiness starts failing, so set it above the interval at which your platform re-reads readiness. `grpc_addr` is generated only for projects with gRPC |
+| `server` | `http_addr`, `grpc_addr`, `read_timeout`, `read_header_timeout`, `write_timeout`, `graceful_shutdown_timeout`, `drain_delay`, `metrics_path` | listeners and timeouts; `write_timeout` stays `0` for streaming. `drain_delay` holds the process open after readiness starts failing, so set it above the interval at which your platform re-reads readiness. `metrics_path` serves the Prometheus exposition of per-route numbers and is empty (off) by default, because it publishes route names and traffic shape. `grpc_addr` is generated only for projects with gRPC |
 | `logging` | `level`, `format` | slog level and format (`json` or `console`) |
 | `database` | `driver`, `dsn`, `auto_migrate`, `max_open_conns`, `max_idle_conns`, `conn_max_lifetime` | connection and pool tuning; generated only with `-db` |
 | `middleware` | `timeout` | generated endpoint middleware |

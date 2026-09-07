@@ -24,8 +24,13 @@ func NewHTTPHandler(endpoints genendpoint.{{.Service.ServiceName}}Endpoints) htt
 	return m
 }
 
-// RegisterHTTPRoutes binds the generated HTTP routes onto a standard ServeMux.
-func RegisterHTTPRoutes(router *http.ServeMux, endpoints genendpoint.{{.Service.ServiceName}}Endpoints, prefix string) {
+// RegisterHTTPRoutes binds the generated HTTP routes onto anything that
+// registers routes: *http.ServeMux, or a decorator that wraps each handler as it
+// is registered. Per-route middleware has to be installed here, because
+// registration is the only point where a handler and its route pattern are both
+// in scope.
+func RegisterHTTPRoutes(router server.RouteRegistrar, endpoints genendpoint.{{.Service.ServiceName}}Endpoints, prefix string) {
+
 {{range .UnaryMethods}}
 	// {{.HTTPMethod}} {{.Route}}
 	router.Handle("{{.HTTPMethod | upper}} "+routePath(prefix, "{{.Route}}"), server.NewServer(

@@ -77,6 +77,8 @@ func ApplyEnv(cfg *Config) error {
 	if err := readDuration("DRAIN_DELAY", &cfg.Server.DrainDelay); err != nil {
 		return err
 	}
+	readString("METRICS_PATH", &cfg.Server.MetricsPath)
+
 
 
 	readString("LOG_LEVEL", &cfg.Logging.Level)

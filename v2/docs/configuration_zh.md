@@ -54,6 +54,7 @@ APP_READ_HEADER_TIMEOUT          Server.ReadHeaderTimeout
 APP_WRITE_TIMEOUT                Server.WriteTimeout
 APP_GRACEFUL_SHUTDOWN_TIMEOUT    Server.GracefulShutdownTimeout
 APP_DRAIN_DELAY                  Server.DrainDelay
+APP_METRICS_PATH                 Server.MetricsPath
 APP_LOG_LEVEL                    Logging.Level
 APP_LOG_FORMAT                   Logging.Format
 APP_MIDDLEWARE_TIMEOUT           Middleware.Timeout
@@ -113,7 +114,7 @@ YAML 与远程配置会合并进 `custom`。全量重新生成绝不会覆盖此
 
 | 配置段 | 键 | 用途 |
 | --- | --- | --- |
-| `server` | `http_addr`、`grpc_addr`、`read_timeout`、`read_header_timeout`、`write_timeout`、`graceful_shutdown_timeout`、`drain_delay` | 监听与超时；流式场景 `write_timeout` 保持 `0`。`drain_delay` 在 readiness 开始失败之后把进程多留一会儿，应设为大于平台重新读取 readiness 的间隔。`grpc_addr` 仅在带 gRPC 的项目中生成 |
+| `server` | `http_addr`、`grpc_addr`、`read_timeout`、`read_header_timeout`、`write_timeout`、`graceful_shutdown_timeout`、`drain_delay`、`metrics_path` | 监听与超时；流式场景 `write_timeout` 保持 `0`。`drain_delay` 在 readiness 开始失败之后把进程多留一会儿，应设为大于平台重新读取 readiness 的间隔。`metrics_path` 提供逐路由数字的 Prometheus exposition，默认为空（关闭），因为它会公开路由名与流量形状。`grpc_addr` 仅在带 gRPC 的项目中生成 |
 | `logging` | `level`、`format` | slog 级别与格式（`json` 或 `console`） |
 | `database` | `driver`、`dsn`、`auto_migrate`、`max_open_conns`、`max_idle_conns`、`conn_max_lifetime` | 连接与连接池调优；仅在 `-db` 时生成 |
 | `middleware` | `timeout` | 生成的端点中间件 |

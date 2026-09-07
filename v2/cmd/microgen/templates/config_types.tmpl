@@ -38,7 +38,12 @@ type ServerConfig struct {
 	// which whatever routes traffic here re-reads readiness; zero stops
 	// immediately, which is only safe when nothing is routing to this instance.
 	DrainDelay time.Duration `yaml:"drain_delay" mapstructure:"drain_delay"`
+	// MetricsPath serves the Prometheus text exposition of the recorded
+	// per-route numbers. Empty means no metrics endpoint: publishing route names
+	// and traffic shape is a disclosure decision, so it is off until asked for.
+	MetricsPath string `yaml:"metrics_path" mapstructure:"metrics_path"`
 }
+
 
 
 // LoggingConfig holds logger settings.
@@ -159,6 +164,10 @@ func (cfg *Config) Validate() error {
 	if cfg.Server.DrainDelay < 0 {
 		return fmt.Errorf("config: server.drain_delay cannot be negative")
 	}
+	if cfg.Server.MetricsPath != "" && !strings.HasPrefix(cfg.Server.MetricsPath, "/") {
+		return fmt.Errorf("config: server.metrics_path %q must start with /", cfg.Server.MetricsPath)
+	}
+
 
 	if cfg.Server.GracefulShutdownTimeout <= 0 {
 		return fmt.Errorf("config: server.graceful_shutdown_timeout must be > 0")

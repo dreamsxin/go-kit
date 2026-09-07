@@ -11,20 +11,13 @@
 
 ### 新增
 
-- `observability/metrics` 用 Prometheus 文本 exposition 格式回应针对 `endpoint.Metrics`
-  收集器的 scrape：`metrics.Handler(collector)` 就是一个普通 `http.Handler`，
-  `metrics.Write` 为以其他方式提供这些字节的装配渲染同样的内容。发出三个族——按操作与结果
-  维度的 `endpoint_requests_total`、以 sum/count 形式的
-  `endpoint_request_duration_seconds`、以及 `endpoint_last_request_timestamp_seconds`
-  ——并可用 `metrics.WithNamespace` 改前缀。
-  整个模块里不涉及任何指标客户端库：需要直方图、exemplar 或自有 registry 的应用，用自己的
-  库去实现 `endpoint.Recorder`，那一直是这里的接缝。依赖门禁把这个包钉在 `endpoint` 与标准
-  库上，而 `kit` 有意不导入它——路由放在哪、是否存在，是部署的信息暴露决策，所以挂载是应用
-  自己写的一行：`component.Handle("GET /metrics", metrics.Handler(collector))`。
-  两条性质被声明并被测试，而不是假设：不发出聚合序列，于是对带标签序列求和的查询不会重复计数；
-  标签值只来自 recording 收到的操作——由服务端声明的路由限定其上界，并做了转义，使得一个带引号
-  的路由模板不会让整份响应失效。
+- 生成项目新增 `server.metrics_path` 配置键（`APP_METRICS_PATH`，默认为空即关闭），生成的入口
+  会把它接上：逐路由 recording 通过 `httpserver.DecorateRoutes` 安装在注册处，exposition 则挂在
+  mux 本身上，于是 scrape 报告的是服务而不是它自己。默认关闭，因为该端点会公开路由名与流量形状
+  ——把它放到 admin 监听或网络策略之后。`cmd/custom_routes.go` 里的自定义路由直接注册在 mux 上、
+  不被记录：那个文件是你的，要不要包装你自己写的 handler，由你在那里决定。
 - `httpserver.RouteRegistrar` 与 `httpserver.DecorateRoutes` 指名了"逐路由中间件必须安装在
+
   哪里"：注册处——只有在那里 handler 和它的路由 pattern 同时在作用域内。registrar 只要
   `http.ServeMux` 提供的那两个方法，所以 `*http.ServeMux` 天然满足它，调用方也可以传入一个
   装饰器；于是 mux 分派到的就是被包装后的 handler，这才让 `http.Request.Pattern` 是匹配到的

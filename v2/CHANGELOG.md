@@ -14,26 +14,17 @@ the thing scraping it.
 
 ### Added
 
-- `observability/metrics` answers a scrape from an `endpoint.Metrics` collector in
-  the Prometheus text exposition format: `metrics.Handler(collector)` is a plain
-  `http.Handler`, and `metrics.Write` renders the same bytes for an assembly that
-  serves them some other way. Three families are emitted —
-  `endpoint_requests_total` by operation and outcome, `endpoint_request_duration_seconds`
-  as a sum and count, and `endpoint_last_request_timestamp_seconds` — with
-  `metrics.WithNamespace` to rename the prefix.
-  No metrics client library is involved anywhere in the module: an application that
-  wants histograms, exemplars or its own registry implements `endpoint.Recorder`
-  against its own library, which has always been the seam. A dependency gate pins
-  the package to `endpoint` and the standard library, and `kit` deliberately does
-  not import it — where the route lives, and whether it exists, is the deployment's
-  disclosure decision, so mounting is one line the application writes:
-  `component.Handle("GET /metrics", metrics.Handler(collector))`.
-  Two properties are declared and tested rather than assumed: no aggregate series is
-  emitted, so a query that sums the labelled ones does not double count, and label
-  values are only the operations recording was given — bounded by the routes the
-  server declared, escaped so a pattern with a quote in it cannot invalidate the
-  whole response.
+- Generated projects gained the `server.metrics_path` configuration key
+  (`APP_METRICS_PATH`, empty and off by default), and the generated entry point wires
+  it: per-route recording is installed at registration through
+  `httpserver.DecorateRoutes`, and the exposition is mounted on the mux itself so a
+  scrape reports on the service rather than on itself. Off by default because the
+  endpoint publishes route names and traffic shape — put it on an admin listener or
+  behind network policy. Custom routes in `cmd/custom_routes.go` are registered on the
+  mux directly and are not recorded: that file is yours, and wrapping handlers you
+  wrote is your call to make there.
 - `httpserver.RouteRegistrar` and `httpserver.DecorateRoutes` name the place per-route
+
   middleware has to be installed: registration, where a handler and its route pattern
   are both in scope. A registrar takes the two methods `http.ServeMux` offers and
   nothing else, so `*http.ServeMux` satisfies it and a caller can pass a decorator
