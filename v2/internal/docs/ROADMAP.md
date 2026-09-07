@@ -1061,6 +1061,72 @@ Milestone 11 is complete when the shutdown sequence is declared beside the code
 that keeps it, a test fails if any step moves out of order, and no shutdown path
 can return while a connection it owns is still open.
 
+## Milestone 12 (Active): Numbers Someone Can Act On / 能拿来做判断的数字
+
+Goal: an operator can scrape a v2 service and get the same numbers, under the same
+names, as every other v2 service — without the framework choosing a metrics client
+for the application.
+
+v2 can already push telemetry: `observability/otel` assembles in one call and the
+instrument names follow the semantic conventions. What it cannot do is answer a
+scrape, which is the model most deployments actually run. Every application
+therefore wires its own exporter, names its own series, and picks its own labels,
+and two services in the same repository end up disagreeing about what
+"request duration" means. The numbers themselves already exist — `endpoint.Metrics`
+and `endpoint.Recorder` collect them — so this milestone is about exposure and
+naming, not measurement.
+
+### Work Package 1: A Scrape Surface With No Client Library In Core
+
+Goal: a metrics endpoint any assembly can mount, without the core dependency path
+gaining a metrics client.
+
+- The seam is the deployment's to fill: an exporter interface and a mountable
+  handler, so the application picks Prometheus, OpenMetrics, or its own format.
+  `tools` dependency gates keep the client out of `kit`, `endpoint`, and the
+  transports — an HTTP-only build must not pull a metrics library.
+- The concrete Prometheus implementation lives beside the other optional
+  integrations, the way `integrations/zap` and `observability/otel` do, and is
+  tested on its own.
+- The endpoint is mounted where probes are mounted, so a gRPC-only assembly is
+  scrapeable too.
+
+### Work Package 2: One Set Of Numbers, Two Ways Out
+
+Goal: pull and push cannot disagree.
+
+- Whatever the scrape surface reports is derived from the same
+  `endpoint.Recorder` data the OpenTelemetry adapter reports, so a dashboard built
+  on one matches an alert built on the other.
+- Where the two models genuinely differ — a counter reset on restart, a histogram
+  bucket layout — the difference is stated rather than smoothed over.
+
+### Work Package 3: Cardinality Is Bounded And Declared
+
+Goal: a metrics endpoint cannot take down the system scraping it.
+
+- Labels come from the matched route pattern, never the raw path, and the set of
+  label values a series can take is bounded by something the server controls.
+- The bound is declared beside the code and covered by a test that fails if an
+  unbounded value reaches a label.
+
+### Work Package 4: On By Configuration, Not By Surprise
+
+Goal: a generated service exposes metrics because someone asked.
+
+- A documented, validated configuration key turns the endpoint on and sets its
+  path; it is off by default, because a metrics endpoint on a public listener is a
+  disclosure decision the deployment makes.
+- `PRODUCTION.md` states what to scrape, at what interval, and what the series
+  mean.
+
+### Completion Definition / 完成定义
+
+Milestone 12 is complete when a scrape of a generated service returns series whose
+names and labels are declared beside the code that emits them, the dependency gates
+still keep the metrics client out of core, and a test fails if pull and push report
+different numbers for the same request.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

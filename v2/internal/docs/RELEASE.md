@@ -3,7 +3,7 @@ English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
-v2.11.0 is the current release, cut from `main` for the module:
+v2.12.0 is the candidate being prepared from `main` for the module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
@@ -16,7 +16,7 @@ Behaviour changes in this release are recorded in
 [CHANGELOG.md](../../CHANGELOG.md).
 
 The published module is stored in the repository's `v2` major-version
-subdirectory, but consumers request normal module versions such as `v2.11.0`.
+subdirectory, but consumers request normal module versions such as `v2.12.0`.
 Every release is one plain root tag, `vX.Y.Z`, and a released tag is immutable:
 tags accumulate as releases are cut.
 
@@ -58,7 +58,7 @@ but their generated public behavior is a product surface.
 
 ## Release Entry Criteria
 
-The v2.11.0 release satisfied these criteria:
+The v2.12.0 candidate satisfies these criteria:
 
 - Every surface the compatibility contract covers names the gate that enforces
   it, and the protocol behaviours v2 promises are declared beside the code that
@@ -189,8 +189,8 @@ tag check fail if another published module or old v2 tag is introduced.
 3. Create and push the tag:
 
 ```bash
-git tag -a v2.11.0 -m "go-kit v2.11.0"
-git push origin v2.11.0
+git tag -a v2.12.0 -m "go-kit v2.12.0"
+git push origin v2.12.0
 make verify-published
 ```
 

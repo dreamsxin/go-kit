@@ -2,6 +2,16 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.12.0] - Release Candidate
+
+Numbers someone can act on. v2 can already push telemetry through OpenTelemetry,
+but the pull model most deployments actually run — a scrape endpoint — was left to
+each application to wire, which meant every service reported slightly different
+numbers under slightly different names. This release gives the scrape surface a
+seam, keeps the client library out of the core dependency path, and states what the
+labels may contain, because an unbounded label is how a metrics endpoint takes down
+the thing scraping it.
+
 ## [2.11.0] - 2026-09-07
 
 Stopping on purpose. A process that is going away should say so before it goes,
