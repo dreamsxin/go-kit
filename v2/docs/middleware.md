@@ -94,6 +94,8 @@ That keeps request paths deterministic and testable.
 | `CircuitBreaker.Middleware()` | consecutive failures trip the breaker, probe closes it | 503 unavailable + `Retry-After` |
 | `RateLimitMiddleware` | reject over-limit requests | 429 too many requests |
 | `DelayRateLimitMiddleware` | wait for a token instead of rejecting | context error |
+| `KeyedRateLimitMiddleware` | reject requests over the limit **for their own key** | 429 too many requests |
+| `DelayKeyedRateLimitMiddleware` | wait for a token for that key | context error |
 | `RetryMiddleware` | repeat transient failures with backoff | returns the last error |
 | `Fallback` | answer with a fallback endpoint on failure | joins both errors when the fallback fails too |
 | `BulkheadMiddleware` | per-key concurrency **queue** | the caller's context error (504/499), wrapping `ErrBulkheadFull` |
@@ -105,6 +107,29 @@ shows up as latency and then as whatever ended the caller's wait — a timeout
 stays 504, a disconnect stays 499. `errors.Is(err, endpoint.ErrBulkheadFull)`
 still reports the saturation behind it. Pair `WithBulkhead` with `WithTimeout` so
 the queue is bounded by something. See [errors](errors.md) for the full mapping.
+
+`RateLimiter` limits the process as a whole: `Allow()` takes no key, so every
+caller draws on the same allowance and one noisy tenant can reject everybody.
+`KeyedRateLimiter` is the separate contract for a limit that belongs to a caller
+— `AllowKey(ctx, key)` — with a `RateLimitKeyFunc` deriving the key, because what
+identifies a caller is yours to decide:
+
+```go
+ep := endpoint.NewBuilder(createUser).
+	WithKeyedRateLimit(buckets, func(ctx context.Context, _ any) string {
+		subject, _ := security.SubjectFromContext(ctx)
+		return subject.Tenant
+	}).
+	Build()
+```
+
+An empty key is not an exemption: every request that cannot be identified is
+limited under the empty key, so unidentified callers share one bucket instead of
+each getting a fresh one or slipping past. A nil key function panics at
+assembly for the same reason — it would silently be the process-wide limit
+again. A `KeyedRateLimiter` that also implements `KeyedRetryAfterReporter` gets
+a per-key `Retry-After`; the unkeyed `RetryAfterReporter` still works when every
+key shares a refill rate.
 
 `CircuitBreaker` is not itself a `Middleware`: construct it once with
 `endpoint.NewCircuitBreaker()` and install `breaker.Middleware()`, keeping the

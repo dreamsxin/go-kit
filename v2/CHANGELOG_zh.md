@@ -26,6 +26,17 @@
   自己写 encoder（包括带自定义 kind 映射的那种）。声明了 `http.problem-media-type`、
   `http.problem-document-shape`、`http.problem-redaction` 与 `http.problem-encoder-parity`。
   `docs/errors.md`（中英）都加了对应章节。
+- `endpoint.KeyedRateLimiter` 让"按调用方的额度"变得可表达。`RateLimiter` 限的是整个进程——
+  `Allow()` 不带 key——所以按租户、按 API key 的限流不只是没有，而是通过被支持的契约根本无法表达，
+  一个吵闹的调用方就能把所有人都拒掉。新契约是 `AllowKey(ctx, key)` / `WaitKey(ctx, key)`，用
+  `KeyedRateLimitMiddleware`、`DelayKeyedRateLimitMiddleware`、`Builder.WithKeyedRateLimit`
+  或 `WithDelayKeyedRateLimit` 装上，key 由 `RateLimitKeyFunc` 给出，因为"什么算一个调用方"该由
+  部署决定。它是第二个契约，而不是给第一个契约再加两个参数：不带 key 的限流器没有按 key 的状态可查，
+  不该通过忽略一个参数来假装自己有。空 key 在空 key 上限流，绝不豁免，因此少一个 header 不是一条
+  出路；key 函数为 nil 会在装配处 panic，因为那会静默地又变回进程级限流。
+  `KeyedRetryAfterReporter` 给出按 key 的等待时长；当所有 key 补充速率相同时，不带 key 的
+  `RetryAfterReporter` 依然有效。令牌桶仍然属于应用。声明了 `endpoint.keyed-rate-limit` 与
+  `endpoint.keyed-rate-limit-shares-one-bucket`。
 
 ### 变更
 

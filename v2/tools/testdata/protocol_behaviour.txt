@@ -1,6 +1,8 @@
 stable/apperror.kind-vocabulary
 stable/apperror.unclassified-is-internal
 stable/apperror.wrapcause-hides-cause
+stable/endpoint.keyed-rate-limit
+stable/endpoint.keyed-rate-limit-shares-one-bucket
 stable/grpc.drains
 stable/grpc.health-watch
 stable/grpc.recording-method-label

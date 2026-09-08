@@ -1251,8 +1251,8 @@ go test ./kit/grpc/ -run TestHealthWatch -count=1
 
 审计确认为"有意为之且已写明"、因此不算工作的部分：后台任务（`PRODUCTION.md` 说 runner 是一份
 需要你自己写的草图，不是这个框架发布的包，并给出了那四条规则）、限流器实现
-（`endpoint/rate_limit.go` 说契约属于框架、令牌桶属于应用），以及每一个可选 provider 都留在核心
-依赖路径之外。
+（`endpoint/rate_limit.go` 说契约属于框架、令牌桶属于应用——*实现*属于应用是对的；契约说不出一个 key
+不是，见工作包 4），以及每一个可选 provider 都留在核心依赖路径之外。
 
 ### 工作包 1：出站客户端是我们的，不是标准库的
 
@@ -1314,6 +1314,27 @@ go test ./transport/http/server/ -run "TestProblem|TestWriteProblem" -count=1
 
 已作为 `http.problem-media-type`、`http.problem-document-shape`、`http.problem-redaction`
 与 `http.problem-encoder-parity` 交付。
+
+### 工作包 4：额度能说出它限的是谁
+
+- `endpoint.RateLimiter` 是 `Allow() bool`。令牌桶属于应用是对的，保持不变；错的是这个契约只能表达
+  进程级的额度，于是按租户、按 API key 的限流不是"没做"，而是"表达不出来"，一个吵闹的调用方就能把
+  所有人都拒掉。一个说不出生产真正需要的那件事的接缝，就是被交出去的一份负担——正是本里程碑的主题。
+- `KeyedRateLimiter`——`AllowKey(ctx, key)` / `WaitKey(ctx, key)`——是第二个契约，而不是给第一个
+  再加两个参数：不带 key 的限流器没有按 key 的状态可查，不该靠忽略一个参数来假装自己有。key 由
+  `RateLimitKeyFunc` 给出，因为"什么算一个调用方"该由部署决定。
+- 空 key 在空 key 上限流。识别不出来的调用方共用一个桶，而不是各自拿到一个新桶或绕过限流，因此少一个
+  header 不是一条出路；key 函数为 nil 会在装配处 panic，理由相同。
+- `KeyedRetryAfterReporter` 补上了提示这一侧对应的缺口：按租户的桶知道自己的补充速率，而不带 key 的
+  reporter 说不出来。
+
+验收：
+
+```bash
+go test ./endpoint/ -run "Keyed" -count=1
+```
+
+已作为 `endpoint.keyed-rate-limit` 与 `endpoint.keyed-rate-limit-shares-one-bucket` 交付。
 
 ## 维护规则
 

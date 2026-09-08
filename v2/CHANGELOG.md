@@ -37,6 +37,23 @@ arrives by inheritance from the standard library.
   Declares `http.problem-media-type`, `http.problem-document-shape`,
   `http.problem-redaction` and `http.problem-encoder-parity`. `docs/errors.md`
   has the section, in both languages.
+- `endpoint.KeyedRateLimiter` makes a per-caller limit expressible. `RateLimiter`
+  limits the process as a whole — `Allow()` takes no key — so per-tenant or
+  per-API-key limiting was not merely absent, it was structurally impossible
+  through the supported contract, and one noisy caller could reject everybody.
+  The new contract is `AllowKey(ctx, key)` / `WaitKey(ctx, key)`, installed with
+  `KeyedRateLimitMiddleware`, `DelayKeyedRateLimitMiddleware`,
+  `Builder.WithKeyedRateLimit` or `WithDelayKeyedRateLimit`, and the key comes
+  from a `RateLimitKeyFunc` because what identifies a caller is the deployment's
+  to decide. It is a second contract rather than two more parameters on the
+  first: an unkeyed limiter has no per-key state to consult and must not be able
+  to claim otherwise by ignoring an argument. An empty key is limited under the
+  empty key, never exempted, so a missing header is not a way out, and a nil key
+  function panics at assembly because it would silently be the process-wide limit
+  again. `KeyedRetryAfterReporter` reports a per-key wait; the unkeyed
+  `RetryAfterReporter` still works when every key shares a refill rate. The token
+  bucket is still the application's. Declares `endpoint.keyed-rate-limit` and
+  `endpoint.keyed-rate-limit-shares-one-bucket`.
 
 ### Changed
 

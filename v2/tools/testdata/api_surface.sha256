@@ -1,6 +1,6 @@
 go-kit-v2 public API
 39b39fd7e0b072b645e9529ad738152f88a5845f85ced905180936e411c08295  github.com/dreamsxin/go-kit/v2/apperror
-ce986556aec7e07fdfd74ee9b9aab123217ae2768a9c1f5840a74f8ef678ccd9  github.com/dreamsxin/go-kit/v2/endpoint
+c86f67a2990f9073a5c56ec2455c5b44d28139cce6cc7c2b0a7c89d23bed1f7e  github.com/dreamsxin/go-kit/v2/endpoint
 488bf5a62bf5d9be684c7a66ad8eb9e586dde695cf37072e4858a8e670f7d287  github.com/dreamsxin/go-kit/v2/health
 7f572336981100a3168e4e6f0645ac65617256da91932aba9bf38a5df23ddafd  github.com/dreamsxin/go-kit/v2/integrations/consul
 2129202e0390687ff8881e40813c6e70867789d0ba401783fd699b99bf0af016  github.com/dreamsxin/go-kit/v2/integrations/etcd

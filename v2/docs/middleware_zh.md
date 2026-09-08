@@ -82,6 +82,8 @@ HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.C
 | `CircuitBreaker.Middleware()` | 连续失败使熔断器跳闸，探针使其闭合 | 503 unavailable + `Retry-After` |
 | `RateLimitMiddleware` | 拒绝超限请求（限流） | 429 too many requests |
 | `DelayRateLimitMiddleware` | 等待令牌而非拒绝 | context 错误 |
+| `KeyedRateLimitMiddleware` | 拒绝**在自己 key 上**超限的请求 | 429 too many requests |
+| `DelayKeyedRateLimitMiddleware` | 为该 key 等待令牌 | context 错误 |
 | `RetryMiddleware` | 对瞬时失败带退避重试 | 返回最后一次错误 |
 | `Fallback` | 失败时用降级兜底端点应答 | 兜底也失败时合并两个错误 |
 | `BulkheadMiddleware` | 按 key 的并发**排队**（舱壁隔离） | 调用方的 context 错误（504/499），并包装 `ErrBulkheadFull` |
@@ -92,6 +94,24 @@ HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.C
 `errors.Is(err, endpoint.ErrBulkheadFull)` 仍能查到背后的饱和原因。请把
 `WithBulkhead` 与 `WithTimeout` 搭配，让队列有个边界。完整映射见
 [错误处理](errors_zh.md)。
+
+`RateLimiter` 限的是整个进程：`Allow()` 不带 key，于是所有调用方共用同一份额度，一个吵闹的租户
+就能把所有人都拒掉。`KeyedRateLimiter` 是"额度属于调用方"的另一个契约——`AllowKey(ctx, key)`
+——由 `RateLimitKeyFunc` 给出 key，因为"什么算一个调用方"是你来决定的：
+
+```go
+ep := endpoint.NewBuilder(createUser).
+    WithKeyedRateLimit(buckets, func(ctx context.Context, _ any) string {
+        subject, _ := security.SubjectFromContext(ctx)
+        return subject.Tenant
+    }).
+    Build()
+```
+
+空 key 不是豁免：所有识别不出来的请求都在空 key 上限流，于是无法识别的调用方共用一个桶，而不是
+各自拿到一个新桶、或者干脆绕过限流。key 函数为 nil 会在装配处 panic，理由相同——那会静默地又变成
+进程级限流。同时实现了 `KeyedRetryAfterReporter` 的 `KeyedRateLimiter` 能给出按 key 的
+`Retry-After`；当所有 key 的补充速率相同时，不带 key 的 `RetryAfterReporter` 依然有效。
 
 `CircuitBreaker` 本身不是 `Middleware`：用 `endpoint.NewCircuitBreaker()` 构造一次，
 装上 `breaker.Middleware()`，并保留 `*CircuitBreaker` 以便调用 `State()`。

@@ -1578,7 +1578,9 @@ What the audit confirmed as deliberate and stated, and therefore not work:
 background jobs (`PRODUCTION.md` says the runner is a sketch to write, not a package
 this framework ships, and gives the four rules), rate limiter implementations
 (`endpoint/rate_limit.go` says the contract is the framework's and the token bucket is
-the application's), and every optional provider staying off the core dependency path.
+the application's — the *implementation* being the application's is right; the contract
+being unable to name a key was not, see Work Package 4), and every optional provider
+staying off the core dependency path.
 
 ### Work Package 1: The Outbound Client Is Ours, Not The Standard Library's
 
@@ -1650,6 +1652,32 @@ go test ./transport/http/server/ -run "TestProblem|TestWriteProblem" -count=1
 
 Shipped as `http.problem-media-type`, `http.problem-document-shape`,
 `http.problem-redaction` and `http.problem-encoder-parity`.
+
+### Work Package 4: The Limit Can Name Who It Limits
+
+- `endpoint.RateLimiter` is `Allow() bool`. The token bucket being the application's is
+  correct and stays; what was wrong is that the contract can only ever express a
+  process-wide limit, so per-tenant or per-API-key limiting was not absent but
+  *unexpressible*, and one noisy caller could reject everybody. A seam that cannot say the
+  thing production needs is a liability handed over, which is this milestone's subject.
+- `KeyedRateLimiter` — `AllowKey(ctx, key)` / `WaitKey(ctx, key)` — is a second contract,
+  not two more parameters on the first: an unkeyed limiter has no per-key state to consult
+  and must not be able to claim otherwise by ignoring an argument. `RateLimitKeyFunc`
+  supplies the key, because what identifies a caller is the deployment's to decide.
+- An empty key is limited under the empty key. Unidentified callers share one bucket rather
+  than each receiving a fresh one or bypassing the limit, so a missing header is not a way
+  out; a nil key function panics at assembly for the same reason.
+- `KeyedRetryAfterReporter` closes the matching gap in the hint: a per-tenant bucket knows
+  its own refill, and the unkeyed reporter could not say so.
+
+Acceptance:
+
+```bash
+go test ./endpoint/ -run "Keyed" -count=1
+```
+
+Shipped as `endpoint.keyed-rate-limit` and
+`endpoint.keyed-rate-limit-shares-one-bucket`.
 
 ## Maintenance Rules / 维护规则
 
