@@ -47,6 +47,8 @@ stable/http.response-status
 stable/http.retry-after
 stable/http.sse-framing
 stable/http.sse-headers
+stable/http.sse-line-terminators
+stable/http.sse-no-frame-injection
 stable/http.status-client-closed
 stable/http.status-coder-wins
 stable/http.status-context-fallback
@@ -94,6 +96,7 @@ stable/mcp.server-identity
 stable/mcp.session-header
 stable/mcp.sse-framing
 stable/mcp.stateless-request
+stable/mcp.transport-operation-authorization
 stable/mcp.unknown-meta-preserved
 stable/mcp.version-negotiation
 stable/metrics.exposition-format

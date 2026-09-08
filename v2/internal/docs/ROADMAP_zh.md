@@ -1336,7 +1336,7 @@ go test ./endpoint/ -run "Keyed" -count=1
 
 已作为 `endpoint.keyed-rate-limit` 与 `endpoint.keyed-rate-limit-shares-one-bucket` 交付。
 
-## 里程碑 18（进行中）：被别人读
+## 里程碑 18（已完成）：被别人读
 
 目标：这个框架在被"不是它作者的人"读的时候也要站得住。读者去哪里找答案，答案就该在那里；两个名字
 暗示两种行为时，它们就该有两种行为。
@@ -1442,6 +1442,82 @@ go vet ./kit/...
   仓库索引里，`examples/profilesvc/README.md` 两边都没有。找一篇文档不该取决于你打开了哪个索引。
 
 验收：`v2/tools` 里的文档链接与配对门禁通过，且一个索引里列出的每一篇文档，另一个索引里也列出。
+
+## 里程碑 19（进行中）：promise 没有覆盖到的地方
+
+目标：凡是 `// Stable:` 标记写下一条 promise 的地方，它点名的测试就应该断言那条 promise——不是一条更弱
+的，也不是 promise 所覆盖路径的一个子集。
+
+`tools/protocol_behaviour_test.go:78` 已经在检查每个标记点名的测试确实存在。它没法检查那个测试是否断言
+了 promise，而本里程碑的发现正来自这里。每一条都是一条没人走过的路：文字是对的，代码不是，而测试和代码
+达成了一致。
+
+### 工作包 1：每一个请求就是每一个请求
+
+- `mcp.method-authorization` 说每一个请求都会到达 `MethodAuthorizer`。`authorizeMethod` 只有两个调用
+  点，都是 POST。`handleGet` 与 `handleDelete` 一个都没有——于是持有 session ID 的调用方可以挂上服务端
+  发起的 SSE 流、或终止一个会话，而策略完全不被问及。覆盖测试跑了十个无状态 POST 方法，两个动词都没跑。
+- `MethodOpenStream` 与 `MethodDeleteSession` 用没有任何 MCP 方法占用的命名空间把它们呈现出来，于是策略
+  既不必匹配 HTTP 动词，也不必写字符串字面量。拒绝是 403：没有 request id 可以回答，和被拒绝的通知同理。
+- 授权跑在会话查找之前，于是被拒绝的调用方无法从 403 与 404 的差别里推出哪些 session ID 存在。
+
+验收：
+
+```bash
+go test ./interaction/mcp/ -run "Authoriz|Transport" -count=1
+```
+
+已作为 `mcp.transport-operation-authorization` 交付。
+
+### 工作包 2：一条流不能给自己分帧
+
+- `http.sse-framing` 描述的是"每一行输入一行 `data:`"。切分只按 LF，而规范里 CRLF、CR、LF 都结束一行
+  ——于是裸 CR 留在了一个 `data:` 行内部，守规范的客户端会在那里结束字段、把其余部分当无名字段读。载荷被
+  截断。覆盖测试用的是 `"a\nb"`。
+- data、注释文本与事件名都没有转义，因此每一个都能结束自己的帧并注入一个事件。任何流式输出"受调用方影响
+  的文本"的 handler 都可达。
+- 现在 data 与注释整体保持为 data 与注释。携带终止符的事件名是一个错误：字段值装不下它，所以那个名字是
+  调用方的 bug，而剥掉它和原样透传都会分出一个没人要的帧。
+
+验收：
+
+```bash
+go test ./transport/http/server/ -run SSE -count=1
+```
+
+已作为 `http.sse-line-terminators` 与 `http.sse-no-frame-injection` 交付。
+
+### 工作包 3：上限要跑在代价之前
+
+- `transport/http/server/multipart.go:71` 调用 `ParseMultipartForm`，它会把超过 `maxMemory` 的部分落到
+  临时文件，之后才拿 `fh.Size` 去比 `MaxFileBytes`。每个请求实际的磁盘上限是 `MaxBodyBytes` 而不是
+  `MaxFileBytes`，于是调用方可以逼出更大的写入，然后照样收到 413。
+- 同一个标记承诺"超限的请求体或文件"用 code `request_too_large`，但文件那一支发的是
+  `request_too_large.file`。按承诺的字符串去匹配的客户端会漏掉它。
+
+### 工作包 4：只能有一个 Content-Type
+
+- `transport/http/server/error.go` 先设 `Content-Type`，然后把 `Headerer` 错误报出的每个 header 都
+  `Add` 进去。一个 `Headers()` 里带 `Content-Type` 的错误会产出两个值，而那样的响应没有客户端能解释。
+  三个调用点。
+
+### 工作包 5：坏 cursor 是一个错误
+
+- `interaction/mcp/handler.go:566` 把非数字、负数、越界的 cursor 都当成 offset 0。MCP 规范要求
+  `-32602`。一个跨目录变更持久化了 cursor 的客户端，会拿到第一页并以为那是它的那一页。
+- `mcp.error-codes` 枚举了服务端会发的 code，却漏了 `-32021`——`stateless.go` 会返回它，而它自己的标记
+  也承诺了它。两个标记对词汇表的说法不一致。
+
+### 工作包 6：门禁看不见的标记
+
+- `observability/otel/agreement_test.go:25` 声明了 `otel.metrics-agree-with-the-exposition`，而
+  `tools/protocol_behaviour_test.go:138` 会跳过 `_test.go` 文件——于是那条 promise 不在被评审的快照里，
+  也在冻结门禁之外。要么这条 promise 该放到非测试源码里，要么门禁该拒绝一个它无法评审的标记。
+
+### 工作包 7：永远不会到达的响应
+
+- `interaction/mcp/streamable.go:282` 用 `_` 序列化工具结果、又用 `_` 写出去。一个序列化不了的结果——
+  NaN 浮点、非字符串键的 map——会发出 `data: `，而客户端在等一个永远不来的答复，且什么都没记录。
 
 ## 维护规则
 

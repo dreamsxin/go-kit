@@ -31,12 +31,35 @@ import (
 // represented, and never fills a principal in from the request body: a subject a
 // request asserts about itself is a claim, not an authentication.
 
+// The two transport operations a MethodAuthorizer sees under a name of their own.
+//
+// GET and DELETE are not JSON-RPC calls, so they have no method in the body to
+// authorize on — but they are requests, and each one does something a policy has
+// a reason to refuse: GET attaches to the stream the server pushes notifications
+// and sampling requests down, and DELETE terminates a session. They are presented
+// under these names, in namespaces no MCP method uses, so a policy can decide on
+// them without matching HTTP verbs and without a string literal.
+//
+// Both carry the session the request presented as MethodRequest.SessionID and no
+// Target. They exist only on the session-bearing revision; the stateless revision
+// answers 405 to anything but POST.
+const (
+	// MethodOpenStream is what a GET presents: open the server-initiated SSE
+	// stream for the session in the Mcp-Session-Id header.
+	MethodOpenStream = "stream/open"
+	// MethodDeleteSession is what a DELETE presents: terminate that session.
+	MethodDeleteSession = "session/delete"
+)
+
 // MethodRequest describes one MCP request to a MethodAuthorizer. It is what the
 // transport knows about the request before it dispatches anything.
 type MethodRequest struct {
 	// Method is the JSON-RPC method, for example "tools/call". It is the name
 	// the server would dispatch, so a policy keyed on it cannot be bypassed by
 	// a header that says something else.
+	//
+	// For the two operations that are not JSON-RPC calls it is MethodOpenStream
+	// or MethodDeleteSession.
 	Method string
 
 	// Target names the tool, prompt, or resource the method addresses, and is
@@ -93,7 +116,7 @@ func (f MethodAuthorizerFunc) AuthorizeMethod(ctx context.Context, req MethodReq
 // false once it has answered the request itself.
 //
 // Stable: mcp.method-authorization — every request reaches the configured MethodAuthorizer, with its method and target, before anything is dispatched.
-// Covered by: TestMethodAuthorizerSeesEveryRequest, TestLegacyRequestsReachTheAuthorizer
+// Covered by: TestMethodAuthorizerSeesEveryRequest, TestLegacyRequestsReachTheAuthorizer, TestTransportOperationsReachTheAuthorizer
 //
 // Stable: mcp.no-authorization-policy — a transport with no MethodAuthorizer applies no policy of its own.
 // Covered by: TestWithoutAnAuthorizerEveryMethodIsServed
@@ -134,6 +157,34 @@ func (h *StreamableHandler) authorizeMethod(ctx context.Context, w http.Response
 		return false
 	}
 	writeResponse(w, response{JSONRPC: jsonRPCVersion, ID: req.ID, Error: authorizationError(err)})
+	return false
+}
+
+// authorizeTransport asks the same policy about GET and DELETE, which carry no
+// JSON-RPC body to authorize on.
+//
+// They were missed when the seam was built, and the marker above said "every
+// request" while two of them went straight through: a caller holding a session ID
+// could attach to the server's notification and sampling stream, or terminate a
+// session, without the policy being consulted. A refusal is an HTTP 403 because
+// there is no request id to answer, the same reason a refused notification is.
+//
+// Stable: mcp.transport-operation-authorization — opening the server stream and deleting a session reach the MethodAuthorizer as stream/open and session/delete, and a refusal is 403 with nothing done.
+// Covered by: TestTransportOperationsReachTheAuthorizer, TestRefusedTransportOperationDoesNothing
+func (h *StreamableHandler) authorizeTransport(ctx context.Context, w http.ResponseWriter, r *http.Request, method string) bool {
+	if h.Authorizer == nil {
+		return true
+	}
+	err := h.Authorizer.AuthorizeMethod(ctx, MethodRequest{
+		Method:          method,
+		ProtocolVersion: legacyProtocolVersion,
+		SessionID:       r.Header.Get(headerSessionID),
+		Header:          r.Header,
+	})
+	if err == nil {
+		return true
+	}
+	writeHTTPError(w, http.StatusForbidden, "unauthorized", err.Error())
 	return false
 }
 

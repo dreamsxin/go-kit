@@ -99,6 +99,100 @@ func TestSSEServer_CommentAndRetryLines(t *testing.T) {
 	}
 }
 
+// TestSSEStreamSplitsEveryLineTerminator covers the terminators a client
+// recognises but the framing did not. Splitting on LF alone left a bare CR
+// inside a "data:" line, where a conforming client ends the field — so the
+// payload arrived truncated at the CR.
+func TestSSEStreamSplitsEveryLineTerminator(t *testing.T) {
+	srv := newSSETestServer(t, func(_ context.Context, _ any, s *server.SSEStream) error {
+		return s.Data("lf\ncr\rcrlf\r\nend")
+	})
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	want := "data: lf\ndata: cr\ndata: crlf\ndata: end\n\n"
+	body, _ := io.ReadAll(resp.Body)
+	if string(body) != want {
+		t.Errorf("body:\n got %q\nwant %q", body, want)
+	}
+}
+
+// TestSSEStreamDataCannotInjectAnEvent proves a payload cannot end its own frame.
+// A blank line terminates an event, so data carrying one used to let whatever
+// followed be read as a separate event with a name of the payload's choosing.
+func TestSSEStreamDataCannotInjectAnEvent(t *testing.T) {
+	srv := newSSETestServer(t, func(_ context.Context, _ any, s *server.SSEStream) error {
+		return s.Data("real\n\nevent: forged\ndata: injected")
+	})
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	// Every line of the payload stays a data line, so the forged name is data.
+	want := "data: real\ndata: \ndata: event: forged\ndata: data: injected\n\n"
+	if string(body) != want {
+		t.Errorf("body:\n got %q\nwant %q", body, want)
+	}
+	if strings.HasPrefix(string(body), "event:") || strings.Contains(string(body), "\nevent:") {
+		t.Error("the payload framed an event of its own")
+	}
+}
+
+// TestSSEStreamCommentCannotInjectAnEvent proves the same for a comment: a blank
+// line inside one used to end the comment and open the stream to a fabricated
+// event.
+func TestSSEStreamCommentCannotInjectAnEvent(t *testing.T) {
+	srv := newSSETestServer(t, func(_ context.Context, _ any, s *server.SSEStream) error {
+		return s.Comment("keep-alive\n\nevent: forged\ndata: injected")
+	})
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	want := ": keep-alive\n: \n: event: forged\n: data: injected\n"
+	if string(body) != want {
+		t.Errorf("body:\n got %q\nwant %q", body, want)
+	}
+}
+
+// TestSSEStreamRejectsAnEventNameWithALineTerminator states the third case. A
+// field value cannot carry a terminator, so the name is a caller bug rather than
+// data to reshape: reporting it is the only answer that neither invents a name
+// nor frames something nobody asked for.
+func TestSSEStreamRejectsAnEventNameWithALineTerminator(t *testing.T) {
+	var streamErr error
+	srv := newSSETestServer(t, func(_ context.Context, _ any, s *server.SSEStream) error {
+		streamErr = s.Event("forged\ndata: injected", "payload")
+		return nil
+	})
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	if streamErr == nil {
+		t.Fatal("Event accepted a name containing a line terminator")
+	}
+	if len(body) != 0 {
+		t.Errorf("body = %q, want nothing written", body)
+	}
+}
+
 func TestSSEServer_DecodeFailureBeforeHeaders(t *testing.T) {
 	dec := func(context.Context, *http.Request) (any, error) {
 		return nil, apperror.InvalidArgument("stream.bad_cursor", "cursor is required")

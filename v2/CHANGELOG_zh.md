@@ -2,6 +2,30 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [2.19.0] - Release Candidate
+
+promise 没有覆盖到的地方。这个框架里的每一条行为都在源码里以 `// Stable: <id> — <promise>` 标记，
+并写明覆盖它的测试，还有一道门禁检查那个测试确实存在。这个版本开启的里程碑来自问下一个问题：那个测试
+真的断言了 promise 说的事吗？凡是没有的地方，缺口都不在文字里——而是一条没人走过的路。
+
+### 修复
+
+- MCP 的 `GET` 与 `DELETE` 从来没有到达 `MethodAuthorizer`，而 `mcp.method-authorization` 声明的是
+  "每一个请求都会到达"。持有一个 session ID 的调用方，可以挂上服务端推送通知与 sampling 请求的那条流，
+  或者终止任意会话，而部署方的策略完全不被问及。现在两者都会到达，名字是
+  `mcp.MethodOpenStream`（`stream/open`）与 `mcp.MethodDeleteSession`（`session/delete`）——用的是
+  没有任何 MCP 方法占用的命名空间，于是策略不必去匹配 HTTP 动词——拒绝是 403 且什么都没做，因为没有
+  request id 可以回答。授权跑在会话查找之前，所以被拒绝的调用方学不到"哪些 session 存在"。原来的覆盖
+  测试跑了十个无状态 POST 方法，一个 `GET`、一个 `DELETE` 都没有；现在有了。声明了
+  `mcp.transport-operation-authorization`。
+- SSE 分帧只按 LF 切行。规范里 CRLF、CR、LF 都结束一行，因此携带裸 CR 的载荷被放进了一个 `data:` 行
+  内部，而一个守规范的客户端会在那里结束字段、把其余部分当成无名字段读——载荷被静默截断。现在三种终止符
+  都会开启新的 data 行。声明了 `http.sse-line-terminators`。
+- SSE 的 data、注释文本与事件名都没有转义，因此其中任何一个都能结束自己的帧、往流里注入一个自选的事件
+  ——任何会流式输出"受调用方影响的文本"的 handler 都可达。现在 data 与注释整体保持为 data 与注释（注释
+  里的空行变成又一行注释），而携带行终止符的事件名是一个错误而不是一个帧：字段值装不下终止符，所以那个
+  名字是调用方的 bug，剥掉它和原样透传都不是诚实的回答。声明了 `http.sse-no-frame-injection`。
+
 ## [2.18.0] - 2026-09-08
 
 被别人读。这个版本开启的里程碑来自一次换位审阅：第一次上手的人、写业务逻辑的人、运维它的人、

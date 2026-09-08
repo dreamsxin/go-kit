@@ -1679,7 +1679,7 @@ go test ./endpoint/ -run "Keyed" -count=1
 Shipped as `endpoint.keyed-rate-limit` and
 `endpoint.keyed-rate-limit-shares-one-bucket`.
 
-## Milestone 18 (Active): Read By Somebody Else / 被别人读
+## Milestone 18 (Complete): Read By Somebody Else / 被别人读
 
 Goal: the framework should hold up when it is read by someone who did not write it.
 Where a reader looks for an answer, the answer should be there; where two names
@@ -1814,6 +1814,99 @@ go vet ./kit/...
 
 Acceptance: the documentation link and pairing gates in `v2/tools` pass, and every
 document listed in one index is listed in the other.
+
+## Milestone 19 (Active): What The Promise Did Not Cover / promise 没有覆盖到的地方
+
+Goal: where a `// Stable:` marker states a promise, the named test should assert that
+promise — not a weaker one, and not a subset of the paths the promise covers.
+
+`tools/protocol_behaviour_test.go:78` already checks that every marker names a test
+that exists. It cannot check that the test asserts the promise, and that is where
+this milestone's findings come from. Each one is a path nobody walked: the prose was
+right, the code was not, and the test agreed with the code.
+
+### Work Package 1: Every Request Means Every Request
+
+- `mcp.method-authorization` said every request reaches the `MethodAuthorizer`.
+  `authorizeMethod` had exactly two call sites, both POST. `handleGet` and
+  `handleDelete` had none — so a caller holding a session ID could attach to the
+  server-initiated SSE stream or terminate a session with the policy never
+  consulted. The covering test drove ten stateless POST methods and neither verb.
+- `MethodOpenStream` and `MethodDeleteSession` present them under names in
+  namespaces no MCP method uses, so a policy decides on them without matching HTTP
+  verbs and without a string literal. A refusal is 403: there is no request id to
+  answer, the same reason a refused notification is.
+- Authorization runs before the session lookup, so a refused caller cannot learn
+  which session IDs exist from the difference between 403 and 404.
+
+Acceptance:
+
+```bash
+go test ./interaction/mcp/ -run "Authoriz|Transport" -count=1
+```
+
+Shipped as `mcp.transport-operation-authorization`.
+
+### Work Package 2: A Stream Cannot Frame Itself
+
+- `http.sse-framing` described one `data:` line per input line. The split was on LF
+  alone, while the specification ends a line on CRLF, CR, or LF — so a bare CR stayed
+  inside a `data:` line, where a conforming client ends the field and reads the rest
+  as a nameless one. The payload arrived truncated. The covering test used `"a\nb"`.
+- Data, comment text and event names were unescaped, so each could end its own frame
+  and inject an event. Reachable from any handler streaming caller-influenced text.
+- Data and comments now stay data and comments. An event name carrying a terminator
+  is an error: a field value cannot hold one, so the name is a caller bug, and both
+  stripping it and passing it through frame something nobody asked for.
+
+Acceptance:
+
+```bash
+go test ./transport/http/server/ -run SSE -count=1
+```
+
+Shipped as `http.sse-line-terminators` and `http.sse-no-frame-injection`.
+
+### Work Package 3: A Limit That Runs Before The Cost
+
+- `transport/http/server/multipart.go:71` calls `ParseMultipartForm`, which spills
+  parts over `maxMemory` to temp files, and only then compares `fh.Size` against
+  `MaxFileBytes`. The effective disk cap per request is `MaxBodyBytes`, not
+  `MaxFileBytes`, so a caller can force the larger write and still be answered 413.
+- The same marker promises code `request_too_large` for "an over-limit body or file",
+  but the file case emits `request_too_large.file`. A client matching the promised
+  string misses it.
+
+### Work Package 4: One Content-Type
+
+- `transport/http/server/error.go` sets `Content-Type` and then `Add`s every header a
+  `Headerer` error reports. An error whose `Headers()` includes `Content-Type`
+  produces two values and a response no client can interpret. Three call sites.
+
+### Work Package 5: A Bad Cursor Is An Error
+
+- `interaction/mcp/handler.go:566` treats a cursor that is non-numeric, negative or
+  past the end as offset 0. The MCP specification requires `-32602`. A client that
+  persisted a cursor across a catalogue change is handed page one as though it were
+  its page.
+- `mcp.error-codes` enumerates the codes the server emits and omits `-32021`, which
+  `stateless.go` returns and its own marker promises. Two markers disagree about the
+  vocabulary.
+
+### Work Package 6: A Marker The Gate Cannot See
+
+- `observability/otel/agreement_test.go:25` declares `otel.metrics-agree-with-the-exposition`,
+  and `tools/protocol_behaviour_test.go:138` skips `_test.go` files — so that promise
+  is absent from the reviewed snapshot and outside the freeze gate. Either the
+  promise belongs in non-test source, or the gate should refuse a marker it cannot
+  review.
+
+### Work Package 7: A Response That Never Arrives
+
+- `interaction/mcp/streamable.go:282` marshals a tool result with `_` and writes it
+  with `_`. A result that cannot be marshalled — a NaN float, a map with non-string
+  keys — sends `data: ` and the client waits for a reply that never comes, with
+  nothing logged.
 
 ## Maintenance Rules / 维护规则
 

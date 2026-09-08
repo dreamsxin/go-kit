@@ -346,3 +346,115 @@ func TestMethodAuthorizerFuncNilRefuses(t *testing.T) {
 		t.Fatalf("ping answered %v, want -32001", resp)
 	}
 }
+
+// legacySessionForAuthorization opens a session on the session-bearing revision
+// with no policy installed, so a transport-operation test starts from a session
+// that exists.
+func legacySessionForAuthorization(t *testing.T, h *StreamableHandler) string {
+	t.Helper()
+	post := func(sessionID string, body map[string]any) *httptest.ResponseRecorder {
+		payload, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(payload))
+		req.Header.Set(headerProtocolVersion, legacyProtocolVersion)
+		if sessionID != "" {
+			req.Header.Set(headerSessionID, sessionID)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+	rec := post("", map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{"protocolVersion": legacyProtocolVersion},
+	})
+	sessionID := rec.Header().Get(headerSessionID)
+	if sessionID == "" {
+		t.Fatalf("initialize minted no session: %s", rec.Body.String())
+	}
+	post(sessionID, map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"})
+	return sessionID
+}
+
+func transportRequest(t *testing.T, h *StreamableHandler, method, sessionID string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, "/mcp", nil)
+	req.Header.Set(headerProtocolVersion, legacyProtocolVersion)
+	req.Header.Set(headerSessionID, sessionID)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+// TestTransportOperationsReachTheAuthorizer covers the half of
+// mcp.method-authorization that GET and DELETE used to fall through: they carry
+// no JSON-RPC body, so they were never handed to the policy at all. A caller
+// holding a session ID could attach to the stream the server pushes
+// notifications and sampling requests down, or terminate a session, with the
+// policy never consulted.
+func TestTransportOperationsReachTheAuthorizer(t *testing.T) {
+	for _, tc := range []struct {
+		httpMethod string
+		want       string
+	}{
+		{httpMethod: http.MethodGet, want: MethodOpenStream},
+		{httpMethod: http.MethodDelete, want: MethodDeleteSession},
+	} {
+		t.Run(tc.httpMethod, func(t *testing.T) {
+			h := NewStreamableHandler(setupRuntime(t))
+			defer h.Close() //nolint:errcheck
+			sessionID := legacySessionForAuthorization(t, h)
+
+			var seen []MethodRequest
+			h.Authorizer = recordAuthorizations(&seen, interaction.ErrUnauthorized)
+
+			rec := transportRequest(t, h, tc.httpMethod, sessionID)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want %d (body %s)", rec.Code, http.StatusForbidden, rec.Body.String())
+			}
+			if len(seen) != 1 {
+				t.Fatalf("authorizer calls = %d, want 1", len(seen))
+			}
+			if seen[0].Method != tc.want {
+				t.Errorf("authorized method = %q, want %q", seen[0].Method, tc.want)
+			}
+			if seen[0].SessionID != sessionID {
+				t.Errorf("authorized session = %q, want %q", seen[0].SessionID, sessionID)
+			}
+			if seen[0].ProtocolVersion != legacyProtocolVersion {
+				t.Errorf("authorized revision = %q, want %q", seen[0].ProtocolVersion, legacyProtocolVersion)
+			}
+			if seen[0].Target != "" {
+				t.Errorf("authorized target = %q, want empty", seen[0].Target)
+			}
+		})
+	}
+}
+
+// TestRefusedTransportOperationDoesNothing is the assertion that matters: a
+// refusal must not be a refusal after the fact. A refused DELETE has to leave
+// the session alive, or the policy only decided what the caller was told.
+func TestRefusedTransportOperationDoesNothing(t *testing.T) {
+	h := NewStreamableHandler(setupRuntime(t))
+	defer h.Close() //nolint:errcheck
+	sessionID := legacySessionForAuthorization(t, h)
+
+	var seen []MethodRequest
+	h.Authorizer = recordAuthorizations(&seen, interaction.ErrUnauthorized)
+
+	if rec := transportRequest(t, h, http.MethodDelete, sessionID); rec.Code != http.StatusForbidden {
+		t.Fatalf("refused DELETE status = %d, want %d", rec.Code, http.StatusForbidden)
+	}
+	if _, ok := h.store.get(sessionID); !ok {
+		t.Fatal("a refused DELETE destroyed the session anyway")
+	}
+
+	// The same request the policy allows still works, so the refusal was the
+	// policy's decision and not a broken handler.
+	h.Authorizer = recordAuthorizations(&seen, nil)
+	if rec := transportRequest(t, h, http.MethodDelete, sessionID); rec.Code != http.StatusAccepted {
+		t.Fatalf("allowed DELETE status = %d, want %d", rec.Code, http.StatusAccepted)
+	}
+	if _, ok := h.store.get(sessionID); ok {
+		t.Fatal("an allowed DELETE left the session in place")
+	}
+}

@@ -2,6 +2,42 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.19.0] - Release Candidate
+
+What the promise did not cover. Every behaviour in this framework is marked in the
+source as `// Stable: <id> — <promise>` with the test that covers it, and a gate
+checks that the named test exists. This release opens a milestone from asking the
+next question: does the test assert what the promise says? Where it did not, the
+gap was not in the prose — it was a path nobody had walked.
+
+### Fixed
+
+- MCP `GET` and `DELETE` never reached the `MethodAuthorizer`, while
+  `mcp.method-authorization` promised that every request does. A caller holding a
+  session ID could attach to the stream the server pushes notifications and
+  sampling requests down, or terminate any session, with the deployment's policy
+  never consulted. Both now reach it as `mcp.MethodOpenStream` (`stream/open`) and
+  `mcp.MethodDeleteSession` (`session/delete`) — namespaces no MCP method uses, so
+  a policy decides on them without matching HTTP verbs — and a refusal is 403 with
+  nothing done, because there is no request id to answer. Authorization runs before
+  the session lookup, so a refused caller learns nothing about which sessions
+  exist. The covering test drove ten stateless POST methods and no `GET` or
+  `DELETE`; it does now. Declares
+  `mcp.transport-operation-authorization`.
+- SSE framing split lines on LF alone. The specification ends a line on CRLF, CR,
+  or LF, so a payload carrying a bare CR was emitted inside a `data:` line, where a
+  conforming client ends the field and reads the remainder as a field with no name
+  — the payload arrived silently truncated. All three terminators now start a new
+  data line. Declares `http.sse-line-terminators`.
+- SSE data, comment text and event names were unescaped, so any of them could end
+  its own frame and inject an event of its choosing into the stream — reachable by
+  any handler that streams caller-influenced text. Data and comments now stay
+  entirely data and comments (a blank line inside a comment becomes another comment
+  line), and an event name carrying a line terminator is an error rather than a
+  frame: a field value cannot hold one, so the name is a caller bug, and neither
+  stripping it nor passing it through is an honest answer. Declares
+  `http.sse-no-frame-injection`.
+
 ## [2.18.0] - 2026-09-08
 
 Read by somebody else. This release opens a milestone that came out of reviewing

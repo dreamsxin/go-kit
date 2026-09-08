@@ -3,7 +3,7 @@ module github.com/dreamsxin/go-kit-examples/v2
 go 1.26.0
 
 require (
-	github.com/dreamsxin/go-kit/v2 v2.18.0
+	github.com/dreamsxin/go-kit/v2 v2.19.0
 	github.com/hashicorp/consul/api v1.33.7
 	go.uber.org/zap v1.27.1
 	google.golang.org/grpc v1.82.1

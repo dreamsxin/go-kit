@@ -45,9 +45,16 @@ func (ss *SSEStream) EventJSON(name string, v any) error {
 // Comment writes a comment line. Comments are ignored by clients and are the
 // standard keep-alive heartbeat for streams behind proxies that time out
 // idle connections.
+//
+// Text spanning several lines becomes one comment line per line, so a comment
+// stays a comment: a blank line inside it would otherwise end the comment and
+// let whatever followed be read as an event.
 func (ss *SSEStream) Comment(text string) error {
-	_, err := fmt.Fprintf(ss.w, ": %s\n", text)
-	if err != nil {
+	var b strings.Builder
+	for _, line := range splitSSELines(text) {
+		b.WriteString(": " + line + "\n")
+	}
+	if _, err := ss.w.Write([]byte(b.String())); err != nil {
 		return err
 	}
 	ss.flusher.Flush()
@@ -67,12 +74,25 @@ func (ss *SSEStream) Retry(milliseconds int) error {
 
 // Stable: http.sse-framing — an event is "event:" then one "data:" line per input line, ended by a blank line; comments are ":" and reconnect advice "retry:".
 // Covered by: TestSSEServer_MultiLineDataSplitsIntoDataLines, TestSSEServer_CommentAndRetryLines
+//
+// Stable: http.sse-line-terminators — CRLF, CR and LF each start a new data line, so a payload carrying any of them arrives whole rather than truncated at the first one a client recognises.
+// Covered by: TestSSEStreamSplitsEveryLineTerminator
+//
+// Stable: http.sse-no-frame-injection — data and comment text cannot introduce a frame of their own, and an event name carrying a line terminator is an error rather than a frame.
+// Covered by: TestSSEStreamDataCannotInjectAnEvent, TestSSEStreamCommentCannotInjectAnEvent, TestSSEStreamRejectsAnEventNameWithALineTerminator
 func (ss *SSEStream) writeEvent(name, data string) error {
+	// A field value cannot contain a line terminator, so a name that does is a
+	// caller bug rather than data to reshape: stripping it would frame an event
+	// under a name nobody asked for, and passing it through would let the name
+	// end the field and inject whatever follows.
+	if strings.ContainsAny(name, "\r\n") {
+		return fmt.Errorf("server: SSE event name cannot contain a line terminator: %q", name)
+	}
 	var b strings.Builder
 	if name != "" {
 		b.WriteString("event: " + name + "\n")
 	}
-	for i, line := range strings.Split(data, "\n") {
+	for i, line := range splitSSELines(data) {
 		if i > 0 {
 			b.WriteString("\n")
 		}
@@ -84,6 +104,18 @@ func (ss *SSEStream) writeEvent(name, data string) error {
 	}
 	ss.flusher.Flush()
 	return nil
+}
+
+// splitSSELines splits text the way an SSE client does.
+//
+// The specification ends a line on CRLF, CR, or LF. Splitting on LF alone left a
+// bare CR inside a "data:" line, where a conforming client ends the field and
+// reads the remainder as a field with no name — so the payload arrived silently
+// truncated, and text after the CR could be read as another field entirely.
+func splitSSELines(text string) []string {
+	normalized := strings.ReplaceAll(text, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+	return strings.Split(normalized, "\n")
 }
 
 // SSEStreamHandler runs one Server-Sent Events stream with the decoded

@@ -286,6 +286,11 @@ func (h *StreamableHandler) handleRequestSSE(w http.ResponseWriter, r *http.Requ
 // ─── GET handler ─────────────────────────────────────────────────────────────
 
 func (h *StreamableHandler) handleGet(w http.ResponseWriter, r *http.Request) {
+	// Authorization runs before the session lookup, so a caller the policy
+	// refuses learns nothing about which session IDs exist.
+	if !h.authorizeTransport(r.Context(), w, r, MethodOpenStream) {
+		return
+	}
 	sessionID := r.Header.Get(headerSessionID)
 	if sessionID == "" {
 		writeHTTPError(w, http.StatusBadRequest, "invalid_request", "Mcp-Session-Id header is required")
@@ -325,6 +330,9 @@ func (h *StreamableHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 // ─── DELETE handler ──────────────────────────────────────────────────────────
 
 func (h *StreamableHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
+	if !h.authorizeTransport(r.Context(), w, r, MethodDeleteSession) {
+		return
+	}
 	sessionID := r.Header.Get(headerSessionID)
 	if sessionID == "" {
 		writeHTTPError(w, http.StatusBadRequest, "invalid_request", "Mcp-Session-Id header is required")
