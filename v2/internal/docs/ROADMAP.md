@@ -1815,7 +1815,7 @@ go vet ./kit/...
 Acceptance: the documentation link and pairing gates in `v2/tools` pass, and every
 document listed in one index is listed in the other.
 
-## Milestone 19 (Active): What The Promise Did Not Cover / promise 没有覆盖到的地方
+## Milestone 19 (Complete): What The Promise Did Not Cover / promise 没有覆盖到的地方
 
 Goal: where a `// Stable:` marker states a promise, the named test should assert that
 promise — not a weaker one, and not a subset of the paths the promise covers.
