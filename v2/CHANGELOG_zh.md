@@ -2,7 +2,7 @@
 
 [English](CHANGELOG.md) | 简体中文
 
-## [2.16.0] - Release Candidate
+## [2.16.0] - 2026-09-07
 
 一次纠正，以及那句话曾经替谁开脱。
 
