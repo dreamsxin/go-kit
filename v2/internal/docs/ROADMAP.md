@@ -2001,6 +2001,84 @@ go test ./interaction/mcp/ -run "Origin|TrustRequestHost" -count=1
 
 Shipped as `mcp.request-host-is-not-trusted-by-default`.
 
+## Milestone 21 (Active): What The Generator Emits Is Part Of The Framework
+
+Goal: the generated service should be as correct as a hand-written one, and a feature
+should behave the same when combined as it does alone.
+
+Two audits opened this. The first ever look at `cmd/microgen` — the generator emits a
+whole service and had never been reviewed — and a look at feature composition rather
+than per-package correctness.
+
+### Work Package 1: The Generated Service Is Correct Again
+
+- v2.20.0 tightened the MCP Origin check, and no template mentioned `AllowedOrigins`
+  or `TrustRequestHost`: zero grep hits across `cmd/microgen`. The generated service
+  refused browser clients that used to be served, and offered nothing to point at.
+  This one is a regression this repository caused.
+- The generated shutdown never called `mcpHandler.Shutdown`, so sessions and their
+  goroutines survived it. It now runs before the HTTP shutdown, because a session
+  holds an open SSE stream and closing the sessions is what lets `Shutdown` finish.
+- The generated success encoder was hand-rolled `json.NewEncoder`. No `Content-Type`
+  (so `net/http` answers `text/plain` for JSON, contradicting the OpenAPI document the
+  same generator writes), no `StatusCoder`, no `Headerer`, no 204 rule. It now calls
+  `server.EncodeJSONResponse`. The unused `encoding/json` import goes with it —
+  otherwise the generated code does not compile.
+- `--grpc` produced a project that did not build: `go.mod` required neither grpc nor
+  protobuf while the generated `main` imports both.
+- Deferred with a reason: the GORM driver require. No `gorm.io/driver/*` version
+  exists anywhere in this repository, and inventing one turns "missing require" into
+  "version does not exist", which is worse. It needs either a pinned driver version
+  table or a line in the generator's next-steps output; the latter is preferable and
+  belongs with a wider look at what the generator tells the user after it runs.
+
+Acceptance:
+
+```bash
+go test ./cmd/microgen/... -count=1
+```
+
+### Work Package 2: SSE Keeps The Component's Contract
+
+- `kit.HandleSSETyped` never passed `h.jsonServerOptions` to `NewSSEServerTyped`,
+  while `kit/doc.go` — written by this repository in milestone 18 — listed it under
+  "the component's JSON server options all apply". A deployment installing
+  `ProblemJSONErrorEncoder` component-wide got problem documents on JSON routes and
+  plain envelopes on SSE decode failures.
+- Two caveats found by the same audit are now stated rather than fixed, because each
+  needs a larger change than a doc line deserves to hide: a middleware rejection on
+  an SSE route is rendered by a hardcoded `JSONErrorEncoder` (`kit/sse.go`), and the
+  endpoint chain records every stream as a success because the bridge's base endpoint
+  returns `nil` unconditionally — a stream that dies mid-way is a success in the
+  metrics. Getting the stream's outcome out of `ServeHTTP` needs a real seam.
+
+### Still Open From The Same Audits
+
+Recorded with file and line, not yet acted on:
+
+- `template_funcs.go` has an `escape` helper that only replaces `"`, not `\` or a
+  newline, and no template uses it. A doc comment or DB column comment containing a
+  quote produces syntactically valid Go that does not compile; one containing a
+  newline aborts generation after earlier files were written.
+- `model.tmpl` interpolates struct tags and comments raw; a backtick in a column name
+  or DB type terminates the raw string.
+- `.proto` output skips `format.Source` entirely, so a multi-line comment reaches
+  `protoc` unchanged.
+- Three schema-versus-handler disagreements in the generated OpenAPI: no
+  `additionalProperties` while the decoder sets `DisallowUnknownFields`, nullability
+  stripped from pointer fields, and `required` claimed for every non-pointer field
+  while nothing checks presence.
+- A live SSE stream burns the HTTP component's whole shutdown share and produces
+  `ErrShutdownIncomplete` on any rolling deploy that catches one; `WithTimeout` is
+  component-wide with no per-route escape, so hosting a long stream means dropping the
+  deadline for the JSON routes beside it. Both are mechanisms the code states; the
+  trade-off is not written down.
+- The canonical SSE example in `kit/sse.go` selects only on `ctx.Done()` and ignores
+  the `Stopping` announcement, contradicting the drain example in `kit/drain.go`. The
+  SSE one is the one an SSE author reads.
+- The gate meta-audit did not finish; the question of which gate can stay green while
+  its promise is broken is still open.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

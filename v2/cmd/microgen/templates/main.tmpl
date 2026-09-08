@@ -200,10 +200,22 @@ func main() {
 	}
 
 {{if .WithInteraction}}	mcpHandler := mcp.NewStreamableHandler(interactionRuntime)
+	// A browser MCP client sends an Origin header, and an origin is only allowed
+	// when it is named here. The request's own Host is deliberately not trusted:
+	// it comes from the caller, so comparing Origin against it is what DNS
+	// rebinding defeats. Name the origins your clients actually use:
+	//
+	//	mcpHandler.AllowedOrigins = []string{"http://localhost:5173"}
+	//
+	// Set mcpHandler.TrustRequestHost = true only where Host is trustworthy — a
+	// reverse proxy that overwrites it, or a network no browser can reach.
+	//
+	// Non-browser clients send no Origin and are served without any of this.
 	r.Handle("GET /mcp", mcpHandler)
 	r.Handle("POST /mcp", mcpHandler)
 	r.Handle("DELETE /mcp", mcpHandler)
 {{end}}
+
 
 {{if .WithOpenAPI}}	r.HandleFunc("GET /openapi.json", docs.Handler)
 	r.HandleFunc("GET /schema.json", docs.SchemaHandler)
@@ -409,7 +421,15 @@ func main() {
 {{end}}	defer cancel()
 
 
-	if err := httpServer.Shutdown(ctx); err != nil {
+{{if .WithInteraction}}	// MCP first: a session holds an open SSE stream, and httpServer.Shutdown
+	// waits for open connections. Closing the sessions is what lets that wait
+	// finish instead of burning the whole budget and falling through to Close.
+	if err := mcpHandler.Shutdown(ctx); err != nil {
+		logger.Error("MCP shutdown failed", "err", err)
+	}
+
+{{end}}	if err := httpServer.Shutdown(ctx); err != nil {
+
 		// The grace period is over and something is still holding a connection —
 		// a stream, a long poll, a handler that never watched its context. Close
 		// it: returning here would leave the process "stopped" with connections

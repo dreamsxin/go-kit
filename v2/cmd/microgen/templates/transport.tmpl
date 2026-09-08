@@ -3,9 +3,9 @@ package {{.Service.ServiceName | lower}}
 import (
 {{- if .UnaryMethods}}
 	"context"
-	"encoding/json"
 {{- end}}
 	"net/http"
+
 
 {{- if .UnaryMethods}}
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
@@ -81,7 +81,14 @@ func decode{{.Name}}Request(_ context.Context, r *http.Request) (any, error) {
 	return req, nil
 }
 
+// encode{{.Name}}Response delegates to the framework encoder rather than calling
+// json.NewEncoder directly. Encoding by hand sets no Content-Type — so net/http
+// sniffs the body and answers text/plain for JSON, contradicting the OpenAPI
+// document this generator writes beside it — and it writes the body before any
+// StatusCoder or Headerer on the response type has been consulted, which pins
+// every answer to an implicit 200 and loses the 204-no-body rule.
 func encode{{.Name}}Response(ctx context.Context, w http.ResponseWriter, response any) error {
-	return json.NewEncoder(w).Encode(response)
+	return server.EncodeJSONResponse(ctx, w, response)
 }
+
 {{end}}

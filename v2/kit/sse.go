@@ -67,7 +67,13 @@ func HandleSSETyped[Req any](
 	if dec == nil {
 		panic("kit: SSE decode function cannot be nil")
 	}
-	handler := httpserver.NewSSEServerTyped(stream, dec, opts...)
+	// The component's JSON server options come first so a route's own options
+	// still win. They were previously not passed at all, which left a deployment
+	// that installed ProblemJSONErrorEncoder component-wide answering
+	// application/problem+json on every JSON route and a plain envelope on an SSE
+	// decode failure — one service with two error contracts.
+	streamOptions := append(append([]httpserver.ServerOption(nil), h.jsonServerOptions...), opts...)
+	handler := httpserver.NewSSEServerTyped(stream, dec, streamOptions...)
 	h.Handle(pattern, h.sseMiddlewareHandler(pattern, handler))
 }
 

@@ -1596,6 +1596,62 @@ go test ./interaction/mcp/ -run "Origin|TrustRequestHost" -count=1
 
 已作为 `mcp.request-host-is-not-trusted-by-default` 交付。
 
+## 里程碑 21（进行中）：生成器产出什么，也是框架的一部分
+
+目标：生成出来的服务应该和手写的一样正确；一个特性被组合起来用时，行为应该和单独用时一致。
+
+开启它的是两次审计。第一次真正看 `cmd/microgen`——生成器产出一整个服务，却从没被审过——以及一次只看
+特性组合、而不是逐包正确性的审计。
+
+### 工作包 1：生成的服务重新变对
+
+- v2.20.0 收紧了 MCP 的 Origin 检查，而没有任何模板提到 `AllowedOrigins` 或 `TrustRequestHost`：在
+  `cmd/microgen` 里 grep 零命中。生成的服务把原本被服务的浏览器客户端拒了，而且没有任何东西可以指。
+  **这一条是本仓库自己造成的回归。**
+- 生成的停机路径从不调用 `mcpHandler.Shutdown`，于是会话和它们的 goroutine 活过了停机。现在它跑在 HTTP
+  停机之前，因为一个会话握着一条开着的 SSE 流，先关会话才能让 `Shutdown` 结束。
+- 生成的成功编码器是手搓的 `json.NewEncoder`：没有 `Content-Type`（于是 `net/http` 把 JSON 答成
+  `text/plain`，和同一个生成器写出的 OpenAPI 自相矛盾）、没有 `StatusCoder`、没有 `Headerer`、没有 204
+  规则。现在改调 `server.EncodeJSONResponse`。因此变成未使用的 `encoding/json` import 也一起删——否则
+  生成的代码编译不过。
+- `--grpc` 生成出来的项目编译不过：`go.mod` 既没 require grpc 也没 protobuf，而生成的 `main` 两个都 import。
+- 有理由地推后：GORM 驱动的 require。本仓库任何地方都没有 `gorm.io/driver/*` 的版本，凭空编一个会把
+  "缺 require"变成"版本不存在"，那更糟。它需要一份钉住的驱动版本表，或者在生成器跑完后的 next-steps
+  输出里加一行；后者更好，应该和"生成器跑完之后到底告诉用户什么"一起做。
+
+验收：
+
+```bash
+go test ./cmd/microgen/... -count=1
+```
+
+### 工作包 2：SSE 保持组件的约定
+
+- `kit.HandleSSETyped` 从来没把 `h.jsonServerOptions` 传给 `NewSSEServerTyped`，而 `kit/doc.go`——
+  本仓库在里程碑 18 自己写的那段——把它列在"组件的 JSON server options 全都生效"里。组件级装了
+  `ProblemJSONErrorEncoder` 的部署，于是在 JSON 路由上拿到 problem 文档，在 SSE 解码失败时拿到普通信封。
+- 同一次审计发现的另两条现在是**写明**而不是修掉，因为每一条都需要比"一行文档"更大的改动：SSE 路由上的
+  中间件拒绝由硬编码的 `JSONErrorEncoder` 渲染（`kit/sse.go`）；以及端点链把每条流都记成成功，因为那个桥
+  的基础 endpoint 无条件返回 `nil`——一条中途死掉的流在指标里是一次成功。要把流的结果从 `ServeHTTP` 里
+  取出来，需要一个真正的接缝。
+
+### 这两次审计里仍未处理的
+
+已记下文件与行号，尚未动手：
+
+- `template_funcs.go` 的 `escape` 只替换 `"`，不管 `\` 和换行，而且没有任何模板用它。含引号的文档注释或
+  DB 列注释会生成语法合法但编译不过的 Go；含换行的会在前面的文件已写出之后中断生成。
+- `model.tmpl` 原样插入结构体 tag 与注释；列名或 DB 类型里的一个反引号就会终止那个原始字符串。
+- `.proto` 输出完全跳过 `format.Source`，于是多行注释原样送到 `protoc`。
+- 生成的 OpenAPI 与 handler 三处不一致：没有 `additionalProperties` 而解码器设了 `DisallowUnknownFields`；
+  指针字段的可空性被抹掉；每个非指针字段都被标 `required`，而没有任何地方检查存在性。
+- 一条活着的 SSE 流会吃掉 HTTP 组件停机预算的全部份额，于是任何撞上开着的流的滚动发布都会产出
+  `ErrShutdownIncomplete`；`WithTimeout` 是组件级的、没有按路由的出口，于是要托管一条长流就得把它旁边
+  JSON 路由的 deadline 也一起去掉。两者都是代码已经写明的机制，但这个取舍没有被写下来。
+- `kit/sse.go` 里那个范例只 select `ctx.Done()`，忽略了 `Stopping` 通告，和 `kit/drain.go` 里的范例自相
+  矛盾——而写 SSE 的人读的是前者。
+- 门禁元审计没跑完；"哪一道门禁能在它的 promise 已破时仍然绿着"这个问题仍然开着。
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

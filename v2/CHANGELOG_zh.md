@@ -2,6 +2,38 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [2.21.0] - Release Candidate
+
+生成器产出什么，也是框架的一部分。这个里程碑来自两次审计：第一次真正看代码生成路径，以及一次只看
+"特性被组合起来用"而不是单独用时会发生什么。
+
+### 修复
+
+- **v2.20.0 把生成的 MCP 装配弄坏了。** 收紧 Origin 检查之后，原本被服务的浏览器客户端被拒，而没有
+  任何模板提到 `AllowedOrigins` 或 `TrustRequestHost`——在 `cmd/microgen` 里 grep 这两个词零命中。
+  生成的 `main` 现在带上这两个字段，以及"为什么请求自身的 `Host` 不被信任"，于是读生成代码的人能看见
+  这个决定，而不是去 debug 一个 403。
+- 生成的停机路径从不调用 `mcpHandler.Shutdown`，于是 MCP 会话和它们的 goroutine 不被排空。现在它跑在
+  HTTP 停机之前：一个会话握着一条开着的 SSE 流，先关会话才能让 `Shutdown` 结束，而不是把预算烧完再
+  fallthrough 到 `Close`。
+- 生成的成功编码器是 `json.NewEncoder(w).Encode(response)`。它不设 `Content-Type`——于是 `net/http`
+  把 JSON 嗅探成 `text/plain`，和同一个生成器写在它旁边的 OpenAPI 文档自相矛盾——并且在响应类型上的
+  `StatusCoder` 或 `Headerer` 被读之前就写了 body，把每个回答钉死成隐式 200，也丢掉了 204 无 body
+  规则。现在改为调用 `server.EncodeJSONResponse`，也就是携带那些 promise 的那个编码器。
+- 带 `--grpc` 生成的项目根本编译不过：`go.mod` 既没 require `google.golang.org/grpc` 也没有
+  `google.golang.org/protobuf`，而生成的 `main` 两个都 import。现在都 require 了，版本取自本 module
+  自己在用的那个。
+- `kit.HandleSSETyped` 从来没把组件级的 JSON server options 传给 SSE server，而 `kit` 的包文档却把它
+  列在"组件的 JSON server options 全都生效"那一组里。于是组件级安装了 `ProblemJSONErrorEncoder` 的部署，
+  在每条 JSON 路由上得到 `application/problem+json`，在 SSE 解码失败时得到一个普通信封——一个服务两套
+  错误约定。现在传了，组件在前，于是路由自己的仍然胜出。
+
+### 文档
+
+- `kit` 的注册指南对 `HandleSSETyped` 说过头了——而那段是本仓库两个版本前自己写的。现在在读者遇到这个
+  函数的地方写明两条注意：SSE 路由上的中间件拒绝是用内置 JSON 编码器渲染的，不是组件编码器；以及即使流
+  本身失败，端点链看到的也是一次成功，因为那个桥报告的是 handler 的完成，不是它的结果。
+
 ## [2.20.0] - 2026-09-08
 
 请求里的任何东西都不能为自己作证。

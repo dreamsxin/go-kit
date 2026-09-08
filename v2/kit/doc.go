@@ -27,6 +27,11 @@
 //     accepts a different maximum body. A limit of zero or less panics.
 //   - HandleSSETyped — a Server-Sent Events stream. The chain observes the whole
 //     stream as one request, so a timeout middleware bounds its total duration.
+//     Two caveats specific to it: a middleware rejection on the route is rendered
+//     with the built-in JSON error encoder rather than a component encoder, and
+//     the endpoint chain sees the stream as a success even when the stream itself
+//     fails, because the bridge reports the handler's completion rather than its
+//     outcome.
 //
 // Escape hatch — no endpoint middleware, no endpoint recorders:
 //

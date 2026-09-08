@@ -2,6 +2,51 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.21.0] - Release Candidate
+
+What the generator emits is part of the framework. This milestone comes from two
+audits: the first ever look at the code-generation path, and a look at what happens
+when features are combined rather than used alone.
+
+### Fixed
+
+- **The generated MCP wiring was broken by v2.20.0.** Tightening the Origin check
+  refused browser clients that used to be served, and no template mentioned
+  `AllowedOrigins` or `TrustRequestHost` — a grep across `cmd/microgen` found zero
+  hits for either. The generated `main` now carries the two fields and the reason
+  the request's own `Host` is not trusted, so the person reading the generated code
+  can see the decision instead of debugging a 403.
+- The generated shutdown never called `mcpHandler.Shutdown`, so MCP sessions and
+  their goroutines were not drained. It now runs before the HTTP shutdown: a session
+  holds an open SSE stream, and closing the sessions is what lets `Shutdown` finish
+  instead of burning the whole budget and falling through to `Close`.
+- The generated success encoder was `json.NewEncoder(w).Encode(response)`. That sets
+  no `Content-Type` — so `net/http` sniffs and answers `text/plain` for JSON, which
+  contradicts the OpenAPI document the same generator writes beside it — and it
+  writes the body before any `StatusCoder` or `Headerer` on the response type is
+  consulted, pinning every answer to an implicit 200 and losing the 204-no-body
+  rule. It now calls `server.EncodeJSONResponse`, which is the encoder that carries
+  those promises.
+- A generated project with `--grpc` did not build: `go.mod` required neither
+  `google.golang.org/grpc` nor `google.golang.org/protobuf` while the generated
+  `main` imports both. Both are now required, at the versions this module itself
+  uses.
+- `kit.HandleSSETyped` never passed the component's JSON server options to the SSE
+  server, while `kit`'s package documentation listed it under "the component's JSON
+  server options all apply". A deployment that installed `ProblemJSONErrorEncoder`
+  component-wide got `application/problem+json` on every JSON route and a plain
+  envelope on an SSE decode failure — one service with two error contracts. The
+  options are now passed, component first so a route's own still win.
+
+### Documentation
+
+- `kit`'s registration guide over-claimed for `HandleSSETyped`, which this
+  repository wrote two releases ago. Two caveats are now stated where a reader
+  meets the function: a middleware rejection on an SSE route is rendered with the
+  built-in JSON encoder rather than a component encoder, and the endpoint chain
+  sees the stream as a success even when the stream itself fails, because the
+  bridge reports the handler's completion rather than its outcome.
+
 ## [2.20.0] - 2026-09-08
 
 Nothing in a request can vouch for itself.

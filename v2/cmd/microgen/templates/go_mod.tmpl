@@ -4,6 +4,10 @@ go 1.26.0
 
 require (
 	github.com/dreamsxin/go-kit/v2 {{.GoKitVersion}}
+	{{- if .WithGRPC}}
+	google.golang.org/grpc v1.82.1
+	google.golang.org/protobuf v1.36.11
+	{{- end}}
 	{{- if .WithOpenAPI}}
 	github.com/swaggest/swgui v1.8.9
 	{{- end}}
