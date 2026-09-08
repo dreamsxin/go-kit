@@ -62,7 +62,24 @@ func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 			}
 		}
 	}
-	w.Header().Set("Content-Type", contentType)
+	applyErrorHeaders(w, err, contentType)
+	applyRetryAfter(w, err)
+	w.WriteHeader(status)
+	_, _ = w.Write(body)
+}
+
+// applyErrorHeaders merges the headers a Headerer error reports and then states
+// the Content-Type of the body this encoder is about to write.
+//
+// The order is the point. Setting the Content-Type first and merging with Add
+// afterwards let an error whose Headers() carried a Content-Type produce two
+// values, and a response with two Content-Types is one no client can interpret.
+// The encoder chose the body, so the encoder names its type, and it names it
+// last; everything else the error asked for is merged as it asked.
+//
+// Stable: http.error-single-content-type — an error response carries exactly one Content-Type, the one describing the body the encoder wrote.
+// Covered by: TestErrorEncodersKeepOneContentType
+func applyErrorHeaders(w http.ResponseWriter, err error, contentType string) {
 	var headerer transporthttp.Headerer
 	if errors.As(err, &headerer) {
 		for key, values := range headerer.Headers() {
@@ -71,9 +88,7 @@ func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 			}
 		}
 	}
-	applyRetryAfter(w, err)
-	w.WriteHeader(status)
-	_, _ = w.Write(body)
+	w.Header().Set("Content-Type", contentType)
 }
 
 // publicErrorMessage resolves the message every built-in encoder may put on the
@@ -192,16 +207,7 @@ func errorKind(err error) (apperror.Kind, bool) {
 }
 
 func encodeJSONErrorWithStatus(ctx context.Context, err error, w http.ResponseWriter, status int) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	var h transporthttp.Headerer
-	if errors.As(err, &h) {
-		for k, vals := range h.Headers() {
-			for _, v := range vals {
-				w.Header().Add(k, v)
-			}
-		}
-	}
+	applyErrorHeaders(w, err, "application/json; charset=utf-8")
 
 	message := publicErrorMessage(err, status)
 
@@ -249,16 +255,7 @@ var JSONErrorEncoder ErrorEncoder = func(ctx context.Context, err error, w http.
 func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 	// Stable: http.error-content-type — a JSON error response is application/json; charset=utf-8.
 	// Covered by: TestJSONErrorEncoder_Default500
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	var h transporthttp.Headerer
-	if errors.As(err, &h) {
-		for k, vals := range h.Headers() {
-			for _, v := range vals {
-				w.Header().Add(k, v)
-			}
-		}
-	}
+	applyErrorHeaders(w, err, "application/json; charset=utf-8")
 
 	code := httpStatus(err)
 

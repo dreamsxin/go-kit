@@ -37,6 +37,26 @@ gap was not in the prose — it was a path nobody had walked.
   frame: a field value cannot hold one, so the name is a caller bug, and neither
   stripping it nor passing it through is an honest answer. Declares
   `http.sse-no-frame-injection`.
+- An error response could carry two `Content-Type` values. The encoder set one and
+  then merged the headers a `Headerer` error reported with `Add`, so an error whose
+  `Headers()` included a `Content-Type` produced a response no client can
+  interpret. The encoder chose the body, so it names the type — and names it last,
+  after everything else the error asked for is merged. Three call sites collapse
+  into one helper. Declares `http.error-single-content-type`.
+
+### Changed
+
+- `http.multipart-limits` said "an over-limit body or file is 413
+  request_too_large". The file case has always emitted `request_too_large.file`,
+  which is the more useful answer — it names which limit was hit — so the promise
+  now states both codes rather than the behaviour degrading to the vaguer one.
+- `MultipartLimits` now states which field bounds work. A file's size is known only
+  once its part has been read, so `MaxFileBytes` bounds the answer while
+  `MaxBodyBytes` bounds how much a request can make the process write to disk. That
+  asymmetry was real and undocumented; enforcing per-part limits while streaming
+  was considered and rejected, with the reason recorded in the roadmap. A refusal
+  does take its temporary file and its parsed form with it, which is now declared:
+  `http.multipart-file-refusal-leaves-nothing-behind`.
 
 ## [2.18.0] - 2026-09-08
 

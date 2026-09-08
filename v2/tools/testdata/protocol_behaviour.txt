@@ -24,10 +24,12 @@ stable/http.error-content-type
 stable/http.error-envelope
 stable/http.error-message-redacted-at-500
 stable/http.error-public-message
+stable/http.error-single-content-type
 stable/http.json-body-limit-413
 stable/http.json-decode-400
 stable/http.json-media-types
 stable/http.media-type-415
+stable/http.multipart-file-refusal-leaves-nothing-behind
 stable/http.multipart-limits
 stable/http.page-result-body
 stable/http.pagination-invalid-400

@@ -1876,12 +1876,42 @@ Shipped as `http.sse-line-terminators` and `http.sse-no-frame-injection`.
 - The same marker promises code `request_too_large` for "an over-limit body or file",
   but the file case emits `request_too_large.file`. A client matching the promised
   string misses it.
+- Decision: the promise catches up with the behaviour rather than the reverse. Naming
+  which limit was hit is more useful than one code for both, so the marker states
+  both codes. `request_too_large.file` keeps the prefix, so a client matching by
+  prefix already worked.
+- Decision on the cost: enforcing per-file limits while streaming needs
+  `r.MultipartReader()` and a reimplementation of form assembly, spilling and
+  cleanup. That is a large amount of new code guarding a bound the deployment
+  already sets — `MaxBodyBytes` caps the temp-file cost, and it is the dial that was
+  never described as such. Rejected in favour of stating which field bounds work,
+  and declaring what the refusal does clean up.
+
+Acceptance:
+
+```bash
+go test ./transport/http/server/ -run Multipart -count=1
+```
+
+Shipped as `http.multipart-file-refusal-leaves-nothing-behind`, with
+`http.multipart-limits` restated.
 
 ### Work Package 4: One Content-Type
 
 - `transport/http/server/error.go` sets `Content-Type` and then `Add`s every header a
   `Headerer` error reports. An error whose `Headers()` includes `Content-Type`
   produces two values and a response no client can interpret. Three call sites.
+- The order is the fix: merge what the error asked for, then name the type of the
+  body the encoder actually wrote. One helper now backs all three, so they cannot
+  drift apart again.
+
+Acceptance:
+
+```bash
+go test ./transport/http/server/ -run "ContentType|HeaderOrder" -count=1
+```
+
+Shipped as `http.error-single-content-type`.
 
 ### Work Package 5: A Bad Cursor Is An Error
 

@@ -1494,12 +1494,35 @@ go test ./transport/http/server/ -run SSE -count=1
   `MaxFileBytes`，于是调用方可以逼出更大的写入，然后照样收到 413。
 - 同一个标记承诺"超限的请求体或文件"用 code `request_too_large`，但文件那一支发的是
   `request_too_large.file`。按承诺的字符串去匹配的客户端会漏掉它。
+- 决定：让 promise 追上行为，而不是反过来。说出撞到的是哪个上限比两者共用一个 code 更有用，所以标记把两个
+  code 都写出来。`request_too_large.file` 保留了前缀，因此按前缀匹配的客户端本来就是通的。
+- 关于代价的决定：边流式读边按文件强制上限，需要 `r.MultipartReader()` 以及重新实现 form 组装、落盘与
+  清理。那是一大堆新代码，去守一个部署方本来就设了的边界——`MaxBodyBytes` 已经限住了临时文件的代价，只是
+  从来没有人把它描述成这个作用。否掉它，改为写明哪个字段限的是工作量，并声明拒绝会清理掉什么。
+
+验收：
+
+```bash
+go test ./transport/http/server/ -run Multipart -count=1
+```
+
+已作为 `http.multipart-file-refusal-leaves-nothing-behind` 交付，并重述了 `http.multipart-limits`。
 
 ### 工作包 4：只能有一个 Content-Type
 
 - `transport/http/server/error.go` 先设 `Content-Type`，然后把 `Headerer` 错误报出的每个 header 都
   `Add` 进去。一个 `Headers()` 里带 `Content-Type` 的错误会产出两个值，而那样的响应没有客户端能解释。
   三个调用点。
+- 修法就是顺序：先合并错误要求的东西，再命名编码器真正写出的那个 body 的类型。现在三处由同一个 helper
+  支撑，于是它们不会再各自漂移。
+
+验收：
+
+```bash
+go test ./transport/http/server/ -run "ContentType|HeaderOrder" -count=1
+```
+
+已作为 `http.error-single-content-type` 交付。
 
 ### 工作包 5：坏 cursor 是一个错误
 

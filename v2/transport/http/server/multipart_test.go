@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -103,6 +104,39 @@ func TestParseMultipartForm_FileTooLargeIs413(t *testing.T) {
 	var sc interface{ StatusCode() int }
 	if !errors.As(err, &sc) || sc.StatusCode() != http.StatusRequestEntityTooLarge {
 		t.Errorf("error should classify as 413, got %+v", err)
+	}
+}
+
+// TestParseMultipartFormRemovesTheSpilledFileItRefuses covers the half of the
+// limit the promise did not state. A file's size is known only once its part has
+// been read, so an over-limit file is refused after it was written — the refusal
+// therefore has to take the temporary file with it, and leave no parsed form for
+// a caller to find.
+func TestParseMultipartFormRemovesTheSpilledFileItRefuses(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("TMPDIR", tempDir)
+	t.Setenv("TMP", tempDir)
+	t.Setenv("TEMP", tempDir)
+
+	req := multipartRequest(t, "/upload")
+	// One byte in memory, so the part spills to a temporary file before the
+	// per-file check can possibly see its size.
+	_, err := server.ParseMultipartForm(req, server.MultipartLimits{MaxMemoryBytes: 1, MaxFileBytes: 4})
+	if !errors.Is(err, server.ErrMultipartFileTooLarge) {
+		t.Fatalf("error: want ErrMultipartFileTooLarge, got %v", err)
+	}
+	if req.MultipartForm != nil {
+		t.Error("a refused request left its parsed form on the request")
+	}
+
+	entries, readErr := os.ReadDir(tempDir)
+	if readErr != nil {
+		t.Fatalf("read temp dir: %v", readErr)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "multipart-") {
+			t.Errorf("a refused request left %s behind", entry.Name())
+		}
 	}
 }
 

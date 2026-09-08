@@ -31,12 +31,21 @@ var (
 type MultipartLimits struct {
 	// MaxBodyBytes caps the total request body. Zero selects
 	// DefaultMaxMultipartBodyBytes.
+	//
+	// It is also the bound on work. Parts above MaxMemoryBytes spill to
+	// temporary files while the body is being read, so this — not MaxFileBytes
+	// — is what limits how much a request can make this process write to disk.
 	MaxBodyBytes int64
 	// MaxMemoryBytes is the in-memory threshold before file parts spill to
 	// temporary files. Zero selects DefaultMaxMultipartMemoryBytes.
 	MaxMemoryBytes int64
 	// MaxFileBytes caps each individual file. Zero or negative disables the
 	// per-file check; MaxBodyBytes still applies.
+	//
+	// It bounds the answer, not the work: a file's size is known only once the
+	// part has been read, so an over-limit file is refused after it was written
+	// and then removed. Set MaxBodyBytes to the disk cost you are willing to
+	// pay, and MaxFileBytes to the size your application accepts.
 	MaxFileBytes int64
 }
 
@@ -48,8 +57,11 @@ type MultipartLimits struct {
 // to 413, malformed or non-multipart requests to 415/400, so they render
 // correctly through JSONErrorEncoder.
 //
-// Stable: http.multipart-limits — an over-limit body or file is 413 request_too_large, a non-multipart request 415.
+// Stable: http.multipart-limits — an over-limit body is 413 request_too_large, an over-limit file 413 request_too_large.file, and a non-multipart request 415.
 // Covered by: TestParseMultipartForm_BodyTooLargeIs413, TestParseMultipartForm_FileTooLargeIs413, TestParseMultipartForm_NonMultipartIs415
+//
+// Stable: http.multipart-file-refusal-leaves-nothing-behind — a request refused for an over-limit file leaves no temporary file and no parsed form behind.
+// Covered by: TestParseMultipartFormRemovesTheSpilledFileItRefuses
 func ParseMultipartForm(r *http.Request, limits MultipartLimits) (*multipart.Form, error) {
 	if r.MultipartForm != nil {
 		return r.MultipartForm, nil

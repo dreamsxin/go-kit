@@ -25,6 +25,21 @@ promise 没有覆盖到的地方。这个框架里的每一条行为都在源码
   ——任何会流式输出"受调用方影响的文本"的 handler 都可达。现在 data 与注释整体保持为 data 与注释（注释
   里的空行变成又一行注释），而携带行终止符的事件名是一个错误而不是一个帧：字段值装不下终止符，所以那个
   名字是调用方的 bug，剥掉它和原样透传都不是诚实的回答。声明了 `http.sse-no-frame-injection`。
+- 错误响应可能带上两个 `Content-Type`。编码器先设一个，再用 `Add` 合并 `Headerer` 错误报出的 header，
+  于是一个 `Headers()` 里带 `Content-Type` 的错误会产出没有客户端能解释的响应。body 是编码器选的，所以
+  由编码器来命名类型——并且放在最后命名，在错误要求的其他一切都合并之后。三个调用点收敛成一个 helper。
+  声明了 `http.error-single-content-type`。
+
+### 变更
+
+- `http.multipart-limits` 原文是"超限的请求体或文件是 413 request_too_large"。文件那一支一直发的是
+  `request_too_large.file`，而那是更有用的回答——它说出了撞到的是哪个上限——所以现在是 promise 补上两个
+  code，而不是让行为退化到更含糊的那个。
+- `MultipartLimits` 现在写明了哪个字段限的是"工作量"。一个文件的大小只有在它那一段被读完之后才知道，
+  所以 `MaxFileBytes` 限的是回答，而 `MaxBodyBytes` 限的是一个请求能让进程往磁盘写多少。这个不对称是
+  真实存在且没被写明的；"边流式读边按段强制上限"这个做法被考虑过并被否掉，理由记在 roadmap 里。拒绝确实
+  会把临时文件和已解析的 form 一起带走，这一点现在被声明了：
+  `http.multipart-file-refusal-leaves-nothing-behind`。
 
 ## [2.18.0] - 2026-09-08
 
