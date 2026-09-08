@@ -1968,7 +1968,7 @@ go test ./interaction/mcp/ -run TestUnserialisableResult -count=1
 
 Shipped as `mcp.response-is-whole-or-an-error`.
 
-## Milestone 20 (Active): Nothing In A Request Vouches For Itself / 请求里的东西不能为自己作证
+## Milestone 20 (Complete): Nothing In A Request Vouches For Itself / 请求里的东西不能为自己作证
 
 Goal: where this framework makes a trust decision, the thing it trusts should not be
 something the caller supplied.

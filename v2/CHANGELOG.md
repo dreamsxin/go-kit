@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.20.0] - Release Candidate
+## [2.20.0] - 2026-09-08
 
 Nothing in a request can vouch for itself.
 

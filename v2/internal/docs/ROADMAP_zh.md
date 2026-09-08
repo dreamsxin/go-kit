@@ -1571,7 +1571,7 @@ go test ./interaction/mcp/ -run TestUnserialisableResult -count=1
 
 已作为 `mcp.response-is-whole-or-an-error` 交付。
 
-## 里程碑 20（进行中）：请求里的东西不能为自己作证
+## 里程碑 20（已完成）：请求里的东西不能为自己作证
 
 目标：凡是这个框架做信任判断的地方，它信的那个东西不该是调用方给的。
 

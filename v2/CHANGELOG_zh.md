@@ -2,7 +2,7 @@
 
 [English](CHANGELOG.md) | 简体中文
 
-## [2.20.0] - Release Candidate
+## [2.20.0] - 2026-09-08
 
 请求里的任何东西都不能为自己作证。
 
