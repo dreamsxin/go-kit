@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.17.0] - Release Candidate
+## [2.17.0] - 2026-09-08
 
 Defaults that are not wrong. This release opens a milestone that came out of a global
 audit rather than a feature idea: after sixteen milestones of pinning behaviour, the
