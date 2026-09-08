@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.18.0] - Release Candidate
+## [2.18.0] - 2026-09-08
 
 Read by somebody else. This release opens a milestone that came out of reviewing
 the framework from five users' points of view — someone arriving for the first
