@@ -54,6 +54,20 @@ type CSRFConfig struct {
 	SecureCookie   bool
 	SameSite       http.SameSite
 	CookieMaxAge   time.Duration
+	// Clock decides what "now" is when a token is minted and when its TTL is
+	// checked. A nil Clock means the wall clock.
+	//
+	// It is declared structurally rather than imported, because this package
+	// deliberately depends on nothing else in this framework — that is what
+	// makes it optional middleware you can drop into any net/http stack. Any
+	// clock with a Now method fits, including endpoint.ManualClock, so a test
+	// can expire a token without waiting for it.
+	//
+	// Stable: security.csrf-clock — token minting and TTL checks read the configured clock, so a test can expire a token without sleeping.
+	// Covered by: TestCSRFRejectsATokenExpiredOnTheConfiguredClock
+	Clock interface {
+		Now() time.Time
+	}
 }
 
 type csrfPolicy struct {
@@ -68,6 +82,7 @@ type csrfPolicy struct {
 	secureCookie   bool
 	sameSite       http.SameSite
 	cookieMaxAge   time.Duration
+	now            func() time.Time
 }
 
 // NewCSRF creates signed double-submit-cookie middleware. Safe requests ensure
@@ -140,6 +155,10 @@ func NewCSRF(config CSRFConfig) (Middleware, error) {
 		secureCookie:   config.SecureCookie,
 		sameSite:       sameSite,
 		cookieMaxAge:   config.CookieMaxAge,
+		now:            time.Now,
+	}
+	if config.Clock != nil {
+		policy.now = config.Clock.Now
 	}
 
 	return func(next http.Handler) http.Handler {
@@ -147,7 +166,7 @@ func NewCSRF(config CSRFConfig) (Middleware, error) {
 			session, hasSession := policy.sessionID(request)
 			if isSafeMethod(request.Method) {
 				if hasSession && !policy.hasValidCookie(request, session) {
-					token, err := policy.newToken(session, time.Now())
+					token, err := policy.newToken(session, policy.now())
 					if err != nil {
 						http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 						return
@@ -167,7 +186,7 @@ func NewCSRF(config CSRFConfig) (Middleware, error) {
 			}
 			cookie, err := request.Cookie(policy.cookieName)
 			headerToken := request.Header.Get(policy.headerName)
-			now := time.Now()
+			now := policy.now()
 			if err != nil || !policy.validToken(cookie.Value, session, now) || !policy.validToken(headerToken, session, now) ||
 				subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(headerToken)) != 1 {
 				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
@@ -183,7 +202,7 @@ func (policy *csrfPolicy) hasValidCookie(request *http.Request, session string) 
 	if err != nil {
 		return false
 	}
-	return policy.validToken(cookie.Value, session, time.Now())
+	return policy.validToken(cookie.Value, session, policy.now())
 }
 
 func (policy *csrfPolicy) newToken(session string, now time.Time) (string, error) {
@@ -251,7 +270,7 @@ func (policy *csrfPolicy) setCookie(w http.ResponseWriter, token string) {
 	}
 	if policy.cookieMaxAge > 0 {
 		cookie.MaxAge = int(policy.cookieMaxAge / time.Second)
-		cookie.Expires = time.Now().Add(policy.cookieMaxAge)
+		cookie.Expires = policy.now().Add(policy.cookieMaxAge)
 	}
 	http.SetCookie(w, cookie)
 }

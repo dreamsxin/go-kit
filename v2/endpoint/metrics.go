@@ -81,6 +81,19 @@ func (c *counters) snapshot() MetricsSnapshot {
 // cache line each. See BenchmarkMetricsObserve and
 // BenchmarkMetricsSnapshotUnderLoad before changing this.
 type Metrics struct {
+	// Clock decides the LastRequestTime a snapshot reports. A nil Clock means
+	// the wall clock, so the zero value stays usable; set it to a ManualClock
+	// to assert on the timestamp instead of tolerating it.
+	//
+	// It is not consulted for durations. Observation.Duration is how long real
+	// work actually took, measured by whoever called the endpoint — a clock
+	// that could shorten it would make a recorder report something untrue
+	// about the system.
+	//
+	// Stable: endpoint.metrics-clock — the timestamp a snapshot reports comes from the configured clock; recorded durations are measured, never decided.
+	// Covered by: TestMetricsObserveUsesTheConfiguredClock
+	Clock Clock
+
 	mu          sync.Mutex
 	total       counters
 	byOperation map[string]*counters
@@ -137,7 +150,11 @@ func (m *Metrics) Operations() []string {
 
 // Observe implements Recorder.
 func (m *Metrics) Observe(_ context.Context, obs Observation) {
-	at := time.Now()
+	clock := m.Clock
+	if clock == nil {
+		clock = SystemClock()
+	}
+	at := clock.Now()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.total.add(obs.Duration, at, obs.Err)

@@ -2,6 +2,41 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.18.0] - Release Candidate
+
+Read by somebody else. This release opens a milestone that came out of reviewing
+the framework from five users' points of view — someone arriving for the first
+time, someone writing business logic, someone operating it, someone extending it,
+and someone writing tests against it. The operator's view turned out to be the
+best served and the test author's the worst, and the documentation gaps were not
+where the prose is but where the godoc is.
+
+### Added
+
+- `endpoint.Clock` makes time an input a test can decide. `time.Now()` was called
+  directly from production code, so a deployment could not test a backoff
+  interval or a token expiry without sleeping through it — and neither could this
+  repository. A nil Clock means the wall clock, so a service that does not care
+  writes nothing and nothing about its behaviour changes.
+- `endpoint.NewManualClock` returns a clock a test moves by hand, with `Advance`,
+  `Set` and `Pending`. It ships beside the contract rather than in a test-only
+  package, because a seam nobody can reach is not a seam: an application accepts
+  the same clock this framework's components accept. It is safe to advance from
+  the test goroutine while the code under test reads it from others.
+- The seams: `endpoint.WithRetryClock` for the wait between retry attempts,
+  `endpoint.Metrics.Clock` for the `LastRequestTime` a snapshot reports, and
+  `httpsecurity.CSRFConfig.Clock` for when a token is minted and when its TTL is
+  checked. The CSRF one is declared structurally rather than imported, because
+  that package deliberately depends on nothing else here — any value with a `Now`
+  method fits, `ManualClock` included.
+- What the clock deliberately does not decide is how long real work took.
+  `Observation.Duration` and logged request durations stay measured: a clock that
+  could shorten them would make a recorder report something untrue about the
+  system. Declares `endpoint.clock-nil-is-wall-clock`,
+  `endpoint.manual-clock-advance-fires-due-timers`, `endpoint.retry-clock`,
+  `endpoint.metrics-clock` and `security.csrf-clock`. `docs/testing.md` has the
+  section, in both languages.
+
 ## [2.17.0] - 2026-09-08
 
 Defaults that are not wrong. This release opens a milestone that came out of a global

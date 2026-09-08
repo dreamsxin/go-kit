@@ -2,6 +2,30 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [2.18.0] - Release Candidate
+
+被别人读。这个版本开启的里程碑来自一次换位审阅：第一次上手的人、写业务逻辑的人、运维它的人、
+扩展它的人，以及给它写测试的人。结果是运维视角被服务得最好，写测试的人最差；而文档的缺口不在
+散文里，在 godoc 里。
+
+### 新增
+
+- `endpoint.Clock` 让时间变成一个测试可以决定的输入。`time.Now()` 过去被生产代码直接调用，于是部署方
+  测不了一个退避间隔或一次 token 过期，除非真的睡过去——这个仓库自己也一样。nil 表示真实时间，因此不
+  关心这件事的服务什么都不用写，行为也一点没变。
+- `endpoint.NewManualClock` 返回一个由测试用手推的时钟，带 `Advance`、`Set` 与 `Pending`。它和契约放
+  在一起交付，而不是塞进只给测试用的包：没人能拿到的接缝不是接缝——应用可以接受这个框架的组件所接受的
+  同一个时钟。在被测代码从其他 goroutine 读它的同时从测试 goroutine 推进它是安全的。
+- 接缝有三处：`endpoint.WithRetryClock`（重试尝试之间的等待）、`endpoint.Metrics.Clock`（快照报告的
+  `LastRequestTime`）、`httpsecurity.CSRFConfig.Clock`（token 何时铸造、TTL 何时检查）。CSRF 那个是
+  结构化声明而不是 import，因为那个包有意不依赖这里的任何东西——任何带 `Now` 方法的值都能用，
+  `ManualClock` 也在内。
+- 时钟故意不决定的，是真实工作花了多久。`Observation.Duration` 与被记录的请求耗时仍然是量出来的：一个
+  能把它们缩短的时钟，会让 recorder 报告一件关于系统的不实之事。声明了
+  `endpoint.clock-nil-is-wall-clock`、`endpoint.manual-clock-advance-fires-due-timers`、
+  `endpoint.retry-clock`、`endpoint.metrics-clock` 与 `security.csrf-clock`。
+  `docs/testing.md`（中英）都加了对应章节。
+
 ## [2.17.0] - 2026-09-08
 
 不错的默认值。这个版本开启的里程碑来自一次全局审阅，而不是一个功能想法：在十六个里程碑把行为

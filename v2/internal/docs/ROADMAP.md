@@ -1562,7 +1562,7 @@ Milestone 16 is complete when a gRPC client with health checking enabled learns 
 instance has started draining, the parity table says so, and nobody is told that
 `Watch` is unimplemented.
 
-## Milestone 17 (Active): Defaults That Are Not Wrong / 不错的默认值
+## Milestone 17 (Complete): Defaults That Are Not Wrong / 不错的默认值
 
 Goal: where this framework hands a service something without being asked, the thing it
 hands over should not be a liability. Where it declines to decide, it should say so at
@@ -1678,6 +1678,100 @@ go test ./endpoint/ -run "Keyed" -count=1
 
 Shipped as `endpoint.keyed-rate-limit` and
 `endpoint.keyed-rate-limit-shares-one-bucket`.
+
+## Milestone 18 (Active): Read By Somebody Else / 被别人读
+
+Goal: the framework should hold up when it is read by someone who did not write it.
+Where a reader looks for an answer, the answer should be there; where two names
+suggest two behaviours, they should have two behaviours.
+
+This milestone comes out of reviewing the framework from five users' points of view:
+someone arriving for the first time, someone writing business logic, someone
+operating it, someone extending it, and someone writing tests against it. Two
+findings ordered the work. The operator's view is the best served and the test
+author's the worst — and unlike background jobs or limiter implementations, nothing
+ever declared test support out of scope. And the documentation gaps are not in the
+prose, which is 42 English documents paired one-to-one with 42 Chinese ones and two
+indexes with no dead links; they are in the godoc, where fourteen packages have no
+package-level documentation at all.
+
+### Work Package 1: Time Is A Seam
+
+- `time.Now()` is called directly from production code in
+  `transport/http/server/recorder.go`, `access_log.go`, `security/http/csrf.go`,
+  `sd/retry/retry.go`, `sd/selector/selector.go`, `endpoint/metrics.go`,
+  `endpoint/retry.go` and `interaction/mcp/session.go`. A deployment cannot test a
+  backoff interval, a CSRF expiry or a slow-start weight without sleeping in real
+  time, and neither can this repository — `sd/selector/slow_start_test.go` alone
+  makes seven time calls.
+- A `Clock` seam with a nil-means-real-time default, so nothing changes for a
+  service that does not care and a test can decide what time it is.
+- It lives in `endpoint`, not in a new package, because `endpoint` is the stdlib-only
+  bottom layer every other layer may import — the same reason `Recorder` and
+  `RateLimiter` live there — and `TestEndpointHasOnlyStandardLibraryImports` means an
+  interface over `time` is the only shape it could have taken.
+- `ManualClock` is exported beside the contract rather than hidden in a test-only
+  package. A seam nobody can reach is not a seam: an application accepts the same
+  clock this framework's components accept.
+- `security/http` declares its clock structurally instead of importing `endpoint`,
+  because its dependency gate allows nothing from this module and that is deliberate —
+  it is middleware you drop into any `net/http` stack. Any value with a `Now` method
+  fits, so `ManualClock` still works there.
+- Stated exclusion: the clock does not decide how long real work took.
+  `Observation.Duration` and logged request durations stay measured. A clock that could
+  shorten them would make a recorder report something untrue about the system, and the
+  duration measurement sites — `transport/http/server/recorder.go`, `access_log.go`,
+  the `slog`/`zap`/gRPC recorders, `interaction/runtime.go` — keep `time.Since` for
+  that reason rather than by omission.
+- Deferred with a reason: `sd/retry`'s backoff wait. Its constructors are positional
+  (`Retry`, `WithCallback`, `WithClassifier`), so a clock there needs an options shape
+  the package does not have yet; adding a fourth positional constructor would be worse
+  than the gap. It belongs with a wider `sd/retry` options pass.
+
+Acceptance:
+
+```bash
+go test ./endpoint/ -run "Clock|Manual|Retry|Metrics" -count=1
+go test ./security/http/ -run TestCSRFRejectsATokenExpired -count=1
+```
+
+Shipped as `endpoint.clock-nil-is-wall-clock`,
+`endpoint.manual-clock-advance-fires-due-timers`, `endpoint.retry-clock`,
+`endpoint.metrics-clock` and `security.csrf-clock`.
+
+### Work Package 2: The Packages Business Code Imports Have Godoc
+
+- `apperror`, `health` and `security` have neither `doc.go` nor `README.md`.
+  `apperror` is the first package business code imports and its godoc front page is
+  empty.
+
+### Work Package 3: The Extension Points Have Godoc
+
+- All eight `sd` subpackages — `balancer`, `selector`, `endpointer`, `feedback`,
+  `health`, `instance`, `client`, `retry` — have no package-level documentation.
+  `sd/README.md` covers the behaviour, but somebody writing a custom balancer reads
+  the contract in godoc. This is the largest single gap and it sits exactly where
+  the extension points are.
+
+### Work Package 4: A Registration Name Describes What It Registers
+
+- `kit` exports eleven registration entry points whose differences reduce to two
+  axes: whether the endpoint middleware chain and recorders run, and which body
+  limit applies. Two names mislead. `HandleSSE` (`kit/sse.go:15`) is a one-line
+  delegate to `Handle` and carries none of the SSE behaviour its name implies, so a
+  reader who follows the name from `HandleSSETyped` silently loses the chain. `JSON`
+  and `JSONTyped` return an unregistered handler and differ from `HandleJSON*` by
+  one verb.
+- The fix is for the API to state the distinction itself rather than rely on the
+  reader having found the customization table first.
+
+### Work Package 5: One Index Is Not A Subset Of The Other
+
+- `DOCS_INDEX.md` and `docs/index.md` each omit documents the other lists:
+  `tutorial-crud.md` and `examples/README.md` appear only in the book index,
+  `ROADMAP.md`, `docs/licenses.md` and `tools/README.md` only in the repository
+  index, and `examples/profilesvc/README.md` in neither. Finding a document should
+  not depend on which index you opened.
 
 ## Maintenance Rules / 维护规则
 

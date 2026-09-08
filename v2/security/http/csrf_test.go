@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/dreamsxin/go-kit/v2/endpoint"
 )
 
 // sessionFromCookie is the accessor a cookie-authenticated application supplies:
@@ -165,6 +167,34 @@ func TestCSRFTokenExpires(t *testing.T) {
 	}
 	if policy.validToken(fresh, "session-a", now.Add(-time.Hour)) {
 		t.Error("a token from the future is accepted beyond the clock-skew allowance")
+	}
+}
+
+// TestCSRFRejectsATokenExpiredOnTheConfiguredClock proves the expiry is testable
+// from outside this package: the caller supplies the clock, mints a token, moves
+// time past the TTL, and the middleware refuses the token — with no sleeping.
+func TestCSRFRejectsATokenExpiredOnTheConfiguredClock(t *testing.T) {
+	clock := endpoint.NewManualClock(time.Unix(1700000000, 0))
+	handler := csrfHandler(t, CSRFConfig{
+		Secret:    bytes.Repeat([]byte{0x71}, minCSRFSecretBytes),
+		SessionID: sessionFromCookie,
+		TokenTTL:  time.Hour,
+		Clock:     clock,
+	})
+	tokenCookie := csrfCookieFromSafeRequest(t, handler, "session-a")
+
+	accepted := httptest.NewRecorder()
+	handler.ServeHTTP(accepted, unsafeCSRFRequest(tokenCookie, tokenCookie.Value, "https://api.example.com", "session-a"))
+	if accepted.Code != http.StatusNoContent {
+		t.Fatalf("status inside the lifetime = %d, want %d", accepted.Code, http.StatusNoContent)
+	}
+
+	clock.Advance(2 * time.Hour)
+
+	expired := httptest.NewRecorder()
+	handler.ServeHTTP(expired, unsafeCSRFRequest(tokenCookie, tokenCookie.Value, "https://api.example.com", "session-a"))
+	if expired.Code != http.StatusForbidden {
+		t.Fatalf("status after the lifetime = %d, want %d", expired.Code, http.StatusForbidden)
 	}
 }
 

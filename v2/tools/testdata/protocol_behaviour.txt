@@ -1,8 +1,12 @@
 stable/apperror.kind-vocabulary
 stable/apperror.unclassified-is-internal
 stable/apperror.wrapcause-hides-cause
+stable/endpoint.clock-nil-is-wall-clock
 stable/endpoint.keyed-rate-limit
 stable/endpoint.keyed-rate-limit-shares-one-bucket
+stable/endpoint.manual-clock-advance-fires-due-timers
+stable/endpoint.metrics-clock
+stable/endpoint.retry-clock
 stable/grpc.drains
 stable/grpc.health-watch
 stable/grpc.recording-method-label
@@ -99,6 +103,7 @@ stable/metrics.http-bridge-error-class
 stable/metrics.http-bridge-ignores-unrouted
 stable/metrics.label-cardinality
 stable/metrics.series-are-per-operation
+stable/security.csrf-clock
 unstable/grpc.observation-fields
 unstable/http.access-log-line
 unstable/http.observation-fields

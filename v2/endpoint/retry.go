@@ -27,6 +27,24 @@ type RetryOption func(*retrySettings)
 type retrySettings struct {
 	backoff   func(attempt int) time.Duration
 	retryable func(error) bool
+	clock     Clock
+}
+
+// WithRetryClock replaces the clock the backoff wait is measured against. A nil
+// clock keeps the wall clock. Pass a ManualClock to test a schedule without
+// sleeping through it:
+//
+//	clock := endpoint.NewManualClock(time.Unix(0, 0))
+//	ep := endpoint.NewBuilder(call).WithRetry(3, endpoint.WithRetryClock(clock)).Build()
+//
+// Stable: endpoint.retry-clock — the wait between attempts comes from the configured clock, so a test advances it instead of sleeping.
+// Covered by: TestRetryMiddlewareWaitsOnTheConfiguredClock
+func WithRetryClock(clock Clock) RetryOption {
+	return func(s *retrySettings) {
+		if clock != nil {
+			s.clock = clock
+		}
+	}
 }
 
 // WithRetryBackoff replaces the backoff schedule. attempt is 1 for the wait
@@ -152,6 +170,9 @@ func RetryMiddleware(maxAttempts int, options ...RetryOption) Middleware {
 	if maxAttempts < 1 {
 		maxAttempts = 1
 	}
+	if settings.clock == nil {
+		settings.clock = SystemClock()
+	}
 
 	return func(next Endpoint) Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
@@ -164,7 +185,7 @@ func RetryMiddleware(maxAttempts int, options ...RetryOption) Middleware {
 				if err == nil || attempt >= maxAttempts || !settings.retryable(err) {
 					return response, err
 				}
-				if waitErr := waitBeforeRetry(ctx, retryDelay(err, settings.backoff, attempt)); waitErr != nil {
+				if waitErr := waitBeforeRetry(ctx, settings.clock, retryDelay(err, settings.backoff, attempt)); waitErr != nil {
 					return response, err
 				}
 			}
@@ -189,21 +210,21 @@ func retryDelay(err error, backoff func(attempt int) time.Duration, attempt int)
 	return backoff(attempt)
 }
 
-// waitBeforeRetry sleeps for delay unless the context finishes first, in which
-// case it reports the context error so the caller stops retrying.
-func waitBeforeRetry(ctx context.Context, delay time.Duration) error {
+// waitBeforeRetry waits for delay on clock unless the context finishes first, in
+// which case it reports the context error so the caller stops retrying.
+func waitBeforeRetry(ctx context.Context, clock Clock, delay time.Duration) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if delay <= 0 {
 		return nil
 	}
-	timer := time.NewTimer(delay)
+	timer := clock.NewTimer(delay)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-timer.C:
+	case <-timer.C():
 		return nil
 	}
 }

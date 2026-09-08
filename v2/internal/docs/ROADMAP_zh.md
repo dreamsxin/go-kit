@@ -1240,7 +1240,7 @@ go test ./kit/grpc/ -run TestHealthWatch -count=1
 里程碑 16 在以下全部为真时完成：一个开启了健康检查的 gRPC 客户端能得知某个实例已经开始 drain；
 对等表这么写；并且没人再被告知 `Watch` 未实现。
 
-## 里程碑 17（进行中）：不错的默认值
+## 里程碑 17（已完成）：不错的默认值
 
 目标：凡是这个框架不问自答交给服务的东西，交出去的那件东西不该是一项负债。凡是它拒绝替人决定
 的地方，它应该在读者会去看的位置把这件事说出来。
@@ -1335,6 +1335,75 @@ go test ./endpoint/ -run "Keyed" -count=1
 ```
 
 已作为 `endpoint.keyed-rate-limit` 与 `endpoint.keyed-rate-limit-shares-one-bucket` 交付。
+
+## 里程碑 18（进行中）：被别人读
+
+目标：这个框架在被"不是它作者的人"读的时候也要站得住。读者去哪里找答案，答案就该在那里；两个名字
+暗示两种行为时，它们就该有两种行为。
+
+这个里程碑来自一次换位审阅：第一次上手的人、写业务逻辑的人、运维它的人、扩展它的人，以及给它写测试
+的人。两个发现决定了工作顺序。运维视角被服务得最好，写测试的人最差——而且不同于后台任务或限流器实现，
+从来没有任何地方声明过"测试支持不在范围内"。另外，文档的缺口不在散文里——散文是 42 篇英文与 42 篇
+中文一一对应、两个索引零死链——缺口在 godoc 里，那里有十四个 package 完全没有包级文档。
+
+### 工作包 1：时间是一个接缝
+
+- `time.Now()` 被生产代码直接调用：`transport/http/server/recorder.go`、`access_log.go`、
+  `security/http/csrf.go`、`sd/retry/retry.go`、`sd/selector/selector.go`、
+  `endpoint/metrics.go`、`endpoint/retry.go`、`interaction/mcp/session.go`。部署方要测一个退避
+  间隔、一次 CSRF 过期或一个慢启动权重，只能真的去睡；这个仓库自己也一样——单是
+  `sd/selector/slow_start_test.go` 就有七处时间调用。
+- 做法是一个 `Clock` 接缝，nil 表示真实时间：不关心的服务什么都不用改，而测试可以决定现在几点。
+- 它放在 `endpoint`，而不是新开一个包，因为 `endpoint` 是所有其他层都可以 import 的、只依赖标准库的
+  最底层——`Recorder` 与 `RateLimiter` 也在那里，理由相同——而
+  `TestEndpointHasOnlyStandardLibraryImports` 意味着"对 `time` 的一个接口"是它唯一可能的形状。
+- `ManualClock` 和契约一起导出，而不是藏进只给测试用的包。没人能拿到的接缝不是接缝：应用可以接受这个
+  框架的组件所接受的同一个时钟。
+- `security/http` 用结构化声明而不是 import `endpoint`，因为它的依赖门禁不允许来自本 module 的任何
+  东西，而那是有意的——它是可以丢进任何 `net/http` 栈的中间件。任何带 `Now` 方法的值都能用，所以
+  `ManualClock` 在那里照样可用。
+- 写明的排除项：时钟不决定真实工作花了多久。`Observation.Duration` 与被记录的请求耗时仍然是量出来的。
+  一个能把它们缩短的时钟会让 recorder 报告一件关于系统的不实之事，因此那些测耗时的位置——
+  `transport/http/server/recorder.go`、`access_log.go`、`slog`／`zap`／gRPC 的 recorder、
+  `interaction/runtime.go`——是有理由地保留 `time.Since`，不是漏掉了。
+- 有理由地推后：`sd/retry` 的退避等待。它的构造函数是位置参数式的（`Retry`、`WithCallback`、
+  `WithClassifier`），所以那里要放时钟就需要一个这个包还没有的 options 形状；再加第四个位置参数式构造
+  函数比留着这个缺口更糟。它应该和一次更大范围的 `sd/retry` options 改造一起做。
+
+验收：
+
+```bash
+go test ./endpoint/ -run "Clock|Manual|Retry|Metrics" -count=1
+go test ./security/http/ -run TestCSRFRejectsATokenExpired -count=1
+```
+
+已作为 `endpoint.clock-nil-is-wall-clock`、`endpoint.manual-clock-advance-fires-due-timers`、
+`endpoint.retry-clock`、`endpoint.metrics-clock` 与 `security.csrf-clock` 交付。
+
+### 工作包 2：业务代码 import 的那些包要有 godoc
+
+- `apperror`、`health`、`security` 既没有 `doc.go` 也没有 `README.md`。`apperror` 是业务代码
+  import 的第一个包，而它的 godoc 首页是空的。
+
+### 工作包 3：扩展点要有 godoc
+
+- `sd` 的八个子包——`balancer`、`selector`、`endpointer`、`feedback`、`health`、`instance`、
+  `client`、`retry`——都没有包级文档。`sd/README.md` 讲了行为，但要写一个自定义 balancer 的人是在
+  godoc 里读契约。这是最大的单块空白，而它正好落在扩展点上。
+
+### 工作包 4：注册函数的名字要说清它注册了什么
+
+- `kit` 导出了十一个注册入口，而它们的差别归结为两个轴：端点中间件链与 recorder 是否运行，以及用哪个
+  请求体上限。其中两个名字会骗人。`HandleSSE`（`kit/sse.go:15`）是对 `Handle` 的一行委托，不携带
+  名字所暗示的任何 SSE 行为，于是顺着名字从 `HandleSSETyped` 找过来的读者会静默丢掉整条链。`JSON`
+  与 `JSONTyped` 返回一个未注册的 handler，和 `HandleJSON*` 只差一个动词。
+- 修法是让 API 自己说清这个区别，而不是依赖读者先找到 customization 那张表。
+
+### 工作包 5：两个索引不是彼此的超集
+
+- `DOCS_INDEX.md` 与 `docs/index.md` 各自漏掉了对方列出的文档：`tutorial-crud.md` 与
+  `examples/README.md` 只在手册索引里，`ROADMAP.md`、`docs/licenses.md`、`tools/README.md` 只在
+  仓库索引里，`examples/profilesvc/README.md` 两边都没有。找一篇文档不该取决于你打开了哪个索引。
 
 ## 维护规则
 

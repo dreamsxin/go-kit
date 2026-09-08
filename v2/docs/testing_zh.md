@@ -81,6 +81,42 @@ if !errors.Is(err, endpoint.ErrRateLimited) {
 }
 ```
 
+## 时间是一个输入，不是一次等待
+
+会睡觉的测试，通过时慢、机器一忙就抖。凡是这个框架自己决定*现在几点*的地方，它读一个
+`endpoint.Clock`，而 nil 表示真实时间——所以不关心这件事的服务什么都不用写：
+
+```go
+clock := endpoint.NewManualClock(time.Unix(0, 0))
+
+ep := endpoint.NewBuilder(callDependency).
+    WithRetry(3, endpoint.WithRetryClock(clock)).
+    Build()
+
+done := make(chan error, 1)
+go func() { _, err := ep(ctx, request); done <- err }()
+
+for clock.Pending() == 0 { // 被测代码已经走到它的等待处
+    runtime.Gosched()
+}
+clock.Advance(time.Hour) // 一小时的退避瞬间走完
+```
+
+`ManualClock` 和契约放在一起导出，没有藏进只给测试用的包里：重点就在于你自己的代码可以接受这个框架的
+组件所接受的同一个时钟。`Advance` 与 `Set` 会对每一个到期的 timer 投递，`Pending` 报告还有多少个等待
+没完成，并且在被测代码从其他 goroutine 读它的同时从测试 goroutine 推进它是安全的。
+
+今天已有的接缝：
+
+- `endpoint.WithRetryClock`——重试尝试之间的等待。
+- `endpoint.Metrics.Clock`——快照报告的 `LastRequestTime`。
+- `httpsecurity.CSRFConfig.Clock`——CSRF token 何时铸造、TTL 何时检查。它在那里是结构化声明的，因为
+  那个包不依赖这个框架里的任何其他东西；任何带 `Now` 方法的值都能用，包括 `endpoint.ManualClock`。
+
+时钟**故意不**决定的，是真实工作花了多久。`Observation.Duration` 以及每一条被记录的请求耗时都是量出来
+的，因为一个能把它们缩短的时钟，会让 recorder 报告一件关于系统的不实之事。要断言的是耗时由什么推导出来，
+而不是一次你并没有真的让它变慢的调用的耗时。
+
 ## 集成测试
 
 集成测试启动的是部署会启动的那个东西。有两个边界值得为它付出代价。

@@ -84,6 +84,49 @@ if !errors.Is(err, endpoint.ErrRateLimited) {
 }
 ```
 
+## Time is an input, not a wait
+
+A test that sleeps is slow when it passes and flaky when the machine is loaded.
+Where this framework decides *what time it is*, it reads a `endpoint.Clock`, and a
+nil clock means the wall clock — so a service that does not care writes nothing:
+
+```go
+clock := endpoint.NewManualClock(time.Unix(0, 0))
+
+ep := endpoint.NewBuilder(callDependency).
+	WithRetry(3, endpoint.WithRetryClock(clock)).
+	Build()
+
+done := make(chan error, 1)
+go func() { _, err := ep(ctx, request); done <- err }()
+
+for clock.Pending() == 0 { // the code under test has reached its wait
+	runtime.Gosched()
+}
+clock.Advance(time.Hour) // an hour of backoff elapses instantly
+```
+
+`ManualClock` is exported beside the contract, not hidden in a test-only package:
+the point is that your own code can accept the same clock this framework's
+components accept. `Advance` and `Set` deliver on every timer that becomes due,
+`Pending` reports how many waits are outstanding, and it is safe to advance from
+the test goroutine while the code under test reads it from others.
+
+The seams that exist today:
+
+- `endpoint.WithRetryClock` — the wait between retry attempts.
+- `endpoint.Metrics.Clock` — the `LastRequestTime` a snapshot reports.
+- `httpsecurity.CSRFConfig.Clock` — when a CSRF token is minted and when its TTL
+  is checked. It is declared structurally there, because that package depends on
+  nothing else in this framework; any value with a `Now` method fits, including
+  `endpoint.ManualClock`.
+
+What the clock deliberately does **not** decide is how long real work took.
+`Observation.Duration` and every logged request duration are measured, because a
+clock that could shorten them would make a recorder report something untrue about
+the system. Assert on what a duration is derived from, not on the duration of a
+call you did not actually make slow.
+
 ## Integration tests
 
 An integration test starts the thing a deployment starts. Two boundaries are

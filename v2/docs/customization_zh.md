@@ -175,6 +175,10 @@ svc, err := kit.NewHTTP(":8080",
 | 所有 JSON 路由统一信封 | `kit.WithJSONServerOptions` | 装配处 |
 
 | 与内置映射组合 | `server.HTTPStatusForError` / `HTTPStatusForErrorKind` | 自定义编码器 |
+| 在测试里决定现在几点 | `endpoint.Clock` 配 `endpoint.NewManualClock`；nil 表示真实时间 | 装配处／测试 |
+| 不睡觉地测一套重试节奏 | `endpoint.WithRetryClock` | endpoint builder |
+| 在测试里让 CSRF token 过期 | `httpsecurity.CSRFConfig.Clock`（结构化，任何带 `Now` 的值） | 装配处／测试 |
+
 
 经验法则：在 service 层用 `apperror` 分类；业务代码绝不返回协议类型；4xx 携
 带公开消息，500 永远不带；重试决策属于调用方，只重试已分类且幂等的失败。

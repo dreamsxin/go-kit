@@ -190,6 +190,10 @@ decision guide:
 
 | Same envelope on every JSON route | `kit.WithJSONServerOptions` | assembly |
 | Compose with the built-in mapping | `server.HTTPStatusForError` / `HTTPStatusForErrorKind` | custom encoders |
+| Decide what time it is in a test | `endpoint.Clock` + `endpoint.NewManualClock`; nil means the wall clock | assembly / tests |
+| Test a retry schedule without sleeping | `endpoint.WithRetryClock` | endpoint builder |
+| Expire a CSRF token in a test | `httpsecurity.CSRFConfig.Clock` (structural, any `Now` method) | assembly / tests |
+
 
 Rules of thumb: classify with `apperror` in the service layer; never return
 protocol types from business code; 4xx carries a public message and 500 never
