@@ -81,6 +81,30 @@ if !errors.Is(err, endpoint.ErrRateLimited) {
 }
 ```
 
+## 集成测试
+
+集成测试启动的是部署会启动的那个东西。有两个边界值得为它付出代价。
+
+生成的项目本来就带了一份脚手架。`microgen -tests` 会为每个服务写一个
+`test/<service>_test.go`，它构造服务，并用零值请求调用每个方法：一次直接调用，一次
+经过 `LoggingMiddleware`。它证明接线能编译、能返回；它对你的业务规则什么都不断言。
+那个文件归生成器所有，重新生成时会被覆盖，所以真正的断言要放在你自己的文件里：
+
+```bash
+go test ./...          # 在生成项目的根目录执行
+```
+
+再往上一层，是运行编译出来的二进制并通过网络驱动它。要等待就绪，而不是 sleep：
+`/readyz` 在两个监听都开始服务之前返回 503，在关闭一开始时再次返回 503，所以轮询它
+才是诚实的闸门。`/health` 行为相同；`/livez` 只要进程活着就返回 200，对就绪状态什么
+都不说。没有 `/healthz` 这个路径。
+
+生命周期与并发方面的断言需要竞态检测器，而不是更长的测试：
+
+```bash
+go test -race -run 'TestShutdown|TestDrain' -count=1 ./...
+```
+
 ## 参考模式
 
 示例测试是权威参考：`examples/quickstart`、`examples/todosvc`（服务层、存储层与

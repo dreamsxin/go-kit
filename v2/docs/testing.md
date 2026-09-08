@@ -84,6 +84,34 @@ if !errors.Is(err, endpoint.ErrRateLimited) {
 }
 ```
 
+## Integration tests
+
+An integration test starts the thing a deployment starts. Two boundaries are
+worth the cost.
+
+A generated project already carries a scaffold. `microgen -tests` writes one
+`test/<service>_test.go` per service that constructs the service and calls every
+method with a zero-valued request, once directly and once through
+`LoggingMiddleware`. It proves the wiring compiles and returns; it asserts
+nothing about your rules. That file is generator-owned and is rewritten on
+regeneration, so real assertions belong in a file of your own:
+
+```bash
+go test ./...          # from the generated project root
+```
+
+Above that, run the built binary and drive it over the network. Wait for
+readiness rather than sleeping: `/readyz` returns 503 until both listeners are
+serving and 503 again as soon as shutdown begins, so polling it is the honest
+gate. `/health` behaves the same way; `/livez` answers 200 while the process is
+alive and says nothing about readiness. There is no `/healthz`.
+
+Lifecycle and concurrency claims need the race detector, not a longer test:
+
+```bash
+go test -race -run 'TestShutdown|TestDrain' -count=1 ./...
+```
+
 ## Reference patterns
 
 The example tests are the canonical reference: `examples/quickstart`,
