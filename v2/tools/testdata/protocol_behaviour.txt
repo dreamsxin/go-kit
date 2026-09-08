@@ -51,6 +51,7 @@ stable/kit.draining-readiness
 stable/kit.hijacked-connections-are-not-drained
 stable/kit.http-drains
 stable/kit.no-cleartext-http2
+stable/kit.per-route-body-limit
 stable/kit.shutdown-budget-share
 stable/kit.shutdown-ends
 stable/kit.stopping-signal

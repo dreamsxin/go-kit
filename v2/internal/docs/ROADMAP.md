@@ -1612,6 +1612,19 @@ Shipped as `httpclient.pool-is-ours` and `httpclient.no-invented-deadline`.
   refuses to leave lying around.
 - The fix is a per-route way to say it that keeps the wiring, and a documented row in
   the customization table next to the middleware scopes.
+- `kit.HandleJSONEndpointWithBodyLimit` and `kit.HandleJSONTypedWithBodyLimit` take the
+  same registration path as their component-limit counterparts — endpoint middleware,
+  recorders, JSON server options, HTTP context — and differ only in the limit. A limit of
+  zero or less panics rather than meaning "unbounded", because the component-wide setting
+  is the only place a body size is allowed to be absent.
+
+Acceptance:
+
+```bash
+go test ./kit/ -run TestPerRouteBodyLimit -count=1
+```
+
+Shipped as `kit.per-route-body-limit`.
 
 ### Work Package 3: The Error Envelope Says What It Is
 

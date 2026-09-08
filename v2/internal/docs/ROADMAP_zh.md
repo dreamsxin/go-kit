@@ -1280,6 +1280,18 @@ go test ./transport/http/client/ -count=1
   在别处不愿意留下的那类陷阱。
 - 修法是给出一个按路由表达它、同时保留接线的方式，并在 customization 表里紧挨着中间件作用域加上
   一行文档。
+- `kit.HandleJSONEndpointWithBodyLimit` 与 `kit.HandleJSONTypedWithBodyLimit` 和它们的组件级
+  对应物走同一条注册路径——endpoint 中间件、recorder、JSON server options、HTTP context——唯一的
+  区别就是上限。上限为零或负数会 panic，而不是表示"不限制"：只有组件级设置那一处，才允许没有请求体
+  上限。
+
+验收：
+
+```bash
+go test ./kit/ -run TestPerRouteBodyLimit -count=1
+```
+
+已作为 `kit.per-route-body-limit` 交付。
 
 ### 工作包 3：错误信封说清自己是什么
 

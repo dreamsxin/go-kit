@@ -7,6 +7,15 @@
 不错的默认值。这个版本开启的里程碑来自一次全局审阅，而不是一个功能想法：在十六个里程碑把行为
 一一钉住之后，剩下的弱点不是缺能力，而是少数几处"默认值是从标准库继承来的"。
 
+### 新增
+
+- `kit.HandleJSONEndpointWithBodyLimit` 与 `kit.HandleJSONTypedWithBodyLimit` 让单条路由可以
+  接受不同的请求体上限。这不是加一个开关，而是堵一个坑：`kit.WithJSONMaxBodyBytes` 是组件级的，
+  于是只有一条上传路由的服务过去只能改用 `kit.Handle` 注册，而那条路会静默跳过端点中间件、
+  记录器，以及组件装好的 JSON server options——为了设一个体积上限，代价是丢掉可观测性。新的注册
+  方式和其他 JSON 路由走同一条路，唯一的区别就是上限。上限为零或负数会 panic：不限制请求体不是
+  一个可以从单条路由夹带进来的取值。声明了 `kit.per-route-body-limit`。
+
 ### 变更
 
 - 由 `transport/http/client` 构造的客户端不再使用 `http.DefaultClient`。那件事对服务有两处不对，

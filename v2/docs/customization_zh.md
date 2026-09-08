@@ -18,6 +18,8 @@
 | 决定某次工具调用是否可以执行 | `interaction.Authorizer` 配 `interaction.AuthorizationHook` |
 | 添加命名空间的 MCP 协议扩展 | `mcp.Extension` 配 `StreamableHandler.RegisterExtension` |
 | 在注册处装饰每一条路由 | `httpserver.RouteRegistrar` 配 `httpserver.DecorateRoutes` |
+| 让某一条路由接受更大的 body | `kit.HandleJSONTypedWithBodyLimit`（保留 `WithJSONMaxBodyBytes` 路由本该有的中间件与 recorder） |
+
 | 观察只有传输层知道的事（路由、状态码、方法） | `httpserver.Recorder` / `grpcserver.Recorder` |
 | 告诉你自己传输层的 handler 进程要停了 | `kit.WithStopping`，读取用 `kit.Stopping` |
 | 决定 TLS 策略——加密套件、客户端证书、轮换 | `kit.WithTLSConfig` 配你自己构造的 `tls.Config` |

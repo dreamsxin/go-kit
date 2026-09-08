@@ -20,6 +20,8 @@ endpoint middleware, and protocol facts in transport.
 | decide whether a tool call may run | `interaction.Authorizer` with `interaction.AuthorizationHook` |
 | add a namespaced MCP protocol extension | `mcp.Extension` with `StreamableHandler.RegisterExtension` |
 | decorate every route at registration | `httpserver.RouteRegistrar` with `httpserver.DecorateRoutes` |
+| accept a larger body on one route | `kit.HandleJSONTypedWithBodyLimit` (keeps the middleware and recorders `WithJSONMaxBodyBytes` routes would) |
+
 | observe what only the transport knows (route, status, method) | `httpserver.Recorder` / `grpcserver.Recorder` |
 | tell your own transport's handlers the process is stopping | `kit.WithStopping`, read back with `kit.Stopping` |
 | decide TLS policy — ciphers, client certs, rotation | `kit.WithTLSConfig` with a `tls.Config` you built |

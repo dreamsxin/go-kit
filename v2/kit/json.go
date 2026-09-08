@@ -119,3 +119,55 @@ func HandleJSONEndpoint[Req any](
 	handler := httpserver.NewJSONEndpointWithBodyLimit[Req](ep, h.jsonMaxBodyBytes, routeOptions...)
 	h.mux.Handle(pattern, h.withHTTPContext(handler))
 }
+
+// HandleJSONEndpointWithBodyLimit registers a JSON route that accepts a different
+// maximum request body than the rest of the component.
+//
+// It exists because the alternative was a trap. WithJSONMaxBodyBytes is
+// component-wide, so a service with one upload route used to reach for Handle and a
+// raw httpserver.NewJSONServerWithBodyLimit — which silently skips
+// applyEndpointMiddleware, the recorders, and the component's JSON server options.
+// Losing observability as a side effect of changing a size is not a trade anyone would
+// make on purpose, so this is the same registration path with one number replaced.
+//
+// A limit of zero or less is a mistake rather than "no limit": an unbounded body is
+// the component default's job to refuse, not a value to smuggle in per route.
+//
+// Stable: kit.per-route-body-limit — a route can accept a different body size through the same registration path, so it keeps the endpoint middleware, recorders, and JSON server options the component installs.
+// Covered by: TestPerRouteBodyLimitKeepsEndpointMiddleware, TestPerRouteBodyLimitAppliesToThatRouteOnly
+func HandleJSONEndpointWithBodyLimit[Req any](
+	h *HTTP,
+	pattern string,
+	ep endpoint.Endpoint,
+	maxBodyBytes int64,
+	options ...httpserver.ServerOption,
+) {
+	if h == nil {
+		panic("kit: HTTP component cannot be nil")
+	}
+	if ep == nil {
+		panic("kit: JSON endpoint cannot be nil")
+	}
+	if maxBodyBytes <= 0 {
+		panic("kit: per-route JSON body limit must be positive")
+	}
+	ep = h.applyEndpointMiddleware(pattern, ep)
+	routeOptions := append(append([]httpserver.ServerOption(nil), h.jsonServerOptions...), options...)
+	handler := httpserver.NewJSONEndpointWithBodyLimit[Req](ep, maxBodyBytes, routeOptions...)
+	h.mux.Handle(pattern, h.withHTTPContext(handler))
+}
+
+// HandleJSONTypedWithBodyLimit is HandleJSONTyped for a route that accepts a
+// different maximum request body than the component default.
+func HandleJSONTypedWithBodyLimit[Req, Resp any](
+	h *HTTP,
+	pattern string,
+	handler func(ctx context.Context, req Req) (Resp, error),
+	maxBodyBytes int64,
+	options ...httpserver.ServerOption,
+) {
+	if handler == nil {
+		panic("kit: JSON handler cannot be nil")
+	}
+	HandleJSONEndpointWithBodyLimit[Req](h, pattern, endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), maxBodyBytes, options...)
+}

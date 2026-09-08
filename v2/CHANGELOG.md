@@ -9,6 +9,18 @@ audit rather than a feature idea: after sixteen milestones of pinning behaviour,
 remaining weakness is not missing capability, it is the few places where a default
 arrives by inheritance from the standard library.
 
+### Added
+
+- `kit.HandleJSONEndpointWithBodyLimit` and `kit.HandleJSONTypedWithBodyLimit` let one
+  route accept a different maximum request body. This closes a trap rather than adding a
+  knob: `kit.WithJSONMaxBodyBytes` is component-wide, so a service with one upload route
+  previously had to register it through `kit.Handle`, which silently skips the endpoint
+  middleware, the recorders, and the JSON server options the component installs — losing
+  observability as a side effect of setting a body size. The new registrations take the
+  same path as every other JSON route and differ only in the limit. A limit of zero or
+  less panics: an unbounded body is not a value to smuggle in per route. Declares
+  `kit.per-route-body-limit`.
+
 ### Changed
 
 - A client built by `transport/http/client` no longer uses `http.DefaultClient`. Two
