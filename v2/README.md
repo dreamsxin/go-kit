@@ -26,7 +26,7 @@ This directory is the independent Go module:
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.18.0` is the current release and `v2.19.0` is in candidate. It ships as a
+`v2.19.0` is the current release and `v2.20.0` is in candidate. It ships as a
 single module: one `require`, one tag, no version skew between the framework and
 its providers. Per-release changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
@@ -351,8 +351,10 @@ headers, and needs no session, so any instance can answer it; `server/discover`
 reports capabilities and list results carry `ttlMs` and `cacheScope`. On
 `2025-06-18`, which an absent header selects, clients still initialize, send
 `notifications/initialized`, and declare `sampling` before the server may issue
-sampling requests. Browser requests with an `Origin` header are limited to the
-same origin or `StreamableHandler.AllowedOrigins`.
+sampling requests. Browser requests with an `Origin` header are limited to
+`StreamableHandler.AllowedOrigins`. An origin matching the request's own `Host`
+is refused unless `TrustRequestHost` is set: `Host` comes from the caller, so
+comparing one against the other is what DNS rebinding defeats.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for ownership boundaries and extension
 rules. The framework intentionally excludes business platforms such as IAM,

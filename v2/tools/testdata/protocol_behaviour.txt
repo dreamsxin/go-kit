@@ -92,6 +92,7 @@ stable/mcp.mount-path
 stable/mcp.no-authorization-policy
 stable/mcp.protocol-version
 stable/mcp.protocol-version-header
+stable/mcp.request-host-is-not-trusted-by-default
 stable/mcp.request-state-authenticated
 stable/mcp.response-is-whole-or-an-error
 stable/mcp.result-type

@@ -1968,6 +1968,39 @@ go test ./interaction/mcp/ -run TestUnserialisableResult -count=1
 
 Shipped as `mcp.response-is-whole-or-an-error`.
 
+## Milestone 20 (Active): Nothing In A Request Vouches For Itself / 请求里的东西不能为自己作证
+
+Goal: where this framework makes a trust decision, the thing it trusts should not be
+something the caller supplied.
+
+### Work Package 1: The Request's Host Is Not A Credential
+
+- `interaction/mcp/streamable.go` allowed an `Origin` equal to `"http://"+r.Host` or
+  `"https://"+r.Host`. `Host` comes from the caller, so under DNS rebinding a browser
+  sends `Origin: http://evil.example` with `Host: evil.example` and the comparison
+  says yes — which is the attack Origin validation exists to stop for a locally bound
+  MCP server.
+- The audit classified this as "declared, but the consequence was not". The struct
+  comment said same-origin requests are always allowed; it said nothing about what
+  `Host` is worth. No test exercised the shortcut, which is how it stayed unnoticed —
+  making the stricter default cost zero test changes.
+- Three options were considered. Tightening unconditionally is safest but breaks
+  "start it locally and it works". Documenting only leaves the trap armed. Shipped
+  the middle one, because it is the shape this project uses everywhere else: the
+  shortcut becomes `TrustRequestHost`, off by default, so trusting `Host` is
+  something a deployment signs for. `AllowedOrigins` remains the answer that does not
+  depend on a caller-controlled header.
+- This is a behaviour change with a migration note in the changelog rather than a
+  silent tightening: a deployment that wants the old behaviour sets one field.
+
+Acceptance:
+
+```bash
+go test ./interaction/mcp/ -run "Origin|TrustRequestHost" -count=1
+```
+
+Shipped as `mcp.request-host-is-not-trusted-by-default`.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

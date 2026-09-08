@@ -1571,6 +1571,31 @@ go test ./interaction/mcp/ -run TestUnserialisableResult -count=1
 
 已作为 `mcp.response-is-whole-or-an-error` 交付。
 
+## 里程碑 20（进行中）：请求里的东西不能为自己作证
+
+目标：凡是这个框架做信任判断的地方，它信的那个东西不该是调用方给的。
+
+### 工作包 1：请求的 Host 不是一份凭据
+
+- `interaction/mcp/streamable.go` 放行等于 `"http://"+r.Host` 或 `"https://"+r.Host` 的 `Origin`。
+  `Host` 来自调用方，所以在 DNS rebinding 下浏览器会带着 `Host: evil.example` 发
+  `Origin: http://evil.example`，而那个比较会说"是"——而这正是 Origin 校验对一个本地监听的 MCP 服务器
+  所要拦的攻击。
+- 审计把它归类为"已声明，但后果没写明"。结构体注释说了同源请求总是允许；它没有说 `Host` 值几个钱。没有
+  任何测试走过这条捷径——这既是它一直没被注意到的原因，也让收紧默认值的测试改动成本为零。
+- 考虑过三种做法。无条件收紧最安全，但会破坏"本地起来就能用"。只补文档则把陷阱留在原地。交付的是中间那
+  一种，因为它是这个项目在别处一贯的形状：捷径变成 `TrustRequestHost`，默认关闭，于是"信任 `Host`"是
+  一件部署方要签字的事。`AllowedOrigins` 仍然是那个不依赖任何调用方可控 header 的答案。
+- 这是一次行为变更，因此在 changelog 里配了迁移说明，而不是悄悄收紧：想要旧行为的部署只需设一个字段。
+
+验收：
+
+```bash
+go test ./interaction/mcp/ -run "Origin|TrustRequestHost" -count=1
+```
+
+已作为 `mcp.request-host-is-not-trusted-by-default` 交付。
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

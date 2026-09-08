@@ -2,6 +2,35 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.20.0] - Release Candidate
+
+Nothing in a request can vouch for itself.
+
+### Changed — action may be required
+
+- **`mcp.StreamableHandler` no longer allows an `Origin` that matches the
+  request's own `Host`.** `Host` is supplied by the caller, so comparing one
+  against the other defeats the attack Origin validation exists to stop for a
+  locally bound MCP server: under DNS rebinding a browser sends
+  `Origin: http://evil.example` alongside `Host: evil.example`, and the comparison
+  said yes.
+- The behaviour is now a seam rather than a policy. Set
+  `StreamableHandler.TrustRequestHost = true` where the deployment knows `Host` is
+  trustworthy — a reverse proxy that overwrites it, or a network no browser can
+  reach — and it behaves exactly as before. Leave it off otherwise.
+- **If a browser client stops being served after upgrading**, name its origin in
+  `AllowedOrigins`. That is the answer that always works, because it does not
+  depend on a header the caller controls. `TrustRequestHost` restores the previous
+  behaviour verbatim if that is what you want.
+- Unaffected: a request with no `Origin` header is still served — it did not come
+  from a browser, so there is no browser-imposed origin to check — and an origin
+  listed in `AllowedOrigins` is still served.
+- The audit that found this classified it as "declared, but the consequence was
+  not": the struct comment did say same-origin requests are always allowed. It
+  said nothing about what `Host` is worth. No test exercised the shortcut, which is
+  how the consequence stayed unnoticed. Declares
+  `mcp.request-host-is-not-trusted-by-default`.
+
 ## [2.19.0] - 2026-09-08
 
 What the promise did not cover. Every behaviour in this framework is marked in the

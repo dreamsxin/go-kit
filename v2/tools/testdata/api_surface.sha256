@@ -9,7 +9,7 @@ b863fd566be9a2b5367c85d5ec361ac041afb280192fd84471e7fe89efa9c799  github.com/dre
 07e4d2fe4ec5cd0809d836a4321bdd74c81540a828ab11edb01a9baf77786454  github.com/dreamsxin/go-kit/v2/integrations/grpc/server
 5576e6159b61e5f9129392372d781ee54addb511df238779927b47fb23b2691b  github.com/dreamsxin/go-kit/v2/integrations/zap
 e00b4d453e23c4c9ecca502c58f155919f836c6591025435b8fb8e0fe15e1f96  github.com/dreamsxin/go-kit/v2/interaction
-a750cc535ca90b54befd6d78851d628ef45789b6236f486c1c6964ebd9dd3878  github.com/dreamsxin/go-kit/v2/interaction/mcp
+cb0aa654ddd162388cca5722a0b5c6c824f3b4b1fda6830c9a61042b1f1c5653  github.com/dreamsxin/go-kit/v2/interaction/mcp
 a06c48cd64e023dd5aac376a07f58671efc34da2c2fb4a27b8f8bad79b811323  github.com/dreamsxin/go-kit/v2/kit
 7747c9bc640e720e97c50350576a188bbb657cca4c29483fee48bc5452d56948  github.com/dreamsxin/go-kit/v2/kit/grpc
 f159c973fef11a8ef5b71a69e7071deb1ffaa7e75a43088fae23c1a72cea8a33  github.com/dreamsxin/go-kit/v2/observability/metrics

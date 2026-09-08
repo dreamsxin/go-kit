@@ -2,6 +2,25 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [2.20.0] - Release Candidate
+
+请求里的任何东西都不能为自己作证。
+
+### 变更——可能需要动作
+
+- **`mcp.StreamableHandler` 不再放行与请求自身 `Host` 相同的 `Origin`。** `Host` 是调用方给的，拿它
+  和 `Origin` 互相比较，正好绕过了 Origin 校验对一个本地监听的 MCP 服务器所要拦的攻击：DNS rebinding
+  下浏览器会同时发 `Origin: http://evil.example` 与 `Host: evil.example`，而那个比较会说"是"。
+- 这个行为现在是一个接缝，不是策略。当部署方确知 `Host` 可信时——有一个会重写它的反向代理，或者所在网络
+  没有浏览器能到达——设 `StreamableHandler.TrustRequestHost = true`，行为与从前完全一致。否则就别开。
+- **如果升级后某个浏览器客户端不再被服务**，把它的来源写进 `AllowedOrigins`。那是永远有效的答案，因为
+  它不依赖任何由调用方控制的 header。如果你确实想要原来的行为，`TrustRequestHost` 会一字不差地恢复它。
+- 不受影响：不带 `Origin` 的请求照样被服务——它不是从浏览器来的，没有浏览器强加的来源要检查——列在
+  `AllowedOrigins` 里的来源也照样被服务。
+- 发现它的那次审计把它归类为"已声明，但后果没写明"：结构体注释确实写了"同源请求总是允许"，但它没有说
+  `Host` 值几个钱。没有任何测试走过这条捷径，这正是那个后果一直没被注意到的原因。声明了
+  `mcp.request-host-is-not-trusted-by-default`。
+
 ## [2.19.0] - 2026-09-08
 
 promise 没有覆盖到的地方。这个框架里的每一条行为都在源码里以 `// Stable: <id> — <promise>` 标记，

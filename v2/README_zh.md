@@ -24,7 +24,7 @@ v2 是独立 Go module：
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.18.0` 是当前发布版本，`v2.19.0` 处于候选阶段。它以单一模块发布：一行 `require`、一个 tag，框架与各 provider 之间不存在版本错配。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)。
+`v2.19.0` 是当前发布版本，`v2.20.0` 处于候选阶段。它以单一模块发布：一行 `require`、一个 tag，框架与各 provider 之间不存在版本错配。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)。
 
 需要 Go 1.26.0 或更高版本。
 
@@ -321,8 +321,9 @@ MCP 客户端通过 `MCP-Protocol-Version` 头选择协议版本。在 `2026-07-
 头里，不需要任何会话，因此任何实例都能应答；`server/discover` 返回能力，列表结果带
 `ttlMs` 与 `cacheScope`。在 `2025-06-18`（缺少该头时选择的版本）下，客户端仍需
 initialize、随后发送 `notifications/initialized`；只有声明 `sampling` capability 后，
-服务端才能发起采样请求。带 `Origin` 的浏览器请求只允许同源或
-`StreamableHandler.AllowedOrigins` 中显式允许的来源。
+服务端才能发起采样请求。带 `Origin` 的浏览器请求只允许
+`StreamableHandler.AllowedOrigins` 中显式列出的来源。与请求自身 `Host` 相同的来源默认被拒绝，
+除非设置 `TrustRequestHost`：`Host` 是调用方给的，拿它和 `Origin` 互相比较正是 DNS rebinding 要绕过的那一步。
 
 包边界和扩展规则见 [ARCHITECTURE.md](ARCHITECTURE_zh.md)。框架核心明确不包含
 IAM、Outbox、任务平台、对象存储、Secret 平台和完整事务框架等业务平台能力。

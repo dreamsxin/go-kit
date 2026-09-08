@@ -194,6 +194,82 @@ func TestStreamableRejectsCrossOriginRequest(t *testing.T) {
 	}
 }
 
+// originRequest builds an initialize POST carrying origin, against host.
+func originRequest(host, origin string) *http.Request {
+	body := map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{"protocolVersion": legacyProtocolVersion},
+	}
+	payload, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "http://"+host+"/mcp", bytes.NewReader(payload))
+	req.Host = host
+	req.Header.Set("Origin", origin)
+	return req
+}
+
+// TestOriginMatchingTheRequestHostIsRefusedByDefault is the DNS-rebinding case.
+// Host is supplied by the caller, so a browser that has been rebound sends
+// Origin: http://evil.example alongside Host: evil.example — and comparing one
+// against the other says yes. Origin validation exists to stop exactly that for a
+// locally bound MCP server, so the comparison is no longer made unless the
+// deployment asks for it.
+func TestOriginMatchingTheRequestHostIsRefusedByDefault(t *testing.T) {
+	h := NewStreamableHandler(nil)
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, originRequest("evil.example", "http://evil.example"))
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d (body %s)", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+}
+
+// TestTrustRequestHostAllowsTheSameOrigin proves the seam still opens for a
+// deployment that knows Host is trustworthy.
+func TestTrustRequestHostAllowsTheSameOrigin(t *testing.T) {
+	h := NewStreamableHandler(setupRuntime(t))
+	defer h.Close() //nolint:errcheck
+	h.TrustRequestHost = true
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, originRequest("localhost:8080", "http://localhost:8080"))
+
+	if rec.Code == http.StatusForbidden {
+		t.Fatalf("status = %d, want the request served (body %s)", rec.Code, rec.Body.String())
+	}
+}
+
+// TestNamedOriginIsAllowedWithoutTrustingTheHost is the answer that always works:
+// naming the origin does not depend on a header the caller controls.
+func TestNamedOriginIsAllowedWithoutTrustingTheHost(t *testing.T) {
+	h := NewStreamableHandler(setupRuntime(t))
+	defer h.Close() //nolint:errcheck
+	h.AllowedOrigins = []string{"http://localhost:8080"}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, originRequest("localhost:8080", "http://localhost:8080"))
+
+	if rec.Code == http.StatusForbidden {
+		t.Fatalf("status = %d, want the request served (body %s)", rec.Code, rec.Body.String())
+	}
+}
+
+// TestRequestWithoutOriginIsServed guards the neighbour: a non-browser client
+// sends no Origin, and there is no browser-imposed origin to check.
+func TestRequestWithoutOriginIsServed(t *testing.T) {
+	h := NewStreamableHandler(setupRuntime(t))
+	defer h.Close() //nolint:errcheck
+
+	req := originRequest("localhost:8080", "")
+	req.Header.Del("Origin")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusForbidden {
+		t.Fatalf("status = %d, want the request served (body %s)", rec.Code, rec.Body.String())
+	}
+}
+
 func TestStreamableRequiresInitializedNotification(t *testing.T) {
 	h := NewStreamableHandler(nil)
 	body := map[string]any{

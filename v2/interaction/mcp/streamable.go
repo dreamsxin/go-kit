@@ -49,9 +49,29 @@ type StreamableHandler struct {
 	// default is used.
 	MaxPostBodyBytes int64
 
-	// AllowedOrigins permits browser clients from the listed origins. Requests
-	// without Origin are allowed; same-origin requests are always allowed.
+	// AllowedOrigins permits browser clients from the listed origins. A request
+	// with no Origin header is allowed: it did not come from a browser, so there
+	// is no browser-imposed origin to check.
 	AllowedOrigins []string
+
+	// TrustRequestHost allows an Origin that matches the request's own Host
+	// header.
+	//
+	// It is off by default, and it is a seam rather than a convenience because
+	// Host is supplied by the caller. Trusting it defeats the attack Origin
+	// validation exists to stop for a locally bound MCP server: under DNS
+	// rebinding a browser sends Origin: http://evil.example and
+	// Host: evil.example, and comparing one against the other says yes. Nothing
+	// in the request can establish that the request came from where it claims.
+	//
+	// Turn it on where the deployment knows Host is trustworthy — a reverse proxy
+	// that overwrites it, or a network where no browser can reach the server —
+	// and leave it off otherwise. The alternative that always works is naming the
+	// origins in AllowedOrigins.
+	//
+	// Stable: mcp.request-host-is-not-trusted-by-default — an Origin is checked against AllowedOrigins only, unless the deployment opts into trusting the request's own Host.
+	// Covered by: TestOriginMatchingTheRequestHostIsRefusedByDefault, TestTrustRequestHostAllowsTheSameOrigin
+	TrustRequestHost bool
 
 	// MaxSessions caps concurrently active MCP sessions. When zero, a safe
 	// default of 10000 is used. Set it explicitly for a smaller deployment.
@@ -427,7 +447,7 @@ func (h *StreamableHandler) validateOrigin(r *http.Request) error {
 			return nil
 		}
 	}
-	if origin == "http://"+r.Host || origin == "https://"+r.Host {
+	if h.TrustRequestHost && (origin == "http://"+r.Host || origin == "https://"+r.Host) {
 		return nil
 	}
 	return fmt.Errorf("origin %q is not allowed", origin)
