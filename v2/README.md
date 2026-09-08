@@ -291,8 +291,10 @@ Use `kit.HandleJSONTyped` for concrete request and response types,
 use `kit.HandleJSONTypedWithMiddleware` or `kit.HandleJSONWithMiddleware`;
 route middleware composes inside the component-level chain. Register
 Server-Sent Events streams with `kit.HandleSSETyped` so endpoint middleware
-applies to the stream, or `HTTP.HandleSSE` for a raw streaming handler. Use
-`HTTP.Handle` and `HTTP.HandleFunc` only for raw HTTP integrations.
+applies to the stream. Use `HTTP.Handle` and `HTTP.HandleFunc` only for raw HTTP
+integrations, including a raw streaming handler — `HandleSSE` is a deprecated
+alias for `Handle`, because a name promising SSE behaviour while skipping the
+middleware chain is how a stream loses its middleware by accident.
 
 `endpoint.Metrics` is the built-in collector `RecordingMiddleware` writes into.
 Its counters are unexported and guarded internally; read them through

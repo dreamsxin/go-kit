@@ -1,3 +1,20 @@
+// Package instance provides an Instancer driven by explicit updates.
+//
+// Every other Instancer in this framework watches something — Consul, etcd, DNS.
+// Cache watches nothing: the instance list is whatever the last Update call said.
+// That makes it the Instancer for a test, for local development with no registry
+// running, and for an application whose instance list comes from somewhere this
+// framework has no provider for.
+//
+// It satisfies the same sd.Instancer contract as a real provider, so everything
+// downstream — endpointer, selector, balancer, retry — behaves identically. A
+// test that drives Cache is exercising the real selection path, not a stub of it.
+//
+// Two behaviours are worth knowing before relying on it. Duplicate events are
+// dropped: an Update whose instances and error match the current state
+// broadcasts nothing, so a caller can poll a source without waking subscribers
+// for no reason. And instances are sorted before being stored, so an event's
+// identity does not depend on the order a source happened to return.
 package instance
 
 import (

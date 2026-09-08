@@ -12,6 +12,8 @@ API 参考；根目录指南负责生成、架构、生产部署和升级。
 | 第一个服务 | [快速上手](docs/getting-started_zh.md) |
 | 生成项目 | [microgen 教程](docs/tutorial-microgen_zh.md) |
 | 手工组装服务 | [根 README](README_zh.md#使用-kit) |
+| 从头到尾做一个 CRUD 服务 | [CRUD 教程](docs/tutorial-crud_zh.md) |
+| 想读可运行的代码 | [示例](examples/README_zh.md)、[profilesvc](examples/profilesvc/README_zh.md) |
 | 生产部署 | [生产指南](PRODUCTION_zh.md) |
 | 升级项目 | [变更记录](CHANGELOG_zh.md) |
 

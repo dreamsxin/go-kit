@@ -37,6 +37,47 @@ where the prose is but where the godoc is.
   `endpoint.metrics-clock` and `security.csrf-clock`. `docs/testing.md` has the
   section, in both languages.
 
+### Deprecated
+
+- `kit.HandleSSE` is deprecated in favour of `Handle`. Its body was always one
+  line — `h.Handle(pattern, handler)` — so it carried none of the SSE behaviour
+  its name implies, and a reader who followed the name from `HandleSSETyped`
+  silently lost the endpoint middleware chain and the recorders. `Handle` is the
+  same call under a name that says what it skips. It stays reachable rather than
+  being deleted, because the API-compatibility gate is right that a published
+  symbol is a promise.
+- `kit.JSON` and `kit.JSONTyped` are deprecated in favour of
+  `kit.NewJSONHandler` and `kit.NewJSONTypedHandler`. They return an unregistered
+  handler and differed from `HandleJSON` / `HandleJSONTyped` by one verb, which is
+  not enough to tell apart the function that mounts a route from the one that does
+  not. The `New` prefix matches `httpserver.NewJSONServer`, which is what they
+  wrap.
+
+### Changed
+
+- `kit`'s package documentation now groups all eleven registration entry points by
+  what they actually do — full chain, escape hatch, or neither — so the API states
+  the distinction instead of relying on the reader having found the customization
+  table first.
+
+### Documentation
+
+- `apperror`'s package comment was four lines for the package business code
+  imports first. It now answers what a reader arrives with: which of the three
+  things an error carries to be deliberate about, why the empty kind becomes
+  KindInternal, what happens to the message at 500, when to reach for `WrapCause`
+  over `Wrap`, and that the structural `KindNamer` contract means nothing has to
+  import this package to be classified correctly.
+- `sd/endpointer` and `sd/instance` had no package comment at all, and
+  `sd/balancer`, `sd/retry` and `sd/client` had one line each. All five now explain
+  what the package is for and how it differs from its neighbour — why balancing is
+  a separate package from selection, why `sd/retry` picks again per attempt while
+  `endpoint.RetryMiddleware` repeats one endpoint, and what `InvalidateOnError`'s
+  zero value actually does.
+- `DOCS_INDEX.md` and `docs/index.md` are now supersets of each other. Each was
+  missing documents the other listed, so finding one depended on which index you
+  opened.
+
 ## [2.17.0] - 2026-09-08
 
 Defaults that are not wrong. This release opens a milestone that came out of a global

@@ -1,4 +1,28 @@
-// Package client composes discovery, balancing, and retry into one endpoint.
+// Package client assembles the whole client side into one endpoint.
+//
+// Discovery, endpoint management, selection, balancing and retry are separate
+// packages so that each can be replaced. Most services do not want to replace any
+// of them, and wiring five layers by hand to get the ordinary arrangement is a way
+// to get it subtly wrong. NewEndpoint is the ordinary arrangement: give it an
+// sd.Instancer and a Factory, and receive one endpoint.Endpoint that discovers,
+// selects, calls and retries.
+//
+// It is a convenience, not a ceiling. Every layer stays reachable: BalancerFactory
+// receives the live endpoint set, so a deployment picks any strategy in sd/balancer
+// or supplies its own, and a service that wants a shape this package does not offer
+// composes the packages directly — nothing here is privileged.
+//
+// InvalidateOnError is the one option worth understanding before setting it. The
+// default — zero — keeps serving the last known instance list for as long as
+// discovery keeps failing, because instances that are still up should keep
+// receiving traffic: a registry that is unreachable should not take the caller
+// down with it. A positive duration drops that list once the duration has elapsed
+// from the *first* error of a failure streak; later errors do not push the
+// deadline out, or a registry failing every second would keep the snapshot alive
+// forever. NewEndpointWithDefaults chooses five seconds.
+//
+// The returned endpoint owns background goroutines, so the io.Closer it comes with
+// is not optional.
 package client
 
 import (

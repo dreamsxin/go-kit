@@ -1692,8 +1692,27 @@ findings ordered the work. The operator's view is the best served and the test
 author's the worst — and unlike background jobs or limiter implementations, nothing
 ever declared test support out of scope. And the documentation gaps are not in the
 prose, which is 42 English documents paired one-to-one with 42 Chinese ones and two
-indexes with no dead links; they are in the godoc, where fourteen packages have no
-package-level documentation at all.
+indexes with no dead links; they are in the godoc, where the package comment is
+missing or one line long in packages a reader reaches first.
+
+A correction to the audit that opened this milestone: the first pass reported
+fourteen packages with "no package-level documentation", which was really "no
+`doc.go` and no `README.md`". Most of those packages do carry a package comment in
+their primary file — `security`, `health`, `sd/selector` and `sd/feedback` carry
+substantial ones. The real gap is narrower and is what the work packages below
+describe.
+
+### Work Package 2: The Packages Business Code Imports Read Like Documentation
+
+- `apperror`'s package comment is four lines. It is the first package business code
+  imports and the one that decides how every failure reaches a client, so the comment
+  should answer what a reader arrives with: which kind to pick, what the empty kind
+  does, and where the message goes.
+- `security` and `health` already carry substantial comments and need no rewrite.
+  Naming them as gaps was the audit's error, not theirs.
+
+Acceptance: `go doc ./apperror` answers which kind to pick, what the empty kind
+does, where the message goes, and when to use `WrapCause` over `Wrap`.
 
 ### Work Package 1: Time Is A Seam
 
@@ -1745,13 +1764,16 @@ Shipped as `endpoint.clock-nil-is-wall-clock`,
   `apperror` is the first package business code imports and its godoc front page is
   empty.
 
-### Work Package 3: The Extension Points Have Godoc
+### Work Package 3: The Extension Points Read Like Documentation
 
-- All eight `sd` subpackages — `balancer`, `selector`, `endpointer`, `feedback`,
-  `health`, `instance`, `client`, `retry` — have no package-level documentation.
-  `sd/README.md` covers the behaviour, but somebody writing a custom balancer reads
-  the contract in godoc. This is the largest single gap and it sits exactly where
-  the extension points are.
+- `sd/endpointer` and `sd/instance` have no package comment at all, and
+  `sd/balancer`, `sd/retry` and `sd/client` have one line each. `sd/README.md` covers
+  the behaviour, but somebody writing a custom balancer or reading why the instance
+  cache exists is looking at godoc.
+- `sd/selector` and `sd/feedback` already explain themselves and stay as they are.
+
+Acceptance: `go doc ./sd/endpointer ./sd/instance ./sd/balancer ./sd/retry ./sd/client`
+each explains what the package is for and how it differs from its neighbour.
 
 ### Work Package 4: A Registration Name Describes What It Registers
 
@@ -1764,6 +1786,23 @@ Shipped as `endpoint.clock-nil-is-wall-clock`,
   one verb.
 - The fix is for the API to state the distinction itself rather than rely on the
   reader having found the customization table first.
+- `HandleSSE` is deprecated rather than removed. `Handle` already is the escape
+  hatch and already says what it skips, so a second name for it was only ever a way
+  to arrive there by accident — but `TestAPICompatibilityWithLastRelease` is right
+  that a published symbol is a promise, so it stays reachable with a `Deprecated:`
+  note that says exactly what it does. That gate is stricter than the pre-freeze
+  policy in `RELEASE.md`, and the stricter of the two wins: weakening a gate to let
+  one's own change through is the wrong instinct.
+- `JSON` and `JSONTyped` are deprecated in favour of `NewJSONHandler` and
+  `NewJSONTypedHandler`, matching the `httpserver.NewJSONServer` they wrap, and
+  `kit`'s package comment groups all eleven entry points by whether the chain runs.
+
+Acceptance:
+
+```bash
+go test ./kit/... -count=1
+go vet ./kit/...
+```
 
 ### Work Package 5: One Index Is Not A Subset Of The Other
 
@@ -1772,6 +1811,9 @@ Shipped as `endpoint.clock-nil-is-wall-clock`,
   `ROADMAP.md`, `docs/licenses.md` and `tools/README.md` only in the repository
   index, and `examples/profilesvc/README.md` in neither. Finding a document should
   not depend on which index you opened.
+
+Acceptance: the documentation link and pairing gates in `v2/tools` pass, and every
+document listed in one index is listed in the other.
 
 ## Maintenance Rules / 维护规则
 

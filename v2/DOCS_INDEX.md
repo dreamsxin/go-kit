@@ -13,6 +13,8 @@ generation, architecture, production, and upgrades.
 | first service | [Getting started](docs/getting-started.md) |
 | generated project | [microgen tutorial](docs/tutorial-microgen.md) |
 | hand-built service | [root README](README.md#build-with-kit) |
+| a CRUD service end to end | [CRUD tutorial](docs/tutorial-crud.md) |
+| runnable code to read | [Examples](examples/README.md), [profilesvc](examples/profilesvc/README.md) |
 | production deployment | [Production guide](PRODUCTION.md) |
 | upgrade | [Changelog](CHANGELOG.md) |
 

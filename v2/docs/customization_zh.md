@@ -235,7 +235,9 @@ svc := kit.MustNewHTTP(":8080", kit.WithJSONServerOptions(
 因此数字信封会让服务间自动透传业务码失效。基于状态码的分类、重试与 `Retry-After`
 处理都照常工作，只有业务码需要你自己做一次转译。
 
-流式路由不适用：信封无法包裹 SSE 流，`kit.HandleSSETyped` 与原生的
-`HTTP.HandleSSE` 方法都自行写帧，并忽略 `ServerResponseEncoder`。
+流式路由不适用：信封无法包裹 SSE 流，`kit.HandleSSETyped`——以及任何你通过 `HTTP.Handle`
+挂上的原生流（`HandleSSE` 是它的弃用别名）——都自行写帧，并忽略 `ServerResponseEncoder`。
+
+
 
 

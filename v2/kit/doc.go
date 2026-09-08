@@ -4,13 +4,46 @@
 // Kit is a thin scaffold over the framework's normal service -> endpoint ->
 // transport shape. The transport-neutral Host orchestrates lifecycle
 // components; the HTTP component carries routes, health checks, and strict
-// JSON transport behavior. Prefer HandleJSONTyped for concrete response
-// types, HandleJSON for dynamic responses, and HandleJSONEndpoint when you
-// already have an endpoint.Endpoint. Use HandleSSETyped for Server-Sent
-// Events streams protected by endpoint middleware, or HandleSSE for raw
-// streaming handlers. Use Handle and HandleFunc only for raw HTTP
-// integrations such as static files, third-party handlers, probes, or custom
-// protocol endpoints.
+// JSON transport behavior.
+//
+// # Choosing a registration
+//
+// Every registration below mounts on the same *http.ServeMux and every one of
+// them gets the HTTP context: in-flight accounting, the request and writer in
+// the context, Stopping, traceparent extraction, request-ID handling, the
+// WithTimeout deadline, and any WithHTTPRecorder recorders. They differ on two
+// axes only — whether the endpoint middleware chain and the endpoint recorders
+// run, and which request-body limit applies.
+//
+// Full chain (WithEndpointMiddleware, WithMetrics, WithRecorder, WithRateLimit,
+// WithCircuitBreaker and the component's JSON server options all apply):
+//
+//   - HandleJSONTyped — the default. Concrete request and response types.
+//   - HandleJSON — the same, when the response type is dynamic.
+//   - HandleJSONEndpoint — when you already hold an endpoint.Endpoint.
+//   - HandleJSONTypedWithMiddleware, HandleJSONWithMiddleware — add route-local
+//     middleware, which ends up inside the component's chain.
+//   - HandleJSONTypedWithBodyLimit, HandleJSONEndpointWithBodyLimit — one route
+//     accepts a different maximum body. A limit of zero or less panics.
+//   - HandleSSETyped — a Server-Sent Events stream. The chain observes the whole
+//     stream as one request, so a timeout middleware bounds its total duration.
+//
+// Escape hatch — no endpoint middleware, no endpoint recorders:
+//
+//   - Handle, HandleFunc — a raw http.Handler, for static files, third-party
+//     handlers, or a protocol this package does not model. HandleSSE is a
+//     deprecated alias for Handle: a name promising SSE behaviour while silently
+//     skipping the chain is how a stream loses its middleware by accident. Reach
+//     for Handle and know what you are giving up.
+//
+// Neither of the above — these register nothing and return a handler you mount
+// yourself, so no component is involved at all:
+//
+//   - NewJSONHandler, NewJSONTypedHandler. JSON and JSONTyped are the deprecated
+//     spellings; they differed from HandleJSON and HandleJSONTyped by one verb.
+//
+// Probes are mounted directly and are outside the HTTP context by design, so
+// recorders never see /health, /livez or /readyz.
 //
 // Quickstart:
 //

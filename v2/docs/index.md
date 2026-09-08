@@ -66,6 +66,12 @@ The detailed contracts live beside the implementation:
 - [`integrations/consul`](../integrations/consul/README.md)
 - [`integrations/etcd`](../integrations/etcd/README.md)
 - [`microgen`](../MICROGEN.md)
+- [`tools`](../tools/README.md): the integration and documentation probes.
+
+## Runnable Code
+
+- [Examples](../examples/README.md): the index of runnable programs.
+- [profilesvc](../examples/profilesvc/README.md): a complete CRUD service.
 
 ## Release And Maintenance
 
@@ -73,5 +79,7 @@ The detailed contracts live beside the implementation:
 - [Changelog](../CHANGELOG.md)
 - [Architecture and boundaries](../ARCHITECTURE.md)
 - [Documentation index](../DOCS_INDEX.md)
+- [Licensing and dependencies](licenses.md)
 - [Maintainer guide](../internal/docs/MAINTAINING.md)
 - [Release guide](../internal/docs/RELEASE.md)
+- [Roadmap](../internal/docs/ROADMAP.md)

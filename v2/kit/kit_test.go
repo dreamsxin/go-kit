@@ -402,10 +402,10 @@ func TestService_HealthCheckDoesNotOverlapAfterTimeout(t *testing.T) {
 	}
 }
 
-// ── kit.JSON (package-level function) ────────────────────────────────────────
+// ── kit.NewJSONHandler (package-level function) ────────────────────────────────────────
 
 func TestKitJSON_Success(t *testing.T) {
-	h := kit.JSON[helloReq](helloHandler)
+	h := kit.NewJSONHandler[helloReq](helloHandler)
 	body, _ := json.Marshal(helloReq{Name: "World"})
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	w := httptest.NewRecorder()
@@ -422,7 +422,7 @@ func TestKitJSON_Success(t *testing.T) {
 }
 
 func TestKitJSON_HandlerError_Returns500(t *testing.T) {
-	h := kit.JSON[helloReq](helloHandler)
+	h := kit.NewJSONHandler[helloReq](helloHandler)
 	body, _ := json.Marshal(helloReq{Name: ""})
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	w := httptest.NewRecorder()
@@ -434,7 +434,7 @@ func TestKitJSON_HandlerError_Returns500(t *testing.T) {
 }
 
 func TestKitJSON_MultipleRequests(t *testing.T) {
-	h := kit.JSON[helloReq](helloHandler)
+	h := kit.NewJSONHandler[helloReq](helloHandler)
 	ts := httptest.NewServer(h)
 	defer ts.Close()
 
@@ -457,7 +457,7 @@ func TestKitJSON_MultipleRequests(t *testing.T) {
 
 func TestService_Handle(t *testing.T) {
 	svc := kit.MustNewHTTP(":0")
-	svc.Handle("/hello", kit.JSON[helloReq](helloHandler))
+	svc.Handle("/hello", kit.NewJSONHandler[helloReq](helloHandler))
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
 
@@ -611,7 +611,7 @@ func TestHandleJSONWithMiddleware_NilMiddlewarePanics(t *testing.T) {
 }
 
 func TestJSONTyped(t *testing.T) {
-	h := kit.JSONTyped(func(_ context.Context, req helloReq) (helloResp, error) {
+	h := kit.NewJSONTypedHandler(func(_ context.Context, req helloReq) (helloResp, error) {
 		return helloResp{Message: req.Name}, nil
 	})
 	w := httptest.NewRecorder()
@@ -1103,14 +1103,14 @@ func TestThreeLayer_EndpointMiddlewareComposition(t *testing.T) {
 	}
 }
 
-// TestKitJSON_IsTypedHTTPHandler verifies that kit.JSON[Req] produces a
+// TestKitJSON_IsTypedHTTPHandler verifies that kit.NewJSONHandler[Req] produces a
 // properly typed http.Handler that decodes JSON into Req and encodes the
 // response as JSON — this is the Transport layer.
 func TestKitJSON_IsTypedHTTPHandler(t *testing.T) {
 	svc := &userService{}
 
-	// kit.JSON[Req] is the Transport layer: it handles JSON decode/encode
-	h := kit.JSON[createUserReq](func(ctx context.Context, req createUserReq) (any, error) {
+	// kit.NewJSONHandler[Req] is the Transport layer: it handles JSON decode/encode
+	h := kit.NewJSONHandler[createUserReq](func(ctx context.Context, req createUserReq) (any, error) {
 		return svc.CreateUser(ctx, req)
 	})
 

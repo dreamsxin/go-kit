@@ -1344,7 +1344,29 @@ go test ./endpoint/ -run "Keyed" -count=1
 这个里程碑来自一次换位审阅：第一次上手的人、写业务逻辑的人、运维它的人、扩展它的人，以及给它写测试
 的人。两个发现决定了工作顺序。运维视角被服务得最好，写测试的人最差——而且不同于后台任务或限流器实现，
 从来没有任何地方声明过"测试支持不在范围内"。另外，文档的缺口不在散文里——散文是 42 篇英文与 42 篇
-中文一一对应、两个索引零死链——缺口在 godoc 里，那里有十四个 package 完全没有包级文档。
+中文一一对应、两个索引零死链——缺口在 godoc 里：读者最先碰到的那些包，包注释要么没有，要么只有一行。
+
+对开启本里程碑那次审阅的一处更正：第一遍报告说"十四个 package 完全没有包级文档"，实际说的是"没有
+`doc.go`、也没有 `README.md`"。其中多数包在主文件里是带包注释的——`security`、`health`、
+`sd/selector`、`sd/feedback` 的还相当充实。真实的缺口比那个窄，就是下面几个工作包写的内容。
+
+### 工作包 2：业务代码 import 的那些包，注释要读得像文档
+
+- `apperror` 的包注释只有四行。它是业务代码 import 的第一个包，也是决定"每一次失败如何到达客户端"的那
+  个包，所以注释应该回答读者带着来的问题：该挑哪个 kind、空 kind 会发生什么、消息去了哪里。
+- `security` 与 `health` 已经带着充实的注释，不需要重写。把它们列为缺口是那次审阅的错，不是它们的错。
+
+验收：`go doc ./apperror` 能回答该挑哪个 kind、空 kind 会发生什么、消息去了哪里、什么时候用
+`WrapCause` 而不是 `Wrap`。
+
+### 工作包 3：扩展点的注释要读得像文档
+
+- `sd/endpointer` 与 `sd/instance` 完全没有包注释，`sd/balancer`、`sd/retry`、`sd/client` 各只有一行。
+  `sd/README.md` 讲了行为，但要写自定义 balancer、或者想搞清楚实例缓存为什么存在的人，看的是 godoc。
+- `sd/selector` 与 `sd/feedback` 已经能自己说清楚，保持原样。
+
+验收：`go doc ./sd/endpointer ./sd/instance ./sd/balancer ./sd/retry ./sd/client` 每一个都说明了这个包
+是干什么的、以及和邻居的区别。
 
 ### 工作包 1：时间是一个接缝
 
@@ -1398,12 +1420,28 @@ go test ./security/http/ -run TestCSRFRejectsATokenExpired -count=1
   名字所暗示的任何 SSE 行为，于是顺着名字从 `HandleSSETyped` 找过来的读者会静默丢掉整条链。`JSON`
   与 `JSONTyped` 返回一个未注册的 handler，和 `HandleJSON*` 只差一个动词。
 - 修法是让 API 自己说清这个区别，而不是依赖读者先找到 customization 那张表。
+- `HandleSSE` 是弃用而不是删除。`Handle` 本来就是那个逃生舱，也本来就写明了自己跳过什么，给它再起一个
+  名字只不过是多出一条"不小心走到那里"的路——但 `TestAPICompatibilityWithLastRelease` 说得对：一个已
+  发布的符号就是一个承诺，所以它保留可达，并带上一条写明它到底做什么的 `Deprecated:` 注记。那道门禁
+  比 `RELEASE.md` 里的冻结前政策更严，而两者相冲时以更严的为准：为了让自己的改动过关而放松门禁，是错
+  的本能。
+- `JSON` 与 `JSONTyped` 弃用，改用 `NewJSONHandler` 与 `NewJSONTypedHandler`，与它们包装的
+  `httpserver.NewJSONServer` 对齐；`kit` 的包注释按"链是否运行"把全部十一个入口分了组。
+
+验收：
+
+```bash
+go test ./kit/... -count=1
+go vet ./kit/...
+```
 
 ### 工作包 5：两个索引不是彼此的超集
 
 - `DOCS_INDEX.md` 与 `docs/index.md` 各自漏掉了对方列出的文档：`tutorial-crud.md` 与
   `examples/README.md` 只在手册索引里，`ROADMAP.md`、`docs/licenses.md`、`tools/README.md` 只在
   仓库索引里，`examples/profilesvc/README.md` 两边都没有。找一篇文档不该取决于你打开了哪个索引。
+
+验收：`v2/tools` 里的文档链接与配对门禁通过，且一个索引里列出的每一篇文档，另一个索引里也列出。
 
 ## 维护规则
 

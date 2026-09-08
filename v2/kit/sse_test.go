@@ -148,10 +148,13 @@ func TestHandleSSETyped_DecodeFailureBeforeStream(t *testing.T) {
 	}
 }
 
-func TestHandleSSE_RawBypassesEndpointMiddleware(t *testing.T) {
+func TestRawStreamHandlerBypassesEndpointMiddleware(t *testing.T) {
 	counter := &countingMiddleware{}
 	svc := kit.MustNewHTTP("127.0.0.1:0", kit.WithEndpointMiddleware(counter.middleware()))
-	svc.HandleSSE("GET /raw", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	// Handle is the escape hatch, and it says so. There is deliberately no
+	// HandleSSE alias for it: a name promising SSE behaviour while skipping the
+	// chain is how a stream loses its middleware by accident.
+	svc.Handle("GET /raw", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("raw"))
 	}))
 	srv := httptest.NewServer(svc)

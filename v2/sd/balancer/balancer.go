@@ -1,4 +1,23 @@
-// Package balancer provides service-discovery balancing strategies.
+// Package balancer turns a selection strategy into something callable.
+//
+// The split with sd/selector is the point of this package existing separately. A
+// selector.Strategy is a pure decision: given instances, choose one. A Balancer
+// holds the live endpoint set, asks the strategy, and hands back an sd.Picked —
+// the endpoint to call together with the strategy's result callback. That is why
+// a strategy needs no knowledge of discovery and a caller needs no knowledge of
+// the strategy.
+//
+// Calling Done on the returned sd.Picked is how a strategy learns anything. In
+// this package's terms it is optional; in practice, least-request, weighted and
+// feedback-driven strategies are only correct if every pick reports its outcome,
+// so sd/retry does it for you and a direct caller must do it itself.
+//
+// New does not close the endpoint source. One endpoint set is commonly shared by
+// several balancers, so its owner stays responsible for closing it — closing the
+// balancer must not take the set out from under the others.
+//
+// The strategies here are the ready-made ones. To write your own, implement
+// selector.Strategy and pass it to New: nothing in this package needs to change.
 package balancer
 
 import (

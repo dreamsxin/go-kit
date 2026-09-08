@@ -1,3 +1,23 @@
+// Package endpointer turns a discovery source into a live set of endpoints.
+//
+// It is the layer between discovery and selection. sd.Instancer reports which
+// instances exist; an Endpointer subscribes to it and maintains the
+// endpoint.Endpoint for each one, creating endpoints for instances that appear
+// and closing them for instances that leave. Selection and balancing read the
+// result and never talk to a registry.
+//
+// Two contracts, because they answer different questions. Endpointer answers
+// "which endpoints can I call" and is what application code should hold.
+// InstanceEndpointer also reports the address behind each endpoint, which is the
+// identity weighted, hash-based and feedback-driven strategies need in order to
+// score an instance. Everything constructed here returns an InstanceEndpointer.
+//
+// An Endpointer owns a background goroutine, so Close is not optional: it stops
+// the subscription and closes the endpoints the cache is holding.
+//
+// A Factory builds and tears down one endpoint for one address. That is the seam
+// an application implements — the transport, the codec, the per-instance
+// middleware are all decided there, and this package never assumes a protocol.
 package endpointer
 
 import (

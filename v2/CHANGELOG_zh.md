@@ -26,6 +26,33 @@
   `endpoint.retry-clock`、`endpoint.metrics-clock` 与 `security.csrf-clock`。
   `docs/testing.md`（中英）都加了对应章节。
 
+### 弃用
+
+- `kit.HandleSSE` 弃用，改用 `Handle`。它的函数体一直只有一行——`h.Handle(pattern, handler)`——因此
+  不携带名字所暗示的任何 SSE 行为，而顺着名字从 `HandleSSETyped` 找过来的读者会静默丢掉端点中间件链
+  与 recorder。`Handle` 是同一次调用，但名字写明了自己跳过什么。它是保留而不是删除，因为 API 兼容性
+  门禁说得对：一个已发布的符号就是一个承诺。
+- `kit.JSON` 与 `kit.JSONTyped` 弃用，改用 `kit.NewJSONHandler` 与 `kit.NewJSONTypedHandler`。它们
+  返回一个未注册的 handler，却和 `HandleJSON` / `HandleJSONTyped` 只差一个动词——这不足以区分"会挂
+  路由"和"不会挂路由"的函数。`New` 前缀与它们包装的 `httpserver.NewJSONServer` 一致。
+
+### 变更
+
+- `kit` 的包文档现在按"实际做什么"把全部十一个注册入口分了组——完整链、逃生舱、两者都不是——于是这个
+  区别由 API 自己说明，而不是依赖读者先找到 customization 那张表。
+
+### 文档
+
+- `apperror` 的包注释，对于业务代码 import 的第一个包来说只有四行。现在它回答读者带着来的问题：一个
+  错误携带的三样东西各自要怎么斟酌、空 kind 为什么变成 KindInternal、500 处消息会怎样、什么时候该用
+  `WrapCause` 而不是 `Wrap`，以及结构化的 `KindNamer` 契约意味着"不 import 这个包也能被正确分类"。
+- `sd/endpointer` 与 `sd/instance` 原本完全没有包注释，`sd/balancer`、`sd/retry`、`sd/client` 各只有
+  一行。这五个包现在都说明了自己是干什么的、以及和邻居的区别——为什么负载均衡和选择是两个包、为什么
+  `sd/retry` 每次尝试都重新选而 `endpoint.RetryMiddleware` 只重复同一个 endpoint、以及
+  `InvalidateOnError` 的零值到底意味着什么。
+- `DOCS_INDEX.md` 与 `docs/index.md` 现在互为超集。此前各自都漏掉了对方列出的文档，于是能不能找到一篇
+  文档，取决于你打开了哪个索引。
+
 ## [2.17.0] - 2026-09-08
 
 不错的默认值。这个版本开启的里程碑来自一次全局审阅，而不是一个功能想法：在十六个里程碑把行为

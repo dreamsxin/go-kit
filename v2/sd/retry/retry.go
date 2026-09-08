@@ -1,4 +1,31 @@
-// Package retry executes endpoint calls against a dynamic balancer.
+// Package retry calls a balancer repeatedly until one attempt succeeds.
+//
+// It differs from endpoint.RetryMiddleware in what it retries. That middleware
+// repeats the same endpoint, which is the right thing when a single dependency
+// might be briefly unwell. This package picks again for every attempt, so a
+// second attempt lands on a different instance — which is the only kind of retry
+// that helps when one instance out of several is broken.
+//
+// Every attempt reports its outcome to the balancer through sd.Picked.Done, both
+// the latency and the error. That is not bookkeeping: least-request, weighted and
+// feedback-driven strategies are only correct if outcomes come back, and doing it
+// here is why a caller using this package gets those strategies working without
+// writing anything.
+//
+// Three entry points, widening as the policy gets more specific: Retry for a
+// simple attempt count, WithCallback when the decision to keep trying depends on
+// the attempt or the error, WithClassifier when the definition of "retryable"
+// is the application's too. DefaultClassifier is conservative — a context that
+// ended is never retried, and an error decides for itself when it implements
+// interface{ Retryable() bool }.
+//
+// The timeout is a budget for all attempts together, not per attempt. A
+// non-positive timeout imposes no deadline of its own and the attempts run under
+// the caller's context, because passing 0 through would otherwise hand every
+// attempt an already expired one.
+//
+// Idempotency is the caller's to guarantee, as with any retry: this package will
+// happily send the same request twice.
 package retry
 
 import (

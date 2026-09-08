@@ -1,7 +1,49 @@
 // Package apperror defines transport-neutral application errors.
 //
 // Application code classifies failures here; transports map those classes to
-// protocol-specific statuses such as HTTP status codes or gRPC codes.
+// protocol-specific statuses such as HTTP status codes or gRPC codes. Business
+// code never returns a protocol type, and one classification serves every
+// protocol the service speaks.
+//
+// An error carries three things, and it is worth being deliberate about each:
+//
+//   - a Kind, which decides the status. Pick the one that describes what
+//     happened, not the status you want: KindNotFound is a 404 and a gRPC
+//     NotFound because that is what the kind means.
+//   - a code, which is the stable machine-readable identifier a client switches
+//     on. It outlives the status — reclassifying a failure changes the status and
+//     leaves the code alone — so it is the thing worth documenting to callers.
+//   - a message, which is public. Every transport may put it on the wire below
+//     500, so write it for the caller and keep internal detail in the cause.
+//
+// The empty Kind is not a distinct class. Every constructor normalizes it to
+// KindInternal, so an unclassified error becomes HTTP 500 and gRPC Internal
+// rather than a status no transport has a rule for. An unknown non-empty Kind is
+// left alone and falls into the same default, which is what lets an application
+// define its own kinds and give them statuses through a kind mapper.
+//
+// At 500 the transports replace the message with the status text
+// unconditionally, because 500 is where every unclassified failure lands and its
+// message was never chosen for a client's eyes. Deliberate 5xx kinds —
+// KindUnavailable, KindUnimplemented, KindDeadlineExceeded — do carry their
+// message, because reaching them takes an explicit classification.
+//
+// Choosing between the three constructors:
+//
+//	apperror.NotFound("user.missing", "no such user")           // nothing to wrap
+//	apperror.Wrap(kind, code, "message", cause)                 // cause is diagnostic, message is public
+//	apperror.WrapCause(kind, code, cause)                       // cause must not reach the client
+//
+// WrapCause is the one to reach for when the cause is a driver error or a
+// failed request to a dependency: it keeps the cause reachable through
+// errors.Is and errors.As while guaranteeing no transport can put its text on
+// the wire, because there is no public message to fall back to.
+//
+// Nothing has to import this package to be classified correctly. *Error
+// implements both the typed Kinder and the structural KindNamer
+// (interface{ ErrorKindName() string }), and the transports read both, so an
+// application or a library that does not want this dependency can implement the
+// structural contract instead and receive the same treatment.
 package apperror
 
 // Kind classifies an application failure independently of any transport.

@@ -9,15 +9,38 @@ import (
 )
 
 // JSON creates a typed JSON http.Handler without needing a Service.
+//
+// Deprecated: use NewJSONHandler. This name differs from HandleJSON by one verb,
+// which is not enough to tell apart the function that mounts a route on a
+// component from the one that returns a handler and registers nothing.
 func JSON[Req any](handler func(ctx context.Context, req Req) (any, error)) http.Handler {
+	return NewJSONHandler[Req](handler)
+}
+
+// JSONTyped creates a JSON http.Handler with compile-time request and response
+// types without needing a Service.
+//
+// Deprecated: use NewJSONTypedHandler.
+func JSONTyped[Req, Resp any](handler func(ctx context.Context, req Req) (Resp, error)) http.Handler {
+	return NewJSONTypedHandler[Req, Resp](handler)
+}
+
+// NewJSONHandler creates a typed JSON http.Handler without needing a Service.
+//
+// It registers nothing. The returned handler is yours to mount, on a plain
+// *http.ServeMux or anywhere else, which also means it carries none of the
+// endpoint middleware, recorders or JSON server options an HTTP component
+// installs. When you have a component, HandleJSON is the function you want.
+func NewJSONHandler[Req any](handler func(ctx context.Context, req Req) (any, error)) http.Handler {
 	return httpserver.NewJSONServer[Req](handler,
 		httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder),
 	)
 }
 
-// JSONTyped creates a JSON http.Handler with compile-time request and response
-// types without needing a Service.
-func JSONTyped[Req, Resp any](handler func(ctx context.Context, req Req) (Resp, error)) http.Handler {
+// NewJSONTypedHandler creates a JSON http.Handler with compile-time request and
+// response types without needing a Service. Like NewJSONHandler it registers
+// nothing; see HandleJSONTyped for the component path.
+func NewJSONTypedHandler[Req, Resp any](handler func(ctx context.Context, req Req) (Resp, error)) http.Handler {
 	return httpserver.NewTypedJSONServer[Req, Resp](handler,
 		httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder),
 	)

@@ -269,9 +269,9 @@ host, err := kit.NewHost(kit.WithLifecycle(svc, grpcComponent))
 `kit.HandleJSON`；已有 endpoint 时使用 `kit.HandleJSONEndpoint`。
 需要路由级中间件时使用 `kit.HandleJSONTypedWithMiddleware` 或
 `kit.HandleJSONWithMiddleware`；路由中间件组合在组件级中间件链之内。
-Server-Sent Events 流使用 `kit.HandleSSETyped` 注册，使 endpoint 中间件对流生效；
-原生流处理器使用 `HTTP.HandleSSE`。
-`HTTP.Handle` 和 `HTTP.HandleFunc` 仅用于原生 HTTP 集成。
+Server-Sent Events 流使用 `kit.HandleSSETyped` 注册，使 endpoint 中间件对流生效。
+`HTTP.Handle` 和 `HTTP.HandleFunc` 仅用于原生 HTTP 集成，原生流处理器也走这条路——
+`HandleSSE` 是 `Handle` 的弃用别名，因为"名字承诺 SSE 行为、却跳过中间件链"正是一条流不小心丢掉中间件的方式。
 
 `endpoint.Metrics` 是 `RecordingMiddleware` 写入的内置采集器。它的计数器不导出
 且由内部锁保护，读取入口为 `Snapshot()`（总量）、`SnapshotFor(operation)`

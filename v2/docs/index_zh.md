@@ -61,6 +61,12 @@
 - [`integrations/consul`](../integrations/consul/README_zh.md)
 - [`integrations/etcd`](../integrations/etcd/README_zh.md)
 - [`microgen`](../MICROGEN_zh.md)
+- [`tools`](../tools/README_zh.md)：集成测试与文档探针。
+
+## 可运行的代码
+
+- [示例](../examples/README_zh.md)：可运行程序的索引。
+- [profilesvc](../examples/profilesvc/README_zh.md)：一个完整的 CRUD 服务。
 
 ## 发布与维护
 
@@ -68,5 +74,7 @@
 - [变更记录](../CHANGELOG_zh.md)
 - [架构与边界](../ARCHITECTURE_zh.md)
 - [文档导航](../DOCS_INDEX_zh.md)
+- [许可与依赖](licenses_zh.md)
 - [维护者指南](../internal/docs/MAINTAINING_zh.md)
 - [发布指南](../internal/docs/RELEASE_zh.md)
+- [路线图](../internal/docs/ROADMAP_zh.md)
