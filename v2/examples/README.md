@@ -26,7 +26,7 @@ after dropping the `./examples/` prefix.
 | `mcp_full/` | Full MCP server: tools, resources, prompts, notifications, completions, SSE streaming | `go run ./examples/mcp_full` |
 | `sd/` | Service discovery: instance.Cache, Endpointer, RoundRobin, Retry, sd/client.NewEndpoint, InvalidateOnError, metadata filtering, selector, feedback.Table with Ejector, active health checks, Ranker, SlowStart, draining | `go run ./examples/sd` |
 | `multisvc/` | IDL definition for two services in one package | (library) |
-| `profilesvc/` | Full CRUD service: Service → Endpoint → HTTP transport + Consul client | `go run ./examples/profilesvc/cmd/profilesvc` |
+| [`profilesvc/`](profilesvc/README.md) | Full CRUD service: Service → Endpoint → HTTP transport + Consul client | `go run ./examples/profilesvc/cmd/profilesvc` |
 | `transport/` | Deep-dive tests for HTTP server, HTTP client, and gRPC | `go test ./examples/transport/...` |
 | `usersvc/` | IDL with GORM model — input for `microgen` code generation | (library) |
 

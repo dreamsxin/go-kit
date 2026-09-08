@@ -25,7 +25,7 @@
 | `mcp_full/` | 完整 MCP 服务器：工具、资源、提示词、通知、补全、SSE 流式传输 | `go run ./examples/mcp_full` |
 | `sd/` | 服务发现：instance.Cache、Endpointer、RoundRobin、Retry、sd/client.NewEndpoint、InvalidateOnError、元数据过滤、selector、feedback.Table 与 Ejector、主动健康检查、Ranker、SlowStart、draining | `go run ./examples/sd` |
 | `multisvc/` | 在一个包中为两个服务定义 IDL | （库） |
-| `profilesvc/` | 完整的 CRUD 服务：Service → Endpoint → HTTP 传输层 + Consul 客户端 | `go run ./examples/profilesvc/cmd/profilesvc` |
+| [`profilesvc/`](profilesvc/README_zh.md) | 完整的 CRUD 服务：Service → Endpoint → HTTP 传输层 + Consul 客户端 | `go run ./examples/profilesvc/cmd/profilesvc` |
 | `transport/` | 针对 HTTP 服务器、HTTP 客户端和 gRPC 的深入测试 | `go test ./examples/transport/...` |
 | `usersvc/` | 带 GORM 模型的 IDL — `microgen` 代码生成的输入 | （库） |
 

@@ -1,15 +1,20 @@
 package client
 
-import "net/http"
-
+// ClientOption configures a Client at construction.
 type ClientOption func(*Client)
 
-// SetClient overrides the default http.DefaultClient with a custom HTTPClient.
-// Use this to configure TLS, timeouts, or a custom transport.
+// SetClient overrides the client this package would use by default.
+//
+// Use it to configure TLS, a proxy, or a timeout this package deliberately does not
+// invent. Starting from NewTransport keeps the connection pool defaults; starting from
+// http.DefaultTransport gives you two idle connections per host and a transport shared
+// with every other library in the process.
+//
+// A nil client restores the default rather than leaving the Client unusable.
 func SetClient(client HTTPClient) ClientOption {
 	return func(c *Client) {
 		if client == nil {
-			c.client = http.DefaultClient
+			c.client = defaultClient
 			return
 		}
 		c.client = client

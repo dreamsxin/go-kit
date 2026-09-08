@@ -178,10 +178,21 @@ APP_TLS_KEY_FILE=/etc/tls/tls.key
 
 ## HTTP 客户端
 
-始终设置客户端超时或请求 deadline。JSON 客户端对非 2xx 响应返回
-`HTTPStatusError`，并限制捕获的错误响应体大小。
+由 `transport/http/client` 构造的客户端不再使用 `http.DefaultClient`。那个默认值对服务来说有
+两处不对，而且都不是策略问题：它是一个进程里任何库都能改的包级变量；而它的 transport 每个 host
+只留两个空闲连接——这对"打很多 host 各一次"的命令行工具是对的，对"每个请求都打同一个上游"的
+服务是错的，表现出来就是应用代码里解释不了的延迟。
 
-`NewJSONClientWithTimeout` 为每次调用增加 context 超时。确实需要重试时，
+现在用的是这个包自己的客户端：`MaxIdleConnsPerHost` 100、空闲 60 秒回收、并带 dial 与握手超时。
+`client.DefaultClient()` 会把它返回给你，于是这个包之外的调用也能复用同一个连接池；
+`client.NewTransport()` 返回一个新的 transport，当你需要代理或 `tls.Config`、但想保留连接池
+配置时从它出发。
+
+它刻意不设 `Timeout`。在那里设超时，等于用框架发明的一个数字给进程里每一次调用设上限，而且在调用
+现场看不见。deadline 要设在调用处：`NewJSONClientWithTimeout`、`endpoint.Builder.WithTimeout`，
+或者你自己派生的 context。但一定要设——没有 deadline 的那个请求，就是故障开始时还在跑的那个。
+
+JSON 客户端对非 2xx 响应返回 `HTTPStatusError`，并限制捕获的错误响应体大小。确实需要重试时，
 使用 `sd/client.NewEndpoint` 配合显式重试策略。
 
 只重试幂等性与错误分类已知的操作。不要假设未知业务错误是瞬态的。

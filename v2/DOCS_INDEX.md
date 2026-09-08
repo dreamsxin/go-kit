@@ -47,6 +47,7 @@ generation, architecture, production, and upgrades.
 | observability | [`observability/slog`](observability/slog/README.md), [`observability/otel`](observability/otel/README.md), [`observability/metrics`](observability/metrics/README.md), [`integrations/zap`](integrations/zap/README.md) |
 | providers | [`consul`](integrations/consul/README.md), [`etcd`](integrations/etcd/README.md) |
 | project generator | [`microgen`](MICROGEN.md) |
+| integration and documentation probes | [`tools`](tools/README.md) |
 | licensing and dependencies | [Licensing](docs/licenses.md) |
 
 ## Maintainers

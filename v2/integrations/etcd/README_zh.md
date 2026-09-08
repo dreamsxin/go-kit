@@ -1,5 +1,7 @@
 # etcd 集成
 
+[English](README.md) | 简体中文
+
 `integrations/etcd` 是发布版 v2 module 中的可选 provider package。它在服务前缀下为每个实例写入
 带租约的注册键，并向 `sd.Instancer` 契约发布不可变快照；`contract.go` 在编译期断言这一点。
 

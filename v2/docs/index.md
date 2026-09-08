@@ -33,13 +33,17 @@ Read these in the order that matches your goal:
 
 ## Core Chapters
 
-- [Core concepts](concepts.md): layers, ownership, context, and boundaries.
-- [Middleware](middleware.md): composition, ordering, and flow control.
+- [Core concepts](concepts.md): layers, ownership, the request path, and where
+  errors are classified.
+- [Middleware](middleware.md): composition, ordering, flow control, and the
+  built-in catalog.
 - [Error handling](errors.md): classification, status mapping, and safe messages.
-- [Lifecycle](lifecycle.md): startup, shutdown, health, and jobs.
+- [Lifecycle](lifecycle.md): startup, shutdown, draining, health, and jobs.
 - [Configuration](configuration.md): generated configuration, precedence, and TLS.
-- [Service discovery](service-discovery.md): snapshots, selection, feedback, and retry.
-- [Customization](customization.md): custom middleware, codecs, logs, and errors.
+- [Service discovery](service-discovery.md): snapshots, selection, feedback,
+  health checks, and providers.
+- [Customization](customization.md): logs, custom middleware, errors, and
+  response envelopes.
 - [Custom transports](custom-transport.md): HTTP codecs and new protocol adapters.
 - [Testing](testing.md): unit, HTTP, middleware, and integration tests.
 - [Troubleshooting](troubleshooting.md): symptom-first diagnosis.

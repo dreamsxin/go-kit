@@ -32,13 +32,13 @@
 
 ## 核心章节
 
-- [核心概念](concepts_zh.md)：分层、所有权、上下文与边界。
-- [中间件](middleware_zh.md)：组合、顺序和流控。
+- [核心概念](concepts_zh.md)：分层、所有权、请求路径，以及错误在哪里被分类。
+- [中间件](middleware_zh.md)：组合、顺序、流控与内置目录。
 - [错误处理](errors_zh.md)：分类、状态映射和安全消息。
-- [生命周期](lifecycle_zh.md)：启动、停机、健康检查和任务。
+- [生命周期](lifecycle_zh.md)：启动、停机、draining、健康检查和任务。
 - [配置](configuration_zh.md)：生成配置、优先级与 TLS。
-- [服务发现](service-discovery_zh.md)：快照、选择、反馈与重试。
-- [自定义](customization_zh.md)：自定义中间件、编解码、日志和错误。
+- [服务发现](service-discovery_zh.md)：快照、选择、反馈、健康检查与 provider。
+- [自定义](customization_zh.md)：日志、自定义中间件、错误与响应信封。
 - [自定义传输](custom-transport_zh.md)：HTTP 编解码与新协议适配器。
 - [测试](testing_zh.md)：单元、HTTP、中间件和集成测试。
 - [排障](troubleshooting_zh.md)：按症状定位问题。

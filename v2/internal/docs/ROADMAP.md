@@ -1562,6 +1562,65 @@ Milestone 16 is complete when a gRPC client with health checking enabled learns 
 instance has started draining, the parity table says so, and nobody is told that
 `Watch` is unimplemented.
 
+## Milestone 17 (Active): Defaults That Are Not Wrong / 不错的默认值
+
+Goal: where this framework hands a service something without being asked, the thing it
+hands over should not be a liability. Where it declines to decide, it should say so at
+the place a reader will look.
+
+This milestone comes out of a global audit rather than a feature idea. Sixteen
+milestones were spent pinning behaviour, and the audit's finding is that the remaining
+weakness is not missing features — it is the handful of places where a default arrives
+by inheritance from the standard library, or where a trap is reachable through the
+supported API. Those are worth more than another capability.
+
+What the audit confirmed as deliberate and stated, and therefore not work:
+background jobs (`PRODUCTION.md` says the runner is a sketch to write, not a package
+this framework ships, and gives the four rules), rate limiter implementations
+(`endpoint/rate_limit.go` says the contract is the framework's and the token bucket is
+the application's), and every optional provider staying off the core dependency path.
+
+### Work Package 1: The Outbound Client Is Ours, Not The Standard Library's
+
+- A client built by `transport/http/client` no longer uses `http.DefaultClient`. That
+  variable is reachable by every library in the process, so somebody else's timeout or
+  transport swap could change these calls; and `http.DefaultTransport` allows two idle
+  connections per host, which is right for a one-shot tool and wrong for a service
+  calling one upstream continuously.
+- The pool is sized for a service, the dial and handshake are bounded, and
+  `NewTransport` is exported so a deployment that needs a proxy or a `tls.Config` starts
+  from these defaults rather than from the shared one.
+- No `Timeout` is invented. A deadline belongs to the call, and one set here would cap
+  every call in the process at a number the framework chose, invisibly from the call
+  site. `PRODUCTION.md` says both halves.
+
+Acceptance:
+
+```bash
+go test ./transport/http/client/ -count=1
+```
+
+Shipped as `httpclient.pool-is-ours` and `httpclient.no-invented-deadline`.
+
+### Work Package 2: The Per-Route Body Limit Is Not A Trap
+
+- `kit.WithJSONMaxBodyBytes` is component-wide, and the transport layer already
+  supports per-route limits. Today a service that needs one route to accept a larger
+  body must register a raw handler through `Handle`, which silently skips the endpoint
+  middleware and the recorders that `HandleJSONTyped` installs. Losing observability as
+  a side effect of setting a body size is the kind of trap this project otherwise
+  refuses to leave lying around.
+- The fix is a per-route way to say it that keeps the wiring, and a documented row in
+  the customization table next to the middleware scopes.
+
+### Work Package 3: The Error Envelope Says What It Is
+
+- `transport/http/server.ErrorResponse` is a bespoke three-field envelope, declared
+  stable. RFC 9457 `application/problem+json` exists and interoperates; the framework
+  should either offer it as an encoder a deployment can install, or state why it does
+  not. Field-level validation detail is the concrete loss today: `endpoint.ValidationError`
+  carries `[]FieldError` and the encoder flattens it to one message.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

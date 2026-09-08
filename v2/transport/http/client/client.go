@@ -38,7 +38,7 @@ func NewExplicitClient(req EncodeRequestFunc, dec DecodeResponseFunc, options ..
 		panic("essential parameters cannot be nil")
 	}
 	c := &Client{
-		client: http.DefaultClient,
+		client: defaultClient,
 		req:    req,
 		dec:    dec,
 	}

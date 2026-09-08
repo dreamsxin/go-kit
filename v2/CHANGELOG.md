@@ -2,6 +2,38 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.17.0] - Release Candidate
+
+Defaults that are not wrong. This release opens a milestone that came out of a global
+audit rather than a feature idea: after sixteen milestones of pinning behaviour, the
+remaining weakness is not missing capability, it is the few places where a default
+arrives by inheritance from the standard library.
+
+### Changed
+
+- A client built by `transport/http/client` no longer uses `http.DefaultClient`. Two
+  things about that were wrong for a service, neither of them policy. It is a
+  package-level variable any library in the process can reconfigure, so somebody else's
+  timeout or transport swap could change these calls. And `http.DefaultTransport` allows
+  two idle connections per host — right for a tool calling many hosts once, wrong for a
+  service calling one upstream on every request, where it surfaces as latency the
+  application code cannot explain.
+- The client this package uses is now its own, with `MaxIdleConnsPerHost` 100, a
+  60-second idle timeout, and bounded dial and TLS handshake. `client.DefaultClient()`
+  exposes it so calls made outside this package can share the pool, and
+  `client.NewTransport()` returns a fresh transport to start from when a deployment needs
+  a proxy or a `tls.Config` but wants the pool sizing. The constants are exported and
+  named.
+- It still sets no `Timeout`, and that is now stated rather than implied: a timeout there
+  would cap every call in the process at a number the framework invented, invisibly from
+  the call site. The deadline belongs to the call —
+  `NewJSONClientWithTimeout`, `endpoint.Builder.WithTimeout`, or a context you derive.
+  `SetClient(nil)` now falls back to this package's client rather than the process-wide
+  default.
+
+Declares `httpclient.pool-is-ours` and `httpclient.no-invented-deadline`.
+`PRODUCTION.md` says what changed and what is still yours to set, in both languages.
+
 ## [2.16.0] - 2026-09-07
 
 A correction, and the thing it excused.

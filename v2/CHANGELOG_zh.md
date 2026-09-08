@@ -2,6 +2,29 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [2.17.0] - Release Candidate
+
+不错的默认值。这个版本开启的里程碑来自一次全局审阅，而不是一个功能想法：在十六个里程碑把行为
+一一钉住之后，剩下的弱点不是缺能力，而是少数几处"默认值是从标准库继承来的"。
+
+### 变更
+
+- 由 `transport/http/client` 构造的客户端不再使用 `http.DefaultClient`。那件事对服务有两处不对，
+  而且都不是策略：它是进程里任何库都能改的包级变量，别人设的超时或换掉的 transport 会影响到这些
+  调用；而 `http.DefaultTransport` 每个 host 只留两个空闲连接——对"打很多 host 各一次"的工具是
+  对的，对"每个请求都打同一个上游"的服务是错的，表现出来就是应用代码里解释不了的延迟。
+- 现在用的是这个包自己的客户端：`MaxIdleConnsPerHost` 100、空闲 60 秒回收、dial 与 TLS 握手都有
+  上限。`client.DefaultClient()` 把它暴露出来，于是包外的调用也能共用同一个连接池；
+  `client.NewTransport()` 返回一个新的 transport，供需要代理或 `tls.Config`、但想保留连接池配置的
+  部署作为起点。相关常量都已导出并命名。
+- 它仍然不设 `Timeout`，而且现在把理由写明：在那里设超时，等于用框架发明的数字给进程里每一次调用
+  设上限，且在调用现场看不见。deadline 属于调用方——`NewJSONClientWithTimeout`、
+  `endpoint.Builder.WithTimeout`，或你自己派生的 context。`SetClient(nil)` 现在回落到本包的客户端，
+  而不是进程级默认值。
+
+声明了 `httpclient.pool-is-ours` 与 `httpclient.no-invented-deadline`。`PRODUCTION.md`（中英）写明了
+变了什么、以及哪些仍然要你自己设。
+
 ## [2.16.0] - 2026-09-07
 
 一次纠正，以及那句话曾经替谁开脱。

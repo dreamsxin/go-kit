@@ -910,7 +910,7 @@ go -C ./tools test -run TestGeneratedConfigKeysAreDocumented . -count=1
 它们的代码旁边；依赖门禁仍然把指标客户端挡在核心之外；并且当拉取与推送对同一次请求报出不同
 数字时会有测试失败。
 
-## 里程碑 13（进行中）：能直接放到公网上的监听
+## 里程碑 13（已完成）：能直接放到公网上的监听
 
 目标：v2 服务可以自己终止 TLS，并且它在协议协商与被 hijack 的连接上做了什么、拒绝做什么，
 全部写下来。
@@ -947,6 +947,16 @@ go test ./kit/ -run 'TestTLS|TestNoTLS' -count=1
 - 明文 HTTP/2 不启用，理由写出来：它需要先验知识或一次升级交换，而在想要它的那些部署里，前面
   的代理早就拥有了这个决定权。
 
+验收：
+
+```bash
+go test ./kit/ -run 'TestSSEStillStreamsOverHTTP2|TestPlaintextListenerSpeaksHTTP11' -count=1
+```
+
+已交付为 `kit.streaming-survives-http2` 与 `kit.no-cleartext-http2`。散文在这两个测试之外补上的
+那件事：在 h2 上根本不存在 101 Switching Protocols，所以基于 hijack 的升级只在明文路径上有效
+——这正是 h2c 的决定与 hijack 的决定其实是同一个决定的原因。
+
 ### 工作包 3：被 hijack 的连接不会被 drain
 
 目标：关闭序列对"它结束不了什么"说实话。
@@ -958,6 +968,15 @@ go test ./kit/ -run 'TestTLS|TestNoTLS' -count=1
 - 接缝是执行升级的那个 handler：它像其他 handler 一样收到 stopping 信号，结束被升级的连接
   是它的职责。测试钉住这个信号确实到达了它。
 
+验收：
+
+```bash
+go test ./kit/ -run 'TestHijackedConnectionOutlivesShutdown|TestUpgradedHandlerIsToldTheProcessIsStopping' -count=1
+```
+
+已交付为 `kit.hijacked-connections-are-not-drained`。测试也钉住了不体面的那一半：在 `Shutdown`
+返回 nil 之后，被 hijack 的连接仍然在传字节。读者需要的是这个事实，而不是让框架好看的那个。
+
 ### 工作包 4：生成的服务与运维契约
 
 目标：生成的服务可以按配置提供 TLS，并且 `PRODUCTION.md` 写明什么时候该这么做。
@@ -966,11 +985,308 @@ go test ./kit/ -run 'TestTLS|TestNoTLS' -count=1
 - `PRODUCTION.md` 写明何时进程内终止是对的、何时代理是对的，以及各自对 readiness、drain 与
   被升级连接意味着什么。
 
+验收：
+
+```bash
+go -C ./tools test . -run 'TestMicrogenConfigIntegration|TestGeneratedConfigKeysAreDocumented' -count=1
+```
+
+已交付为 `server.tls_cert_file` / `server.tls_key_file`（`APP_TLS_CERT_FILE`、
+`APP_TLS_KEY_FILE`）。两个值得保留的决定：只配一半的证书对会校验失败，而不是悄悄退回明文；启动
+横幅报告它真正在提供的 scheme——对一个 TLS 监听打印 `http://` 的横幅，是对所有人第一个问题的
+错误回答。`PRODUCTION.md` 补上了路线图没有列出的运维后果：证书文件只读一次，所以除非部署自己
+提供 `GetCertificate`，轮换就意味着重启；而一个仍然打在 TLS 端口上的 `http` 健康探针，读起来
+就是一个不健康的实例。
+
 ### 完成定义
 
 里程碑 13 在以下全部为真时完成：服务可以按配置提供 TLS；坏证书在启动时失败并带上路径；协商与
 hijack 的限制声明在具有这些限制的代码旁边；并且当 stopping 信号不再到达被升级的 handler 时会
 有测试失败。
+
+## 里程碑 14（已完成）：两个传输，一套契约
+
+目标：v2 在运维层面对一个 HTTP 监听所承诺的一切，gRPC 监听要用同样的方式回答，否则就把差异
+声明出来。
+
+前十三个里程碑都花在让 HTTP 表面变诚实上。gRPC 表面跟上了其中一部分，其余没跟上，而缺口不在
+RPC 层——`integrations/grpc` 已经有分类错误、元数据钩子和 traceparent 传播——而在它周围的运维
+契约里：
+
+- `kit/grpc.Component` 没有实现 `kit.Draining`，所以 `Host.Drain` 会跳过它。里程碑 11 建立的
+  那个"公告"停在了 HTTP 边界上。
+- 在 kit HTTP 组件之外 `kit.Stopping` 返回 nil，所以一个长生命周期的 gRPC 流没有任何带内方式
+  得知进程即将离开。里程碑 11 对"流没法靠客气地询问来 drain"给出的答案，在这里根本不存在。
+- 没有 `httpserver.Recorder` 的 gRPC 对应物，也没有 `metrics.GRPCRecorder`，所以里程碑 12 的
+  scrape 对 RPC 流量什么都不报。一个纯 gRPC 服务暴露出的是一个几乎什么都不说的端点。
+- 生成代码比库还糟：`grpc.NewServer()` 不带任何选项，没有 TLS 凭证，没有 health server，没有
+  拦截器，而且 `GracefulStop` 和 HTTP 共用同一个截止时间。里程碑 13 的证书键只到达 HTTP 监听，
+  所以生成的 gRPC 端口永远是明文。
+
+这是框架"先发一个传输"必然积累出来的那种不对称，也是读者会在生产上发现的那一种。这里的对等
+不等于"同样的代码"——gRPC 没有 hijack、没有 ALPN 问题、没有路由 pattern——它等于同样的问题都
+有答案。
+
+### 工作包 1：公告到达两个传输
+
+目标：drain 一个 Host 会告诉每一个 server，而不只是 HTTP 那个。
+
+- `kit/grpc.Component` 实现 `kit.Draining`：在公告时刻，它以 gRPC 允许的方式停止接受新工作，
+  并且它的 readiness 在 `Shutdown` 关掉任何东西之前就开始失败——这正是里程碑 11 声明的顺序。
+- stopping 信号变成与传输无关。一个 gRPC handler，尤其是流式的那种，通过与 HTTP handler 相同
+  的调用，从自己的 context 得知进程即将离开。在机制无法完全相同的地方，行为是相同的：在一个
+  没有任何组件拥有的 context 上，`Stopping` 仍然永远阻塞而不是立刻触发，所以只写一次的
+  `select` 在两边都是对的。
+- gRPC 无法承诺的东西像 hijack 限制一样声明在代码旁边：`GracefulStop` 会等待在途 RPC，但一个
+  永不返回的流会一直占住进程直到预算耗尽，然后它会被从底下停掉。
+
+验收：
+
+```bash
+go test ./kit/grpc/ -run 'TestDrain|TestShutdown' -count=1
+```
+
+已交付为 `grpc.drains` 与 `grpc.shutdown-ends`，并把 `kit.WithStopping` 导出为任何传输都能用来
+携带该信号的接缝。两个值得保留的决定：drain 不会开始拒绝调用——在 drain 延迟期间返回
+`UNAVAILABLE` 只会让客户端重试到另一个路由层还没停止选择的实例上——以及拦截器安装在调用方自己
+的选项之前，这样 handler 不会因为别人多加了一个选项就拿不到信号。
+
+这个工作包自己关于 `GracefulStop` 的措辞后来被证明是错的，而且是 CI 发现的：那个调用在等待
+handler 时一直持有 server 的互斥锁，而 `Stop` 需要同一把锁，于是这一对会死锁而不是超时——建立
+在它之上的"有界停止"会把进程挂住。`Shutdown` 通过自己的拦截器计数调用、关闭监听、等待，然后
+关闭传输，并带上计数报告 `kit.ErrShutdownIncomplete`。生成的入口点原来有同样的模式，现在改为
+触发硬停止而不等待它。
+
+### 工作包 2：一次 scrape 能说出关于 RPC 的事
+
+目标：里程碑 12 的那些数字对 gRPC 也存在，用同样的名字，带同样的基数承诺。
+
+- 一份 gRPC server 的观测契约，对应 `httpserver.Recorder`：方法、结果、耗时——在完整方法名仍
+  在作用域内的地方上报。
+- `metrics.GRPCRecorder` 把它桥接到 `endpoint.Metrics`，与 `metrics.HTTPRecorder` 并排放置，
+  这样依赖门禁保持原样：RPC 传输不认识指标，核心两个都不认识。
+- operation 标签是完整方法名，它由服务定义所限定——与"把路由 pattern 作为 HTTP 标签"是同一套
+  推理。无法识别的方法不被记录，而不是记录成一条空序列。
+
+验收：
+
+```bash
+go test ./integrations/grpc/server/ ./observability/metrics/grpc/ -count=1
+```
+
+已交付为 `grpc.recording-method-label` 与 `metrics.grpc-bridge-error-class`。两个工作包没有预料
+到的决定：流带着 `Stream: true`，并且只在结束时被记录，因为"生命周期"和"延迟"不该共用一个均值；
+以及这个桥是一个有自己依赖门禁的独立包，因为把它放进 `observability/metrics` 会让每一个只想要
+scrape 端点的纯 HTTP 服务都依赖上 gRPC 库。
+
+### 工作包 3：生成的 gRPC 监听是一个真正的监听
+
+目标：生成服务的第二个端口，在配置、安全与可观测性上与第一个端口一样。
+
+- TLS 凭证来自里程碑 13 加的那对证书键，所以一对证书同时保护两个监听，而不匹配仍然让启动失败
+  并带上路径。
+- 注册 health 服务，反映与 HTTP 探针相同的 readiness 状态，这样纯 gRPC 部署也有东西可以让探针
+  去打。
+- 安装 traceparent 拦截器与指标 recorder，并且 drain 延迟施加在 `GracefulStop` 之前，而不是
+  只施加在 readiness 之后。
+- 每个 server 拿到自己那一份关闭预算，而不是抢同一个截止时间——`Host.shutdownLifecycles` 已经
+  在遵守的规则。
+
+验收：
+
+```bash
+go -C ./tools test . -run 'TestMicrogen' -count=1
+```
+
+已交付在 `main.tmpl` 中。health 服务用的是 grpc-go 自己的 `health.NewServer` 而不是手写的：
+`Shutdown()` 本来就意味着"对所有东西报告 NOT_SERVING"，这恰好就是 drain 公告，而生成文件不是
+重新实现一个协议服务的地方。因此 readiness 在两个传输上同时开始失败，而不是只在 `/readyz` 上。
+
+### 工作包 4：差异是被声明的，不是被发现的
+
+目标：读者不必读两份实现就能看出每个传输回答了哪些运维表面。
+
+- 文档里的一张表：readiness、drain 公告、stopping 信号、关闭预算、TLS、指标、追踪——在某个传输
+  无法回答的地方给出诚实的条目，并写明原因。
+- 一道门禁：当一个生命周期契约只加到其中一个组件上时它失败，这样下一次不对称是一次测试失败，
+  而不是一次发现。
+
+验收：
+
+```bash
+go test ./kit/ -run TestEveryKitContractIsClassifiedForBothTransports -count=1
+```
+
+已交付为 `kit/transport_parity_test.go` 以及 `docs/lifecycle*.md` 里的一张表。这道门禁有两半，
+因为任何一半单独都撑不住：编译期断言在契约从任一传输上被删掉时失败，而测试在 `kit` 声明了一个
+没人分类过的导出接口时失败——并且每一个"否"都记录了理由，因为那里的 `false` 是一个决定，不是
+一次遗漏。
+
+### 完成定义
+
+里程碑 14 在以下全部为真时完成：drain 一个 Host 会向两个 server 发出公告；一个 gRPC 流可以在
+stopping 信号上自己结束；对纯 gRPC 服务的一次 scrape 报出按方法划分的序列；生成的服务在它的
+gRPC 端口上提供 TLS 与 health；并且当一个传输获得了另一个所没有的生命周期契约时会有测试失败。
+
+## 里程碑 15（已完成）：不重启的轮换
+
+目标：交到一个运行中服务手里的东西——首先是证书——可以在它提供服务的同时被替换，而不能被替换的
+东西要被点名。
+
+里程碑 13 交付了进程内 TLS，然后自己把缺口写了下来：`PRODUCTION.md` 说证书文件只读一次，所以
+轮换意味着重启。那句话是诚实的，而那个行为是差的。证书按计划过期；续签它的平台——一个
+cert-manager secret、一个 Vault agent、运维的一个 cron——会在运行中的进程底下替换文件，并期待
+进程注意到。"重启才能生效"把一次例行续签变成一次部署，把一次漏掉的续签变成一次故障。
+
+框架的那一份是接缝以及围绕它的顺序保证。什么时候再看一次是部署的决定：这个包不监视文件系统、
+不轮询定时器、不安装信号处理器，因为这些每一个都是某些部署将不得不绕开的策略。
+
+### 工作包 1：进程能替换的证书
+
+目标：轮换不需要重启，而一次坏的轮换不是一次故障。
+
+- 每次握手都会去问证书来源，所以关于证书的任何东西都不会在监听启动时被捕获。它从哪里来是部署
+  的事：一个文件、一个密钥管理服务、一个 ACME 客户端、一张按名字索引的 SNI 表。
+- 一个文件支撑、按需重新加载的来源，因为挂载进来的 secret 需要的就是这个；而当证书对不可读时
+  它仍然让启动失败并带上路径——这是里程碑 13 做出的承诺。
+- 失败的重新加载保留已经在提供的那份证书并返回错误。一个写了一半的 secret 应该只值一行日志，
+  而不是整个监听。
+
+验收：
+
+```bash
+go test ./kit/ -run 'TestCertificate|TestWithTLSCertificateSource' -count=1
+```
+
+已交付为 `kit.CertificateSource`、`kit.WithTLSCertificateSource`、`kit.CertificateFiles` 与
+`kit.CertificateSourceFunc`，声明了 `kit.tls-certificate-per-handshake` 与
+`kit.tls-reload-keeps-serving`。一个值得记录的决定：`CertificateFiles.Certificate` 从不触碰
+文件系统，所以握手路径不会被磁盘拖慢或失败——测试断言替换文件在 `Reload` 被调用之前不改变任何
+东西。
+
+### 工作包 2：生成的服务在一个它写明的信号上轮换
+
+目标：生成的服务不经过一次部署就能拿到续签后的证书。
+
+- 生成的入口点在被要求时重新加载证书，用的是一个被写明而不是被猜到的信号，并记录路径与结果。
+  失败的重新加载被记录下来，而服务继续提供。
+- `PRODUCTION.md` 不再说轮换需要重启，而是说它到底需要什么，包括由代理终止的部署改做什么。
+
+验收：
+
+```bash
+go test ./cmd/microgen/... -count=1
+```
+
+已交付在 `main.tmpl` 中：生成的入口点通过自己的一个按握手取证的来源提供证书，并在 `SIGHUP` 上
+重新读取。两个值得记录的决定。信号选 `SIGHUP`，因为它是运维本来就会伸手去用的东西，也是续签
+任务能发出的东西——定时器会让进程去猜，而文件系统监视会给一个由用户拥有的文件加上一个依赖和一
+条策略。另外生成的代码自带一个很小的 `certificateFiles` 而不是导入 `kit.CertificateFiles`：
+生成的 `main` 在别处并不依赖 `kit`，为了二十行把那个包拉进来，会把它的依赖闭包拖进每一个生成
+的二进制里。
+
+### 工作包 3：不能被轮换的东西被点名
+
+目标：没人靠试一遍来发现限制。
+
+- 监听地址、协议选项与密码策略在监听启动时就固定了。读者被告知他们配置的哪些东西只读一次、
+  哪些会被再读一次，而不是从一张选项表里去推断。
+
+已交付为 `docs/configuration*.md` 里的一节：什么会在你自己选择的触发时机上被再读一次（证书）、
+什么在构造时只读一次（`tls.Config` 的其余部分）、什么在 `Start` 时只读一次（地址、超时、路由、
+探针路径），以及什么每个进程只读一次（配置文件与环境变量）。这个工作包本质上就是散文——没有
+哪个行为需要新的门禁，而它已经被门禁覆盖了——所以诚实的交付物就是这张清单，并且结束在它该结束
+的地方：改动其他任何东西都意味着一个新的监听，也就意味着一次滚动重启，而 drain 序列存在的意义
+正是让那件事平淡无事。
+
+### 完成定义
+
+里程碑 15 在以下全部为真时完成：服务可以在不重启的情况下被交给一份续签后的证书；一次失败的
+续签让监听继续提供上一份；生成的服务在一个被写明的信号上做同样的事；并且文档列出了哪些东西在
+启动时就固定了。
+
+## 里程碑 16（已完成）：客户端能跟住的健康检查
+
+目标：纠正一个"对两个工具为真、对库为假"的声明，并让它所免除的那件事真的能用。
+
+里程碑 14 的对等表说 `Watch` 没有实现，理由是"在 gRPC health 上做编排的工具调用 `Check`"。这对
+`grpc_health_probe` 和 Kubernetes 原生的 gRPC 探针为真。它对最重要的那个消费者为假：grpc-go 自己
+的客户端健康检查——由服务配置里的 `healthCheckConfig` 打开的那个——调用的是 `Watch`
+（`health/client.go`，`healthCheckMethod`）。当它收到 `UNIMPLEMENTED` 时，会把连接标记为 `Ready`
+并停止再问，于是里程碑 11 建立的 drain 公告从未到达那些正在为它守候的客户端。一个带着这种形状
+的洞的声明比没有声明更糟：它读起来像一个决定。
+
+### 工作包 1：Watch 流式给出 Check 所回答的东西
+
+- `Watch` 立即发送当前的 serving 状态，然后每变化一次发一条消息，数据来自 `Check` 评估的同一份
+  探针注册表。带名字的服务仍然得到 `NotFound`，因为该注册表描述的是进程。
+- readiness 检查每个间隔评估一次，由所有 watcher 共享。按 watcher、按消息各评估一次，会让一群
+  客户端把一次数据库 ping 变成负载，而那正是健康检查变成故障的方式。
+- 最后一个 watcher 离开时轮询停止，所以没人在看的服务不花任何代价。
+
+验收：
+
+```bash
+go test ./kit/grpc/ -run TestHealthWatch -count=1
+```
+
+已交付为 `grpc.health-watch`，并用 `kit/grpc.HealthWatchInterval` 命名这条流的分辨率——一秒；它
+是常量而不是选项的理由是：组件自己注册 health 服务，所以没有什么有用的东西可以交给一个想要不同
+值的调用方。需要自己的 health 服务的部署会构建自己的 `grpc.Server`；那个限制现在成了有意思的
+那一个，而它写在这里，不靠被发现。
+
+### 完成定义
+
+里程碑 16 在以下全部为真时完成：一个开启了健康检查的 gRPC 客户端能得知某个实例已经开始 drain；
+对等表这么写；并且没人再被告知 `Watch` 未实现。
+
+## 里程碑 17（进行中）：不错的默认值
+
+目标：凡是这个框架不问自答交给服务的东西，交出去的那件东西不该是一项负债。凡是它拒绝替人决定
+的地方，它应该在读者会去看的位置把这件事说出来。
+
+这个里程碑来自一次全局审计，而不是一个功能想法。十六个里程碑花在钉住行为上，而审计的结论是：
+剩下的弱点不是缺功能——是那少数几个地方，默认值靠从标准库继承而来，或者一个陷阱可以通过受支持
+的 API 走到。这些比再来一个能力更值钱。
+
+审计确认为"有意为之且已写明"、因此不算工作的部分：后台任务（`PRODUCTION.md` 说 runner 是一份
+需要你自己写的草图，不是这个框架发布的包，并给出了那四条规则）、限流器实现
+（`endpoint/rate_limit.go` 说契约属于框架、令牌桶属于应用），以及每一个可选 provider 都留在核心
+依赖路径之外。
+
+### 工作包 1：出站客户端是我们的，不是标准库的
+
+- 由 `transport/http/client` 构建的客户端不再使用 `http.DefaultClient`。那个变量在进程里对每一个
+  库都可达，所以别人的超时设置或 transport 替换可能改变这些调用；而 `http.DefaultTransport`
+  每个 host 只允许两个空闲连接，这对一次性工具是对的，对持续调用同一个上游的服务是错的。
+- 连接池按服务的量级设置，拨号与握手都有界，并且 `NewTransport` 被导出，这样需要代理或
+  `tls.Config` 的部署是从这些默认值出发，而不是从那个共享的出发。
+- 不发明 `Timeout`。截止时间属于调用本身；在这里设一个，会把进程里的每一次调用都封顶在框架挑的
+  一个数字上，而且从调用点看不见。`PRODUCTION.md` 把两半都写出来。
+
+验收：
+
+```bash
+go test ./transport/http/client/ -count=1
+```
+
+已交付为 `httpclient.pool-is-ours` 与 `httpclient.no-invented-deadline`。
+
+### 工作包 2：按路由的请求体上限不是一个陷阱
+
+- `kit.WithJSONMaxBodyBytes` 是组件级的，而传输层其实已经支持按路由的上限。今天，需要某一个路由
+  接受更大请求体的服务只能通过 `Handle` 注册一个裸 handler，而这会静默跳过 endpoint 中间件以及
+  `HandleJSONTyped` 安装的那些 recorder。"设一个请求体大小，副作用是丢掉可观测性"正是这个项目
+  在别处不愿意留下的那类陷阱。
+- 修法是给出一个按路由表达它、同时保留接线的方式，并在 customization 表里紧挨着中间件作用域加上
+  一行文档。
+
+### 工作包 3：错误信封说清自己是什么
+
+- `transport/http/server.ErrorResponse` 是一个自制的三字段信封，且被声明为稳定。RFC 9457 的
+  `application/problem+json` 已经存在并且可互操作；框架要么把它作为一个部署可以安装的 encoder
+  提供出来，要么说明为什么不。今天具体丢掉的是字段级校验细节：`endpoint.ValidationError` 携带
+  `[]FieldError`，而 encoder 把它压成了一条消息。
 
 ## 维护规则
 

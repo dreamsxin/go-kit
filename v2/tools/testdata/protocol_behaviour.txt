@@ -42,6 +42,8 @@ stable/http.status-coder-wins
 stable/http.status-context-fallback
 stable/http.status-for-kind
 stable/http.traceparent
+stable/httpclient.no-invented-deadline
+stable/httpclient.pool-is-ours
 stable/kit.deregister-before-close
 stable/kit.drain-delay
 stable/kit.drain-notification

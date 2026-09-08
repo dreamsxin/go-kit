@@ -209,11 +209,28 @@ ALPN do it.
 
 ## HTTP Clients
 
-Always set a client timeout or request deadline. JSON clients return
-`HTTPStatusError` for non-2xx responses and bound the captured error body.
+A client built by `transport/http/client` no longer uses `http.DefaultClient`. Two
+things about that default were wrong for a service and neither was about policy: it is
+a package-level variable any library in the process can reconfigure, and its transport
+allows two idle connections per host — right for a tool that calls many hosts once,
+wrong for a service that calls the same upstream on every request, where it shows up as
+latency the application code cannot explain.
 
-`NewJSONClientWithTimeout` adds a per-call context timeout. Use `sd/client.NewEndpoint`
-and an explicit retry policy when retries are actually required.
+The client this package uses instead is its own, with `MaxIdleConnsPerHost` 100, a
+60-second idle timeout, and dial and handshake timeouts. `client.DefaultClient()`
+returns it, so you can reuse the same pool for calls made outside this package, and
+`client.NewTransport()` returns a fresh transport to start from when you need a proxy
+or a `tls.Config` but want the pool sizing.
+
+It sets no `Timeout`, deliberately. A timeout there would cap every call in the process
+at a number this framework invented, invisibly from the call site. Set the deadline
+where the call is: `NewJSONClientWithTimeout`, `endpoint.Builder.WithTimeout`, or a
+context you derive. Always set one — a request with no deadline is the one that is still
+running when the incident starts.
+
+JSON clients return `HTTPStatusError` for non-2xx responses and bound the captured
+error body. Use `sd/client.NewEndpoint` and an explicit retry policy when retries are
+actually required.
 
 Retry only operations whose idempotency and error classification are known.
 Unknown business errors should not be assumed transient.
