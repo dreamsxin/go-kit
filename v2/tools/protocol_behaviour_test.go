@@ -75,6 +75,60 @@ type protocolBehaviour struct {
 // gets broken. This gate reads those declarations and enforces three things: the
 // set as a whole is reviewed, each promise names a test in its own package, and
 // the named test exists.
+// TestBehaviourMarkersLiveInNonTestSource refuses a promise the gate cannot
+// review.
+//
+// scanProtocolBehaviours skips _test.go files, which is right — a marker belongs
+// on the thing it constrains, not on the test that checks it. But skipping them
+// silently meant a marker written in a test was absent from the reviewed snapshot
+// and outside the freeze gate, while reading in the source as though it were
+// covered by both. One such marker existed; this is what makes the next one fail
+// loudly instead.
+func TestBehaviourMarkersLiveInNonTestSource(t *testing.T) {
+	t.Parallel()
+	root := goKitRoot(t)
+
+	var stray []string
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if path != root && (behaviourScanSkips[entry.Name()] || strings.HasPrefix(entry.Name(), ".")) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(entry.Name(), "_test.go") {
+			return nil
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		relative, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			relative = path
+		}
+		lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+		for i, line := range lines {
+			if match := behaviourMarker.FindStringSubmatch(line); match != nil {
+				stray = append(stray, fmt.Sprintf("%s:%d declares %s: %s",
+					filepath.ToSlash(relative), i+1, match[1], match[2]))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", root, err)
+	}
+	if len(stray) > 0 {
+		t.Fatalf("behaviour markers in test files are never reviewed by the behaviour gate.\n"+
+			"Move each one onto the exported thing it constrains:\n  %s",
+			strings.Join(stray, "\n  "))
+	}
+}
+
 func TestStableProtocolBehaviour(t *testing.T) {
 	t.Parallel()
 	root := goKitRoot(t)

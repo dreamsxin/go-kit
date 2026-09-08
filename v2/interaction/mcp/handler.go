@@ -56,15 +56,20 @@ type dispatchCore struct {
 // Stable: mcp.method-names — these are the method names the server answers, and an unknown one is -32601.
 // Covered by: TestHandlerListsAndCallsTools, TestResourcesList, TestPromptsList, TestUnknownMethod
 //
-// Stable: mcp.error-codes — failures use the JSON-RPC codes -32700, -32600, -32601, -32602, -32603, and MCP's -32002 and -32001.
-// Covered by: TestHandlerReturnsJSONRPCErrors, TestResourcesReadNotFound, TestUnknownMethod
+// Stable: mcp.error-codes — failures use the JSON-RPC codes -32700, -32600, -32601, -32602, -32603, and MCP's -32002, -32001 and -32021.
+// Covered by: TestHandlerReturnsJSONRPCErrors, TestResourcesReadNotFound, TestUnknownMethod, TestStatelessInputRequiresADeclaredCapability, TestInvalidCursorIsInvalidParams
 func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 	resp := response{JSONRPC: jsonRPCVersion, ID: req.ID}
 	switch req.Method {
 	case "ping":
 		resp.Result = map[string]any{}
 	case "tools/list":
-		resp.Result = c.handleToolsList(ctx, req.Params)
+		result, err := c.handleToolsList(ctx, req.Params)
+		if err != nil {
+			resp.Error = listError(err)
+			return resp
+		}
+		resp.Result = result
 	case "tools/call":
 		result, err := c.callTool(ctx, req.Params)
 		if err != nil {
@@ -75,7 +80,7 @@ func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 	case "resources/list":
 		result, err := c.handleResourcesList(ctx, req.Params)
 		if err != nil {
-			resp.Error = newError(-32603, "internal error", err.Error())
+			resp.Error = listError(err)
 			return resp
 		}
 		resp.Result = result
@@ -89,14 +94,14 @@ func (c *dispatchCore) dispatch(ctx context.Context, req request) response {
 	case "resources/templates/list":
 		result, err := c.handleResourceTemplatesList(ctx, req.Params)
 		if err != nil {
-			resp.Error = newError(-32603, "internal error", err.Error())
+			resp.Error = listError(err)
 			return resp
 		}
 		resp.Result = result
 	case "prompts/list":
 		result, err := c.handlePromptsList(ctx, req.Params)
 		if err != nil {
-			resp.Error = newError(-32603, "internal error", err.Error())
+			resp.Error = listError(err)
 			return resp
 		}
 		resp.Result = result
@@ -171,17 +176,20 @@ func (c *dispatchCore) buildInitializeResult() map[string]any {
 
 // ─── tools ───────────────────────────────────────────────────────────────────
 
-func (c *dispatchCore) handleToolsList(ctx context.Context, raw json.RawMessage) map[string]any {
+func (c *dispatchCore) handleToolsList(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
 	cursor, _ := parseCursor(raw)
 	all := c.Runtime.ListTools()
-	page, next := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
+	page, next, err := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
 		return toMCPTool(all[i])
 	})
+	if err != nil {
+		return nil, err
+	}
 	result := map[string]any{"tools": page}
 	if next != "" {
 		result["nextCursor"] = next
 	}
-	return result
+	return result, nil
 }
 
 func (c *dispatchCore) callTool(ctx context.Context, raw json.RawMessage) (map[string]any, error) {
@@ -271,9 +279,12 @@ func (c *dispatchCore) handleResourcesList(ctx context.Context, raw json.RawMess
 	if err != nil {
 		return nil, err
 	}
-	page, next := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
+	page, next, err := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
 		return toMCPResource(all[i])
 	})
+	if err != nil {
+		return nil, err
+	}
 	result := map[string]any{"resources": page}
 	if next != "" {
 		result["nextCursor"] = next
@@ -322,9 +333,12 @@ func (c *dispatchCore) handleResourceTemplatesList(ctx context.Context, raw json
 	if err != nil {
 		return nil, err
 	}
-	page, next := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
+	page, next, err := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
 		return toMCPResourceTemplate(all[i])
 	})
+	if err != nil {
+		return nil, err
+	}
 	result := map[string]any{"resourceTemplates": page}
 	if next != "" {
 		result["nextCursor"] = next
@@ -343,9 +357,12 @@ func (c *dispatchCore) handlePromptsList(ctx context.Context, raw json.RawMessag
 	if err != nil {
 		return nil, err
 	}
-	page, next := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
+	page, next, err := paginate(cursor, len(all), defaultPageSize, func(i int) map[string]any {
 		return toMCPPrompt(all[i])
 	})
+	if err != nil {
+		return nil, err
+	}
 	result := map[string]any{"prompts": page}
 	if next != "" {
 		result["nextCursor"] = next
@@ -563,12 +580,30 @@ func parseCursor(raw json.RawMessage) (string, bool) {
 	return params.Cursor, params.Cursor != ""
 }
 
-func paginate(cursor string, total, pageSize int, render func(int) map[string]any) ([]map[string]any, string) {
+// errInvalidCursor reports a cursor a client cannot have been given by this
+// server.
+var errInvalidCursor = errors.New("invalid cursor")
+
+// paginate renders one page starting at cursor.
+//
+// A cursor is the offset this server handed out as nextCursor, so one that is not
+// a number, is negative, or is at or past the end is one this server never
+// issued. Treating it as offset 0 quietly handed the client page one as though it
+// were its page — which is how a client that persisted a cursor across a
+// catalogue change silently re-reads the beginning. The specification requires
+// -32602 for an invalid cursor, and an error is also the only answer that lets the
+// client notice.
+//
+// Stable: mcp.invalid-cursor-is-invalid-params — a cursor this server did not issue is answered -32602, not silently treated as the first page.
+// Covered by: TestInvalidCursorIsInvalidParams
+func paginate(cursor string, total, pageSize int, render func(int) map[string]any) ([]map[string]any, string, error) {
 	offset := 0
 	if cursor != "" {
-		if n, err := strconv.Atoi(cursor); err == nil && n >= 0 && n < total {
-			offset = n
+		n, err := strconv.Atoi(cursor)
+		if err != nil || n < 0 || n >= total {
+			return nil, "", fmt.Errorf("%w: %q", errInvalidCursor, cursor)
 		}
+		offset = n
 	}
 	end := offset + pageSize
 	if end > total {
@@ -582,7 +617,17 @@ func paginate(cursor string, total, pageSize int, render func(int) map[string]an
 	if end < total {
 		next = strconv.Itoa(end)
 	}
-	return items, next
+	return items, next, nil
+}
+
+// listError renders a failure from one of the list methods. They share this so a
+// bad cursor cannot be an internal error on one method and invalid params on
+// another.
+func listError(err error) *rpcError {
+	if errors.Is(err, errInvalidCursor) {
+		return newError(-32602, messageForCode(-32602), err.Error())
+	}
+	return newError(-32603, "internal error", err.Error())
 }
 
 // ─── error helpers ───────────────────────────────────────────────────────────
@@ -610,9 +655,26 @@ func writeHTTPError(w http.ResponseWriter, status int, code, message string) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": code, "message": message})
 }
 
+// writeResponse serialises a response before writing any of it.
+//
+// Encoding straight to the ResponseWriter meant a value that failed to marshal
+// part-way through had already put bytes on the wire, so the caller received an
+// incomplete JSON document with nothing to say what happened. Marshalling first
+// means either the whole response arrives, or an internal error does.
+//
+// Stable: mcp.response-is-whole-or-an-error — a response that cannot be serialised is answered as an internal error rather than as a truncated or empty body.
+// Covered by: TestUnserialisableResultIsAnsweredAsAnInternalError
 func writeResponse(w http.ResponseWriter, resp response) {
+	payload, err := json.Marshal(resp)
+	if err != nil {
+		payload, _ = json.Marshal(response{
+			JSONRPC: jsonRPCVersion,
+			ID:      resp.ID,
+			Error:   newError(-32603, messageForCode(-32603), err.Error()),
+		})
+	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
+	_, _ = w.Write(append(payload, '\n'))
 }
 
 func newError(code int, message, data string) *rpcError {

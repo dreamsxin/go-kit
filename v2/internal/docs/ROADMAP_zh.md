@@ -1530,17 +1530,46 @@ go test ./transport/http/server/ -run "ContentType|HeaderOrder" -count=1
   `-32602`。一个跨目录变更持久化了 cursor 的客户端，会拿到第一页并以为那是它的那一页。
 - `mcp.error-codes` 枚举了服务端会发的 code，却漏了 `-32021`——`stateless.go` 会返回它，而它自己的标记
   也承诺了它。两个标记对词汇表的说法不一致。
+- 四个 list 方法现在都由同一个 `listError` 支撑，于是同一个坏 cursor 不会在一个方法上是 invalid params、
+  在另一个上是 internal error。
+
+验收：
+
+```bash
+go test ./interaction/mcp/ -run "Cursor|FirstPage" -count=1
+```
+
+已作为 `mcp.invalid-cursor-is-invalid-params` 交付，并重述了 `mcp.error-codes`。
 
 ### 工作包 6：门禁看不见的标记
 
 - `observability/otel/agreement_test.go:25` 声明了 `otel.metrics-agree-with-the-exposition`，而
-  `tools/protocol_behaviour_test.go:138` 会跳过 `_test.go` 文件——于是那条 promise 不在被评审的快照里，
-  也在冻结门禁之外。要么这条 promise 该放到非测试源码里，要么门禁该拒绝一个它无法评审的标记。
+  `tools/protocol_behaviour_test.go` 会跳过 `_test.go` 文件——于是那条 promise 不在被评审的快照里、也在
+  冻结门禁之外，却在源码里读起来像是两边都覆盖了。
+- 两半都做，因为只做一半窟窿还在：promise 移到它该在的 `NewMetrics` 上，并由
+  `TestBehaviourMarkersLiveInNonTestSource` 拒绝下一条而不是跳过它。跳过测试文件是对的；**静默地**跳过
+  不对。
+
+验收：
+
+```bash
+go test ./... -run TestBehaviourMarkersLiveInNonTestSource -count=1   # 在 v2/tools 下
+```
 
 ### 工作包 7：永远不会到达的响应
 
-- `interaction/mcp/streamable.go:282` 用 `_` 序列化工具结果、又用 `_` 写出去。一个序列化不了的结果——
-  NaN 浮点、非字符串键的 map——会发出 `data: `，而客户端在等一个永远不来的答复，且什么都没记录。
+- `interaction/mcp/streamable.go:282` 用 `_` 序列化工具结果、又用 `_` 写出去。序列化不了的结果——NaN
+  浮点、非字符串键的 map——会发出 `data: `，而客户端在等一个永远不来的答复，且什么都没记录。
+  `writeResponse` 经由 `json.NewEncoder` 也是同一个形状，而那里中途失败时字节已经在线上了。
+- 两处现在都先序列化再写任何东西，于是要么整个响应到达，要么一条点名故障的 internal error 到达。
+
+验收：
+
+```bash
+go test ./interaction/mcp/ -run TestUnserialisableResult -count=1
+```
+
+已作为 `mcp.response-is-whole-or-an-error` 交付。
 
 ## 维护规则
 

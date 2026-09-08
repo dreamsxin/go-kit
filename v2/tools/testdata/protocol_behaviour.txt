@@ -82,6 +82,7 @@ stable/mcp.extension-declaration
 stable/mcp.extension-methods
 stable/mcp.extension-namespace
 stable/mcp.input-required
+stable/mcp.invalid-cursor-is-invalid-params
 stable/mcp.jsonrpc-version
 stable/mcp.list-cache-hints
 stable/mcp.method-authorization
@@ -92,6 +93,7 @@ stable/mcp.no-authorization-policy
 stable/mcp.protocol-version
 stable/mcp.protocol-version-header
 stable/mcp.request-state-authenticated
+stable/mcp.response-is-whole-or-an-error
 stable/mcp.result-type
 stable/mcp.server-discover
 stable/mcp.server-identity
@@ -108,6 +110,7 @@ stable/metrics.http-bridge-error-class
 stable/metrics.http-bridge-ignores-unrouted
 stable/metrics.label-cardinality
 stable/metrics.series-are-per-operation
+stable/otel.metrics-agree-with-the-exposition
 stable/security.csrf-clock
 unstable/grpc.observation-fields
 unstable/http.access-log-line

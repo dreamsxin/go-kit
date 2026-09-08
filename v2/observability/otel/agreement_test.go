@@ -22,8 +22,8 @@ import (
 // stops being true, this fails rather than a graph quietly disagreeing with a
 // pager.
 //
-// Stable: otel.metrics-agree-with-the-exposition — the OpenTelemetry adapter and the metrics exposition report the same counts and the same total duration for the same observations.
-// Covered by: TestMetricsAgreeWithTheExposition
+// The promise itself is declared on NewMetrics, in non-test source, because a
+// marker in a _test.go file is one the behaviour gate never reviews.
 func TestMetricsAgreeWithTheExposition(t *testing.T) {
 	reader := metric.NewManualReader()
 	provider := metric.NewMeterProvider(metric.WithReader(reader))

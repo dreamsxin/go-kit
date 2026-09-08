@@ -29,6 +29,19 @@ promise 没有覆盖到的地方。这个框架里的每一条行为都在源码
   于是一个 `Headers()` 里带 `Content-Type` 的错误会产出没有客户端能解释的响应。body 是编码器选的，所以
   由编码器来命名类型——并且放在最后命名，在错误要求的其他一切都合并之后。三个调用点收敛成一个 helper。
   声明了 `http.error-single-content-type`。
+- 一个本服务从未发出过的 MCP cursor 被当成 offset 0，于是跨目录变更持久化了 cursor 的客户端被悄悄递上
+  第一页，并以为那是它的那一页。cursor 就是服务端作为 `nextCursor` 返回的那个偏移，所以非数字、负数、
+  或已到/越过末尾的都是非法的：四个 list 方法现在都回 `-32602`——这是规范的要求，也是唯一能被客户端察觉
+  的回答。现在每个 list 方法都由同一个 `listError` 支撑，于是同一个坏 cursor 不会在一个方法上是 invalid
+  params、在另一个上是 internal error。声明了 `mcp.invalid-cursor-is-invalid-params`。
+- 序列化不了的 MCP 响应会以空 SSE 事件或被截断的 body 到达调用方，调用方在等一个永远不来的答复，且什么都
+  没记录。两条路径现在都先序列化再写，于是要么整个响应到达，要么一条点名故障的 internal error 到达。
+  声明了 `mcp.response-is-whole-or-an-error`。
+- `mcp.error-codes` 枚举了服务端会发的 code，却漏了 `-32021`——`stateless.go` 会返回它，而它自己的标记
+  也承诺了它。两个标记对词汇表说法不一致；枚举里现在写上了它。
+- 写在 `_test.go` 里的行为标记从来不被行为门禁评审，于是它在源码里读起来像一条 promise，实际却在冻结之外。
+  唯一存在的那一条——`otel.metrics-agree-with-the-exposition`——被移到了它该在的 `NewMetrics` 上，并由
+  `TestBehaviourMarkersLiveInNonTestSource` 让下一条这样的标记响亮地失败，而不是被跳过。
 
 ### 变更
 

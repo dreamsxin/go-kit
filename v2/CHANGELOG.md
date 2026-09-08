@@ -43,6 +43,27 @@ gap was not in the prose — it was a path nobody had walked.
   interpret. The encoder chose the body, so it names the type — and names it last,
   after everything else the error asked for is merged. Three call sites collapse
   into one helper. Declares `http.error-single-content-type`.
+- An MCP cursor this server never issued was treated as offset 0, so a client that
+  had persisted one across a catalogue change was quietly handed page one as though
+  it were its page. A cursor is the offset the server returned as `nextCursor`, so
+  one that is not a number, is negative, or is at or past the end is invalid: all
+  four list methods now answer `-32602`, which is what the specification requires
+  and the only answer a client can notice. One `listError` now backs every list
+  method, so a bad cursor cannot be invalid params on one and an internal error on
+  another. Declares `mcp.invalid-cursor-is-invalid-params`.
+- An MCP response that could not be serialised reached the caller as an empty SSE
+  event or a truncated body, and the caller waited for a reply that never came with
+  nothing logged. Both paths now marshal before writing anything, so either the
+  whole response arrives or an internal error naming the fault does. Declares
+  `mcp.response-is-whole-or-an-error`.
+- `mcp.error-codes` enumerated the codes the server emits and omitted `-32021`,
+  which `stateless.go` returns and its own marker promises. Two markers disagreed
+  about the vocabulary; the enumeration now names it.
+- A behaviour marker in a `_test.go` file was never reviewed by the behaviour gate,
+  so it read in the source as a promise while sitting outside the freeze. The one
+  that existed — `otel.metrics-agree-with-the-exposition` — moves onto `NewMetrics`,
+  where it belongs, and `TestBehaviourMarkersLiveInNonTestSource` makes the next one
+  fail loudly rather than be skipped.
 
 ### Changed
 

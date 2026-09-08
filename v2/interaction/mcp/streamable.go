@@ -279,7 +279,18 @@ func (h *StreamableHandler) handleRequestSSE(w http.ResponseWriter, r *http.Requ
 	defer sess.removePostWriter(writerID)
 
 	resp := h.core.dispatch(r.Context(), req)
-	respJSON, _ := json.Marshal(resp)
+	respJSON, marshalErr := json.Marshal(resp)
+	if marshalErr != nil {
+		// A result the transport cannot serialise used to be written as an
+		// empty event, so the caller waited for a reply that never came and
+		// nothing said why. An internal error at least ends the call, and names
+		// the fault where whoever wrote the tool will see it.
+		respJSON, _ = json.Marshal(response{
+			JSONRPC: jsonRPCVersion,
+			ID:      req.ID,
+			Error:   newError(-32603, messageForCode(-32603), marshalErr.Error()),
+		})
+	}
 	_ = sw.writeEvent(respJSON)
 }
 

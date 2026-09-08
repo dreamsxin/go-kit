@@ -1922,21 +1922,51 @@ Shipped as `http.error-single-content-type`.
 - `mcp.error-codes` enumerates the codes the server emits and omits `-32021`, which
   `stateless.go` returns and its own marker promises. Two markers disagree about the
   vocabulary.
+- One `listError` now backs all four list methods, so the same bad cursor cannot be
+  invalid params on one and an internal error on another.
+
+Acceptance:
+
+```bash
+go test ./interaction/mcp/ -run "Cursor|FirstPage" -count=1
+```
+
+Shipped as `mcp.invalid-cursor-is-invalid-params`, with `mcp.error-codes` restated.
 
 ### Work Package 6: A Marker The Gate Cannot See
 
-- `observability/otel/agreement_test.go:25` declares `otel.metrics-agree-with-the-exposition`,
-  and `tools/protocol_behaviour_test.go:138` skips `_test.go` files — so that promise
-  is absent from the reviewed snapshot and outside the freeze gate. Either the
-  promise belongs in non-test source, or the gate should refuse a marker it cannot
-  review.
+- `observability/otel/agreement_test.go:25` declared `otel.metrics-agree-with-the-exposition`,
+  and `tools/protocol_behaviour_test.go` skips `_test.go` files — so that promise was
+  absent from the reviewed snapshot and outside the freeze gate, while reading in the
+  source as though it were covered by both.
+- Both halves of the fix, because either alone leaves the hole: the promise moves onto
+  `NewMetrics`, where a marker belongs, and `TestBehaviourMarkersLiveInNonTestSource`
+  refuses the next one instead of skipping it. Skipping test files is right; skipping
+  them silently was not.
+
+Acceptance:
+
+```bash
+go test ./... -run TestBehaviourMarkersLiveInNonTestSource -count=1   # in v2/tools
+```
 
 ### Work Package 7: A Response That Never Arrives
 
-- `interaction/mcp/streamable.go:282` marshals a tool result with `_` and writes it
+- `interaction/mcp/streamable.go:282` marshalled a tool result with `_` and wrote it
   with `_`. A result that cannot be marshalled — a NaN float, a map with non-string
-  keys — sends `data: ` and the client waits for a reply that never comes, with
-  nothing logged.
+  keys — sent `data: ` and the client waited for a reply that never came, with
+  nothing logged. `writeResponse` had the same shape through `json.NewEncoder`, where
+  a failure part-way through had already put bytes on the wire.
+- Both now marshal before writing anything, so either the whole response arrives or
+  an internal error naming the fault does.
+
+Acceptance:
+
+```bash
+go test ./interaction/mcp/ -run TestUnserialisableResult -count=1
+```
+
+Shipped as `mcp.response-is-whole-or-an-error`.
 
 ## Maintenance Rules / 维护规则
 

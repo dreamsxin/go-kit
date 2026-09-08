@@ -123,6 +123,13 @@ type Metrics struct {
 var _ endpoint.Recorder = (*Metrics)(nil)
 
 // NewMetrics creates instruments from the application-owned meter.
+//
+// Both ways out of v2 are fed by endpoint.RecordingMiddleware, so a dashboard
+// built on the pushed series and an alert built on the scraped one describe the
+// same traffic.
+//
+// Stable: otel.metrics-agree-with-the-exposition — the OpenTelemetry adapter and the metrics exposition report the same counts and the same total duration for the same observations.
+// Covered by: TestMetricsAgreeWithTheExposition
 func NewMetrics(meter metric.Meter, options ...MetricsOption) (*Metrics, error) {
 	if meter == nil {
 		return nil, errors.New("oteladapter: meter is nil")
