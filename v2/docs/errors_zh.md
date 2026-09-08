@@ -226,6 +226,9 @@ func (r CreateUserRequest) Validate() error {
 ep := endpoint.NewBuilder(createUser).WithValidation().Build()
 ```
 
+默认信封只有一个 `message` 字段，因此多个字段的失败会被压成一句话。当调用方需要逐字段拿到它们时，
+安装下面那个 problem 文档 encoder——它把每一个都列在 `errors` 里。
+
 ## 自定义错误格式
 
 JSON 入口点允许按路由传入自定义错误编码器；使用 `kit` 时，在装配处为所有路由
@@ -256,6 +259,59 @@ func myErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 ```
 
 可运行的演练见 [examples/envelope](../examples/README_zh.md)。
+
+## RFC 9457 `application/problem+json`
+
+框架提供了一个 problem 文档 encoder，但不会替你安装它。服务说哪种错误格式，是它的客户端要一起承担
+的决定，而 `{"code","message","request_id"}` 是这个框架上的每个服务今天已经在发的东西——所以这是
+一个接缝，而不是换默认值：
+
+```go
+kit.NewHTTP(":8080", kit.WithJSONServerOptions(
+	server.ServerErrorEncoder(server.ProblemJSONErrorEncoder(nil)),
+))
+```
+
+状态码映射、500 处的脱敏规则、`Headerer` 与 `Retry-After` 的行为和 `JSONErrorEncoder` 完全一致，
+机器可读的 code 作为扩展成员保留下来，因此按 `code` 分支的客户端照样能用。变化的是：
+
+- `Content-Type` 是 `application/problem+json`，不带 `charset` 参数——RFC 没有定义它，而 JSON
+  本身就是 UTF-8。
+- `type`、`title`、`status` 总是存在。`title` 用的是状态短语，因为 RFC 里的 title 描述的是问题
+  *类型*；这一次具体发生了什么，是 `detail` 的事。当 `detail` 只会重复 title 时它被省略，而那正好
+  是被脱敏的 500。
+- 校验失败会把每一个非法字段列在 `errors` 下，这是 `ErrorResponse` 装不下的那样东西。
+
+```json
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "code": "bad_request.validation",
+  "errors": [{"field": "email", "detail": "must be an address"}]
+}
+```
+
+`type` URI 标识的是一份得有人发布、并且要一直可解析的文档，所以框架不会替你发明一个。传 `nil` 会
+写 `about:blank`，那是 RFC 为"没有自己类型的问题"规定的取值。等那些页面真的存在时，再给一个解析器：
+
+```go
+server.ProblemJSONErrorEncoder(func(code string) string {
+	return "https://errors.example.com/" + code
+})
+```
+
+如果要写自己的 encoder——自定义 kind 映射、额外的扩展成员——就把文档构造出来、改掉、再写出去：
+
+```go
+func myProblemEncoder(ctx context.Context, err error, w http.ResponseWriter) {
+	problem := server.ProblemFromError(ctx, err, nil)
+	if problem.Code == "payment_failed" {
+		problem.Status = http.StatusPaymentRequired
+	}
+	server.WriteProblemJSON(w, problem)
+}
+```
 
 ## 自定义错误种类与状态码
 

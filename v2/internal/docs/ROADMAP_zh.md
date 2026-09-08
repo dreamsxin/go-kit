@@ -1299,6 +1299,21 @@ go test ./kit/ -run TestPerRouteBodyLimit -count=1
   `application/problem+json` 已经存在并且可互操作；框架要么把它作为一个部署可以安装的 encoder
   提供出来，要么说明为什么不。今天具体丢掉的是字段级校验细节：`endpoint.ValidationError` 携带
   `[]FieldError`，而 encoder 把它压成了一条消息。
+- 决定：提供，但不采纳为默认。`ProblemJSONErrorEncoder` 用与信封相同的状态码、脱敏、响应头和
+  Retry-After 写出 problem 文档，把 `code` 作为扩展成员保留下来，让按它分支的客户端照样能用，并把
+  每一个非法字段列在 `errors` 下。`ProblemFromError` 与 `WriteProblemJSON` 已导出，于是带自定义
+  kind 映射或额外成员的部署是组合它们，而不是重写一遍。
+- 不发明 `type` URI。它指向的是一份得有人发布、并且要一直可解析的文档，这件事属于部署；传 `nil`
+  写 `about:blank`，那是 RFC 9457 为"没有自己类型的问题"规定的取值。
+
+验收：
+
+```bash
+go test ./transport/http/server/ -run "TestProblem|TestWriteProblem" -count=1
+```
+
+已作为 `http.problem-media-type`、`http.problem-document-shape`、`http.problem-redaction`
+与 `http.problem-encoder-parity` 交付。
 
 ## 维护规则
 

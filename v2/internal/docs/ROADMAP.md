@@ -1633,6 +1633,23 @@ Shipped as `kit.per-route-body-limit`.
   should either offer it as an encoder a deployment can install, or state why it does
   not. Field-level validation detail is the concrete loss today: `endpoint.ValidationError`
   carries `[]FieldError` and the encoder flattens it to one message.
+- Decision: offer it, do not adopt it. `ProblemJSONErrorEncoder` writes the document with
+  the same status, redaction, headers and Retry-After as the envelope, keeps `code` as an
+  extension member so a client switching on it keeps working, and lists each invalid field
+  under `errors`. `ProblemFromError` and `WriteProblemJSON` are exported so a deployment
+  with its own kind mapper or extra members composes rather than reimplements.
+- No `type` URI is invented. It names a document somebody has to publish and keep
+  resolvable, which makes it a deployment's to supply; `nil` writes `about:blank`, the
+  value RFC 9457 prescribes for a problem with no type of its own.
+
+Acceptance:
+
+```bash
+go test ./transport/http/server/ -run "TestProblem|TestWriteProblem" -count=1
+```
+
+Shipped as `http.problem-media-type`, `http.problem-document-shape`,
+`http.problem-redaction` and `http.problem-encoder-parity`.
 
 ## Maintenance Rules / 维护规则
 

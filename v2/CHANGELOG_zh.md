@@ -15,6 +15,17 @@
   记录器，以及组件装好的 JSON server options——为了设一个体积上限，代价是丢掉可观测性。新的注册
   方式和其他 JSON 路由走同一条路，唯一的区别就是上限。上限为零或负数会 panic：不限制请求体不是
   一个可以从单条路由夹带进来的取值。声明了 `kit.per-route-body-limit`。
+- `server.ProblemJSONErrorEncoder` 写出 RFC 9457 的 `application/problem+json`。它是被提供的，
+  不是被装上的：`ErrorResponse` 已被声明为稳定，是这个框架上每个服务今天都在发的东西，而服务说
+  哪种错误格式是它的客户端要一起承担的决定——这是接缝，不是框架策略。状态码映射、500 处的脱敏、
+  `Headerer` 与 `Retry-After` 都没变，机器可读的 code 作为扩展成员保留，因此按 `code` 分支的客户端
+  照样能用。换来的是校验失败一直携带、而信封无处安放的那份字段清单：`endpoint.ValidationError` 的
+  `[]FieldError` 变成 `errors`，不再被压成一条 `message`。`type` URI 标识的是一份得有人发布、
+  并且要一直可解析的文档，所以不会替你发明——传 `nil` 写 `about:blank`，需要真实 URI 时给一个
+  `ProblemTypeResolver`。`server.ProblemFromError` 与 `server.WriteProblemJSON` 已导出，供部署
+  自己写 encoder（包括带自定义 kind 映射的那种）。声明了 `http.problem-media-type`、
+  `http.problem-document-shape`、`http.problem-redaction` 与 `http.problem-encoder-parity`。
+  `docs/errors.md`（中英）都加了对应章节。
 
 ### 变更
 

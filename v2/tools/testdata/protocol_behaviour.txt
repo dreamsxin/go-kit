@@ -26,6 +26,10 @@ stable/http.multipart-limits
 stable/http.page-result-body
 stable/http.pagination-invalid-400
 stable/http.pagination-params
+stable/http.problem-document-shape
+stable/http.problem-encoder-parity
+stable/http.problem-media-type
+stable/http.problem-redaction
 stable/http.query-error
 stable/http.query-param-names
 stable/http.request-id-header

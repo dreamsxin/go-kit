@@ -205,20 +205,10 @@ func encodeJSONErrorWithStatus(ctx context.Context, err error, w http.ResponseWr
 
 	message := publicErrorMessage(err, status)
 
-	errorCode := defaultErrorCode(status)
-	var verr *endpoint.ValidationError
-	if errors.As(err, &verr) {
-		errorCode = "bad_request.validation"
-	}
-	var ec transporthttp.ErrorCoder
-	if errors.As(err, &ec) && ec.ErrorCode() != "" {
-		errorCode = ec.ErrorCode()
-	}
-
 	applyRetryAfter(w, err)
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(ErrorResponse{
-		Code:      errorCode,
+		Code:      errorCodeFor(err, status),
 		Message:   message,
 		RequestID: endpoint.RequestIDFromContext(ctx),
 	})
@@ -274,27 +264,34 @@ func encodeJSONError(ctx context.Context, err error, w http.ResponseWriter) {
 
 	message := publicErrorMessage(err, code)
 
-	errorCode := defaultErrorCode(code)
-	// Stable: http.error-code-validation — a validation failure is 400 with code bad_request.validation.
-	// Covered by: TestValidationErrorEncodesAs400, TestWrappedValidationErrorEncodesAs400
-	var verr *endpoint.ValidationError
-	if errors.As(err, &verr) {
-		errorCode = "bad_request.validation"
-	}
-	// Stable: http.error-coder-wins — an error naming its own code puts that code in the body.
-	// Covered by: TestJSONErrorEncoder_ProtocolErrorCodeAndMessage, TestJSONErrorEncoder_UsesWrappedProtocolError
-	var ec transporthttp.ErrorCoder
-	if errors.As(err, &ec) && ec.ErrorCode() != "" {
-		errorCode = ec.ErrorCode()
-	}
-
 	applyRetryAfter(w, err)
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(ErrorResponse{
-		Code:      errorCode,
+		Code:      errorCodeFor(err, code),
 		Message:   message,
 		RequestID: endpoint.RequestIDFromContext(ctx),
 	})
+}
+
+// errorCodeFor resolves the machine-readable code every built-in encoder puts on
+// the wire, so the envelope and the problem document cannot disagree about it.
+//
+// Stable: http.error-code-validation — a validation failure is 400 with code bad_request.validation.
+// Covered by: TestValidationErrorEncodesAs400, TestWrappedValidationErrorEncodesAs400
+//
+// Stable: http.error-coder-wins — an error naming its own code puts that code in the body.
+// Covered by: TestJSONErrorEncoder_ProtocolErrorCodeAndMessage, TestJSONErrorEncoder_UsesWrappedProtocolError
+func errorCodeFor(err error, status int) string {
+	code := defaultErrorCode(status)
+	var verr *endpoint.ValidationError
+	if errors.As(err, &verr) {
+		code = "bad_request.validation"
+	}
+	var ec transporthttp.ErrorCoder
+	if errors.As(err, &ec) && ec.ErrorCode() != "" {
+		code = ec.ErrorCode()
+	}
+	return code
 }
 
 // HTTPStatusForError returns the HTTP status the built-in error encoders use

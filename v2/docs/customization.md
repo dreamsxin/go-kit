@@ -184,6 +184,10 @@ decision guide:
 | Validate request fields | `endpoint.Validatable` + `WithValidation()` | request type + builder |
 | Custom kind with a custom status | `server.JSONErrorEncoderWithKindMapper` (HTTP) / `grpcserver.ErrorEncoderWithKindMapper` (gRPC) | assembly |
 | Custom wire format / envelope | `server.ServerErrorEncoder` + `server.ServerResponseEncoder` | assembly |
+| RFC 9457 `problem+json` instead of the envelope | `server.ProblemJSONErrorEncoder` (offered, not installed) | assembly |
+| Field-by-field validation detail on the wire | `server.ProblemJSONErrorEncoder` — the envelope has one `message` | assembly |
+| Build a problem document in your own encoder | `server.ProblemFromError` + `server.WriteProblemJSON` | custom encoders |
+
 | Same envelope on every JSON route | `kit.WithJSONServerOptions` | assembly |
 | Compose with the built-in mapping | `server.HTTPStatusForError` / `HTTPStatusForErrorKind` | custom encoders |
 

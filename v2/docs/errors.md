@@ -252,6 +252,10 @@ func (r CreateUserRequest) Validate() error {
 ep := endpoint.NewBuilder(createUser).WithValidation().Build()
 ```
 
+The default envelope has one `message` field, so several field failures arrive
+flattened into one sentence. When the caller needs them field by field, install
+the problem-document encoder below — it lists each one under `errors`.
+
 ## Custom error formats
 
 The JSON entry points accept a custom error encoder per route; with `kit`,
@@ -283,6 +287,67 @@ func myErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 ```
 
 The runnable walkthrough is [examples/envelope](../examples/README.md).
+
+## RFC 9457 `application/problem+json`
+
+The framework ships a problem-document encoder and does not install it. Which
+error format a service speaks is a decision its clients live with, and
+`{"code","message","request_id"}` is what every service built on this framework
+already emits, so this is a seam rather than a change of default:
+
+```go
+kit.NewHTTP(":8080", kit.WithJSONServerOptions(
+	server.ServerErrorEncoder(server.ProblemJSONErrorEncoder(nil)),
+))
+```
+
+The status mapping, the redaction rule at 500, `Headerer` and `Retry-After`
+behave exactly as they do with `JSONErrorEncoder`, and the machine-readable
+code survives as an extension member, so a client that switches on `code` keeps
+working. What changes:
+
+- `Content-Type` is `application/problem+json`, with no `charset` parameter —
+  the RFC defines none and JSON is UTF-8.
+- `type`, `title` and `status` are always present. `title` is the status phrase,
+  because the RFC's title describes the problem *type*; the occurrence is what
+  `detail` is for. `detail` is omitted when it would only repeat the title,
+  which is exactly the redacted 500 case.
+- A validation failure lists every invalid field under `errors`, which is the
+  concrete thing `ErrorResponse` cannot carry.
+
+```json
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "code": "bad_request.validation",
+  "errors": [{"field": "email", "detail": "must be an address"}]
+}
+```
+
+The `type` URI identifies a document somebody has to publish and keep
+resolvable, so the framework will not invent one. Passing `nil` writes
+`about:blank`, which the RFC prescribes for a problem with no type of its own.
+Supply a resolver when those pages exist:
+
+```go
+server.ProblemJSONErrorEncoder(func(code string) string {
+	return "https://errors.example.com/" + code
+})
+```
+
+For an encoder of your own — a custom kind mapper, an extra extension member —
+build the document, adjust it, and write it:
+
+```go
+func myProblemEncoder(ctx context.Context, err error, w http.ResponseWriter) {
+	problem := server.ProblemFromError(ctx, err, nil)
+	if problem.Code == "payment_failed" {
+		problem.Status = http.StatusPaymentRequired
+	}
+	server.WriteProblemJSON(w, problem)
+}
+```
 
 ## Custom error kinds with custom statuses
 

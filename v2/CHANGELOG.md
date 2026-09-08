@@ -20,6 +20,23 @@ arrives by inheritance from the standard library.
   same path as every other JSON route and differ only in the limit. A limit of zero or
   less panics: an unbounded body is not a value to smuggle in per route. Declares
   `kit.per-route-body-limit`.
+- `server.ProblemJSONErrorEncoder` writes RFC 9457 `application/problem+json`.
+  It is offered, not installed: `ErrorResponse` is declared stable and is what
+  every service on this framework already emits, and which error format a service
+  speaks is a decision its clients live with — a seam, not framework policy. The
+  status mapping, the redaction at 500, `Headerer` and `Retry-After` are
+  unchanged, and the machine-readable code survives as an extension member, so a
+  client switching on `code` keeps working. What it buys is the field list a
+  validation failure has always carried and the envelope has nowhere to put:
+  `endpoint.ValidationError`'s `[]FieldError` becomes `errors`, instead of being
+  flattened into one `message`. The `type` URI identifies a document somebody has
+  to publish and keep resolvable, so none is invented — `nil` writes
+  `about:blank`, and a `ProblemTypeResolver` supplies real ones.
+  `server.ProblemFromError` and `server.WriteProblemJSON` are exported for the
+  encoder a deployment writes itself, including one with its own kind mapper.
+  Declares `http.problem-media-type`, `http.problem-document-shape`,
+  `http.problem-redaction` and `http.problem-encoder-parity`. `docs/errors.md`
+  has the section, in both languages.
 
 ### Changed
 

@@ -169,7 +169,11 @@ svc, err := kit.NewHTTP(":8080",
 | 校验请求字段 | `endpoint.Validatable` + `WithValidation()` | 请求类型 + builder |
 | 自定义种类 + 自定义状态码 | `server.JSONErrorEncoderWithKindMapper`（HTTP）/ `grpcserver.ErrorEncoderWithKindMapper`（gRPC） | 装配处 |
 | 自定义线上格式/信封 | `server.ServerErrorEncoder` + `server.ServerResponseEncoder` | 装配处 |
+| 用 RFC 9457 `problem+json` 取代信封 | `server.ProblemJSONErrorEncoder`（提供，但不替你装） | 装配处 |
+| 让线上带上逐字段的校验细节 | `server.ProblemJSONErrorEncoder`——信封只有一个 `message` | 装配处 |
+| 在自己的 encoder 里构造 problem 文档 | `server.ProblemFromError` + `server.WriteProblemJSON` | 自定义编码器 |
 | 所有 JSON 路由统一信封 | `kit.WithJSONServerOptions` | 装配处 |
+
 | 与内置映射组合 | `server.HTTPStatusForError` / `HTTPStatusForErrorKind` | 自定义编码器 |
 
 经验法则：在 service 层用 `apperror` 分类；业务代码绝不返回协议类型；4xx 携
