@@ -19,6 +19,9 @@ The maintained product line is the independent [`v2/`](v2/) module. Start with
 the [v2 README](v2/README.md), use the [documentation index](v2/DOCS_INDEX.md)
 to choose a task, or open the [complete book](v2/docs/index.md).
 
+Contributing with a coding agent: read [AGENTS.md](AGENTS.md) first. It names the
+gates, the reviewed snapshots and the one rule about refreshing them.
+
 ## Quick Example
 
 ```go

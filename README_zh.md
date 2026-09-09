@@ -17,6 +17,9 @@ Service -> Endpoint -> Transport
 当前维护的产品线是独立的 [`v2/`](v2/) module。先看 [v2 README](v2/README_zh.md)，
 按任务选择[文档导航](v2/DOCS_INDEX_zh.md)，或直接阅读[完整手册](v2/docs/index_zh.md)。
 
+用 coding agent 参与开发：先读 [AGENTS_zh.md](AGENTS_zh.md)。它写明了有哪些门禁、
+哪些被评审的快照，以及刷新它们的唯一一条规则。
+
 ## 快速示例
 
 ```go
