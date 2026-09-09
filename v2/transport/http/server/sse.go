@@ -196,8 +196,35 @@ func NewSSEServerTyped[Req any](
 	)
 }
 
-// ServeHTTP implements http.Handler.
+// ServeHTTP implements http.Handler. The error that ended the stream has already
+// reached the error handler by the time it returns; ServeStream is the variant
+// that also hands it back, for a caller that has to report the outcome.
 func (s *SSEServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	_ = s.ServeStream(w, r)
+}
+
+// ErrorEncoder reports the encoder this server answers errors with — the one
+// ServerErrorEncoder installed, or DefaultErrorEncoder.
+//
+// It is exported for a wrapper that can refuse a stream before it starts:
+// endpoint middleware rejecting a request produces an error the SSEServer never
+// sees, and the wrapper has to render it. Rendering it with a different encoder
+// gives one route two error contracts, which is what this accessor exists to
+// prevent.
+func (s *SSEServer) ErrorEncoder() ErrorEncoder {
+	return s.cfg.errorEncoder
+}
+
+// ServeStream serves the stream and returns the error that ended it, or nil.
+//
+// The error has already been given to the error handler and, when it happened
+// before any bytes were written, encoded into the response: a caller must not
+// answer it a second time. What the return value is for is reporting — endpoint
+// middleware, metrics, and logs that treat one stream as one request need to
+// know whether that request failed, and a handler signature with nowhere to put
+// an error made every stream, including one that died on its third event, record
+// as a success.
+func (s *SSEServer) ServeStream(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	iw := &InterceptingWriter{ResponseWriter: w, code: http.StatusOK}
@@ -218,7 +245,7 @@ func (s *SSEServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.cfg.errorHandler.Handle(ctx, err)
 		s.cfg.errorEncoder(ctx, err, responseWriter)
-		return
+		return err
 	}
 
 	flusher, ok := w.(http.Flusher)
@@ -226,7 +253,7 @@ func (s *SSEServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		streamErr := errors.New("sse: streaming unsupported")
 		s.cfg.errorHandler.Handle(ctx, streamErr)
 		s.cfg.errorEncoder(ctx, streamErr, responseWriter)
-		return
+		return streamErr
 	}
 
 	// Stable: http.sse-headers — a stream answers 200 with text/event-stream, Cache-Control no-cache and X-Accel-Buffering no.
@@ -242,5 +269,7 @@ func (s *SSEServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	stream := &SSEStream{w: w, flusher: flusher}
 	if err := s.stream(ctx, request, stream); err != nil {
 		s.cfg.errorHandler.Handle(ctx, err)
+		return err
 	}
+	return nil
 }

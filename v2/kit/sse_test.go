@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -88,7 +89,10 @@ func TestHandleSSETyped_MiddlewareRejectionBeforeStream(t *testing.T) {
 			return nil, apperror.Unauthenticated("auth.required", "credentials required")
 		}
 	}
-	svc := kit.MustNewHTTP("127.0.0.1:0", kit.WithEndpointMiddleware(reject))
+	svc := kit.MustNewHTTP("127.0.0.1:0",
+		kit.WithEndpointMiddleware(reject),
+		kit.WithJSONServerOptions(httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder)),
+	)
 	kit.HandleSSETyped(svc, "GET /events",
 		func(_ context.Context, _ eventsRequest, _ *httpserver.SSEStream) error {
 			streamCalled = true
@@ -117,6 +121,115 @@ func TestHandleSSETyped_MiddlewareRejectionBeforeStream(t *testing.T) {
 	}
 	if streamCalled {
 		t.Fatal("rejected request still started the stream")
+	}
+}
+
+// TestHandleSSETyped_RejectionUsesTheComponentErrorEncoder pins the rejection
+// path to the encoder the route itself answers with.
+//
+// The rejection used to be hardcoded to JSONErrorEncoder while the route's own
+// decode failures went through whatever the options resolved to — so one route
+// answered a 400 as text and a 401 as JSON, and a deployment that installed
+// ProblemJSONErrorEncoder got problem+json for one and a bare envelope for the
+// other. The component here installs a recognisable encoder and the test asserts
+// both paths went through it.
+func TestHandleSSETyped_RejectionUsesTheComponentErrorEncoder(t *testing.T) {
+	marker := func(_ context.Context, err error, w http.ResponseWriter) {
+		w.Header().Set("Content-Type", "application/vnd.test+json")
+		w.WriteHeader(http.StatusTeapot)
+		_, _ = w.Write([]byte(`{"encoded_by":"component"}`))
+	}
+	reject := func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(_ context.Context, _ any) (any, error) {
+			return nil, apperror.Unauthenticated("auth.required", "credentials required")
+		}
+	}
+	svc := kit.MustNewHTTP("127.0.0.1:0",
+		kit.WithEndpointMiddleware(reject),
+		kit.WithJSONServerOptions(httpserver.ServerErrorEncoder(marker)),
+	)
+	kit.HandleSSETyped(svc, "GET /events",
+		func(_ context.Context, _ eventsRequest, _ *httpserver.SSEStream) error { return nil },
+		decodeEvents,
+	)
+	srv := httptest.NewServer(svc)
+	defer srv.Close()
+
+	// A rejection, and a decode failure on the same route: both must be rendered
+	// by the component's encoder.
+	for _, target := range []string{"/events?channel=builds", "/events"} {
+		resp, err := http.Get(srv.URL + target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if got := resp.Header.Get("Content-Type"); got != "application/vnd.test+json" {
+			t.Fatalf("%s: Content-Type = %q, want the component encoder's", target, got)
+		}
+		if resp.StatusCode != http.StatusTeapot {
+			t.Fatalf("%s: status = %d, want the component encoder's 418", target, resp.StatusCode)
+		}
+		if string(body) != `{"encoded_by":"component"}` {
+			t.Fatalf("%s: body = %q", target, body)
+		}
+	}
+}
+
+// TestHandleSSETyped_StreamFailureReachesEndpointMiddleware asserts that a stream
+// that fails partway is not reported as a completed request.
+//
+// The bridge endpoint used to return (struct{}{}, nil) unconditionally, so every
+// stream — including one that died on its third event — recorded as a success in
+// whatever middleware counts requests. The response cannot change after 200, so
+// what is asserted is that the error reaches the middleware and that no error
+// body is appended to the events already flushed.
+func TestHandleSSETyped_StreamFailureReachesEndpointMiddleware(t *testing.T) {
+	streamErr := apperror.Internal("stream.broken", "the source went away")
+	observed := make(chan error, 1)
+	watch := func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request any) (any, error) {
+			response, err := next(ctx, request)
+			observed <- err
+			return response, err
+		}
+	}
+	svc := kit.MustNewHTTP("127.0.0.1:0", kit.WithEndpointMiddleware(watch))
+	kit.HandleSSETyped(svc, "GET /events",
+		func(_ context.Context, _ eventsRequest, w *httpserver.SSEStream) error {
+			if err := w.Event("tick", "1"); err != nil {
+				return err
+			}
+			return streamErr
+		},
+		decodeEvents,
+	)
+	srv := httptest.NewServer(svc)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/events?channel=builds")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: got %d, want 200 — the stream had already started", resp.StatusCode)
+	}
+	if string(body) != "event: tick\ndata: 1\n\n" {
+		t.Fatalf("body = %q, want the flushed events with no error body appended", body)
+	}
+	select {
+	case seen := <-observed:
+		if seen == nil {
+			t.Fatal("the middleware saw no error: a failed stream recorded as a success")
+		}
+		if !errors.Is(seen, streamErr) {
+			t.Fatalf("middleware saw %v, want the stream's own error", seen)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the middleware never returned for the stream")
 	}
 }
 

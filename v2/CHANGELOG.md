@@ -65,6 +65,24 @@ when features are combined rather than used alone.
   component-wide got `application/problem+json` on every JSON route and a plain
   envelope on an SSE decode failure — one service with two error contracts. The
   options are now passed, component first so a route's own still win.
+- **An SSE route answered its own errors two different ways.** A decode failure went
+  through the encoder the route's options resolved to, while a middleware rejection
+  was hardcoded to `JSONErrorEncoder` — so one route rendered a 400 as text and a
+  401 as JSON, and a deployment that installed its own encoder got it on one and not
+  the other. The rejection now uses the stream's own encoder, which
+  `server.SSEServer.ErrorEncoder` reports. A component that installed no encoder
+  therefore answers a rejection the way the rest of its routes answer errors, which
+  is a visible change if you were relying on the JSON envelope: install
+  `ServerErrorEncoder(server.JSONErrorEncoder)` through `WithJSONServerOptions` to
+  keep it, and get it on every route rather than on one path of one route.
+- **A stream that died on its third event recorded as a success.** The bridge that
+  makes one stream one request for the endpoint middleware returned
+  `(struct{}{}, nil)` no matter what the stream did, so every metric, log and trace
+  saw a completed request. `server.SSEServer.ServeStream` is `ServeHTTP` that returns
+  the error that ended the stream, and the bridge returns it to the chain. The
+  response cannot change once 200 and some events have been flushed — the error is
+  reported, not rendered — and a rejection that happened before the stream started
+  is still the one case that writes an error response.
 - Text from an IDL or a database schema reached generated Go string literals,
   struct tags and comments unescaped. The generator had an `escape` helper that
   replaced only the double quote — not a backslash, not a newline — and no template
@@ -82,11 +100,16 @@ when features are combined rather than used alone.
 ### Documentation
 
 - `kit`'s registration guide over-claimed for `HandleSSETyped`, which this
-  repository wrote two releases ago. Two caveats are now stated where a reader
-  meets the function: a middleware rejection on an SSE route is rendered with the
-  built-in JSON encoder rather than a component encoder, and the endpoint chain
-  sees the stream as a success even when the stream itself fails, because the
-  bridge reports the handler's completion rather than its outcome.
+  repository wrote two releases ago. Both caveats it grew in the meantime — the
+  hardcoded rejection encoder and the stream that always looked successful — are
+  fixed above rather than documented, so the guide now states what the function
+  does and names the one limit that is real: once a stream has answered 200, an
+  error can be recorded but not rendered.
+- The canonical SSE example ignored the `Stopping` announcement and selected only on
+  `ctx.Done()`, contradicting the drain example in `kit/drain.go`. A stream written
+  from it kept running until the grace period cancelled its context, which is the
+  client seeing a cut connection rather than the end of a stream — and the SSE
+  example is the one an SSE author reads.
 
 ## [2.20.0] - 2026-09-08
 

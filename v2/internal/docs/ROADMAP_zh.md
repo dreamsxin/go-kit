@@ -1630,10 +1630,14 @@ go test ./cmd/microgen/... -count=1
 - `kit.HandleSSETyped` 从来没把 `h.jsonServerOptions` 传给 `NewSSEServerTyped`，而 `kit/doc.go`——
   本仓库在里程碑 18 自己写的那段——把它列在"组件的 JSON server options 全都生效"里。组件级装了
   `ProblemJSONErrorEncoder` 的部署，于是在 JSON 路由上拿到 problem 文档，在 SSE 解码失败时拿到普通信封。
-- 同一次审计发现的另两条现在是**写明**而不是修掉，因为每一条都需要比"一行文档"更大的改动：SSE 路由上的
-  中间件拒绝由硬编码的 `JSONErrorEncoder` 渲染（`kit/sse.go`）；以及端点链把每条流都记成成功，因为那个桥
-  的基础 endpoint 无条件返回 `nil`——一条中途死掉的流在指标里是一次成功。要把流的结果从 `ServeHTTP` 里
-  取出来，需要一个真正的接缝。
+- 同一次审计发现的另两条，先前是**写明**而不是修掉，现在修掉了。中间件拒绝由硬编码的 `JSONErrorEncoder`
+  渲染，而同一条路由的解码失败走的是配置出来的那个，于是一条路由有两套错误约定；拒绝现在用
+  `SSEServer.ErrorEncoder` 报告的那个编码器。以及那个桥的基础 endpoint 无条件返回 `nil`，于是一条中途死掉
+  的流在指标里是一次成功；`SSEServer.ServeStream` 就是原本缺的那个接缝——会把"结束这条流的错误"交回来的
+  `ServeHTTP`——而桥把它返回给链。
+- 仍然跟不上的是响应本身。一旦流回答了 200 并 flush 了事件，错误只能被记录、不能被渲染，所以桥只在"流从未
+  开始"时才编码。要把这两种情形分开，正是基础 endpoint 在 context 里标记 `streamOutcome` 的原因——而不是
+  从错误本身去猜。
 
 ### 工作包 3：来自 IDL 的文本不是代码
 
@@ -1663,7 +1667,7 @@ go test ./cmd/microgen/... -count=1
   `ErrShutdownIncomplete`；`WithTimeout` 是组件级的、没有按路由的出口，于是要托管一条长流就得把它旁边
   JSON 路由的 deadline 也一起去掉。两者都是代码已经写明的机制，但这个取舍没有被写下来。
 - `kit/sse.go` 里那个范例只 select `ctx.Done()`，忽略了 `Stopping` 通告，和 `kit/drain.go` 里的范例自相
-  矛盾——而写 SSE 的人读的是前者。
+  矛盾——而写 SSE 的人读的是前者。现在它两个都看。
 - 门禁元审计找出的两处"空绿"已经修掉（没有 tag 的检出、带外刷新快照），还有一处没修：
   `api_surface.sha256` 和 `contract_snapshots/*.sha256` 存的是 digest，于是没有任何东西迫使审查者去读
   "改了什么"——刷新命令就是全部的审查。失败信息现在会点名动了的包，但那不是同一件事。把这两者迁移成

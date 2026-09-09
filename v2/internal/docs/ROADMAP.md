@@ -2045,12 +2045,18 @@ go test ./cmd/microgen/... -count=1
   "the component's JSON server options all apply". A deployment installing
   `ProblemJSONErrorEncoder` component-wide got problem documents on JSON routes and
   plain envelopes on SSE decode failures.
-- Two caveats found by the same audit are now stated rather than fixed, because each
-  needs a larger change than a doc line deserves to hide: a middleware rejection on
-  an SSE route is rendered by a hardcoded `JSONErrorEncoder` (`kit/sse.go`), and the
-  endpoint chain records every stream as a success because the bridge's base endpoint
-  returns `nil` unconditionally — a stream that dies mid-way is a success in the
-  metrics. Getting the stream's outcome out of `ServeHTTP` needs a real seam.
+- Two caveats found by the same audit were first written down rather than fixed, and
+  are now fixed. A middleware rejection was rendered by a hardcoded
+  `JSONErrorEncoder` while the same route's decode failures went through the
+  configured one, so one route had two error contracts; the rejection now uses the
+  encoder `SSEServer.ErrorEncoder` reports. And the bridge's base endpoint returned
+  `nil` unconditionally, so a stream that died mid-way was a success in the metrics;
+  `SSEServer.ServeStream` is the seam that was missing — `ServeHTTP` that hands back
+  the error that ended the stream — and the bridge returns it to the chain.
+- What still cannot follow is the response. Once a stream has answered 200 and
+  flushed events, an error can be recorded but not rendered, so the bridge encodes
+  only when the stream never started. Telling those two apart is why the base
+  endpoint marks a `streamOutcome` in the context instead of guessing from the error.
 
 ### Work Package 3: Text From An IDL Is Not Code
 
@@ -2089,9 +2095,9 @@ Recorded with file and line, not yet acted on:
   component-wide with no per-route escape, so hosting a long stream means dropping the
   deadline for the JSON routes beside it. Both are mechanisms the code states; the
   trade-off is not written down.
-- The canonical SSE example in `kit/sse.go` selects only on `ctx.Done()` and ignores
-  the `Stopping` announcement, contradicting the drain example in `kit/drain.go`. The
-  SSE one is the one an SSE author reads.
+- The canonical SSE example in `kit/sse.go` selected only on `ctx.Done()` and ignored
+  the `Stopping` announcement, contradicting the drain example in `kit/drain.go` — and
+  the SSE one is the one an SSE author reads. It now watches both.
 - The gate meta-audit found the two vacuous passes now fixed (a tagless checkout, an
   out-of-band snapshot refresh) and one it did not fix: `api_surface.sha256` and
   `contract_snapshots/*.sha256` store digests, so nothing forces a reviewer to read
