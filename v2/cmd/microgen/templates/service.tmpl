@@ -12,19 +12,19 @@ import (
 // {{.Service.ServiceName}} defines the business contract.
 type {{.Service.ServiceName}} interface {
 {{range .UnaryMethods}}
-	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	// {{.Name}}{{if .Description}} - {{comment .Description}}{{end}}
 	{{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error)
 {{end}}
 {{range .ServerStreamMethods}}
-	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	// {{.Name}}{{if .Description}} - {{comment .Description}}{{end}}
 	{{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error
 {{end}}
 {{range .ClientStreamMethods}}
-	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	// {{.Name}}{{if .Description}} - {{comment .Description}}{{end}}
 	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (idl.{{.OutputName}}, error)
 {{end}}
 {{range .BidiStreamMethods}}
-	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+	// {{.Name}}{{if .Description}} - {{comment .Description}}{{end}}
 	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error
 {{end}}
 }

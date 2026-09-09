@@ -27,6 +27,13 @@
   列在"组件的 JSON server options 全都生效"那一组里。于是组件级安装了 `ProblemJSONErrorEncoder` 的部署，
   在每条 JSON 路由上得到 `application/problem+json`，在 SSE 解码失败时得到一个普通信封——一个服务两套
   错误约定。现在传了，组件在前，于是路由自己的仍然胜出。
+- 来自 IDL 或数据库 schema 的文本，未经转义就进了生成的 Go 字符串字面量、结构体 tag 与注释。生成器有一个
+  `escape` 辅助函数，只替换双引号——不管反斜杠，也不管换行——而且没有任何模板用它。含引号的文档注释会产出
+  `Description: "a "user" record"`，那是**语法合法的 Go**，于是生成器自己的格式检查放它过去、到用户 build
+  时才失败；含换行或以反斜杠结尾的会在前面的文件已写出之后中断生成；列名里的一个反引号会终止结构体 tag
+  的原始字符串。`escape` 被替换为 `quote`（`strconv.Quote`，一次处理全部这些）、`comment`（折叠所有行终止符
+  ——因为 `//` 注释到换行就结束，而 `.proto` 输出从不经过格式化器）与 `tag`（去掉原始字符串无法转义的字符），
+  并且 `interaction`、`model`、`service`、`sdk`、`proto` 模板里全部十九处插值点都改用了它们。
 
 ### 文档
 

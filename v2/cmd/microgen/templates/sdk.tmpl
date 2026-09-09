@@ -47,7 +47,7 @@ import (
 // be tested with a mock. Streaming methods are gRPC-only and live on
 // StreamingClient, which embeds this one.
 type Client interface {
-{{range .UnaryMethods}}	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+{{range .UnaryMethods}}	// {{.Name}}{{if .Description}} - {{comment .Description}}{{end}}
 	{{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error)
 {{end}}
 }
@@ -61,13 +61,13 @@ type Client interface {
 // context deadlines/cancellation and bounded application queues for slow work.
 type StreamingClient interface {
 	Client
-{{range .ServerStreamMethods}}	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+{{range .ServerStreamMethods}}	// {{.Name}}{{if .Description}} - {{comment .Description}}{{end}}
 	{{.Name}}(ctx context.Context, req idl.{{.InputName}}, send func(idl.{{.OutputName}}) error) error
 {{end}}
-{{range .ClientStreamMethods}}	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+{{range .ClientStreamMethods}}	// {{.Name}}{{if .Description}} - {{comment .Description}}{{end}}
 	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error)) (idl.{{.OutputName}}, error)
 {{end}}
-{{range .BidiStreamMethods}}	// {{.Name}}{{if .Description}} - {{.Description}}{{end}}
+{{range .BidiStreamMethods}}	// {{.Name}}{{if .Description}} - {{comment .Description}}{{end}}
 	{{.Name}}(ctx context.Context, recv func() (idl.{{.InputName}}, error), send func(idl.{{.OutputName}}) error) error
 {{end}}
 }

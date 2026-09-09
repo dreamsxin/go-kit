@@ -2052,18 +2052,34 @@ go test ./cmd/microgen/... -count=1
   returns `nil` unconditionally — a stream that dies mid-way is a success in the
   metrics. Getting the stream's outcome out of `ServeHTTP` needs a real seam.
 
+### Work Package 3: Text From An IDL Is Not Code
+
+- `template_funcs.go` had an `escape` helper that replaced only `"`, not `\` and not
+  a newline, and no template used it: the escaping machinery existed, was incomplete,
+  and was dead. Nineteen interpolation sites wrote IDL and database text straight
+  into Go string literals, struct tags and comments.
+- The quote case is the dangerous one because it is *syntactically valid*: the
+  generator's `format.Source` check passed `Description: "a "user" record"` through
+  to fail in the user's build. A newline aborted generation after earlier files were
+  written. A backtick in a column name terminated a struct tag's raw literal.
+- Replaced by three helpers that name what they guard: `quote` (`strconv.Quote`,
+  which handles quotes, backslashes, newlines and control bytes together — the point
+  of using it rather than replacing one character), `comment` (folds every line
+  terminator, because `//` ends at the newline and `.proto` output never reaches a
+  formatter) and `tag` (removes what a raw string cannot escape).
+- The regression test asserts the generated fragment *parses* and that the literal
+  still round-trips to the input — valid syntax alone was what let this through.
+
+Acceptance:
+
+```bash
+go test ./cmd/microgen/... -count=1
+```
+
 ### Still Open From The Same Audits
 
 Recorded with file and line, not yet acted on:
 
-- `template_funcs.go` has an `escape` helper that only replaces `"`, not `\` or a
-  newline, and no template uses it. A doc comment or DB column comment containing a
-  quote produces syntactically valid Go that does not compile; one containing a
-  newline aborts generation after earlier files were written.
-- `model.tmpl` interpolates struct tags and comments raw; a backtick in a column name
-  or DB type terminates the raw string.
-- `.proto` output skips `format.Source` entirely, so a multi-line comment reaches
-  `protoc` unchanged.
 - Three schema-versus-handler disagreements in the generated OpenAPI: no
   `additionalProperties` while the decoder sets `DisallowUnknownFields`, nullability
   stripped from pointer fields, and `required` claimed for every non-pointer field

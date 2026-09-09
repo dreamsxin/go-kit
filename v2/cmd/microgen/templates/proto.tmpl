@@ -12,18 +12,21 @@ option go_package = "./pb";
 
 // {{.Service.ServiceName}} gRPC 服务定义
 service {{.Service.ServiceName}} {
-{{range .IRService.Methods}}  // {{.Description}}
+{{range .IRService.Methods}}  // {{comment .Description}}
+
   rpc {{.Name}} ({{if .StreamsInput}}stream {{end}}{{.InputName}}) returns ({{if .StreamsOutput}}stream {{end}}{{.OutputName}});
 {{end}}}
 
 {{range .Messages}}
-// {{.Name}}{{if .Comment}} {{.Comment}}{{end}}
+// {{.Name}}{{if .Comment}} {{comment .Comment}}{{end}}
+
 message {{.Name}} {
 {{- if .Placeholder}}
   // TODO: fill in the message fields for {{.Name}}.
 {{- else}}
 {{- range .Fields}}
-{{- if .Comment}}  // {{.Comment}}
+{{- if .Comment}}  // {{comment .Comment}}
+
 {{- end}}
 {{- if .IsMap}}
   map<{{.KeyType}}, {{.ValueType}}> {{.Name}} = {{.Number}};

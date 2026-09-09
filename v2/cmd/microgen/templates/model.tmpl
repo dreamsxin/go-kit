@@ -16,7 +16,8 @@ import (
 // {{.Model.Name}}{{if .Model.Comment}} - {{.Model.Comment}}{{end}}
 type {{.Model.Name}} struct {
 {{- range .Model.Fields}}
-	{{.Name}} {{.Type}}{{if or .JSONTag .GormTag}} `{{if .JSONTag}}json:"{{.JSONTag}}"{{end}}{{if and .JSONTag .GormTag}} {{end}}{{if .GormTag}}gorm:"{{.GormTag}}"{{end}}`{{end}}{{if .Comment}} // {{.Comment}}{{end}}
+	{{.Name}} {{.Type}}{{if or .JSONTag .GormTag}} `{{if .JSONTag}}json:"{{tag .JSONTag}}"{{end}}{{if and .JSONTag .GormTag}} {{end}}{{if .GormTag}}gorm:"{{tag .GormTag}}"{{end}}`{{end}}{{if .Comment}} // {{comment .Comment}}{{end}}
+
 {{- end}}
 {{- if .AddAuditFields}}
 	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`

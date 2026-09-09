@@ -37,6 +37,19 @@ when features are combined rather than used alone.
   component-wide got `application/problem+json` on every JSON route and a plain
   envelope on an SSE decode failure — one service with two error contracts. The
   options are now passed, component first so a route's own still win.
+- Text from an IDL or a database schema reached generated Go string literals,
+  struct tags and comments unescaped. The generator had an `escape` helper that
+  replaced only the double quote — not a backslash, not a newline — and no template
+  used it. A doc comment containing a quote produced `Description: "a "user"
+  record"`, which is *valid Go syntax*, so the generator's own format check passed
+  it through to fail in the user's build; a newline or a trailing backslash aborted
+  generation after earlier files had already been written; a backtick in a column
+  name terminated a struct tag's raw literal. `escape` is replaced by `quote`
+  (`strconv.Quote`, which handles all of them together), `comment` (folds every
+  line terminator, because a `//` comment ends at the newline and `.proto` output
+  never reaches a formatter) and `tag` (removes what a raw string cannot escape),
+  and all nineteen interpolation sites across `interaction`, `model`, `service`,
+  `sdk` and `proto` templates now use them.
 
 ### Documentation
 

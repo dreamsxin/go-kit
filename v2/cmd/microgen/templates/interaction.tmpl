@@ -33,7 +33,8 @@ func (t {{.Name}}Tool) Name() string { return "{{.Name}}" }
 func (t {{.Name}}Tool) Descriptor() interaction.ToolDescriptor {
 	return interaction.ToolDescriptor{
 		Name:        "{{.Name}}",
-		Description: "{{.Summary}}",
+		Description: {{quote .Summary}},
+
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -41,7 +42,8 @@ func (t {{.Name}}Tool) Descriptor() interaction.ToolDescriptor {
 				{{- range .Fields }}
 				"{{ .JSONName }}": map[string]interface{}{
 					"type": "{{ .SchemaType }}",
-					"description": "{{ .Description }}",
+					"description": {{quote .Description}},
+
 				},
 				{{- end }}
 				{{- end }}
