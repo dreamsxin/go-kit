@@ -34,8 +34,20 @@ func (h *HTTP) HandleSSE(pattern string, handler http.Handler) {
 // server error handler, so the stream records as the failure it was; see
 // server.NewSSEServer for the hook semantics.
 //
-// A timeout middleware bounds the total stream duration, so long-lived
-// streams should avoid or relax global deadlines.
+// Two operational consequences follow from one stream being one request, and both
+// are component-wide rather than per-route:
+//
+// A timeout middleware bounds the total stream duration, and there is no per-route
+// escape from it — WithTimeout applies to every endpoint the component serves. So
+// hosting a long stream means relaxing or dropping the deadline for the JSON routes
+// beside it. When that trade is not acceptable, the stream belongs on a second HTTP
+// component with its own middleware.
+//
+// A live stream also holds the component's in-flight count, and Shutdown waits for
+// it: a stream that runs until its context is cancelled consumes the whole grace
+// period and leaves Run reporting ErrShutdownIncomplete on any deploy that catches
+// one. Watching Stopping, as the example below does, is what turns that into an
+// orderly end — which is why it is in the example rather than in a note.
 //
 // Example:
 //
