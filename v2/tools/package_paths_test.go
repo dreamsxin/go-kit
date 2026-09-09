@@ -26,14 +26,14 @@ var publishedPackagePaths = reviewedList{
 //
 // An import path is the most breaking thing a library owns: a consumer's import
 // statement names it, and no amount of source compatibility saves a build from a
-// path that moved. It was protected only incidentally until now — the second
-// column of api_surface.sha256 happens to list the paths, so a rename showed up
-// as a changed digest with no indication that a path was involved.
+// path that moved. It was protected only incidentally at first — the API snapshot
+// happens to name every package it covers, so a rename showed up there with no
+// indication that a path was involved.
 //
-// This list covers cmd/microgen too, which the API digest excludes. The digest
-// leaves it out because a command has no importable surface worth reviewing
-// declaration by declaration; its path still matters, because `go install` and
-// `go run` name it and the documentation tells readers to.
+// This list covers cmd/microgen too, which the API snapshot excludes. That
+// snapshot leaves it out because a command has no importable surface worth
+// reviewing declaration by declaration; its path still matters, because
+// `go install` and `go run` name it and the documentation tells readers to.
 func TestExportedPackagePaths(t *testing.T) {
 	t.Parallel()
 	cwd, err := os.Getwd()

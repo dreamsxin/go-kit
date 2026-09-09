@@ -2128,14 +2128,48 @@ Recorded with file and line, not yet acted on:
   the `Stopping` announcement, contradicting the drain example in `kit/drain.go` — and
   the SSE one is the one an SSE author reads. It now watches both.
 - The gate meta-audit found the two vacuous passes now fixed (a tagless checkout, an
-  out-of-band snapshot refresh) and one it did not fix: `api_surface.sha256` and
-  `contract_snapshots/*.sha256` store digests, so nothing forces a reviewer to read
-  what changed — the refresh command is the whole review. The failure message now
-  names the packages that moved, which is not the same thing. Migrating both to
-  readable per-package declaration lists, the way `TestExportedPackagePaths` and
-  `TestGeneratedLayout` already store theirs, is the open decision; it touches 34
-  packages and three generator fixtures, so it is its own work package rather than a
-  tail-end change.
+  out-of-band snapshot refresh) and one it did not fix in that release: the digest
+  storage of `api_surface` and `contract_snapshots/*.sha256`, where nothing forced a
+  reviewer to read what changed. Carried into Milestone 22.
+
+## Milestone 22 (Active): A Gate Whose Failure Is The Review
+
+Goal: when a gate blocks a change, the failure and the stored file together say what
+changed. A gate whose diff a person cannot read is a gate whose refresh command is
+the only review it will ever get.
+
+### Work Package 1: The Public API Surface Is A List, Not A Hash
+
+- `api_surface.sha256` held one SHA-256 per package. A failure proved that something
+  in some package moved; nothing in it, and nothing in any diff a reviewer read,
+  contained the declaration that changed. Refreshing made it green, and refreshing was
+  the whole review.
+- The reviewed form is now `api_surface.txt`: the declarations themselves, in
+  `## <import path>` sections, 2,487 lines for 34 packages — the same shape Go's own
+  `api/go1.*.txt` files use, and small enough that `git diff` is the review.
+- The failure names the packages whose section differs and quotes the declaration
+  lines that appeared and disappeared, capped per package. It deliberately does not
+  print the file: two 2,500-line blocks would fail the same way the digest did, from
+  the other direction.
+- Verified by removing one declaration line from the snapshot and reading the failure:
+  it named `apperror` and quoted the one line.
+
+Acceptance:
+
+```bash
+go -C ./tools test . -run TestPublicAPISurfaceSnapshot -count=1
+```
+
+### Work Package 2: The Generated Contract Snapshots
+
+Still digests. The three `contract_snapshots/*.sha256` files hash whole generated
+artefacts — manifest, OpenAPI document, JSON Schema bundle, IDL, both SDKs — so a
+failure there still says only that something moved, and reviewing it means generating
+the project into a temporary directory by hand. That is how the OpenAPI defects in
+Milestone 21 had to be reviewed. Checking the artefacts in as golden files is the
+obvious fix and the open decision: it is the standard approach for a generator, it
+would have made those defects visible in a diff, and it adds roughly ten thousand
+lines of fixture that every template change rewrites.
 
 ## Maintenance Rules / 维护规则
 

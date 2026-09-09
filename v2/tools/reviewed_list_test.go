@@ -15,8 +15,10 @@ import (
 // A digest would answer "something changed" and leave the reader to work out
 // what. These lists are read by a person deciding whether a change may ship, so
 // the stored form is the list itself and the failure names the entries that
-// appeared and disappeared. That difference is the whole reason these gates exist
-// beside the api_surface digest rather than inside it.
+// appeared and disappeared. The public API snapshot was moved to the same
+// principle for the same reason; what remains behind a digest is the generated
+// contract set, where the artefact is large enough that its own diff is the place
+// to read it.
 type reviewedList struct {
 	// subject completes the sentence "the <subject> changed".
 	subject string

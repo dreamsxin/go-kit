@@ -39,17 +39,17 @@ uncommitted change fails it — including the change you are about to commit. Th
 The reviewed files live under `v2/tools/testdata/`, each refreshed by a flag
 passed after `-args`:
 
-- `v2/tools/testdata/api_surface.sha256` — `-update-api-snapshot`
+- `v2/tools/testdata/api_surface.txt` — `-update-api-snapshot`
 - `v2/tools/testdata/package_paths.txt` — `-update-package-paths`
 - `v2/tools/testdata/protocol_behaviour.txt` — `-update-protocol-behaviour`
 - `v2/tools/testdata/generated_layout.txt` — `-update-generated-layout`
 - `v2/tools/testdata/contract_snapshots/` — `-update-contract-snapshots`
 
-The rule: **refreshing is the review.** Two of these store digests rather than
-content, so a failure proves only that something moved. Generate the artifact and
-read it before refreshing — for the generated contracts that means running
-`microgen` into a temporary directory and reading the document. And never weaken
-a gate to let your own change through; if a gate blocks you, either the change is
+The rule: **refreshing is the review.** All but the last store what they pin, so
+`git diff` on the file is the review. The generated contracts are still digests, so
+a failure there proves only that something moved: generate the project into a
+temporary directory and read the document before refreshing. And never weaken a
+gate to let your own change through; if a gate blocks you, either the change is
 wrong or the gate's promise has to be restated on purpose.
 
 ## A promise is a marker in the source

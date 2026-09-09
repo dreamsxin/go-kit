@@ -35,16 +35,16 @@ go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,
 
 被评审的文件在 `v2/tools/testdata/` 下，各自由 `-args` 之后的一个 flag 刷新：
 
-- `v2/tools/testdata/api_surface.sha256` — `-update-api-snapshot`
+- `v2/tools/testdata/api_surface.txt` — `-update-api-snapshot`
 - `v2/tools/testdata/package_paths.txt` — `-update-package-paths`
 - `v2/tools/testdata/protocol_behaviour.txt` — `-update-protocol-behaviour`
 - `v2/tools/testdata/generated_layout.txt` — `-update-generated-layout`
 - `v2/tools/testdata/contract_snapshots/` — `-update-contract-snapshots`
 
-规则是：**刷新就是审查本身。** 其中两处存的是 digest 而不是内容，所以失败只能证明"有东西动了"。
-刷新之前把产物生成出来读一遍——对生成的契约来说，就是把 `microgen` 生成到一个临时目录里，
-然后读那份文档。另外，永远不要为了让自己的改动通过而削弱一道门禁；门禁挡住你时，要么改动是错的，
-要么就得有意地重新表述它承诺的东西。
+规则是：**刷新就是审查本身。** 除最后一项以外，它们存的都是自己钉住的内容，所以对这个文件做
+`git diff` 就是审查。生成的契约仍然是 digest，那里的失败只能证明"有东西动了"：刷新之前把项目
+生成到一个临时目录里，读那份文档。另外，永远不要为了让自己的改动通过而削弱一道门禁；门禁挡住
+你时，要么改动是错的，要么就得有意地重新表述它承诺的东西。
 
 ## 一个承诺就是源码里的一个标记
 

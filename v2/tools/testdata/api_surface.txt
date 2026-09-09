@@ -1,0 +1,2521 @@
+go-kit-v2 public API
+
+## github.com/dreamsxin/go-kit/v2/apperror
+package apperror // import "github.com/dreamsxin/go-kit/v2/apperror"
+TYPES
+type Error struct {
+	// Has unexported fields.
+}
+func AlreadyExists(code, message string) *Error
+func Canceled(code, message string) *Error
+func Conflict(code, message string) *Error
+func DeadlineExceeded(code, message string) *Error
+func FailedPrecondition(code, message string) *Error
+func Internal(code, message string) *Error
+func InvalidArgument(code, message string) *Error
+func New(kind Kind, code, message string) *Error
+func NotFound(code, message string) *Error
+func PermissionDenied(code, message string) *Error
+func ResourceExhausted(code, message string) *Error
+func Unauthenticated(code, message string) *Error
+func Unavailable(code, message string) *Error
+func Unimplemented(code, message string) *Error
+func Wrap(kind Kind, code, message string, cause error) *Error
+func WrapCause(kind Kind, code string, cause error) *Error
+func (e *Error) Error() string
+func (e *Error) ErrorCode() string
+func (e *Error) ErrorKind() Kind
+func (e *Error) ErrorKindName() string
+func (e *Error) PublicMessage() string
+func (e *Error) Unwrap() error
+type Kind string
+const (
+	KindInternal           Kind = "internal"
+	KindInvalidArgument    Kind = "invalid_argument"
+	KindUnauthenticated    Kind = "unauthenticated"
+	KindPermissionDenied   Kind = "permission_denied"
+	KindNotFound           Kind = "not_found"
+	KindAlreadyExists      Kind = "already_exists"
+	KindConflict           Kind = "conflict"
+	KindFailedPrecondition Kind = "failed_precondition"
+	KindResourceExhausted  Kind = "resource_exhausted"
+	KindUnavailable        Kind = "unavailable"
+	KindDeadlineExceeded   Kind = "deadline_exceeded"
+	KindCanceled           Kind = "canceled"
+	KindUnimplemented      Kind = "unimplemented"
+)
+type KindNamer interface {
+	ErrorKindName() string
+}
+type Kinder interface {
+	ErrorKind() Kind
+}
+
+## github.com/dreamsxin/go-kit/v2/endpoint
+package endpoint // import "github.com/dreamsxin/go-kit/v2/endpoint"
+CONSTANTS
+const (
+	DefaultBreakerFailureThreshold = 5
+	DefaultBreakerSuccessThreshold = 1
+	DefaultBreakerOpenTimeout      = time.Minute
+	// DefaultBreakerWindowSize is how many recent outcomes MaxErrorRate
+	// considers when no window size is configured.
+	DefaultBreakerWindowSize = 100
+	// DefaultBreakerMinSamples is how many outcomes the window must hold
+	// before MaxErrorRate may trip the breaker.
+	DefaultBreakerMinSamples = 20
+)
+const (
+	// DefaultRetryBaseBackoff is the first backoff step; each further attempt
+	// doubles it before jitter.
+	DefaultRetryBaseBackoff = 50 * time.Millisecond
+	// DefaultRetryMaxBackoff caps the backoff step.
+	DefaultRetryMaxBackoff = time.Second
+	// MaxRetryAfterHint caps how long a server-reported retry hint may delay
+	// the next attempt, so a hostile or misconfigured peer cannot park a
+	// caller that has no deadline of its own.
+	MaxRetryAfterHint = 30 * time.Second
+)
+VARIABLES
+var (
+	ErrBackpressure error = &rejectionError{
+		message: "too many concurrent requests",
+		kind:    kindUnavailable,
+	}
+	ErrBulkheadFull error = &rejectionError{
+		message: "bulkhead full",
+		kind:    kindUnavailable,
+	}
+	ErrCircuitOpen error = &rejectionError{
+		message: "circuit breaker open",
+		kind:    kindUnavailable,
+	}
+	ErrRateLimited error = &rejectionError{
+		message: "rate limit exceeded",
+		kind:    kindResourceExhausted,
+	}
+)
+FUNCTIONS
+func DefaultPanicHandler(context.Context, any, any) error
+func DefaultRetryable(err error) bool
+func NewRetryAfterError(err error, after time.Duration) error
+func Nop(context.Context, any) (any, error)
+func RequestIDFromContext(ctx context.Context) string
+func ResponseError(response any) error
+func WithRequestID(ctx context.Context, id string) context.Context
+func WithTraceContext(ctx context.Context, tc TraceContext) context.Context
+func WithTraceID(ctx context.Context, id TraceID) context.Context
+TYPES
+type BreakerOption func(*BreakerSettings)
+func WithBreakerFailurePredicate(predicate func(error) bool) BreakerOption
+func WithBreakerFailureThreshold(n int) BreakerOption
+func WithBreakerMaxErrorRate(rate float64) BreakerOption
+func WithBreakerMinSamples(n int) BreakerOption
+func WithBreakerOpenTimeout(d time.Duration) BreakerOption
+func WithBreakerSlowCallThreshold(d time.Duration) BreakerOption
+func WithBreakerSuccessThreshold(n int) BreakerOption
+func WithBreakerWindowSize(n int) BreakerOption
+type BreakerSettings struct {
+	// FailureThreshold is the number of consecutive endpoint failures that
+	// trips the breaker into the open state. Non-positive selects
+	// DefaultBreakerFailureThreshold.
+	FailureThreshold int
+	// SuccessThreshold is the number of consecutive probing successes that
+	// closes the breaker again. Non-positive selects
+	// DefaultBreakerSuccessThreshold.
+	SuccessThreshold int
+	// OpenTimeout is the time the breaker stays open before a probe is
+	// allowed through. Non-positive selects DefaultBreakerOpenTimeout.
+	OpenTimeout time.Duration
+	// FailurePredicate reports whether an endpoint error represents a
+	// dependency failure. Caller cancellation is excluded by default because
+	// it does not say anything about dependency health. Set this to customize
+	// classification, for example to exclude transport-specific errors.
+	//
+	// An excluded error is not recorded at all — neither failure nor success —
+	// so it cannot dilute MaxErrorRate the way counting it as a success would.
+	FailurePredicate func(error) bool
+	// MaxErrorRate trips the breaker when the share of failures in the rolling
+	// window exceeds it, as a fraction: 0.5 means more than half. Zero, the
+	// default, leaves only consecutive counting armed.
+	MaxErrorRate float64
+	// WindowSize is how many recent outcomes MaxErrorRate considers.
+	// Non-positive selects DefaultBreakerWindowSize.
+	WindowSize int
+	// MinSamples is how many outcomes the window must hold before MaxErrorRate
+	// may trip the breaker, so one unlucky call in a quiet minute cannot open
+	// the circuit. Non-positive selects DefaultBreakerMinSamples; larger than
+	// WindowSize is capped to it, because a window that small can never hold
+	// more.
+	MinSamples int
+	// SlowCallThreshold makes a call taking at least this long count as a
+	// failure even when it returned no error. A dependency answering in thirty
+	// seconds is not healthier than one returning errors: it holds the caller's
+	// goroutines and spends its budget. Zero, the default, disables slow-call
+	// accounting.
+	//
+	// It is also what makes a timeout legible. A context deadline arriving at
+	// the endpoint says nothing about who owned the budget — the caller's or the
+	// dependency's — so DeadlineExceeded alone cannot be classified, and the
+	// default predicate therefore counts it as a failure. Measured duration can
+	// be classified, which is why slow-call accounting is the honest way to
+	// judge a dependency that got slow rather than broken.
+	SlowCallThreshold time.Duration
+}
+type BreakerState int
+const (
+	// BreakerClosed accepts requests normally.
+	BreakerClosed BreakerState = iota
+	// BreakerOpen rejects requests until the next probing interval.
+	BreakerOpen
+	// BreakerHalfOpen lets one probe request through to test recovery.
+	BreakerHalfOpen
+)
+type Builder struct {
+	// Has unexported fields.
+}
+func NewBuilder(base Endpoint) *Builder
+func NewTypedBuilder[Req, Resp any](te TypedEndpoint[Req, Resp]) *Builder
+func (b *Builder) Build() Endpoint
+func (b *Builder) Describe() []string
+func (b *Builder) Use(m Middleware) *Builder
+func (b *Builder) UseNamed(label string, m Middleware) *Builder
+func (b *Builder) WithBackpressure(max int64) *Builder
+func (b *Builder) WithBulkhead(maxPerKey int, key func(request any) string) *Builder
+func (b *Builder) WithCircuitBreaker(breaker *CircuitBreaker) *Builder
+func (b *Builder) WithDelayKeyedRateLimit(limit KeyedRateLimiter, key RateLimitKeyFunc) *Builder
+func (b *Builder) WithDelayRateLimit(limit RateLimiter) *Builder
+func (b *Builder) WithErrorHandling(operation string) *Builder
+func (b *Builder) WithFailer() *Builder
+func (b *Builder) WithFallback(fallback Endpoint) *Builder
+func (b *Builder) WithKeyedRateLimit(limit KeyedRateLimiter, key RateLimitKeyFunc) *Builder
+func (b *Builder) WithMetrics(m *Metrics) *Builder
+func (b *Builder) WithRateLimit(limit RateLimiter) *Builder
+func (b *Builder) WithRecording(operation string, recorders ...Recorder) *Builder
+func (b *Builder) WithRecovery(handler PanicHandler) *Builder
+func (b *Builder) WithRetry(maxAttempts int, options ...RetryOption) *Builder
+func (b *Builder) WithTimeout(d time.Duration) *Builder
+func (b *Builder) WithTracing() *Builder
+func (b *Builder) WithValidation() *Builder
+type CircuitBreaker struct {
+	// Has unexported fields.
+}
+func NewCircuitBreaker(options ...BreakerOption) *CircuitBreaker
+func (cb *CircuitBreaker) Middleware() Middleware
+func (cb *CircuitBreaker) State() BreakerState
+type Clock interface {
+	// Now reports the current time.
+	Now() time.Time
+	// NewTimer starts one wait of length d. A non-positive d is due
+	// immediately.
+	NewTimer(d time.Duration) Timer
+}
+func SystemClock() Clock
+type Endpoint func(ctx context.Context, request any) (response any, err error)
+type ErrorWrapper struct {
+	Operation string
+	Err       error
+}
+func (e *ErrorWrapper) Error() string
+func (e *ErrorWrapper) Unwrap() error
+type Failer interface {
+	Failed() error
+}
+type FieldError struct {
+	Field  string
+	Reason string
+}
+func (e FieldError) Error() string
+type KeyedRateLimiter interface {
+	// AllowKey reports whether a request under key may proceed immediately.
+	AllowKey(ctx context.Context, key string) bool
+	// WaitKey blocks until a request under key may proceed or the context is
+	// cancelled.
+	WaitKey(ctx context.Context, key string) error
+}
+type KeyedRateLimiterFuncs struct {
+	AllowKeyFn func(ctx context.Context, key string) bool
+	WaitKeyFn  func(ctx context.Context, key string) error
+}
+func (f KeyedRateLimiterFuncs) AllowKey(ctx context.Context, key string) bool
+func (f KeyedRateLimiterFuncs) WaitKey(ctx context.Context, key string) error
+type KeyedRetryAfterReporter interface {
+	// RetryAfterForKey reports the wait for key. A non-positive value means
+	// the delay is unknown and no hint is emitted.
+	RetryAfterForKey(key string) time.Duration
+}
+type ManualClock struct {
+	// Has unexported fields.
+}
+func NewManualClock(at time.Time) *ManualClock
+func (c *ManualClock) Advance(d time.Duration)
+func (c *ManualClock) NewTimer(d time.Duration) Timer
+func (c *ManualClock) Now() time.Time
+func (c *ManualClock) Pending() int
+func (c *ManualClock) Set(at time.Time)
+type Metrics struct {
+	// Clock decides the LastRequestTime a snapshot reports. A nil Clock means
+	// the wall clock, so the zero value stays usable; set it to a ManualClock
+	// to assert on the timestamp instead of tolerating it.
+	//
+	// It is not consulted for durations. Observation.Duration is how long real
+	// work actually took, measured by whoever called the endpoint — a clock
+	// that could shorten it would make a recorder report something untrue
+	// about the system.
+	//
+	// Stable: endpoint.metrics-clock — the timestamp a snapshot reports comes from the configured clock; recorded durations are measured, never decided.
+	// Covered by: TestMetricsObserveUsesTheConfiguredClock
+	Clock Clock
+	// Has unexported fields.
+}
+func (m *Metrics) Observe(_ context.Context, obs Observation)
+func (m *Metrics) Operations() []string
+func (m *Metrics) Snapshot() MetricsSnapshot
+func (m *Metrics) SnapshotFor(operation string) MetricsSnapshot
+type MetricsSnapshot struct {
+	RequestCount    int64
+	ErrorCount      int64
+	SuccessCount    int64
+	TotalDuration   time.Duration
+	LastRequestTime time.Time
+}
+func (m MetricsSnapshot) AverageDuration() time.Duration
+type Middleware func(Endpoint) Endpoint
+func BackpressureMiddleware(max int64) Middleware
+func BulkheadMiddleware(maxPerKey int, key func(request any) string) Middleware
+func Chain(outer Middleware, others ...Middleware) Middleware
+func DelayKeyedRateLimitMiddleware(limit KeyedRateLimiter, key RateLimitKeyFunc) Middleware
+func DelayRateLimitMiddleware(limit RateLimiter) Middleware
+func ErrorHandlingMiddleware(operation string) Middleware
+func FailerMiddleware() Middleware
+func Fallback(fallback Endpoint) Middleware
+func InFlightMiddleware(max int64, counter *int64) Middleware
+func KeyedRateLimitMiddleware(limit KeyedRateLimiter, key RateLimitKeyFunc) Middleware
+func MetricsMiddleware(metrics *Metrics) Middleware
+func RateLimitMiddleware(limit RateLimiter) Middleware
+func RecordingMiddleware(operation string, recorders ...Recorder) Middleware
+func RecoveryMiddleware(handler PanicHandler) Middleware
+func RetryMiddleware(maxAttempts int, options ...RetryOption) Middleware
+func TimeoutMiddleware(d time.Duration) Middleware
+func TracingMiddleware() Middleware
+func ValidationMiddleware() Middleware
+type Observation struct {
+	// Operation names the endpoint, for example the route pattern. It is the
+	// label dimension a metrics backend groups by. Empty means unlabeled.
+	Operation string
+	// Duration is how long the call took, including the middleware inside the
+	// recording middleware.
+	Duration time.Duration
+	// Err is the endpoint error, or nil on success.
+	Err error
+}
+type PanicHandler func(ctx context.Context, request any, recovered any) error
+type RateLimitKeyFunc func(ctx context.Context, request any) string
+type RateLimiter interface {
+	// Allow reports whether a request may proceed immediately.
+	Allow() bool
+	// Wait blocks until a request may proceed or the context is cancelled.
+	Wait(ctx context.Context) error
+}
+type RateLimiterFuncs struct {
+	AllowFn func() bool
+	WaitFn  func(ctx context.Context) error
+}
+func (f RateLimiterFuncs) Allow() bool
+func (f RateLimiterFuncs) Wait(ctx context.Context) error
+type Recorder interface {
+	Observe(ctx context.Context, obs Observation)
+}
+type RecorderFunc func(ctx context.Context, obs Observation)
+func (f RecorderFunc) Observe(ctx context.Context, obs Observation)
+type RetryAfterError struct {
+	// Err is the wrapped error.
+	Err error
+	// After is the wait before a retry may succeed.
+	After time.Duration
+}
+func (e *RetryAfterError) Error() string
+func (e *RetryAfterError) RetryAfter() time.Duration
+func (e *RetryAfterError) Unwrap() error
+type RetryAfterReporter interface {
+	// RetryAfter reports the wait before a retry may succeed. A non-positive
+	// value means the delay is unknown and no hint is emitted.
+	RetryAfter() time.Duration
+}
+type RetryOption func(*retrySettings)
+func WithRetryBackoff(backoff func(attempt int) time.Duration) RetryOption
+func WithRetryClock(clock Clock) RetryOption
+func WithRetryable(retryable func(error) bool) RetryOption
+type SpanID string
+type Timer interface {
+	// C receives once when the wait is due.
+	C() <-chan time.Time
+	// Stop cancels the wait, reporting whether it was still pending.
+	Stop() bool
+}
+type TraceContext struct {
+	TraceID string
+	SpanID  string
+	Flags   string
+}
+func NewTraceContext() TraceContext
+func ParseTraceparent(header string) (TraceContext, bool)
+func TraceContextFromContext(ctx context.Context) TraceContext
+func (tc TraceContext) String() string
+func (tc TraceContext) Valid() bool
+type TraceID string
+func TraceIDFromContext(ctx context.Context) TraceID
+type TypeAssertError struct {
+	// Got is the value that failed the assertion.
+	Got any
+	// Want is the type the endpoint expected. It records a type rather than a
+	// zero value so interface and pointer targets still report a usable name.
+	Want reflect.Type
+}
+func NewTypeAssertError[Want any](got any) *TypeAssertError
+func (e *TypeAssertError) Error() string
+type TypedEndpoint[Req, Resp any] func(ctx context.Context, req Req) (Resp, error)
+func Unwrap[Req, Resp any](ep Endpoint) TypedEndpoint[Req, Resp]
+func (te TypedEndpoint[Req, Resp]) Wrap() Endpoint
+type Validatable interface {
+	Validate() error
+}
+type ValidationError struct {
+	Fields []FieldError
+}
+func NewValidationError(field, reason string) *ValidationError
+func (e *ValidationError) Add(field, reason string) *ValidationError
+func (e *ValidationError) Error() string
+func (e *ValidationError) ErrorKindName() string
+
+## github.com/dreamsxin/go-kit/v2/health
+package health // import "github.com/dreamsxin/go-kit/v2/health"
+CONSTANTS
+const (
+	StatusOK          = "ok"
+	StatusUnavailable = "unavailable"
+)
+const DefaultTimeout = 2 * time.Second
+FUNCTIONS
+func Healthy(context.Context) error
+TYPES
+type Check func(context.Context) error
+type CheckResult struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+}
+type Option func(*Registry)
+func WithRequestCount(count func() int64) Option
+func WithTimeout(timeout time.Duration) Option
+type Paths struct {
+	All       string
+	Liveness  string
+	Readiness string
+}
+func DefaultPaths() Paths
+type Registry struct {
+	// Has unexported fields.
+}
+func NewRegistry(options ...Option) *Registry
+func (r *Registry) AddLiveness(name string, check Check) error
+func (r *Registry) AddReadiness(name string, check Check) error
+func (r *Registry) Handler(scope Scope) http.Handler
+func (r *Registry) Mount(mux *http.ServeMux, paths Paths)
+func (r *Registry) Report(ctx context.Context, scope Scope) Report
+type Report struct {
+	Status string `json:"status"`
+	// Requests is the number of requests the process has served, when the
+	// assembly supplied a counter through WithRequestCount. It gives an
+	// operator reading a probe response one number that says the process is
+	// doing work rather than merely answering.
+	Requests *int64        `json:"requests,omitempty"`
+	Checks   []CheckResult `json:"checks,omitempty"`
+}
+type Scope int
+const (
+	// ScopeAll covers liveness and readiness together.
+	ScopeAll Scope = iota
+	// ScopeLiveness covers liveness checks only.
+	ScopeLiveness
+	// ScopeReadiness covers readiness checks only.
+	ScopeReadiness
+)
+
+## github.com/dreamsxin/go-kit/v2/integrations/consul
+package consul // import "github.com/dreamsxin/go-kit/v2/integrations/consul"
+TYPES
+type Client interface {
+	// Register a service with the local agent.
+	Register(r *consul.AgentServiceRegistration) error
+	// Deregister a service with the local agent.
+	Deregister(r *consul.AgentServiceRegistration) error
+	// Service
+	Service(service, tag string, passingOnly bool, queryOpts *consul.QueryOptions) ([]*consul.ServiceEntry, *consul.QueryMeta, error)
+}
+func NewClient(c *consul.Client) Client
+type Event = sd.Event
+type Instance = sd.Instance
+type Instancer struct {
+	// Has unexported fields.
+}
+func NewInstancer(client Client, logger *slog.Logger, service string, passingOnly bool, options ...InstancerOption) *Instancer
+func (s *Instancer) Close() error
+func (s *Instancer) Deregister(ch chan Event)
+func (s *Instancer) Register(ch chan Event) Event
+func (s *Instancer) Stop()
+type InstancerOption func(*Instancer)
+func TagsInstancerOptions(tags []string) InstancerOption
+type Registrar struct {
+	// Has unexported fields.
+}
+func NewRegistrar(client Client, logger *slog.Logger, name string, address string, port int, options ...RegistrarOption) *Registrar
+func (p *Registrar) Deregister() error
+func (p *Registrar) Register() error
+type RegistrarOption func(*Registrar)
+func CheckRegistrarOptions(check *stdconsul.AgentServiceCheck) RegistrarOption
+func IDRegistrarOptions(id string) RegistrarOption
+func MetaRegistrarOptions(meta map[string]string) RegistrarOption
+func NamespaceRegistrarOptions(namespace string) RegistrarOption
+func TagsRegistrarOptions(tags []string) RegistrarOption
+
+## github.com/dreamsxin/go-kit/v2/integrations/etcd
+package etcd // import "github.com/dreamsxin/go-kit/v2/integrations/etcd"
+CONSTANTS
+const DefaultNamespace = "/services"
+const DefaultRequestTimeout = 5 * time.Second
+const DefaultTTL = 15 * time.Second
+TYPES
+type Client interface {
+	// Entries returns every key/value under prefix and the store revision they
+	// were read at.
+	Entries(ctx context.Context, prefix string) (map[string]string, int64, error)
+	// Watch reports changes under prefix starting at revision. Each receive
+	// means "the set may have changed"; the caller re-reads. The channel is
+	// closed when the watch ends, whether because ctx ended or because etcd
+	// dropped it.
+	Watch(ctx context.Context, prefix string, revision int64) (<-chan struct{}, error)
+	// Register writes key with value under a lease of ttl and keeps that lease
+	// alive until ctx ends. The returned channel is closed once the
+	// registration is no longer being kept alive — a lost lease, a restarted
+	// cluster — so the caller can register again instead of silently vanishing
+	// from discovery.
+	//
+	// conflict decides what happens when the key already exists: it is written
+	// unconditionally, only while absent, or only while absent or unchanged
+	// since this Client last wrote it. The latter two report sd.ErrConflict
+	// instead of taking a key another writer holds.
+	Register(ctx context.Context, key, value string, ttl time.Duration, conflict sd.Conflict) (lost <-chan struct{}, err error)
+	// Deregister removes key.
+	Deregister(ctx context.Context, key string) error
+}
+func NewClient(etcd *clientv3.Client, options ...ClientOption) Client
+type ClientOption func(*client)
+func WithRequestTimeout(timeout time.Duration) ClientOption
+type Event = sd.Event
+type Instance = sd.Instance
+type Instancer struct {
+	// Has unexported fields.
+}
+func NewInstancer(client Client, logger *slog.Logger, service string, options ...InstancerOption) *Instancer
+func (s *Instancer) Close() error
+func (s *Instancer) Deregister(ch chan Event)
+func (s *Instancer) Register(ch chan Event) Event
+func (s *Instancer) Stop()
+type InstancerOption func(*Instancer)
+func NamespaceInstancerOptions(namespace string) InstancerOption
+type Registrar struct {
+	// Has unexported fields.
+}
+func NewRegistrar(client Client, logger *slog.Logger, service, address string, port int, options ...RegistrarOption) *Registrar
+func (r *Registrar) Deregister() error
+func (r *Registrar) Register() error
+type RegistrarOption func(*Registrar)
+func ConflictRegistrarOptions(conflict sd.Conflict) RegistrarOption
+func IDRegistrarOptions(id string) RegistrarOption
+func MetaRegistrarOptions(meta map[string]string) RegistrarOption
+func NamespaceRegistrarOptions(namespace string) RegistrarOption
+func TTLRegistrarOptions(ttl time.Duration) RegistrarOption
+
+## github.com/dreamsxin/go-kit/v2/integrations/grpc
+package grpc // import "github.com/dreamsxin/go-kit/v2/integrations/grpc"
+CONSTANTS
+const TraceparentKey = "traceparent"
+const (
+	ContextKeyRequestMethod contextKey = iota
+	// Its value is of type metadata.MD.
+	ContextKeyResponseHeaders
+	// Its value is of type metadata.MD.
+	ContextKeyResponseTrailers
+)
+FUNCTIONS
+func ClassifyError(err error) error
+func ExtractTraceparent(ctx context.Context, md metadata.MD) context.Context
+func InjectTraceparent(ctx context.Context, md *metadata.MD) context.Context
+func KindNameForCode(code codes.Code) string
+func Retryable(err error) bool
+func TraceparentStreamServerInterceptor() grpc.StreamServerInterceptor
+func TraceparentUnaryClientInterceptor() grpc.UnaryClientInterceptor
+func TraceparentUnaryServerInterceptor() grpc.UnaryServerInterceptor
+TYPES
+type StatusError struct {
+	// Has unexported fields.
+}
+func (e *StatusError) Code() codes.Code
+func (e *StatusError) Error() string
+func (e *StatusError) ErrorCode() string
+func (e *StatusError) ErrorDomain() string
+func (e *StatusError) ErrorKindName() string
+func (e *StatusError) GRPCStatus() *status.Status
+func (e *StatusError) PublicMessage() string
+func (e *StatusError) RetryAfter() time.Duration
+func (e *StatusError) Retryable() bool
+func (e *StatusError) Unwrap() error
+
+## github.com/dreamsxin/go-kit/v2/integrations/grpc/client
+package client // import "github.com/dreamsxin/go-kit/v2/integrations/grpc/client"
+FUNCTIONS
+func EncodeKeyValue(key, val string) (string, string)
+TYPES
+type Client struct {
+	// Has unexported fields.
+}
+func NewClient(
+	cc *grpc.ClientConn,
+	serviceName string,
+	method string,
+	enc EncodeRequestFunc,
+	dec DecodeResponseFunc,
+	grpcReply any,
+	options ...ClientOption,
+func (c Client) Endpoint() endpoint.Endpoint
+type ClientOption func(*Client)
+func ClientAfter(after ...ResponseFunc) ClientOption
+func ClientBefore(before ...RequestFunc) ClientOption
+func ClientFinalizer(f ...FinalizerFunc) ClientOption
+type DecodeResponseFunc func(context.Context, any) (response any, err error)
+type EncodeRequestFunc func(context.Context, any) (request any, err error)
+type FinalizerFunc func(ctx context.Context, err error)
+type RequestFunc func(context.Context, *metadata.MD) context.Context
+func SetRequestHeader(key, val string) RequestFunc
+type ResponseFunc func(ctx context.Context, header metadata.MD, trailer metadata.MD) context.Context
+
+## github.com/dreamsxin/go-kit/v2/integrations/grpc/server
+package server // import "github.com/dreamsxin/go-kit/v2/integrations/grpc/server"
+FUNCTIONS
+func CodeForError(err error) codes.Code
+func CodeForErrorKind(kind string) codes.Code
+func Interceptor(
+	ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler,
+func RecordingStreamInterceptor(recorders ...Recorder) grpc.StreamServerInterceptor
+func RecordingUnaryInterceptor(recorders ...Recorder) grpc.UnaryServerInterceptor
+TYPES
+type DecodeRequestFunc func(context.Context, any) (request any, err error)
+type EncodeResponseFunc func(context.Context, any) (response any, err error)
+type ErrorEncoder func(ctx context.Context, err error) error
+var DefaultErrorEncoder ErrorEncoder = errorEncoderConfig{}.encode
+func ErrorEncoderWithKindMapper(mapper func(string) codes.Code) ErrorEncoder
+func NewErrorEncoder(options ...ErrorEncoderOption) ErrorEncoder
+type ErrorEncoderOption func(*errorEncoderConfig)
+func WithErrorDomain(domain string) ErrorEncoderOption
+func WithKindMapper(mapper func(string) codes.Code) ErrorEncoderOption
+type FinalizerFunc func(ctx context.Context, err error)
+type Handler interface {
+	ServeGRPC(ctx context.Context, request any) (context.Context, any, error)
+}
+type Observation struct {
+	// Method is the full method name, "/package.Service/Method".
+	Method string
+	// Code is the gRPC status code the server returned. codes.OK is a success.
+	Code codes.Code
+	// Stream reports whether this was a streaming call. A stream's duration is
+	// its whole lifetime, which is a different quantity from a unary latency and
+	// should not be averaged together with one.
+	Stream bool
+	// Duration is how long the handler took, measured around it.
+	Duration time.Duration
+}
+type Recorder interface {
+	ObserveGRPC(ctx context.Context, obs Observation)
+}
+type RecorderFunc func(ctx context.Context, obs Observation)
+func (f RecorderFunc) ObserveGRPC(ctx context.Context, obs Observation)
+type RequestFunc func(context.Context, metadata.MD) context.Context
+type ResponseFunc func(ctx context.Context, header *metadata.MD, trailer *metadata.MD) context.Context
+type Server struct {
+	// Has unexported fields.
+}
+func NewServer(
+	e endpoint.Endpoint,
+	dec DecodeRequestFunc,
+	enc EncodeResponseFunc,
+	options ...ServerOption,
+func (s Server) ServeGRPC(ctx context.Context, req any) (retctx context.Context, resp any, err error)
+type ServerOption func(*Server)
+func ServerAfter(after ...ResponseFunc) ServerOption
+func ServerBefore(before ...RequestFunc) ServerOption
+func ServerErrorEncoder(errorEncoder ErrorEncoder) ServerOption
+func ServerErrorHandler(errorHandler transport.ErrorHandler) ServerOption
+func ServerFinalizer(f ...FinalizerFunc) ServerOption
+
+## github.com/dreamsxin/go-kit/v2/integrations/zap
+package zapadapter // import "github.com/dreamsxin/go-kit/v2/integrations/zap"
+FUNCTIONS
+func LoggingMiddleware(logger *zap.Logger, operation string) endpoint.Middleware
+func NewErrorHandler(logger *zap.Logger) transport.ErrorHandler
+
+## github.com/dreamsxin/go-kit/v2/interaction
+package interaction // import "github.com/dreamsxin/go-kit/v2/interaction"
+VARIABLES
+var (
+	ErrNilToolFunc           = errors.New("interaction: nil tool func")
+	ErrNilTool               = errors.New("interaction: nil tool")
+	ErrEmptyToolName         = errors.New("interaction: empty tool name")
+	ErrToolExists            = errors.New("interaction: tool already registered")
+	ErrToolNotFound          = errors.New("interaction: tool not found")
+	ErrSessionNotFound       = errors.New("interaction: session not found")
+	ErrSessionClosed         = errors.New("interaction: session closed")
+	ErrUnauthorized          = errors.New("interaction: unauthorized")
+	ErrResourceNotFound      = errors.New("interaction: resource not found")
+	ErrResourceExists        = errors.New("interaction: resource already registered")
+	ErrPromptNotFound        = errors.New("interaction: prompt not found")
+	ErrPromptExists          = errors.New("interaction: prompt already registered")
+	ErrInvalidArgument       = errors.New("interaction: invalid argument")
+	ErrCompletionUnsupported = errors.New("interaction: completions not supported")
+	// ErrRuntimeNotConfigured reports that a Runtime is missing a component it
+	// cannot work without. Runtime's Sessions, Events, and Tools have no
+	// zero-value behaviour, so a Runtime built without NewRuntime — or one whose
+	// field was assigned nil — reports this instead of panicking on the call.
+	ErrRuntimeNotConfigured = errors.New("interaction: runtime is missing a required component")
+)
+FUNCTIONS
+func InputAnswersFromContext(ctx context.Context) (answers, state map[string]any)
+func WithInputAnswers(ctx context.Context, answers, state map[string]any) context.Context
+TYPES
+type AuditHook struct {
+	Sink AuditSink
+	Now  func() time.Time
+}
+func (h AuditHook) AfterToolCall(ctx context.Context, session Session, call ToolCall, result ToolResult, err error) error
+func (h AuditHook) BeforeToolCall(ctx context.Context, session Session, call ToolCall) error
+type AuditRecord struct {
+	SessionID SessionID
+	Subject   string
+	Tool      string
+	Phase     string
+	Allowed   bool
+	Error     string
+	Metadata  map[string]string
+	At        time.Time
+}
+type AuditSink interface {
+	RecordAudit(ctx context.Context, record AuditRecord) error
+}
+type AuditSinkFunc func(context.Context, AuditRecord) error
+func (f AuditSinkFunc) RecordAudit(ctx context.Context, record AuditRecord) error
+type AuthorizationDecision struct {
+	Allowed  bool
+	Reason   string
+	Metadata map[string]string
+}
+type AuthorizationError struct {
+	Reason string
+}
+func (e AuthorizationError) Error() string
+func (e AuthorizationError) Unwrap() error
+type AuthorizationHook struct {
+	Authorizer Authorizer
+}
+func (h AuthorizationHook) AfterToolCall(context.Context, Session, ToolCall, ToolResult, error) error
+func (h AuthorizationHook) BeforeToolCall(ctx context.Context, session Session, call ToolCall) error
+type Authorizer interface {
+	AuthorizeToolCall(ctx context.Context, session Session, call ToolCall) (AuthorizationDecision, error)
+}
+type AuthorizerFunc func(context.Context, Session, ToolCall) (AuthorizationDecision, error)
+func (f AuthorizerFunc) AuthorizeToolCall(ctx context.Context, session Session, call ToolCall) (AuthorizationDecision, error)
+type CompletionResult struct {
+	Values  []string
+	Total   int
+	HasMore bool
+}
+type Event struct {
+	SessionID SessionID
+	Type      EventType
+	Name      string
+	Payload   any
+	Metadata  map[string]string
+	At        time.Time
+}
+type EventSink interface {
+	Emit(ctx context.Context, event Event) error
+	List(ctx context.Context, id SessionID) ([]Event, error)
+}
+type EventType string
+const (
+	EventSessionStarted EventType = "session.started"
+	EventSessionEnded   EventType = "session.ended"
+	EventToolCall       EventType = "tool.call"
+	EventToolResult     EventType = "tool.result"
+	// EventToolInputRequired reports a call that stopped to ask its caller
+	// something. It is neither a result nor an error: the tool runs again when
+	// the answers arrive.
+	EventToolInputRequired EventType = "tool.input_required"
+	EventError             EventType = "error"
+	EventMessage           EventType = "message"
+)
+type Hook interface {
+	BeforeToolCall(ctx context.Context, session Session, call ToolCall) error
+	AfterToolCall(ctx context.Context, session Session, call ToolCall, result ToolResult, err error) error
+}
+type HookFuncs struct {
+	Before func(context.Context, Session, ToolCall) error
+	After  func(context.Context, Session, ToolCall, ToolResult, error) error
+}
+func (h HookFuncs) AfterToolCall(ctx context.Context, session Session, call ToolCall, result ToolResult, err error) error
+func (h HookFuncs) BeforeToolCall(ctx context.Context, session Session, call ToolCall) error
+type InputRequest struct {
+	Kind   string
+	Params map[string]any
+}
+type InputRequired struct {
+	// Requests are the questions to answer, keyed by an id the tool chooses and
+	// reads back out of the answers.
+	Requests map[string]InputRequest
+	// State is what the tool needs to resume, opaque to the caller.
+	State map[string]any
+}
+func (i *InputRequired) Error() string
+func (i *InputRequired) Kinds() []string
+type MemoryEventSink struct {
+	// MaxEventsPerSession bounds retained history. Zero means unlimited for
+	// callers that explicitly construct the sink value; constructors choose a
+	// bounded default suitable for lightweight services.
+	MaxEventsPerSession int
+	// Has unexported fields.
+}
+func NewMemoryEventSink() *MemoryEventSink
+func NewMemoryEventSinkWithLimit(max int) *MemoryEventSink
+func (s *MemoryEventSink) Emit(ctx context.Context, event Event) error
+func (s *MemoryEventSink) List(ctx context.Context, id SessionID) ([]Event, error)
+type MemoryPromptProvider struct {
+	// Has unexported fields.
+}
+func NewMemoryPromptProvider() *MemoryPromptProvider
+func (p *MemoryPromptProvider) CompleteArgument(ctx context.Context, promptName, argName, partialValue string) (CompletionResult, error)
+func (p *MemoryPromptProvider) GetPrompt(ctx context.Context, name string, args map[string]string) (PromptResult, error)
+func (p *MemoryPromptProvider) ListPrompts(ctx context.Context) ([]Prompt, error)
+func (p *MemoryPromptProvider) Register(prompt Prompt, render func(args map[string]string) (PromptResult, error)) error
+type MemoryResourceProvider struct {
+	// Has unexported fields.
+}
+func NewMemoryResourceProvider() *MemoryResourceProvider
+func (p *MemoryResourceProvider) ListResourceTemplates(ctx context.Context) ([]ResourceTemplate, error)
+func (p *MemoryResourceProvider) ListResources(ctx context.Context) ([]Resource, error)
+func (p *MemoryResourceProvider) ReadResource(ctx context.Context, uri string) ([]ResourceContent, error)
+func (p *MemoryResourceProvider) Register(res Resource, content []ResourceContent) error
+func (p *MemoryResourceProvider) RegisterText(uri, name, text string) error
+func (p *MemoryResourceProvider) SetTemplates(templates []ResourceTemplate)
+type MemorySessionStore struct {
+	// Has unexported fields.
+}
+func NewMemorySessionStore() *MemorySessionStore
+func (s *MemorySessionStore) Close(ctx context.Context, id SessionID) (Session, error)
+func (s *MemorySessionStore) Create(ctx context.Context, subject string, metadata map[string]string) (Session, error)
+func (s *MemorySessionStore) Delete(ctx context.Context, id SessionID) error
+func (s *MemorySessionStore) Get(ctx context.Context, id SessionID) (Session, error)
+type MemoryToolRegistry struct {
+	// Has unexported fields.
+}
+func NewMemoryToolRegistry() *MemoryToolRegistry
+func (r *MemoryToolRegistry) Call(ctx context.Context, call ToolCall) (ToolResult, error)
+func (r *MemoryToolRegistry) Get(name string) (Tool, bool)
+func (r *MemoryToolRegistry) List() []ToolDescriptor
+func (r *MemoryToolRegistry) Register(tool Tool) error
+type Prompt struct {
+	Name        string
+	Title       string
+	Description string
+	Arguments   []PromptArgument
+}
+type PromptArgument struct {
+	Name        string
+	Description string
+	Required    bool
+}
+type PromptCompleter interface {
+	CompleteArgument(ctx context.Context, promptName, argName, partialValue string) (CompletionResult, error)
+}
+type PromptContent struct {
+	Type     string // "text" | "image" | "audio" | "resource"
+	Text     string
+	MIMEType string
+	Data     string // base64 for image/audio, URI for resource
+}
+type PromptMessage struct {
+	Role    string // "user" | "assistant" | "system"
+	Content PromptContent
+}
+type PromptProvider interface {
+	ListPrompts(ctx context.Context) ([]Prompt, error)
+	GetPrompt(ctx context.Context, name string, args map[string]string) (PromptResult, error)
+}
+type PromptResult struct {
+	Description string
+	Messages    []PromptMessage
+}
+type Resource struct {
+	URI         string
+	Name        string
+	Title       string
+	Description string
+	MIMEType    string
+	Size        int64
+	Metadata    map[string]string
+}
+type ResourceContent struct {
+	URI      string
+	MIMEType string
+	Text     string
+	Blob     []byte
+}
+type ResourceProvider interface {
+	ListResources(ctx context.Context) ([]Resource, error)
+	ReadResource(ctx context.Context, uri string) ([]ResourceContent, error)
+}
+type ResourceTemplate struct {
+	URITemplate string
+	Name        string
+	Title       string
+	Description string
+	MIMEType    string
+	Metadata    map[string]string
+}
+type ResourceTemplateLister interface {
+	ListResourceTemplates(ctx context.Context) ([]ResourceTemplate, error)
+}
+type Runtime struct {
+	Sessions  SessionStore
+	Events    EventSink
+	Tools     ToolRegistry
+	Hooks     []Hook
+	Resources ResourceProvider
+	Prompts   PromptProvider
+	// Logger reports every tool call. nil reports nothing; set it through
+	// WithLogger with the logger the request path already uses.
+	Logger *slog.Logger
+	// OnEmitError is called when event emission fails during tool calls.
+	// If nil, emit errors are silently discarded.
+	OnEmitError func(error)
+}
+func NewRuntime() *Runtime
+func (r *Runtime) CallTool(ctx context.Context, call ToolCall) (ToolResult, error)
+func (r *Runtime) CompletePromptArgument(ctx context.Context, promptName, argName, partialValue string) (CompletionResult, error)
+func (r *Runtime) EndSession(ctx context.Context, id SessionID) (Session, error)
+func (r *Runtime) GetPrompt(ctx context.Context, name string, args map[string]string) (PromptResult, error)
+func (r *Runtime) ListPrompts(ctx context.Context) ([]Prompt, error)
+func (r *Runtime) ListResourceTemplates(ctx context.Context) ([]ResourceTemplate, error)
+func (r *Runtime) ListResources(ctx context.Context) ([]Resource, error)
+func (r *Runtime) ListTools() []ToolDescriptor
+func (r *Runtime) ReadResource(ctx context.Context, uri string) ([]ResourceContent, error)
+func (r *Runtime) RegisterPrompt(p Prompt, render func(map[string]string) (PromptResult, error)) error
+func (r *Runtime) RegisterResource(res Resource, content []ResourceContent) error
+func (r *Runtime) RegisterTool(tool Tool) error
+func (r *Runtime) ReleaseSession(ctx context.Context, id SessionID) error
+func (r *Runtime) StartSession(ctx context.Context, subject string, metadata map[string]string) (Session, error)
+func (r *Runtime) WithEvents(sink EventSink) *Runtime
+func (r *Runtime) WithHooks(hooks ...Hook) *Runtime
+func (r *Runtime) WithLogger(logger *slog.Logger) *Runtime
+func (r *Runtime) WithPrompts(provider PromptProvider) *Runtime
+func (r *Runtime) WithResources(provider ResourceProvider) *Runtime
+func (r *Runtime) WithSessions(store SessionStore) *Runtime
+func (r *Runtime) WithTools(registry ToolRegistry) *Runtime
+type Session struct {
+	ID        SessionID
+	Subject   string
+	Metadata  map[string]string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	ClosedAt  time.Time
+}
+func (s Session) Closed() bool
+type SessionDeleter interface {
+	Delete(ctx context.Context, id SessionID) error
+}
+type SessionID string
+type SessionStore interface {
+	Create(ctx context.Context, subject string, metadata map[string]string) (Session, error)
+	Get(ctx context.Context, id SessionID) (Session, error)
+	Close(ctx context.Context, id SessionID) (Session, error)
+}
+type Tool interface {
+	Name() string
+	Call(ctx context.Context, call ToolCall) (ToolResult, error)
+}
+type ToolCall struct {
+	SessionID SessionID
+	Name      string
+	Input     any
+	Metadata  map[string]string
+}
+type ToolDescriber interface {
+	Descriptor() ToolDescriptor
+}
+type ToolDescriptor struct {
+	Name        string
+	Description string
+	InputSchema any
+	Metadata    map[string]string
+}
+type ToolFunc struct {
+	ToolName    string
+	Description string // optional, advertised via tools/list
+	Schema      any    // optional JSON schema for inputs
+	Fn          func(context.Context, ToolCall) (ToolResult, error)
+}
+func (f ToolFunc) Call(ctx context.Context, call ToolCall) (ToolResult, error)
+func (f ToolFunc) Descriptor() ToolDescriptor
+func (f ToolFunc) Name() string
+type ToolLister interface {
+	List() []ToolDescriptor
+}
+type ToolRegistry interface {
+	Register(tool Tool) error
+	Get(name string) (Tool, bool)
+	Call(ctx context.Context, call ToolCall) (ToolResult, error)
+}
+type ToolResult struct {
+	Output   any
+	Metadata map[string]string
+}
+
+## github.com/dreamsxin/go-kit/v2/interaction/mcp
+package mcp // import "github.com/dreamsxin/go-kit/v2/interaction/mcp"
+CONSTANTS
+const (
+	// MethodOpenStream is what a GET presents: open the server-initiated SSE
+	// stream for the session in the Mcp-Session-Id header.
+	MethodOpenStream = "stream/open"
+	// MethodDeleteSession is what a DELETE presents: terminate that session.
+	MethodDeleteSession = "session/delete"
+)
+FUNCTIONS
+func ClientCapabilityFromContext(ctx context.Context, capability string) bool
+func ClientExtensionFromContext(ctx context.Context, name string) (map[string]any, bool)
+func IdentityFromContext(ctx context.Context) (name, version string, ok bool)
+func ListenAndServe(addr string, rt *interaction.Runtime) error
+func MetaFromContext(ctx context.Context) (map[string]any, bool)
+func NotificationMessage(method string, params map[string]any) json.RawMessage
+func RPCCodeForInteractionError(err error) int
+func RuntimeSessionIDFromContext(ctx context.Context) string
+func Serve(ctx context.Context, addr string, rt *interaction.Runtime) error
+func SessionIDFromContext(ctx context.Context) string
+func ErrorMapperForInteraction(err error) *rpcError
+TYPES
+type CreateMessageRequest struct {
+	Messages         []SamplingMessage `json:"messages"`
+	ModelPreferences *ModelPreferences `json:"modelPreferences,omitempty"`
+	SystemPrompt     string            `json:"systemPrompt,omitempty"`
+	IncludeContext   string            `json:"includeContext,omitempty"` // "none"|"thisServer"|"allServers"
+	Temperature      float64           `json:"temperature,omitempty"`
+	MaxTokens        int               `json:"maxTokens"`
+	StopSequences    []string          `json:"stopSequences,omitempty"`
+	Metadata         map[string]any    `json:"metadata,omitempty"`
+}
+type CreateMessageResult struct {
+	Role       string          `json:"role"`
+	Content    SamplingContent `json:"content"`
+	Model      string          `json:"model"`
+	StopReason string          `json:"stopReason,omitempty"` // "endTurn"|"stopSequence"|"maxTokens"
+}
+type Extension struct {
+	// Name is the extension id: a reverse-DNS vendor prefix, a slash, and the
+	// extension's own name — "vendor.example/audit". The
+	// "io.modelcontextprotocol/" prefix is the specification's and is refused
+	// here.
+	Name string
+	// Version is the extension's own version, which moves independently of the
+	// protocol revision. It is required: an extension without one cannot be
+	// depended on by a client that must decide whether it understands this one.
+	Version string
+	// Config is the extension's configuration object, reported verbatim beside
+	// its version so a client can read what this deployment enabled. It is
+	// optional, and the extension defines its schema.
+	Config map[string]any
+	// Methods are the JSON-RPC methods the extension adds, each keyed by its
+	// full name, which must begin with the extension id and a slash. A method
+	// answers requests only: a notification carries no id to answer and is
+	// acknowledged by the transport without reaching an extension.
+	Methods map[string]ExtensionMethod
+}
+type ExtensionMethod func(ctx context.Context, params json.RawMessage) (any, error)
+type MethodAuthorizer interface {
+	AuthorizeMethod(ctx context.Context, req MethodRequest) error
+}
+type MethodAuthorizerFunc func(context.Context, MethodRequest) error
+func (f MethodAuthorizerFunc) AuthorizeMethod(ctx context.Context, req MethodRequest) error
+type MethodRequest struct {
+	// Method is the JSON-RPC method, for example "tools/call". It is the name
+	// the server would dispatch, so a policy keyed on it cannot be bypassed by
+	// a header that says something else.
+	//
+	// For the two operations that are not JSON-RPC calls it is MethodOpenStream
+	// or MethodDeleteSession.
+	Method string
+	// Target names the tool, prompt, or resource the method addresses, and is
+	// empty for the methods that address the server itself.
+	Target string
+	// ProtocolVersion is the revision the request selected.
+	ProtocolVersion string
+	// ClientName and ClientVersion are what a 2026-07-28 request declared in
+	// _meta. Both are empty on 2025-06-18, which carries client identity in the
+	// handshake rather than in the request, and both are self-reported: they
+	// identify software, not a principal.
+	ClientName    string
+	ClientVersion string
+	// SessionID is the 2025-06-18 transport session the request presented, and
+	// is empty on 2026-07-28, which has no sessions.
+	SessionID string
+	// Header is the request's HTTP header, where credentials, tenant hints and
+	// tracing identifiers live. Treat it as read-only.
+	Header http.Header
+}
+type ModelHint struct {
+	Name string `json:"name,omitempty"`
+}
+type ModelPreferences struct {
+	Hints                []ModelHint `json:"hints,omitempty"`
+	CostPriority         float64     `json:"costPriority,omitempty"`
+	SpeedPriority        float64     `json:"speedPriority,omitempty"`
+	IntelligencePriority float64     `json:"intelligencePriority,omitempty"`
+}
+type Sampler struct {
+	// Has unexported fields.
+}
+func NewSampler() *Sampler
+func (s *Sampler) CreateMessage(ctx context.Context, sessionID string, req CreateMessageRequest, sendFn func(json.RawMessage) error) (CreateMessageResult, error)
+func (s *Sampler) DeliverResponse(sessionID string, idStr string, result CreateMessageResult) (ok bool)
+func (s *Sampler) RegisterSession(sessionID string)
+func (s *Sampler) UnregisterSession(sessionID string)
+type SamplingContent struct {
+	Type     string `json:"type"`               // "text" | "image" | "audio"
+	Text     string `json:"text,omitempty"`     // for text
+	Data     string `json:"data,omitempty"`     // base64 for image/audio
+	MIMEType string `json:"mimeType,omitempty"` // for image/audio
+}
+type SamplingMessage struct {
+	Role    string          `json:"role"`    // "user" | "assistant"
+	Content SamplingContent `json:"content"` // text, image, or audio
+}
+type StreamableHandler struct {
+	Sampler *Sampler
+	// SessionTTL configures how long a session may remain idle before being
+	// automatically expired. When zero, sessions are never expired.
+	SessionTTL time.Duration
+	// MaxPostBodyBytes caps Streamable HTTP POST payloads. When zero, a safe
+	// default is used.
+	MaxPostBodyBytes int64
+	// AllowedOrigins permits browser clients from the listed origins. A request
+	// with no Origin header is allowed: it did not come from a browser, so there
+	// is no browser-imposed origin to check.
+	AllowedOrigins []string
+	// TrustRequestHost allows an Origin that matches the request's own Host
+	// header.
+	//
+	// It is off by default, and it is a seam rather than a convenience because
+	// Host is supplied by the caller. Trusting it defeats the attack Origin
+	// validation exists to stop for a locally bound MCP server: under DNS
+	// rebinding a browser sends Origin: http://evil.example and
+	// Host: evil.example, and comparing one against the other says yes. Nothing
+	// in the request can establish that the request came from where it claims.
+	//
+	// Turn it on where the deployment knows Host is trustworthy — a reverse proxy
+	// that overwrites it, or a network where no browser can reach the server —
+	// and leave it off otherwise. The alternative that always works is naming the
+	// origins in AllowedOrigins.
+	//
+	// Stable: mcp.request-host-is-not-trusted-by-default — an Origin is checked against AllowedOrigins only, unless the deployment opts into trusting the request's own Host.
+	// Covered by: TestOriginMatchingTheRequestHostIsRefusedByDefault, TestTrustRequestHostAllowsTheSameOrigin
+	TrustRequestHost bool
+	// MaxSessions caps concurrently active MCP sessions. When zero, a safe
+	// default of 10000 is used. Set it explicitly for a smaller deployment.
+	MaxSessions int
+	// ListCacheTTL and ListCacheScope are the caching contract 2026-07-28
+	// results carry. The scope defaults to "private" because a catalog may be
+	// authorization-filtered; widen it to "public" when it is not.
+	ListCacheTTL   time.Duration
+	ListCacheScope string
+	// RequestStateKey authenticates the requestState an input_required result
+	// hands to the caller. With a key set, a state that was edited or that has
+	// expired is refused; without one, the state is accepted as the caller
+	// returns it and a tool must validate it like any other client input.
+	//
+	// Every instance serving the same address needs the same key: a stateless
+	// deployment answers a resumed call on whichever instance takes it.
+	RequestStateKey []byte
+	// RequestStateTTL bounds how long a signed requestState may be replayed.
+	// When zero, five minutes.
+	RequestStateTTL time.Duration
+	// Authorizer decides which callers may reach which methods. It is the
+	// deployment's policy, not the framework's: when nil, every implemented
+	// method is served. See authorization.go for how it relates to
+	// security.Middleware and interaction.Authorizer.
+	Authorizer MethodAuthorizer
+	// Has unexported fields.
+}
+func NewHTTPServer(addr string, rt *interaction.Runtime) (*http.Server, *StreamableHandler)
+func NewHandler(rt *interaction.Runtime) *StreamableHandler
+func NewStreamableHandler(runtime *interaction.Runtime) *StreamableHandler
+func ServeStreamable(addr string, rt *interaction.Runtime) (*StreamableHandler, error)
+func (h *StreamableHandler) Close() error
+func (h *StreamableHandler) LogNotification(sessionID string, level string, data string, logger string) error
+func (h *StreamableHandler) ProgressNotification(sessionID string, progressToken any, progress, total float64) error
+func (h *StreamableHandler) PromptListChangedNotification(sessionID string) error
+func (h *StreamableHandler) RegisterExtension(ext Extension) error
+func (h *StreamableHandler) ResourceListChangedNotification(sessionID string) error
+func (h *StreamableHandler) ResourceUpdatedNotification(sessionID string, uri string) error
+func (h *StreamableHandler) SendSamplingRequest(ctx context.Context, sessionID string, req CreateMessageRequest) (CreateMessageResult, error)
+func (h *StreamableHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
+func (h *StreamableHandler) Shutdown(ctx context.Context) error
+func (h *StreamableHandler) StartCleanup()
+func (h *StreamableHandler) StopCleanup()
+func (h *StreamableHandler) ToolListChangedNotification(sessionID string) error
+
+## github.com/dreamsxin/go-kit/v2/kit
+package kit // import "github.com/dreamsxin/go-kit/v2/kit"
+CONSTANTS
+const DefaultHealthCheckTimeout = health.DefaultTimeout
+const DefaultJSONMaxBodyBytes = httpserver.DefaultMaxJSONBodyBytes
+const DefaultRegistrarName = "registrar"
+const DefaultShutdownTimeout = 10 * time.Second
+const DefaultTLSMinVersion = tls.VersionTLS12
+const MaxRequestIDLength = transporthttp.MaxRequestIDLength
+VARIABLES
+var ErrDraining = errors.New("kit: process is draining")
+var ErrShutdownIncomplete = errors.New("kit: graceful shutdown did not finish")
+FUNCTIONS
+func DefaultProbePaths() health.Paths
+func DefaultRequestIDValidator(id string) bool
+func HandleJSON[Req any](
+	h *HTTP,
+	pattern string,
+	handler func(ctx context.Context, req Req) (any, error),
+	options ...httpserver.ServerOption,
+)
+func HandleJSONEndpoint[Req any](
+	h *HTTP,
+	pattern string,
+	ep endpoint.Endpoint,
+	options ...httpserver.ServerOption,
+)
+func HandleJSONEndpointWithBodyLimit[Req any](
+	h *HTTP,
+	pattern string,
+	ep endpoint.Endpoint,
+	maxBodyBytes int64,
+	options ...httpserver.ServerOption,
+)
+func HandleJSONTyped[Req, Resp any](
+	h *HTTP,
+	pattern string,
+	handler func(ctx context.Context, req Req) (Resp, error),
+	options ...httpserver.ServerOption,
+)
+func HandleJSONTypedWithBodyLimit[Req, Resp any](
+	h *HTTP,
+	pattern string,
+	handler func(ctx context.Context, req Req) (Resp, error),
+	maxBodyBytes int64,
+	options ...httpserver.ServerOption,
+)
+func HandleJSONTypedWithMiddleware[Req, Resp any](
+	h *HTTP,
+	pattern string,
+	handler func(ctx context.Context, req Req) (Resp, error),
+	middleware func(*endpoint.Builder) *endpoint.Builder,
+	options ...httpserver.ServerOption,
+)
+func HandleJSONWithMiddleware[Req any](
+	h *HTTP,
+	pattern string,
+	handler func(ctx context.Context, req Req) (any, error),
+	middleware func(*endpoint.Builder) *endpoint.Builder,
+	options ...httpserver.ServerOption,
+)
+func HandleSSETyped[Req any](
+	h *HTTP,
+	pattern string,
+	stream func(ctx context.Context, req Req, w *httpserver.SSEStream) error,
+	dec func(*http.Request) (Req, error),
+	opts ...httpserver.ServerOption,
+)
+func Healthy(ctx context.Context) error
+func JSON[Req any](handler func(ctx context.Context, req Req) (any, error)) http.Handler
+func JSONTyped[Req, Resp any](handler func(ctx context.Context, req Req) (Resp, error)) http.Handler
+func NewJSONHandler[Req any](handler func(ctx context.Context, req Req) (any, error)) http.Handler
+func NewJSONTypedHandler[Req, Resp any](handler func(ctx context.Context, req Req) (Resp, error)) http.Handler
+func Stopping(ctx context.Context) <-chan struct{}
+func WithStopping(ctx context.Context, stopping <-chan struct{}) context.Context
+TYPES
+type CertificateFiles struct {
+	// Has unexported fields.
+}
+func NewCertificateFiles(certFile, keyFile string) (*CertificateFiles, error)
+func (f *CertificateFiles) Certificate(*tls.ClientHelloInfo) (*tls.Certificate, error)
+func (f *CertificateFiles) Paths() (certFile, keyFile string)
+func (f *CertificateFiles) Reload() error
+type CertificateSource interface {
+	Certificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error)
+}
+type CertificateSourceFunc func(hello *tls.ClientHelloInfo) (*tls.Certificate, error)
+func (fn CertificateSourceFunc) Certificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error)
+type Draining interface {
+	Drain(ctx context.Context) error
+}
+type HTTP struct {
+	// Has unexported fields.
+}
+func MustNewHTTP(addr string, opts ...Option) *HTTP
+func NewHTTP(addr string, opts ...Option) (*HTTP, error)
+func (h *HTTP) Addr() string
+func (h *HTTP) Drain(context.Context) error
+func (h *HTTP) Errors() <-chan error
+func (h *HTTP) Handle(pattern string, handler http.Handler)
+func (h *HTTP) HandleFunc(pattern string, fn http.HandlerFunc)
+func (h *HTTP) HandleSSE(pattern string, handler http.Handler)
+func (h *HTTP) Name() string
+func (h *HTTP) Probes() *health.Registry
+func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request)
+func (h *HTTP) ServesTLS() bool
+func (h *HTTP) Shutdown(ctx context.Context) error
+func (h *HTTP) Start() error
+type HTTPServerConfig struct {
+	ReadHeaderTimeout time.Duration
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
+	IdleTimeout       time.Duration
+	MaxHeaderBytes    int
+}
+func DefaultHTTPServerConfig() HTTPServerConfig
+type HealthCheck = health.Check
+type Host struct {
+	// Has unexported fields.
+}
+func MustNewHost(opts ...HostOption) *Host
+func NewHost(opts ...HostOption) (*Host, error)
+func (h *Host) Drain(ctx context.Context) error
+func (h *Host) Draining() bool
+func (h *Host) Errors() <-chan error
+func (h *Host) Run(ctx context.Context) error
+func (h *Host) Shutdown(ctx context.Context) error
+func (h *Host) Start() error
+type HostOption func(*Host) error
+func WithDrainDelay(delay time.Duration) HostOption
+func WithLifecycle(components ...Lifecycle) HostOption
+func WithRegistrar(registrar sd.Registrar, options ...RegistrarOption) HostOption
+func WithShutdownTimeout(timeout time.Duration) HostOption
+type Lifecycle interface {
+	Start() error
+	Errors() <-chan error
+	Shutdown(context.Context) error
+}
+type NamedLifecycle interface {
+	Lifecycle
+	Name() string
+}
+func RegistrarLifecycle(registrar sd.Registrar, options ...RegistrarOption) (NamedLifecycle, error)
+type Option func(*HTTP) error
+func WithEndpointMiddleware(middlewares ...endpoint.Middleware) Option
+func WithHTTPMiddleware(middlewares ...func(http.Handler) http.Handler) Option
+func WithHTTPRecorder(recorders ...httpserver.Recorder) Option
+func WithHTTPServerConfig(config HTTPServerConfig) Option
+func WithHealthCheckTimeout(timeout time.Duration) Option
+func WithJSONMaxBodyBytes(maxBodyBytes int64) Option
+func WithJSONServerOptions(opts ...httpserver.ServerOption) Option
+func WithLivenessCheck(name string, check HealthCheck) Option
+func WithMetrics(m *endpoint.Metrics) Option
+func WithProbePaths(paths health.Paths) Option
+func WithReadinessCheck(name string, check HealthCheck) Option
+func WithRecorder(recorders ...endpoint.Recorder) Option
+func WithRequestID() Option
+func WithRequestIDValidator(validator RequestIDValidator) Option
+func WithTLS(certFile, keyFile string) Option
+func WithTLSCertificateSource(source CertificateSource) Option
+func WithTLSConfig(config *tls.Config) Option
+func WithTimeout(d time.Duration) Option
+func WithoutProbes() Option
+type ReadinessProvider interface {
+	Ready(ctx context.Context) error
+}
+type ReadinessSink interface {
+	Probes() *health.Registry
+}
+type RegistrarOption func(*registrarLifecycle)
+func WithRegistrarName(name string) RegistrarOption
+type RequestIDValidator = transporthttp.RequestIDValidator
+
+## github.com/dreamsxin/go-kit/v2/kit/grpc
+package grpc // import "github.com/dreamsxin/go-kit/v2/kit/grpc"
+CONSTANTS
+const HealthWatchInterval = time.Second
+TYPES
+type Component struct {
+	// Has unexported fields.
+}
+func MustNew(addr string, options ...googlegrpc.ServerOption) *Component
+func New(addr string, options ...googlegrpc.ServerOption) (*Component, error)
+func (c *Component) Addr() net.Addr
+func (c *Component) Drain(context.Context) error
+func (c *Component) Errors() <-chan error
+func (c *Component) Probes() *health.Registry
+func (c *Component) Server() *googlegrpc.Server
+func (c *Component) Shutdown(ctx context.Context) error
+func (c *Component) Start() error
+
+## github.com/dreamsxin/go-kit/v2/observability/metrics
+package metrics // import "github.com/dreamsxin/go-kit/v2/observability/metrics"
+CONSTANTS
+const ContentType = "text/plain; version=0.0.4; charset=utf-8"
+const DefaultNamespace = "endpoint"
+FUNCTIONS
+func HTTPRecorder(collector *endpoint.Metrics) httpserver.Recorder
+func Handler(source Source, opts ...Option) http.Handler
+func Write(w io.Writer, source Source, opts ...Option) error
+TYPES
+type Option func(*exposition)
+func WithNamespace(namespace string) Option
+type Source interface {
+	Snapshot() endpoint.MetricsSnapshot
+	SnapshotFor(operation string) endpoint.MetricsSnapshot
+	Operations() []string
+}
+
+## github.com/dreamsxin/go-kit/v2/observability/metrics/grpc
+package grpc // import "github.com/dreamsxin/go-kit/v2/observability/metrics/grpc"
+FUNCTIONS
+func Recorder(collector *endpoint.Metrics) grpcserver.Recorder
+
+## github.com/dreamsxin/go-kit/v2/observability/otel
+package oteladapter // import "github.com/dreamsxin/go-kit/v2/observability/otel"
+CONSTANTS
+const AllSignals = SignalTraces | SignalMetrics
+FUNCTIONS
+func TracingMiddleware(tracer trace.Tracer, operation string, options ...TraceOption) endpoint.Middleware
+TYPES
+type Config struct {
+	// ServiceName is the service.name resource attribute. Required: telemetry
+	// without it cannot be attributed to a service by any backend.
+	ServiceName string
+	// ServiceVersion is the service.version resource attribute.
+	ServiceVersion string
+	// Environment is the deployment.environment.name resource attribute, for
+	// example "production".
+	Environment string
+	// ResourceAttributes adds application-owned resource attributes.
+	ResourceAttributes []attribute.KeyValue
+	// Signals selects the signals to assemble. The zero value assembles all.
+	Signals Signals
+	// Endpoint is the OTLP collector endpoint: "host:port" for ProtocolGRPC,
+	// "host:port" or a base URL for ProtocolHTTP. Empty defers to the
+	// OTEL_EXPORTER_OTLP_ENDPOINT environment variable, and then to the
+	// protocol's default localhost port.
+	Endpoint string
+	// Protocol selects the OTLP protocol. Empty means ProtocolGRPC.
+	Protocol Protocol
+	// Insecure sends OTLP without TLS. Use it for a collector on localhost or
+	// inside a pod; a collector reached across a network should keep TLS.
+	Insecure bool
+	// Headers are sent with every OTLP request, for a collector or vendor
+	// endpoint that authenticates.
+	Headers map[string]string
+	// SampleRatio is the fraction of traces to sample, applied to root spans
+	// only: a sampled parent keeps its children. Values <= 0 or >= 1 sample
+	// every trace.
+	SampleRatio float64
+	// MetricInterval is how often metrics are exported. Zero uses the SDK
+	// default, which is also what OTEL_METRIC_EXPORT_INTERVAL configures.
+	MetricInterval time.Duration
+	// SpanExporter replaces the OTLP span exporter. Set it to export
+	// somewhere else, or to a recording exporter in a test.
+	SpanExporter sdktrace.SpanExporter
+	// MetricReader replaces the OTLP periodic reader. Set it to export
+	// somewhere else, for example a Prometheus reader that a scrape endpoint
+	// serves.
+	MetricReader sdkmetric.Reader
+}
+type HTTPMetrics struct {
+	// Has unexported fields.
+}
+func NewHTTPMetrics(meter metric.Meter, options ...MetricsOption) (*HTTPMetrics, error)
+func (m *HTTPMetrics) ObserveHTTP(ctx context.Context, obs httpserver.Observation)
+type Metrics struct {
+	// Has unexported fields.
+}
+func NewMetrics(meter metric.Meter, options ...MetricsOption) (*Metrics, error)
+func (m *Metrics) Middleware(operation string) endpoint.Middleware
+func (m *Metrics) Observe(ctx context.Context, obs endpoint.Observation)
+type MetricsOption func(*metricsOptions)
+func WithMetricAttributes(attributes ...attribute.KeyValue) MetricsOption
+type Protocol string
+const (
+	// ProtocolGRPC exports OTLP over gRPC, the default, on port 4317.
+	ProtocolGRPC Protocol = "grpc"
+	// ProtocolHTTP exports OTLP over HTTP with protobuf payloads, on port 4318.
+	ProtocolHTTP Protocol = "http/protobuf"
+)
+type Providers struct {
+	// TracerProvider is the assembled tracer provider, or a no-op provider
+	// when traces were not selected.
+	TracerProvider trace.TracerProvider
+	// MeterProvider is the assembled meter provider, or a no-op provider when
+	// metrics were not selected.
+	MeterProvider metric.MeterProvider
+	// Resource is the resource every signal is attributed to.
+	Resource *resource.Resource
+	// Has unexported fields.
+}
+func Setup(ctx context.Context, cfg Config) (*Providers, error)
+func (p *Providers) Meter() metric.Meter
+func (p *Providers) Shutdown(ctx context.Context) error
+func (p *Providers) Tracer() trace.Tracer
+type Signals uint8
+const (
+	SignalTraces Signals = 1 << iota
+	SignalMetrics
+)
+type TraceOption func(*traceOptions)
+func WithSpanAttributes(attributes ...attribute.KeyValue) TraceOption
+func WithSpanKind(kind trace.SpanKind) TraceOption
+
+## github.com/dreamsxin/go-kit/v2/observability/slog
+package slogadapter // import "github.com/dreamsxin/go-kit/v2/observability/slog"
+CONSTANTS
+const AllSignals = SignalTracing | SignalMetrics | SignalLogging
+FUNCTIONS
+func LoggingMiddleware(logger *slog.Logger, operation string, options ...Option) endpoint.Middleware
+func NewErrorHandler(logger *slog.Logger) transport.ErrorHandler
+TYPES
+type NamedMiddleware struct {
+	Name       string
+	Middleware endpoint.Middleware
+}
+type Option func(*Options)
+func WithAttrs(attrs func(context.Context) []slog.Attr) Option
+func WithLevel(level slog.Level) Option
+type Options struct {
+	Level slog.Level
+	Attrs func(context.Context) []slog.Attr
+}
+type Signals uint8
+const (
+	SignalTracing Signals = 1 << iota
+	SignalMetrics
+	SignalLogging
+)
+type Telemetry struct {
+	// Middlewares holds the assembled dimensions in canonical order, outermost
+	// first: tracing, then metrics, then logging. A dimension that was not
+	// selected is absent.
+	Middlewares []NamedMiddleware
+	// Metrics is the collector feeding the metrics middleware, or the
+	// collector the config supplied when metrics were not assembled.
+	Metrics *endpoint.Metrics
+}
+func NewTelemetry(cfg TelemetryConfig) (*Telemetry, error)
+func (t *Telemetry) Apply(b *endpoint.Builder) *endpoint.Builder
+type TelemetryConfig struct {
+	// Operation is the bounded operation name recorded by every dimension.
+	// Required when logging is assembled.
+	Operation string
+	// Logger receives access records. nil falls back to slog.Default().
+	Logger *slog.Logger
+	// Metrics receives the built-in request counters. nil creates a private
+	// collector; keep the returned Telemetry.Metrics to expose snapshots,
+	// for example through kit.WithMetrics semantics or /health.
+	Metrics *endpoint.Metrics
+	// LogOptions tune the logging middleware.
+	LogOptions []Option
+	// Signals selects the dimensions to assemble. The zero value assembles all.
+	Signals Signals
+}
+
+## github.com/dreamsxin/go-kit/v2/sd
+package sd // import "github.com/dreamsxin/go-kit/v2/sd"
+CONSTANTS
+const (
+	StateKey      = "state"
+	StateReady    = "ready"
+	StateDraining = "draining"
+)
+VARIABLES
+var ErrClosed = errors.New("selector or balancer is closed")
+var ErrConflict = errors.New("instance key already registered")
+var ErrNoEndpoints = errors.New("no endpoints available")
+FUNCTIONS
+func MetadataBool(metadata map[string]any, key string) (bool, bool)
+func MetadataInt(metadata map[string]any, key string) (int, bool)
+func MetadataString(metadata map[string]any, key string) (string, bool)
+func Release(done Done, err error)
+TYPES
+type Balancer interface {
+	Pick(ctx context.Context, request any) (Picked, error)
+	Close() error
+}
+type Conflict int
+const (
+	// ConflictOverwrite claims the key unconditionally. It is the default
+	// because it is the semantics that always recovers: an instance whose
+	// previous run exited uncleanly, or whose lease expired during a partition,
+	// registers again without a human deleting the key it left behind.
+	ConflictOverwrite Conflict = iota
+	// ConflictCreateOnly registers only while the key is absent and reports
+	// ErrConflict otherwise. Choose it when a duplicate instance identity is a
+	// deployment mistake worth failing start-up over — two processes configured
+	// with the same instance ID — and accept that a key outliving an unclean
+	// exit blocks registration until it expires.
+	ConflictCreateOnly
+	// ConflictCompareAndSwap registers while the key is absent or still holds
+	// what this Registrar last wrote, and reports ErrConflict once another
+	// writer has taken it. It is create-only for a first registration and
+	// overwrite for the registrar's own renewals, so an instance recovers from
+	// a lost lease without stealing a key that now belongs to somebody else.
+	ConflictCompareAndSwap
+)
+func (c Conflict) String() string
+type DerivedInstancer interface {
+	Instancer
+	// Underlying reports the Instancer this view derives from.
+	Underlying() Instancer
+}
+type Done func(Outcome)
+type Event = struct {
+	Instances []Instance
+	Err       error
+}
+type Instance = struct {
+	Address  string
+	Metadata map[string]any
+}
+func Addresses(addresses ...string) []Instance
+type InstanceFilter func(ctx context.Context, instances []Instance) []Instance
+func Keep(match Match) InstanceFilter
+type Instancer interface {
+	Register(chan Event) Event
+	Deregister(chan Event)
+	Close() error
+}
+type Match func(Instance) bool
+func And(matches ...Match) Match
+func Draining() Match
+func HasMetadata(key string) Match
+func MetadataEquals(key string, value any) Match
+func MetadataIn(key string, values ...any) Match
+func MetadataMatches(labels map[string]any) Match
+func Not(match Match) Match
+func Or(matches ...Match) Match
+func Serving() Match
+type Outcome struct {
+	Err     error
+	Latency time.Duration
+	Bytes   int64
+}
+type Picked struct {
+	Instance Instance
+	Endpoint endpoint.Endpoint
+	Done     Done
+}
+type Registrar interface {
+	Register() error
+	Deregister() error
+}
+
+## github.com/dreamsxin/go-kit/v2/sd/balancer
+package balancer // import "github.com/dreamsxin/go-kit/v2/sd/balancer"
+CONSTANTS
+const DefaultReplicas = selector.DefaultReplicas
+const DefaultWeightKey = selector.DefaultWeightKey
+FUNCTIONS
+func New(source endpointer.InstanceEndpointer, strategy selector.Strategy) sd.Balancer
+func NewConsistentHash(source endpointer.InstanceEndpointer, key KeyFunc, options ...ConsistentHashOption) sd.Balancer
+func NewRandom(source endpointer.InstanceEndpointer) sd.Balancer
+func NewRoundRobin(source endpointer.InstanceEndpointer) sd.Balancer
+func NewScored(source endpointer.InstanceEndpointer, score ScoreFunc) sd.Balancer
+func NewWeightedRandom(source endpointer.InstanceEndpointer, weight WeightFunc) sd.Balancer
+TYPES
+type ConsistentHashOption = selector.HashOption
+func WithReplicas(replicas int) ConsistentHashOption
+type KeyFunc = selector.KeyFunc
+type ScoreFunc = selector.ScoreFunc
+type WeightFunc = selector.WeightFunc
+func MetadataWeight(key string, fallback int) WeightFunc
+
+## github.com/dreamsxin/go-kit/v2/sd/client
+package client // import "github.com/dreamsxin/go-kit/v2/sd/client"
+FUNCTIONS
+func NewEndpoint(src sd.Instancer, factory endpointer.Factory, logger *slog.Logger, opts ...Option) (endpoint.Endpoint, io.Closer, error)
+func NewEndpointWithDefaults(src sd.Instancer, factory endpointer.Factory, logger *slog.Logger) (endpoint.Endpoint, io.Closer, error)
+TYPES
+type BalancerFactory func(endpointer.InstanceEndpointer) sd.Balancer
+type Option func(*Options)
+func WithBalancer(factory BalancerFactory) Option
+func WithInvalidateOnError(timeout time.Duration) Option
+func WithMaxAttempts(attempts int) Option
+func WithRetryable(classifier retry.Classifier) Option
+func WithTimeout(timeout time.Duration) Option
+type Options struct {
+	MaxAttempts       int
+	Timeout           time.Duration
+	InvalidateOnError time.Duration
+	Retryable         retry.Classifier
+	Balancer          BalancerFactory
+}
+
+## github.com/dreamsxin/go-kit/v2/sd/endpointer
+package endpointer // import "github.com/dreamsxin/go-kit/v2/sd/endpointer"
+VARIABLES
+var ErrCacheClosed = errors.New("endpointer cache closed")
+TYPES
+type Cache struct {
+	// Has unexported fields.
+}
+func NewCache(factory Factory, logger *slog.Logger, options Options) *Cache
+func (c *Cache) Close() error
+func (c *Cache) Endpoints() ([]endpoint.Endpoint, error)
+func (c *Cache) InstanceEndpoints() ([]InstanceEndpoint, error)
+func (c *Cache) Update(event sd.Event)
+type DefaultEndpointer struct {
+	// Has unexported fields.
+}
+func (de *DefaultEndpointer) Close() error
+func (de *DefaultEndpointer) Endpoints() ([]endpoint.Endpoint, error)
+func (de *DefaultEndpointer) InstanceEndpoints() ([]InstanceEndpoint, error)
+type Endpointer interface {
+	io.Closer
+	Endpoints() ([]endpoint.Endpoint, error)
+}
+type Factory func(instance sd.Instance) (endpoint.Endpoint, io.Closer, error)
+type InstanceEndpoint struct {
+	Instance sd.Instance
+	Endpoint endpoint.Endpoint
+}
+func (i InstanceEndpoint) Address() string
+func (i InstanceEndpoint) Metadata() map[string]any
+type InstanceEndpointer interface {
+	Endpointer
+	InstanceEndpoints() ([]InstanceEndpoint, error)
+}
+func Filter(source InstanceEndpointer, match sd.Match) InstanceEndpointer
+func NewEndpointer(src sd.Instancer, f Factory, logger *slog.Logger, options ...Option) InstanceEndpointer
+func Prefer(source InstanceEndpointer, match sd.Match) InstanceEndpointer
+type Option func(*Options)
+func InvalidateOnError(timeout time.Duration) Option
+type Options struct {
+	InvalidateOnError bool
+	InvalidateTimeout time.Duration
+}
+
+## github.com/dreamsxin/go-kit/v2/sd/feedback
+package feedback // import "github.com/dreamsxin/go-kit/v2/sd/feedback"
+CONSTANTS
+const (
+	DefaultBaseEjectionDuration = 30 * time.Second
+	DefaultMaxEjectionDuration  = 5 * time.Minute
+	DefaultMaxEjectionPercent   = 50
+)
+FUNCTIONS
+func Follow(instancer sd.Instancer, retainers ...Retainer) io.Closer
+TYPES
+type EjectionPolicy struct {
+	MaxErrorRate float64
+	MaxLatency   time.Duration
+	MaxInFlight  int64
+	MinSamples   uint64
+	// BaseDuration is how long a first ejection lasts; each consecutive
+	// ejection of the same instance doubles it, up to MaxDuration. Ejection has
+	// to expire, because an instance receiving no traffic produces no new
+	// measurements, so nothing would ever clear the ones that ejected it.
+	BaseDuration time.Duration
+	MaxDuration  time.Duration
+	// MaxEjectionPercent caps how much of the candidate set may be removed,
+	// defaulting to DefaultMaxEjectionPercent. A pool failing as a whole is more
+	// likely to mean a shared dependency, or a threshold set too tight, than a
+	// majority of bad instances. Envoy calls this panic mode.
+	MaxEjectionPercent int
+}
+type Ejector struct {
+	// Has unexported fields.
+}
+func NewEjector(table *Table, policy EjectionPolicy, options ...EjectorOption) *Ejector
+func (e *Ejector) Ejected(instance sd.Instance) bool
+func (e *Ejector) Filter() sd.InstanceFilter
+func (e *Ejector) Retain(instances []sd.Instance)
+type EjectorOption func(*Ejector)
+func WithEjectorClock(now func() time.Time) EjectorOption
+type Measured struct {
+	// Has unexported fields.
+}
+func Measure(instancer sd.Instancer, options ...Option) *Measured
+func (m *Measured) Balancer(source endpointer.InstanceEndpointer, strategy selector.Strategy) sd.Balancer
+func (m *Measured) Close() error
+func (m *Measured) Eject(policy EjectionPolicy, options ...EjectorOption) *Ejector
+func (m *Measured) LeastRequest(source endpointer.InstanceEndpointer, options ...selector.LeastRequestOption) sd.Balancer
+func (m *Measured) Ranking(source selector.Source, filters ...sd.InstanceFilter) selector.Ranker
+func (m *Measured) Scored(source endpointer.InstanceEndpointer) sd.Balancer
+func (m *Measured) SlowStartWeighted(source endpointer.InstanceEndpointer, weight selector.WeightFunc, window time.Duration) sd.Balancer
+func (m *Measured) Table() *Table
+type Option func(*Table)
+func WithAlpha(alpha float64) Option
+func WithClock(now func() time.Time) Option
+type Retainer interface {
+	Retain(instances []sd.Instance)
+}
+type Stats struct {
+	Samples   uint64
+	Latency   time.Duration
+	ErrorRate float64
+	Bytes     int64
+	InFlight  int64
+	// FirstSeen is when this instance entered the table, which is what slow
+	// start ramps against. A table that follows discovery — see Follow — is
+	// told about an instance when it registers, so this is its arrival time; a
+	// table driven only by calls learns of it on its first call instead. It is
+	// zero for an instance the table has never seen.
+	FirstSeen time.Time
+}
+type Table struct {
+	// Has unexported fields.
+}
+func NewTable(options ...Option) *Table
+func (t *Table) LeastRequest(options ...selector.LeastRequestOption) selector.Strategy
+func (t *Table) Observe(instance sd.Instance, outcome sd.Outcome)
+func (t *Table) Reset(instance sd.Instance)
+func (t *Table) Retain(instances []sd.Instance)
+func (t *Table) Scored() selector.Strategy
+func (t *Table) Stats(instance sd.Instance) Stats
+func (t *Table) Track(instance sd.Instance) sd.Done
+func (t *Table) Wrap(strategy selector.Strategy) selector.Strategy
+
+## github.com/dreamsxin/go-kit/v2/sd/health
+package health // import "github.com/dreamsxin/go-kit/v2/sd/health"
+CONSTANTS
+const (
+	DefaultInterval           = 10 * time.Second
+	DefaultTimeout            = 2 * time.Second
+	DefaultUnhealthyThreshold = 3
+	DefaultHealthyThreshold   = 1
+	DefaultConcurrency        = 8
+)
+TYPES
+type Checker struct {
+	// Has unexported fields.
+}
+func Check(source sd.Instancer, probe Probe, options ...Option) *Checker
+func (c *Checker) Close() error
+func (c *Checker) Deregister(ch chan sd.Event)
+func (c *Checker) Register(ch chan sd.Event) sd.Event
+func (c *Checker) Underlying() sd.Instancer
+type Option func(*Checker)
+func WithConcurrency(probes int) Option
+func WithFailOpen(failOpen bool) Option
+func WithHealthyThreshold(successes int) Option
+func WithInitiallyHealthy(healthy bool) Option
+func WithInterval(interval time.Duration) Option
+func WithLogger(logger *slog.Logger) Option
+func WithTimeout(timeout time.Duration) Option
+func WithUnhealthyThreshold(failures int) Option
+type Probe func(ctx context.Context, instance sd.Instance) error
+func HTTPProbe(scheme, path string, timeout time.Duration) Probe
+func TCPProbe(timeout time.Duration) Probe
+
+## github.com/dreamsxin/go-kit/v2/sd/instance
+package instance // import "github.com/dreamsxin/go-kit/v2/sd/instance"
+TYPES
+type Cache struct {
+	// Has unexported fields.
+}
+func NewCache() *Cache
+func (c *Cache) Close() error
+func (c *Cache) Deregister(ch chan sd.Event)
+func (c *Cache) Register(ch chan sd.Event) sd.Event
+func (c *Cache) State() sd.Event
+func (c *Cache) Update(event sd.Event)
+
+## github.com/dreamsxin/go-kit/v2/sd/internal/subscription
+package subscription // import "github.com/dreamsxin/go-kit/v2/sd/internal/subscription"
+FUNCTIONS
+func SortInstances(instances []sd.Instance)
+TYPES
+type Feed struct {
+	// Has unexported fields.
+}
+func Start(instancer sd.Instancer, update func(sd.Event)) *Feed
+func (f *Feed) Stop()
+type Options struct {
+	// InvalidateOnError drops the published value once InvalidateTimeout has
+	// elapsed from the first error of a failure streak. Without it the last good
+	// snapshot is served indefinitely, which is the right default for a registry
+	// outage: instances that are still up should keep receiving traffic.
+	InvalidateOnError bool
+	InvalidateTimeout time.Duration
+	// Now replaces the clock. A zero value means time.Now.
+	Now func() time.Time
+}
+type Reconcile[T any] func(instances []sd.Instance) (value T, release func() error)
+type State[T any] struct {
+	// Has unexported fields.
+}
+func NewState[T any](reconcile Reconcile[T], closedErr error, logger *slog.Logger, options Options) *State[T]
+func (s *State[T]) Close() func() error
+func (s *State[T]) Update(event sd.Event)
+func (s *State[T]) Value() (T, error)
+
+## github.com/dreamsxin/go-kit/v2/sd/retry
+package retry // import "github.com/dreamsxin/go-kit/v2/sd/retry"
+FUNCTIONS
+func DefaultClassifier(err error) bool
+func Retry(maxAttempts int, timeout time.Duration, balancer sd.Balancer) endpoint.Endpoint
+func WithCallback(timeout time.Duration, balancer sd.Balancer, callback Callback) endpoint.Endpoint
+func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callback, classifier Classifier) endpoint.Endpoint
+TYPES
+type Attempt struct {
+	Address string
+	Err     error
+	Latency time.Duration
+}
+type Callback func(attempt int, received error) (keepTrying bool, replacement error)
+type Classifier func(error) bool
+type Error struct {
+	Attempts []Attempt
+	Final    error
+}
+func (e Error) Error() string
+func (e Error) Unwrap() error
+
+## github.com/dreamsxin/go-kit/v2/sd/retry/internal/backoff
+package backoff // import "github.com/dreamsxin/go-kit/v2/sd/retry/internal/backoff"
+FUNCTIONS
+func Next(delay time.Duration) time.Duration
+
+## github.com/dreamsxin/go-kit/v2/sd/selector
+package selector // import "github.com/dreamsxin/go-kit/v2/sd/selector"
+CONSTANTS
+const DefaultChoices = 2
+const DefaultReplicas = 100
+const DefaultWeightKey = "weight"
+VARIABLES
+var ErrClosed = errors.New("selector: subscription closed")
+FUNCTIONS
+func CloseStrategy(strategy Strategy) error
+func Select(ctx context.Context, selector Selector, request any) (sd.Instance, sd.Done, error)
+TYPES
+type FirstSeenFunc func(instance sd.Instance) (time.Time, bool)
+type HashOption func(*consistentHash)
+func WithReplicas(replicas int) HashOption
+type KeyFunc func(ctx context.Context, request any) string
+type LeastRequestOption func(*leastRequest)
+func WithChoices(choices int) LeastRequestOption
+type LoadFunc func(instance sd.Instance) int64
+type Option func(*Options)
+func InvalidateOnError(timeout time.Duration) Option
+func WithLogger(logger *slog.Logger) Option
+type Options struct {
+	InvalidateOnError bool
+	InvalidateTimeout time.Duration
+	Logger            *slog.Logger
+}
+type Ranker interface {
+	// Rank returns up to n instances, best first. A value of n at or below zero
+	// returns every candidate.
+	//
+	// The request is passed through for the same reason Strategy.Pick takes one:
+	// a shortlist can depend on who is asking — a tenant pinned to a region, a
+	// job class with its own pool. Callers with nothing to say pass nil. The
+	// unified ScoreFunc receives the same context and request.
+	Rank(ctx context.Context, request any, n int) ([]sd.Instance, error)
+}
+func NewRanker(source Source, score ScoreFunc, filters ...sd.InstanceFilter) Ranker
+type ScoreFunc func(ctx context.Context, request any, instance sd.Instance) (score float64, ok bool)
+type Selector interface {
+	Select(ctx context.Context, request any) (sd.Instance, sd.Done, error)
+	Close() error
+}
+func New(source Source, strategy Strategy) Selector
+type Source interface {
+	Instances() ([]sd.Instance, error)
+}
+func Filter(source Source, match sd.Match) Source
+func Prefer(source Source, match sd.Match) Source
+func Static(instances ...sd.Instance) Source
+type SourceFunc func() ([]sd.Instance, error)
+func (f SourceFunc) Instances() ([]sd.Instance, error)
+type Strategy interface {
+	Pick(ctx context.Context, request any, instances []sd.Instance) (index int, done sd.Done, err error)
+}
+func ConsistentHash(key KeyFunc, options ...HashOption) Strategy
+func Filtered(strategy Strategy, filters ...sd.InstanceFilter) Strategy
+func LeastRequest(load LoadFunc, options ...LeastRequestOption) Strategy
+func Random() Strategy
+func RoundRobin() Strategy
+func Scored(score ScoreFunc) Strategy
+func WeightedRandom(weight WeightFunc) Strategy
+type Subscription struct {
+	// Has unexported fields.
+}
+func Subscribe(instancer sd.Instancer, options ...Option) *Subscription
+func (s *Subscription) Close() error
+func (s *Subscription) Instances() ([]sd.Instance, error)
+type WeightFunc func(instance sd.Instance) int
+func MetadataWeight(key string, fallback int) WeightFunc
+func SlowStart(weight WeightFunc, first FirstSeenFunc, window time.Duration) WeightFunc
+
+## github.com/dreamsxin/go-kit/v2/security
+package security // import "github.com/dreamsxin/go-kit/v2/security"
+FUNCTIONS
+func Middleware(auth Authenticator) endpoint.Middleware
+func RequireAuthenticated() endpoint.Middleware
+func RequireRole(role string) endpoint.Middleware
+func WithSubject(ctx context.Context, subject Subject) context.Context
+TYPES
+type Authenticator interface {
+	Authenticate(ctx context.Context) (Subject, error)
+}
+type AuthenticatorFunc func(ctx context.Context) (Subject, error)
+func (f AuthenticatorFunc) Authenticate(ctx context.Context) (Subject, error)
+type Subject struct {
+	ID     string
+	Kind   SubjectKind
+	Roles  []string
+	Claims map[string]any
+}
+func SubjectFromContext(ctx context.Context) (Subject, bool)
+func (s Subject) Authenticated() bool
+func (s Subject) HasRole(role string) bool
+type SubjectKind string
+const (
+	// SubjectAnonymous marks a caller whose credentials were not required.
+	SubjectAnonymous SubjectKind = "anonymous"
+	// SubjectUser marks an interactive human principal.
+	SubjectUser SubjectKind = "user"
+	// SubjectService marks a machine or service-account principal.
+	SubjectService SubjectKind = "service"
+)
+
+## github.com/dreamsxin/go-kit/v2/security/http
+package httpsecurity // import "github.com/dreamsxin/go-kit/v2/security/http"
+CONSTANTS
+const (
+	// DefaultCSRFTokenTTL is how long a minted token stays valid when
+	// CSRFConfig.TokenTTL is zero.
+	DefaultCSRFTokenTTL = 12 * time.Hour
+)
+FUNCTIONS
+func ClientIPFromContext(ctx context.Context) (net.IP, bool)
+func SchemeFromContext(ctx context.Context) (string, bool)
+TYPES
+type CORSConfig struct {
+	AllowedOrigins   []string
+	AllowedMethods   []string
+	AllowedHeaders   []string
+	ExposedHeaders   []string
+	AllowCredentials bool
+	MaxAge           time.Duration
+}
+type CSRFConfig struct {
+	Secret         []byte
+	SessionID      func(*http.Request) (string, bool)
+	TokenTTL       time.Duration
+	AssumeHTTPS    bool
+	CookieName     string
+	HeaderName     string
+	TrustedOrigins []string
+	RequireOrigin  bool
+	SecureCookie   bool
+	SameSite       http.SameSite
+	CookieMaxAge   time.Duration
+	// Clock decides what "now" is when a token is minted and when its TTL is
+	// checked. A nil Clock means the wall clock.
+	//
+	// It is declared structurally rather than imported, because this package
+	// deliberately depends on nothing else in this framework — that is what
+	// makes it optional middleware you can drop into any net/http stack. Any
+	// clock with a Now method fits, including endpoint.ManualClock, so a test
+	// can expire a token without waiting for it.
+	//
+	// Stable: security.csrf-clock — token minting and TTL checks read the configured clock, so a test can expire a token without sleeping.
+	// Covered by: TestCSRFRejectsATokenExpiredOnTheConfiguredClock
+	Clock interface {
+		Now() time.Time
+	}
+}
+type IPPolicyConfig struct {
+	Allow []string
+	Deny  []string
+}
+type Middleware func(http.Handler) http.Handler
+func Chain(middlewares ...Middleware) Middleware
+func NewCORS(config CORSConfig) (Middleware, error)
+func NewCSRF(config CSRFConfig) (Middleware, error)
+func NewIPPolicy(config IPPolicyConfig) (Middleware, error)
+func NewSecurityHeaders(config SecurityHeadersConfig) (Middleware, error)
+func NewTrustedProxy(config TrustedProxyConfig) (Middleware, error)
+type SecurityHeadersConfig struct {
+	DisableDefaults         bool
+	AssumeHTTPS             bool
+	FrameOptions            string
+	ReferrerPolicy          string
+	ContentSecurityPolicy   string
+	PermissionsPolicy       string
+	CrossOriginOpenerPolicy string
+	StrictTransportSecurity string
+}
+type TrustedProxyConfig struct {
+	TrustedProxies       []string
+	ForwardedForHeader   string
+	ForwardedProtoHeader string
+}
+
+## github.com/dreamsxin/go-kit/v2/transport
+package transport // import "github.com/dreamsxin/go-kit/v2/transport"
+TYPES
+type Binding[Req, Resp any] struct {
+	// Endpoint is the business endpoint, already middleware-built if needed.
+	Endpoint endpoint.Endpoint
+}
+func (b Binding[Req, Resp]) GRPCServer(
+	decode func(ctx context.Context, pbMessage any) (Req, error),
+	encode func(ctx context.Context, resp Resp) (any, error),
+func (b Binding[Req, Resp]) TypedEndpoint() endpoint.TypedEndpoint[Req, Resp]
+type ErrorHandler interface {
+	Handle(ctx context.Context, err error)
+}
+var NopErrorHandler ErrorHandler = ErrorHandlerFunc(func(_ context.Context, _ error) {})
+type ErrorHandlerFunc func(ctx context.Context, err error)
+func (f ErrorHandlerFunc) Handle(ctx context.Context, err error)
+
+## github.com/dreamsxin/go-kit/v2/transport/http
+package http // import "github.com/dreamsxin/go-kit/v2/transport/http"
+CONSTANTS
+const (
+	// DefaultPageNumber is the 1-based page used when the request omits it.
+	DefaultPageNumber = 1
+	// DefaultPageSize is the page size used when the request omits it.
+	DefaultPageSize = 20
+	// MaxPageSize bounds the requested page size.
+	MaxPageSize = 100
+)
+const MaxRequestIDLength = 128
+const RequestIDHeader = "X-Request-ID"
+const (
+	// Its value is r.Method.
+	ContextKeyRequestMethod contextKey = iota
+	// Its value is r.RequestURI.
+	ContextKeyRequestURI
+	// Its value is r.URL.Path.
+	ContextKeyRequestPath
+	// Its value is r.Proto.
+	ContextKeyRequestProto
+	// Its value is r.Host.
+	ContextKeyRequestHost
+	// Its value is r.RemoteAddr.
+	ContextKeyRequestRemoteAddr
+	// Its value is r.Header.Get("X-Forwarded-For").
+	ContextKeyRequestXForwardedFor
+	// Its value is r.Header.Get("X-Forwarded-Proto").
+	ContextKeyRequestXForwardedProto
+	// Its value is r.Header.Get("Authorization").
+	ContextKeyRequestAuthorization
+	// Its value is r.Header.Get("Referer").
+	ContextKeyRequestReferer
+	// Its value is r.Header.Get("User-Agent").
+	ContextKeyRequestUserAgent
+	// Its value is r.Header.Get("X-Request-Id").
+	ContextKeyRequestXRequestID
+	// Its value is r.Header.Get("Accept").
+	ContextKeyRequestAccept
+	// Its value is of type http.Header
+	ContextKeyResponseHeaders
+	// Its value is of type int64.
+	ContextKeyResponseSize
+)
+FUNCTIONS
+func DecodePathRequest(r *nethttp.Request, target any) error
+func DecodeQueryRequest(r *nethttp.Request, target any) error
+func DefaultRequestIDValidator(id string) bool
+func EchoRequestID(ctx context.Context, w http.ResponseWriter) context.Context
+func EncodePath(path string, request any) (string, error)
+func EncodePathAndQuery(path string, request any) (string, error)
+func ExtractRequestID(ctx context.Context, r *http.Request) context.Context
+func ExtractTraceparent(ctx context.Context, r *http.Request) context.Context
+func InjectTraceparent(ctx context.Context, r *http.Request) context.Context
+func NewRequestID() string
+func PopulateRequestContext(ctx context.Context, r *http.Request) context.Context
+func RequestID(r *http.Request, validator RequestIDValidator) string
+func RequestIDExtractor(validator RequestIDValidator) func(context.Context, *http.Request) context.Context
+func ValidRequestID(validator RequestIDValidator, id string) bool
+func ValidateQueryStruct[T any]() error
+TYPES
+type ErrorCoder interface {
+	ErrorCode() string
+}
+type Headerer interface {
+	Headers() http.Header
+}
+type Page struct {
+	Number int
+	Size   int
+}
+func ParsePage(r *http.Request) (Page, error)
+func (p Page) Limit() int
+func (p Page) Offset() int
+type PageResult[T any] struct {
+	Items   []T  `json:"items"`
+	Total   int  `json:"total"`
+	Page    int  `json:"page"`
+	Size    int  `json:"size"`
+	HasNext bool `json:"has_next"`
+}
+func NewPageResult[T any](page Page, total int, items []T) PageResult[T]
+type PublicMessager interface {
+	PublicMessage() string
+}
+type QueryError struct {
+	Field string
+	Err   error
+}
+func (e *QueryError) Error() string
+func (e *QueryError) ErrorCode() string
+func (e *QueryError) StatusCode() int
+func (e *QueryError) Unwrap() error
+type RequestIDValidator func(string) bool
+type StatusCoder interface {
+	StatusCode() int
+}
+
+## github.com/dreamsxin/go-kit/v2/transport/http/client
+package client // import "github.com/dreamsxin/go-kit/v2/transport/http/client"
+CONSTANTS
+const (
+	// DefaultMaxIdleConnsPerHost keeps enough idle connections for a service that
+	// calls the same upstream on every request, instead of http.DefaultTransport's 2.
+	DefaultMaxIdleConnsPerHost = 100
+	// DefaultMaxIdleConns bounds the pool across all hosts.
+	DefaultMaxIdleConns = 100
+	// DefaultIdleConnTimeout is how long an unused connection is kept. It is shorter
+	// than the idle timeout of most servers and proxies, so this side closes first
+	// and a request does not race a server-side close.
+	DefaultIdleConnTimeout = 60 * time.Second
+	// DefaultDialTimeout bounds connecting to a host that is not answering.
+	DefaultDialTimeout = 5 * time.Second
+	// DefaultTLSHandshakeTimeout bounds a handshake that stalls after the connection.
+	DefaultTLSHandshakeTimeout = 10 * time.Second
+	// DefaultExpectContinueTimeout bounds waiting for a 100 Continue that may never
+	// arrive.
+	DefaultExpectContinueTimeout = time.Second
+)
+const DefaultMaxJSONResponseBytes int64 = 4 << 20
+const MaxStatusErrorBodyBytes int64 = 64 << 10
+VARIABLES
+var ErrResponseBodyTooLarge = errors.New("http client: response body too large")
+FUNCTIONS
+func DecodeJSONResponse[Resp any](_ context.Context, r *http.Response) (any, error)
+func DefaultClient() *http.Client
+func EncodeJSONRequest(c context.Context, req *http.Request, request any) (*http.Request, error)
+func EncodeQueryRequest(_ context.Context, req *http.Request, request any) (*http.Request, error)
+func KindForStatus(status int) apperror.Kind
+func NewJSONClient[Resp any](method, rawURL string, options ...ClientOption) (endpoint.Endpoint, error)
+func NewJSONClientWithMaxResponseBodyBytes[Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (endpoint.Endpoint, error)
+func NewJSONClientWithTimeout[Resp any](
+	method, rawURL string,
+	timeout time.Duration,
+	options ...ClientOption,
+func NewTransport() *http.Transport
+TYPES
+type Client struct {
+	// Has unexported fields.
+}
+func NewClient(method string, tgt *url.URL, enc EncodeRequestFunc, dec DecodeResponseFunc, options ...ClientOption) *Client
+func NewExplicitClient(req EncodeRequestFunc, dec DecodeResponseFunc, options ...ClientOption) *Client
+func (c Client) Endpoint() endpoint.Endpoint
+type ClientOption func(*Client)
+func BufferedStream(buffered bool) ClientOption
+func ClientAfter(after ...ResponseFunc) ClientOption
+func ClientBefore(before ...RequestFunc) ClientOption
+func ClientFinalizer(f ...FinalizerFunc) ClientOption
+func SetClient(client HTTPClient) ClientOption
+type DecodeResponseFunc func(context.Context, *http.Response) (response any, err error)
+func DecodeJSONResponseWithMaxBodyBytes[Resp any](maxResponseBodyBytes int64) DecodeResponseFunc
+type EncodeRequestFunc func(context.Context, *http.Request, any) (*http.Request, error)
+type FinalizerFunc func(context.Context, error)
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+type HTTPStatusError struct {
+	StatusCode int
+	Status     string
+	Header     http.Header
+	Body       []byte
+	// Truncated reports that the upstream body was longer than
+	// MaxStatusErrorBodyBytes and Body holds only its first bytes.
+	//
+	// It exists so a reader can tell a cut-off body from a malformed one. Body
+	// is what a human reads while debugging, and half a JSON document looks
+	// exactly like an upstream that answered garbage; ErrorCode also returns ""
+	// for a truncated body, which is indistinguishable from an upstream that
+	// sent no code.
+	Truncated bool
+}
+func (e *HTTPStatusError) Error() string
+func (e *HTTPStatusError) ErrorCode() string
+func (e *HTTPStatusError) ErrorKind() apperror.Kind
+func (e *HTTPStatusError) ErrorKindName() string
+func (e *HTTPStatusError) PublicMessage() string
+func (e *HTTPStatusError) RetryAfter() time.Duration
+func (e *HTTPStatusError) Retryable() bool
+type RequestFunc func(context.Context, *http.Request) context.Context
+type ResponseBodyTooLargeError struct {
+	Limit int64
+}
+func (e *ResponseBodyTooLargeError) Error() string
+func (e *ResponseBodyTooLargeError) Unwrap() error
+type ResponseFunc func(context.Context, *http.Response, error) context.Context
+
+## github.com/dreamsxin/go-kit/v2/transport/http/server
+package server // import "github.com/dreamsxin/go-kit/v2/transport/http/server"
+CONSTANTS
+const (
+	DefaultMaxMultipartBodyBytes   int64 = 32 << 20 // 32 MiB total body
+	DefaultMaxMultipartMemoryBytes int64 = 8 << 20  // 8 MiB kept in memory
+)
+const DefaultMaxJSONBodyBytes int64 = 1 << 20
+const DefaultRawBodyBytes int64 = 1 << 20
+const ProblemMediaType = "application/problem+json"
+const ProblemTypeAboutBlank = "about:blank"
+const StatusClientClosedRequest = 499
+VARIABLES
+var (
+	// ErrJSONBodyTooLarge indicates that a JSON request body exceeded MaxBodyBytes.
+	ErrJSONBodyTooLarge = errors.New("json request body too large")
+	// ErrJSONTrailingData indicates that a JSON request contained more than one value.
+	ErrJSONTrailingData = errors.New("json request body contains trailing data")
+	// ErrJSONBodyEmpty indicates that a request that needed a JSON body had none.
+	// It is separated from a parse failure because "EOF" — which is what the
+	// decoder reports and what the caller used to receive — describes the
+	// decoder's situation rather than the caller's mistake.
+	ErrJSONBodyEmpty = errors.New("request body is empty")
+)
+var (
+	// ErrMultipartBodyTooLarge indicates the total multipart request body
+	// exceeded MaxBodyBytes.
+	ErrMultipartBodyTooLarge = errors.New("multipart request body too large")
+	// ErrMultipartFileTooLarge indicates a single uploaded file exceeded
+	// MaxFileBytes.
+	ErrMultipartFileTooLarge = errors.New("uploaded file too large")
+)
+FUNCTIONS
+func AccessLogMiddleware(logger *slog.Logger) func(http.Handler) http.Handler
+func DecodeJSONBody(r *http.Request, target any, options JSONDecodeOptions) error
+func DefaultErrorEncoder(_ context.Context, err error, w http.ResponseWriter)
+func EncodeJSONResponse(_ context.Context, w http.ResponseWriter, response any) error
+func HTTPStatusForError(err error) int
+func HTTPStatusForErrorKind(kind apperror.Kind) int
+func NopRequestDecoder(ctx context.Context, r *http.Request) (any, error)
+func NopResponseEncoder(context.Context, http.ResponseWriter, any) error
+func ParseMultipartForm(r *http.Request, limits MultipartLimits) (*multipart.Form, error)
+func RawBodyCodec(unmarshal UnmarshalFunc, marshal MarshalFunc, contentType string) (DecodeRequestFunc, EncodeResponseFunc)
+func RawBodyCodecWithMaxBytes(unmarshal UnmarshalFunc, marshal MarshalFunc, contentType string, maxBodyBytes int64) (DecodeRequestFunc, EncodeResponseFunc)
+func RecordingMiddleware(recorders ...Recorder) func(http.Handler) http.Handler
+func WriteAttachment(w http.ResponseWriter, filename string, size int64, content io.Reader) error
+func WriteProblemJSON(w http.ResponseWriter, problem ProblemDetails)
+TYPES
+type DecodeRequestFunc func(context.Context, *http.Request) (request any, err error)
+func DecodeJSONRequest[T any]() DecodeRequestFunc
+func DecodeJSONRequestWithOptions[T any](options JSONDecodeOptions) DecodeRequestFunc
+type EncodeResponseFunc func(context.Context, http.ResponseWriter, any) error
+func WrapJSONResponse(wrap func(response any) any) EncodeResponseFunc
+type ErrorEncoder func(ctx context.Context, err error, w http.ResponseWriter)
+var JSONErrorEncoder ErrorEncoder = func(ctx context.Context, err error, w http.ResponseWriter) {
+	encodeJSONError(ctx, err, w)
+}
+func JSONErrorEncoderWithKindMapper(mapper func(apperror.Kind) int) ErrorEncoder
+func ProblemJSONErrorEncoder(resolveType ProblemTypeResolver) ErrorEncoder
+func TextErrorEncoder(contentType string) ErrorEncoder
+type ErrorResponse struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	RequestID string `json:"request_id,omitempty"`
+}
+type FinalizerFunc func(context.Context, *http.Request, *InterceptingWriter)
+type InterceptingWriter struct {
+	http.ResponseWriter
+	// Has unexported fields.
+}
+func (w *InterceptingWriter) GetCode() int
+func (w *InterceptingWriter) GetWritten() int64
+func (w *InterceptingWriter) ReadFrom(r io.Reader) (int64, error)
+func (w *InterceptingWriter) Write(p []byte) (int, error)
+func (w *InterceptingWriter) WriteHeader(code int)
+type JSONDecodeError struct {
+	Err error
+}
+func (e JSONDecodeError) Error() string
+func (e JSONDecodeError) ErrorCode() string
+func (e JSONDecodeError) StatusCode() int
+func (e JSONDecodeError) Unwrap() error
+type JSONDecodeOptions struct {
+	// MaxBodyBytes limits the request body. A value <= 0 means unlimited.
+	MaxBodyBytes int64
+	// DisallowUnknownFields rejects object fields that are not in the target type.
+	DisallowUnknownFields bool
+	// RejectTrailingData requires exactly one JSON value followed by whitespace.
+	RejectTrailingData bool
+	// RequireJSONContentType answers a request whose media type is not JSON with
+	// 415, before the body is read.
+	//
+	// A request with no Content-Type at all is accepted: a body-less request
+	// carries none, and demanding one would refuse requests that are correct.
+	// What this rejects is a caller that named a type the route does not speak,
+	// which without the check was accepted whenever the bytes happened to parse.
+	RequireJSONContentType bool
+}
+func StrictJSONDecodeOptions(maxBodyBytes int64) JSONDecodeOptions
+type MarshalFunc func(response any) ([]byte, error)
+type MultipartLimits struct {
+	// MaxBodyBytes caps the total request body. Zero selects
+	// DefaultMaxMultipartBodyBytes.
+	//
+	// It is also the bound on work. Parts above MaxMemoryBytes spill to
+	// temporary files while the body is being read, so this — not MaxFileBytes
+	// — is what limits how much a request can make this process write to disk.
+	MaxBodyBytes int64
+	// MaxMemoryBytes is the in-memory threshold before file parts spill to
+	// temporary files. Zero selects DefaultMaxMultipartMemoryBytes.
+	MaxMemoryBytes int64
+	// MaxFileBytes caps each individual file. Zero or negative disables the
+	// per-file check; MaxBodyBytes still applies.
+	//
+	// It bounds the answer, not the work: a file's size is known only once the
+	// part has been read, so an over-limit file is refused after it was written
+	// and then removed. Set MaxBodyBytes to the disk cost you are willing to
+	// pay, and MaxFileBytes to the size your application accepts.
+	MaxFileBytes int64
+}
+type Observation struct {
+	// Method is the HTTP request method.
+	Method string
+	// Route is the matched route pattern, taken from http.Request.Pattern.
+	// It is empty when the request matched no route, which is what keeps an
+	// unrouted URL from becoming an unbounded metric dimension.
+	Route string
+	// Scheme is the request URL scheme: "https" when the request arrived over
+	// TLS, otherwise "http".
+	Scheme string
+	// StatusCode is the response status code.
+	StatusCode int
+	// ResponseBytes is the number of body bytes written.
+	ResponseBytes int64
+	// Duration is how long the handler took, measured around it.
+	Duration time.Duration
+}
+type ProblemDetails struct {
+	Type      string              `json:"type"`
+	Title     string              `json:"title"`
+	Status    int                 `json:"status"`
+	Detail    string              `json:"detail,omitempty"`
+	Code      string              `json:"code"`
+	RequestID string              `json:"request_id,omitempty"`
+	Errors    []ProblemFieldError `json:"errors,omitempty"`
+}
+func ProblemFromError(ctx context.Context, err error, resolveType ProblemTypeResolver) ProblemDetails
+type ProblemFieldError struct {
+	Field  string `json:"field"`
+	Detail string `json:"detail"`
+}
+type ProblemTypeResolver func(code string) string
+type Recorder interface {
+	ObserveHTTP(ctx context.Context, obs Observation)
+}
+type RecorderFunc func(ctx context.Context, obs Observation)
+func (f RecorderFunc) ObserveHTTP(ctx context.Context, obs Observation)
+type RequestFunc func(context.Context, *http.Request) context.Context
+type ResponseFunc func(context.Context, *http.Request, *InterceptingWriter) context.Context
+type RouteRegistrar interface {
+	Handle(pattern string, handler http.Handler)
+	HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request))
+}
+func DecorateRoutes(registrar RouteRegistrar, middleware func(http.Handler) http.Handler) RouteRegistrar
+type SSEServer struct {
+	// Has unexported fields.
+}
+func NewSSEServer(stream SSEStreamHandler, dec DecodeRequestFunc, options ...ServerOption) *SSEServer
+func NewSSEServerTyped[Req any](
+	stream func(ctx context.Context, request Req, s *SSEStream) error,
+	dec func(*http.Request) (Req, error),
+	options ...ServerOption,
+func (s *SSEServer) ErrorEncoder() ErrorEncoder
+func (s *SSEServer) ServeHTTP(w http.ResponseWriter, r *http.Request)
+func (s *SSEServer) ServeStream(w http.ResponseWriter, r *http.Request) error
+type SSEStream struct {
+	// Has unexported fields.
+}
+func (ss *SSEStream) Comment(text string) error
+func (ss *SSEStream) Data(data string) error
+func (ss *SSEStream) Event(name, data string) error
+func (ss *SSEStream) EventJSON(name string, v any) error
+func (ss *SSEStream) Retry(milliseconds int) error
+type SSEStreamHandler func(ctx context.Context, request any, stream *SSEStream) error
+type Server struct {
+	// Has unexported fields.
+}
+func NewJSONEndpoint[Req any](
+	e endpoint.Endpoint,
+	options ...ServerOption,
+func NewJSONEndpointWithBodyLimit[Req any](
+	e endpoint.Endpoint,
+	maxBodyBytes int64,
+	options ...ServerOption,
+func NewJSONEndpointWithDecodeOptions[Req any](
+	e endpoint.Endpoint,
+	decodeOptions JSONDecodeOptions,
+	options ...ServerOption,
+func NewJSONServer[Req any](
+	handler func(ctx context.Context, req Req) (any, error),
+	options ...ServerOption,
+func NewJSONServerWithBodyLimit[Req any](
+	handler func(ctx context.Context, req Req) (any, error),
+	maxBodyBytes int64,
+	options ...ServerOption,
+func NewJSONServerWithMiddleware[Req any](
+	handler func(ctx context.Context, req Req) (any, error),
+	middleware func(*endpoint.Builder) *endpoint.Builder,
+	options ...ServerOption,
+func NewServer(
+	e endpoint.Endpoint,
+	dec DecodeRequestFunc,
+	enc EncodeResponseFunc,
+	options ...ServerOption,
+func NewTypedJSONServer[Req, Resp any](
+	handler func(ctx context.Context, req Req) (Resp, error),
+	options ...ServerOption,
+func NewTypedJSONServerWithBodyLimit[Req, Resp any](
+	handler func(ctx context.Context, req Req) (Resp, error),
+	maxBodyBytes int64,
+	options ...ServerOption,
+func NewTypedJSONServerWithMiddleware[Req, Resp any](
+	handler func(ctx context.Context, req Req) (Resp, error),
+	middleware func(*endpoint.Builder) *endpoint.Builder,
+	options ...ServerOption,
+func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request)
+type ServerOption func(*Server)
+func ServerAfter(after ...ResponseFunc) ServerOption
+func ServerBefore(before ...RequestFunc) ServerOption
+func ServerErrorEncoder(ee ErrorEncoder) ServerOption
+func ServerErrorHandler(errorHandler transport.ErrorHandler) ServerOption
+func ServerFinalizer(f ...FinalizerFunc) ServerOption
+func ServerResponseEncoder(ee EncodeResponseFunc) ServerOption
+type UnmarshalFunc func(body []byte) (any, error)
+type UnsupportedMediaTypeError struct {
+	Received string
+}
+func (e UnsupportedMediaTypeError) Error() string
+func (e UnsupportedMediaTypeError) ErrorCode() string
+func (e UnsupportedMediaTypeError) PublicMessage() string
+func (e UnsupportedMediaTypeError) StatusCode() int
