@@ -2160,16 +2160,31 @@ Acceptance:
 go -C ./tools test . -run TestPublicAPISurfaceSnapshot -count=1
 ```
 
-### Work Package 2: The Generated Contract Snapshots
+### Work Package 2: The Generated Contract Is A Golden Tree
 
-Still digests. The three `contract_snapshots/*.sha256` files hash whole generated
-artefacts — manifest, OpenAPI document, JSON Schema bundle, IDL, both SDKs — so a
-failure there still says only that something moved, and reviewing it means generating
-the project into a temporary directory by hand. That is how the OpenAPI defects in
-Milestone 21 had to be reviewed. Checking the artefacts in as golden files is the
-obvious fix and the open decision: it is the standard approach for a generator, it
-would have made those defects visible in a diff, and it adds roughly ten thousand
-lines of fixture that every template change rewrites.
+- The three `contract_snapshots/*.sha256` files hashed whole generated artefacts —
+  manifest, OpenAPI document, JSON Schema bundle, IDL, both SDKs. A failure said that
+  one of six documents had changed, and answering "how" meant running the generator
+  into a temporary directory by hand. That is how the OpenAPI defects fixed in
+  Milestone 21 had to be reviewed: the gate had been catching them for two releases
+  without anyone being able to see them.
+- The reviewed copy is now the artefacts, under
+  `tools/testdata/contract_snapshots/<source>/`, 4,235 lines across the three sources.
+  A `files.txt` per source lists what is under review, so an artefact the generator
+  stops emitting fails instead of leaving a golden file nobody reads, and a new public
+  artefact has to be signed off rather than appearing silently.
+- The failure names the artefact and quotes the first differing line with its number,
+  then points at the file's own diff. A refresh clears the directory first: a golden
+  tree that keeps files the generator no longer writes describes a generator that no
+  longer exists.
+- Verified by editing one line of the reviewed `openapi.json`: the failure named the
+  file, the line number and both sides.
+
+Acceptance:
+
+```bash
+go -C ./tools test . -run TestMicrogen -count=1
+```
 
 ## Maintenance Rules / 维护规则
 

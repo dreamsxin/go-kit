@@ -1715,13 +1715,23 @@ go -C ./tools test . -run TestMicrogen -count=1
 go -C ./tools test . -run TestPublicAPISurfaceSnapshot -count=1
 ```
 
-### 工作包 2：生成契约的快照
+### 工作包 2：生成契约是一棵 golden 树
 
-仍然是 digest。三份 `contract_snapshots/*.sha256` 对整个生成产物取哈希——manifest、OpenAPI 文档、
-JSON Schema 包、IDL、两个 SDK——所以那里的失败仍然只说"有东西动了"，而审查它意味着手工把项目生成
-到一个临时目录里。里程碑 21 里那些 OpenAPI 缺陷就是这么审的。把这些产物作为 golden file 签入是显而
-易见的修法，也是开着的决定：对一个生成器来说这是标准做法，它本会让那些缺陷在 diff 里直接可见，而它
-会加进大约一万行 fixture，并且每次改模板都要重写。
+- 三份 `contract_snapshots/*.sha256` 对整个生成产物取哈希——manifest、OpenAPI 文档、JSON Schema 包、
+  IDL、两个 SDK。失败只说"六份文档里有一份变了"，而回答"怎么变的"意味着手工把生成器跑到一个临时目录
+  里。里程碑 21 里那些 OpenAPI 缺陷就是这么审的：这道门禁抓住它们抓了两个版本，却没人能看见它们。
+- 被评审的形式现在是产物本身，放在 `tools/testdata/contract_snapshots/<source>/` 下，三个来源共 4235 行。
+  每个来源有一份 `files.txt` 列出在审的产物，于是生成器不再产出某个产物时会失败，而不是留下一个没人读的
+  golden 文件；同理，新增一个公开产物必须被签字，而不能悄悄出现。
+- 失败会点名产物、引用第一处不同的行及其行号，然后指向这个文件自己的 diff。刷新会先清空目录：一棵还留着
+  生成器已不再写出的文件的 golden 树，描述的是一个已经不存在的生成器。
+- 验证方式：改掉被评审的 `openapi.json` 里的一行——失败点名了文件、行号和两边的内容。
+
+验收：
+
+```bash
+go -C ./tools test . -run TestMicrogen -count=1
+```
 
 ## 维护规则
 

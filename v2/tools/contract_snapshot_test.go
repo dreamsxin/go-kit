@@ -1,8 +1,6 @@
 package tools_test
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"flag"
 	"fmt"
 	"os"
@@ -14,6 +12,25 @@ import (
 
 var updateContractSnapshots = flag.Bool("update-contract-snapshots", false, "update reviewed generated contract snapshots")
 
+// contractIndexFile lists the artefacts under review for one source, so that an
+// artefact the generator stops emitting is a failure rather than a golden file
+// nobody notices.
+const contractIndexFile = "files.txt"
+
+// assertGeneratedContractSnapshot compares the public contract a generated project
+// exposes against the reviewed copy in testdata.
+//
+// The reviewed copy is the artefacts themselves. It used to be one SHA-256 per
+// file, which made this gate the least useful in the suite: a failure said that
+// one of six generated documents had changed, and answering "how" meant running
+// the generator into a temporary directory by hand and reading the output. That
+// is how the OpenAPI defects fixed in v2.21.0 had to be reviewed — the gate had
+// caught them for two releases without anyone being able to see them.
+//
+// Golden files are the standard answer for a generator, and here they are ~1,900
+// lines per source. A template change rewrites them, which is the point: the diff
+// is what a reviewer reads to decide whether the change to every generated service
+// is the intended one.
 func assertGeneratedContractSnapshot(t *testing.T, name, root string) {
 	t.Helper()
 
@@ -28,61 +45,135 @@ func assertGeneratedContractSnapshot(t *testing.T, name, root string) {
 	if _, err := os.Stat(filepath.Join(root, "idl.go")); err == nil {
 		paths = append(paths, "idl.go")
 	}
-
 	paths = uniqueSortedPaths(paths)
-	var snapshot strings.Builder
-	fmt.Fprintf(&snapshot, "source %s\n", name)
+
+	generated := make(map[string]string, len(paths))
 	for _, relative := range paths {
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relative)))
 		if err != nil {
 			t.Fatalf("read contract artifact %s: %v", relative, err)
 		}
-		sum := contractArtifactDigest(data)
-		fmt.Fprintf(&snapshot, "%x  %s\n", sum, filepath.ToSlash(relative))
+		generated[relative] = normalizeArtifact(data)
 	}
 
-	wantPath := filepath.Join("testdata", "contract_snapshots", name+".sha256")
+	snapshotDir := filepath.Join("testdata", "contract_snapshots", name)
 	// Only the flag refreshes a snapshot. An environment variable used to do it
 	// too, which meant a value left in a shell profile or leaked into CI made all
 	// three of these permanently self-blessing with nothing on any command line to
 	// notice. A gate whose refresh can be armed out of band is not a gate.
 	if *updateContractSnapshots {
-		if err := os.MkdirAll(filepath.Dir(wantPath), 0o755); err != nil {
+		writeContractGolden(t, snapshotDir, paths, generated)
+	}
+
+	reviewed, err := os.ReadFile(filepath.Join(snapshotDir, contractIndexFile))
+	if err != nil {
+		t.Fatalf("read contract snapshot index for %s: %v (rerun with -args -update-contract-snapshots to create it)", name, err)
+	}
+	reviewedPaths := strings.Fields(normalizeArtifact(reviewed))
+
+	if added := missingFrom(paths, reviewedPaths); len(added) > 0 {
+		t.Errorf("generated %s contract exposes artifacts the reviewed set does not contain: %s\n"+
+			"A new public artifact is a contract change: review it, then refresh with: make update-snapshots",
+			name, strings.Join(added, ", "))
+	}
+	if gone := missingFrom(reviewedPaths, paths); len(gone) > 0 {
+		t.Errorf("generated %s contract no longer emits reviewed artifacts: %s\n"+
+			"Consumers of a generated project read these. Removing one is a breaking change.",
+			name, strings.Join(gone, ", "))
+	}
+
+	for _, relative := range reviewedPaths {
+		got, ok := generated[relative]
+		if !ok {
+			continue // already reported above
+		}
+		goldenPath := filepath.Join(snapshotDir, filepath.FromSlash(relative))
+		wantData, err := os.ReadFile(goldenPath)
+		if err != nil {
+			t.Errorf("read reviewed %s artifact %s: %v", name, relative, err)
+			continue
+		}
+		want := normalizeArtifact(wantData)
+		if want == got {
+			continue
+		}
+		line, wantLine, gotLine := firstDifference(want, got)
+		t.Errorf("generated %s contract changed: %s\n"+
+			"  first difference at line %d\n    want: %s\n    got:  %s\n"+
+			"The reviewed copy is the artifact, so the diff is the review:\n"+
+			"  git diff -- v2/tools/%s\n"+
+			"Once the change is intended, refresh with: make update-snapshots",
+			name, relative, line, wantLine, gotLine, filepath.ToSlash(goldenPath))
+	}
+}
+
+// writeContractGolden replaces the reviewed copy of one source's artefacts.
+//
+// It removes the directory first: an artefact the generator no longer emits has to
+// disappear from the reviewed set too, and leaving it behind is how a golden tree
+// starts describing a generator that no longer exists.
+func writeContractGolden(t *testing.T, snapshotDir string, paths []string, generated map[string]string) {
+	t.Helper()
+	if err := os.RemoveAll(snapshotDir); err != nil {
+		t.Fatalf("clear contract snapshot directory: %v", err)
+	}
+	for _, relative := range paths {
+		goldenPath := filepath.Join(snapshotDir, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(goldenPath), 0o755); err != nil {
 			t.Fatalf("create contract snapshot directory: %v", err)
 		}
-		if err := os.WriteFile(wantPath, []byte(snapshot.String()), 0o644); err != nil {
-			t.Fatalf("update contract snapshot %s: %v", name, err)
+		if err := os.WriteFile(goldenPath, []byte(generated[relative]), 0o644); err != nil {
+			t.Fatalf("write reviewed artifact %s: %v", relative, err)
 		}
 	}
-
-	want, err := os.ReadFile(wantPath)
-	if err != nil {
-		t.Fatalf("read contract snapshot %s: %v (rerun with -args -update-contract-snapshots to create it)", name, err)
-	}
-	got := string(normalizeCommandOutput([]byte(snapshot.String())))
-	wantText := string(normalizeCommandOutput(want))
-	if got != wantText {
-		t.Fatalf("generated %s contract changed\n--- want\n%s--- got\n%s\nreview the public contract, then refresh with: make update-snapshots", name, wantText, got)
+	index := strings.Join(paths, "\n") + "\n"
+	if err := os.WriteFile(filepath.Join(snapshotDir, contractIndexFile), []byte(index), 0o644); err != nil {
+		t.Fatalf("write contract snapshot index: %v", err)
 	}
 }
 
-func contractArtifactDigest(data []byte) [sha256.Size]byte {
-	return sha256.Sum256(bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n")))
+// normalizeArtifact makes the comparison independent of the checkout's line
+// endings. This working copy is CRLF and the golden files are stored LF, so
+// without it every artefact would differ on every line on Windows.
+func normalizeArtifact(data []byte) string {
+	return strings.ReplaceAll(string(data), "\r\n", "\n")
 }
 
-func TestContractArtifactDigestNormalizesLineEndings(t *testing.T) {
-	lf := contractArtifactDigest([]byte("package sdk\n\nfunc Call() {}\n"))
-	crlf := contractArtifactDigest([]byte("package sdk\r\n\r\nfunc Call() {}\r\n"))
-	if lf != crlf {
-		t.Fatalf("contract artifact digest differs by line ending: LF=%x CRLF=%x", lf, crlf)
+// firstDifference locates the first line where two artefacts diverge, so the
+// failure can quote it instead of the file.
+func firstDifference(want, got string) (int, string, string) {
+	wantLines := strings.Split(want, "\n")
+	gotLines := strings.Split(got, "\n")
+	for i := 0; i < len(wantLines) && i < len(gotLines); i++ {
+		if wantLines[i] != gotLines[i] {
+			return i + 1, quoteArtifactLine(wantLines[i]), quoteArtifactLine(gotLines[i])
+		}
 	}
+	switch {
+	case len(gotLines) > len(wantLines):
+		return len(wantLines) + 1, "(end of file)", quoteArtifactLine(gotLines[len(wantLines)])
+	case len(wantLines) > len(gotLines):
+		return len(gotLines) + 1, quoteArtifactLine(wantLines[len(gotLines)]), "(end of file)"
+	}
+	return 0, "", ""
+}
+
+// artifactLineQuota keeps one long generated line from burying the message.
+const artifactLineQuota = 120
+
+func quoteArtifactLine(line string) string {
+	line = strings.TrimRight(line, " \t")
+	if len(line) > artifactLineQuota {
+		return line[:artifactLineQuota] + "…"
+	}
+	return line
 }
 
 // TestEveryContractSnapshotHasALiveCaller refuses a snapshot nobody reads.
 //
 // assertGeneratedContractSnapshot is a helper, not a Test, so the gate over the
 // generated public contract exists only where somebody calls it. Deleting one call
-// line produced no failure anywhere: the .sha256 file stayed in the tree as a file
+// line produced no failure anywhere: the reviewed files stayed in the tree as files
 // nobody read, and the integration tests that host these calls are not among the
 // gates RELEASE.md names, so the contract test that checks gates still exist could
 // not see it either.
@@ -117,14 +208,18 @@ func TestEveryContractSnapshotHasALiveCaller(t *testing.T) {
 
 	var snapshots int
 	for _, entry := range entries {
-		name, ok := strings.CutSuffix(entry.Name(), ".sha256")
-		if entry.IsDir() || !ok {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if _, err := os.Stat(filepath.Join(snapshotDir, name, contractIndexFile)); err != nil {
+			t.Errorf("%s/%s has no %s, so nothing states which artifacts it reviews", snapshotDir, name, contractIndexFile)
 			continue
 		}
 		snapshots++
 		call := fmt.Sprintf("assertGeneratedContractSnapshot(t, %q", name)
 		if !strings.Contains(haystack, call) {
-			t.Errorf("%s/%s.sha256 is stored but nothing calls %s.\n"+
+			t.Errorf("%s/%s is stored but nothing calls %s.\n"+
 				"Either the call was deleted, in which case that generated contract is no longer gated, "+
 				"or the snapshot is stale and should be removed.", snapshotDir, name, call)
 		}

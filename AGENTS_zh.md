@@ -41,10 +41,10 @@ go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,
 - `v2/tools/testdata/generated_layout.txt` — `-update-generated-layout`
 - `v2/tools/testdata/contract_snapshots/` — `-update-contract-snapshots`
 
-规则是：**刷新就是审查本身。** 除最后一项以外，它们存的都是自己钉住的内容，所以对这个文件做
-`git diff` 就是审查。生成的契约仍然是 digest，那里的失败只能证明"有东西动了"：刷新之前把项目
-生成到一个临时目录里，读那份文档。另外，永远不要为了让自己的改动通过而削弱一道门禁；门禁挡住
-你时，要么改动是错的，要么就得有意地重新表述它承诺的东西。
+规则是：**刷新就是审查本身。** 它们每一个存的都是自己钉住的东西——声明、路径、承诺、目录结构、
+以及生成产物本身——所以对文件做 `git diff` 就是审查，失败信息也会引用动了的那一行。这里已经不再
+有 digest，也不该再出现 digest。另外，永远不要为了让自己的改动通过而削弱一道门禁；门禁挡住你时，
+要么改动是错的，要么就得有意地重新表述它承诺的东西。
 
 ## 一个承诺就是源码里的一个标记
 

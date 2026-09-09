@@ -1,0 +1,6 @@
+.microgen/manifest.json
+docs/openapi.json
+docs/schema.json
+pb/userservice/userservice.proto
+sdk/typescript/client.ts
+sdk/userservicesdk/client.go
