@@ -113,6 +113,101 @@ func TestAgentGuideNamesThingsThatExist(t *testing.T) {
 	}
 }
 
+// TestAgentGuideNamesEveryVersionBearingFile keeps the release-candidate checklist
+// in the guide complete.
+//
+// Opening a candidate means writing the new version into every file that carries
+// it, and the cost of missing one is paid at the worst moment: the release gate
+// fails, or worse, a generated project pins a version that was never published.
+// AGENTS.md lists those files, and a list of that kind rots — a new file starts
+// carrying the version and nobody remembers the checklist exists.
+//
+// So the check runs the other way: every non-Markdown file under v2 that contains
+// the manifest's version outside a comment has to be named in both guides.
+// Markdown is excluded because a changelog and a roadmap talk about past releases
+// by name, and a comment is excluded because prose about a past fix — "the defects
+// fixed in v2.21.0" — is history, not a value to bump.
+func TestAgentGuideNamesEveryVersionBearingFile(t *testing.T) {
+	t.Parallel()
+	root := moduleRoot(t)
+	repoRoot := filepath.Dir(root)
+	version := readReleaseManifest(t, root).CoreVersion
+	if version == "" {
+		t.Fatal("manifest has no coreVersion, so this gate would pass vacuously")
+	}
+
+	guides := make(map[string]string, len(agentGuides))
+	for _, guide := range agentGuides {
+		guides[guide] = readTextFile(t, filepath.Join(repoRoot, guide))
+	}
+
+	var carriers []string
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			if entry.Name() == "node_modules" || entry.Name() == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(entry.Name(), ".md") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if !strings.Contains(withoutComments(entry.Name(), string(data)), version) {
+			return nil
+		}
+		relative, err := filepath.Rel(repoRoot, path)
+		if err != nil {
+			return err
+		}
+		carriers = append(carriers, filepath.ToSlash(relative))
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk v2: %v", err)
+	}
+	if len(carriers) == 0 {
+		t.Fatalf("no file under v2 carries %s, so this gate would pass vacuously", version)
+	}
+
+	sort.Strings(carriers)
+	for _, carrier := range carriers {
+		for _, guide := range agentGuides {
+			if !strings.Contains(guides[guide], carrier) {
+				t.Errorf("%s carries %s but %s does not name it in the release-candidate list.\n"+
+					"Add it there, or the next candidate will be opened with this file left behind.",
+					carrier, version, guide)
+			}
+		}
+	}
+}
+
+// withoutComments removes line comments so that prose naming a past release is not
+// mistaken for a version the next candidate has to update.
+//
+// It cuts at the first marker on a line, which also truncates a line whose URL
+// contains one. That can only hide an occurrence, never invent one, and a version
+// string inside a URL is not a value anybody bumps.
+func withoutComments(name, text string) string {
+	marker := "//"
+	if name == "Makefile" || strings.HasSuffix(name, ".mk") {
+		marker = "#"
+	}
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		if at := strings.Index(line, marker); at >= 0 {
+			lines[i] = line[:at]
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 type guideReferences struct {
 	paths       []string
 	makeTargets []string
