@@ -2132,11 +2132,15 @@ Recorded with file and line, not yet acted on:
   storage of `api_surface` and `contract_snapshots/*.sha256`, where nothing forced a
   reviewer to read what changed. Carried into Milestone 22.
 
-## Milestone 22 (Active): A Gate Whose Failure Is The Review
+## Milestone 22 (Complete): A Gate Whose Failure Is The Review
 
 Goal: when a gate blocks a change, the failure and the stored file together say what
 changed. A gate whose diff a person cannot read is a gate whose refresh command is
 the only review it will ever get.
+
+No release follows it. Everything here is in the workspace-only `tools` module and in
+documentation, so the published module is byte-identical to v2.21.0 and a tag would
+say otherwise.
 
 ### Work Package 1: The Public API Surface Is A List, Not A Hash
 
