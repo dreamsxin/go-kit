@@ -8,6 +8,27 @@ What the generator emits is part of the framework. This milestone comes from two
 audits: the first ever look at the code-generation path, and a look at what happens
 when features are combined rather than used alone.
 
+### Changed
+
+- **The API compatibility gate no longer passes green on a tagless checkout.**
+  `TestAPICompatibilityWithLastRelease` skipped when no `v2.*` tag was reachable,
+  and a skip is green — so a shallow clone, a `git archive` export, or a CI job
+  that fetches without tags silently disabled the gate that guards the entire
+  exported surface. It now fails and says which of the two situations you are in;
+  the honest case, nothing released yet, is `-allow-missing-release-tag` and has to
+  be typed.
+- **The generated-contract snapshots can no longer be refreshed out of band.**
+  `UPDATE_CONTRACT_SNAPSHOTS=1` refreshed them alongside the flag, so a value left
+  in a shell profile or leaked into CI made all three permanently self-blessing
+  with nothing on any command line to notice. Only the flag remains.
+- `TestEveryContractSnapshotHasALiveCaller` refuses a snapshot nobody reads. The
+  comparison lives in a helper the integration tests call, and deleting one call
+  line produced no failure anywhere: the `.sha256` file stayed in the tree unread,
+  and the tests hosting those calls are not among the gates `RELEASE.md` names, so
+  the contract test that checks gates still exist could not see it either. The new
+  gate walks the snapshots instead of the callers, and is itself named in
+  `RELEASE.md` so deleting it is caught.
+
 ### Fixed
 
 - **The generated MCP wiring was broken by v2.20.0.** Tightening the Origin check

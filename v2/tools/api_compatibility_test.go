@@ -1,6 +1,7 @@
 package tools_test
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,12 @@ import (
 	"strings"
 	"testing"
 )
+
+// allowMissingReleaseTag turns this file's hard failure back into a skip. It
+// exists for the one honest case — nothing released yet — and it has to be typed
+// on the command line, so a tagless CI checkout cannot borrow it by accident.
+var allowMissingReleaseTag = flag.Bool("allow-missing-release-tag", false,
+	"treat a missing v2.* tag as 'nothing released yet' rather than a broken checkout")
 
 // TestAPICompatibilityWithLastRelease compares the exported surface at HEAD with
 // the surface at the newest released tag and fails only on an incompatible
@@ -36,7 +43,23 @@ func TestAPICompatibilityWithLastRelease(t *testing.T) {
 
 	tag, ok := newestReleaseTag(t, repoRoot)
 	if !ok {
-		t.Skip("no v2 release tag exists yet, so there is no published surface to stay compatible with")
+		// A skip is green, and this used to be the only thing standing between a
+		// tagless checkout and a silent pass on the gate that guards the whole
+		// exported surface. A shallow clone, a git archive export, or a CI job
+		// that fetches without tags all reach here — and none of them is a
+		// repository where nothing has been released yet.
+		//
+		// Before the first release there is genuinely nothing to compare against,
+		// so the escape stays; it just has to be asked for, on the command line,
+		// by someone who knows which of the two situations they are in.
+		if *allowMissingReleaseTag {
+			t.Skip("no v2 release tag exists yet, so there is no published surface to stay compatible with")
+		}
+		t.Fatal("no v2.* tag is reachable, so this gate cannot compare anything and would otherwise pass green.\n" +
+			"If tags exist but were not fetched — a shallow clone, an archive export, a CI checkout without tags — run:\n" +
+			"  git fetch --tags\n" +
+			"If nothing has been released yet, say so deliberately:\n" +
+			"  go test ./... -allow-missing-release-tag")
 	}
 
 	previous := t.TempDir()

@@ -302,8 +302,8 @@ func TestCompatibilityContractNamesItsGates(t *testing.T) {
 			t.Fatalf("read %s: %v", doc.name, err)
 		}
 		surfaces := contractSurfaces(string(data), doc.heading)
-		if len(surfaces) != 6 {
-			t.Errorf("%s lists %d covered surfaces, want the 6 the contract names", doc.name, len(surfaces))
+		if len(surfaces) != 7 {
+			t.Errorf("%s lists %d covered surfaces, want the 7 the contract names", doc.name, len(surfaces))
 			continue
 		}
 		for _, surface := range surfaces {

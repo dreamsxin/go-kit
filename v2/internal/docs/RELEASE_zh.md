@@ -39,7 +39,10 @@ v2 处于冻结前阶段。在宣布冻结之前，minor 版本允许改变行�
 - 已记录的 `microgen` 标志 —— `TestMicrogenFlagsAreDocumented`、`TestGeneratedMainFlagsAreDocumented`；
 - 生成的用户所有文件位置 —— `TestGeneratedLayout`、`TestMicrogenIDLContractIntegration`；
 - 已记录的生成配置键及其优先级 —— `TestGeneratedConfigKeysAreDocumented`、`TestMicrogenConfigIntegration`；
-- 记录为稳定的协议行为 —— `TestStableProtocolBehaviour`。
+- 记录为稳定的协议行为 —— `TestStableProtocolBehaviour`；
+- 生成的公共契约 —— `TestEveryContractSnapshotHasALiveCaller`。快照比较本身在一个由集成测试调用的
+  helper 里，所以这里真正要紧的门禁是"每一份存下来的快照都仍然有调用者"那一道：否则删掉一行调用，文件
+  还留在树里，只是没人读了。
 
 稳定的协议行为声明在实现它的位置，形式是紧邻代码的 `// Stable: <id> — <承诺>`，
 经过评审的集合保存在 `tools/testdata/protocol_behaviour.txt`。刻意不做承诺的行为同样

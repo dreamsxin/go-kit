@@ -36,7 +36,7 @@ version they have validated.
 
 Once the freeze is declared, incompatible changes require a new major module path.
 
-The compatibility contract at that point covers the six surfaces below. Each one
+The compatibility contract at that point covers the seven surfaces below. Each one
 names the gate that fails when it moves, because a promise no test enforces is a
 promise the first accidental break hands to a consumer rather than to CI:
 
@@ -45,7 +45,12 @@ promise the first accidental break hands to a consumer rather than to CI:
 - documented `microgen` flags — `TestMicrogenFlagsAreDocumented`, `TestGeneratedMainFlagsAreDocumented`;
 - generated user-owned file locations — `TestGeneratedLayout`, `TestMicrogenIDLContractIntegration`;
 - documented generated configuration keys and precedence — `TestGeneratedConfigKeysAreDocumented`, `TestMicrogenConfigIntegration`;
-- protocol behavior documented as stable — `TestStableProtocolBehaviour`.
+- protocol behavior documented as stable — `TestStableProtocolBehaviour`;
+- the generated public contract — `TestEveryContractSnapshotHasALiveCaller`. The
+  snapshot comparison itself lives in a helper the integration tests call, so the
+  gate that matters here is the one asserting every stored snapshot still has a
+  caller: deleting a call line otherwise leaves the file in the tree with nobody
+  reading it.
 
 The stable protocol behaviours are declared where they are implemented, as
 `// Stable: <id> — <promise>` beside the code that keeps it, and the reviewed set
