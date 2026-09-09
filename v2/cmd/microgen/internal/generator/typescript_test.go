@@ -75,7 +75,9 @@ func TestBuildTypeScriptSDKData(t *testing.T) {
 			break
 		}
 	}
-	if len(responseView.Fields) != 1 || responseView.Fields[0].Type != "User" {
+	// The response field is a *User, so the declared type has to admit the null
+	// the Go encoder writes for a nil.
+	if len(responseView.Fields) != 1 || responseView.Fields[0].Type != "User | null" {
 		t.Fatalf("response view = %#v", responseView)
 	}
 }

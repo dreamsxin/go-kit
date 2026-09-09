@@ -2082,14 +2082,37 @@ Acceptance:
 go test ./cmd/microgen/... -count=1
 ```
 
+### Work Package 4: The Document Describes The Handler
+
+- `additionalProperties` was absent from every message schema while the generated
+  decoder sets `DisallowUnknownFields`. Silence means "extra properties are allowed",
+  so a client generated from the document could be rejected by the service generated
+  beside it. Every message schema now says `false`; `ErrorResponse` deliberately does
+  not, because a deployment chooses the error encoder and
+  `ProblemJSONErrorEncoder` answers with a wider document.
+- Pointer fields lost their nullability three times over: the OpenAPI schema, the
+  JSON Schema bundle, and the TypeScript SDK all named the value's type while the Go
+  encoder writes `null` for a nil — generated structs carry no `omitempty`. A plain
+  type is now a two-element type list, a `$ref` is wrapped in `anyOf` (keywords beside
+  a `$ref` are not honoured everywhere), and the TypeScript field is `T | null`.
+- `required` is not a defect but a derivation, and it is now written down where a user
+  meets it: non-pointer means required, a pointer is how optional is declared, and it
+  is a statement about the payload rather than a promise that the server rejects an
+  omission. Presence cannot be told from a zero value on a non-pointer field, so a
+  missing `count` arrives as `0` — the reason to declare the field as a pointer when
+  absence has to be a different answer.
+
+Acceptance:
+
+```bash
+go test ./cmd/microgen/... -count=1
+go -C ./tools test . -run TestMicrogen -count=1
+```
+
 ### Still Open From The Same Audits
 
 Recorded with file and line, not yet acted on:
 
-- Three schema-versus-handler disagreements in the generated OpenAPI: no
-  `additionalProperties` while the decoder sets `DisallowUnknownFields`, nullability
-  stripped from pointer fields, and `required` claimed for every non-pointer field
-  while nothing checks presence.
 - A live SSE stream burns the HTTP component's whole shutdown share and produces
   `ErrShutdownIncomplete` on any rolling deploy that catches one; `WithTimeout` is
   component-wide with no per-route escape, so hosting a long stream means dropping the

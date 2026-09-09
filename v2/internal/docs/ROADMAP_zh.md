@@ -1657,12 +1657,30 @@ go test ./cmd/microgen/... -count=1
 go test ./cmd/microgen/... -count=1
 ```
 
+### 工作包 4：文档描述的是 handler
+
+- 每个 message schema 都没有 `additionalProperties`，而生成的解码器设了
+  `DisallowUnknownFields`。沉默的含义是"允许多余属性"，于是照文档生成的客户端会被它旁边生成出来的
+  服务拒绝。现在每个 message schema 都写 `false`；`ErrorResponse` 有意不写，因为错误编码器是部署方
+  的选择，而 `ProblemJSONErrorEncoder` 回答的是一份更宽的文档。
+- 指针字段的可空性被丢了三遍：OpenAPI schema、JSON Schema 包、以及 TypeScript SDK 都只写了值的
+  类型，而 Go 编码器对 nil 写的是 `null`——生成的结构体不带 `omitempty`。现在普通类型是两元素类型
+  列表，`$ref` 包进 `anyOf`（`$ref` 旁边的关键字并非所有实现都认），TypeScript 字段是 `T | null`。
+- `required` 不是缺陷，而是一条推导规则，现在写在用户会遇到它的地方：非指针即 required，"声明为指针"
+  就是声明可选，而它是关于载荷的陈述，不是"服务端会拒绝缺省"的承诺。非指针字段上无法把缺省和零值
+  区分开，于是缺失的 `count` 到达时就是 `0`——这正是"当缺省必须区别于零时，把字段声明成指针"的理由。
+
+验收：
+
+```bash
+go test ./cmd/microgen/... -count=1
+go -C ./tools test . -run TestMicrogen -count=1
+```
+
 ### 这两次审计里仍未处理的
 
 已记下文件与行号，尚未动手：
 
-- 生成的 OpenAPI 与 handler 三处不一致：没有 `additionalProperties` 而解码器设了 `DisallowUnknownFields`；
-  指针字段的可空性被抹掉；每个非指针字段都被标 `required`，而没有任何地方检查存在性。
 - 一条活着的 SSE 流会吃掉 HTTP 组件停机预算的全部份额，于是任何撞上开着的流的滚动发布都会产出
   `ErrShutdownIncomplete`；`WithTimeout` 是组件级的、没有按路由的出口，于是要托管一条长流就得把它旁边
   JSON 路由的 deadline 也一起去掉。两者都是代码已经写明的机制，但这个取舍没有被写下来。

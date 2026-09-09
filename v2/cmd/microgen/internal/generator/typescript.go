@@ -106,7 +106,7 @@ func buildTypeScriptSDKData(project *ir.Project, basePrefix string) typeScriptSD
 			}
 			view.Fields = append(view.Fields, typeScriptField{
 				Name:        firstNonEmpty(field.JSONName, toSnakeCase(field.Name)),
-				Type:        typeScriptType(field.GoType, field.SchemaType, messageNames),
+				Type:        typeScriptFieldType(field, messageNames),
 				Description: typeScriptComment(field.Description),
 				Required:    field.Required,
 			})
@@ -190,6 +190,21 @@ func buildTypeScriptMethod(method *ir.Method, messages map[string]*ir.Message, m
 		}
 	}
 	return view
+}
+
+// typeScriptFieldType names the type a field's JSON value can actually take.
+//
+// A pointer field is both optional and nullable: the template writes `name?:`
+// from Required, and the Go encoder writes `null` for a nil because generated
+// structs carry no omitempty. Declaring only `User` there is a type a response
+// from the same generator's service violates, and under strictNullChecks the
+// consumer's guard is written against the wrong shape.
+func typeScriptFieldType(field *ir.Field, messageNames map[string]struct{}) string {
+	name := typeScriptType(field.GoType, field.SchemaType, messageNames)
+	if isPointerGoType(field.GoType) {
+		return name + " | null"
+	}
+	return name
 }
 
 func typeScriptType(goType, schemaType string, messageNames map[string]struct{}) string {

@@ -75,12 +75,16 @@ type openAPIComponents struct {
 }
 
 type openAPISchema struct {
-	Ref                  string                    `json:"$ref,omitempty"`
-	Type                 string                    `json:"type,omitempty"`
+	Ref string `json:"$ref,omitempty"`
+	// Type is a string, or a []string when the value may also be null. OpenAPI
+	// 3.1 is JSON Schema 2020-12, which has no `nullable` keyword: null is a type
+	// like any other, so admitting it means listing two.
+	Type                 any                       `json:"type,omitempty"`
 	Format               string                    `json:"format,omitempty"`
 	Description          string                    `json:"description,omitempty"`
 	Properties           map[string]*openAPISchema `json:"properties,omitempty"`
 	Items                *openAPISchema            `json:"items,omitempty"`
+	AnyOf                []*openAPISchema          `json:"anyOf,omitempty"`
 	AdditionalProperties any                       `json:"additionalProperties,omitempty"`
 	Required             []string                  `json:"required,omitempty"`
 	Example              any                       `json:"example,omitempty"`
@@ -273,7 +277,14 @@ func openAPIMessageSchema(message *ir.Message, messageNames map[string]struct{})
 }
 
 func contractMessageSchema(message *ir.Message, messageNames map[string]struct{}, refPrefix string) *openAPISchema {
-	schema := &openAPISchema{Type: "object", Properties: map[string]*openAPISchema{}}
+	// additionalProperties is false because the generated decoder says so:
+	// transport.tmpl decodes request bodies with StrictJSONDecodeOptions, which
+	// sets DisallowUnknownFields, so an unknown property is a 400. A document
+	// that stays silent means "extra properties are allowed", and a client
+	// generated from it sends one and gets rejected by the service the same
+	// generator wrote. On a response schema it is the same statement from the
+	// other side: these properties are what the struct marshals, and nothing else.
+	schema := &openAPISchema{Type: "object", Properties: map[string]*openAPISchema{}, AdditionalProperties: false}
 	if message == nil {
 		return schema
 	}
@@ -298,6 +309,9 @@ func openAPIFieldSchema(field *ir.Field, messageNames map[string]struct{}) *open
 
 func contractFieldSchema(field *ir.Field, messageNames map[string]struct{}, refPrefix string) *openAPISchema {
 	schema := contractSchemaForType(field.GoType, field.SchemaType, messageNames, refPrefix)
+	if isPointerGoType(field.GoType) {
+		schema = nullableSchema(schema)
+	}
 	schema.Description = field.Description
 	if field.Example != "" {
 		var example any
@@ -305,6 +319,34 @@ func contractFieldSchema(field *ir.Field, messageNames map[string]struct{}, refP
 			example = strings.Trim(field.Example, `"`)
 		}
 		schema.Example = example
+	}
+	return schema
+}
+
+func isPointerGoType(goType string) bool {
+	return strings.HasPrefix(strings.TrimSpace(goType), "*")
+}
+
+// nullableSchema restates a schema so that it also admits null.
+//
+// A generated struct carries no `omitempty` — model.tmpl writes `json:"name"` —
+// so a nil pointer field marshals to `null`, and a schema naming only the value's
+// type describes a payload the service does not produce. A client generated from
+// it fails to unmarshal a response the service considers valid.
+//
+// The spelling depends on what is being made nullable. A plain type becomes a
+// two-element type list, which is how JSON Schema 2020-12 says it. A $ref cannot:
+// keywords beside a $ref were ignored before 2020-12 and validators still differ,
+// so the reference is wrapped in anyOf where every implementation agrees.
+func nullableSchema(schema *openAPISchema) *openAPISchema {
+	if schema == nil {
+		return nil
+	}
+	if schema.Ref != "" {
+		return &openAPISchema{AnyOf: []*openAPISchema{{Ref: schema.Ref}, {Type: "null"}}}
+	}
+	if name, ok := schema.Type.(string); ok && name != "" && name != "null" {
+		schema.Type = []string{name, "null"}
 	}
 	return schema
 }
@@ -383,6 +425,14 @@ func buildContractSchemas(messages map[string]*ir.Message, messageNames map[stri
 	return schemas
 }
 
+// errorResponseSchema describes the error envelope the framework's JSON error
+// encoder writes.
+//
+// It deliberately does not set additionalProperties: false, unlike the message
+// schemas. The body is not produced by generated code — the encoder is a
+// deployment's choice, and ProblemJSONErrorEncoder answers with a wider document
+// — so closing this schema would make the generator promise something it does not
+// write.
 func errorResponseSchema() *openAPISchema {
 	return &openAPISchema{
 		Type: "object",

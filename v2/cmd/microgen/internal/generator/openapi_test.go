@@ -65,8 +65,14 @@ func TestBuildOpenAPIDocument(t *testing.T) {
 	if _, exists := doc.Paths["/api/v1/userservice/users/watch"]; exists {
 		t.Fatal("streaming method must not be emitted as an HTTP operation")
 	}
-	if got := doc.Components.Schemas["CreateUserRequest"].Properties["user"].Ref; got != "#/components/schemas/User" {
-		t.Fatalf("user schema ref = %q", got)
+	// User is a *User field: nullable, so the ref sits inside anyOf.
+	userSchema := doc.Components.Schemas["CreateUserRequest"].Properties["user"]
+	if len(userSchema.AnyOf) != 2 || userSchema.AnyOf[0].Ref != "#/components/schemas/User" || userSchema.AnyOf[1].Type != "null" {
+		t.Fatalf("user schema = %#v", userSchema)
+	}
+	// The generated decoder is strict, so the document has to say so.
+	if got := doc.Components.Schemas["CreateUserRequest"].AdditionalProperties; got != false {
+		t.Fatalf("additionalProperties = %#v, want false", got)
 	}
 	if got := doc.Components.Schemas["User"].Properties["created_at"].Format; got != "date-time" {
 		t.Fatalf("time format = %q", got)

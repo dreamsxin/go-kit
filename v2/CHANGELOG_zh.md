@@ -64,9 +64,22 @@
   的原始字符串。`escape` 被替换为 `quote`（`strconv.Quote`，一次处理全部这些）、`comment`（折叠所有行终止符
   ——因为 `//` 注释到换行就结束，而 `.proto` 输出从不经过格式化器）与 `tag`（去掉原始字符串无法转义的字符），
   并且 `interaction`、`model`、`service`、`sdk`、`proto` 模板里全部十九处插值点都改用了它们。
+- **生成的 OpenAPI 文档和生成的 handler 自相矛盾。** 每个 message schema 对 `additionalProperties`
+  闭口不谈，而解码器设了 `DisallowUnknownFields`，而沉默的含义是"允许多余属性"——于是照文档生成的
+  客户端，会被它旁边生成出来的那个服务拒绝。现在 message schema 都写 `false`。`ErrorResponse` 有意
+  不写：错误编码器是部署方的选择，`ProblemJSONErrorEncoder` 写的是一份更宽的文档，把那个 schema 关起来
+  就是承诺生成器并不产出的东西。
+- **指针字段的可空性在三份产物里都丢了。** OpenAPI schema、JSON Schema 包、TypeScript SDK 都只写了
+  值的类型，而 nil 指针会 marshal 成 `null`——生成的结构体不带 `omitempty`——于是文档描述的是服务并不
+  产出的载荷，而 TypeScript 使用方的判空是照错误的形状写的。现在普通类型是 `["string", "null"]`，
+  `$ref` 包进 `anyOf`（`$ref` 旁边的关键字并非所有实现都认），TypeScript 字段是 `T | null`。
 
 ### 文档
 
+- `MICROGEN.md` 现在写明了把生成文档和生成 handler 连起来的三条规则，包括其中那条"是推导而非修复"的：
+  `required` 由类型推导，"声明为指针"就是声明可选，而它是关于载荷的陈述，不是"服务端会拒绝缺省"的承诺。
+  非指针字段上无法把缺省和零值区分开，于是缺失的 `count` 到达时就是 `0`——当"缺省"必须区别于"零"时，
+  把这个字段声明成指针。
 - `kit` 的注册指南对 `HandleSSETyped` 说过头了——而那段是本仓库两个版本前自己写的。它后来长出的两条注意
   ——硬编码的拒绝编码器、以及看起来永远成功的流——在上面被修掉了，而不是被记下来，所以指南现在写的是这个
   函数做什么，并只点出那条真实的限制：一旦流已经回答了 200，错误只能被记录，不能被渲染。

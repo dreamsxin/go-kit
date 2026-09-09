@@ -32,8 +32,11 @@ func TestBuildJSONSchemaDocument(t *testing.T) {
 	if doc.Title != "UserService API Schemas" {
 		t.Fatalf("title = %q", doc.Title)
 	}
-	if got := doc.Defs["User"].Properties["profile"].Ref; got != "#/$defs/Profile" {
-		t.Fatalf("profile ref = %q", got)
+	// Profile is a *Profile with no omitempty, so the field can arrive as null and
+	// the reference has to be wrapped rather than named directly.
+	profileSchema := doc.Defs["User"].Properties["profile"]
+	if len(profileSchema.AnyOf) != 2 || profileSchema.AnyOf[0].Ref != "#/$defs/Profile" || profileSchema.AnyOf[1].Type != "null" {
+		t.Fatalf("profile schema = %#v", profileSchema)
 	}
 	if got := doc.Defs["Profile"].Description; got != "Public profile" {
 		t.Fatalf("profile description = %q", got)

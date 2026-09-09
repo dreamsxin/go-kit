@@ -172,7 +172,28 @@ generated document uses relative URLs, so generated configuration has no
 `docs/` and `sdk/typescript/`; treat them as generator-owned. Generated text is
 UTF-8 without BOM. Streaming RPCs remain on the generated Go gRPC SDK.
 
-Repository contract verification parses every generated OpenAPI 3.1 document,
+### What The Schemas Say About The Wire
+
+Three rules connect the generated document to the generated handler, so a client
+built from the document meets the service the same run produced:
+
+- `additionalProperties` is `false`. Request bodies are decoded with
+  `DisallowUnknownFields`, so an unknown property is a 400; a document that stayed
+  silent would mean "extra properties are allowed" and a generated client would be
+  rejected by its own service. On a response schema it says the same thing from the
+  other side: these properties, and nothing else.
+- A pointer field is nullable. Generated structs carry no `omitempty`, so a nil
+  pointer marshals to `null`. A plain type becomes a two-element type list
+  (`["string", "null"]`); a `$ref` is wrapped in `anyOf`, because keywords beside a
+  `$ref` are not honoured everywhere.
+- `required` is derived from the type: non-pointer means required, and a pointer is
+  how a field is declared optional. It is a statement about the payload, not a
+  promise that the server rejects an omission — presence cannot be distinguished
+  from a zero value on a non-pointer field, so a missing `count` arrives as `0`.
+  When absence has to be a different answer from zero, declare the field as a
+  pointer.
+
+
 compiles every JSON Schema 2020-12 definition, type-checks generated clients
 with the pinned compiler, compares Go and TypeScript SDK HTTP behavior, and
 checks reviewed contract snapshots for Go IDL, Protobuf, and database sources.

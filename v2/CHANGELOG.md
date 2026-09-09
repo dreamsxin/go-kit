@@ -96,9 +96,31 @@ when features are combined rather than used alone.
   never reaches a formatter) and `tag` (removes what a raw string cannot escape),
   and all nineteen interpolation sites across `interaction`, `model`, `service`,
   `sdk` and `proto` templates now use them.
+- **The generated OpenAPI document contradicted the generated handler.** Every
+  message schema was silent about `additionalProperties` while the decoder sets
+  `DisallowUnknownFields`, and silence means extra properties are allowed — so a
+  client generated from the document could be rejected by the service generated
+  beside it. Message schemas now say `false`. `ErrorResponse` deliberately does not:
+  the error encoder is a deployment's choice and `ProblemJSONErrorEncoder` writes a
+  wider document, so closing that schema would promise something the generator does
+  not write.
+- **Pointer fields lost their nullability in all three outputs.** The OpenAPI schema,
+  the JSON Schema bundle and the TypeScript SDK each named the value's type, while a
+  nil pointer marshals to `null` because generated structs carry no `omitempty` — the
+  document described a payload the service does not produce, and the TypeScript
+  consumer's guard was written against the wrong shape. A plain type is now
+  `["string", "null"]`, a `$ref` is wrapped in `anyOf` (keywords beside a `$ref` are
+  not honoured everywhere), and the TypeScript field is `T | null`.
 
 ### Documentation
 
+- `MICROGEN.md` now states the three rules that connect the generated document to
+  the generated handler, including the one that is a derivation rather than a fix:
+  `required` comes from the type, a pointer is how optional is declared, and it is a
+  statement about the payload rather than a promise that the server rejects an
+  omission. Presence cannot be told from a zero value on a non-pointer field, so a
+  missing `count` arrives as `0` — declare the field as a pointer when absence has to
+  be a different answer from zero.
 - `kit`'s registration guide over-claimed for `HandleSSETyped`, which this
   repository wrote two releases ago. Both caveats it grew in the meantime — the
   hardcoded rejection encoder and the stream that always looked successful — are
