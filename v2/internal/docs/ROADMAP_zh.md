@@ -1664,7 +1664,11 @@ go test ./cmd/microgen/... -count=1
   JSON 路由的 deadline 也一起去掉。两者都是代码已经写明的机制，但这个取舍没有被写下来。
 - `kit/sse.go` 里那个范例只 select `ctx.Done()`，忽略了 `Stopping` 通告，和 `kit/drain.go` 里的范例自相
   矛盾——而写 SSE 的人读的是前者。
-- 门禁元审计没跑完；"哪一道门禁能在它的 promise 已破时仍然绿着"这个问题仍然开着。
+- 门禁元审计找出的两处"空绿"已经修掉（没有 tag 的检出、带外刷新快照），还有一处没修：
+  `api_surface.sha256` 和 `contract_snapshots/*.sha256` 存的是 digest，于是没有任何东西迫使审查者去读
+  "改了什么"——刷新命令就是全部的审查。失败信息现在会点名动了的包，但那不是同一件事。把这两者迁移成
+  可读的按包声明清单（像 `TestExportedPackagePaths` 和 `TestGeneratedLayout` 已经在做的那样）是开着的
+  决定；它涉及 34 个包和三份生成器 fixture，所以它应该是独立的一个工作包，而不是顺手改掉。
 
 ## 维护规则
 

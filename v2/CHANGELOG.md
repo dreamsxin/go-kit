@@ -28,6 +28,13 @@ when features are combined rather than used alone.
   the contract test that checks gates still exist could not see it either. The new
   gate walks the snapshots instead of the callers, and is itself named in
   `RELEASE.md` so deleting it is caught.
+- **The API surface gate now names the packages that moved.** It stores one digest
+  per package, and its failure printed two blocks of thirty-five hex strings, so the
+  reviewer's first task was to diff hex by eye before they could begin on the
+  question the gate exists to ask. The failure now lists the changed packages,
+  marking any that appeared or disappeared, and points at `go doc -all`. The stored
+  form is still a digest: this makes the failure legible, not the snapshot
+  reviewable.
 
 ### Fixed
 

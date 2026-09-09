@@ -56,8 +56,55 @@ func TestPublicAPISurfaceSnapshot(t *testing.T) {
 	got := string(normalizeCommandOutput([]byte(snapshot.String())))
 	wantText := string(normalizeCommandOutput(want))
 	if got != wantText {
-		t.Fatalf("public API surface changed\n--- want\n%s--- got\n%s\nreview the exported API change, then refresh with: make update-snapshots", wantText, got)
+		t.Fatalf("public API surface changed in %s\n"+
+			"A digest says only that something moved, so the packages are named here and the\n"+
+			"declarations are yours to read:\n  go doc -all <import path>\n\n"+
+			"--- want\n%s--- got\n%s\n"+
+			"Review the exported API change, then refresh with: make update-snapshots",
+			strings.Join(changedSurfacePackages(wantText, got), ", "), wantText, got)
 	}
+}
+
+// changedSurfacePackages names the packages whose digest moved.
+//
+// The snapshot stores one hash per package, so a failure used to print two blocks
+// of thirty-five hex strings and leave the reader to spot which line differed
+// before they could even begin to work out what changed. Naming the packages does
+// not make the digest reviewable — that needs a different stored form — but it
+// removes the first, entirely mechanical step from the reviewer's job.
+func changedSurfacePackages(want, got string) []string {
+	previous := make(map[string]string)
+	for _, line := range strings.Split(want, "\n") {
+		if digest, pkg, ok := strings.Cut(strings.TrimSpace(line), "  "); ok {
+			previous[pkg] = digest
+		}
+	}
+	var changed []string
+	seen := make(map[string]struct{})
+	for _, line := range strings.Split(got, "\n") {
+		digest, pkg, ok := strings.Cut(strings.TrimSpace(line), "  ")
+		if !ok {
+			continue
+		}
+		seen[pkg] = struct{}{}
+		if before, existed := previous[pkg]; !existed {
+			changed = append(changed, pkg+" (new package)")
+		} else if before != digest {
+			changed = append(changed, pkg)
+		}
+	}
+	for pkg := range previous {
+		if _, ok := seen[pkg]; !ok {
+			changed = append(changed, pkg+" (gone)")
+		}
+	}
+	sort.Strings(changed)
+	if len(changed) == 0 {
+		// The digests match line for line, so the difference is in the header or
+		// in the ordering. Say so rather than printing an empty list.
+		return []string{"no package digest differs — the header or package order changed"}
+	}
+	return changed
 }
 
 // declarationsOnly strips doc-comment prose from `go doc -all` output, keeping

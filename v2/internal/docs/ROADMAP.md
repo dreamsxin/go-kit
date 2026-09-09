@@ -2092,8 +2092,15 @@ Recorded with file and line, not yet acted on:
 - The canonical SSE example in `kit/sse.go` selects only on `ctx.Done()` and ignores
   the `Stopping` announcement, contradicting the drain example in `kit/drain.go`. The
   SSE one is the one an SSE author reads.
-- The gate meta-audit did not finish; the question of which gate can stay green while
-  its promise is broken is still open.
+- The gate meta-audit found the two vacuous passes now fixed (a tagless checkout, an
+  out-of-band snapshot refresh) and one it did not fix: `api_surface.sha256` and
+  `contract_snapshots/*.sha256` store digests, so nothing forces a reviewer to read
+  what changed — the refresh command is the whole review. The failure message now
+  names the packages that moved, which is not the same thing. Migrating both to
+  readable per-package declaration lists, the way `TestExportedPackagePaths` and
+  `TestGeneratedLayout` already store theirs, is the open decision; it touches 34
+  packages and three generator fixtures, so it is its own work package rather than a
+  tail-end change.
 
 ## Maintenance Rules / 维护规则
 
