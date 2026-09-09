@@ -2001,7 +2001,7 @@ go test ./interaction/mcp/ -run "Origin|TrustRequestHost" -count=1
 
 Shipped as `mcp.request-host-is-not-trusted-by-default`.
 
-## Milestone 21 (Active): What The Generator Emits Is Part Of The Framework
+## Milestone 21 (Complete): What The Generator Emits Is Part Of The Framework
 
 Goal: the generated service should be as correct as a hand-written one, and a feature
 should behave the same when combined as it does alone.
@@ -2009,6 +2009,12 @@ should behave the same when combined as it does alone.
 Two audits opened this. The first ever look at `cmd/microgen` — the generator emits a
 whole service and had never been reviewed — and a look at feature composition rather
 than per-package correctness.
+
+Released as v2.21.0. Four work packages landed: the generated service builds and stops
+correctly again, SSE keeps the component's contract and reports its own failures, text
+from an IDL is escaped where it becomes code, and the generated document describes the
+generated handler. Two gate defects found on the way — a vacuous pass on a tagless
+checkout and an out-of-band snapshot refresh — are fixed in the same release.
 
 ### Work Package 1: The Generated Service Is Correct Again
 
