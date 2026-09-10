@@ -12,6 +12,82 @@ import (
 	"github.com/dreamsxin/go-kit/v2/sd/selector"
 )
 
+// recyclingProvider hands out a snapshot slice and then rewrites it in place, which
+// sd.Event forbids. The follower keeps the snapshot to hand to a retainer that joins
+// later, so aliasing it lets a provider bug rewrite a set that was already published.
+type recyclingProvider struct {
+	mu        sync.Mutex
+	instances []sd.Instance
+}
+
+func (r *recyclingProvider) Register(chan sd.Event) sd.Event {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return sd.Event{Instances: r.instances}
+}
+
+func (r *recyclingProvider) Deregister(chan sd.Event) {}
+
+func (r *recyclingProvider) Close() error { return nil }
+
+func (r *recyclingProvider) recycle(addresses ...string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i, address := range addresses {
+		r.instances[i] = sd.Instance{Address: address}
+	}
+}
+
+// recordingRetainer keeps whatever it was handed, the way an Ejector keeps a pool.
+type recordingRetainer struct {
+	mu        sync.Mutex
+	retained  []sd.Instance
+	callCount int
+}
+
+func (r *recordingRetainer) Retain(instances []sd.Instance) {
+	r.mu.Lock()
+	r.retained = instances
+	r.callCount++
+	r.mu.Unlock()
+}
+
+func (r *recordingRetainer) addresses() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]string, len(r.retained))
+	for i, instance := range r.retained {
+		out[i] = instance.Address
+	}
+	return out
+}
+
+// health.accept copies the snapshot it is handed and says why; this side kept the
+// provider's slice by reference at the identical boundary.
+func TestFollowOwnsTheSnapshotItRetains(t *testing.T) {
+	provider := &recyclingProvider{instances: sd.Addresses("a:80", "b:80")}
+	retainer := &recordingRetainer{}
+	closer := feedback.Follow(provider, retainer)
+	defer closer.Close() //nolint:errcheck
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && len(retainer.addresses()) == 0 {
+		time.Sleep(time.Millisecond)
+	}
+	if got := retainer.addresses(); len(got) != 2 {
+		t.Fatalf("retained %v, want both instances", got)
+	}
+
+	provider.recycle("rewritten-a:80", "rewritten-b:80")
+
+	for _, address := range retainer.addresses() {
+		if address == "rewritten-a:80" || address == "rewritten-b:80" {
+			t.Fatalf("retained set became %v: the provider rewrote a published snapshot",
+				retainer.addresses())
+		}
+	}
+}
+
 func TestTrackRecordsOutcomeAndReleasesInflight(t *testing.T) {
 	table := feedback.NewTable(feedback.WithAlpha(1))
 	instance := sd.Instance{Address: "svc:80"}

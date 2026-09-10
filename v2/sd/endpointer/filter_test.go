@@ -12,6 +12,26 @@ import (
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
 )
 
+// A nil source used to construct successfully and panic on the first request, while
+// every sibling constructor — selector.Filter, selector.New, balancer.New — rejects
+// its arguments at assembly time. A process that starts clean and dies on its first
+// call points the reader at the filter rather than at the wiring mistake.
+func TestFilter_NilSourcePanics(t *testing.T) {
+	for name, construct := range map[string]func(){
+		"Filter": func() { endpointer.Filter(nil, sd.HasMetadata("zone")) },
+		"Prefer": func() { endpointer.Prefer(nil, sd.HasMetadata("zone")) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Fatal("a nil source was accepted, so the panic waits for the first request")
+				}
+			}()
+			construct()
+		})
+	}
+}
+
 func labelled(address string, labels map[string]any) sd.Instance {
 	return sd.Instance{Address: address, Metadata: labels}
 }

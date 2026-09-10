@@ -2,6 +2,7 @@ package selector
 
 import (
 	"context"
+	"math"
 	"math/rand/v2"
 
 	"github.com/dreamsxin/go-kit/v2/sd"
@@ -60,13 +61,31 @@ func (w weighted) Pick(_ context.Context, _ any, instances []sd.Instance) (int, 
 	// Weights are read once per selection so a weight function backed by
 	// changing metadata cannot make the running total disagree with the scan
 	// that follows it.
+	//
+	// Each weight is clamped so the total cannot overflow. A weight is deployment
+	// data — it arrives as a metadata string and sd.MetadataInt accepts any int —
+	// so two instances registered with a weight near MaxInt is a configuration
+	// mistake, not an impossibility. Summing them wrapped negative, the guard below
+	// fired, and a fully healthy pool became unroutable through ErrNoEndpoints,
+	// which callers classify as temporary and retry against until their budget is
+	// gone. Wrapping to a smaller positive total was quieter and worse: the
+	// distribution stopped resembling the configuration with nothing to notice.
+	//
+	// Stable: sd.selector-weights-cannot-overflow-the-total — a weighted pick treats absurdly large weights as large rather than letting their sum wrap and report that no endpoint is selectable.
+	// Covered by: TestWeightedRandom_HugeWeightsStillSelect
+	maxWeight := math.MaxInt / len(instances)
 	weights := make([]int, len(instances))
 	total := 0
 	for i, instance := range instances {
-		if weight := w.weight(instance); weight > 0 {
-			weights[i] = weight
-			total += weight
+		weight := w.weight(instance)
+		if weight <= 0 {
+			continue
 		}
+		if weight > maxWeight {
+			weight = maxWeight
+		}
+		weights[i] = weight
+		total += weight
 	}
 	if total <= 0 {
 		return 0, nil, sd.ErrNoEndpoints

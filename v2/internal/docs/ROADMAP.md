@@ -2326,20 +2326,35 @@ Acceptance:
 go test ./sd/instance/ -count=1
 ```
 
+### Work Package 5: The Three Smaller Findings
+
+- A weighted pick summed weights without a bound (`sd/selector/weighted.go`). Two
+  instances registered near `MaxInt` wrapped the total negative, the "nothing is
+  selectable" guard fired, and a healthy pool became unroutable through
+  `ErrNoEndpoints` — temporary by classification, so callers spent their retry budget
+  before failing, with nothing naming the weight. Each weight is now clamped to
+  `MaxInt / len(instances)`, which cannot change any realistic distribution and makes
+  the total unable to overflow.
+- `endpointer.Filter` and `Prefer` accepted a nil source and left the panic for the
+  first request (`sd/endpointer/filter.go`). Both now refuse at assembly time, like
+  `selector.Filter`, `selector.New` and `balancer.New`.
+- `feedback.Follow` kept the provider's instance slice by reference
+  (`sd/feedback/feedback.go`), at the boundary where `health.accept` copies and says
+  why. A provider reusing its backing array could rewrite a set already handed to a
+  retainer.
+- All three tests were checked against their defects: `ErrNoEndpoints` on pick 0, the
+  nil source accepted, and the retained set becoming `[rewritten-a:80 rewritten-b:80]`.
+
+Acceptance:
+
+```bash
+go test ./sd/... -count=1
+```
+
 ### Still Open From The Same Audits
 
 Recorded with file and line, in the order they would be taken:
 
-- Weighted selection reports `ErrNoEndpoints` on integer overflow of the weight total
-  (`sd/selector/weighted.go`). Two instances registered with `weight` at `MaxInt`
-  wrap the sum negative, the guard fires, and a fully healthy pool becomes
-  unroutable — classified as temporary, so callers burn their retry budget first.
-- `endpointer.Filter` and `Prefer` accept a nil source and defer the panic to the
-  first request (`sd/endpointer/filter.go`), while every sibling constructor
-  validates at assembly time.
-- `feedback` retains a provider's instance slice without copying
-  (`sd/feedback/feedback.go`), at the boundary where `health.accept` copies and says
-  why.
 - `sd/retry` sleeps and reads the clock directly, in a repository that owns
   `endpoint.Clock` and uses it in `feedback` and in `endpoint.RetryMiddleware`. The
   consequence is not stylistic: nothing asserts the schedule the loop actually

@@ -23,6 +23,9 @@ import (
 // Predicates come from the root sd package: sd.MetadataEquals, sd.MetadataIn,
 // sd.MetadataMatches, sd.HasMetadata, and sd.And / sd.Or / sd.Not.
 func Filter(source InstanceEndpointer, match sd.Match) InstanceEndpointer {
+	if source == nil {
+		panic("endpointer: nil filter source")
+	}
 	if match == nil {
 		panic("endpointer: nil filter match")
 	}
@@ -36,6 +39,9 @@ func Filter(source InstanceEndpointer, match sd.Match) InstanceEndpointer {
 //
 // Like Filter, it is a view and does not close source.
 func Prefer(source InstanceEndpointer, match sd.Match) InstanceEndpointer {
+	if source == nil {
+		panic("endpointer: nil filter source")
+	}
 	if match == nil {
 		panic("endpointer: nil filter match")
 	}

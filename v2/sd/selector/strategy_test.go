@@ -10,6 +10,30 @@ import (
 	"github.com/dreamsxin/go-kit/v2/sd/selector"
 )
 
+// TestWeightedRandom_HugeWeightsStillSelect pins what a weighted pick does with
+// weights large enough to overflow their own sum.
+//
+// A weight is deployment data: it arrives as a metadata string and sd.MetadataInt
+// accepts any int, so two instances registered with a weight near MaxInt is a
+// configuration mistake rather than an impossibility. The sum wrapped negative, the
+// "nothing is selectable" guard fired, and a fully healthy pool became unroutable
+// through ErrNoEndpoints — which the default classifier treats as temporary, so every
+// caller burned its retry budget before failing. No log line named the weight.
+func TestWeightedRandom_HugeWeightsStillSelect(t *testing.T) {
+	strategy := selector.WeightedRandom(func(sd.Instance) int { return math.MaxInt })
+	set := sd.Addresses("a:80", "b:80")
+
+	for i := 0; i < 50; i++ {
+		index, _, err := strategy.Pick(context.Background(), nil, set)
+		if err != nil {
+			t.Fatalf("pick %d: %v, want a selection", i, err)
+		}
+		if index < 0 || index >= len(set) {
+			t.Fatalf("pick %d: index %d outside the set", i, index)
+		}
+	}
+}
+
 func labelled(address string, labels map[string]any) sd.Instance {
 	return sd.Instance{Address: address, Metadata: labels}
 }

@@ -1839,17 +1839,30 @@ go test ./sd/health/ -count=1
 go test ./sd/instance/ -count=1
 ```
 
+### 工作包 5：三处较小的发现
+
+- 加权选择在求和时不设上界（`sd/selector/weighted.go`）。两个注册权重接近 `MaxInt` 的实例会让总和绕成
+  负数，"没有可选实例"的守卫触发，一个健康的池子通过 `ErrNoEndpoints` 变得不可路由——而它按分类是临时
+  错误，所以调用方会先花完重试预算，且没有任何东西点出那个权重。现在每个权重都被夹到
+  `MaxInt / len(instances)`，这不会改变任何现实中的分布，同时让总和不可能溢出。
+- `endpointer.Filter` 与 `Prefer` 接受 nil source，把 panic 留给第一个请求
+  （`sd/endpointer/filter.go`）。现在两者都在装配时拒绝，和 `selector.Filter`、`selector.New`、
+  `balancer.New` 一致。
+- `feedback.Follow` 按引用保留了 provider 的实例切片（`sd/feedback/feedback.go`），而在完全相同的边界上
+  `health.accept` 做了复制并写明了原因。会重用底层数组的 provider 可以改写一份已经交给 retainer 的集合。
+- 三个测试都对着各自的缺陷验证过：pick 0 就报 `ErrNoEndpoints`、nil source 被接受、以及被保留的集合变成
+  `[rewritten-a:80 rewritten-b:80]`。
+
+验收：
+
+```bash
+go test ./sd/... -count=1
+```
+
 ### 这两次审计里仍未处理的
 
 已记下文件与行号，按将要处理的顺序：
 
-- 加权选择在权重总和整数溢出时报 `ErrNoEndpoints`（`sd/selector/weighted.go`）。两个注册了
-  `weight` 为 `MaxInt` 的实例会让求和绕成负数，守卫触发，于是一个完全健康的池子变得不可路由——而且它被
-  归类为临时错误，所以调用方会先把重试预算烧完。
-- `endpointer.Filter` 与 `Prefer` 接受 nil source，并把 panic 推迟到第一个请求
-  （`sd/endpointer/filter.go`），而它所有的同类构造函数都在装配时校验。
-- `feedback` 不复制就保留了 provider 的实例切片（`sd/feedback/feedback.go`），而 `health.accept` 在
-  完全相同的边界上做了复制并写明了原因。
 - `sd/retry` 直接睡眠、直接读时钟，而这个仓库自己拥有 `endpoint.Clock`，并且在 `feedback` 和
   `endpoint.RetryMiddleware` 里都用了它。后果不是风格问题：没有任何东西断言这个循环实际产生的时间表，
   只断言了孤立的 `backoff.Next`。

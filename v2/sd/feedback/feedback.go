@@ -401,14 +401,19 @@ func (f *follower) update(event sd.Event) {
 		return
 	}
 	f.mtx.Lock()
-	f.snapshot = event.Instances
+	// The snapshot is copied because it is kept: a retainer that joins later is
+	// handed this slice, so a provider that reuses its backing array between
+	// watches would rewrite a set that was already published. health.accept copies
+	// at the identical boundary and says the same thing; this side did not.
+	f.snapshot = append([]sd.Instance(nil), event.Instances...)
 	f.known = true
 	retainers := append([]Retainer(nil), f.retainers...)
+	snapshot := f.snapshot
 	f.mtx.Unlock()
 	// Outside the lock: a retainer walks its own state, and add must not wait on
 	// it to publish the snapshot to a newcomer.
 	for _, retainer := range retainers {
-		retainer.Retain(event.Instances)
+		retainer.Retain(snapshot)
 	}
 }
 

@@ -55,6 +55,16 @@ balancing path and the resilience path — opened this milestone.
   divergence instead of correcting it — requests kept going to a withdrawn address.
   The broadcast now happens under the lock, which is safe because every channel
   operation in `sendLatest` has a default case and cannot block on a slow subscriber.
+- **Three smaller findings from the same audits.** A weighted pick summed weights
+  without a bound, so two instances registered near `MaxInt` wrapped the total
+  negative and a fully healthy pool reported `ErrNoEndpoints` — classified as
+  temporary, so callers burned their retry budget on it first; weights are now clamped
+  so the total cannot overflow. `endpointer.Filter` and `Prefer` accepted a nil source
+  and deferred the panic to the first request, while every sibling constructor
+  validates at assembly time. And `feedback.Follow` kept the provider's instance slice
+  by reference, at the boundary where `health.accept` copies and explains why — a
+  provider that reuses its backing array could rewrite a set already handed to a
+  retainer.
 
 ## [2.21.0] - 2026-09-08
 
