@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.22.0] - Release Candidate
+## [2.22.0] - 2026-09-10
 
 The service-discovery subtree had never been audited. Two audits of it — the load
 balancing path and the resilience path — opened this milestone.

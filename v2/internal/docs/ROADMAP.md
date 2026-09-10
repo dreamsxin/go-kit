@@ -2210,12 +2210,19 @@ without tags, and v2.21.0 made a tagless checkout fail
 `TestAPICompatibilityWithLastRelease`. That job runs `go test -race` over the `v2`
 module only, never the gate module, so the two do not meet.
 
-## Milestone 23 (Active): The Discovery Subtree Answers For Itself
+## Milestone 23 (Complete): The Discovery Subtree Answers For Itself
 
 Goal: `sd` had never been audited. Two audits — the load balancing path
 (`balancer`, `selector`, `endpointer`, `instance`) and the resilience path
 (`retry`, `feedback`, `health`, `client`) — asked what a deployment loses in each
-case, and the answers are being worked through in severity order.
+case, and the answers were worked through in severity order.
+
+Released as v2.22.0. Six work packages: a retried call does not lose an answer it
+received, an ejection cap that holds under concurrency, a flap is not a new
+instance, a subscriber is never left behind the stored state, the three smaller
+findings, and every cause of a retried failure reachable. One item is deliberately
+open with its design recorded — the clock seam for `sd/retry` needs an options
+constructor, not a fifth positional one.
 
 The selection core came out better than the "never audited" framing suggested:
 every strategy refuses an empty set with a typed error before any arithmetic, every
