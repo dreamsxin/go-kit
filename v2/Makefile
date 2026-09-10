@@ -120,13 +120,20 @@ release-check-clean:
 	@echo ">>> Verifying the v2 release scope is clean..."
 	@go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-tags
 
-## verify: run exactly what CI runs, so local green means CI green
+## verify: run everything CI runs, so local green means CI green
+##
+## CI splits this across two jobs — the suites without race, and race alone,
+## because only race needs a C toolchain — and runs the release-phase check beside
+## them. Running all of it here is the point: one command that cannot be greener
+## than CI.
 ##
 ## The tidy suite diffs the worktree, so run this from a committed tree. Use
 ## `make test` and the focused test-* targets while iterating.
 verify:
 	@echo ">>> Running the release suites CI runs..."
 	@go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+	@echo ">>> Verifying the clean scope and release phase CI checks..."
+	@go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-tags
 
 verify-published:
 	@echo ">>> Verifying the published module..."

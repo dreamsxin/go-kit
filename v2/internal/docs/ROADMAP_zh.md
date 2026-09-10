@@ -1736,6 +1736,21 @@ go -C ./tools test . -run TestPublicAPISurfaceSnapshot -count=1
 go -C ./tools test . -run TestMicrogen -count=1
 ```
 
+### 对这个里程碑做自我审计发现了什么
+
+上面这些工作里有两处缺陷，都是靠审计它们发现的，不是靠门禁：
+
+- 刷新会先清空某个来源的目录再重建，而拥有这些目录的三个集成测试是与
+  `TestEveryContractSnapshotHasALiveCaller` 并行跑的，后者要求每个来源都有 `files.txt`。于是
+  `go test ./... -args -update-contract-snapshots` 可能在"正确写入的中途"失败在自己身上。现在
+  改成先写索引、之后再剪枝，既保住了"不留过期文件"的保证，也没有那个窗口。
+- `AGENTS.md` 声称 `make verify` "就是 CI 跑的东西"。并不是：CI 还在套件旁边跑
+  `releasecheck -check-tags`，而这个目标没跑。与其把那句话说软，不如让目标真的跑它——于是这句话
+  成立，而本地的绿也不可能比 CI 更绿。
+- 审计还查了一处真实风险，结论是没有：`race` 这个 CI job 检出时不拉 tag，而 v2.21.0 让"没有 tag
+  的检出"会让 `TestAPICompatibilityWithLastRelease` 失败。那个 job 只对 `v2` module 跑
+  `go test -race`，从不跑门禁那个 module，所以两者碰不上。
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

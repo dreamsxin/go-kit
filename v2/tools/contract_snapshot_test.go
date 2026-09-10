@@ -109,16 +109,33 @@ func assertGeneratedContractSnapshot(t *testing.T, name, root string) {
 
 // writeContractGolden replaces the reviewed copy of one source's artefacts.
 //
-// It removes the directory first: an artefact the generator no longer emits has to
-// disappear from the reviewed set too, and leaving it behind is how a golden tree
-// starts describing a generator that no longer exists.
+// It writes the index first and prunes afterwards, rather than clearing the
+// directory and rebuilding it. Clearing first was simpler and wrong: the three
+// integration tests that own these directories run in parallel with
+// TestEveryContractSnapshotHasALiveCaller, which reads the directory listing and
+// requires each source to have a files.txt. A refresh that deletes the directory
+// leaves a window where that is briefly false, so `go test ./... -args
+// -update-contract-snapshots` could fail on a snapshot it was in the middle of
+// writing correctly.
+//
+// Pruning still has to happen: an artefact the generator no longer emits must
+// disappear from the reviewed set, or the golden tree describes a generator that no
+// longer exists.
 func writeContractGolden(t *testing.T, snapshotDir string, paths []string, generated map[string]string) {
 	t.Helper()
-	if err := os.RemoveAll(snapshotDir); err != nil {
-		t.Fatalf("clear contract snapshot directory: %v", err)
+	if err := os.MkdirAll(snapshotDir, 0o755); err != nil {
+		t.Fatalf("create contract snapshot directory: %v", err)
 	}
+	index := strings.Join(paths, "\n") + "\n"
+	if err := os.WriteFile(filepath.Join(snapshotDir, contractIndexFile), []byte(index), 0o644); err != nil {
+		t.Fatalf("write contract snapshot index: %v", err)
+	}
+
+	keep := map[string]struct{}{contractIndexFile: {}}
 	for _, relative := range paths {
-		goldenPath := filepath.Join(snapshotDir, filepath.FromSlash(relative))
+		local := filepath.FromSlash(relative)
+		keep[local] = struct{}{}
+		goldenPath := filepath.Join(snapshotDir, local)
 		if err := os.MkdirAll(filepath.Dir(goldenPath), 0o755); err != nil {
 			t.Fatalf("create contract snapshot directory: %v", err)
 		}
@@ -126,9 +143,46 @@ func writeContractGolden(t *testing.T, snapshotDir string, paths []string, gener
 			t.Fatalf("write reviewed artifact %s: %v", relative, err)
 		}
 	}
-	index := strings.Join(paths, "\n") + "\n"
-	if err := os.WriteFile(filepath.Join(snapshotDir, contractIndexFile), []byte(index), 0o644); err != nil {
-		t.Fatalf("write contract snapshot index: %v", err)
+	pruneContractGolden(t, snapshotDir, keep)
+}
+
+// pruneContractGolden deletes reviewed files the generator no longer writes, and
+// the directories left empty behind them.
+func pruneContractGolden(t *testing.T, snapshotDir string, keep map[string]struct{}) {
+	t.Helper()
+	var stale, directories []string
+	err := filepath.WalkDir(snapshotDir, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		relative, err := filepath.Rel(snapshotDir, path)
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if relative != "." {
+				directories = append(directories, path)
+			}
+			return nil
+		}
+		if _, ok := keep[relative]; !ok {
+			stale = append(stale, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan contract snapshot directory: %v", err)
+	}
+	for _, path := range stale {
+		if err := os.Remove(path); err != nil {
+			t.Fatalf("remove stale reviewed artifact %s: %v", path, err)
+		}
+	}
+	// Deepest first, and os.Remove refuses a directory that still has contents, so
+	// this clears exactly the ones the pruning emptied.
+	sort.Sort(sort.Reverse(sort.StringSlice(directories)))
+	for _, path := range directories {
+		_ = os.Remove(path)
 	}
 }
 

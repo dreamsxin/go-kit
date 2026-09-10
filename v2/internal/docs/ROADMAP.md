@@ -2190,6 +2190,26 @@ Acceptance:
 go -C ./tools test . -run TestMicrogen -count=1
 ```
 
+### What The Self-Audit Of This Milestone Found
+
+Two defects in the work above, both found by auditing it rather than by a gate:
+
+- The refresh cleared a source's directory before rebuilding it, and the three
+  integration tests that own those directories run in parallel with
+  `TestEveryContractSnapshotHasALiveCaller`, which requires each source to have a
+  `files.txt`. So `go test ./... -args -update-contract-snapshots` could fail on a
+  snapshot it was in the middle of writing correctly. It now writes the index first
+  and prunes afterwards, which keeps the stale-file guarantee without the window.
+- `AGENTS.md` claimed `make verify` was "exactly what CI runs". It was not: CI also
+  runs `releasecheck -check-tags` beside the suites, which the target did not. Rather
+  than soften the sentence, the target now runs it, so the claim is true and local
+  green cannot be greener than CI.
+
+The audit also checked a real risk and found none: the `race` CI job checks out
+without tags, and v2.21.0 made a tagless checkout fail
+`TestAPICompatibilityWithLastRelease`. That job runs `go test -race` over the `v2`
+module only, never the gate module, so the two do not meet.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

@@ -36,10 +36,13 @@
 make verify
 ```
 
-这就是 CI 跑的东西。没有 `make` 时：
+它跑的是 CI 跑的全部。CI 把这些拆成两个 job——不含 `race` 的那些套件，和单独的 `race`，因为只有
+后者需要 C 工具链——并在旁边跑发布阶段检查；这个目标把它们全跑了，所以它不可能比 CI 更绿。
+没有 `make` 时：
 
 ```bash
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-tags
 ```
 
 要在已提交的树上跑。`tidy` 这一档会 diff 工作区，所以任何未提交的改动都会让它失败——包括

@@ -42,10 +42,14 @@ From `v2/`:
 make verify
 ```
 
-That is exactly what CI runs. Where `make` is unavailable:
+That runs everything CI runs. CI splits it across two jobs — the suites without
+`race`, and `race` alone, because only that one needs a C toolchain — and runs the
+release-phase check beside them; the target does all of it, so it cannot come out
+greener than CI. Where `make` is unavailable:
 
 ```bash
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-tags
 ```
 
 Run it from a committed tree. The `tidy` suite diffs the worktree, so any
