@@ -2248,17 +2248,39 @@ Acceptance:
 go test ./sd/... -count=1
 ```
 
+### Work Package 2: An Ejection Cap That Holds Under Concurrency
+
+- `Ejector.apply` judged its candidates and checked `MaxEjectionPercent` outside the
+  lock, then re-acquired it to apply. The filter sits on the selection path, so it
+  runs once per pick and concurrently by construction. Two picks over a four-instance
+  pool could each pass a 50% check against a view that excluded the other's decision
+  and eject together — 75% of the pool out of service in exactly the situation the cap
+  exists to prevent, panic mode never firing, and the caller seeing `ErrNoEndpoints`.
+- The same window let two picks eject the *same* instance. Ejections are counted to
+  grow the window, so a first offence was recorded as two and the instance stayed out
+  for twice its configured base duration, with the doubling ladder ahead of the real
+  failure history for the life of the entry.
+- Deciding and applying now happen in one critical section. Measurements are read
+  before it rather than inside: they come from the `Table`'s own mutex, and
+  `Table.Follow` drives `Ejector.Retain`, so reading the table under `e.mu` would
+  invert an order the package already relies on. The reset of a returned instance
+  still happens before its verdict is read, or the stale measurements that ejected it
+  would eject it again on the same call.
+- The test needed a barrier, not just goroutines. Its first version used a plain fake
+  clock and passed against the defective implementation — four goroutines doing
+  microseconds of work do not overlap on demand. Aligning them on the clock call makes
+  the double-count fail on the first round.
+
+Acceptance:
+
+```bash
+go test ./sd/feedback/ -count=1
+```
+
 ### Still Open From The Same Audits
 
 Recorded with file and line, in the order they would be taken:
 
-- `feedback.Ejector.apply` releases its lock mid-decision (`sd/feedback/ejector.go`).
-  It judges candidates and checks `MaxEjectionPercent` outside the lock, then
-  re-acquires to apply. Two concurrent picks over a four-instance pool can each pass
-  a 50% cap check against a view that excludes the other's decision and eject
-  together, taking 75% of the pool out of service — the exact outcome the cap exists
-  to prevent, with panic mode never firing. The same window double-counts a first
-  offence, so the ejection window starts at twice its configured base.
 - A discovery flap resurrects a failing instance as healthy (`sd/health/health.go`).
   An instance absent from one snapshot and present in the next has its state deleted
   and recreated with `initiallyHealthy`, which defaults to true, and `failures` at

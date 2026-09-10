@@ -24,6 +24,17 @@ balancing path and the resilience path — opened this milestone.
   at the context, so a caller that had given up — or a backoff timer that returned
   after the budget expired — still caused a `Pick` and an upstream request whose
   result nothing would read. The context is now checked before dispatching.
+- **Concurrent applications of an ejection policy could take more of a pool out of
+  service than the cap allows.** `feedback.Ejector` judged its candidates and checked
+  `MaxEjectionPercent` outside the lock and re-acquired it to apply, so two picks
+  over a four-instance pool could each pass a 50% check against a view that excluded
+  the other's decision and eject together — 75% of the pool gone, in the situation
+  the cap exists to prevent, with panic mode never firing. The same window let both
+  picks eject the *same* instance, and ejections are counted to grow the window, so a
+  first offence was recorded as two and the instance stayed out for twice its
+  configured base duration. Deciding and applying now happen in one critical section;
+  measurements are read before it, because they come from the `Table`'s own mutex and
+  `Table.Follow` drives `Ejector.Retain` in the other direction.
 
 ## [2.21.0] - 2026-09-08
 

@@ -35,6 +35,54 @@ func (c *fakeClock) advance(d time.Duration) {
 	c.mu.Unlock()
 }
 
+// alignedClock releases the first n callers of Now together, so goroutines that
+// would otherwise start microseconds apart enter the code under test at the same
+// instant.
+//
+// It exists because the first version of the concurrency test below used a plain
+// fake clock and passed against the defective implementation: four goroutines doing
+// a few microseconds of work each do not overlap on demand, so the interleaving the
+// test was written for never happened.
+type alignedClock struct {
+	mu       sync.Mutex
+	now      time.Time
+	arrivals int
+	needed   int
+	release  chan struct{}
+	open     bool
+}
+
+func newAlignedClock(needed int) *alignedClock {
+	return &alignedClock{
+		now:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		needed:  needed,
+		release: make(chan struct{}),
+	}
+}
+
+func (c *alignedClock) Now() time.Time {
+	c.mu.Lock()
+	if !c.open {
+		c.arrivals++
+		if c.arrivals >= c.needed {
+			c.open = true
+			close(c.release)
+		}
+		c.mu.Unlock()
+		<-c.release
+		c.mu.Lock()
+	}
+	now := c.now
+	c.mu.Unlock()
+	return now
+}
+
+func (c *alignedClock) advance(d time.Duration) {
+	c.mu.Lock()
+	c.now = c.now.Add(d)
+	c.mu.Unlock()
+}
+
 func TestEjectorRemovesTheFailingCandidate(t *testing.T) {
 	table := feedback.NewTable(feedback.WithAlpha(1))
 	bad := sd.Instance{Address: "bad:80"}
@@ -57,6 +105,85 @@ func TestEjectorRemovesTheFailingCandidate(t *testing.T) {
 	}
 	if ejector.Ejected(good) {
 		t.Fatal("a healthy instance is reported as ejected")
+	}
+}
+
+// TestEjectorConcurrentApplyRespectsTheCap drives the ejection decision from
+// several goroutines at once, which is how it runs in production: the filter sits
+// on the selection path, so one pick per request applies the policy.
+//
+// The decision used to span two critical sections with the candidate set judged
+// and the cap checked in between. Two consequences, and this test can force one of
+// them:
+//
+//   - Two picks choosing the same candidate both called ejectLocked, which counts
+//     offences to grow the window. A first offence recorded as two opens the window
+//     at twice BaseDuration, so advancing the clock by BaseDuration leaves the
+//     instance still ejected. That is what the clock assertion below catches, and
+//     it fails on almost every round against the old code.
+//   - Two picks with different candidate sets could each pass the cap against a
+//     view excluding the other's decision. Producing different sets needs the
+//     measurements to change mid-flight, which cannot be staged deterministically,
+//     so the cap is asserted here rather than driven to failure.
+func TestEjectorConcurrentApplyRespectsTheCap(t *testing.T) {
+	const (
+		rounds       = 100
+		appliers     = 4
+		baseDuration = 30 * time.Second
+	)
+	instances := []sd.Instance{
+		{Address: "bad-1:80"}, {Address: "bad-2:80"},
+		{Address: "good-1:80"}, {Address: "good-2:80"},
+	}
+
+	for round := 0; round < rounds; round++ {
+		table := feedback.NewTable(feedback.WithAlpha(1))
+		table.Observe(instances[0], sd.Outcome{Err: errors.New("failed")})
+		table.Observe(instances[1], sd.Outcome{Err: errors.New("failed")})
+		table.Observe(instances[2], sd.Outcome{})
+		table.Observe(instances[3], sd.Outcome{})
+
+		clock := newAlignedClock(appliers)
+		ejector := feedback.NewEjector(table, feedback.EjectionPolicy{
+			MaxErrorRate:       .5,
+			MinSamples:         1,
+			MaxEjectionPercent: 50,
+			BaseDuration:       baseDuration,
+			MaxDuration:        10 * time.Minute,
+		}, feedback.WithEjectorClock(clock.Now))
+		filter := ejector.Filter()
+
+		var wg sync.WaitGroup
+		for i := 0; i < appliers; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				filter(context.Background(), instances)
+			}()
+		}
+		wg.Wait()
+
+		ejected := 0
+		for _, instance := range instances {
+			if ejector.Ejected(instance) {
+				ejected++
+			}
+		}
+		if ejected*100 > len(instances)*50 {
+			t.Fatalf("round %d: %d of %d instances ejected, above the 50%% cap",
+				round, ejected, len(instances))
+		}
+
+		// One offence, one BaseDuration. Anything longer means the offence was
+		// counted more than once.
+		clock.advance(baseDuration + time.Second)
+		filter(context.Background(), instances)
+		for _, instance := range instances[:2] {
+			if ejector.Ejected(instance) {
+				t.Fatalf("round %d: %s is still ejected after one BaseDuration, so its first offence was counted more than once",
+					round, instance.Address)
+			}
+		}
 	}
 }
 

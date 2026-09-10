@@ -155,25 +155,50 @@ func (e *Ejector) apply(instances []sd.Instance) []sd.Instance {
 	// depend on how the rest of the pool looks, or a pool in panic mode would
 	// never release anyone.
 	returned := e.expireLocked(now, instances)
+	e.mu.Unlock()
+
+	// Resetting outside the lock keeps two mutexes from being held at once, and it
+	// has to happen before the verdicts below are read: an instance whose window
+	// just expired is judged on a clean slate, or the stale measurements that got
+	// it ejected would eject it again on the same call.
+	for _, instance := range returned {
+		e.table.Reset(instance)
+	}
+
+	// Verdicts are read before the deciding lock is taken, and deliberately so. A
+	// verdict comes from the Table, which has a mutex of its own, and Table.Follow
+	// drives Ejector.Retain — so taking the table's lock underneath e.mu would
+	// invert an order this package already relies on. Reading first costs a few
+	// extra Stats calls (the whole input rather than the serving subset) and buys
+	// the decision below the right to be atomic.
+	unhealthy := make(map[string]bool, len(instances))
+	for _, instance := range instances {
+		unhealthy[instance.Address] = e.unhealthy(instance)
+	}
+
+	// Deciding and applying happen in one critical section. They used to be two,
+	// with the candidate set judged and the cap checked in between: two concurrent
+	// picks over a four-instance pool could each pass a 50% check against a view
+	// that excluded the other's decision and eject together, taking 75% of the pool
+	// out of service — the exact outcome the cap exists to prevent, with panic mode
+	// never firing. The same window let both picks eject the *same* candidate, and
+	// ejectLocked counts offences, so a first offence was recorded as two and the
+	// window opened at twice its configured base.
+	//
+	// Stable: sd.feedback-ejection-cap-holds-under-concurrency — concurrent applications of an ejection policy cannot together eject more of the pool than MaxEjectionPercent allows, and cannot record one instance's first offence twice.
+	// Covered by: TestEjectorConcurrentApplyRespectsTheCap
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	serving := make([]sd.Instance, 0, len(instances))
+	healthy := make([]sd.Instance, 0, len(instances))
 	candidates := make([]sd.Instance, 0, len(instances))
 	for _, instance := range instances {
 		if state := e.state[instance.Address]; state != nil && now.Before(state.until) {
 			continue
 		}
 		serving = append(serving, instance)
-	}
-	e.mu.Unlock()
-
-	// Resetting outside the lock keeps two mutexes from being held at once.
-	for _, instance := range returned {
-		e.table.Reset(instance)
-	}
-
-	// Anything still serving is judged on its current measurements.
-	healthy := make([]sd.Instance, 0, len(serving))
-	for _, instance := range serving {
-		if e.unhealthy(instance) {
+		if unhealthy[instance.Address] {
 			candidates = append(candidates, instance)
 			continue
 		}
@@ -197,11 +222,9 @@ func (e *Ejector) apply(instances []sd.Instance) []sd.Instance {
 		return instances
 	}
 
-	e.mu.Lock()
 	for _, instance := range candidates {
 		e.ejectLocked(now, instance)
 	}
-	e.mu.Unlock()
 	return healthy
 }
 

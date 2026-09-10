@@ -114,6 +114,7 @@ stable/metrics.http-bridge-ignores-unrouted
 stable/metrics.label-cardinality
 stable/metrics.series-are-per-operation
 stable/otel.metrics-agree-with-the-exposition
+stable/sd.feedback-ejection-cap-holds-under-concurrency
 stable/sd.retry-handover-precedes-the-outcome-callback
 stable/sd.retry-no-attempt-after-the-budget
 stable/security.csrf-clock
