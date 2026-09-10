@@ -2277,16 +2277,33 @@ Acceptance:
 go test ./sd/feedback/ -count=1
 ```
 
+### Work Package 3: A Flap Is Not A New Instance
+
+- `health.Checker` deleted an absent address's state and recreated it on return with
+  `initiallyHealthy` and no recorded failures. A backend it had just taken out of
+  service was republished as serving and could not be ejected again for
+  `unhealthyThreshold` rounds, so a registry that keeps flapping keeps a dead backend
+  in the set for most of its life.
+- State now survives one absence and is dropped on the second. The cost is one extra
+  generation of stale entries; the alternative — a departure timestamp — needs a clock
+  seam the Checker does not have.
+- The forgetting half is weaker than it reads, and that is written into the test: a
+  source which suppresses an event identical to the one before it, as `instance.Cache`
+  does, delivers the second absence only when the set changes again. For a service
+  whose set never changes after a departure that leaves one stale map entry per
+  departed address. It is memory hygiene rather than correctness, so it is recorded
+  here rather than solved with a clock.
+
+Acceptance:
+
+```bash
+go test ./sd/health/ -count=1
+```
+
 ### Still Open From The Same Audits
 
 Recorded with file and line, in the order they would be taken:
 
-- A discovery flap resurrects a failing instance as healthy (`sd/health/health.go`).
-  An instance absent from one snapshot and present in the next has its state deleted
-  and recreated with `initiallyHealthy`, which defaults to true, and `failures` at
-  zero — so it is republished as serving and cannot be ejected again for
-  `unhealthyThreshold × interval`. A registry that flaps keeps a dead backend in the
-  set for most of its life.
 - `instance.Cache.Update` broadcasts outside the lock (`sd/instance/cache.go`). Two
   concurrent updates can deliver in the opposite order to the state they set, and
   `sendLatest` makes it worse: finding the buffer full, it drains the newer event and

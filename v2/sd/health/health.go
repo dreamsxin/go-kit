@@ -221,6 +221,14 @@ type state struct {
 	probed    bool
 	successes int
 	failures  int
+	// absences counts consecutive discovery snapshots that left this address out.
+	// State is dropped on the second one, not the first: a registry whose
+	// heartbeat TTL expires early, a paginated list, or a provider that briefly
+	// reports a subset makes an instance vanish and return, and forgetting its
+	// state means recreating it as initially healthy with no recorded failures.
+	// A failing backend would then be republished as serving and could not be
+	// ejected again for unhealthyThreshold probe rounds.
+	absences int
 }
 
 var _ sd.Instancer = (*Checker)(nil)
@@ -346,12 +354,29 @@ func (c *Checker) accept(event sd.Event) {
 	live := make(map[string]struct{}, len(instances))
 	for _, target := range instances {
 		live[target.Address] = struct{}{}
-		if c.states[target.Address] == nil {
-			c.states[target.Address] = &state{healthy: c.initiallyHealthy}
+		if existing := c.states[target.Address]; existing != nil {
+			existing.absences = 0
+			continue
 		}
+		c.states[target.Address] = &state{healthy: c.initiallyHealthy}
 	}
-	for address := range c.states {
-		if _, wanted := live[address]; !wanted {
+	// An address that has left is forgotten on the second consecutive snapshot
+	// without it, not the first. Discovery flaps: a heartbeat TTL that expires a
+	// beat early, a paginated or partial list, a provider that briefly reports a
+	// subset. Dropping state on the first absence and recreating it on the return
+	// republishes a failing instance as serving — initiallyHealthy defaults to
+	// true and failures restarts at zero — and it cannot be ejected again for
+	// unhealthyThreshold rounds. One extra generation of stale entries is the
+	// price, and Retain-style hygiene still bounds it.
+	//
+	// Stable: sd.health-a-flap-does-not-resurrect-a-failing-instance — an instance missing from a single discovery snapshot keeps its recorded health, so returning does not republish it as serving.
+	// Covered by: TestCheckerFlapKeepsRecordedHealth
+	for address, tracked := range c.states {
+		if _, wanted := live[address]; wanted {
+			continue
+		}
+		tracked.absences++
+		if tracked.absences > 1 {
 			delete(c.states, address)
 		}
 	}

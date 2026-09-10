@@ -35,6 +35,16 @@ balancing path and the resilience path — opened this milestone.
   configured base duration. Deciding and applying now happen in one critical section;
   measurements are read before it, because they come from the `Table`'s own mutex and
   `Table.Follow` drives `Ejector.Retain` in the other direction.
+- **A discovery flap resurrected a failing instance as healthy.** `health.Checker`
+  deleted an absent address's state and recreated it on return with
+  `initiallyHealthy` — true by default — and no recorded failures, so a backend it
+  had just taken out of service was republished as serving and could not be ejected
+  again for `unhealthyThreshold` probe rounds. Registries flap: a heartbeat TTL
+  expiring a beat early, a paginated or partial list, a provider briefly reporting a
+  subset. State now survives a single absence and is dropped on the second, so a
+  flap costs nothing and a real departure is still forgotten. Note that a source
+  which suppresses an event identical to the one before it — `instance.Cache` does —
+  delivers that second absence only when the set changes again.
 
 ## [2.21.0] - 2026-09-08
 

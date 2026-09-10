@@ -195,6 +195,73 @@ func TestCheck_OwnsTheSnapshotItWasGiven(t *testing.T) {
 	}
 }
 
+// TestCheckerFlapKeepsRecordedHealth pins what happens when discovery drops an
+// instance for one snapshot and brings it back.
+//
+// Registries flap: a heartbeat TTL expiring a beat early, a paginated or partial
+// list, a provider that briefly reports a subset. The checker used to delete an
+// absent address's state and recreate it on return with initiallyHealthy — true by
+// default — and no recorded failures, so a backend that had just been taken out of
+// service was republished as serving and could not be ejected again for
+// unhealthyThreshold rounds. A registry that keeps flapping keeps a dead backend in
+// the set for most of its life.
+//
+// The interval is an hour so that only the immediate first round runs. Nothing can
+// re-probe after the flap, which is what makes this an assertion rather than a race
+// against the next round: with the defect, flaky:80 is published and stays.
+func TestCheckerFlapKeepsRecordedHealth(t *testing.T) {
+	probes := newProbeTable()
+	probes.fail("flaky:80", errors.New("connection refused"))
+
+	cache := source(t, "flaky:80", "good:80")
+	checker := health.Check(cache, probes.probe(),
+		health.WithInterval(time.Hour),
+		health.WithUnhealthyThreshold(1))
+	defer checker.Close() //nolint:errcheck
+
+	waitForAddresses(t, checker, "good:80")
+
+	// One snapshot without it, then one with it again.
+	cache.Update(sd.Event{Instances: sd.Addresses("good:80")})
+	waitForAddresses(t, checker, "good:80")
+	cache.Update(sd.Event{Instances: sd.Addresses("flaky:80", "good:80")})
+
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if got := addressesOf(checker.Register(nil)); !equal(got, []string{"good:80"}) {
+			t.Fatalf("published %v after a flap, want only good:80: the failing instance was forgotten and recreated as healthy", got)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// A genuine removal still frees the state, one changed snapshot later than before.
+// It has to be a *changed* snapshot: instance.Cache suppresses an event identical to
+// the one before it, so "the same set again" never reaches the checker.
+func TestCheckerForgetsAnInstanceThatStaysGone(t *testing.T) {
+	probes := newProbeTable()
+	probes.fail("leaving:80", errors.New("connection refused"))
+
+	cache := source(t, "leaving:80", "good:80")
+	checker := health.Check(cache, probes.probe(),
+		health.WithInterval(time.Hour),
+		health.WithUnhealthyThreshold(1))
+	defer checker.Close() //nolint:errcheck
+
+	waitForAddresses(t, checker, "good:80")
+
+	// Two consecutive snapshots without it drop the state, so its return is judged
+	// by initiallyHealthy rather than by a history nobody is measuring any more.
+	cache.Update(sd.Event{Instances: sd.Addresses("good:80")})
+	waitForAddresses(t, checker, "good:80")
+	cache.Update(sd.Event{Instances: sd.Addresses("good:80", "other:80")})
+	waitForAddresses(t, checker, "good:80", "other:80")
+
+	probes.heal("leaving:80")
+	cache.Update(sd.Event{Instances: sd.Addresses("leaving:80", "good:80")})
+	waitForAddresses(t, checker, "good:80", "leaving:80")
+}
+
 func TestCheck_RemovesAnInstanceAfterTheUnhealthyThreshold(t *testing.T) {
 	probes := newProbeTable()
 	probes.fail("bad:80", errors.New("connection refused"))
