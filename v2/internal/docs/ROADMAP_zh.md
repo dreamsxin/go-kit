@@ -1859,15 +1859,35 @@ go test ./sd/instance/ -count=1
 go test ./sd/... -count=1
 ```
 
+### 工作包 6：一次带重试的失败，它的每一个原因都可达
+
+- `retry.Error.Unwrap` 只能给出一个原因，而 `Final` 一旦设置就优先。预算到期会把它设成 context 错误，
+  于是上游的 `apperror` kind——它被记在每一次尝试里——对 `errors.As` 不可见，按 kind 分发的映射器会为一个
+  "真实类别一直在 `result.Attempts` 里"的失败发出笼统的超时。`Callback` 的替换错误以同样方式遮住了真正的
+  错误。
+- 现在 `Error` 实现了 `Is` 与 `As`，而 `errors.Is`／`errors.As` 会在走 unwrap 链之前先咨询它们。各次尝试
+  与最终原因都可达，且最近的尝试在前。
+- 第一次尝试解决它时我把 `Unwrap` 改成返回 `[]error`，`TestAPICompatibilityWithLastRelease` 拒绝了：一个
+  已发布的签名变了。门禁是对的——新增两个方法能达到同样的性质而不移除任何东西——而这已是本次会话里它第三次
+  拦下一个本可以用"反正还没冻结"糊过去的改动。
+
+验收：
+
+```bash
+go test ./sd/retry/ -count=1
+go -C ./tools test . -run TestAPICompatibilityWithLastRelease -count=1
+```
+
 ### 这两次审计里仍未处理的
 
-已记下文件与行号，按将要处理的顺序：
-
-- `sd/retry` 直接睡眠、直接读时钟，而这个仓库自己拥有 `endpoint.Clock`，并且在 `feedback` 和
-  `endpoint.RetryMiddleware` 里都用了它。后果不是风格问题：没有任何东西断言这个循环实际产生的时间表，
-  只断言了孤立的 `backoff.Next`。
-- `retry.Error.Unwrap` 是单值的，于是预算到期之后唯一可达的原因是 context 错误，而每次尝试里都已知的
-  上游 `apperror` kind 对 `errors.As` 不可见。
+- `sd/retry` 直接睡眠、直接读时钟（`retry.go`），而这个仓库自己拥有 `endpoint.Clock`，并且在 `feedback`
+  和 `endpoint.RetryMiddleware` 里都用了它。后果是：没有任何东西断言这个循环产生的时间表——只断言了孤立的
+  `backoff.Next`——所以"延迟如何跨尝试累积"、以及"预算里有多少花在睡觉而不是调用上"，都没被测过。
+- 修它需要的是一个 API 决定，而不只是一个接缝。那四个构造函数是位置参数式的（`Retry`、`WithCallback`、
+  `WithClassifier`，以及它们的 timeout/balancer 参数）；再加一个接收时钟的位置参数形式，就是同一个调用的
+  第四个变体，而这个仓库其余部分对这件事用的是函数式选项——`feedback.WithClock`、
+  `feedback.WithEjectorClock`。诚实的形状是 `retry.New(balancer, opts...)`，把现有四个保留为便捷包装。
+  那是一次公开 API 新增，带着它自己的快照与文档工作，所以记在这里，而不是在一次会话的末尾半途搭起来。
 
 ## 维护规则
 

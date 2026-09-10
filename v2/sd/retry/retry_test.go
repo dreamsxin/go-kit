@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/sd"
 	"github.com/dreamsxin/go-kit/v2/sd/balancer"
@@ -399,6 +400,36 @@ func TestRetryError_FinalErrorKeepsTheLastAddress(t *testing.T) {
 
 // Selection can fail before any instance is known; the message must not invent
 // an attribution for it.
+// TestRetryError_UnwrapExposesEveryCause pins that a budget expiry does not hide
+// what the upstream said.
+//
+// Unwrap used to return one error. Final wins when it is set, and budgetError sets
+// it to the context error, so after attempts that each failed with a kind-carrying
+// apperror the only reachable cause was context.DeadlineExceeded. An error mapper
+// keyed on apperror kinds emitted a generic timeout for a failure whose real kind
+// was in result.Attempts the whole time.
+func TestRetryError_UnwrapExposesEveryCause(t *testing.T) {
+	unavailable := apperror.Unavailable("upstream.down", "the pool is refusing")
+	err := retry.Error{
+		Attempts: []retry.Attempt{
+			{Address: "10.0.0.1:80", Err: unavailable},
+			{Address: "10.0.0.2:80", Err: unavailable},
+		},
+		Final: context.DeadlineExceeded,
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("the context error that ended the call is no longer reachable")
+	}
+	var appErr *apperror.Error
+	if !errors.As(err, &appErr) {
+		t.Fatal("the upstream's apperror is unreachable, so a mapper keyed on kinds cannot see it")
+	}
+	if appErr.ErrorCode() != "upstream.down" {
+		t.Fatalf("code = %q, want upstream.down", appErr.ErrorCode())
+	}
+}
+
 func TestRetryError_ErrorStringOmitsUnknownAddresses(t *testing.T) {
 	e := retry.Error{Attempts: []retry.Attempt{{Err: errors.New("no endpoints available")}}}
 	if got := e.Error(); got != "no endpoints available" {

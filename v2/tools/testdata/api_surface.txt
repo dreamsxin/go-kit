@@ -1887,7 +1887,9 @@ type Error struct {
 	Attempts []Attempt
 	Final    error
 }
+func (e Error) As(target any) bool
 func (e Error) Error() string
+func (e Error) Is(target error) bool
 func (e Error) Unwrap() error
 
 ## github.com/dreamsxin/go-kit/v2/sd/retry/internal/backoff

@@ -106,6 +106,43 @@ func (e Error) Unwrap() error {
 	return nil
 }
 
+// Is and As reach the attempts, which the unwrap chain alone does not.
+//
+// Unwrap can only offer one cause, and Final wins when it is set. A budget expiry
+// sets Final to the context error, so an upstream's kind — an apperror recorded in
+// every attempt — used to be unreachable: errors.As found only
+// context.DeadlineExceeded, and a mapper keyed on kinds emitted a generic timeout for
+// a failure whose real kind had been in hand all along. A Callback replacement hid
+// the actual error the same way.
+//
+// errors.Is and errors.As consult these before walking Unwrap, so both the attempts
+// and the final cause are reachable. Changing Unwrap to return []error would have
+// done the same thing by breaking a published signature; two additions do not.
+// Newest attempt first: when several match, the most recent is the one a caller
+// means.
+//
+// Stable: sd.retry-every-cause-is-reachable — errors.Is and errors.As reach the final error and every attempt's error, so a budget expiry does not hide the kind an upstream reported.
+// Covered by: TestRetryError_UnwrapExposesEveryCause
+func (e Error) Is(target error) bool {
+	for i := len(e.Attempts) - 1; i >= 0; i-- {
+		if err := e.Attempts[i].Err; err != nil && errors.Is(err, target) {
+			return true
+		}
+	}
+	return false
+}
+
+// As reports whether any attempt's error matches target, and fills it in when it
+// does. See Is for why the attempts need their own path.
+func (e Error) As(target any) bool {
+	for i := len(e.Attempts) - 1; i >= 0; i-- {
+		if err := e.Attempts[i].Err; err != nil && errors.As(err, target) {
+			return true
+		}
+	}
+	return false
+}
+
 // Callback decides whether another attempt should run and may replace the
 // error returned to the caller.
 type Callback func(attempt int, received error) (keepTrying bool, replacement error)

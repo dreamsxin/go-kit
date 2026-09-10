@@ -117,6 +117,7 @@ stable/otel.metrics-agree-with-the-exposition
 stable/sd.feedback-ejection-cap-holds-under-concurrency
 stable/sd.health-a-flap-does-not-resurrect-a-failing-instance
 stable/sd.instance-subscribers-are-never-left-behind-state
+stable/sd.retry-every-cause-is-reachable
 stable/sd.retry-handover-precedes-the-outcome-callback
 stable/sd.retry-no-attempt-after-the-budget
 stable/sd.selector-weights-cannot-overflow-the-total

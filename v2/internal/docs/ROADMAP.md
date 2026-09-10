@@ -2351,17 +2351,44 @@ Acceptance:
 go test ./sd/... -count=1
 ```
 
+### Work Package 6: Every Cause Of A Retried Failure Is Reachable
+
+- `retry.Error.Unwrap` can only offer one cause, and `Final` wins when set. A budget
+  expiry sets it to the context error, so an upstream's `apperror` kind — recorded in
+  every attempt — was invisible to `errors.As`, and a mapper keyed on kinds emitted a
+  generic timeout for a failure whose real kind was in `result.Attempts` all along. A
+  `Callback` replacement hid the actual error the same way.
+- `Error` now implements `Is` and `As`, which `errors.Is` and `errors.As` consult
+  before walking the unwrap chain. Both the attempts and the final cause are reachable,
+  newest attempt first.
+- The first attempt at this changed `Unwrap` to return `[]error`, and
+  `TestAPICompatibilityWithLastRelease` refused it: a published signature changed. The
+  gate was right — two added methods deliver the same property with nothing removed —
+  and this is the third time this session it has caught a change that could have been
+  waved through as "pre-freeze anyway".
+
+Acceptance:
+
+```bash
+go test ./sd/retry/ -count=1
+go -C ./tools test . -run TestAPICompatibilityWithLastRelease -count=1
+```
+
 ### Still Open From The Same Audits
 
-Recorded with file and line, in the order they would be taken:
-
-- `sd/retry` sleeps and reads the clock directly, in a repository that owns
-  `endpoint.Clock` and uses it in `feedback` and in `endpoint.RetryMiddleware`. The
-  consequence is not stylistic: nothing asserts the schedule the loop actually
-  produces, only `backoff.Next` in isolation.
-- `retry.Error.Unwrap` is single-valued, so after a budget expiry the only reachable
-  cause is the context error and an upstream `apperror` kind that was known in every
-  attempt is invisible to `errors.As`.
+- `sd/retry` sleeps and reads the clock directly (`retry.go`), in a repository that
+  owns `endpoint.Clock` and uses it in `feedback` and `endpoint.RetryMiddleware`. The
+  consequence is that nothing asserts the schedule the loop produces — only
+  `backoff.Next` in isolation — so the compounding of delays across attempts, and the
+  share of the budget spent sleeping rather than calling, are untested.
+- Fixing it needs an API decision, not just a seam. The four constructors are
+  positional (`Retry`, `WithCallback`, `WithClassifier` and their timeout/balancer
+  arguments); a fifth positional form taking a clock would be the fourth variant of
+  the same call, and the rest of the repository uses functional options for this —
+  `feedback.WithClock`, `feedback.WithEjectorClock`. The honest shape is
+  `retry.New(balancer, opts...)` with the existing four kept as convenience wrappers.
+  That is a public API addition with its own snapshot and documentation work, so it is
+  recorded here rather than half-built at the end of a session.
 
 ## Maintenance Rules / 维护规则
 

@@ -7,6 +7,20 @@ English | [简体中文](CHANGELOG_zh.md)
 The service-discovery subtree had never been audited. Two audits of it — the load
 balancing path and the resilience path — opened this milestone.
 
+### Added
+
+- **`retry.Error` now implements `Is` and `As`, so every cause of a retried failure is
+  reachable.** `Unwrap` can only offer one, and `Final` wins when it is set: after a
+  budget expiry the only reachable cause was `context.DeadlineExceeded`, so an
+  upstream's `apperror` kind — recorded in every attempt — was invisible to
+  `errors.As`, and a mapper keyed on kinds emitted a generic timeout for a failure
+  whose real kind had been in hand all along. A `Callback` replacement hid the actual
+  error the same way. `errors.Is` and `errors.As` consult these methods before walking
+  the unwrap chain, so the attempts and the final cause are both reachable, newest
+  attempt first. Changing `Unwrap` to return `[]error` would have achieved the same
+  thing by breaking a published signature — the compatibility gate refused it, and it
+  was right to.
+
 ### Fixed
 
 - **A retried call could throw away a response it had already received.** The
