@@ -158,7 +158,8 @@ sd.And(
 
 `Filter` and `Prefer` re-evaluate on every selection, so a relabelled
 instance moves in or out of the filtered set without reconnecting. Closing a
-filtered set closes the source it wraps.
+filtered set closes nothing: the view owns no subscription and no goroutine, so
+close the set you constructed instead.
 
 ## Selection strategies
 
@@ -586,6 +587,10 @@ The default classifier retries explicit `Retryable() == true` errors and
 temporary no-endpoint conditions. Unknown and protocol errors are permanent.
 For gRPC, pass `integrations/grpc.Retryable` explicitly through
 `client.WithRetryable`; domain write safety remains an application decision.
+
+`retry.Error` implements `Is` and `As`, so `errors.As` reaches the kind an
+upstream reported in any attempt even when the budget expired and `Final` is the
+context error.
 
 `Instancer.Close` stops provider watches. `Endpointer.Close` waits for its update loop and closes all resources returned
 by the endpoint factory. Treat the closer as part of the constructor contract,

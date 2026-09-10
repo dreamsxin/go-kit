@@ -149,7 +149,8 @@ sd.And(
 ```
 
 `Filter` 与 `Prefer` 在每次选择时重新求值，因此改了标签的实例会进出子集
-而不需要重连。关闭子集会连带关闭它包装的来源。
+而不需要重连。关闭子集什么也不会关：这个视图不持有订阅、也不持有 goroutine，
+所以要关的是你自己构造的那个集合。
 
 ## 选择策略
 
@@ -532,6 +533,9 @@ retry.WithClassifier(time.Second, lb,
 默认分类器会重试显式 `Retryable() == true` 的错误以及临时的无端点状况。
 未知错误和协议错误是永久性的。对于 gRPC，通过 `client.WithRetryable` 显式
 传入 `integrations/grpc.Retryable`；领域写入的安全性仍由应用自行决策。
+
+`retry.Error` 实现了 `Is` 与 `As`，所以即使预算到期、`Final` 是 context 错误，
+`errors.As` 仍能触达任一尝试里上游报告的类别。
 
 `Endpointer.Close` 会等待其更新循环结束，并关闭端点工厂返回的所有资源。
 应把 closer 视为构造器契约的一部分，而不是可选的清理钩子。

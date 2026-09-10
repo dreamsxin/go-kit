@@ -169,12 +169,22 @@ defer lb.Close()
 call := retry.Retry(3, 500*time.Millisecond, lb)
 ```
 
-`retry.Retry` takes both an attempt cap and a wall-clock budget, and the budget
-wins: a call that runs out of time stops mid-schedule. The failure is a
-`retry.Error` carrying every attempt made so far, with the context error as its
-`Final`, so `errors.Is(err, context.DeadlineExceeded)` still matches while the
-message names the instances that failed. Only a budget that expires before any
-attempt completes returns the bare context error.
+`retry.Retry` takes both an attempt cap and a wall-clock budget. The budget stops
+the schedule, but it does not discard an answer: an attempt that hands back a
+success in the same instant the budget expires is still returned, because a caller
+told "deadline exceeded" for a write that landed cannot compensate for what it
+never learned happened. Nothing is dispatched once the budget is spent either, so a
+call whose time runs out during backoff makes no further upstream request.
+
+The failure is a `retry.Error` carrying every attempt made so far, with the context
+error as its `Final`, so `errors.Is(err, context.DeadlineExceeded)` still matches
+while the message names the instances that failed. `retry.Error` also implements
+`Is` and `As`, so `errors.As` reaches the kind an upstream reported in any attempt
+— a budget expiry no longer hides an `apperror` behind the context error. When the
+budget ends a call before any attempt's result was taken, the error is the bare
+context error; an error arriving in that same instant is deliberately not recorded
+as an attempt, because otherwise which of the two landed first would decide the
+shape of the error.
 
 ## Filtering and lifecycle state
 

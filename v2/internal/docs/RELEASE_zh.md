@@ -31,7 +31,7 @@ v2 处于冻结前阶段。在宣布冻结之前，minor 版本允许改变行�
 
 冻结宣布之后，不兼容变更需要新的主版本模块路径。
 
-届时的兼容性契约覆盖以下六个表面。每一项都写出使其失败的门禁，因为没有测试执行的
+届时的兼容性契约覆盖以下七个表面。每一项都写出使其失败的门禁，因为没有测试执行的
 承诺，第一次意外破坏是交给使用方而不是交给 CI 的：
 
 - 导出的运行时 API —— `TestPublicAPISurfaceSnapshot`、`TestAPICompatibilityWithLastRelease`；
@@ -167,8 +167,8 @@ module 或旧的 v2 标签时失败。
 3. 创建并推送标签：
 
 ```bash
-git tag -a v2.13.0 -m "go-kit v2.13.0"
-git push origin v2.13.0
+git tag -a vX.Y.Z -m "go-kit vX.Y.Z"
+git push origin vX.Y.Z
 make verify-published
 ```
 

@@ -206,8 +206,8 @@ tag check fail if another published module or old v2 tag is introduced.
 3. Create and push the tag:
 
 ```bash
-git tag -a v2.13.0 -m "go-kit v2.13.0"
-git push origin v2.13.0
+git tag -a vX.Y.Z -m "go-kit vX.Y.Z"
+git push origin vX.Y.Z
 make verify-published
 ```
 
