@@ -405,3 +405,88 @@ func TestRetryError_ErrorStringOmitsUnknownAddresses(t *testing.T) {
 		t.Errorf("Error(): got %q", got)
 	}
 }
+
+// ── The budget versus a result that already arrived ───────────────────────────
+
+// cancellingBalancer ends the call's context from the Done callback — after the
+// attempt has succeeded and handed its result over. That is the state the loop
+// used to lose: a result sitting in the channel and a closed Done channel, with
+// select free to choose either.
+type cancellingBalancer struct {
+	cancel     func()
+	dispatched chan struct{}
+}
+
+func newCancellingBalancer(cancel func()) *cancellingBalancer {
+	return &cancellingBalancer{cancel: cancel, dispatched: make(chan struct{}, 4)}
+}
+
+func (b *cancellingBalancer) Pick(_ context.Context, _ any) (sd.Picked, error) {
+	select {
+	case b.dispatched <- struct{}{}:
+	default:
+	}
+	return sd.Picked{
+		Instance: sd.Instance{Address: "10.0.0.7:80"},
+		Endpoint: func(_ context.Context, _ any) (any, error) { return "ok", nil },
+		Done:     func(sd.Outcome) { b.cancel() },
+	}, nil
+}
+
+func (*cancellingBalancer) Close() error { return nil }
+
+// TestRetry_ADeliveredResultOutranksTheDeadline pins the outcome when the call's
+// budget ends while a result is already in hand.
+//
+// A select with two ready cases chooses uniformly, so the loop used to have a
+// coin-flip chance of returning the context error and discarding a response it had
+// already received. For a non-idempotent request that is the worst available
+// report: the write happened, the caller was told it did not, and it cannot
+// compensate for what it never learned about.
+//
+// Two properties make this deterministic rather than a probabilistic hunt. The
+// attempt hands its result over before Done runs, so cancelling from Done puts the
+// result in the channel first; and the loop drains the channel before honouring
+// the context. The iteration count stays because a scheduler is a scheduler.
+func TestRetry_ADeliveredResultOutranksTheDeadline(t *testing.T) {
+	for i := 0; i < 300; i++ {
+		ctx, cancel := context.WithCancel(context.Background())
+		lb := newCancellingBalancer(cancel)
+		response, err := retry.Retry(3, time.Second, lb)(ctx, nil)
+		cancel()
+		if err != nil {
+			t.Fatalf("iteration %d: a delivered success was reported as %v", i, err)
+		}
+		if response != "ok" {
+			t.Fatalf("iteration %d: response = %v, want ok", i, response)
+		}
+	}
+}
+
+// TestRetry_DispatchesNoAttemptOnceTheBudgetIsSpent asserts that a call whose
+// context is already finished puts nothing on the wire.
+//
+// The loop used to launch the attempt goroutine as its first statement and only
+// then look at the context, so a caller that had already given up still caused a
+// Pick and an upstream request whose result nothing would read.
+//
+// The wait is what makes this an assertion rather than a coin flip: the dispatch,
+// if it happens, happens on another goroutine, so reading a counter the instant
+// the call returns can observe zero either because nothing was dispatched or
+// because the dispatch has not run yet. Waiting for a dispatch that must not come
+// distinguishes the two.
+func TestRetry_DispatchesNoAttemptOnceTheBudgetIsSpent(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	lb := newCancellingBalancer(func() {})
+	_, err := retry.Retry(3, time.Second, lb)(ctx, nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	select {
+	case <-lb.dispatched:
+		t.Fatal("an attempt was dispatched for a call that was already over")
+	case <-time.After(200 * time.Millisecond):
+	}
+}

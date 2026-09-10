@@ -1751,6 +1751,64 @@ go -C ./tools test . -run TestMicrogen -count=1
   的检出"会让 `TestAPICompatibilityWithLastRelease` 失败。那个 job 只对 `v2` module 跑
   `go test -race`，从不跑门禁那个 module，所以两者碰不上。
 
+## 里程碑 23（进行中）：服务发现子树为自己作答
+
+目标：`sd` 从未被审计过。两次审计——负载均衡路径（`balancer`、`selector`、`endpointer`、`instance`）
+与韧性路径（`retry`、`feedback`、`health`、`client`）——逐条问"每种情形下部署方损失什么"，答案按
+严重程度依次处理。
+
+选择内核比"从未审计"这个说法要好：每个策略都在做任何算术之前用带类型的错误拒绝空集合；每个发布出去
+的快照都是先构造完整再整体替换，而不是原地修改；每个 goroutine 都有归属。缺陷集中在算术、事件顺序、
+以及并发的读-改-写。
+
+### 工作包 1：带重试的调用不会丢掉它已经收到的答案
+
+- 那个循环同时 select 调用 context 和结果 channel。两者都就绪时 select 等概率选择，于是恰好在预算
+  到期时完成的尝试有一半概率被丢弃、并报成 deadline 错误。对非幂等请求这是不可恢复的：写已经发生，
+  而调用方被告知没有。
+- 改了两处，因为一处不够。尝试会在 outcome 回调**之前**把结果交给循环——`Done` 里的部署代码原本可以
+  把这个窗口拉到任意宽——并且循环在服从 context 之前先把已送达的结果取出来。
+- 预算也改为在派发之前检查，而不是只在之后检查，于是已经放弃的调用方、或迟到返回的退避计时器，不再
+  导致又一次没人读结果的上游请求。
+- 两处修复都带 `Stable:` 标记。那个"取出已送达结果"的动作有意不带：它覆盖的窗口——无关的 goroutine
+  在 channel 发送的同一瞬间取消——无法被测试确定性地构造出来，而"点名的测试并不断言其文字"的 promise，
+  正是里程碑 19 花力气清掉的东西。
+
+验收：
+
+```bash
+go test ./sd/... -count=1
+```
+
+### 这两次审计里仍未处理的
+
+已记下文件与行号，按将要处理的顺序：
+
+- `feedback.Ejector.apply` 在决策中途放开了锁（`sd/feedback/ejector.go`）。它在锁外判定候选、在锁外
+  检查 `MaxEjectionPercent`，然后重新加锁去应用。四实例池上的两次并发 pick，可以各自基于"不包含对方
+  决定"的视图通过 50% 的上限检查并一起摘除，把池子的 75% 摘出服务——正是那个上限要防止的结果，而 panic
+  模式根本不会触发。同一个窗口还会把"第一次犯错"记成两次，于是摘除窗口从配置基准的两倍开始。
+- 服务发现的抖动会把一个正在失败的实例复活成健康（`sd/health/health.go`）。在某一次快照里缺席、下一次
+  又出现的实例，其状态被删除后以 `initiallyHealthy`（默认 true）和 `failures = 0` 重建——于是它被重新
+  发布为可服务，并且在 `unhealthyThreshold × interval` 之内无法再被摘除。会抖动的注册中心，能让一个
+  已死的后端在它生命的大部分时间里持续收到流量。
+- `instance.Cache.Update` 在锁外广播（`sd/instance/cache.go`）。两次并发更新可能以与它们设置状态相反的
+  顺序送达，而 `sendLatest` 让情况更糟：发现缓冲已满时，它把较新的事件排掉、写入较旧的那个。此后
+  `State()` 与每一个订阅者不一致，直到下一次更新；而由于相同事件会被丢弃，陈旧列表再来一次就会让这种
+  分歧持续下去。
+- 加权选择在权重总和整数溢出时报 `ErrNoEndpoints`（`sd/selector/weighted.go`）。两个注册了
+  `weight` 为 `MaxInt` 的实例会让求和绕成负数，守卫触发，于是一个完全健康的池子变得不可路由——而且它被
+  归类为临时错误，所以调用方会先把重试预算烧完。
+- `endpointer.Filter` 与 `Prefer` 接受 nil source，并把 panic 推迟到第一个请求
+  （`sd/endpointer/filter.go`），而它所有的同类构造函数都在装配时校验。
+- `feedback` 不复制就保留了 provider 的实例切片（`sd/feedback/feedback.go`），而 `health.accept` 在
+  完全相同的边界上做了复制并写明了原因。
+- `sd/retry` 直接睡眠、直接读时钟，而这个仓库自己拥有 `endpoint.Clock`，并且在 `feedback` 和
+  `endpoint.RetryMiddleware` 里都用了它。后果不是风格问题：没有任何东西断言这个循环实际产生的时间表，
+  只断言了孤立的 `backoff.Next`。
+- `retry.Error.Unwrap` 是单值的，于是预算到期之后唯一可达的原因是 context 错误，而每次尝试里都已知的
+  上游 `apperror` kind 对 `errors.As` 不可见。
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

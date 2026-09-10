@@ -2,6 +2,29 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.22.0] - Release Candidate
+
+The service-discovery subtree had never been audited. Two audits of it — the load
+balancing path and the resilience path — opened this milestone.
+
+### Fixed
+
+- **A retried call could throw away a response it had already received.** The
+  loop selected on the call's context and on the attempt's result channel, and a
+  select with two ready cases chooses uniformly: an attempt completing in the same
+  instant as the budget expiring had a coin-flip chance of being discarded and
+  reported as `context.DeadlineExceeded`. For a non-idempotent request that is the
+  worst available report — the write happened, the caller was told it did not, and
+  it cannot compensate for what it never learned about. An attempt now hands its
+  result to the loop before the outcome callback runs, so deployment code in `Done`
+  cannot widen the window, and the loop drains a delivered result before honouring
+  the context.
+- **A call whose budget was already spent still dispatched one more attempt.** The
+  loop launched the attempt goroutine as its first statement and only then looked
+  at the context, so a caller that had given up — or a backoff timer that returned
+  after the budget expired — still caused a `Pick` and an upstream request whose
+  result nothing would read. The context is now checked before dispatching.
+
 ## [2.21.0] - 2026-09-08
 
 What the generator emits is part of the framework. This milestone comes from two

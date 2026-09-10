@@ -2210,6 +2210,85 @@ without tags, and v2.21.0 made a tagless checkout fail
 `TestAPICompatibilityWithLastRelease`. That job runs `go test -race` over the `v2`
 module only, never the gate module, so the two do not meet.
 
+## Milestone 23 (Active): The Discovery Subtree Answers For Itself
+
+Goal: `sd` had never been audited. Two audits — the load balancing path
+(`balancer`, `selector`, `endpointer`, `instance`) and the resilience path
+(`retry`, `feedback`, `health`, `client`) — asked what a deployment loses in each
+case, and the answers are being worked through in severity order.
+
+The selection core came out better than the "never audited" framing suggested:
+every strategy refuses an empty set with a typed error before any arithmetic, every
+published snapshot is built complete and swapped rather than edited in place, and
+every goroutine has an owner. The defects are in arithmetic, event ordering and
+concurrent read-modify-write.
+
+### Work Package 1: A Retried Call Does Not Lose An Answer It Received
+
+- The loop selected on the call context and on the result channel. With both ready,
+  select chooses uniformly, so an attempt that completed as the budget expired had a
+  coin-flip chance of being discarded and reported as a deadline error. For a
+  non-idempotent request that is unrecoverable: the write happened and the caller
+  was told it did not.
+- Two changes, because one was not enough. The attempt hands its result to the loop
+  *before* the outcome callback runs — deployment code in `Done` was able to widen
+  the window arbitrarily — and the loop drains a delivered result before honouring
+  the context.
+- The budget is also checked before dispatching rather than only after, so a caller
+  that has given up, or a backoff timer that returns late, no longer causes one more
+  upstream request whose result nothing reads.
+- Both fixes carry a `Stable:` marker. The drain deliberately does not: the window it
+  covers — an unrelated goroutine cancelling in the same instant as the channel send
+  — cannot be produced deterministically by a test, and a promise whose named test
+  does not assert its text is the thing this repository spent Milestone 19 removing.
+
+Acceptance:
+
+```bash
+go test ./sd/... -count=1
+```
+
+### Still Open From The Same Audits
+
+Recorded with file and line, in the order they would be taken:
+
+- `feedback.Ejector.apply` releases its lock mid-decision (`sd/feedback/ejector.go`).
+  It judges candidates and checks `MaxEjectionPercent` outside the lock, then
+  re-acquires to apply. Two concurrent picks over a four-instance pool can each pass
+  a 50% cap check against a view that excludes the other's decision and eject
+  together, taking 75% of the pool out of service — the exact outcome the cap exists
+  to prevent, with panic mode never firing. The same window double-counts a first
+  offence, so the ejection window starts at twice its configured base.
+- A discovery flap resurrects a failing instance as healthy (`sd/health/health.go`).
+  An instance absent from one snapshot and present in the next has its state deleted
+  and recreated with `initiallyHealthy`, which defaults to true, and `failures` at
+  zero — so it is republished as serving and cannot be ejected again for
+  `unhealthyThreshold × interval`. A registry that flaps keeps a dead backend in the
+  set for most of its life.
+- `instance.Cache.Update` broadcasts outside the lock (`sd/instance/cache.go`). Two
+  concurrent updates can deliver in the opposite order to the state they set, and
+  `sendLatest` makes it worse: finding the buffer full, it drains the newer event and
+  writes the older one. `State()` then disagrees with every subscriber until the next
+  update, and because identical events are dropped, a repeat of the stale list keeps
+  the divergence.
+- Weighted selection reports `ErrNoEndpoints` on integer overflow of the weight total
+  (`sd/selector/weighted.go`). Two instances registered with `weight` at `MaxInt`
+  wrap the sum negative, the guard fires, and a fully healthy pool becomes
+  unroutable — classified as temporary, so callers burn their retry budget first.
+- `endpointer.Filter` and `Prefer` accept a nil source and defer the panic to the
+  first request (`sd/endpointer/filter.go`), while every sibling constructor
+  validates at assembly time.
+- `feedback` retains a provider's instance slice without copying
+  (`sd/feedback/feedback.go`), at the boundary where `health.accept` copies and says
+  why.
+- `sd/retry` sleeps and reads the clock directly, in a repository that owns
+  `endpoint.Clock` and uses it in `feedback` and in `endpoint.RetryMiddleware`. The
+  consequence is not stylistic: nothing asserts the schedule the loop actually
+  produces, only `backoff.Next` in isolation.
+- `retry.Error.Unwrap` is single-valued, so after a budget expiry the only reachable
+  cause is the context error and an upstream `apperror` kind that was known in every
+  attempt is invisible to `errors.As`.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

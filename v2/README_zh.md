@@ -24,7 +24,7 @@ v2 是独立 Go module：
 github.com/dreamsxin/go-kit/v2
 ```
 
-`v2.20.0` 是当前发布版本，`v2.21.0` 处于候选阶段。它以单一模块发布：一行 `require`、一个 tag，框架与各 provider 之间不存在版本错配。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)。
+`v2.21.0` 是当前发布版本，`v2.22.0` 处于候选阶段。它以单一模块发布：一行 `require`、一个 tag，框架与各 provider 之间不存在版本错配。各版本的变更记录在 [CHANGELOG.md](CHANGELOG_zh.md)。
 
 需要 Go 1.26.0 或更高版本。
 

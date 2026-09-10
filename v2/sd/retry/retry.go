@@ -172,10 +172,34 @@ func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callba
 		delay := 10 * time.Millisecond
 
 		for attempt := 1; ; attempt++ {
+			// The budget is checked before dispatching, not only after. The select
+			// below cannot unsend a request: a caller whose context is already
+			// cancelled, or whose budget expired while the backoff timer ran, would
+			// otherwise have one more attempt put on the wire and then be told the
+			// deadline had passed. An upstream write nobody is waiting for is worse
+			// than a call that reports the deadline one attempt earlier.
+			//
+			// Stable: sd.retry-no-attempt-after-the-budget — once a call's budget is spent, no further attempt is dispatched.
+			// Covered by: TestRetry_DispatchesNoAttemptOnceTheBudgetIsSpent
+			if err := callContext.Err(); err != nil {
+				return nil, budgetError(result, err)
+			}
 			go call(callContext, balancer, request, resultChannel)
 
 			select {
 			case <-callContext.Done():
+				// A result that was already delivered outranks the deadline. select
+				// chooses uniformly among ready cases, so an attempt completing in
+				// the same instant as the budget expiring had a coin-flip chance of
+				// being thrown away — and a caller told "deadline exceeded" for a
+				// non-idempotent request that in fact succeeded cannot compensate
+				// for what it never learned happened.
+				if completed, delivered := delivered(resultChannel); delivered {
+					result.Attempts = append(result.Attempts, attemptOf(completed))
+					if completed.err == nil {
+						return completed.response, nil
+					}
+				}
 				// The budget (or the caller) ended the call. Keep the attempts
 				// made so far: "deadline exceeded" alone does not say which
 				// instances were tried or how they failed, which is the whole
@@ -183,11 +207,7 @@ func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callba
 				// so errors.Is keeps working.
 				return nil, budgetError(result, callContext.Err())
 			case completed := <-resultChannel:
-				result.Attempts = append(result.Attempts, Attempt{
-					Address: completed.address,
-					Err:     completed.err,
-					Latency: completed.latency,
-				})
+				result.Attempts = append(result.Attempts, attemptOf(completed))
 				if completed.err == nil {
 					return completed.response, nil
 				}
@@ -207,6 +227,32 @@ func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callba
 				delay = backoff.Next(delay)
 			}
 		}
+	}
+}
+
+// delivered takes a result an attempt has already produced, without waiting for
+// one.
+//
+// This covers what the handover ordering cannot: a caller's context can be
+// cancelled by an unrelated goroutine in the same instant the attempt fills the
+// buffered slot, and then both cases of the select are ready and select chooses
+// uniformly. No test can produce that window deterministically, which is why it
+// carries no Stable marker — the reachable half of the same defect is pinned on
+// the handover instead.
+func delivered(results <-chan attemptResult) (attemptResult, bool) {
+	select {
+	case completed := <-results:
+		return completed, true
+	default:
+		return attemptResult{}, false
+	}
+}
+
+func attemptOf(completed attemptResult) Attempt {
+	return Attempt{
+		Address: completed.address,
+		Err:     completed.err,
+		Latency: completed.latency,
 	}
 }
 
@@ -241,14 +287,22 @@ func call(ctx context.Context, balancer sd.Balancer, request any, results chan<-
 		endpointStarted := time.Now()
 		var response any
 		response, err = picked.Endpoint(ctx, request)
-		if picked.Done != nil {
-			picked.Done(sd.Outcome{Err: err, Latency: time.Since(endpointStarted)})
-		}
+		// Hand the result over before reporting the outcome. Done is deployment
+		// code — a feedback table, a metric, a log — and every instant it spends
+		// between the endpoint returning and the result reaching the loop is an
+		// instant in which the budget can expire and an answer already in hand be
+		// reported as a timeout.
+		//
+		// Stable: sd.retry-handover-precedes-the-outcome-callback — an attempt hands its result to the retry loop before the outcome callback runs, so code in Done cannot turn a delivered answer into a deadline error.
+		// Covered by: TestRetry_ADeliveredResultOutranksTheDeadline
 		results <- attemptResult{
 			response: response,
 			address:  picked.Instance.Address,
 			err:      err,
 			latency:  time.Since(started),
+		}
+		if picked.Done != nil {
+			picked.Done(sd.Outcome{Err: err, Latency: time.Since(endpointStarted)})
 		}
 		return
 	}
