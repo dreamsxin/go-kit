@@ -188,17 +188,24 @@ func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callba
 
 			select {
 			case <-callContext.Done():
-				// A result that was already delivered outranks the deadline. select
-				// chooses uniformly among ready cases, so an attempt completing in
-				// the same instant as the budget expiring had a coin-flip chance of
-				// being thrown away — and a caller told "deadline exceeded" for a
-				// non-idempotent request that in fact succeeded cannot compensate
-				// for what it never learned happened.
-				if completed, delivered := delivered(resultChannel); delivered {
+				// Only a success outranks the deadline. select chooses uniformly
+				// among ready cases, so an attempt completing in the same instant as
+				// the budget expiring had a coin-flip chance of being discarded — and
+				// a caller told "deadline exceeded" for a non-idempotent request that
+				// in fact succeeded cannot compensate for what it never learned
+				// happened.
+				//
+				// An *error* delivered in that instant is deliberately ignored. It is
+				// almost always the context error the attempt observed for itself, so
+				// it says nothing the return value does not, and recording it as an
+				// attempt would make the shape of the reported error depend on which
+				// of the two landed first: the bare context error becomes a
+				// retry.Error wrapper on a scheduling coin flip. That regression is
+				// what TestRetry_BudgetTimeoutWithoutAttemptsStaysBare caught, under
+				// -race only, after this drain was first written to accept both.
+				if completed, delivered := delivered(resultChannel); delivered && completed.err == nil {
 					result.Attempts = append(result.Attempts, attemptOf(completed))
-					if completed.err == nil {
-						return completed.response, nil
-					}
+					return completed.response, nil
 				}
 				// The budget (or the caller) ended the call. Keep the attempts
 				// made so far: "deadline exceeded" alone does not say which
