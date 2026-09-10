@@ -63,10 +63,21 @@ func (c *Cache) Update(event sd.Event) {
 	}
 
 	c.state = event
-	subscribers := c.reg.subscribers()
+	// Broadcasting happens under the lock, so the order subscribers observe is the
+	// order the state was set in. It used to happen after unlocking: two callers
+	// updating concurrently could set A then B and deliver B then A, and sendLatest
+	// made it worse — finding the buffer full, it drains and rewrites, so the older
+	// event replaced the newer one. State() then disagreed with every subscriber
+	// until the next update, and since an event equal to the stored one is dropped, a
+	// repeat of the stale list kept the divergence instead of correcting it.
+	//
+	// Holding the lock across the send is safe because sendLatest never blocks: every
+	// channel operation in it has a default case. A slow subscriber cannot stall an
+	// update, which is the property that made the unlocked broadcast look necessary.
+	// Stable: sd.instance-subscribers-are-never-left-behind-state — concurrent updates deliver in the order they were stored, so no subscriber holds an event older than the one State reports.
+	// Covered by: TestCache_ConcurrentUpdatesLeaveSubscribersOnTheStoredState
+	broadcast(c.reg.subscribers(), event)
 	c.mtx.Unlock()
-
-	broadcast(subscribers, event)
 }
 
 // State returns a copy of the most recently broadcast event.

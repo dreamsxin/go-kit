@@ -2300,16 +2300,36 @@ Acceptance:
 go test ./sd/health/ -count=1
 ```
 
+### Work Package 4: A Subscriber Is Never Left Behind The Stored State
+
+- `instance.Cache.Update` stored the new state under its lock and broadcast after
+  releasing it. Two concurrent callers could store A then B and deliver B then A, and
+  `sendLatest` made it worse: finding the buffer full it drains and rewrites, so the
+  older event replaced the newer one. `State` then disagreed with every subscriber
+  until the next update, and since an event equal to the stored one is dropped, a
+  repeat of the stale list kept the divergence.
+- The broadcast happens under the lock now. That is safe rather than a stall risk
+  because every channel operation in `sendLatest` has a default case — the property
+  that made the unlocked broadcast look necessary in the first place.
+- The test it replaced pushed twenty *identical* events and asserted nothing beyond
+  "no race / panic". Identical events are dropped by design, so nineteen never reached
+  a subscriber and the interleaving the test was named for never happened. The new one
+  pushes distinct events and compares what the subscriber holds against `State`; it
+  fails at around round 100 of 200 against the unlocked broadcast.
+- Worth noting for the next audit: `-race` is silent on this defect. There is no
+  unsynchronised access, only a delivery order that does not match the store order. A
+  clean race run is not evidence about ordering.
+
+Acceptance:
+
+```bash
+go test ./sd/instance/ -count=1
+```
+
 ### Still Open From The Same Audits
 
 Recorded with file and line, in the order they would be taken:
 
-- `instance.Cache.Update` broadcasts outside the lock (`sd/instance/cache.go`). Two
-  concurrent updates can deliver in the opposite order to the state they set, and
-  `sendLatest` makes it worse: finding the buffer full, it drains the newer event and
-  writes the older one. `State()` then disagrees with every subscriber until the next
-  update, and because identical events are dropped, a repeat of the stale list keeps
-  the divergence.
 - Weighted selection reports `ErrNoEndpoints` on integer overflow of the weight total
   (`sd/selector/weighted.go`). Two instances registered with `weight` at `MaxInt`
   wrap the sum negative, the guard fires, and a fully healthy pool becomes

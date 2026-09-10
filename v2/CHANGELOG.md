@@ -45,6 +45,16 @@ balancing path and the resilience path — opened this milestone.
   flap costs nothing and a real departure is still forgotten. Note that a source
   which suppresses an event identical to the one before it — `instance.Cache` does —
   delivers that second absence only when the set changes again.
+- **Concurrent updates could leave a subscriber holding an older instance list than
+  the one the cache reports.** `instance.Cache.Update` stored the new state under its
+  lock and broadcast after releasing it, so two callers updating at once could store A
+  then B and deliver B then A. `sendLatest` made it worse rather than better: finding
+  the buffer full it drains and rewrites, so the older event replaced the newer one.
+  `State` then disagreed with every subscriber until the next update, and because an
+  event equal to the stored one is dropped, a repeat of the stale list kept the
+  divergence instead of correcting it — requests kept going to a withdrawn address.
+  The broadcast now happens under the lock, which is safe because every channel
+  operation in `sendLatest` has a default case and cannot block on a slow subscriber.
 
 ## [2.21.0] - 2026-09-08
 

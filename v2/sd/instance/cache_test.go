@@ -2,6 +2,7 @@ package instance_test
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -175,18 +176,62 @@ func TestCache_StateCopyIsIsolated(t *testing.T) {
 
 // ─────────────────────────── Concurrency ───────────────────────────
 
-func TestCache_ConcurrentUpdates(t *testing.T) {
-	c := instance.NewCache()
-	var wg sync.WaitGroup
-	for i := 0; i < 20; i++ {
-		wg.Add(1)
-		go func(n int) {
-			defer wg.Done()
-			c.Update(sd.Event{Instances: sd.Addresses("host:80")})
-		}(i)
+// TestCache_ConcurrentUpdatesLeaveSubscribersOnTheStoredState pushes distinct
+// events from several goroutines and requires the last one a subscriber can read to
+// be the one State() reports.
+//
+// The previous version of this test pushed twenty identical events and asserted
+// nothing — "just ensure no race / panic". Identical events are dropped by design,
+// so nineteen of them never reached a subscriber and the interleaving it was named
+// for never happened.
+//
+// What it now looks for is a lost update rather than a data race: -race sees nothing
+// here, because there is no unsynchronised access, only a delivery whose order did
+// not match the order the state was set in. A subscriber left on an older list keeps
+// routing to an address the registry has withdrawn, and because an event equal to the
+// stored one is dropped, a repeat of that list does not correct it.
+func TestCache_ConcurrentUpdatesLeaveSubscribersOnTheStoredState(t *testing.T) {
+	const (
+		rounds  = 200
+		writers = 4
+	)
+	for round := 0; round < rounds; round++ {
+		c := instance.NewCache()
+		updates := make(chan sd.Event, 1)
+		c.Register(updates)
+
+		var wg sync.WaitGroup
+		for i := 0; i < writers; i++ {
+			wg.Add(1)
+			go func(n int) {
+				defer wg.Done()
+				c.Update(sd.Event{Instances: sd.Addresses(fmt.Sprintf("host-%d:80", n))})
+			}(i)
+		}
+		wg.Wait()
+
+		// Drain to the last delivered event: the buffer holds one, and "latest wins"
+		// is what sendLatest promises.
+		var delivered sd.Event
+		for {
+			select {
+			case event := <-updates:
+				delivered = event
+				continue
+			default:
+			}
+			break
+		}
+		if len(delivered.Instances) == 0 {
+			t.Fatalf("round %d: no event was delivered", round)
+		}
+		stored := c.State()
+		if delivered.Instances[0].Address != stored.Instances[0].Address {
+			t.Fatalf("round %d: subscriber holds %s, State() reports %s",
+				round, delivered.Instances[0].Address, stored.Instances[0].Address)
+		}
+		_ = c.Close()
 	}
-	wg.Wait()
-	// just ensure no race / panic
 }
 
 // ─────────────────────────── Metadata ───────────────────────────
