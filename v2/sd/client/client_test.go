@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -277,6 +278,72 @@ func TestNewEndpoint_RejectsBalancerFactoryReturningNil(t *testing.T) {
 	}
 	if err == nil || !strings.Contains(err.Error(), "balancer factory returned nil") {
 		t.Fatalf("error = %v, want a nil balancer error", err)
+	}
+}
+
+type typedNilBalancer struct{}
+
+func (*typedNilBalancer) Pick(context.Context, any) (sd.Picked, error) {
+	panic("an invalid balancer must never be called")
+}
+func (*typedNilBalancer) Close() error { return nil }
+
+type trackedInstancer struct {
+	*instance.Cache
+	registered   atomic.Int32
+	deregistered atomic.Int32
+	closed       atomic.Bool
+}
+
+func (s *trackedInstancer) Register(ch chan sd.Event) sd.Event {
+	s.registered.Add(1)
+	return s.Cache.Register(ch)
+}
+func (s *trackedInstancer) Deregister(ch chan sd.Event) {
+	s.deregistered.Add(1)
+	s.Cache.Deregister(ch)
+}
+func (s *trackedInstancer) Close() error {
+	s.closed.Store(true)
+	return s.Cache.Close()
+}
+
+func TestNewEndpoint_InvalidBalancerReleasesResourcesAndReportsCleanup(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		balancer sd.Balancer
+	}{
+		{"nil", nil},
+		{"typed nil", (*typedNilBalancer)(nil)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := &trackedInstancer{Cache: instance.NewCache()}
+			defer source.Close() //nolint:errcheck
+			source.Update(sd.Event{Instances: sd.Addresses("a:80", "b:80")})
+			cleanupErr := errors.New("connection cleanup failed")
+			var created, released atomic.Int32
+			factory := func(sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+				created.Add(1)
+				return endpoint.Nop, closerFunc(func() error { released.Add(1); return cleanupErr }), nil
+			}
+			call, closer, err := sdclient.NewEndpoint(source, factory, nopLogger(),
+				sdclient.WithBalancer(func(endpointer.InstanceEndpointer) sd.Balancer { return tc.balancer }))
+			if closer != nil {
+				defer closer.Close()
+			} //nolint:errcheck
+			if call != nil || closer != nil || err == nil || !strings.Contains(err.Error(), "balancer factory returned nil") {
+				t.Errorf("call present=%v closer present=%v error=%v; want construction failure", call != nil, closer != nil, err)
+			}
+			if !errors.Is(err, cleanupErr) {
+				t.Errorf("cleanup failure was hidden: %v", err)
+			}
+			if created.Load() != 2 || released.Load() != 2 {
+				t.Errorf("created=%d released=%d, want both resources released before returning", created.Load(), released.Load())
+			}
+			if source.registered.Load() != 1 || source.deregistered.Load() != 1 || source.closed.Load() {
+				t.Errorf("subscription register=%d deregister=%d source closed=%v", source.registered.Load(), source.deregistered.Load(), source.closed.Load())
+			}
+		})
 	}
 }
 

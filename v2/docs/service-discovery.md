@@ -156,6 +156,13 @@ defer instancer.Close() //nolint:errcheck
 defer resources.Close() // runs first
 ```
 
+`client.WithRetryClock` and `client.WithRetryBackoff` configure execution timing
+through this same constructor. They do not override `WithMaxAttempts`,
+`WithTimeout`, `WithRetryable` or the discovery grace period. A cancelled call
+releases its pending backoff timer. A balancer factory returning nil, including
+a typed-nil interface, fails construction and releases everything the client
+already created; its error includes cleanup failures.
+
 For full control, assemble the layers explicitly:
 
 ```go

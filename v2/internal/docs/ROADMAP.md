@@ -81,6 +81,20 @@ Disabling the clock option deliberately makes the configured-wait test fail.
 The new public declarations and behavior marker require reviewed snapshots;
 the candidate moves to a minor version for this addition, with no new tag.
 
+### Client Retry Assembly
+
+The higher-level client now forwards retry timing through `WithRetryClock` and
+`WithRetryBackoff`. Defaults, attempt limits, classification and resource ownership
+stay with the existing client options. Tests use a live in-memory discovery source,
+replace the instance during a manual wait, and check the retry reaches the new
+endpoint. They also verify cancellation, real timeout, nil resets and cleanup.
+Disabling clock forwarding makes the integration test fail.
+
+Construction validation also rejects typed-nil balancer results. The previous
+published path accepted them and hid cleanup errors even for ordinary nil.
+Regression tests check every endpoint closer and subscription are released before
+returning, without closing the source, and cleanup failures remain reachable.
+
 ### Release Status Gate
 
 The first status gate admitted a candidate version anywhere in a document and
@@ -2201,10 +2215,7 @@ go test ./cmd/microgen/... -count=1
 go -C ./tools test . -run TestMicrogen -count=1
 ```
 
-### Timing Work Deferred At Release
-
-Resolved in Milestone 24 through the options-based constructor and controlled
-backoff tests; the following records why it was deferred from v2.22.0.
+### Still Open From The Same Audits
 
 Recorded with file and line, not yet acted on:
 
@@ -2470,7 +2481,10 @@ go test ./sd/retry/ -count=1
 go -C ./tools test . -run TestAPICompatibilityWithLastRelease -count=1
 ```
 
-### Still Open From The Same Audits
+### Timing Work Deferred At Release
+
+Resolved in Milestone 24 through the options-based constructor and controlled
+backoff tests; the following records why it was deferred from v2.22.0.
 
 - `sd/retry` sleeps and reads the clock directly (`retry.go`), in a repository that
   owns `endpoint.Clock` and uses it in `feedback` and `endpoint.RetryMiddleware`. The

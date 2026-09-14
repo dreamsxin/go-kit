@@ -122,6 +122,8 @@ The seams that exist today:
 - `sd/retry.WithClock` with `retry.New` — backoff across discovered instances;
   pair it with `WithBackoff` for an exact schedule. `WithTimeout` remains a real
   context deadline, so a frozen test clock cannot disable the call budget.
+- `sd/client.WithRetryClock` with `client.NewEndpoint` — the same backoff clock
+  through the high-level discovery assembly; use `WithRetryBackoff` for its schedule.
 - `endpoint.Metrics.Clock` — the `LastRequestTime` a snapshot reports.
 - `httpsecurity.CSRFConfig.Clock` — when a CSRF token is minted and when its TTL
   is checked. It is declared structurally there, because that package depends on

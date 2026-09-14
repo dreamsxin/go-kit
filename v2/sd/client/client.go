@@ -53,6 +53,12 @@ type Options struct {
 	InvalidateOnError time.Duration
 	Retryable         retry.Classifier
 	Balancer          BalancerFactory
+	// RetryClock controls backoff waits only; nil uses real timers. Discovery
+	// invalidation, total timeout and measured latency still use real time.
+	RetryClock endpoint.Clock
+	// RetryBackoff receives the failed attempt number, starting at one.
+	// Nil uses retry.New's default schedule.
+	RetryBackoff func(attempt int) time.Duration
 }
 
 // Option configures NewEndpoint.
@@ -76,6 +82,25 @@ func WithInvalidateOnError(timeout time.Duration) Option {
 // WithRetryable installs an application or protocol-specific classifier.
 func WithRetryable(classifier retry.Classifier) Option {
 	return func(options *Options) { options.Retryable = classifier }
+}
+
+// WithRetryClock selects the clock for retry backoff. Nil restores system timers.
+// It does not change discovery invalidation, the total timeout or measured
+// latency. The clock must support concurrent calls to the returned endpoint.
+// A typed-nil clock is rejected by NewEndpoint before opening a subscription.
+//
+// Stable: sd.client-retry-timing-is-configurable — the assembled client passes its retry clock and backoff through to execution without changing attempt caps, wall-clock timeout, classification or resource ownership; cancellation releases the wait.
+// Covered by: TestNewEndpoint_ConfiguredRetryTiming, TestNewEndpoint_RetryCancellationAndDeadline, TestNewEndpoint_RetryDefaultsAndPolicyRemainIntact
+func WithRetryClock(clock endpoint.Clock) Option {
+	return func(options *Options) { options.RetryClock = clock }
+}
+
+// WithRetryBackoff sets the wait after failed attempt n, numbered from one.
+// Non-positive waits retry immediately, still subject to the attempt cap and
+// timeout. Nil restores retry.New's default schedule. The function must return
+// promptly and be safe for concurrent calls to the returned endpoint.
+func WithRetryBackoff(backoff func(attempt int) time.Duration) Option {
+	return func(options *Options) { options.RetryBackoff = backoff }
 }
 
 // WithBalancer replaces the default round-robin selection strategy.
@@ -115,13 +140,20 @@ func NewEndpoint(src sd.Instancer, factory endpointer.Factory, logger *slog.Logg
 	}
 	endpointSet := endpointer.NewEndpointer(src, factory, logger, endpointerOptions...)
 	balanced := options.Balancer(endpointSet)
-	if balanced == nil {
+	// Stable: sd.client-invalid-balancer-releases-resources — a nil or typed-nil balancer result fails construction after releasing the endpoint subscription and factory resources, and cleanup failures remain reachable in the returned error.
+	// Covered by: TestNewEndpoint_InvalidBalancerReleasesResourcesAndReportsCleanup
+	if isNil(balanced) {
 		// The endpointer already started its update goroutine, so release it
 		// before reporting the misconfiguration.
-		_ = endpointSet.Close()
-		return nil, nil, fmt.Errorf("sd/client: balancer factory returned nil")
+		return nil, nil, errors.Join(fmt.Errorf("sd/client: balancer factory returned nil"), endpointSet.Close())
 	}
-	call := retry.WithClassifier(options.Timeout, balanced, attemptLimit(options.MaxAttempts), options.Retryable)
+	call := retry.New(balanced,
+		retry.WithMaxAttempts(options.MaxAttempts),
+		retry.WithTimeout(options.Timeout),
+		retry.WithErrorClassifier(options.Retryable),
+		retry.WithClock(options.RetryClock),
+		retry.WithBackoff(options.RetryBackoff),
+	)
 	return call, &resources{balancer: balanced, endpoints: endpointSet}, nil
 }
 
@@ -153,6 +185,8 @@ func validate(src sd.Instancer, factory endpointer.Factory, options Options) err
 		return fmt.Errorf("sd/client: timeout must be greater than zero")
 	case options.InvalidateOnError < 0:
 		return fmt.Errorf("sd/client: invalidate-on-error duration cannot be negative")
+	case options.RetryClock != nil && isNil(options.RetryClock):
+		return fmt.Errorf("sd/client: retry clock is a typed nil")
 	default:
 		return nil
 	}
@@ -169,10 +203,6 @@ func isNil(value any) bool {
 	default:
 		return false
 	}
-}
-
-func attemptLimit(max int) retry.Callback {
-	return func(attempt int, _ error) (bool, error) { return attempt < max, nil }
 }
 
 type resources struct {

@@ -114,6 +114,8 @@ clock.Advance(time.Hour) // 一小时的退避瞬间走完
 - `endpoint.WithRetryClock`——重试尝试之间的等待。
 - `sd/retry.WithClock` 配合 `retry.New`——服务发现实例之间的重试退避，配合 `WithBackoff` 指定精确时间表。
   `WithTimeout` 仍为真实 context 截止时间，冻结测试时钟不会关闭调用预算。
+- `sd/client.WithRetryClock` 配合 `client.NewEndpoint`——从高层发现装配配置同一个退避时钟，时间表由
+  `WithRetryBackoff` 配置。
 - `endpoint.Metrics.Clock`——快照报告的 `LastRequestTime`。
 - `httpsecurity.CSRFConfig.Clock`——CSRF token 何时铸造、TTL 何时检查。它在那里是结构化声明的，因为
   那个包不依赖这个框架里的任何其他东西；任何带 `Now` 方法的值都能用，包括 `endpoint.ManualClock`。

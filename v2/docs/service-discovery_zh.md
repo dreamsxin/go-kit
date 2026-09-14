@@ -145,6 +145,10 @@ defer instancer.Close() //nolint:errcheck
 defer resources.Close() // 先执行
 ```
 
+`client.WithRetryClock` 与 `client.WithRetryBackoff` 通过同一构造入口配置执行时间，不覆盖
+`WithMaxAttempts`、`WithTimeout`、`WithRetryable` 或发现宽限期。调用取消会释放待处理退避定时器。
+Balancer 工厂返回 nil（包括带类型的 nil 接口）时构造失败，并释放客户端已创建的全部资源；返回错误包含清理失败。
+
 需要完全控制时可以手工装配：
 
 ```go

@@ -75,9 +75,39 @@ defer closer.Close() // runs first: deregister and close endpoint connections
 | `WithTimeout(d)` | 500ms | Positive total budget including all retries |
 | `WithInvalidateOnError(d)` | disabled | Clear cache after SD error grace period |
 | `WithBalancer(f)` | round robin | Replace the selection strategy |
+| `WithRetryable(f)` | `retry.DefaultClassifier` | Classify failures for retry |
+| `WithRetryClock(c)` | system clock | Control backoff timers, not total timeout or discovery invalidation |
+| `WithRetryBackoff(f)` | default jittered schedule | Wait after failed attempt n, numbered from one |
 
-Invalid options and nil required dependencies return an error before any
-background goroutine starts.
+Invalid options and nil required inputs return an error before subscribing.
+A nil or typed-nil result from the balancer factory is detected after endpoint
+construction; the client then unsubscribes and releases the factory resources,
+joining any cleanup failures into the returned error. It never closes the source.
+
+Custom retry timing is available without manually wiring the discovery layers:
+
+```go
+clock := endpoint.NewManualClock(time.Unix(0, 0))
+call, resources, err := client.NewEndpoint(instancer, factory, logger,
+    client.WithMaxAttempts(3),
+    client.WithTimeout(2*time.Second),
+    client.WithRetryClock(clock),
+    client.WithRetryBackoff(func(attempt int) time.Duration {
+        return time.Duration(attempt) * 100 * time.Millisecond
+    }),
+)
+if err != nil { return err }
+defer resources.Close()
+```
+
+In tests, run the call on a goroutine and wait for `clock.Pending()` before
+advancing the clock. Omit the clock option in production. The clock controls
+backoff only; total timeout, discovery invalidation and measured latency use real
+time. Nil clock/backoff values restore defaults, non-positive waits retry
+immediately, and each invocation keeps its own attempt progress. Custom clocks
+and backoff functions must support concurrent use. The returned closer still
+owns the balancer and endpoint subscription; callers own the instancer and must
+finish or cancel active calls before closing resources.
 
 ## Instance metadata
 

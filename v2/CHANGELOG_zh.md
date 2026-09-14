@@ -6,6 +6,9 @@
 
 ### 新增
 
+- `sd/client.NewEndpoint` 新增 `WithRetryClock` 和 `WithRetryBackoff`，调用可配置重试执行器，并保持默认
+  一次尝试、500ms 总超时、错误分类及发现源归调用方所有的规则。nil 值恢复标准时间策略；带类型的 nil 时钟
+  在订阅之前报错。
 - `sd/retry.New` 通过 `WithMaxAttempts`、`WithTimeout`、`WithAttemptCallback`、`WithErrorClassifier`、
   `WithBackoff` 和 `WithClock` 配置重试端点。默认只尝试一次、不增加截止时间。注入时钟控制退避等待，
   总超时和实际耗时仍使用真实时间。现有 `Retry`、`WithCallback`、`WithClassifier` 签名与策略保持兼容。
@@ -13,6 +16,8 @@
 
 ### 修复
 
+- 客户端构造同时拒绝普通 nil 和带类型的 nil balancer，在返回前释放端点订阅与工厂资源，并把清理失败
+  包含在返回错误中。
 - `endpoint.ManualClock` 立即移除已停止的定时器，`Pending()` 不再计入已取消等待，重试取消后也不会把
   定时器累积到原定到期时间。停止与时间推进共享同一同步边界，完成的定时器也会从待处理切片释放。
 - 主动健康检查在周期性探测继续运行时保留持续的服务发现错误，因此下游的失效和旧快照策略仍能看见注册中心故障；收到成功的源快照后才清除该错误。

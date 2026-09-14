@@ -1659,6 +1659,8 @@ type Option func(*Options)
 func WithBalancer(factory BalancerFactory) Option
 func WithInvalidateOnError(timeout time.Duration) Option
 func WithMaxAttempts(attempts int) Option
+func WithRetryBackoff(backoff func(attempt int) time.Duration) Option
+func WithRetryClock(clock endpoint.Clock) Option
 func WithRetryable(classifier retry.Classifier) Option
 func WithTimeout(timeout time.Duration) Option
 type Options struct {
@@ -1667,6 +1669,12 @@ type Options struct {
 	InvalidateOnError time.Duration
 	Retryable         retry.Classifier
 	Balancer          BalancerFactory
+	// RetryClock controls backoff waits only; nil uses real timers. Discovery
+	// invalidation, total timeout and measured latency still use real time.
+	RetryClock endpoint.Clock
+	// RetryBackoff receives the failed attempt number, starting at one.
+	// Nil uses retry.New's default schedule.
+	RetryBackoff func(attempt int) time.Duration
 }
 
 ## github.com/dreamsxin/go-kit/v2/sd/endpointer

@@ -6,6 +6,10 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Added
 
+- `sd/client.NewEndpoint` now exposes `WithRetryClock` and `WithRetryBackoff`,
+  delegating to the configurable retry executor while preserving its one-attempt,
+  500ms defaults, classifier and caller-owned discovery source. Nil values restore
+  the standard timing policy; typed-nil clocks fail before subscribing.
 - `sd/retry.New` configures a retry endpoint with `WithMaxAttempts`, `WithTimeout`,
   `WithAttemptCallback`, `WithErrorClassifier`, `WithBackoff`, and `WithClock`.
   New defaults to one attempt and no added deadline. A configured clock controls
@@ -16,6 +20,9 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Fixed
 
+- Client construction now rejects typed-nil balancer results as well as nil,
+  releases the endpoint subscription and factory resources before returning,
+  and includes any cleanup failures in the returned error.
 - `endpoint.ManualClock` removes stopped timers immediately, so `Pending()`
   excludes cancelled waits and cancelled retries do not accumulate timers until
   their original deadlines. Stopping and advancing share one synchronization

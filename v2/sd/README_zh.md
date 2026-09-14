@@ -73,8 +73,33 @@ defer closer.Close() // runs first: deregister and close endpoint connections
 | `WithTimeout(d)` | 500ms | 包含所有重试在内的正数总预算 |
 | `WithInvalidateOnError(d)` | disabled | 在 SD 错误宽限期之后清除缓存 |
 | `WithBalancer(f)` | 轮询 | 替换选择策略 |
+| `WithRetryable(f)` | `retry.DefaultClassifier` | 判断失败是否可重试 |
+| `WithRetryClock(c)` | 系统时钟 | 控制退避定时器，不影响总超时或发现失效 |
+| `WithRetryBackoff(f)` | 默认随机退避 | 第 n 次失败后的等待，编号从一开始 |
 
-非法的选项以及为 nil 的必需依赖，会在任何后台 goroutine 启动之前返回错误。
+非法选项与为 nil 的必需输入在订阅前返回错误。Balancer 工厂返回普通 nil 或带类型的 nil 时，端点已构造；
+客户端会在返回前注销订阅、释放工厂资源，并合并清理失败。发现源始终由调用方关闭。
+
+无需手工装配发现链路即可配置重试时间：
+
+```go
+clock := endpoint.NewManualClock(time.Unix(0, 0))
+call, resources, err := client.NewEndpoint(instancer, factory, logger,
+    client.WithMaxAttempts(3),
+    client.WithTimeout(2*time.Second),
+    client.WithRetryClock(clock),
+    client.WithRetryBackoff(func(attempt int) time.Duration {
+        return time.Duration(attempt) * 100 * time.Millisecond
+    }),
+)
+if err != nil { return err }
+defer resources.Close()
+```
+
+测试中在 goroutine 运行调用，等待 `clock.Pending()` 后推进时钟；生产环境省略时钟选项。
+时钟只控制退避，总超时、发现失效与耗时测量仍使用真实时间。nil 时钟/退避值恢复默认，非正等待表示立即重试，
+每次调用保持独立的尝试进度。自定义时钟和退避函数必须支持并发。返回的 closer 仍拥有 balancer 与端点订阅；
+调用方拥有 instancer，并应在关闭资源前完成或取消在途调用。
 
 ## 实例元数据
 
