@@ -2,7 +2,17 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.22.1] - Release Candidate
+## [2.23.0] - Release Candidate
+
+### Added
+
+- `sd/retry.New` configures a retry endpoint with `WithMaxAttempts`, `WithTimeout`,
+  `WithAttemptCallback`, `WithErrorClassifier`, `WithBackoff`, and `WithClock`.
+  New defaults to one attempt and no added deadline. A configured clock controls
+  backoff waits, while the total timeout and measured latency remain real-time.
+  Existing `Retry`, `WithCallback`, and `WithClassifier` signatures and policies
+  remain compatible. Per-call schedules, cancellation, independent attempt caps,
+  and legacy defaults are covered by executable tests.
 
 ### Fixed
 

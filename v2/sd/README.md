@@ -567,6 +567,35 @@ constructor exposes the equivalent `client.WithInvalidateOnError` option.
 
 ## Retry strategies
 
+Use `New` when the application controls backoff or needs a deterministic clock:
+
+```go
+clock := endpoint.NewManualClock(time.Unix(0, 0))
+call := retry.New(lb,
+    retry.WithMaxAttempts(3),
+    retry.WithTimeout(2*time.Second),
+    retry.WithClock(clock),
+    retry.WithBackoff(func(attempt int) time.Duration {
+        return time.Duration(attempt) * 100 * time.Millisecond
+    }),
+)
+```
+
+Omit `WithClock` in production to use real timers. In a test, start the call in a
+goroutine, wait for `clock.Pending()` to report its timer, then advance the clock.
+`New` defaults to one attempt and no additional deadline. `WithMaxAttempts` caps
+all attempts, even when `WithAttemptCallback` returns true. `WithErrorClassifier`
+receives any error replacement from that callback; the attempt history keeps the
+original error. A non-positive custom delay retries immediately; nil options or
+nil function values leave the defaults or previously configured values intact.
+
+The clock controls backoff only: `WithTimeout` and caller deadlines use real
+time, as do measured attempt latencies. Each invocation gets its own schedule,
+but application-supplied callbacks and clocks must support concurrent use.
+Cancellation releases a pending timer. `New` does not close the balancer.
+
+Existing convenience entry points keep their signatures and policies:
+
 ```go
 // Fixed max attempts
 retry.Retry(3, time.Second, lb)
@@ -591,6 +620,11 @@ For gRPC, pass `integrations/grpc.Retryable` explicitly through
 `retry.Error` implements `Is` and `As`, so `errors.As` reaches the kind an
 upstream reported in any attempt even when the budget expired and `Final` is the
 context error.
+
+`WithCallback` and `WithClassifier` still allow unlimited attempts when their
+callback is nil; provide a caller deadline or explicit callback cap. Unlike them,
+`New` always has its configured attempt cap. Re-picking consults the strategy
+again and does not guarantee a different instance (for example with hash affinity).
 
 `Instancer.Close` stops provider watches. `Endpointer.Close` waits for its update loop and closes all resources returned
 by the endpoint factory. Treat the closer as part of the constructor contract,

@@ -119,6 +119,9 @@ deadline. `Stop` returns false once a timer has fired or already been stopped.
 The seams that exist today:
 
 - `endpoint.WithRetryClock` — the wait between retry attempts.
+- `sd/retry.WithClock` with `retry.New` — backoff across discovered instances;
+  pair it with `WithBackoff` for an exact schedule. `WithTimeout` remains a real
+  context deadline, so a frozen test clock cannot disable the call budget.
 - `endpoint.Metrics.Clock` — the `LastRequestTime` a snapshot reports.
 - `httpsecurity.CSRFConfig.Clock` — when a CSRF token is minted and when its TTL
   is checked. It is declared structurally there, because that package depends on

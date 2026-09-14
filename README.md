@@ -82,7 +82,7 @@ go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 `v2.22.0` is the current architecture release, and it ships as a single module:
 one `require`, one tag (see [CHANGELOG](v2/CHANGELOG.md)).
 
-`v2.22.1` is the patch candidate on `main`; the commands above install the
+`v2.23.0` is the candidate on `main`; the commands above install the
 latest published release.
 
 ## Development

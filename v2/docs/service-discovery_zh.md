@@ -158,6 +158,11 @@ defer lb.Close()
 call := retry.Retry(3, 500*time.Millisecond, lb)
 ```
 
+需要配置执行策略时，等价的选项式入口是 `retry.New(lb, retry.WithMaxAttempts(3),
+retry.WithTimeout(500*time.Millisecond))`。`WithBackoff` 替换时间表，`WithClock` 接受
+`endpoint.Clock` 控制等待，包括测试用手动时钟；它们不改变真实时间的预算约束或耗时测量。
+回调和分类器分别通过 `WithAttemptCallback` 和 `WithErrorClassifier` 配置，详见[重试参考](../sd/README_zh.md#重试策略)。
+
 `retry.Retry`同时接受尝试次数上限与墙钟预算。预算会让计划停下，但它不会丢掉一个答案：
 一次尝试如果恰好在预算到期的同一瞬间交回成功，这个成功仍然会被返回——因为一个写已经落地、
 却被告知"deadline exceeded"的调用方，无法为自己从未得知的事情做补偿。预算花光之后也不会再派发，

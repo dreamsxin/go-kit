@@ -169,6 +169,13 @@ defer lb.Close()
 call := retry.Retry(3, 500*time.Millisecond, lb)
 ```
 
+For configurable execution, `retry.New(lb, retry.WithMaxAttempts(3),
+retry.WithTimeout(500*time.Millisecond))` is the options-based equivalent.
+`WithBackoff` replaces the schedule and `WithClock` accepts an `endpoint.Clock`
+for the wait, including a manual test clock. Neither changes wall-clock budget
+enforcement or measured latency. The callback and classifier are configured with
+`WithAttemptCallback` and `WithErrorClassifier`; see the [retry reference](../sd/README.md#retry-strategies).
+
 `retry.Retry` takes both an attempt cap and a wall-clock budget. The budget stops
 the schedule, but it does not discard an answer: an attempt that hands back a
 success in the same instant the budget expires is still returned, because a caller

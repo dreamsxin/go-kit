@@ -342,5 +342,7 @@ captured by the release manifest and API snapshot. Until the v2
 compatibility freeze, minor releases may change behavior or remove APIs; after
 the freeze, incompatible changes require a new major module version.
 
-`v2.22.1` is the patch candidate on `main`, correcting discovery-state handling
-and selection without changing public signatures or package boundaries.
+`v2.23.0` is the candidate on `main`, correcting discovery-state handling and
+selection and adding configurable retry backoff. Existing public signatures and
+package boundaries remain compatible. The injected retry clock controls waits;
+context deadlines and measured request durations continue to use real time.

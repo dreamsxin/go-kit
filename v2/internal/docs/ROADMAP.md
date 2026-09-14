@@ -8,7 +8,8 @@ durable product milestones, not session notes or release history.
 
 ## Milestone 24 (In Progress): Discovery Boundaries Preserve Information
 
-Target: the v2.22.1 patch candidate. The v2.22.0 release remains immutable.
+Target: the v2.23.0 candidate. It includes the unpublished patch work and the
+additive retry API below. The v2.22.0 release remains immutable.
 
 The follow-up review found defects in discovery and timer ownership:
 
@@ -55,8 +56,30 @@ Responsibility review and deliberate non-changes:
   responsibilities and explicit import directions. It now includes `health`,
   describes optional gRPC assembly and generated dependencies, and distinguishes
   package build isolation from the single module's dependency metadata.
-- The retry clock seam remains deferred as recorded in Milestone 23: it needs
-  a public constructor design and its own compatibility review.
+- The retry clock work deferred in Milestone 23 is implemented through
+  `retry.New(balancer, opts...)`. Existing entry points retain their signatures
+  and legacy policies; the new entry point defaults to one attempt and no added
+  deadline. Attempt caps remain independent of the callback's decision.
+
+### Configurable Retry Timing
+
+`WithClock` uses the existing `endpoint.Clock` for backoff timers and
+`WithBackoff` receives the completed attempt number. Each call owns its schedule;
+sharing the endpoint does not share progress. The existing randomized schedule
+is preserved unless explicitly replaced. Non-positive custom delays mean an
+immediate retry, still bounded by cancellation and the attempt cap.
+
+The clock controls waits only. The overall context deadline and measured attempt
+latency use real time, so a manual clock cannot disable a production timeout or
+rewrite telemetry. Arbitrary callback code must return promptly; the executor
+cannot force application code to stop. Balancer ownership remains with callers.
+
+Tests advance hour-long waits without sleeping, verify default compounding and
+reset between calls, cancellation cleanup, real deadline expiry with a frozen
+clock, concurrent callers, measured latency and the three legacy entry points.
+Disabling the clock option deliberately makes the configured-wait test fail.
+The new public declarations and behavior marker require reviewed snapshots;
+the candidate moves to a minor version for this addition, with no new tag.
 
 ### Release Status Gate
 
@@ -2178,7 +2201,10 @@ go test ./cmd/microgen/... -count=1
 go -C ./tools test . -run TestMicrogen -count=1
 ```
 
-### Still Open From The Same Audits
+### Timing Work Deferred At Release
+
+Resolved in Milestone 24 through the options-based constructor and controlled
+backoff tests; the following records why it was deferred from v2.22.0.
 
 Recorded with file and line, not yet acted on:
 
@@ -2451,12 +2477,12 @@ go -C ./tools test . -run TestAPICompatibilityWithLastRelease -count=1
   consequence is that nothing asserts the schedule the loop produces — only
   `backoff.Next` in isolation — so the compounding of delays across attempts, and the
   share of the budget spent sleeping rather than calling, are untested.
-- Fixing it needs an API decision, not just a seam. The four constructors are
+- Fixing it needs an API decision, not just a seam. The three constructors are
   positional (`Retry`, `WithCallback`, `WithClassifier` and their timeout/balancer
   arguments); a fifth positional form taking a clock would be the fourth variant of
   the same call, and the rest of the repository uses functional options for this —
   `feedback.WithClock`, `feedback.WithEjectorClock`. The honest shape is
-  `retry.New(balancer, opts...)` with the existing four kept as convenience wrappers.
+  `retry.New(balancer, opts...)` with the existing three kept as convenience wrappers.
   That is a public API addition with its own snapshot and documentation work, so it is
   recorded here rather than half-built at the end of a session.
 

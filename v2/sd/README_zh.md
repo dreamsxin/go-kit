@@ -514,6 +514,31 @@ call := retry.Retry(3, 500*time.Millisecond, lb)
 
 ## 重试策略
 
+应用需要控制退避或使用确定性时钟时，使用 `New`：
+
+```go
+clock := endpoint.NewManualClock(time.Unix(0, 0))
+call := retry.New(lb,
+    retry.WithMaxAttempts(3),
+    retry.WithTimeout(2*time.Second),
+    retry.WithClock(clock),
+    retry.WithBackoff(func(attempt int) time.Duration {
+        return time.Duration(attempt) * 100 * time.Millisecond
+    }),
+)
+```
+
+生产环境省略 `WithClock` 即使用真实定时器。测试中在 goroutine 启动调用，等待 `clock.Pending()`
+报告定时器后再推进时钟。`New` 默认一次尝试、不增加截止时间。即使 `WithAttemptCallback` 返回 true，
+`WithMaxAttempts` 仍限制总次数。`WithErrorClassifier` 接收回调替换后的错误，尝试历史保留原错误。
+非正的自定义延迟表示立即重试；nil 选项或 nil 函数值保留默认值或此前配置。
+
+时钟只控制退避：`WithTimeout` 和调用方截止时间使用真实时间，尝试耗时也按真实执行时间测量。
+每次调用有自己的时间表，但应用提供的回调和时钟必须支持并发。取消会释放待处理定时器。
+`New` 不关闭 balancer。
+
+现有便捷入口保留签名和策略：
+
 ```go
 // Fixed max attempts
 retry.Retry(3, time.Second, lb)
@@ -536,6 +561,9 @@ retry.WithClassifier(time.Second, lb,
 
 `retry.Error` 实现了 `Is` 与 `As`，所以即使预算到期、`Final` 是 context 错误，
 `errors.As` 仍能触达任一尝试里上游报告的类别。
+
+`WithCallback` 和 `WithClassifier` 的 nil 回调仍允许不限次数的尝试，调用方应提供截止时间或回调次数上限。
+与其不同，`New` 始终受配置的次数上限约束。重新选择只是再次询问策略，不保证返回不同实例，例如哈希亲和场景。
 
 `Endpointer.Close` 会等待其更新循环结束，并关闭端点工厂返回的所有资源。
 应把 closer 视为构造器契约的一部分，而不是可选的清理钩子。

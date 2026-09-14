@@ -1872,6 +1872,7 @@ func (s *State[T]) Value() (T, error)
 package retry // import "github.com/dreamsxin/go-kit/v2/sd/retry"
 FUNCTIONS
 func DefaultClassifier(err error) bool
+func New(balancer sd.Balancer, options ...Option) endpoint.Endpoint
 func Retry(maxAttempts int, timeout time.Duration, balancer sd.Balancer) endpoint.Endpoint
 func WithCallback(timeout time.Duration, balancer sd.Balancer, callback Callback) endpoint.Endpoint
 func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callback, classifier Classifier) endpoint.Endpoint
@@ -1891,6 +1892,13 @@ func (e Error) As(target any) bool
 func (e Error) Error() string
 func (e Error) Is(target error) bool
 func (e Error) Unwrap() error
+type Option func(*settings)
+func WithAttemptCallback(callback Callback) Option
+func WithBackoff(backoff func(attempt int) time.Duration) Option
+func WithClock(clock endpoint.Clock) Option
+func WithErrorClassifier(classifier Classifier) Option
+func WithMaxAttempts(attempts int) Option
+func WithTimeout(timeout time.Duration) Option
 
 ## github.com/dreamsxin/go-kit/v2/sd/retry/internal/backoff
 package backoff // import "github.com/dreamsxin/go-kit/v2/sd/retry/internal/backoff"

@@ -2,9 +2,9 @@
 //
 // It differs from endpoint.RetryMiddleware in what it retries. That middleware
 // repeats the same endpoint, which is the right thing when a single dependency
-// might be briefly unwell. This package picks again for every attempt, so a
-// second attempt lands on a different instance — which is the only kind of retry
-// that helps when one instance out of several is broken.
+// might be briefly unwell. This package picks again for every attempt, so
+// a later attempt can land on another instance. Re-picking does not exclude the
+// previous address: the balancer's strategy decides which instance is next.
 //
 // Every attempt reports its outcome to the balancer through sd.Picked.Done, both
 // the latency and the error. That is not bookkeeping: least-request, weighted and
@@ -12,12 +12,13 @@
 // here is why a caller using this package gets those strategies working without
 // writing anything.
 //
-// Three entry points, widening as the policy gets more specific: Retry for a
+// New configures attempts, budget, classification, and backoff through options.
+// Three convenience entry points remain: Retry for a
 // simple attempt count, WithCallback when the decision to keep trying depends on
 // the attempt or the error, WithClassifier when the definition of "retryable"
 // is the application's too. DefaultClassifier is conservative — a context that
-// ended is never retried, and an error decides for itself when it implements
-// interface{ Retryable() bool }.
+// ended is never retried, and an error may opt in through a Retryable method
+// returning bool.
 //
 // The timeout is a budget for all attempts together, not per attempt. A
 // non-positive timeout imposes no deadline of its own and the attempts run under
@@ -155,16 +156,7 @@ type Classifier func(error) bool
 // A maxAttempts below 1 is clamped to 1, as in endpoint.RetryMiddleware: the
 // call still runs once, because a retry policy is not a way to skip the call.
 func Retry(maxAttempts int, timeout time.Duration, balancer sd.Balancer) endpoint.Endpoint {
-	if maxAttempts < 1 {
-		maxAttempts = 1
-	}
-	return WithCallback(timeout, balancer, attemptLimit(maxAttempts))
-}
-
-func attemptLimit(max int) Callback {
-	return func(attempt int, _ error) (bool, error) {
-		return attempt < max, nil
-	}
+	return New(balancer, WithMaxAttempts(maxAttempts), WithTimeout(timeout))
 }
 
 func alwaysRetry(int, error) (bool, error) { return true, nil }
@@ -180,14 +172,32 @@ func WithCallback(timeout time.Duration, balancer sd.Balancer, callback Callback
 // under the caller's context, as in endpoint.TimeoutMiddleware. Passing 0 would
 // otherwise hand every attempt an already expired context.
 func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callback, classifier Classifier) endpoint.Endpoint {
-	if callback == nil {
-		callback = alwaysRetry
-	}
-	if classifier == nil {
-		classifier = DefaultClassifier
-	}
+	// Legacy callbacks own their attempt limit, including nil's unlimited policy.
+	return New(balancer, func(s *settings) { s.maxAttempts = 0 },
+		WithTimeout(timeout), WithAttemptCallback(callback), WithErrorClassifier(classifier))
+}
+
+// New builds an endpoint that selects an instance on every attempt. By default
+// it makes one attempt, adds no deadline, uses DefaultClassifier and waits on
+// the system clock. It owns neither the balancer nor its source: close them
+// after callers finish. Nil balancers panic at construction.
+//
+// Options configure a reusable endpoint; its attempts and default backoff state
+// are local to each call. Callers remain responsible for request idempotency.
+func New(balancer sd.Balancer, options ...Option) endpoint.Endpoint {
 	if balancer == nil {
 		panic("retry: nil balancer")
+	}
+	settings := settings{
+		maxAttempts: 1,
+		callback:    alwaysRetry,
+		classifier:  DefaultClassifier,
+		clock:       endpoint.SystemClock(),
+	}
+	for _, option := range options {
+		if option != nil {
+			option(&settings)
+		}
 	}
 
 	return func(ctx context.Context, request any) (any, error) {
@@ -197,8 +207,8 @@ func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callba
 			callContext context.Context
 			cancel      context.CancelFunc
 		)
-		if timeout > 0 {
-			callContext, cancel = context.WithTimeout(ctx, timeout)
+		if settings.timeout > 0 {
+			callContext, cancel = context.WithTimeout(ctx, settings.timeout)
 		} else {
 			callContext, cancel = context.WithCancel(ctx)
 		}
@@ -256,19 +266,25 @@ func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callba
 					return completed.response, nil
 				}
 
-				keepTrying, replacement := callback(attempt, completed.err)
+				keepTrying, replacement := settings.callback(attempt, completed.err)
 				received := completed.err
 				if replacement != nil {
 					received = replacement
 				}
-				if !keepTrying || !classifier(received) {
+				if !keepTrying || (settings.maxAttempts > 0 && attempt >= settings.maxAttempts) || !settings.classifier(received) {
 					result.Final = received
 					return nil, result
 				}
-				if err := sleep(callContext, delay); err != nil {
+				wait := delay
+				if settings.backoff != nil {
+					wait = settings.backoff(attempt)
+				}
+				if err := sleep(callContext, settings.clock, wait); err != nil {
 					return nil, budgetError(result, err)
 				}
-				delay = backoff.Next(delay)
+				if settings.backoff == nil {
+					delay = backoff.Next(delay)
+				}
 			}
 		}
 	}
@@ -370,13 +386,19 @@ func DefaultClassifier(err error) bool {
 	return errors.Is(err, sd.ErrNoEndpoints)
 }
 
-func sleep(ctx context.Context, delay time.Duration) error {
-	timer := time.NewTimer(delay)
+func sleep(ctx context.Context, clock endpoint.Clock, delay time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if delay <= 0 {
+		return nil
+	}
+	timer := clock.NewTimer(delay)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-timer.C:
-		return nil
+	case <-timer.C():
+		return ctx.Err()
 	}
 }

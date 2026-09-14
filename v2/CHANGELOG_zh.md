@@ -2,7 +2,14 @@
 
 [English](CHANGELOG.md) | 简体中文
 
-## [2.22.1] - 发布候选
+## [2.23.0] - 发布候选
+
+### 新增
+
+- `sd/retry.New` 通过 `WithMaxAttempts`、`WithTimeout`、`WithAttemptCallback`、`WithErrorClassifier`、
+  `WithBackoff` 和 `WithClock` 配置重试端点。默认只尝试一次、不增加截止时间。注入时钟控制退避等待，
+  总超时和实际耗时仍使用真实时间。现有 `Retry`、`WithCallback`、`WithClassifier` 签名与策略保持兼容。
+  每次调用独立的时间表、取消、独立次数上限和旧入口默认值均由可执行测试覆盖。
 
 ### 修复
 
