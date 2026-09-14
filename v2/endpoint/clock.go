@@ -1,6 +1,7 @@
 package endpoint
 
 import (
+	"slices"
 	"sync"
 	"time"
 )
@@ -105,7 +106,7 @@ func (c *ManualClock) Now() time.Time {
 // NewTimer registers a wait due d after the current time. A non-positive d is
 // due immediately, without waiting for an Advance.
 func (c *ManualClock) NewTimer(d time.Duration) Timer {
-	timer := &manualTimer{channel: make(chan time.Time, 1)}
+	timer := &manualTimer{clock: c, channel: make(chan time.Time, 1)}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	timer.due = c.now.Add(d)
@@ -155,11 +156,12 @@ func (c *ManualClock) fireDueLocked() {
 		}
 		timer.fire(c.now)
 	}
+	clear(c.pending[len(remaining):])
 	c.pending = remaining
 }
 
 type manualTimer struct {
-	mu      sync.Mutex
+	clock   *ManualClock
 	channel chan time.Time
 	due     time.Time
 	done    bool
@@ -167,17 +169,26 @@ type manualTimer struct {
 
 func (t *manualTimer) C() <-chan time.Time { return t.channel }
 
+// Stable: endpoint.manual-clock-stop-releases-wait — stopping a manual timer removes it from Pending immediately without advancing time, including when a retry is cancelled; concurrent Stop and Advance complete a timer only once.
+// Covered by: TestManualClockStopReleasesPendingTimersWithoutAdvancing, TestRetryCancellationReleasesManualClockWait, TestManualClockConcurrentStopAndAdvance
 func (t *manualTimer) Stop() bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	stopped := !t.done
+	t.clock.mu.Lock()
+	defer t.clock.mu.Unlock()
+	if t.done {
+		return false
+	}
 	t.done = true
-	return stopped
+	for i, pending := range t.clock.pending {
+		if pending == t {
+			t.clock.pending = slices.Delete(t.clock.pending, i, i+1)
+			break
+		}
+	}
+	return true
 }
 
+// fire runs under clock.mu, the same lock that removes stopped timers.
 func (t *manualTimer) fire(at time.Time) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
 	if t.done {
 		return
 	}

@@ -10,7 +10,7 @@ durable product milestones, not session notes or release history.
 
 Target: the v2.22.1 patch candidate. The v2.22.0 release remains immutable.
 
-The follow-up review found three defects in existing responsibilities:
+The follow-up review found defects in discovery and timer ownership:
 
 - `sd/health` must carry source errors through probe rounds. Only the registry
   can end its outage; probe success does not do that. The regression exercises
@@ -27,6 +27,12 @@ The follow-up review found three defects in existing responsibilities:
   sampling with replacement missed an idle member in 159 of 500 public-API
   reproduction calls. Tests now check every member is read once when choices
   cover the pool, the minimum wins, and equal minima are distributed.
+- `endpoint.ManualClock` retained stopped timers until their original deadlines,
+  so cancelled retries accumulated waits and `Pending()` overstated outstanding
+  work. Stop now removes the timer immediately under the clock's mutex; advance
+  clears completed slice entries. Tests reproduce 1,001 pending timers with only
+  one live wait before the fix, and cover retry cancellation and concurrent
+  Stop/Advance. No new clock API is needed for this correction.
 
 Acceptance: the focused regression tests must fail with the old behavior and
 pass with the fix; the reviewed behavior list, API compatibility, and committed

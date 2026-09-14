@@ -106,6 +106,9 @@ clock.Advance(time.Hour) // 一小时的退避瞬间走完
 组件所接受的同一个时钟。`Advance` 与 `Set` 会对每一个到期的 timer 投递，`Pending` 报告还有多少个等待
 没完成，并且在被测代码从其他 goroutine 读它的同时从测试 goroutine 推进它是安全的。
 
+手动定时器停止后立即从 `Pending` 移除。重试取消时会释放退避定时器，无需再 `Advance` 到原定截止时间。
+已经触发或停止过的定时器，再次 `Stop` 返回 false。
+
 今天已有的接缝：
 
 - `endpoint.WithRetryClock`——重试尝试之间的等待。

@@ -3,6 +3,7 @@ package endpoint_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -124,6 +125,85 @@ func TestManualClockStopReportsWhetherTheWaitWasPending(t *testing.T) {
 	case <-timer.C():
 		t.Fatal("a stopped timer must not fire")
 	default:
+	}
+}
+
+func TestManualClockStopReleasesPendingTimersWithoutAdvancing(t *testing.T) {
+	clock := endpoint.NewManualClock(time.Unix(0, 0))
+	live := clock.NewTimer(time.Minute)
+	for range 1000 {
+		timer := clock.NewTimer(time.Hour)
+		if !timer.Stop() || timer.Stop() {
+			t.Fatal("Stop must succeed exactly once for a pending timer")
+		}
+	}
+	if got := clock.Pending(); got != 1 {
+		t.Fatalf("Pending = %d after stopping timers without advancing, want only the live timer", got)
+	}
+	clock.Advance(time.Minute)
+	select {
+	case <-live.C():
+	default:
+		t.Fatal("stopping other timers removed the live timer")
+	}
+	if live.Stop() || clock.Pending() != 0 {
+		t.Fatal("a fired timer must no longer be pending")
+	}
+}
+
+func TestManualClockConcurrentStopAndAdvance(t *testing.T) {
+	for range 100 {
+		clock := endpoint.NewManualClock(time.Unix(0, 0))
+		timer := clock.NewTimer(time.Second)
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		var stopped bool
+		wg.Add(2)
+		go func() { defer wg.Done(); <-start; stopped = timer.Stop() }()
+		go func() { defer wg.Done(); <-start; clock.Advance(time.Second) }()
+		close(start)
+		wg.Wait()
+		if got := clock.Pending(); got != 0 {
+			t.Fatalf("Pending = %d after Stop and Advance, want 0", got)
+		}
+		fired := false
+		select {
+		case <-timer.C():
+			fired = true
+		default:
+		}
+		if fired == stopped {
+			t.Fatalf("fired=%v stopped=%v, exactly one must win", fired, stopped)
+		}
+		if timer.Stop() {
+			t.Fatal("completed timer was stopped a second time")
+		}
+	}
+}
+
+func TestRetryCancellationReleasesManualClockWait(t *testing.T) {
+	clock := endpoint.NewManualClock(time.Unix(0, 0))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	failure := errors.New("transient")
+	call := endpoint.RetryMiddleware(2, endpoint.WithRetryClock(clock),
+		endpoint.WithRetryBackoff(func(int) time.Duration { return time.Hour }),
+		endpoint.WithRetryable(func(error) bool { return true }),
+	)(func(context.Context, any) (any, error) { return nil, failure })
+	done := make(chan error, 1)
+	go func() { _, err := call(ctx, nil); done <- err }()
+	waitForPendingTimer(t, clock)
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, failure) {
+			t.Fatalf("error = %v, want original failure", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("retry did not stop on cancellation")
+	}
+	if got := clock.Pending(); got != 0 {
+		t.Fatalf("cancelled retry left %d pending timers, want 0", got)
 	}
 }
 

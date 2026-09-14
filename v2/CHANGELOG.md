@@ -6,6 +6,10 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Fixed
 
+- `endpoint.ManualClock` removes stopped timers immediately, so `Pending()`
+  excludes cancelled waits and cancelled retries do not accumulate timers until
+  their original deadlines. Stopping and advancing share one synchronization
+  boundary; completed timers are also released from the pending slice.
 - The active health checker now preserves a persistent service-discovery error
   while periodic probes continue, so downstream invalidation and stale-snapshot
   policies can still see the registry outage. A successful source snapshot clears

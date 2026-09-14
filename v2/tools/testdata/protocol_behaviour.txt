@@ -5,6 +5,7 @@ stable/endpoint.clock-nil-is-wall-clock
 stable/endpoint.keyed-rate-limit
 stable/endpoint.keyed-rate-limit-shares-one-bucket
 stable/endpoint.manual-clock-advance-fires-due-timers
+stable/endpoint.manual-clock-stop-releases-wait
 stable/endpoint.metrics-clock
 stable/endpoint.retry-clock
 stable/grpc.drains

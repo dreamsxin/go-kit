@@ -112,6 +112,10 @@ components accept. `Advance` and `Set` deliver on every timer that becomes due,
 `Pending` reports how many waits are outstanding, and it is safe to advance from
 the test goroutine while the code under test reads it from others.
 
+Stopping a manual timer removes it from `Pending` immediately. Cancellation of
+a retry releases its backoff timer without requiring an `Advance` to its old
+deadline. `Stop` returns false once a timer has fired or already been stopped.
+
 The seams that exist today:
 
 - `endpoint.WithRetryClock` — the wait between retry attempts.
