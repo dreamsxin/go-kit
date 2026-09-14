@@ -2,6 +2,15 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [Unreleased]
+
+### Fixed
+
+- The active health checker now preserves a persistent service-discovery error
+  while periodic probes continue, so downstream invalidation and stale-snapshot
+  policies can still see the registry outage. A successful source snapshot clears
+  the error.
+
 ## [2.22.0] - 2026-09-10
 
 The service-discovery subtree had never been audited. Two audits of it — the load

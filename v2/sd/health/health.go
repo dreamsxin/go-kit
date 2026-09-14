@@ -210,6 +210,10 @@ type Checker struct {
 	mu       sync.Mutex
 	snapshot []sd.Instance
 	states   map[string]*state
+	// sourceErr is the most recent discovery error. Probe rounds continue to
+	// judge the last known snapshot, but must not turn an ongoing registry
+	// outage into a successful discovery event.
+	sourceErr error
 }
 
 type state struct {
@@ -335,6 +339,9 @@ func (c *Checker) loop() {
 // would leave subscribers with a stale set and no explanation.
 func (c *Checker) accept(event sd.Event) {
 	if event.Err != nil {
+		c.mu.Lock()
+		c.sourceErr = event.Err
+		c.mu.Unlock()
 		c.cache.Update(event)
 		return
 	}
@@ -351,6 +358,7 @@ func (c *Checker) accept(event sd.Event) {
 
 	c.mu.Lock()
 	c.snapshot = instances
+	c.sourceErr = nil
 	live := make(map[string]struct{}, len(instances))
 	for _, target := range instances {
 		live[target.Address] = struct{}{}
@@ -478,6 +486,7 @@ func (c *Checker) publish() {
 	}
 	total := len(c.snapshot)
 	snapshot := append([]sd.Instance(nil), c.snapshot...)
+	sourceErr := c.sourceErr
 	c.mu.Unlock()
 
 	// Every probed instance failing usually means the probe itself is wrong — a
@@ -493,8 +502,8 @@ func (c *Checker) publish() {
 	// that option exists to prevent.
 	if total > 0 && len(healthy) == 0 && everyoneProbed && c.failOpen {
 		c.logger.Warn("no instance passed health checks, publishing the unchecked set", "instances", total)
-		c.cache.Update(sd.Event{Instances: snapshot})
+		c.cache.Update(sd.Event{Instances: snapshot, Err: sourceErr})
 		return
 	}
-	c.cache.Update(sd.Event{Instances: healthy})
+	c.cache.Update(sd.Event{Instances: healthy, Err: sourceErr})
 }

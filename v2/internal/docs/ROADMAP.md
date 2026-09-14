@@ -6,6 +6,16 @@ durable product milestones, not session notes or release history.
 
 本文是 go-kit v2 唯一实施路线图，只记录长期产品里程碑，不记录临时会话过程。
 
+## Post-release audit / 发布后审计
+
+- The active discovery checker preserves a source error while it continues
+  probing the last known snapshot. Probe results do not clear that error; only
+  a successful source snapshot does. The regression is covered by
+  `TestCheck_PreservesDiscoveryErrorsAcrossProbeRounds`.
+
+- 主动服务发现健康检查在继续探测最后一个已知快照时保留源错误。探测结果不会清除该错误，只有成功的源快照才会清除它。回归由
+  `TestCheck_PreservesDiscoveryErrorsAcrossProbeRounds` 覆盖。
+
 ## Product Direction / 产品方向
 
 - Keep `Service -> Endpoint -> Transport` as the only runtime architecture.

@@ -377,6 +377,44 @@ func TestCheck_PassesDiscoveryErrorsThrough(t *testing.T) {
 	t.Fatal("the discovery error never reached subscribers")
 }
 
+func TestCheck_PreservesDiscoveryErrorsAcrossProbeRounds(t *testing.T) {
+	probes := newProbeTable()
+	cache := source(t, "a:80")
+	checker := health.Check(cache, probes.probe(), health.WithInterval(2*time.Millisecond))
+	defer checker.Close() //nolint:errcheck
+
+	waitForAddresses(t, checker, "a:80")
+	failure := errors.New("registry unreachable")
+	cache.Update(sd.Event{Err: failure})
+
+	seen := false
+	seenAt := 0
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		event := checker.Register(nil)
+		if errors.Is(event.Err, failure) && !seen {
+			seen = true
+			seenAt = probes.probed("a:80")
+		}
+		if seen && probes.probed("a:80") >= seenAt+2 {
+			if !errors.Is(event.Err, failure) {
+				t.Fatalf("discovery error disappeared after probe rounds: %v", event.Err)
+			}
+			cache.Update(sd.Event{Instances: sd.Addresses("a:80")})
+			deadline = time.Now().Add(2 * time.Second)
+			for time.Now().Before(deadline) {
+				if event := checker.Register(nil); event.Err == nil {
+					return
+				}
+				time.Sleep(time.Millisecond)
+			}
+			t.Fatal("discovery error was not cleared after a successful source update")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("discovery error was not observed")
+}
+
 func TestCheck_HidesNewInstancesUntilTheyPassWhenAskedTo(t *testing.T) {
 	probes := newProbeTable()
 	probes.fail("cold:80", errors.New("still starting"))
