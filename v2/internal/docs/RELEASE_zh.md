@@ -179,7 +179,9 @@ make verify-published
 ### 记录这次发布
 
 将清单阶段改为 `released`，填上 `releaseDate`，用同一个日期替换变更日志中的候选标记，
-然后提交。
+同时更新仓库根 README、v2 README、架构文档和发布手册的中英文状态章节。
+`TestReleaseStatusMatchesRepository` 检查这些章节，`TestReleaseManifestMatchesRepository` 检查中英文
+变更日志标题。将两份路线图的里程碑标记为完成，然后提交。
 
 `released` 阶段对本地标签不作任何要求，因此这次提交与推送标签互不依赖。只有
 `candidate` 阶段约束标签——它要求标签尚不存在，因为此时标签已经存在意味着清单是上一次

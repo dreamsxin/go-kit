@@ -45,12 +45,23 @@ Responsibility review and deliberate non-changes:
 - `feedback.Table` and `Ejector` separate measurements from decisions;
   `Measured` and `sd/client` provide optional assembly over those primitives.
   No shared global component registry or extra module is needed.
-- The numeric layer diagram in `ARCHITECTURE.md` is too coarse: `kit/grpc`
-  imports `integrations/grpc`, and generated gRPC applications also use that
-  provider. Its L0-L3-only claim needs a separate documentation correction, not
-  a package move to make the diagram true.
+- The numeric layer diagram in `ARCHITECTURE.md` has been replaced by package
+  responsibilities and explicit import directions. It now includes `health`,
+  describes optional gRPC assembly and generated dependencies, and distinguishes
+  package build isolation from the single module's dependency metadata.
 - The retry clock seam remains deferred as recorded in Milestone 23: it needs
   a public constructor design and its own compatibility review.
+
+### Release Status Gate
+
+The first status gate admitted a candidate version anywhere in a document and
+the word "candidate" elsewhere, so a release instruction could validate a false
+current-release statement. The strengthened gate checks each document's status
+section and requires the version and phase in one statement, ignoring fenced
+examples. Both changelog headings are now checked. A deliberate wrong-phase
+edit to the v2 README fails with its path, expected statement and actual section;
+tests exercise both phases and languages, wrong versions and unrelated text.
+The guide and release procedure now name the root READMEs and the paired updates.
 
 ## Product Direction / 产品方向
 

@@ -21,7 +21,7 @@ go-kit v2 是一个组件化框架，用于构建具有一致运行时模型和�
 - 通过 `kit` 提供的小型服务组装 API。
 
 核心不提供业务平台。IAM、outbox 工作流、任务租约、对象存储、密钥管理和
-完整事务框架属于独立的集成模块或应用本身。
+完整事务框架属于应用代码或显式选择的集成包。
 
 ## 请求链路
 
@@ -62,7 +62,7 @@ Transport request
 ### `endpoint`
 
 `endpoint` 定义与传输无关的请求函数，以及标准库中间件组合、超时与指标。
-供应商相关的日志、限流与熔断保持为显式适配器。
+供应商相关的日志保持为显式适配器。内存限流器与熔断器位于 `endpoint`，通过结构化契约替换策略实现。
 
 `Recorder` 是指标扩展点：`RecordingMiddleware` 把每次调用的 `Observation`
 （操作名、耗时、错误）交给它，任何后端桥接都只是该接口的一个实现。`Metrics`
@@ -224,31 +224,58 @@ endpoint/endpointer 资源再停止其 Instancer，然后关闭传输与进程�
 
 ## 模块依赖层级
 
+运行时组件、provider 和生成器从同一个 Go module 发布。独立性由 package 导入边界保证：
+仅 HTTP 的应用不会因为使用 `kit` 就编译 gRPC、注册中心、数据库或遥测适配器。
+module 的依赖元数据仍包含这些可选依赖。
+
+| 边界 | 包 | 职责 |
+| --- | --- | --- |
+| 请求契约 | `endpoint`、`apperror`、`transport` | 请求函数、中间件、分类、错误报告 |
+| 进程健康 | `health` | 本地存活/就绪检查与 HTTP 探针挂载 |
+| HTTP 协议 | `transport/http` 及其 `server`、`client`，`security/http` | 协议编解码、传播与 HTTP 策略 |
+| 服务发现 | `sd` 及其子包 | 快照、连接所有权、选择、重试、远端健康和反馈 |
+| 进程装配 | `kit` | Host 生命周期和 HTTP 服务组件 |
+| 可选 gRPC | `integrations/grpc`、`kit/grpc` | gRPC 传输适配器与可接入 Host 的服务组件 |
+| 其他可选集成 | `integrations/consul`、`integrations/etcd`、`integrations/zap`、`observability` | 注册中心 provider、日志和遥测适配器 |
+| 交互 | `interaction`、`interaction/mcp` | 交互运行时及其 MCP 协议适配器 |
+| 构建工具 | `cmd/microgen` | 生成应用，运行时包不导入它 |
+
+主要导入方向如下：
+
 ```text
-L0 基础层（无第三方依赖，可独立使用）
-   apperror · endpoint · transport（根） · transport/http · sd ·
-   interaction · security
-
-L1 传输适配层（依赖 L0）
-   transport/http/server · transport/http/client · security/http
-
-L2 组装层（依赖 L0+L1）
-   kit · kit/grpc
-
-L3 可选组合（独立包，不引入新依赖）
-   observability/slog · observability/metrics · sd/client
-
-L4 可选 provider（第三方依赖；仅在导入对应 package 时进入构建闭包）
-   observability/otel · observability/metrics/grpc · integrations/zap ·
-   integrations/grpc · integrations/consul · integrations/etcd
-
-L5 构建期工具（不进运行时依赖图）
-   cmd/microgen
+kit/grpc -> kit, health, integrations/grpc, google.golang.org/grpc
+kit -> health, endpoint, sd, transport/http/server
+integrations/grpc -> endpoint, apperror, transport, google.golang.org/grpc
+integrations/consul or integrations/etcd -> sd, sd/instance, provider SDK
+sd/client -> sd/endpointer, sd/balancer, sd/retry
+sd/balancer -> sd/endpointer, sd/selector
+sd/feedback -> sd/balancer, sd/endpointer, sd/selector
+sd/health -> sd/instance
 ```
 
-依赖只允许向下指向。L0 包不得导入 L2–L5。`sd` 需要调用方提供 `Instancer`
-实现（如 `integrations/consul`）；`kit` 自包含，自带 HTTP 服务器。
-`cmd/microgen` 的生成产物只依赖 L0–L3。
+箭头表示导入关系，不表示启动顺序。`Host` 通过接口接受生命周期组件，不导入它运行的 provider。
+装配包以外的运行时组件不得导入 `kit` 或生成器内部实现。`endpoint` 只导入标准库，`security/http` 不导入本 module 的其他包。
+`TestArchitectureDependencyGates`、`TestComponentsDoNotDependOnAssembly` 和
+`TestKitHTTPAssemblyDoesNotResolveOptionalDependencies` 执行这些边界约束。
+
+生成的应用按启用特性导入需要的包：最小 HTTP 生成物不依赖 provider；gRPC 生成物导入
+`integrations/grpc`；数据库生成物导入选定驱动；MCP 生成物导入 `interaction/mcp`。
+生成代码是运行时应用代码，生成器自身仍然只是构建期依赖。
+
+### 服务发现所有权
+
+| 组件 | 自己拥有 | 留给调用方 |
+| --- | --- | --- |
+| `sd/instance` | 快照复制、相等判断与订阅投递 | 数据来源获取与重试策略 |
+| `sd/health` | 远端探测 worker、健康结论，保留源错误 | 源生命周期与下游旧视图策略 |
+| `sd/endpointer` | 订阅与工厂创建的端点 closer | 源生命周期和选择策略 |
+| `sd/selector`、`sd/balancer` | 实例选择与自己持有的策略资源 | 请求执行和源生命周期 |
+| `sd/retry` | 尝试预算、退避、结果报告与错误历史 | 幂等策略和 balancer 生命周期 |
+| `feedback.Table`、`Ejector` | 分别拥有测量值和策略决策 | 发现源所有权；`Measured` 提供共享订阅 |
+
+进程 `health.Registry` 回答本进程是否就绪，`sd/health` 回答哪些远端实例通过探测。
+两者保持分离，因为一方的结果无法证明另一方的状态。健康探测不能清除发现源错误；消费方通过共享订阅状态机，
+按自己的策略决定保留最后一次成功快照多久。
 
 ## 上下文传递规范
 

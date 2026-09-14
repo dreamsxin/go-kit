@@ -111,8 +111,9 @@ go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -c
 
 ## 开启一个发布候选
 
-`v2/RELEASE_MANIFEST.json` 是唯一来源：phase 为 `candidate`、版本号、以及 tag。版本号还重复
-在下面这些地方，其中任何一处不一致都会让 `TestReleaseManifestMatchesRepository` 失败：
+`v2/RELEASE_MANIFEST.json` 是唯一来源：phase 为 `candidate`、版本号、以及 tag。
+`TestReleaseManifestMatchesRepository` 检查版本值；`TestReleaseStatusMatchesRepository` 在中英文状态章节中
+一起检查版本和阶段：
 
 - `v2/RELEASE_MANIFEST.json` — `coreVersion` 与 `tag`
 - `v2/Makefile` — `VERSION`
@@ -121,6 +122,7 @@ go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -c
 - `v2/examples/go.mod` — 对框架的 `require`
 - `v2/README.md`、`v2/ARCHITECTURE.md`、`v2/internal/docs/RELEASE.md` 以及它们的 `_zh`
   那一半——"已发布 / 候选中"那句话
+- 仓库根目录 `README.md` 与 `README_zh.md`——当前发布和候选状态声明
 - `v2/CHANGELOG.md` 与 `v2/CHANGELOG_zh.md`——一个标记为候选的新标题
 
 ## 切出并记录一次发布
@@ -132,8 +134,8 @@ go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -c
 3. `git tag -a vX.Y.Z -m "go-kit vX.Y.Z"`，并推送这个 tag。
 4. `make verify-published`——通过公共代理解析这个版本。不要用 `GOPROXY=direct`、本地
    `replace`、或"本地 tag 已存在"来替代它：这三者都不能说明 module 已经发布。
-5. 记录：manifest 的 phase 改为 `released` 并写上日期，changelog 标题写上日期，
-   `v2/internal/docs/ROADMAP.md` 里那个里程碑标记为完成。
+5. 记录：manifest 的 phase 改为 `released` 并写上日期，两份 changelog 标题写上日期，更新上列所有状态句，
+   在 `v2/internal/docs/ROADMAP.md` 和 `v2/internal/docs/ROADMAP_zh.md` 中把里程碑标记为完成。
 
 只落在 `v2/tools` 或文档里的改动不打 tag。发布出去的 module 会逐字节相同，而一个说得不一样的
 版本号，是由使用方来付账的谎。

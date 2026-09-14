@@ -135,8 +135,9 @@ summary-of-work document nobody asked for.
 ## Opening a release candidate
 
 `v2/RELEASE_MANIFEST.json` is the source of truth: phase `candidate`, the version,
-and the tag. The version is repeated in these places, and
-`TestReleaseManifestMatchesRepository` fails when one of them disagrees:
+and the tag. `TestReleaseManifestMatchesRepository` checks the version values;
+`TestReleaseStatusMatchesRepository` checks version and phase together in the
+status sections of both languages:
 
 - `v2/RELEASE_MANIFEST.json` — `coreVersion` and `tag`
 - `v2/Makefile` — `VERSION`
@@ -146,6 +147,8 @@ and the tag. The version is repeated in these places, and
 - `v2/examples/go.mod` — the `require` on the framework
 - `v2/README.md`, `v2/ARCHITECTURE.md`, `v2/internal/docs/RELEASE.md` and their
   `_zh` halves — the released-versus-candidate sentence
+- Repository-root `README.md` and `README_zh.md` — the current release and
+  candidate statements
 - `v2/CHANGELOG.md` and `v2/CHANGELOG_zh.md` — a new heading marked as candidate
 
 ## Cutting and recording a release
@@ -159,8 +162,9 @@ The procedure and what may not be worked around are in
 4. `make verify-published` — resolves the version through the public proxy. Do not
    substitute `GOPROXY=direct`, a local `replace`, or the presence of a local tag:
    none of them show that the module was published.
-5. Record it: manifest phase `released` with the date, the changelog heading dated,
-   the milestone marked complete in `v2/internal/docs/ROADMAP.md`.
+5. Record it: manifest phase `released` with the date, both changelog headings
+   dated, all status sentences above updated, and the milestone marked complete
+   in both `v2/internal/docs/ROADMAP.md` and `v2/internal/docs/ROADMAP_zh.md`.
 
 A change confined to `v2/tools` or to documentation gets no tag. The published
 module would be byte-identical, and a version that says otherwise is a lie a

@@ -21,7 +21,7 @@ The framework provides:
 
 The core does not provide business platforms. IAM, outbox workflows, job
 leasing, object storage, secret management, and complete transaction frameworks
-belong in independent integration modules or applications.
+belong in application code or explicitly chosen integration packages.
 
 ## Request Path
 
@@ -70,7 +70,8 @@ few lines of endpoint wiring.
 
 `endpoint` defines the transport-independent request function and standard
 library middleware composition, timeout, and metrics. Provider-specific
-logging, rate limiting, and circuit breaking remain explicit adapters.
+logging remains in explicit adapters. In-memory rate limiters and circuit
+breakers live in `endpoint`, with structural contracts for replacement policies.
 
 `Recorder` is the metrics extension point: `RecordingMiddleware` hands every
 call an `Observation` (operation, duration, error), and any backend bridge is an
@@ -260,32 +261,66 @@ framework branches for one application.
 
 ## Module Dependency Layers
 
+All runtime components, providers, and the generator ship in one Go module.
+Independence is enforced at package imports: an HTTP-only application does not
+compile a gRPC, registry, database, or telemetry adapter merely by using `kit`.
+The module's dependency metadata still includes those optional dependencies.
+
+| Boundary | Packages | Responsibility |
+| --- | --- | --- |
+| Request contracts | `endpoint`, `apperror`, `transport` | Request functions, middleware, classification, error reporting |
+| Process health | `health` | Local liveness/readiness evaluation and HTTP probe mounting |
+| HTTP protocol | `transport/http`, its `server` and `client`, `security/http` | Protocol encoding, propagation, HTTP policy |
+| Discovery | `sd` and its subpackages | Snapshots, connection ownership, selection, retry, remote health and feedback |
+| Process assembly | `kit` | Host lifecycle and an HTTP serving component |
+| Optional gRPC | `integrations/grpc`, `kit/grpc` | gRPC transport adapters and a Host-compatible serving component |
+| Other optional integrations | `integrations/consul`, `integrations/etcd`, `integrations/zap`, `observability` | Registry providers, logging and telemetry adapters |
+| Interaction | `interaction`, `interaction/mcp` | Interaction runtime and its MCP protocol adapter |
+| Build tooling | `cmd/microgen` | Generate applications; never imported by runtime packages |
+
+The principal import directions are:
+
 ```text
-L0 foundation (no third-party dependencies, independently usable)
-   apperror · endpoint · transport (root) · transport/http · sd ·
-   interaction · security
-
-L1 transport adapters (depend on L0)
-   transport/http/server · transport/http/client · security/http
-
-L2 assembly (depends on L0+L1)
-   kit · kit/grpc
-
-L3 optional composition (independent packages, no new dependencies)
-   observability/slog · observability/metrics · sd/client
-
-L4 optional providers (third-party dependencies; linked only when imported)
-   observability/otel · observability/metrics/grpc · integrations/zap ·
-   integrations/grpc · integrations/consul · integrations/etcd
-
-L5 build-time tooling (never enters the runtime dependency graph)
-   cmd/microgen
+kit/grpc -> kit, health, integrations/grpc, google.golang.org/grpc
+kit -> health, endpoint, sd, transport/http/server
+integrations/grpc -> endpoint, apperror, transport, google.golang.org/grpc
+integrations/consul or integrations/etcd -> sd, sd/instance, provider SDK
+sd/client -> sd/endpointer, sd/balancer, sd/retry
+sd/balancer -> sd/endpointer, sd/selector
+sd/feedback -> sd/balancer, sd/endpointer, sd/selector
+sd/health -> sd/instance
 ```
 
-Dependencies point downward only. L0 packages must not import L2–L5.
-`sd` requires a caller-provided `Instancer` implementation (for example
-`integrations/consul`); `kit` is self-contained and starts its own HTTP
-server. `cmd/microgen` output depends on L0–L3 only.
+These arrows describe imports, not startup order. `Host` accepts lifecycle
+components through interfaces; it does not import the providers it runs.
+Runtime components outside the assembly packages must not import `kit` or
+generator internals. `endpoint` imports only
+the standard library, and `security/http` imports nothing from this module.
+`TestArchitectureDependencyGates`, `TestComponentsDoNotDependOnAssembly`, and
+`TestKitHTTPAssemblyDoesNotResolveOptionalDependencies` enforce these boundaries.
+
+Generated applications import the packages their enabled features need. Minimal
+HTTP generation stays provider-free; gRPC generation imports
+`integrations/grpc`, database generation imports its selected driver, and MCP
+generation imports `interaction/mcp`. Generated code is runtime application
+code; the generator itself remains a build-time dependency.
+
+### Discovery Ownership
+
+| Component | Owns | Leaves to its caller |
+| --- | --- | --- |
+| `sd/instance` | Snapshot copies, equality and subscriber delivery | Source acquisition and retry policy |
+| `sd/health` | Remote probe workers and health verdicts; preserves source errors | Source lifecycle and downstream stale-view policy |
+| `sd/endpointer` | Subscription and factory-created endpoint closers | Source lifecycle and selection strategy |
+| `sd/selector`, `sd/balancer` | Selection and any owned strategy resources | Request execution and source lifecycle |
+| `sd/retry` | Attempt budget, backoff, outcomes and error history | Idempotency policy and balancer lifecycle |
+| `feedback.Table`, `Ejector` | Measurements and policy decisions, respectively | Discovery ownership; `Measured` supplies their shared subscription |
+
+Process `health.Registry` answers whether this process is ready; `sd/health`
+answers which remote instances passed probes. They remain separate because
+neither result can establish the other's truth. A discovery error is not cleared
+by a healthy probe. Consumers decide how long to keep their last successful
+snapshot through their shared subscription state machine.
 
 ## Context Conventions
 

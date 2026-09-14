@@ -220,7 +220,11 @@ check. Do not bypass it with `GOPROXY=direct` or a local `replace`.
 ### Record the release
 
 Change the manifest phase to `released`, set `releaseDate`, replace the changelog
-candidate marker with that date, and commit.
+candidate markers in both languages with that date, and update the status sections
+in both repository-root READMEs, both v2 READMEs, both architecture documents and
+both release manuals. `TestReleaseStatusMatchesRepository` checks those sections;
+`TestReleaseManifestMatchesRepository` checks both changelog headings. Mark the
+milestone complete in both roadmaps and commit.
 
 The `released` phase places no requirement on the local tag, so this commit and
 the tag push do not depend on each other. Only the `candidate` phase constrains

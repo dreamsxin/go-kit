@@ -45,7 +45,7 @@ test-contracts:
 
 test-docs:
 	@echo ">>> Running documentation and UTF-8 verification..."
-	@go -C ./tools test -v . -run "Test(RepositoryTextFilesAreUTF8|DocumentationLinksResolve|DocumentationDoesNotRecommendRemovedAPIs|DocumentationReferencesExistingAPIs)" -count=1
+	@go -C ./tools test -v . -run "Test(RepositoryTextFilesAreUTF8|DocumentationLinksResolve|DocumentationDoesNotRecommendRemovedAPIs|DocumentationReferencesExistingAPIs|ReleaseStatus|ReleaseManifestMatchesRepository)" -count=1
 
 test-examples:
 	@echo ">>> Running example package tests..."
@@ -71,7 +71,7 @@ test-api:
 
 test-boundaries:
 	@echo ">>> Verifying architecture and module dependency boundaries..."
-	@go -C ./tools test -v . -run "Test(ArchitectureDependencyGates|KitHTTPAssemblyDoesNotResolveOptionalDependencies|MicrogenImplementationPackagesAreInternal|OnlyOneModuleIsPublishable|PublishableModulesDoNotUseLocalReplacements|ReleaseManifestMatchesRepository)" -count=1
+	@go -C ./tools test -v . -run "Test(ArchitectureDependencyGates|KitHTTPAssemblyDoesNotResolveOptionalDependencies|MicrogenImplementationPackagesAreInternal|OnlyOneModuleIsPublishable|PublishableModulesDoNotUseLocalReplacements|ReleaseManifestMatchesRepository|ReleaseStatus)" -count=1
 
 test-race:
 	@echo ">>> Running race tests..."
