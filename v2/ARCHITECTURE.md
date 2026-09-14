@@ -301,9 +301,8 @@ server. `cmd/microgen` output depends on L0–L3 only.
 
 ## Stability
 
-`v2.21.0` is the current released contract, and `v2.22.0` is in candidate. It
-establishes the reviewed
-package graph, lifecycle ownership, transport error model, and generated
-project layout captured by the release manifest and API snapshot. Until the v2
+`v2.22.0` is the current released contract. It establishes the reviewed package
+graph, lifecycle ownership, transport error model, and generated project layout
+captured by the release manifest and API snapshot. Until the v2
 compatibility freeze, minor releases may change behavior or remove APIs; after
 the freeze, incompatible changes require a new major module version.

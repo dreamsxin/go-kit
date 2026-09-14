@@ -75,7 +75,7 @@ go get github.com/dreamsxin/go-kit/v2@latest
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 ```
 
-`v2.8.0` 是当前架构版本，并以单一模块发布：一行 `require`、一个 tag（见[变更日志](v2/CHANGELOG_zh.md)）。
+`v2.22.0` 是当前架构版本，并以单一模块发布：一行 `require`、一个 tag（见[变更日志](v2/CHANGELOG_zh.md)）。
 
 ## 开发验证
 

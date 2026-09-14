@@ -88,6 +88,45 @@ func TestReleaseManifestMatchesRepository(t *testing.T) {
 
 }
 
+func TestReleaseStatusMatchesRepository(t *testing.T) {
+	root := moduleRoot(t)
+	manifest := readReleaseManifest(t, root)
+	version := manifest.CoreVersion
+
+	type document struct {
+		path      string
+		released  string
+		candidate string
+	}
+	documents := []document{
+		{path: "../README.md", released: "`" + version + "` is the current architecture release"},
+		{path: "../README_zh.md", released: "`" + version + "` 是当前架构版本"},
+		{path: "README.md", released: "`" + version + "` is the current release."},
+		{path: "README_zh.md", released: "`" + version + "` 是当前发布版本。"},
+		{path: "ARCHITECTURE.md", released: "`" + version + "` is the current released contract."},
+		{path: "ARCHITECTURE_zh.md", released: "`" + version + "` 是当前已发布契约。"},
+		{path: "internal/docs/RELEASE.md", released: version + " is the current published release of the module:"},
+		{path: "internal/docs/RELEASE_zh.md", released: version + " 是当前已发布的模块版本："},
+	}
+	for i := range documents {
+		if strings.HasSuffix(documents[i].path, "_zh.md") {
+			documents[i].candidate = "候选"
+		} else {
+			documents[i].candidate = "candidate"
+		}
+	}
+
+	for _, doc := range documents {
+		path := filepath.Join(root, filepath.FromSlash(doc.path))
+		if manifest.Phase == "released" {
+			assertVersionText(t, path, doc.released)
+			continue
+		}
+		assertVersionText(t, path, version)
+		assertVersionText(t, path, doc.candidate)
+	}
+}
+
 // TestOnlyOneModuleIsPublishable keeps the single-module layout from eroding.
 //
 // A new go.mod anywhere under v2 that is not one of the repository-only modules
