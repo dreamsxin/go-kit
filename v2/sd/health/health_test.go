@@ -3,14 +3,18 @@ package health_test
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/sd"
+	"github.com/dreamsxin/go-kit/v2/sd/endpointer"
 	"github.com/dreamsxin/go-kit/v2/sd/health"
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
+	"github.com/dreamsxin/go-kit/v2/sd/selector"
 )
 
 // probeTable answers probes from a per-address verdict the test controls.
@@ -378,41 +382,91 @@ func TestCheck_PassesDiscoveryErrorsThrough(t *testing.T) {
 }
 
 func TestCheck_PreservesDiscoveryErrorsAcrossProbeRounds(t *testing.T) {
-	probes := newProbeTable()
-	cache := source(t, "a:80")
-	checker := health.Check(cache, probes.probe(), health.WithInterval(2*time.Millisecond))
-	defer checker.Close() //nolint:errcheck
+	for _, tc := range []struct {
+		name      string
+		probeErr  error
+		failOpen  bool
+		wantCount int
+	}{
+		{name: "healthy", failOpen: true, wantCount: 1},
+		{name: "fail-open", probeErr: errors.New("probe failed"), failOpen: true, wantCount: 1},
+		{name: "fail-closed", probeErr: errors.New("probe failed"), wantCount: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			probes := newProbeTable()
+			cache := source(t, "a:80")
+			checker := health.Check(cache, probes.probe(), health.WithInterval(5*time.Millisecond),
+				health.WithUnhealthyThreshold(1), health.WithFailOpen(tc.failOpen))
+			defer checker.Close() //nolint:errcheck
 
-	waitForAddresses(t, checker, "a:80")
-	failure := errors.New("registry unreachable")
-	cache.Update(sd.Event{Err: failure})
+			// Both subscription consumers must retain the first-error deadline.
+			// A consumer without invalidation must keep its own last good view.
+			selected := selector.Subscribe(checker, selector.InvalidateOnError(20*time.Millisecond))
+			defer selected.Close() //nolint:errcheck
+			kept := selector.Subscribe(checker)
+			defer kept.Close() //nolint:errcheck
+			endpoints := endpointer.NewEndpointer(checker, func(sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+				return endpoint.Nop, nil, nil
+			}, nil, endpointer.InvalidateOnError(20*time.Millisecond))
+			defer endpoints.Close() //nolint:errcheck
 
-	seen := false
-	seenAt := 0
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		event := checker.Register(nil)
-		if errors.Is(event.Err, failure) && !seen {
-			seen = true
-			seenAt = probes.probed("a:80")
-		}
-		if seen && probes.probed("a:80") >= seenAt+2 {
-			if !errors.Is(event.Err, failure) {
-				t.Fatalf("discovery error disappeared after probe rounds: %v", event.Err)
+			failure := errors.New("registry unreachable")
+			cache.Update(sd.Event{Err: failure})
+			awaitDiscoveryState(t, "source error delivery", func() bool {
+				return errors.Is(checker.Register(nil).Err, failure)
+			})
+			probes.fail("a:80", tc.probeErr)
+			rounds := probes.probed("a:80")
+			awaitDiscoveryState(t, "continued probing during the outage", func() bool {
+				return probes.probed("a:80") >= rounds+3
+			})
+			event := checker.Register(nil)
+			if !errors.Is(event.Err, failure) || len(event.Instances) != tc.wantCount {
+				t.Fatalf("after probe rounds: instances=%v err=%v; want count=%d and the registry error",
+					addressesOf(event), event.Err, tc.wantCount)
+			}
+			awaitDiscoveryState(t, "downstream invalidation", func() bool {
+				instances, selectionErr := selected.Instances()
+				items, endpointErr := endpoints.Endpoints()
+				return len(instances) == 0 && len(items) == 0 &&
+					errors.Is(selectionErr, failure) && errors.Is(endpointErr, failure)
+			})
+			if instances, err := kept.Instances(); err != nil || len(instances) != 1 {
+				t.Fatalf("consumer without invalidation lost its last good view: %v, %v", instances, err)
+			}
+
+			// Restoring the same address set is still a recovery event. Only the
+			// registry can clear its outage; a successful probe alone cannot.
+			probes.heal("a:80")
+			rounds = probes.probed("a:80")
+			awaitDiscoveryState(t, "successful probes during the outage", func() bool {
+				return probes.probed("a:80") >= rounds+3
+			})
+			if err := checker.Register(nil).Err; !errors.Is(err, failure) {
+				t.Fatalf("successful probes cleared the registry error: %v", err)
 			}
 			cache.Update(sd.Event{Instances: sd.Addresses("a:80")})
-			deadline = time.Now().Add(2 * time.Second)
-			for time.Now().Before(deadline) {
-				if event := checker.Register(nil); event.Err == nil {
-					return
-				}
-				time.Sleep(time.Millisecond)
-			}
-			t.Fatal("discovery error was not cleared after a successful source update")
+			awaitDiscoveryState(t, "recovery from the successful source snapshot", func() bool {
+				event := checker.Register(nil)
+				instances, selectionErr := selected.Instances()
+				items, endpointErr := endpoints.Endpoints()
+				return event.Err == nil && len(event.Instances) == 1 &&
+					selectionErr == nil && len(instances) == 1 && endpointErr == nil && len(items) == 1
+			})
+		})
+	}
+}
+
+func awaitDiscoveryState(t *testing.T, description string, ready func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if ready() {
+			return
 		}
 		time.Sleep(time.Millisecond)
 	}
-	t.Fatal("discovery error was not observed")
+	t.Fatalf("timed out waiting for %s", description)
 }
 
 func TestCheck_HidesNewInstancesUntilTheyPassWhenAskedTo(t *testing.T) {

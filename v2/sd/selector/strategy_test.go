@@ -3,6 +3,7 @@ package selector_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 
@@ -31,6 +32,44 @@ func TestWeightedRandom_HugeWeightsStillSelect(t *testing.T) {
 		if index < 0 || index >= len(set) {
 			t.Fatalf("pick %d: index %d outside the set", i, index)
 		}
+	}
+}
+
+func TestLeastRequest_ScansTheWholePoolWhenChoicesCoverIt(t *testing.T) {
+	set := sd.Addresses("a:80", "b:80", "c:80")
+	for _, choices := range []int{3, 4, 10} {
+		t.Run(fmt.Sprintf("choices=%d", choices), func(t *testing.T) {
+			for _, idle := range set {
+				seen := make(map[string]int)
+				strategy := selector.LeastRequest(func(instance sd.Instance) int64 {
+					seen[instance.Address]++
+					if instance.Address == idle.Address {
+						return 0
+					}
+					return 100
+				}, selector.WithChoices(choices))
+				if got := pick(t, strategy, set).Address; got != idle.Address {
+					t.Errorf("picked %s while %s was idle", got, idle.Address)
+				}
+				for _, instance := range set {
+					if seen[instance.Address] != 1 {
+						t.Errorf("load of %s read %d times, want once per full scan", instance.Address, seen[instance.Address])
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestLeastRequest_FullScanSpreadsTies(t *testing.T) {
+	set := sd.Addresses("a:80", "b:80", "c:80")
+	strategy := selector.LeastRequest(func(sd.Instance) int64 { return 0 }, selector.WithChoices(len(set)))
+	seen := make(map[string]bool)
+	for range 300 {
+		seen[pick(t, strategy, set).Address] = true
+	}
+	if len(seen) != len(set) {
+		t.Fatalf("ties reached %v, want every instance", seen)
 	}
 }
 

@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [Unreleased]
+## [2.22.1] - Release Candidate
 
 ### Fixed
 
@@ -10,6 +10,11 @@ English | [简体中文](CHANGELOG_zh.md)
   while periodic probes continue, so downstream invalidation and stale-snapshot
   policies can still see the registry outage. A successful source snapshot clears
   the error.
+- Instance snapshot de-duplication now safely compares slice, map, interface,
+  and non-comparable error values instead of panicking.
+- Least-request selection now performs a true full scan when its choice count
+  covers the snapshot, so it cannot miss the lowest-load instance through
+  repeated random samples.
 
 ## [2.22.0] - 2026-09-10
 

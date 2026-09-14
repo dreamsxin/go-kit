@@ -3,6 +3,7 @@ package instance_test
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -296,4 +297,115 @@ func TestCache_CopiesMetadata(t *testing.T) {
 	if zone != "north" {
 		t.Fatalf("published zone = %q, want north", zone)
 	}
+}
+
+func TestCache_ComplexMetadataIsComparedWithoutPanicking(t *testing.T) {
+	first, same, changed := 1, 1, 2
+	for _, tc := range []struct {
+		name                 string
+		first, same, changed any
+	}{
+		{"slice", []string{"a"}, []string{"a"}, []string{"b"}},
+		{"map", map[string]int{"weight": 1}, map[string]int{"weight": 1}, map[string]int{"weight": 2}},
+		{"interface field", struct{ Value any }{[]int{1}}, struct{ Value any }{[]int{1}}, struct{ Value any }{[]int{2}}},
+		{"pointer content", &first, &same, &changed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					t.Errorf("valid metadata caused Update to panic: %v", recovered)
+				}
+			}()
+			c := instance.NewCache()
+			updates := make(chan sd.Event, 1)
+			c.Register(updates)
+			update := func(value any) {
+				c.Update(sd.Event{Instances: []sd.Instance{{Address: "svc:80", Metadata: map[string]any{"label": value}}}})
+			}
+			update(tc.first)
+			<-updates
+			update(tc.same)
+			select {
+			case event := <-updates:
+				t.Fatalf("unchanged complex metadata was rebroadcast: %v", event)
+			default:
+			}
+			update(tc.changed)
+			select {
+			case event := <-updates:
+				if got := event.Instances[0].Metadata["label"]; !reflect.DeepEqual(got, tc.changed) {
+					t.Fatalf("label = %v, want %v", got, tc.changed)
+				}
+			default:
+				t.Fatal("changed complex metadata was not broadcast")
+			}
+			// Calling State also proves Update released the lock.
+			if got := c.State().Instances[0].Metadata["label"]; !reflect.DeepEqual(got, tc.changed) {
+				t.Fatalf("stored label = %v, want %v", got, tc.changed)
+			}
+			_ = c.Close()
+		})
+	}
+}
+
+type snapshotError []string
+
+func (e snapshotError) Error() string { return fmt.Sprint([]string(e)) }
+
+func TestCache_ComparableErrorsKeepIdentityEquality(t *testing.T) {
+	c := instance.NewCache()
+	defer c.Close() //nolint:errcheck
+	updates := make(chan sd.Event, 1)
+	c.Register(updates)
+	first, second := errors.New("down"), errors.New("down")
+	c.Update(sd.Event{Err: first})
+	<-updates
+	c.Update(sd.Event{Err: first})
+	select {
+	case <-updates:
+		t.Fatal("the same error was rebroadcast")
+	default:
+	}
+	c.Update(sd.Event{Err: second})
+	select {
+	case event := <-updates:
+		if event.Err != second {
+			t.Fatalf("error = %v, want the second error", event.Err)
+		}
+	default:
+		t.Fatal("distinct errors with identical messages were collapsed")
+	}
+}
+
+func TestCache_NonComparableErrorsAreComparedWithoutPanicking(t *testing.T) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Errorf("valid error caused Update to panic: %v", recovered)
+		}
+	}()
+	c := instance.NewCache()
+	updates := make(chan sd.Event, 1)
+	c.Register(updates)
+	c.Update(sd.Event{Err: snapshotError{"down"}})
+	<-updates
+	c.Update(sd.Event{Err: snapshotError{"down"}})
+	select {
+	case <-updates:
+		t.Fatal("identical non-comparable error was rebroadcast")
+	default:
+	}
+	c.Update(sd.Event{Err: snapshotError{"unreachable"}})
+	select {
+	case event := <-updates:
+		if !reflect.DeepEqual(event.Err, snapshotError{"unreachable"}) {
+			t.Fatalf("error = %v, want the updated error", event.Err)
+		}
+	default:
+		t.Fatal("changed error was not broadcast")
+	}
+	c.Update(sd.Event{})
+	if event := <-updates; event.Err != nil {
+		t.Fatalf("recovery error = %v", event.Err)
+	}
+	_ = c.Close()
 }

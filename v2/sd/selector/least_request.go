@@ -61,6 +61,30 @@ func (l *leastRequest) Pick(_ context.Context, _ any, instances []sd.Instance) (
 	if len(instances) == 0 {
 		return 0, nil, sd.ErrNoEndpoints
 	}
+	// Stable: sd.selector-least-request-full-scan — when choices cover the pool, every instance is measured once and a minimum-load instance is selected, with equal minima distributed at random.
+	// Covered by: TestLeastRequest_ScansTheWholePoolWhenChoicesCoverIt, TestLeastRequest_FullScanSpreadsTies
+	if l.choices >= len(instances) {
+		// Once choices cover the whole snapshot, sample each instance exactly
+		// once. Reusing the power-of-two random path here could pick the same
+		// instance repeatedly and miss the actual minimum, contradicting the
+		// option's documented full-scan behavior.
+		best := 0
+		lowest := l.load(instances[best])
+		ties := 1
+		for i := 1; i < len(instances); i++ {
+			load := l.load(instances[i])
+			switch {
+			case load < lowest:
+				best, lowest, ties = i, load, 1
+			case load == lowest:
+				ties++
+				if rand.N(ties) == 0 {
+					best = i
+				}
+			}
+		}
+		return best, nil, nil
+	}
 
 	best := rand.N(len(instances))
 	lowest := l.load(instances[best])

@@ -471,6 +471,11 @@ func (c *Checker) record(target sd.Instance, err error) {
 	}
 }
 
+// Probe outcomes can change health, but only a successful source snapshot can
+// clear a discovery outage. Consumers keep ownership of their grace periods.
+//
+// Stable: sd.health-probes-preserve-discovery-errors — periodic probes retain the source discovery error until a successful source snapshot arrives, so downstream invalidation and recovery work independently of fail-open policy.
+// Covered by: TestCheck_PreservesDiscoveryErrorsAcrossProbeRounds
 func (c *Checker) publish() {
 	c.mu.Lock()
 	healthy := make([]sd.Instance, 0, len(c.snapshot))

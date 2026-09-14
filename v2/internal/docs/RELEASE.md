@@ -9,6 +9,9 @@ v2.22.0 is the current published release of the module:
 github.com/dreamsxin/go-kit/v2
 ```
 
+v2.22.1 is the patch candidate being prepared from `main`. It fixes discovery
+error retention, dynamic snapshot comparisons, and least-request full scans.
+
 Runtime, generator, providers, and adapters ship together: one `require`, one
 tag, and no version skew between the framework and the things that plug into it.
 `v2.8.0` was the release that established that single published module.
@@ -63,7 +66,7 @@ but their generated public behavior is a product surface.
 
 ## Release Entry Criteria
 
-The v2.22.0 release satisfied these criteria:
+The v2.22.1 candidate must satisfy these criteria before tagging:
 
 - Every surface the compatibility contract covers names the gate that enforces
   it, and the protocol behaviours v2 promises are declared beside the code that

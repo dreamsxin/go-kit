@@ -128,8 +128,11 @@ func (c *Cache) Close() error {
 }
 
 // eventsEqual compares two events without external dependencies.
+//
+// Stable: sd.instance-dynamic-values-are-safe — snapshot de-duplication accepts non-comparable metadata and error values, suppresses equal snapshots, and broadcasts changed ones without panicking.
+// Covered by: TestCache_ComplexMetadataIsComparedWithoutPanicking, TestCache_NonComparableErrorsAreComparedWithoutPanicking
 func eventsEqual(a, b sd.Event) bool {
-	if a.Err != b.Err {
+	if !errorsEqual(a.Err, b.Err) {
 		return false
 	}
 	if len(a.Instances) != len(b.Instances) {
@@ -149,11 +152,19 @@ func instancesEqual(a, b sd.Instance) bool {
 	return a.Address == b.Address && maps.EqualFunc(a.Metadata, b.Metadata, valuesEqual)
 }
 
-// valuesEqual falls back to DeepEqual because metadata values are any: a
-// registry may hand back a slice or nested map, which == would panic on.
+// Metadata is compared by content, including slices, nested maps and pointers.
 func valuesEqual(a, b any) bool {
-	if a == b {
-		return true
+	return reflect.DeepEqual(a, b)
+}
+
+// Keep identity equality for ordinary errors, including distinct errors with
+// the same message. Custom non-comparable errors can only be compared by content.
+func errorsEqual(a, b error) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	if reflect.ValueOf(a).Comparable() && reflect.ValueOf(b).Comparable() {
+		return a == b
 	}
 	return reflect.DeepEqual(a, b)
 }

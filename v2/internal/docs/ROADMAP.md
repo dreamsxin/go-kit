@@ -6,15 +6,51 @@ durable product milestones, not session notes or release history.
 
 本文是 go-kit v2 唯一实施路线图，只记录长期产品里程碑，不记录临时会话过程。
 
-## Post-release audit / 发布后审计
+## Milestone 24 (In Progress): Discovery Boundaries Preserve Information
 
-- The active discovery checker preserves a source error while it continues
-  probing the last known snapshot. Probe results do not clear that error; only
-  a successful source snapshot does. The regression is covered by
-  `TestCheck_PreservesDiscoveryErrorsAcrossProbeRounds`.
+Target: the v2.22.1 patch candidate. The v2.22.0 release remains immutable.
 
-- 主动服务发现健康检查在继续探测最后一个已知快照时保留源错误。探测结果不会清除该错误，只有成功的源快照才会清除它。回归由
-  `TestCheck_PreservesDiscoveryErrorsAcrossProbeRounds` 覆盖。
+The follow-up review found three defects in existing responsibilities:
+
+- `sd/health` must carry source errors through probe rounds. Only the registry
+  can end its outage; probe success does not do that. The regression exercises
+  healthy, fail-open, and fail-closed views together with both downstream cache
+  implementations, checking invalidation, recovery, and retention without an
+  invalidation policy. Restoring the old publication behavior makes all three
+  cases fail with `err=<nil>` during the outage.
+- `sd/instance` must compare the dynamic values its snapshot contract accepts.
+  Slice, map, interface-field and slice-backed error cases reproduced panics
+  while Update held its lock. Metadata retains deep equality; comparable errors
+  retain identity equality, and other errors use deep equality. Tests check
+  de-duplication and changed events.
+- `sd/selector` must implement the full scan promised by `WithChoices`. Random
+  sampling with replacement missed an idle member in 159 of 500 public-API
+  reproduction calls. Tests now check every member is read once when choices
+  cover the pool, the minimum wins, and equal minima are distributed.
+
+Acceptance: the focused regression tests must fail with the old behavior and
+pass with the fix; the reviewed behavior list, API compatibility, and committed
+`make verify` must pass. Public signatures and package paths stay compatible.
+
+Responsibility review and deliberate non-changes:
+
+- Keep `health` (this process's liveness/readiness) separate from `sd/health`
+  (remote-instance probing). Neither answers the other's question.
+- Keep snapshot ownership in `sd/instance`, connection construction/closure in
+  `sd/endpointer`, selection in `sd/selector`, attempt execution in `sd/retry`,
+  and stale-view grace periods in the shared subscription state machine.
+  A discovery error deliberately makes consumers use their previous successful
+  view until their policy invalidates it; a probe result is not a new registry
+  snapshot. This fix preserves that existing policy.
+- `feedback.Table` and `Ejector` separate measurements from decisions;
+  `Measured` and `sd/client` provide optional assembly over those primitives.
+  No shared global component registry or extra module is needed.
+- The numeric layer diagram in `ARCHITECTURE.md` is too coarse: `kit/grpc`
+  imports `integrations/grpc`, and generated gRPC applications also use that
+  provider. Its L0-L3-only claim needs a separate documentation correction, not
+  a package move to make the diagram true.
+- The retry clock seam remains deferred as recorded in Milestone 23: it needs
+  a public constructor design and its own compatibility review.
 
 ## Product Direction / 产品方向
 
