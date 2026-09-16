@@ -36,6 +36,13 @@ English | [简体中文](CHANGELOG_zh.md)
 - Least-request selection now performs a true full scan when its choice count
   covers the snapshot, so it cannot miss the lowest-load instance through
   repeated random samples.
+- `sd/retry` runs a single-attempt call on the caller's goroutine instead of
+  spawning an attempt goroutine and a buffered channel for a call that can
+  never retry. The default one-attempt configuration now costs only the call
+  itself on the hot path; the result shape, Done reporting, callback Final, and
+  no-attempt-after-budget handling are unchanged. A failure whose budget ends in
+  the same instant still reports the attempt and the endpoint's kind rather than
+  masking it behind a bare context error.
 
 ## [2.22.0] - 2026-09-10
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -293,8 +294,9 @@ func TestRetryWithCallback_ReplacesError(t *testing.T) {
 
 // ── Request propagation ──────────────────────────────────────────────────────
 
-// keyedBalancer records the request handed to Pick. Selection happens
-// on a goroutine inside retry, so the request travels back over a channel.
+// keyedBalancer records the request handed to Pick, so a test can see the
+// request reached the balancer. A single-attempt budget runs the pick on the
+// caller's goroutine, so there is no channel handover to wait for.
 type keyedBalancer struct {
 	requests chan any
 }
@@ -348,6 +350,128 @@ func TestRetry_PassesRequestToPlainBalancer(t *testing.T) {
 	case <-lb.calls:
 	default:
 		t.Fatal("Endpoint was never called")
+	}
+}
+
+// ── The single-attempt fast path ──────────────────────────────────────────────
+
+// goroutineLabel identifies the current goroutine, to prove that a one-attempt
+// call runs inline rather than on a goroutine retry spawned.
+func goroutineLabel(t *testing.T) string {
+	t.Helper()
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	line := string(buf[:n])
+	if i := strings.IndexByte(line, '\n'); i >= 0 {
+		return line[:i] // "goroutine 7 [running]:"
+	}
+	return line
+}
+
+func TestRetry_SingleAttemptRunsInline(t *testing.T) {
+	caller := goroutineLabel(t)
+	ranInline := false
+	f := endpointer.Factory(func(_ sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
+			ranInline = goroutineLabel(t) == caller
+			return "ok", nil
+		})
+		return ep, io.NopCloser(nil), nil
+	})
+	lb := newBalancer(t, f)
+	ep := retry.New(lb) // one attempt by default
+
+	if _, err := ep(context.Background(), nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ranInline {
+		t.Fatal("a one-attempt call ran on another goroutine; the fast path is not inline")
+	}
+}
+
+func TestRetry_SingleAttemptReportsTheFailure(t *testing.T) {
+	f := endpointer.Factory(func(_ sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+		ep := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
+			return nil, errors.New("boom")
+		})
+		return ep, io.NopCloser(nil), nil
+	})
+	lb := newBalancer(t, f)
+	ep := retry.New(lb)
+
+	_, err := ep(context.Background(), nil)
+	var retryErr retry.Error
+	if !errors.As(err, &retryErr) {
+		t.Fatalf("err = %T, want retry.Error", err)
+	}
+	if len(retryErr.Attempts) != 1 {
+		t.Fatalf("attempts = %d, want 1", len(retryErr.Attempts))
+	}
+	if !strings.Contains(retryErr.Error(), "boom") {
+		t.Errorf("message = %q, want it to name the failure", retryErr.Error())
+	}
+}
+
+type singleInstanceBalancer struct {
+	pick func(ctx context.Context, request any) (sd.Picked, error)
+}
+
+func (b singleInstanceBalancer) Pick(ctx context.Context, request any) (sd.Picked, error) {
+	return b.pick(ctx, request)
+}
+func (singleInstanceBalancer) Close() error { return nil }
+
+func TestRetry_SingleAttemptHonorsCallbackAndDone(t *testing.T) {
+	replacement := errors.New("replaced")
+	doneCalled := false
+	instance := sd.Instance{Address: "10.0.0.7:80"}
+	lb := singleInstanceBalancer{pick: func(_ context.Context, _ any) (sd.Picked, error) {
+		return sd.Picked{
+			Instance: instance,
+			Endpoint: endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
+				return nil, errors.New("original")
+			}),
+			Done: func(sd.Outcome) { doneCalled = true },
+		}, nil
+	}}
+	ep := retry.New(lb, retry.WithAttemptCallback(func(_ int, _ error) (bool, error) {
+		return false, replacement
+	}))
+
+	_, err := ep(context.Background(), nil)
+	var retryErr retry.Error
+	if !errors.As(err, &retryErr) {
+		t.Fatalf("err = %T, want retry.Error", err)
+	}
+	if !errors.Is(retryErr.Final, replacement) {
+		t.Errorf("Final = %v, want the callback replacement", retryErr.Final)
+	}
+	if len(retryErr.Attempts) != 1 || retryErr.Attempts[0].Address != instance.Address {
+		t.Errorf("attempt = %+v, want one attempt on %s", retryErr.Attempts, instance.Address)
+	}
+	if !doneCalled {
+		t.Error("Done was not called for the failed attempt")
+	}
+}
+
+func TestRetry_SingleAttemptReportsSuccessOnDone(t *testing.T) {
+	successSeen := false
+	lb := singleInstanceBalancer{pick: func(_ context.Context, _ any) (sd.Picked, error) {
+		return sd.Picked{
+			Endpoint: endpoint.Endpoint(func(_ context.Context, _ any) (any, error) { return "ok", nil }),
+			Done: func(outcome sd.Outcome) {
+				successSeen = outcome.Err == nil
+			},
+		}, nil
+	}}
+	ep := retry.New(lb)
+
+	resp, err := ep(context.Background(), nil)
+	if err != nil || resp != "ok" {
+		t.Fatalf("got (%v, %v), want (ok, nil)", resp, err)
+	}
+	if !successSeen {
+		t.Error("Done was not reported as a success")
 	}
 }
 

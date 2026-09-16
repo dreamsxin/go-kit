@@ -177,6 +177,17 @@ func WithClassifier(timeout time.Duration, balancer sd.Balancer, callback Callba
 		WithTimeout(timeout), WithAttemptCallback(callback), WithErrorClassifier(classifier))
 }
 
+// callBudget derives the context one call runs under: WithTimeout when a budget
+// is set, otherwise WithCancel so returning still ends the attempt goroutines,
+// which the loop relies on. Returned for the synchronous fast path as well, so
+// the two paths round a timeout identically.
+func callBudget(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout > 0 {
+		return context.WithTimeout(ctx, timeout)
+	}
+	return context.WithCancel(ctx)
+}
+
 // New builds an endpoint that selects an instance on every attempt. By default
 // it makes one attempt, adds no deadline, uses DefaultClassifier and waits on
 // the system clock. It owns neither the balancer nor its source: close them
@@ -200,18 +211,26 @@ func New(balancer sd.Balancer, options ...Option) endpoint.Endpoint {
 		}
 	}
 
+	// A single-attempt budget cannot retry, so there is nothing to re-pick and
+	// nothing to hand over between goroutines. Run the one attempt on the
+	// caller's goroutine instead: no goroutine, no channel, no allocation. The
+	// loop below exists for the retryable case, where a later attempt has to
+	// select again.
+	//
+	// Stable: sd.retry-single-attempt-runs-inline — a one-attempt budget executes its call on the caller's goroutine, with no goroutine or channel.
+	// Covered by: TestRetry_SingleAttemptRunsInline, TestRetry_SingleAttemptReportsTheFailure
+	if settings.maxAttempts == 1 {
+		return func(ctx context.Context, request any) (any, error) {
+			callContext, cancel := callBudget(ctx, settings.timeout)
+			defer cancel()
+			return retryOnce(callContext, &settings, balancer, request)
+		}
+	}
+
 	return func(ctx context.Context, request any) (any, error) {
 		// Cancellable either way: returning must stop the attempt goroutines
 		// even when no deadline was asked for.
-		var (
-			callContext context.Context
-			cancel      context.CancelFunc
-		)
-		if settings.timeout > 0 {
-			callContext, cancel = context.WithTimeout(ctx, settings.timeout)
-		} else {
-			callContext, cancel = context.WithCancel(ctx)
-		}
+		callContext, cancel := callBudget(ctx, settings.timeout)
 		defer cancel()
 
 		resultChannel := make(chan attemptResult, 1)
@@ -370,6 +389,69 @@ func call(ctx context.Context, balancer sd.Balancer, request any, results chan<-
 		picked.Done(sd.Outcome{Err: err, Latency: time.Since(started)})
 	}
 	results <- attemptResult{address: picked.Instance.Address, err: err, latency: time.Since(started)}
+}
+
+// retryOnce runs the single attempt of a one-attempt budget on the caller's
+// goroutine and returns the result in the same shape the loop does when it can
+// never retry: a success returns the response, and one failed attempt is
+// reported as a retry.Error whose Final is what the callback chose.
+//
+// The budget is checked before dispatch, exactly as in the loop: a call whose
+// context already ended puts nothing on the wire.
+//
+// A quick failure reports the endpoint's error rather than the bare context
+// error even when the budget happens to end in the same instant. Masking it
+// would hide the kind the endpoint reported (see Error.Is and Error.As), the
+// single-attempt side of the same promise the loop keeps by carrying every
+// attempt in Error.Attempts.
+func retryOnce(ctx context.Context, settings *settings, balancer sd.Balancer, request any) (any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	started := time.Now()
+	picked, err := balancer.Pick(ctx, request)
+	if err != nil {
+		return nil, singleFailure(settings, attemptResult{err: err, latency: time.Since(started)})
+	}
+	if picked.Endpoint == nil {
+		err = errors.New("retry: balancer returned nil endpoint")
+		if picked.Done != nil {
+			picked.Done(sd.Outcome{Err: err, Latency: time.Since(started)})
+		}
+		return nil, singleFailure(settings, attemptResult{
+			address: picked.Instance.Address,
+			err:     err,
+			latency: time.Since(started),
+		})
+	}
+	endpointStarted := time.Now()
+	response, err := picked.Endpoint(ctx, request)
+	if picked.Done != nil {
+		picked.Done(sd.Outcome{Err: err, Latency: time.Since(endpointStarted)})
+	}
+	if err == nil {
+		return response, nil
+	}
+	return nil, singleFailure(settings, attemptResult{
+		address: picked.Instance.Address,
+		err:     err,
+		latency: time.Since(started),
+	})
+}
+
+// singleFailure reports one failed attempt in the shape the loop produces for a
+// single-attempt budget. The callback still runs because it decides Final; the
+// classifier never does, since a one-attempt budget cannot retry and the loop
+// short-circuits on the attempt cap before consulting it.
+func singleFailure(settings *settings, completed attemptResult) error {
+	result := Error{Attempts: []Attempt{attemptOf(completed)}}
+	_, replacement := settings.callback(1, completed.err)
+	received := completed.err
+	if replacement != nil {
+		received = replacement
+	}
+	result.Final = received
+	return result
 }
 
 // DefaultClassifier retries only errors that explicitly opt in and temporary
