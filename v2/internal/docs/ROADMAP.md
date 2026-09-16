@@ -113,6 +113,13 @@ The guide and release procedure now name the root READMEs and the paired updates
   through `microgen`.
 - Prefer explicit ownership, validated configuration, deterministic generation,
   cancellation-aware lifecycle, and safe concurrency defaults.
+- The public library surface is documented by construction: a reviewed gate
+  rejects an exported top-level declaration with no doc comment, so a new
+  exported name cannot ship unexplained. Methods, internal packages, testdata,
+  and generated proto files are exempt for the reasons the gate states. Thirty-one
+  previously undocumented exported identifiers (discovery provider option types,
+  gRPC transport hooks, the interaction event vocabulary, and others) now carry
+  one, and the reviewed API snapshot records the change.
 - Add only capabilities that are reusable across unrelated services. Optional
   integrations stay outside the core dependency path.
 

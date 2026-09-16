@@ -22,26 +22,32 @@ type Registrar struct {
 	logger       *slog.Logger
 }
 
+// RegistrarOption configures a Consul Registrar.
 type RegistrarOption func(*Registrar)
 
+// IDRegistrarOptions sets the registration's service ID. Without it the ID is
+// derived from name, address, and port.
 func IDRegistrarOptions(id string) RegistrarOption {
 	return func(r *Registrar) {
 		r.registration.ID = id
 	}
 }
 
+// TagsRegistrarOptions sets the tags the registration advertises.
 func TagsRegistrarOptions(tags []string) RegistrarOption {
 	return func(r *Registrar) {
 		r.registration.Tags = tags
 	}
 }
 
+// NamespaceRegistrarOptions sets the Consul namespace the registration belongs to.
 func NamespaceRegistrarOptions(namespace string) RegistrarOption {
 	return func(r *Registrar) {
 		r.registration.Namespace = namespace
 	}
 }
 
+// CheckRegistrarOptions attaches a health check to the registration.
 func CheckRegistrarOptions(check *stdconsul.AgentServiceCheck) RegistrarOption {
 	return func(r *Registrar) {
 		r.registration.Check = check
@@ -69,6 +75,8 @@ func MetaRegistrarOptions(meta map[string]string) RegistrarOption {
 	}
 }
 
+// NewRegistrar builds a Registrar that keeps one instance registered with the
+// local Consul agent. The service ID defaults to name-address-port.
 func NewRegistrar(client Client, logger *slog.Logger, name string, address string, port int, options ...RegistrarOption) *Registrar {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)

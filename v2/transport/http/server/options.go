@@ -2,6 +2,7 @@ package server
 
 import "github.com/dreamsxin/go-kit/v2/transport"
 
+// ServerOption configures an HTTP transport server.
 type ServerOption func(*Server)
 
 // ServerResponseEncoder sets the function used to encode successful endpoint

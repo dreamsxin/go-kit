@@ -10,10 +10,13 @@ import (
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 )
 
+// HTTPClient is the subset of *http.Client this transport relies on, so tests
+// and lightweight callers can substitute a stub.
 type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+// Client adapts one HTTP request/response pair to an endpoint.Endpoint.
 type Client struct {
 	client         HTTPClient
 	req            EncodeRequestFunc

@@ -542,6 +542,7 @@ package grpc // import "github.com/dreamsxin/go-kit/v2/integrations/grpc"
 CONSTANTS
 const TraceparentKey = "traceparent"
 const (
+	// ContextKeyRequestMethod names the RPC method a call is invoking.
 	ContextKeyRequestMethod contextKey = iota
 	// Its value is of type metadata.MD.
 	ContextKeyResponseHeaders

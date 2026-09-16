@@ -13,6 +13,7 @@ type SessionID string
 // EventType classifies events emitted by an interaction runtime.
 type EventType string
 
+// The EventType values an interaction runtime may emit.
 const (
 	EventSessionStarted EventType = "session.started"
 	EventSessionEnded   EventType = "session.ended"

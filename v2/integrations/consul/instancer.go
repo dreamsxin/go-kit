@@ -24,6 +24,7 @@ var errStopped = errors.New("quit and closed consul instancer")
 // compiler keeps the two sides from drifting apart.
 type Instance = sd.Instance
 
+// Event is an alias for sd.Event, the snapshot this provider publishes.
 type Event = sd.Event
 
 // Instancer discovers the instances of one service.
@@ -45,14 +46,21 @@ type Instancer struct {
 	stopOnce    sync.Once
 }
 
+// InstancerOption configures a Consul Instancer.
 type InstancerOption func(*Instancer)
 
+// TagsInstancerOptions filters the discovered instances to those carrying at
+// least one of the given tags, applied in addition to the tag passed to
+// NewInstancer.
 func TagsInstancerOptions(tags []string) InstancerOption {
 	return func(r *Instancer) {
 		r.tags = tags
 	}
 }
 
+// NewInstancer watches one service in Consul and returns an Instancer that
+// already holds the initial snapshot — a caller that gets one has instances, or
+// the error explaining why it does not.
 func NewInstancer(client Client, logger *slog.Logger, service string, passingOnly bool, options ...InstancerOption) *Instancer {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)

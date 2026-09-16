@@ -39,6 +39,8 @@ type Cache struct {
 
 var _ sd.Instancer = (*Cache)(nil)
 
+// NewCache creates an empty in-memory Instancer, whose instance list is
+// whatever the next Update call publishes.
 func NewCache() *Cache {
 	return &Cache{
 		reg: registry{},

@@ -24,6 +24,7 @@ import (
 	transportgrpc "github.com/dreamsxin/go-kit/v2/integrations/grpc"
 )
 
+// Client adapts one gRPC RPC method to an endpoint.Endpoint.
 type Client struct {
 	client      *grpc.ClientConn
 	serviceName string

@@ -1,5 +1,6 @@
 package client
 
+// ClientOption configures a gRPC transport client.
 type ClientOption func(*Client)
 
 // ClientBefore adds RequestFunc hooks that run before the gRPC call is made.

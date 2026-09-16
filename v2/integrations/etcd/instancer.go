@@ -18,6 +18,7 @@ import (
 // compiler keeps the two sides from drifting apart.
 type Instance = sd.Instance
 
+// Event is an alias for sd.Event, the snapshot this provider publishes.
 type Event = sd.Event
 
 // Instancer watches one service prefix in etcd and publishes snapshots.

@@ -61,6 +61,9 @@ func NewEndpointer(src sd.Instancer, f Factory, logger *slog.Logger, options ...
 	return se
 }
 
+// DefaultEndpointer is the InstanceEndpointer that NewEndpointer builds: a
+// cache driven by a subscription pump. Prefer constructing it through
+// NewEndpointer; this type exists so the concrete return is inspectable.
 type DefaultEndpointer struct {
 	cache     *Cache
 	feed      *subscription.Feed

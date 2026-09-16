@@ -2,6 +2,7 @@ package server
 
 import "github.com/dreamsxin/go-kit/v2/transport"
 
+// ServerOption configures a gRPC transport server.
 type ServerOption func(*Server)
 
 // ServerBefore adds RequestFunc hooks that run before the request is decoded.
