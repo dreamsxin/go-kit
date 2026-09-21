@@ -66,6 +66,14 @@
 中英文 changelog 标题现在都会检查。故意把 v2 README 状态改错时，测试会给出路径、预期声明和实际章节内容；
 测试覆盖两个阶段、两种语言、错误版本和无关文字。代理指南与发布流程也已补齐根 README 和中英文更新要求。
 
+### 文档表面的评审
+
+评审那次补注释的提交时，发现了若干描述与代码行为不符的文字，这比没有注释更糟：消费者会照着它写代码。Consul 的 `TagsInstancerOptions` 声称“至少携带其中一个 tag”，还说会叠加在传给 `NewInstancer` 的 tag 之上；实际过滤是“全部满足”的 AND 语义，而那个参数并不存在。gRPC 服务端的 `ResponseFunc` 被写成“观察” header 与 trailer，实际职责是写入；`RequestFunc` 被写成可以修改 metadata，而那份 metadata 不会被回读。`transport.ErrorHandler` 与 HTTP 的 `ServerErrorHandler` 选项都声称 `kit.WithRecorder` 会替你接好，其实不会，照文档走会让 decode/encode 错误被静默丢弃。`NewInstancer` 现在明确说明它持有后台 watch，措辞与 endpointer 对齐；别名注释也不再替相邻声明代言。
+
+门禁本身有两个漏洞。它只读取 value spec 的第一个名字，因此 `var A, B = ...` 中的 `B` 不会被检查——而当第一个名字未导出时整条 spec 会被跳过；相邻的 `exportedDeclarations` 早已遍历全部名字。它还可能在什么都没扫到的情况下通过：根路径解析偏移或某个跳过规则吞掉整棵树，都会读作“没有缺文档的名字”，所以现在要求扫描到的声明数达到下限，与协议行为门禁、文档门禁的做法一致。目录跳过收敛为共享的 `skipGateDir`：点目录视为工具状态，`examples` 与 `tools` 仅在模块根层豁免。
+
+刻意未做：遍历导出声明的 AST 代码仍有两份，一份在这里，一份在 `exportedDeclarations`。两者要的东西不同——一份需要 doc 注释与位置且豁免方法，另一份需要包含方法的名字集合——而让这份重复真正付出代价的分叉（value spec 漏检）已在两侧修好。抽共享迭代器只会让第二个读者读得更糟。
+
 ## 产品方向
 
 - 保持 `Service -> Endpoint -> Transport` 作为唯一的运行时架构。

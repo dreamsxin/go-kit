@@ -44,9 +44,8 @@ var testFunctionDeclaration = regexp.MustCompile(`(?m)^func (Test[A-Za-z0-9_]*)\
 // behaviourScanSkips are directories with no protocol surface of their own:
 // generated fixtures, sample programs, the gates themselves, and the templates,
 // whose promises belong to the generated project rather than to this module.
+// Dotted directories are skipped by skipGateDir.
 var behaviourScanSkips = map[string]bool{
-	".git":         true,
-	".github":      true,
 	"examples":     true,
 	"node_modules": true,
 	"templates":    true,
@@ -94,7 +93,7 @@ func TestBehaviourMarkersLiveInNonTestSource(t *testing.T) {
 			return err
 		}
 		if entry.IsDir() {
-			if path != root && (behaviourScanSkips[entry.Name()] || strings.HasPrefix(entry.Name(), ".")) {
+			if path != root && skipGateDir(root, path, entry.Name(), behaviourScanSkips, nil) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -184,7 +183,7 @@ func scanProtocolBehaviours(t *testing.T, root string) []protocolBehaviour {
 			return err
 		}
 		if entry.IsDir() {
-			if path != root && (behaviourScanSkips[entry.Name()] || strings.HasPrefix(entry.Name(), ".")) {
+			if path != root && skipGateDir(root, path, entry.Name(), behaviourScanSkips, nil) {
 				return filepath.SkipDir
 			}
 			return nil

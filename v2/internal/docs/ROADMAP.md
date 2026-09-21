@@ -106,6 +106,37 @@ edit to the v2 README fails with its path, expected statement and actual section
 tests exercise both phases and languages, wrong versions and unrelated text.
 The guide and release procedure now name the root READMEs and the paired updates.
 
+### Review Of The Documented Surface
+
+Reviewing the doc-comment commit found prose that described behaviour the code
+does not have, which is worse than no prose: a consumer acts on it. Consul's
+`TagsInstancerOptions` claimed "at least one of the given tags" and an extra tag
+passed to `NewInstancer`; the filter is an AND over all of them and that
+parameter does not exist. The gRPC server's `ResponseFunc` was described as
+observing headers and trailers it in fact populates, and its `RequestFunc` as
+mutating metadata that is never read back. `transport.ErrorHandler` and the HTTP
+`ServerErrorHandler` option both claimed `kit.WithRecorder` wires one for you; it
+does not, so the documented path left decode and encode errors silently dropped.
+`NewInstancer` now states that it owns a background watch, matching the
+endpointer's wording, and the alias comments no longer describe a neighbour.
+
+The gate itself had two holes. It read only the first name of a value spec, so
+`var A, B = ...` left `B` unchecked — and where the first name was unexported the
+whole spec was skipped; the neighbouring `exportedDeclarations` already iterated
+every name. And it could pass having scanned nothing: a root that resolved
+elsewhere or a skip that swallowed the tree both read as "no undocumented
+names", so it now requires a floor of scanned declarations, in the manner of the
+protocol-behaviour and documentation gates. Directory skipping moved into a
+shared `skipGateDir`, which treats dotted directories as tooling state and
+exempts `examples` and `tools` only directly under the module root.
+
+Not done, on purpose: the AST walk over exported declarations still exists twice,
+here and in `exportedDeclarations`. The two want different things — one needs the
+doc comment and position and exempts methods, the other needs names including
+methods — and the divergence that made the duplication cost something is the
+value-spec bug, now fixed in both. A shared iterator would serve the second
+reader worse than the copy does.
+
 ## Product Direction / 产品方向
 
 - Keep `Service -> Endpoint -> Transport` as the only runtime architecture.

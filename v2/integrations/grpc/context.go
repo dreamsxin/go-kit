@@ -3,12 +3,15 @@ package grpc
 type contextKey int
 
 const (
-	// ContextKeyRequestMethod names the RPC method a call is invoking.
+	// ContextKeyRequestMethod names the RPC method a call is invoking; its
+	// value is the full method name, a string.
 	ContextKeyRequestMethod contextKey = iota
 
-	// Its value is of type metadata.MD.
+	// ContextKeyResponseHeaders carries the headers a call answered with; its
+	// value is of type metadata.MD.
 	ContextKeyResponseHeaders
 
-	// Its value is of type metadata.MD.
+	// ContextKeyResponseTrailers carries the trailers a call answered with;
+	// its value is of type metadata.MD.
 	ContextKeyResponseTrailers
 )

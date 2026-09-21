@@ -13,9 +13,9 @@ import (
 	"github.com/dreamsxin/go-kit/v2/sd/instance"
 )
 
-// Instance and Event are aliases for the core discovery snapshot types, so a
-// value built here is interchangeable with sd.Instance and sd.Event and the
-// compiler keeps the two sides from drifting apart.
+// Instance is an alias for sd.Instance, so a value built here is
+// interchangeable with the core discovery type and the compiler keeps the two
+// sides from drifting apart.
 type Instance = sd.Instance
 
 // Event is an alias for sd.Event, the snapshot this provider publishes.

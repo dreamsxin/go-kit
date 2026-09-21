@@ -7,8 +7,9 @@ var NopErrorHandler ErrorHandler = ErrorHandlerFunc(func(_ context.Context, _ er
 
 // ErrorHandler observes errors a transport encounters outside the endpoint
 // result — while decoding, encoding, or relaying. The default NopErrorHandler
-// discards them: the transport still encodes the response. Plug one in (kit
-// does, for recorders) to get errors into logs or metrics.
+// discards them: the transport still encodes the response, and nothing records
+// why. Nothing wires one for you; pass one to the server option explicitly —
+// observability/slog.NewErrorHandler is a ready implementation.
 type ErrorHandler interface {
 	Handle(ctx context.Context, err error)
 }

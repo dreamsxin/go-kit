@@ -19,9 +19,9 @@ const defaultIndex = 0
 
 var errStopped = errors.New("quit and closed consul instancer")
 
-// Instance and Event are aliases for the core discovery snapshot types, so a
-// value built here is interchangeable with sd.Instance and sd.Event and the
-// compiler keeps the two sides from drifting apart.
+// Instance is an alias for sd.Instance, so a value built here is
+// interchangeable with the core discovery type and the compiler keeps the two
+// sides from drifting apart.
 type Instance = sd.Instance
 
 // Event is an alias for sd.Event, the snapshot this provider publishes.
@@ -49,9 +49,9 @@ type Instancer struct {
 // InstancerOption configures a Consul Instancer.
 type InstancerOption func(*Instancer)
 
-// TagsInstancerOptions filters the discovered instances to those carrying at
-// least one of the given tags, applied in addition to the tag passed to
-// NewInstancer.
+// TagsInstancerOptions restricts discovery to the instances carrying all of the
+// given tags: the first is the tag Consul filters on server-side, the rest are
+// filtered here from the returned entries.
 func TagsInstancerOptions(tags []string) InstancerOption {
 	return func(r *Instancer) {
 		r.tags = tags
@@ -59,8 +59,10 @@ func TagsInstancerOptions(tags []string) InstancerOption {
 }
 
 // NewInstancer watches one service in Consul and returns an Instancer that
-// already holds the initial snapshot — a caller that gets one has instances, or
-// the error explaining why it does not.
+// already holds the initial snapshot — the first Event a subscriber receives
+// carries either the instances or the query error that explains their absence.
+//
+// It owns a background watch, so Stop or Close is not optional.
 func NewInstancer(client Client, logger *slog.Logger, service string, passingOnly bool, options ...InstancerOption) *Instancer {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
@@ -240,8 +242,8 @@ func makeInstances(entries []*consul.ServiceEntry) []Instance {
 }
 
 // metadataFor lifts the service Meta a registration reported into instance
-// labels. Tags stay out: they are a set, not key/value pairs, and NewInstancer
-// already filters on them server-side.
+// labels. Tags stay out: they are a set, not key/value pairs, and the tags
+// TagsInstancerOptions configures have already been filtered on.
 func metadataFor(entry *consul.ServiceEntry) map[string]any {
 	if len(entry.Service.Meta) == 0 {
 		return nil
