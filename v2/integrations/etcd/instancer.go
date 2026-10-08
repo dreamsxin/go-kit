@@ -124,15 +124,15 @@ func (s *Instancer) Deregister(ch chan Event) { s.cache.Deregister(ch) }
 func (s *Instancer) loop() {
 	delay := s.retryBase
 	for {
-	// Watching from the revision after the last read is what closes the gap
-	// between "read the prefix" and "watch the prefix": no change in
-	// between can slip through unseen.
-	//
-	// Stable: etcd.revision-watch — the watch resumes from the revision after
-	// the last read, and Stop does not depend on the watch channel closing
-	// promptly.
-	// Covered by: TestNewInstancerWatchesAfterTheRevisionItRead, TestInstancerStopDoesNotWaitForTheWatchChannel, TestInstancerBroadcastsSetChanges
-	changes, err := s.client.Watch(s.ctx, s.prefix, s.revision+1)
+		// Watching from the revision after the last read is what closes the gap
+		// between "read the prefix" and "watch the prefix": no change in
+		// between can slip through unseen.
+		//
+		// Stable: etcd.revision-watch — the watch resumes from the revision after
+		// the last read, and Stop does not depend on the watch channel closing
+		// promptly.
+		// Covered by: TestNewInstancerWatchesAfterTheRevisionItRead, TestInstancerStopDoesNotWaitForTheWatchChannel, TestInstancerBroadcastsSetChanges
+		changes, err := s.client.Watch(s.ctx, s.prefix, s.revision+1)
 		if err != nil {
 			if s.stopped() {
 				return
