@@ -28,6 +28,9 @@
 - 生成的 `.ai/PROJECT_GUIDE.md` 新增 API 探索协议：阅读顺序（指南、README、
   godoc）、禁止手改或翻查生成文件找 API 的规则，以及生成 API 未暴露所需操作时的
   命名停止信号——`MICROGEN_API_GAP`，附语言、服务、缺失操作与编译器诊断。
+  该指南现在随每一个生成项目发布，而不仅是开启 interaction 的项目：在普通
+  HTTP 或 gRPC 服务上工作的 agent 同样需要所有权图与探索协议。项目 manifest
+  在所有项目中都把它列为生成器所有的 artifact，契约快照记录了这一新增。
 
 ### 修复
 

@@ -20,6 +20,7 @@
   ],
   "generatedMiddlewares": [],
   "artifacts": [
+    ".ai/PROJECT_GUIDE.md",
     ".microgen/manifest.json",
     "client/catalogservice/demo.go",
     "cmd/generated_routes.go",

@@ -175,8 +175,11 @@ func (g *Generator) manifestArtifacts(ctx generationContext) []string {
 		)
 	}
 	if g.config.WithInteraction {
-		paths = append(paths, g.layout.cmdGeneratedInteraction(), g.layout.aiProjectGuide())
+		paths = append(paths, g.layout.cmdGeneratedInteraction())
 	}
+	// The guide is generated for every project, not only interaction-enabled
+	// ones, so it is owned by the generator in every manifest.
+	paths = append(paths, g.layout.aiProjectGuide())
 
 	artifacts := make([]string, 0, len(paths))
 	for _, artifactPath := range paths {

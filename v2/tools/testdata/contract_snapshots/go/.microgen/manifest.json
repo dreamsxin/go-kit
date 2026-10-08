@@ -19,6 +19,7 @@
   "models": [],
   "generatedMiddlewares": [],
   "artifacts": [
+    ".ai/PROJECT_GUIDE.md",
     ".microgen/manifest.json",
     "client/userservice/demo.go",
     "cmd/generated_routes.go",

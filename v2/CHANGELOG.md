@@ -39,6 +39,11 @@ English | [简体中文](CHANGELOG_zh.md)
   grepping generator-owned files, and a named stop signal —
   `MICROGEN_API_GAP` with the language, service, missing operation, and
   compiler diagnostic — for an operation the generated API does not expose.
+  The guide now ships with every generated project, not only
+  interaction-enabled ones: an agent working on a plain HTTP or gRPC service
+  needs the ownership map and the discovery protocol just as much. The project
+  manifest lists it as a generator-owned artifact in every project, and the
+  contract snapshots record the addition.
 
 ### Fixed
 

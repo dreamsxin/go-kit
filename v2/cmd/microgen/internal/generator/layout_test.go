@@ -34,6 +34,9 @@ func TestProjectLayoutRequiredDirs(t *testing.T) {
 		filepath.Join("out", "config"),
 		filepath.Join("out", "model"),
 		filepath.Join("out", "repository"),
+		// The AI guide ships with every project, so .ai is required even
+		// without interaction.
+		filepath.Join("out", ".ai"),
 	}
 
 	if !reflect.DeepEqual(got, want) {

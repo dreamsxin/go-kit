@@ -151,9 +151,13 @@ func (g *Generator) generateFinalProjectArtifacts(ctx generationContext) error {
 		if err := g.generateInteractionFile(ctx); err != nil {
 			return fmt.Errorf("generate interaction file failed: %w", err)
 		}
-		if err := g.generateAIProjectGuide(ctx); err != nil {
-			return fmt.Errorf("generate ai project guide failed: %w", err)
-		}
+	}
+
+	// The AI guide ships with every generated project: an agent working on a
+	// plain HTTP or gRPC service needs the ownership map and the discovery
+	// protocol as much as one working on an MCP-enabled one.
+	if err := g.generateAIProjectGuide(ctx); err != nil {
+		return fmt.Errorf("generate ai project guide failed: %w", err)
 	}
 
 	if err := g.generateProjectManifest(ctx); err != nil {

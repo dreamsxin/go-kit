@@ -109,6 +109,12 @@ func TestGenerateFull_NoInteraction(t *testing.T) {
 
 	interactionPath := filepath.Join(outDir, "cmd", "generated_interaction.go")
 	mustNotExist(t, interactionPath)
+	// The guide ships with every generated project: ownership and the API
+	// discovery protocol are not an interaction-only concern.
 	guidePath := filepath.Join(outDir, ".ai", "PROJECT_GUIDE.md")
-	mustNotExist(t, guidePath)
+	mustExist(t, guidePath)
+	mustContain(t, guidePath, "File Ownership")
+	mustContain(t, guidePath, "API Discovery Protocol")
+	mustContain(t, guidePath, "MICROGEN_API_GAP")
+	mustNotContain(t, guidePath, "POST /mcp")
 }

@@ -156,9 +156,9 @@ func (l projectLayout) requiredDirs(services []*serviceView, opts Options) []str
 	if opts.WithOpenAPI {
 		dirs = append(dirs, l.typeScriptSDKDir())
 	}
-	if opts.WithInteraction {
-		dirs = append(dirs, l.aiDir())
-	}
+	// The AI guide ships with every project, so its directory is required
+	// unconditionally; interaction adds no directory of its own.
+	dirs = append(dirs, l.aiDir())
 
 	return dirs
 }
