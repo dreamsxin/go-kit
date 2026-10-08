@@ -6,7 +6,7 @@ durable product milestones, not session notes or release history.
 
 本文是 go-kit v2 唯一实施路线图，只记录长期产品里程碑，不记录临时会话过程。
 
-## Milestone 24 (In Progress): Discovery Boundaries Preserve Information
+## Milestone 24 (Complete): Discovery Boundaries Preserve Information
 
 Target: the v2.23.0 candidate. It includes the unpublished patch work and the
 additive retry API below. The v2.22.0 release remains immutable.
@@ -2541,7 +2541,9 @@ backoff tests; the following records why it was deferred from v2.22.0.
   That is a public API addition with its own snapshot and documentation work, so it is
   recorded here rather than half-built at the end of a session.
 
-## Milestone 25 (In Progress): The Runtime Side Of The Promise
+## Milestone 25 (Complete): The Runtime Side Of The Promise
+
+Released with v2.23.0 on 2026-10-08.
 
 Goal: the gates already state what the framework promises; this milestone gives
 consumers a standard way to state what a request is for, closes the remaining

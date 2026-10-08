@@ -336,13 +336,13 @@ snapshot through their shared subscription state machine.
 
 ## Stability
 
-`v2.22.0` is the current released contract. It establishes the reviewed package
+`v2.23.0` is the current released contract. It establishes the reviewed package
 graph, lifecycle ownership, transport error model, and generated project layout
-captured by the release manifest and API snapshot. Until the v2
-compatibility freeze, minor releases may change behavior or remove APIs; after
-the freeze, incompatible changes require a new major module version.
-
-`v2.23.0` is the candidate on `main`, correcting discovery-state handling and
-selection and adding configurable retry backoff. Existing public signatures and
+captured by the release manifest and API snapshot. This release corrects
+discovery-state handling and selection and adds configurable retry backoff.
+Existing public signatures and
 package boundaries remain compatible. The injected retry clock controls waits;
 context deadlines and measured request durations continue to use real time.
+Until the v2
+compatibility freeze, minor releases may change behavior or remove APIs; after
+the freeze, incompatible changes require a new major module version.

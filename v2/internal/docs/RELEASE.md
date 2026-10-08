@@ -3,16 +3,15 @@ English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
-v2.22.0 is the current published release of the module:
+v2.23.0 is the current published release of the module:
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
 
-v2.23.0 is the candidate being prepared from `main`. It adds configurable retry
-backoff and clocks, and includes the discovery and manual-timer fixes previously
-prepared for the unpublished patch candidate. A minor version reflects the new
-public API; v2.22.0 remains the latest published version.
+It adds configurable retry backoff and clocks, and includes the discovery and
+manual-timer fixes previously prepared for the unpublished patch candidate. A
+minor version reflects the new public API.
 
 Runtime, generator, providers, and adapters ship together: one `require`, one
 tag, and no version skew between the framework and the things that plug into it.
