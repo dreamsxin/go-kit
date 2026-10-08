@@ -3,6 +3,7 @@
 //   - Fluent endpoint.Builder for middleware assembly
 //   - NewTypedJSONServer for type-safe HTTP handling
 //   - MetricsMiddleware for built-in request counters
+//   - Operation intent: the caller declares why, the deployment maps and reads it
 //   - Graceful shutdown
 //
 // Run:
@@ -13,6 +14,7 @@
 //
 //	curl -X POST http://localhost:8080/hello \
 //	     -H "Content-Type: application/json" \
+//	     -H "X-Operation-Purpose: greet a named caller" \
 //	     -d '{"name":"Alice"}'
 //
 //	curl http://localhost:8080/metrics
@@ -50,6 +52,43 @@ type helloResponse struct {
 // error encoder so that errors.Is can match reliably.
 var errNameRequired = errors.New("name is required")
 
+// ── Operation intent ─────────────────────────────────────────────────────────
+//
+// The framework carries the why of an operation as an OperationIntent and
+// applies no policy of its own to it. The two halves below are the deployment's
+// decisions: which transport facts mean "why", and what to do with the answer.
+
+// withIntentFromHeader maps the headers this deployment chose into the
+// standard intent. It is an HTTP middleware because the headers are transport
+// facts; the intent then rides the request context through decode into the
+// endpoint chain, where recorders and logging attributes read it.
+func withIntentFromHeader(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		intent := endpoint.OperationIntent{
+			Purpose:     r.Header.Get("X-Operation-Purpose"),
+			AuditReason: r.Header.Get("X-Audit-Reason"),
+		}
+		next.ServeHTTP(w, r.WithContext(endpoint.WithOperationIntent(r.Context(), intent)))
+	})
+}
+
+// logIntent is the reading side: an endpoint middleware — or a Recorder, or a
+// slog Options.Attrs function — pulls the intent out of the context it is
+// already handed and records it alongside the correlation IDs.
+func logIntent(logger *zap.Logger) endpoint.Middleware {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request any) (any, error) {
+			if intent := endpoint.OperationIntentFromContext(ctx); intent.Purpose != "" || intent.AuditReason != "" {
+				logger.Sugar().Debugw("operation intent",
+					"purpose", intent.Purpose,
+					"audit_reason", intent.AuditReason,
+				)
+			}
+			return next(ctx, request)
+		}
+	}
+}
+
 // ── Business logic (no framework dependency) ──────────────────────────────────
 
 func helloLogic(_ context.Context, req helloRequest) (helloResponse, error) {
@@ -84,6 +123,7 @@ func main() {
 	ep := endpoint.NewTypedBuilder(endpoint.TypedEndpoint[helloRequest, helloResponse](helloLogic)).
 		WithMetrics(&metrics).
 		WithErrorHandling("hello").
+		Use(logIntent(logger)).
 		Use(endpoint.TimeoutMiddleware(5 * time.Second)).
 		Use(breaker.Middleware()).
 		Use(endpoint.RateLimitMiddleware(limiter)).
@@ -92,11 +132,12 @@ func main() {
 	// ── HTTP handlers ─────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
 
-	// /hello — automatic JSON decode/encode via NewTypedJSONServer
-	mux.Handle("/hello", server.NewTypedJSONServer(
+	// /hello — automatic JSON decode/encode via NewTypedJSONServer, with the
+	// deployment's header-to-intent mapping wrapped around it
+	mux.Handle("/hello", withIntentFromHeader(server.NewTypedJSONServer(
 		endpoint.Unwrap[helloRequest, helloResponse](ep),
 		server.ServerErrorEncoder(jsonErrorEncoder(logger)),
-	))
+	)))
 
 	// /metrics — expose request counters
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {

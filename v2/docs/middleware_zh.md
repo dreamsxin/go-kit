@@ -187,6 +187,31 @@ recorder 的用途——`kit.WithHTTPRecorder(recorder)` 把它装在每条路�
 `metrics.Handler(collector)` 把它渲染给 scrape。gRPC 侧对应的一对是
 `grpcserver.RecordingUnaryInterceptor` 配 `observability/metrics/grpc.Recorder`。
 
+## 声明为什么：操作意图
+
+指标、链路、request ID 说的是"发生了什么"；没有一样说"为什么"。
+`endpoint.OperationIntent` 是这个答案的传输中立载体——读操作的用途、写操作的审计
+原因——由调用方设置，部署方决定谁来读：
+
+```go
+ctx = endpoint.WithOperationIntent(ctx, endpoint.OperationIntent{
+    Purpose:     "load task for status transition",
+    AuditReason: "customer requested address correction",
+})
+```
+
+```go
+// 读取一侧：Recorder、endpoint 中间件，或 slog 的 slogadapter.Options.Attrs
+// 函数，都从自己本来就拿到的 context 里取出意图。
+purpose := endpoint.OperationIntentFromContext(ctx).Purpose
+```
+
+框架不对意图施加任何策略：不要求、不校验、也不记录；缺席或零值的意图就只是
+"什么都没声明"。要求写操作必须带 `AuditReason`、从传输头部派生意图、把意图写进
+日志——这些和别的策略一样是应用自己的中间件；`examples/best_practice` 两半都有
+演示。声明意图要短、不要带秘密：不管部署方拿它做什么，它最后都会进日志和审计
+记录。
+
 ## 调试链路
 
 `Builder.Describe` 按应用顺序返回中间件链，启动日志可以精确打印实际执行

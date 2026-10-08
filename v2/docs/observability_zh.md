@@ -39,6 +39,31 @@ ep := telemetry.Apply(endpoint.NewBuilder(createUser)).Build()
 如果服务需要内部快照或健康计数，保留 `telemetry.Metrics`。需要 HTTP 状态和响应
 字节时，通过 `kit.WithHTTPMiddleware` 安装 `server.AccessLogMiddleware(logger)`。
 
+要记录调用"为什么"发生而不只是"发生了"，读取调用方通过 `WithOperationIntent`
+声明的操作意图：
+
+```go
+telemetry, err := slogadapter.NewTelemetry(slogadapter.TelemetryConfig{
+    Operation: "users.create",
+    Logger:    logger,
+    LogOptions: []slogadapter.Option{
+        slogadapter.WithAttrs(func(ctx context.Context) []slog.Attr {
+            intent := endpoint.OperationIntentFromContext(ctx)
+            if intent.Purpose == "" && intent.AuditReason == "" {
+                return nil
+            }
+            return []slog.Attr{
+                slog.String("purpose", intent.Purpose),
+                slog.String("audit_reason", intent.AuditReason),
+            }
+        }),
+    },
+})
+```
+
+属性函数在日志中间件内运行，位于 decode 之后——意图随请求 context 进入那里。
+载体本身以及策略归属见[中间件：声明为什么](middleware_zh.md#声明为什么操作意图)。
+
 ## 被 scrape
 
 推送不是唯一的模型。`observability/metrics` 把 `endpoint.Metrics` 已经持有的数字渲染成

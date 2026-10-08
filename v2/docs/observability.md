@@ -43,6 +43,33 @@ Keep `telemetry.Metrics` if the service exposes an internal snapshot or health
 counter. Add `server.AccessLogMiddleware(logger)` with
 `kit.WithHTTPMiddleware` when HTTP status and response bytes matter.
 
+To log *why* a call happened, not only that it happened, read the operation
+intent the caller declared through `WithOperationIntent`:
+
+```go
+telemetry, err := slogadapter.NewTelemetry(slogadapter.TelemetryConfig{
+    Operation: "users.create",
+    Logger:    logger,
+    LogOptions: []slogadapter.Option{
+        slogadapter.WithAttrs(func(ctx context.Context) []slog.Attr {
+            intent := endpoint.OperationIntentFromContext(ctx)
+            if intent.Purpose == "" && intent.AuditReason == "" {
+                return nil
+            }
+            return []slog.Attr{
+                slog.String("purpose", intent.Purpose),
+                slog.String("audit_reason", intent.AuditReason),
+            }
+        }),
+    },
+})
+```
+
+The attribute function runs inside the logging middleware, which sits after
+decode — the intent rides the request context into it. See
+[middleware: declaring why](middleware.md#declaring-why-operation-intent) for
+the carrier itself and where the policy belongs.
+
 ## Being Scraped
 
 Pushing is not the only model. `observability/metrics` renders the numbers

@@ -20,6 +20,11 @@
   不模拟任何冲突模式），每一条都指名持有它的测试。Consul instancer 测试现在还断言
   `TagsInstancerOptions` 各 tag 的客户端 AND 过滤；slog 适配器也用专门的测试钉住了其
   文档所承诺的 panic 记录。
+- `endpoint.OperationIntent` 通过标准上下文对 `WithOperationIntent` 与
+  `OperationIntentFromContext`，携带一次 endpoint 调用的"为什么"——读操作的用途、
+  写操作的审计原因。框架不对意图施加任何策略：不要求、不校验、也不由框架记录，
+  缺席或零值的意图读回零值，传输映射与消费端都归部署方所有。`examples/best_practice`
+  演示了两半；承诺以 `endpoint.operation-intent` 钉住。
 
 ### 修复
 

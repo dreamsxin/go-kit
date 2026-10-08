@@ -102,6 +102,7 @@ func NewRetryAfterError(err error, after time.Duration) error
 func Nop(context.Context, any) (any, error)
 func RequestIDFromContext(ctx context.Context) string
 func ResponseError(response any) error
+func WithOperationIntent(ctx context.Context, intent OperationIntent) context.Context
 func WithRequestID(ctx context.Context, id string) context.Context
 func WithTraceContext(ctx context.Context, tc TraceContext) context.Context
 func WithTraceID(ctx context.Context, id TraceID) context.Context
@@ -309,6 +310,17 @@ type Observation struct {
 	// Err is the endpoint error, or nil on success.
 	Err error
 }
+type OperationIntent struct {
+	// Purpose states why this operation is happening, in words an operator
+	// reading a log line can act on, for example "load task for status
+	// transition". Empty means no purpose was declared.
+	Purpose string
+	// AuditReason states why this operation may change state, in words an
+	// audit record can carry, for example "customer requested address
+	// correction". Empty means no audit reason was declared.
+	AuditReason string
+}
+func OperationIntentFromContext(ctx context.Context) OperationIntent
 type PanicHandler func(ctx context.Context, request any, recovered any) error
 type RateLimitKeyFunc func(ctx context.Context, request any) string
 type RateLimiter interface {

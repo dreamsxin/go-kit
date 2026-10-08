@@ -28,6 +28,7 @@ stable/endpoint.keyed-rate-limit-shares-one-bucket
 stable/endpoint.manual-clock-advance-fires-due-timers
 stable/endpoint.manual-clock-stop-releases-wait
 stable/endpoint.metrics-clock
+stable/endpoint.operation-intent
 stable/endpoint.retry-clock
 stable/endpointer.cache-carries-metadata
 stable/endpointer.cache-close

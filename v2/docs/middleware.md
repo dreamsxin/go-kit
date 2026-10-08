@@ -215,6 +215,35 @@ the same `endpoint.Metrics` a scrape renders through `metrics.Handler(collector)
 On the gRPC side the pair is `grpcserver.RecordingUnaryInterceptor` with
 `observability/metrics/grpc.Recorder`.
 
+## Declaring why: operation intent
+
+Metrics, traces, and request IDs say what happened; none of them say why.
+`endpoint.OperationIntent` is the transport-neutral carrier for that answer —
+a query's purpose on reads, an audit reason on writes — set by the caller and
+read by whatever the deployment points at it:
+
+```go
+ctx = endpoint.WithOperationIntent(ctx, endpoint.OperationIntent{
+    Purpose:     "load task for status transition",
+    AuditReason: "customer requested address correction",
+})
+```
+
+```go
+// The reading side: a Recorder, an endpoint middleware, or a slog
+// slogadapter.Options.Attrs function pulls the intent out of the context it
+// is already handed.
+purpose := endpoint.OperationIntentFromContext(ctx).Purpose
+```
+
+The framework applies no policy to an intent. It does not require one, does
+not validate one, and does not record one; an absent or zero intent is just
+that — nothing declared. Requiring an `AuditReason` on writes, deriving an
+intent from a transport header, or logging one is application-owned
+middleware like any other; `examples/best_practice` shows both halves. Keep
+declared intents short and free of secrets: whatever a deployment does with
+them, they end up in logs and audit records.
+
 ## Debugging the chain
 
 `Builder.Describe` returns the middleware chain in application order, so a

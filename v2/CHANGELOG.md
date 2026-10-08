@@ -26,6 +26,14 @@ English | [简体中文](CHANGELOG_zh.md)
   it. The Consul instancer test now also asserts the client-side AND filter
   across `TagsInstancerOptions` tags, and the slog adapter pins the panic record
   its documentation promises with a test of its own.
+- `endpoint.OperationIntent` carries the declared why of one endpoint call — a
+  query's purpose on reads, an audit reason on writes — through the standard
+  context pair `WithOperationIntent` and `OperationIntentFromContext`. The
+  framework applies no policy to an intent: it is not required, validated, or
+  recorded by the framework itself, an absent or zero intent reads back as the
+  zero value, and the transport mapping and the consumers stay
+  deployment-owned. `examples/best_practice` demonstrates both halves; the
+  promise is pinned as `endpoint.operation-intent`.
 
 ### Fixed
 
