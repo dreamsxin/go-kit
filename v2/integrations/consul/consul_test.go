@@ -27,6 +27,9 @@ type fakeClient struct {
 	blockingStarted chan struct{}
 	registerErr     error
 	deregisterErr   error
+	// extraEntries join the first query's answer, for tests that need more
+	// than one service entry.
+	extraEntries []*stdconsul.ServiceEntry
 }
 
 func (f *fakeClient) Register(registration *stdconsul.AgentServiceRegistration) error {
@@ -49,10 +52,10 @@ func (f *fakeClient) Service(_ string, tag string, _ bool, opts *stdconsul.Query
 	}
 	f.mu.Unlock()
 	if call == 1 {
-		return []*stdconsul.ServiceEntry{{
+		return append([]*stdconsul.ServiceEntry{{
 			Node:    &stdconsul.Node{Address: "127.0.0.1"},
 			Service: &stdconsul.AgentService{Port: 8080, Tags: []string{"blue", "v2"}, Meta: f.entryMeta},
-		}}, &stdconsul.QueryMeta{LastIndex: 1}, nil
+		}}, f.extraEntries...), &stdconsul.QueryMeta{LastIndex: 1}, nil
 	}
 	select {
 	case f.blockingStarted <- struct{}{}:
@@ -63,7 +66,15 @@ func (f *fakeClient) Service(_ string, tag string, _ bool, opts *stdconsul.Query
 }
 
 func TestInstancerAppliesOptionsBeforeInitialQueryAndStopsBlockingQuery(t *testing.T) {
-	client := &fakeClient{blockingStarted: make(chan struct{}, 1)}
+	client := &fakeClient{
+		blockingStarted: make(chan struct{}, 1),
+		extraEntries: []*stdconsul.ServiceEntry{{
+			// Missing the second tag: the client-side AND filter must drop
+			// it, since the server only filtered on the first tag.
+			Node:    &stdconsul.Node{Address: "127.0.0.2"},
+			Service: &stdconsul.AgentService{Port: 8080, Tags: []string{"blue"}},
+		}},
+	}
 	instancer := NewInstancer(client, nil, "users", true, TagsInstancerOptions([]string{"blue", "v2"}))
 
 	select {
@@ -77,6 +88,14 @@ func TestInstancerAppliesOptionsBeforeInitialQueryAndStopsBlockingQuery(t *testi
 	client.mu.Unlock()
 	if firstTag != "blue" {
 		t.Fatalf("first query tag = %q, want blue", firstTag)
+	}
+
+	// The server filtered on the first tag only, so the client-side filter
+	// must drop the entry missing the second tag ("v2").
+	state := instancer.Register(nil)
+	want := []Instance{{Address: "127.0.0.1:8080"}}
+	if !reflect.DeepEqual(state.Instances, want) {
+		t.Fatalf("instances = %v, want the single entry carrying every tag", state.Instances)
 	}
 
 	done := make(chan struct{})

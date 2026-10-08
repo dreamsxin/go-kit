@@ -13,6 +13,10 @@ import (
 )
 
 // NewErrorHandler adapts a Zap logger to transport.ErrorHandler.
+//
+// Stable: zap.error-handler-nil-logger — NewErrorHandler accepts a nil logger
+// and returns a usable handler.
+// Covered by: TestNewErrorHandlerAcceptsNilLogger
 func NewErrorHandler(logger *zap.Logger) transport.ErrorHandler {
 	if logger == nil {
 		logger = zap.NewNop()
@@ -28,6 +32,11 @@ func NewErrorHandler(logger *zap.Logger) transport.ErrorHandler {
 // while the stack unwinds, where err is still nil, so without this the call
 // would be recorded as a success. Install endpoint.RecoveryMiddleware inside
 // this one if the panic should become an error instead.
+//
+// Stable: zap.middleware-transparency — LoggingMiddleware returns the
+// endpoint's response and error unchanged, and a nil logger becomes a no-op
+// logger.
+// Covered by: TestLoggingMiddlewareSuccess, TestLoggingMiddlewareError, TestLoggingMiddlewareNilLogger
 func LoggingMiddleware(logger *zap.Logger, operation string) endpoint.Middleware {
 	if logger == nil {
 		logger = zap.NewNop()

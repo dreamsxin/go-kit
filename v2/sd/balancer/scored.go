@@ -26,6 +26,11 @@ type ScoreFunc = selector.ScoreFunc
 //
 // NewScored panics on a nil score function, which is a programming error rather
 // than a runtime condition.
+//
+// Stable: balancer.scored — the highest-scoring instance wins, a live score
+// table changes the next selection without a discovery event, and a set where
+// every instance is excluded reports sd.ErrNoEndpoints.
+// Covered by: TestNewScored_FollowsAnExternalScoreTable, TestNewScored_ExcludedInstancesReportNoEndpoints
 func NewScored(source endpointer.InstanceEndpointer, score ScoreFunc) sd.Balancer {
 	return New(source, selector.Scored(score))
 }

@@ -84,6 +84,31 @@ func TestLoggingMiddlewareUsesDefaultLoggerWhenNil(t *testing.T) {
 	}
 }
 
+// TestLoggingMiddlewareLogsAPanic pins the promise the doc comment makes: the
+// defer emits the panic record before the panic leaves the middleware.
+func TestLoggingMiddlewareLogsAPanic(t *testing.T) {
+	handler := &captureHandler{}
+	endpointFn := LoggingMiddleware(slog.New(handler), "Panics")(
+		func(context.Context, any) (any, error) {
+			panic("broken")
+		},
+	)
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected the panic to propagate")
+		}
+		record := handler.latest()
+		if record.Message != "endpoint call panicked" {
+			t.Fatalf("message = %q, want the panic record", record.Message)
+		}
+		if record.Level != slog.LevelError {
+			t.Fatalf("level = %v, want Error", record.Level)
+		}
+	}()
+	endpointFn(context.Background(), nil)
+}
+
 func TestNewErrorHandlerRecordsError(t *testing.T) {
 	handler := &captureHandler{}
 	wantErr := errors.New("transport failed")

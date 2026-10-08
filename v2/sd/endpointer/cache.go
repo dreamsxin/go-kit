@@ -98,6 +98,29 @@ func NewCache(factory Factory, logger *slog.Logger, options Options) *Cache {
 }
 
 // Update reconciles the cache with a service-discovery event.
+//
+// Stable: endpointer.cache-reconcile — an update builds endpoints for
+// instances that appear, closes the ones a snapshot retired, and never
+// mutates the instances it was handed.
+// Covered by: TestCacheUpdateAndEndpoints, TestCacheUpdateRemovesOld, TestCacheDoesNotMutateInstances
+//
+// Stable: endpointer.cache-one-endpoint-per-address — duplicate addresses in
+// one snapshot yield one endpoint, and a re-registration of a known address
+// reuses the endpoint that is already live.
+// Covered by: TestCacheSkipsDuplicateAddresses, TestCacheReusesSameInstance, TestCacheRelabelReusesEndpoint
+//
+// Stable: endpointer.cache-carries-metadata — the labels an instance reported
+// at registration reach the InstanceEndpoint the strategies select over.
+// Covered by: TestCacheCarriesMetadataToInstanceEndpoints
+//
+// Stable: endpointer.cache-empty-update — an update carrying no instances
+// produces an empty, error-free set.
+// Covered by: TestCacheEmptyUpdate
+//
+// Stable: endpointer.cache-error-event — a discovery error event keeps the
+// last snapshot by default; with InvalidateOnError it clears the endpoints
+// after the timeout, so callers see the outage instead of stale endpoints.
+// Covered by: TestCacheErrorEventWithoutInvalidation, TestCacheErrorEventWithInvalidation
 func (c *Cache) Update(event sd.Event) {
 	c.state.Update(event)
 }
@@ -182,12 +205,21 @@ func (c *Cache) Endpoints() ([]endpoint.Endpoint, error) {
 // on every discovery update and never edited in place, so a reader keeps a
 // consistent view for as long as it holds the slice. Do not modify it — sort or
 // filter into a slice of your own.
+//
+// Stable: endpointer.instance-endpoints-pairing — InstanceEndpoints pairs each
+// endpoint with the instance it was built from, ordered by address.
+// Covered by: TestInstanceEndpoints_PairsAddressWithItsEndpoint, TestInstanceEndpoints_MatchesEndpointsOrder
 func (c *Cache) InstanceEndpoints() ([]InstanceEndpoint, error) {
 	return c.state.Value()
 }
 
 // Close releases all endpoint resources owned by the cache. It reports the
 // errors closing them, joined, and returns nil on a second call.
+//
+// Stable: endpointer.cache-close — Close releases every endpoint resource the
+// cache owns, a repeated Close returns nil, and reading after close reports
+// ErrCacheClosed instead of a stale set.
+// Covered by: TestCacheCloseReleasesResourcesAndRejectsUpdates, TestInstanceEndpoints_AfterCloseReportsCacheClosed
 func (c *Cache) Close() error {
 	release := c.state.Close()
 	if release == nil {

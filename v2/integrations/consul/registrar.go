@@ -16,6 +16,10 @@ import (
 // about the past, not about the write. An instance ID that has to be unique is
 // therefore a deployment invariant here, not something this provider enforces;
 // etcd is the provider that can.
+//
+// Unstable: consul.registrar-conflict — the registrar emulates no conflict
+// mode; overwrite is the only behavior, and nothing here enforces a unique
+// service ID.
 type Registrar struct {
 	client       Client
 	registration *stdconsul.AgentServiceRegistration
@@ -61,6 +65,10 @@ func CheckRegistrarOptions(check *stdconsul.AgentServiceCheck) RegistrarOption {
 // Keep live load out of here. Consul rewrites the catalog on every change and
 // every consumer would still read a stale number; balancers that need live
 // signals measure them in process instead.
+//
+// Stable: consul.meta-merge — repeated MetaRegistrarOptions merge their
+// labels instead of replacing them.
+// Covered by: TestRegistrarReportsMetaLabels
 func MetaRegistrarOptions(meta map[string]string) RegistrarOption {
 	return func(r *Registrar) {
 		if len(meta) == 0 {
@@ -100,6 +108,9 @@ func NewRegistrar(client Client, logger *slog.Logger, name string, address strin
 }
 
 func (p *Registrar) Register() error {
+	// Stable: consul.registrar-errors — Register and Deregister return the
+	// client's error as-is.
+	// Covered by: TestRegistrarReturnsClientErrors
 	if err := p.client.Register(p.registration); err != nil {
 		return err
 	}

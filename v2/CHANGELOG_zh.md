@@ -13,6 +13,13 @@
   `WithBackoff` 和 `WithClock` 配置重试端点。默认只尝试一次、不增加截止时间。注入时钟控制退避等待，
   总超时和实际耗时仍使用真实时间。现有 `Retry`、`WithCallback`、`WithClassifier` 签名与策略保持兼容。
   每次调用独立的时间表、取消、独立次数上限和旧入口默认值均由可执行测试覆盖。
+- 承诺标记现在覆盖了此前没有任何标记的包：`health`、`sd/balancer`、`sd/endpointer`、
+  `observability/slog`（含其遥测装配）、`integrations/zap`、`integrations/consul`、
+  `integrations/etcd`，以及 `security/http` 的 CORS、安全响应头、可信代理、IP 策略与
+  Chain 各面——共 76 条新增 `Stable:` 条目和一条记录在案的 `Unstable:`（Consul 注册器
+  不模拟任何冲突模式），每一条都指名持有它的测试。Consul instancer 测试现在还断言
+  `TagsInstancerOptions` 各 tag 的客户端 AND 过滤；slog 适配器也用专门的测试钉住了其
+  文档所承诺的 panic 记录。
 
 ### 修复
 

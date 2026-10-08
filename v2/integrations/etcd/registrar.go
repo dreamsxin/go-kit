@@ -29,6 +29,19 @@ const DefaultTTL = 15 * time.Second
 //
 // etcd compares before it writes, so this provider supports all three
 // sd.Conflict semantics; see ConflictRegistrarOptions.
+//
+// Stable: etcd.leased-registration — Register writes a leased key with a
+// keepalive that renews well inside the TTL, so a crashed instance leaves
+// discovery on its own.
+// Covered by: TestRegistrarWritesLeasedRegistration, TestLiveKeepAliveOutlivesTheTTL
+//
+// Stable: etcd.reregister-on-lease-loss — a lease lost while the process is
+// still healthy is registered again.
+// Covered by: TestRegistrarRegistersAgainWhenTheLeaseIsLost, TestLiveLeaseExpiresWhenRenewalStops
+//
+// Stable: etcd.conflict-semantics — all three sd.Conflict semantics compare
+// before they write, on the first registration and on every renewal.
+// Covered by: TestRegistrarCarriesConflictSemanticsIntoEveryWrite, TestLiveCreateOnlyRefusesAKeyThatExists, TestLiveCompareAndSwapKeepsItsOwnKeyAndLosesATakenOne
 type Registrar struct {
 	client    Client
 	logger    *slog.Logger
@@ -154,6 +167,11 @@ func NewRegistrar(client Client, logger *slog.Logger, service, address string, p
 //
 // Under a conflict setting stricter than sd.ConflictOverwrite it returns an
 // error wrapping sd.ErrConflict when the key belongs to another writer.
+//
+// Stable: etcd.register-idempotent — a repeated Register without an
+// intervening Deregister is a no-op, and re-registration stops once the key
+// is taken.
+// Covered by: TestRegistrarRegisterIsIdempotent, TestRegistrarStopsRegisteringAgainWhenTheKeyIsTaken
 func (r *Registrar) Register() error {
 	r.lifecycle.Lock()
 	defer r.lifecycle.Unlock()
@@ -200,6 +218,15 @@ func (r *Registrar) Register() error {
 // Deregister again retries the removal. Without that, a transient etcd error
 // during shutdown would leave the instance in discovery until its lease expired
 // while the process reported a clean stop.
+//
+// Stable: etcd.deregister-revokes-lease — Deregister stops renewal, removes
+// the key, revokes the lease, and retries after a failed removal.
+// Covered by: TestRegistrarDeregisterStopsRenewalAndRemovesTheKey, TestRegistrarDeregisterRetriesAfterAFailedRemoval, TestLiveDeregisterRevokesTheLease
+//
+// Stable: etcd.register-deregister-serialised — Register serialises against a
+// Deregister for the whole etcd round trip, including waiting for one in
+// flight.
+// Covered by: TestRegistrarRegisterWaitsForAnInFlightDeregister, TestLiveConcurrentRegisterDeregisterEndsRegistered
 func (r *Registrar) Deregister() error {
 	r.lifecycle.Lock()
 	defer r.lifecycle.Unlock()

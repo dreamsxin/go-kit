@@ -10,6 +10,11 @@ type Middleware func(http.Handler) http.Handler
 
 // Chain composes middleware in declaration order. The first middleware is the
 // outermost handler.
+//
+// Stable: security.chain-order — Chain applies middleware so the first
+// declared is outermost, skips nil entries, and preserves the wrapped
+// handler's streaming interfaces.
+// Covered by: TestChainPreservesDeclarationOrder, TestSecurityMiddlewarePreservesStreamingInterfaces
 func Chain(middlewares ...Middleware) Middleware {
 	return func(next http.Handler) http.Handler {
 		for i := len(middlewares) - 1; i >= 0; i-- {

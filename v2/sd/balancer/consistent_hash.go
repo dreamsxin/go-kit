@@ -35,6 +35,20 @@ func WithReplicas(replicas int) ConsistentHashOption {
 //
 // NewConsistentHash panics on a nil key function, which is a programming error
 // rather than a runtime condition.
+//
+// Stable: balancer.consistent-hash-affinity — requests sharing a key reach the
+// same instance for as long as it stays in the set, and adding or removing one
+// instance remaps only the keys it owned.
+// Covered by: TestConsistentHash_SameKeyReachesSameInstance, TestConsistentHash_RemovalOnlyRemapsAffectedKeys, TestConsistentHash_ReAddedInstanceReclaimsItsKeys
+//
+// Stable: balancer.consistent-hash-empty-key — a nil key function panics; an
+// empty key or empty request falls back to random selection instead of pinning
+// every unkeyed request onto one instance.
+// Covered by: TestConsistentHash_NilKeyFunctionPanics, TestConsistentHash_EmptyKeyFallsBackToRandom, TestConsistentHash_EmptyRequestFallsBackToRandom
+//
+// Stable: balancer.consistent-hash-replicas — WithReplicas sets the virtual
+// nodes per instance, and a value below one falls back to DefaultReplicas.
+// Covered by: TestConsistentHash_WithReplicas
 func NewConsistentHash(source endpointer.InstanceEndpointer, key KeyFunc, options ...ConsistentHashOption) sd.Balancer {
 	return New(source, selector.ConsistentHash(key, options...))
 }

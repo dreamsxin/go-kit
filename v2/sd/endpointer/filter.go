@@ -22,6 +22,15 @@ import (
 //
 // Predicates come from the root sd package: sd.MetadataEquals, sd.MetadataIn,
 // sd.MetadataMatches, sd.HasMetadata, and sd.And / sd.Or / sd.Not.
+//
+// Stable: endpointer.filter-narrows — Filter keeps only the instances the
+// match accepts, reports an empty set when nothing matches, and mirrors its
+// InstanceEndpoints through Endpoints; a source error propagates.
+// Covered by: TestFilter_KeepsMatchingInstances, TestFilter_EmptyMatchYieldsNoEndpoints, TestFilter_EndpointsMirrorsInstanceEndpoints, TestFilter_PropagatesSourceError
+//
+// Stable: endpointer.filter-is-a-view — closing a Filter or Prefer closes
+// nothing but itself, and both panic on a nil source or nil match.
+// Covered by: TestFilter_DoesNotCloseUnderlyingSet, TestFilter_NilSourcePanics, TestFilter_NilMatchPanics
 func Filter(source InstanceEndpointer, match sd.Match) InstanceEndpointer {
 	if source == nil {
 		panic("endpointer: nil filter source")
@@ -38,6 +47,10 @@ func Filter(source InstanceEndpointer, match sd.Match) InstanceEndpointer {
 // than fail.
 //
 // Like Filter, it is a view and does not close source.
+//
+// Stable: endpointer.prefer-falls-back — Prefer serves the matching subset
+// while local instances exist and the full set when none do.
+// Covered by: TestPrefer_StaysLocalWhenLocalExists, TestPrefer_FallsBackToFullSet
 func Prefer(source InstanceEndpointer, match sd.Match) InstanceEndpointer {
 	if source == nil {
 		panic("endpointer: nil filter source")

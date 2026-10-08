@@ -14,6 +14,11 @@ type IPPolicyConfig struct {
 
 // NewIPPolicy creates client IP allow/deny middleware. Place NewTrustedProxy
 // outside this middleware when forwarded client IPs should be considered.
+//
+// Stable: security.ip-policy-effective-ip — the policy decides on the
+// effective client IP, denying matching networks first and, when Allow is
+// non-empty, every IP outside it.
+// Covered by: TestIPPolicyUsesEffectiveClientIP
 func NewIPPolicy(config IPPolicyConfig) (Middleware, error) {
 	allow, err := parseNetworks(config.Allow)
 	if err != nil {

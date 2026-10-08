@@ -57,6 +57,11 @@ const (
 // Report is the result of evaluating one scope. It is the JSON body the HTTP
 // handler writes, so its shape is part of the contract an operator's probe
 // configuration depends on.
+//
+// Stable: health.report-shape — the report body is
+// {"status","requests"?,"checks":[...]}; probe tooling can depend on the field
+// names and their presence or omission.
+// Covered by: TestHandlerStatusCodes, TestReportCarriesTheRequestCount
 type Report struct {
 	Status string `json:"status"`
 	// Requests is the number of requests the process has served, when the
@@ -70,6 +75,11 @@ type Report struct {
 // CheckResult is one check's outcome. Error is a fixed phrase rather than the
 // check's own message: a probe endpoint is unauthenticated, so it says that a
 // dependency is unhealthy without saying which host refused the connection.
+//
+// Stable: health.fixed-error-phrases — a CheckResult error is one of the fixed
+// phrases ("check failed", "check timed out", "check already running", "check
+// panicked"), never the dependency's own message.
+// Covered by: TestFailureReportsAFixedPhrase, TestSlowCheckTimesOut, TestPanickingCheckIsReportedNotPropagated, TestSecondProbeDoesNotStartASecondCheck
 type CheckResult struct {
 	Name   string `json:"name"`
 	Status string `json:"status"`
@@ -84,6 +94,10 @@ type Paths struct {
 }
 
 // DefaultPaths are the conventional Kubernetes probe routes.
+//
+// Stable: health.default-paths — the conventional probe routes are /health
+// (both scopes), /livez (liveness), /readyz (readiness).
+// Covered by: TestHandlerStatusCodes
 func DefaultPaths() Paths {
 	return Paths{All: "/health", Liveness: "/livez", Readiness: "/readyz"}
 }
@@ -124,6 +138,11 @@ type namedCheck struct {
 	// while the previous one is still running reports the check as busy instead
 	// of starting a second connection attempt against a dependency that is
 	// already struggling.
+	//
+	// Stable: health.check-in-progress — a probe arriving while a check is
+	// still running reports "check already running" instead of starting a
+	// second attempt against the dependency.
+	// Covered by: TestSecondProbeDoesNotStartASecondCheck
 	gate chan struct{}
 }
 
@@ -188,6 +207,10 @@ func (r *Registry) Report(ctx context.Context, scope Scope) Report {
 
 // Handler serves the report for one scope as JSON, with 200 when the status is
 // ok and 503 when it is not.
+//
+// Stable: health.handler-status — a probe answers 200 with the JSON report when
+// the scope is ok and 503 with the report when any check in it failed.
+// Covered by: TestHandlerStatusCodes
 func (r *Registry) Handler(scope Scope) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		report := r.Report(request.Context(), scope)
@@ -201,6 +224,10 @@ func (r *Registry) Handler(scope Scope) http.Handler {
 
 // Mount registers the three probe routes on mux. An empty path in paths is
 // skipped, so an assembly can expose readiness alone.
+//
+// Stable: health.mount-skips-empty-path — an empty path in paths registers
+// nothing, so a deployment can expose readiness alone.
+// Covered by: TestMountSkipsEmptyPaths
 func (r *Registry) Mount(mux *http.ServeMux, paths Paths) {
 	for path, scope := range map[string]Scope{
 		paths.All:       ScopeAll,
@@ -216,6 +243,10 @@ func (r *Registry) Mount(mux *http.ServeMux, paths Paths) {
 
 // snapshot copies the checks for a scope. Checks are read under the mutex
 // because an assembly may register more after the registry is mounted.
+//
+// Stable: health.checks-added-after-mount — a check added after Mount still
+// answers on the next probe.
+// Covered by: TestChecksAddedAfterMountAreEvaluated
 func (r *Registry) snapshot(scope Scope) []namedCheck {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -321,6 +352,10 @@ var errInProgress = errors.New("health check is already running")
 // takes the process down, and a probe is an unauthenticated request — a buggy
 // check must not become a remote kill switch. Reporting the check as unhealthy
 // is the honest answer.
+//
+// Stable: health.panicking-check — a check that panics is reported unhealthy
+// with the fixed phrase, and the panic does not propagate to the process.
+// Covered by: TestPanickingCheckIsReportedNotPropagated
 var errPanicked = errors.New("health check panicked")
 
 func run(ctx context.Context, entry namedCheck) (err error) {

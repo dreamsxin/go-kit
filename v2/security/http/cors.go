@@ -36,6 +36,23 @@ type corsPolicy struct {
 }
 
 // NewCORS validates and compiles CORS policy.
+//
+// Stable: security.cors-preflight — a preflight from an allowed origin answers
+// with the configured grants and Vary on Origin without reaching the wrapped
+// handler, and every response varies on Origin.
+// Covered by: TestCORSPreflightAndActualRequest, TestCORSVariesOnOriginOnEveryPath
+//
+// Stable: security.cors-denies-unknown — an unknown origin, method, or header
+// receives no CORS grant.
+// Covered by: TestCORSDeniesUnknownOriginMethodAndHeaders
+//
+// Stable: security.cors-no-origin-passthrough — a request without an Origin
+// header passes through untouched.
+// Covered by: TestCORSWithoutOriginPassesThrough
+//
+// Stable: security.cors-config-validation — a configuration that cannot be
+// compiled is a construction error.
+// Covered by: TestCORSConfigurationValidation
 func NewCORS(config CORSConfig) (Middleware, error) {
 	policy, err := compileCORS(config)
 	if err != nil {

@@ -7,6 +7,10 @@ import (
 )
 
 // NewRoundRobin distributes picks over the current endpoint snapshot.
+//
+// Stable: balancer.round-robin — picks cycle through the snapshot in order,
+// repeating from the start; an empty snapshot reports sd.ErrNoEndpoints.
+// Covered by: TestRoundRobin_DistributesEvenly, TestRoundRobin_ThreeEndpoints_Cycles, TestRoundRobin_NoEndpoints, TestRoundRobin_SingleEndpoint
 func NewRoundRobin(source endpointer.InstanceEndpointer) sd.Balancer {
 	return New(source, selector.RoundRobin())
 }

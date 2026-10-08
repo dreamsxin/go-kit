@@ -34,6 +34,16 @@ type securityHeaders struct {
 // NewSecurityHeaders creates middleware that writes security headers before
 // the wrapped handler starts. HSTS is emitted only for an effective HTTPS
 // request.
+//
+// Stable: security.headers-defaults — the zero value writes the conservative
+// API defaults, a configured value overrides a default, and HSTS is emitted
+// only when the request is effectively HTTPS, whether declared or forwarded by
+// a trusted proxy.
+// Covered by: TestSecurityHeadersDefaultsAndHTTPSOnlyHSTS, TestSecurityHeadersEmitHSTSWhenTheDeploymentDeclaresHTTPS, TestSecurityHeadersTrustEffectiveProxyScheme
+//
+// Stable: security.headers-value-validation — a configured value that cannot
+// be written as a single safe header is a construction error.
+// Covered by: TestSecurityHeadersRejectHeaderInjection
 func NewSecurityHeaders(config SecurityHeadersConfig) (Middleware, error) {
 	values := make(map[string]string)
 	if !config.DisableDefaults {

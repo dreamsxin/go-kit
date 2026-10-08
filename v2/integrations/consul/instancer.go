@@ -52,6 +52,11 @@ type InstancerOption func(*Instancer)
 // TagsInstancerOptions restricts discovery to the instances carrying all of the
 // given tags: the first is the tag Consul filters on server-side, the rest are
 // filtered here from the returned entries.
+//
+// Stable: consul.tags-and-filter — the first tag is sent to Consul
+// server-side, the remaining tags filter the returned entries client-side, so
+// only instances carrying every tag survive.
+// Covered by: TestInstancerAppliesOptionsBeforeInitialQueryAndStopsBlockingQuery
 func TagsInstancerOptions(tags []string) InstancerOption {
 	return func(r *Instancer) {
 		r.tags = tags
@@ -63,6 +68,11 @@ func TagsInstancerOptions(tags []string) InstancerOption {
 // carries either the instances or the query error that explains their absence.
 //
 // It owns a background watch, so Stop or Close is not optional.
+//
+// Stable: consul.initial-snapshot-before-watch — NewInstancer holds the
+// initial snapshot when it returns, options applied before the first query,
+// and Stop cancels and joins the blocking watch.
+// Covered by: TestInstancerAppliesOptionsBeforeInitialQueryAndStopsBlockingQuery
 func NewInstancer(client Client, logger *slog.Logger, service string, passingOnly bool, options ...InstancerOption) *Instancer {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
@@ -244,6 +254,10 @@ func makeInstances(entries []*consul.ServiceEntry) []Instance {
 // metadataFor lifts the service Meta a registration reported into instance
 // labels. Tags stay out: they are a set, not key/value pairs, and the tags
 // TagsInstancerOptions configures have already been filtered on.
+//
+// Stable: consul.service-meta-is-instance-metadata — the Meta a service entry
+// reports becomes the instance labels consumers filter and weight on.
+// Covered by: TestInstancerSurfacesServiceMetaAsInstanceMetadata
 func metadataFor(entry *consul.ServiceEntry) map[string]any {
 	if len(entry.Service.Meta) == 0 {
 		return nil

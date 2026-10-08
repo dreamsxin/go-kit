@@ -33,6 +33,11 @@ func encodeRegistration(address string, metadata map[string]string) (string, err
 // address. The bare form exists so that `etcdctl put /services/users/1
 // 10.0.0.1:8080` works: a registry a human cannot populate by hand is hard to
 // operate.
+//
+// Stable: etcd.decode-registration — a stored value is either this package's
+// JSON or a bare address; an empty value, unparsable JSON, or an addressless
+// record is an error.
+// Covered by: TestDecodeRegistration
 func decodeRegistration(value string) (Instance, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {

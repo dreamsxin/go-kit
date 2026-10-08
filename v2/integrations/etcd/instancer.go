@@ -59,6 +59,15 @@ func NamespaceInstancerOptions(namespace string) InstancerOption {
 //
 // The initial read happens before NewInstancer returns, so a caller that gets
 // an Instancer already has instances — or the error explaining why it does not.
+//
+// Stable: etcd.initial-read-before-return — the initial read happens before
+// NewInstancer returns, carrying instances or the read error.
+// Covered by: TestNewInstancerLiftsAddressesAndMetadata, TestNewInstancerReportsReadErrors
+//
+// Stable: etcd.instancer-namespace — the watched prefix is the namespace plus
+// the service name, the same layout the registrar writes, and a prefix never
+// matches a neighbouring service's keys.
+// Covered by: TestRegistrarAndInstancerAgreeOnTheNamespace, TestServicePrefixDoesNotMatchNeighbouringServices
 func NewInstancer(client Client, logger *slog.Logger, service string, options ...InstancerOption) *Instancer {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
@@ -115,10 +124,15 @@ func (s *Instancer) Deregister(ch chan Event) { s.cache.Deregister(ch) }
 func (s *Instancer) loop() {
 	delay := s.retryBase
 	for {
-		// Watching from the revision after the last read is what closes the gap
-		// between "read the prefix" and "watch the prefix": no change in
-		// between can slip through unseen.
-		changes, err := s.client.Watch(s.ctx, s.prefix, s.revision+1)
+	// Watching from the revision after the last read is what closes the gap
+	// between "read the prefix" and "watch the prefix": no change in
+	// between can slip through unseen.
+	//
+	// Stable: etcd.revision-watch — the watch resumes from the revision after
+	// the last read, and Stop does not depend on the watch channel closing
+	// promptly.
+	// Covered by: TestNewInstancerWatchesAfterTheRevisionItRead, TestInstancerStopDoesNotWaitForTheWatchChannel, TestInstancerBroadcastsSetChanges
+	changes, err := s.client.Watch(s.ctx, s.prefix, s.revision+1)
 		if err != nil {
 			if s.stopped() {
 				return
@@ -195,6 +209,10 @@ func (s *Instancer) stopped() bool {
 // load reads the prefix and decodes every entry. A single malformed value is
 // skipped rather than failing the snapshot: one bad key written by hand should
 // not take a whole service out of discovery.
+//
+// Stable: etcd.malformed-registration-skipped — one malformed registration is
+// skipped with a warning; the rest of the snapshot survives.
+// Covered by: TestInstancerSkipsMalformedRegistrations
 func (s *Instancer) load(ctx context.Context) ([]Instance, int64, error) {
 	entries, revision, err := s.client.Entries(ctx, s.prefix)
 	if err != nil {

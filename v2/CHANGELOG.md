@@ -17,6 +17,15 @@ English | [简体中文](CHANGELOG_zh.md)
   Existing `Retry`, `WithCallback`, and `WithClassifier` signatures and policies
   remain compatible. Per-call schedules, cancellation, independent attempt caps,
   and legacy defaults are covered by executable tests.
+- The promise markers now cover the packages that carried none: `health`,
+  `sd/balancer`, `sd/endpointer`, `observability/slog` including its telemetry
+  assembly, `integrations/zap`, `integrations/consul`, `integrations/etcd`, and
+  the CORS, security-headers, trusted-proxy, IP-policy, and chain surfaces of
+  `security/http` — 76 new `Stable:` entries plus one recorded `Unstable:` (the
+  Consul registrar emulates no conflict mode), each naming the tests that hold
+  it. The Consul instancer test now also asserts the client-side AND filter
+  across `TagsInstancerOptions` tags, and the slog adapter pins the panic record
+  its documentation promises with a test of its own.
 
 ### Fixed
 

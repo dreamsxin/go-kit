@@ -37,6 +37,15 @@ import (
 //
 // New does not close source: endpoint sets are commonly shared by multiple
 // balancers and their owner remains responsible for closing the endpointer.
+//
+// Stable: balancer.custom-strategy — New turns any selector.Strategy into a
+// Balancer over the live endpoint set, and the request reaches the strategy,
+// so a keyed strategy keeps its affinity without a second interface.
+// Covered by: TestNew_AppliesCustomStrategy, TestNewPassesRequestToStrategy
+//
+// Stable: balancer.nil-arguments-panic — New panics on a nil endpoint source
+// or nil strategy.
+// Covered by: TestNew_NilArgumentsPanic
 func New(source endpointer.InstanceEndpointer, strategy selector.Strategy) sd.Balancer {
 	if source == nil {
 		panic("balancer: nil endpoint source")
@@ -56,6 +65,12 @@ type strategyBalancer struct {
 }
 
 func (b *strategyBalancer) Pick(ctx context.Context, request any) (sd.Picked, error) {
+	// Stable: balancer.closed-pick — Pick after Close reports sd.ErrClosed.
+	// Covered by: TestNew_CloseRejectsSubsequentPicks
+	//
+	// Stable: balancer.source-error — an endpoint source error is returned
+	// from Pick as-is, not swallowed into a selection failure.
+	// Covered by: TestWeightedRandom_PropagatesSourceError, TestConsistentHash_PropagatesSourceError, TestRandom_PropagatesSourceError
 	if b.closed.Load() {
 		return sd.Picked{}, sd.ErrClosed
 	}
@@ -91,6 +106,10 @@ func (b *strategyBalancer) Pick(ctx context.Context, request any) (sd.Picked, er
 // The guard is defensive: sd.Done asks callers to invoke it once per successful
 // Pick, and a strategy that reserved an in-flight slot would have it released
 // twice by a caller that got that wrong.
+//
+// Stable: balancer.done-forwards-outcome — the Done on a returned Picked
+// forwards the outcome to the strategy that reserved the pick.
+// Covered by: TestNew_ForwardsPickedDone
 func guardDone(strategyDone sd.Done) sd.Done {
 	if strategyDone == nil {
 		return discardOutcome
@@ -113,6 +132,10 @@ func (d *onceDone) report(outcome sd.Outcome) {
 }
 
 func (b *strategyBalancer) Close() error {
+	// Stable: balancer.close-releases-strategy — Close releases a closable
+	// strategy exactly once, through decorators, and a repeated Close is
+	// idempotent.
+	// Covered by: TestNew_CloseReleasesClosableStrategy, TestNew_CloseReachesStrategyThroughDecorators
 	b.closeOnce.Do(func() {
 		b.closed.Store(true)
 		b.closeErr = selector.CloseStrategy(b.strategy)

@@ -21,6 +21,16 @@ type TrustedProxyConfig struct {
 
 // NewTrustedProxy resolves the effective client IP and scheme. Forwarding
 // headers are ignored unless the direct peer matches TrustedProxies.
+//
+// Stable: security.trusted-proxy-chain — forwarding headers move the client
+// IP and scheme only when the direct peer is trusted, the walk consumes only
+// the trusted chain, an untrusted peer's headers change nothing, and a
+// malformed trusted chain is refused.
+// Covered by: TestTrustedProxyUsesOnlyTrustedForwardingChain, TestTrustedProxyIgnoresUntrustedPeerHeaders, TestTrustedProxyRejectsMalformedTrustedHeaders
+//
+// Stable: security.proxy-config-validation — malformed trusted proxies or
+// forwarding header names are construction errors.
+// Covered by: TestProxyAndIPPolicyConfigurationValidation
 func NewTrustedProxy(config TrustedProxyConfig) (Middleware, error) {
 	networks, err := parseNetworks(config.TrustedProxies)
 	if err != nil {

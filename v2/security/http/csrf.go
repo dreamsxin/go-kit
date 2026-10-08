@@ -88,6 +88,30 @@ type csrfPolicy struct {
 // NewCSRF creates signed double-submit-cookie middleware. Safe requests ensure
 // a valid token cookie exists; unsafe requests require the same valid token in
 // the configured header.
+//
+// Stable: security.csrf-double-submit-flow — a safe request with a session
+// mints a signed token cookie, an unsafe request requires it, and an unsafe
+// request without a session is refused while a safe one is served without a
+// token.
+// Covered by: TestCSRFSignedDoubleSubmitFlow, TestCSRFUnsafeRequestWithoutSessionIsRefused, TestCSRFSafeRequestWithoutSessionMintsNoToken
+//
+// Stable: security.csrf-token-binding — a minted token authorizes only the
+// session it was signed for and is not accepted for another user.
+// Covered by: TestCSRFTokenAuthorizesOneSession, TestCSRFMintedTokenIsNotStoredForAnotherUser
+//
+// Stable: security.csrf-origin-check — a missing, tampered, or cross-origin
+// token is denied, a configured trusted origin is allowed, and the same-origin
+// comparison holds behind a TLS-terminating proxy with AssumeHTTPS.
+// Covered by: TestCSRFDeniesMissingTamperedAndCrossOriginTokens, TestCSRFAllowsConfiguredTrustedOrigin, TestCSRFSameOriginHoldsBehindATLSTerminatingProxy
+//
+// Stable: security.csrf-token-expiry — a token stops authorizing once its
+// configured lifetime has elapsed.
+// Covered by: TestCSRFTokenExpires, TestCSRFRejectsATokenExpiredOnTheConfiguredClock
+//
+// Stable: security.csrf-config-validation — a secret below the minimum
+// length, a missing SessionID function, or another unusable setting is a
+// construction error.
+// Covered by: TestCSRFConfigurationValidation
 func NewCSRF(config CSRFConfig) (Middleware, error) {
 	if len(config.Secret) < minCSRFSecretBytes {
 		return nil, fmt.Errorf("httpsecurity: CSRF secret must contain at least %d bytes", minCSRFSecretBytes)

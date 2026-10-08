@@ -24,6 +24,10 @@ type Option func(*Options)
 
 // NewErrorHandler adapts a standard-library slog logger to
 // transport.ErrorHandler. Logger and handler setup remain application owned.
+//
+// Stable: slog.error-handler — NewErrorHandler logs a transport error at Error
+// level with the error attached, and a nil logger falls back to slog.Default().
+// Covered by: TestNewErrorHandlerRecordsError
 func NewErrorHandler(logger *slog.Logger) transport.ErrorHandler {
 	if logger == nil {
 		logger = slog.Default()
@@ -50,6 +54,18 @@ func WithAttrs(attrs func(context.Context) []slog.Attr) Option {
 //
 // A panic is logged at Error level as a panic and left to propagate. The record
 // is emitted from a defer, so a panicking call is never silently unlogged.
+//
+// Stable: slog.record-fields — every endpoint record carries operation,
+// duration, success, and trace_id/request_id when present; WithAttrs adds
+// application-owned attributes without logging request or response payloads.
+// Covered by: TestLoggingMiddlewareRecordsBoundedContext
+//
+// Stable: slog.panic-logged — a panicking call is logged at Error level as a
+// panic, and the panic still propagates.
+// Covered by: TestLoggingMiddlewareLogsAPanic
+//
+// Stable: slog.nil-logger-default — a nil logger falls back to slog.Default().
+// Covered by: TestLoggingMiddlewareUsesDefaultLoggerWhenNil
 func LoggingMiddleware(logger *slog.Logger, operation string, options ...Option) endpoint.Middleware {
 	if logger == nil {
 		logger = slog.Default()

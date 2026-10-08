@@ -80,6 +80,17 @@ type Telemetry struct {
 // Vendor-specific adapters such as observability/otel remain additive:
 // applications append them to the chain themselves, and provider setup stays
 // application owned.
+//
+// Stable: slog.telemetry-order — the assembled chain is tracing outermost,
+// then metrics, then logging innermost, each under its own describe name, so
+// the recorded duration excludes observability overhead and labels survive an
+// appended middleware.
+// Covered by: TestTelemetryChainCorrelatesLogsMetricsAndTrace, TestTelemetryApplyLabels, TestTelemetryLabelsSurviveAnAppendedMiddleware
+//
+// Stable: slog.telemetry-signals — the zero Signals value assembles all three
+// dimensions, dimensions select individually, and logging without an
+// operation is rejected.
+// Covered by: TestTelemetrySelectsSignalsIndividually, TestTelemetryWithoutLoggingNeedsNoOperation, TestNewTelemetryRejectsEmptyOperation
 func NewTelemetry(cfg TelemetryConfig) (*Telemetry, error) {
 	logging := cfg.Signals.has(SignalLogging)
 	if logging && strings.TrimSpace(cfg.Operation) == "" {

@@ -51,6 +51,17 @@ type InstanceEndpointer interface {
 // NewEndpointer creates an Endpointer that subscribes to src and builds
 // Endpoints using f.  It starts a background goroutine to process events;
 // call Close() on the returned value to stop it.
+//
+// Stable: endpointer.subscribe-builds-endpoints — NewEndpointer maintains one
+// endpoint per discovered instance through the Factory, from the initial
+// snapshot through every update; a Factory error skips that instance instead
+// of failing the whole set.
+// Covered by: TestNewEndpointer_ReceivesInstances, TestNewEndpointer_UpdateInstances, TestNewEndpointer_NoInstances, TestNewEndpointer_FactoryError_SkipsInstance
+//
+// Stable: endpointer.cache-error-invalidation — with InvalidateOnError, a
+// service-discovery error clears the endpoints once the timeout has elapsed
+// from the first error.
+// Covered by: TestNewEndpointer_WithInvalidateOnError
 func NewEndpointer(src sd.Instancer, f Factory, logger *slog.Logger, options ...Option) InstanceEndpointer {
 	opts := Options{}
 	for _, opt := range options {
@@ -74,6 +85,11 @@ type DefaultEndpointer struct {
 // Close stops the subscription and releases every endpoint resource the cache
 // owns. The pump is joined before the cache closes, so an event already in
 // flight is applied rather than dropped half-way.
+//
+// Stable: endpointer.close-joins-pump — Close joins the event pump before the
+// cache closes, is idempotent, and is safe to call while an update is in
+// flight.
+// Covered by: TestDefaultEndpointer_CloseIsIdempotentAndSafeDuringUpdate, TestDefaultEndpointer_CloseReleasesEndpointResources
 func (de *DefaultEndpointer) Close() error {
 	de.closeOnce.Do(func() {
 		de.feed.Stop()
