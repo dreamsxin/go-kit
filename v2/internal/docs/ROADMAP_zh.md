@@ -1978,21 +1978,23 @@ go -C ./tools test . -run TestAPICompatibilityWithLastRelease -count=1
 
 工作包：
 
-1. **把 SSE 停机取舍写下来。** `docs/lifecycle.md` 与 `PRODUCTION.md` 说明一条活跃流
-   会花掉组件什么：共享的停机份额与有则全有的 `WithTimeout`。组件级逐路由 deadline
-   覆盖项是刻意不做。
-2. **未钉住包的承诺覆盖。** `observability/slog`、`integrations/zap`、`health`、
-   `integrations/consul`、`integrations/etcd`、`sd/balancer`、`sd/endpointer`，以及
-   `security/http` 未标记的部分，都没有 `Stable:` 标记。逐包审计：真实的承诺就承诺，
-   刻意不承诺的就标记，刷新 `protocol_behaviour.txt`。
-3. **操作意图缝。** 身份（`security.Subject`）、关联（request ID、trace context）、
-   MCP 审计 sink 都在，但一次普通 endpoint 调用没有携带"为什么"的标准通道。`endpoint`
-   增加一个携带 `OperationIntent` 的上下文对，部署方自行决定设置与读取；框架自己
-   不施加任何策略。
-4. **生成的指南教 API 探索。** `.ai/PROJECT_GUIDE.md` 增加阅读顺序、禁止翻源码找
-   API 的规则，以及生成 API 未暴露某操作时的命名停止信号（`MICROGEN_API_GAP`）。
-5. **文档索引按任务路由。** `DOCS_INDEX.md` 与 `docs/index.md` 增加最短阅读路径段。
-   逐包包级 godoc 补强记为后续工作，本里程碑不动。
+1. **把 SSE 停机取舍写下来。** 已落地：`docs/lifecycle.md` 与 `PRODUCTION.md`
+   说明一条活跃流会花掉组件什么——共享的停机份额与有则全有的 `WithTimeout`——
+   上方 M21 条目已把逐路由覆盖项记为刻意不做。
+2. **未钉住包的承诺覆盖。** 已落地：在 `health`、`sd/balancer`、`sd/endpointer`、
+   `observability/slog`、`integrations/zap`、`integrations/consul`、
+   `integrations/etcd`，以及 `security/http` 的 CORS、安全响应头、可信代理、
+   IP 策略与 Chain 各面，新增 76 条 `Stable:` 与一条 `Unstable:`（Consul 注册器
+   不模拟任何冲突模式）；`protocol_behaviour.txt` 已刷新并经过审阅。
+3. **操作意图缝。** 已落地：`endpoint.OperationIntent` 与
+   `WithOperationIntent` / `OperationIntentFromContext` 上下文对，承诺以
+   `endpoint.operation-intent` 钉住；传输映射与消费端归部署方所有
+   （`examples/best_practice`），中间件与可观测性文档均有说明。
+4. **生成的指南教 API 探索。** 已落地：生成的 `.ai/PROJECT_GUIDE.md` 带有阅读
+   顺序、禁止翻查源码的规则与 `MICROGEN_API_GAP` 停止信号，由生成器测试钉住。
+5. **文档索引按任务路由。** 已落地：`DOCS_INDEX.md` 与 `docs/index.md` 写明
+   三层阅读规则与停止信号。逐包包级 godoc 补强仍是后续工作——刻意不在本里程碑
+   开始，因为那是逐包的文档审计，而不是一次机制变更。
 
 验收：
 

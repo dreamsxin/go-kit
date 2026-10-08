@@ -2553,26 +2553,30 @@ ordered by risk, one commit series per item.
 
 Work packages:
 
-1. **The SSE shutdown trade-off, written down.** `docs/lifecycle.md` and
-   `PRODUCTION.md` state what a live stream costs the component: the shared
-   shutdown share and the all-or-nothing `WithTimeout`. A component-level
-   per-route deadline override is a deliberate non-decision.
-2. **Promise coverage for the unpinned packages.** `observability/slog`,
-   `integrations/zap`, `health`, `integrations/consul`, `integrations/etcd`,
-   `sd/balancer`, `sd/endpointer`, and the unmarked parts of `security/http`
-   carry no `Stable:` markers. Audit each: promise what is real, mark what is
-   deliberately not, refresh `protocol_behaviour.txt`.
-3. **An operation-intent seam.** Identity (`security.Subject`), correlation
-   (request ID, trace context), and the MCP audit sink exist, but a plain
-   endpoint call has no standard way to carry why it is happening. `endpoint`
-   grows a context pair carrying an `OperationIntent` that deployments choose
-   to set and choose to read; the framework applies no policy of its own.
-4. **The generated guide teaches API discovery.** `.ai/PROJECT_GUIDE.md` gains
-   the reading order, the no-source-grep rule, and a named stop signal
-   (`MICROGEN_API_GAP`) for an operation the generated API does not expose.
-5. **The docs index routes by task.** `DOCS_INDEX.md` and `docs/index.md` gain
-   shortest-reading-path sections. Package-level godoc deepening is recorded
-   as future work, not begun here.
+1. **The SSE shutdown trade-off, written down.** Landed: `docs/lifecycle.md`
+   and `PRODUCTION.md` state what a live stream costs the component — the
+   shared shutdown share and the all-or-nothing `WithTimeout` — and the
+   M21 bullet above records the per-route override as a deliberate
+   non-decision.
+2. **Promise coverage for the unpinned packages.** Landed: 76 `Stable:`
+   entries and one `Unstable:` (Consul registrar emulates no conflict mode)
+   across `health`, `sd/balancer`, `sd/endpointer`, `observability/slog`,
+   `integrations/zap`, `integrations/consul`, `integrations/etcd`, and the
+   CORS, headers, proxy, IP-policy, and chain surfaces of `security/http`;
+   `protocol_behaviour.txt` refreshed and reviewed.
+3. **An operation-intent seam.** Landed: `endpoint.OperationIntent` with
+   `WithOperationIntent` / `OperationIntentFromContext`, promised as
+   `endpoint.operation-intent`; the transport mapping and consumers stay
+   deployment-owned (`examples/best_practice`), documented in the middleware
+   and observability pages.
+4. **The generated guide teaches API discovery.** Landed: the generated
+   `.ai/PROJECT_GUIDE.md` carries the reading order, the no-source-grep rule,
+   and the `MICROGEN_API_GAP` stop signal, pinned by the generator test.
+5. **The docs index routes by task.** Landed: `DOCS_INDEX.md` and
+   `docs/index.md` state the three-layer reading rule and the stop signal.
+   Package-level godoc deepening remains open future work — deliberately not
+   begun here, because it is a per-package documentation audit, not a
+   mechanism change.
 
 Acceptance:
 
