@@ -122,6 +122,31 @@ left, and returns an error wrapping `kit.ErrShutdownIncomplete` that says how ma
 requests were interrupted. It does not return while a connection it owns is still
 open.
 
+### The trade-off a live stream makes
+
+Both protections on this page are component-wide, and a stream lives inside both.
+
+The shutdown share is shared. `Shutdown` cannot tell a stream that should end at
+drain time from a JSON handler stuck on a slow query; it waits for every handler
+up to the budget. One stream handler that watches neither `kit.Stopping` nor the
+client disconnect spends the whole share, and every rolling deploy that catches
+that stream ends with `kit.ErrShutdownIncomplete`. The select at the top of this
+section is not a nicety: a stream that ignores the signal turns every restart
+into a hard cut of every in-flight request in the component.
+
+The deadline is all-or-nothing. `kit.WithTimeout` bounds every route in the
+component -- including the stream -- and there is no per-route override at the
+component level. A component hosting a stream therefore leaves `WithTimeout`
+unset and bounds its finite routes individually instead: `endpoint.TimeoutMiddleware`
+through the `Builder` (`Builder.WithTimeout`, or `kit.HandleJSONTypedWithMiddleware`
+on the one route). The stream keeps the lifetime its client gives it; every route
+that should have a deadline still gets one.
+
+The framework does not choose between the two per route. The handler that opened
+the stream is the only place that knows what kind of handler it is, which is why
+both escape hatches -- the stopping signal and the per-endpoint deadline -- live
+there.
+
 ## Upgraded connections are not drained
 
 One connection is outside all of it. Once a handler calls `Hijack` -- a WebSocket, or

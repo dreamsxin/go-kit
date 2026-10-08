@@ -1759,7 +1759,9 @@ go -C ./tools test . -run TestMicrogen -count=1
 
 - 一条活着的 SSE 流会吃掉 HTTP 组件停机预算的全部份额，于是任何撞上开着的流的滚动发布都会产出
   `ErrShutdownIncomplete`；`WithTimeout` 是组件级的、没有按路由的出口，于是要托管一条长流就得把它旁边
-  JSON 路由的 deadline 也一起去掉。两者都是代码已经写明的机制，但这个取舍没有被写下来。
+  JSON 路由的 deadline 也一起去掉。这个取舍本身现在已经写下来了（`docs/lifecycle.md`、`PRODUCTION.md`，
+  双语）。组件级的逐路由 deadline 覆盖项保持为刻意不做：流旁边的有限路由用逐端点的
+  `endpoint.TimeoutMiddleware` 就能约束住，而组件级覆盖项只会让某条流路由重新选择被切断。
 - `kit/sse.go` 里那个范例只 select `ctx.Done()`，忽略了 `Stopping` 通告，和 `kit/drain.go` 里的范例自相
   矛盾——而写 SSE 的人读的是前者。现在它两个都看。
 - 门禁元审计找出的两处"空绿"已经修掉（没有 tag 的检出、带外刷新快照），还有一处那个版本没修：
@@ -1966,6 +1968,40 @@ go -C ./tools test . -run TestAPICompatibilityWithLastRelease -count=1
   第四个变体，而这个仓库其余部分对这件事用的是函数式选项——`feedback.WithClock`、
   `feedback.WithEjectorClock`。诚实的形状是 `retry.New(balancer, opts...)`，把现有三个保留为便捷包装。
   那是一次公开 API 新增，带着它自己的快照与文档工作，所以记在这里，而不是在一次会话的末尾半途搭起来。
+
+## 里程碑 25（进行中）：承诺的运行时那一半
+
+目标：门禁已经说明了框架承诺什么；本里程碑给使用方一个标准方式去说明"这一次请求是
+为了什么"，补上剩下的承诺覆盖缺口，并让文档按渐进方式披露。缺口来自一次对照
+"模型中介 harness 模式"的评审：意图作为一等 API 参数、防猜测的契约纪律、渐进披露、
+承诺覆盖到每个包。工作按风险排序，每项一个独立的 commit 系列。
+
+工作包：
+
+1. **把 SSE 停机取舍写下来。** `docs/lifecycle.md` 与 `PRODUCTION.md` 说明一条活跃流
+   会花掉组件什么：共享的停机份额与有则全有的 `WithTimeout`。组件级逐路由 deadline
+   覆盖项是刻意不做。
+2. **未钉住包的承诺覆盖。** `observability/slog`、`integrations/zap`、`health`、
+   `integrations/consul`、`integrations/etcd`、`sd/balancer`、`sd/endpointer`，以及
+   `security/http` 未标记的部分，都没有 `Stable:` 标记。逐包审计：真实的承诺就承诺，
+   刻意不承诺的就标记，刷新 `protocol_behaviour.txt`。
+3. **操作意图缝。** 身份（`security.Subject`）、关联（request ID、trace context）、
+   MCP 审计 sink 都在，但一次普通 endpoint 调用没有携带"为什么"的标准通道。`endpoint`
+   增加一个携带 `OperationIntent` 的上下文对，部署方自行决定设置与读取；框架自己
+   不施加任何策略。
+4. **生成的指南教 API 探索。** `.ai/PROJECT_GUIDE.md` 增加阅读顺序、禁止翻源码找
+   API 的规则，以及生成 API 未暴露某操作时的命名停止信号（`MICROGEN_API_GAP`）。
+5. **文档索引按任务路由。** `DOCS_INDEX.md` 与 `docs/index.md` 增加最短阅读路径段。
+   逐包包级 godoc 补强记为后续工作，本里程碑不动。
+
+验收：
+
+```bash
+go test ./endpoint/ ./health/ ./sd/balancer/ ./sd/endpointer/ ./observability/... -count=1
+go test ./integrations/... ./security/... -count=1
+go -C ./tools test . -run "TestStableProtocolBehaviour|TestPublicAPISurfaceSnapshot|TestAgentGuide" -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
 
 ## 维护规则
 

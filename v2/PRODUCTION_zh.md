@@ -409,6 +409,10 @@ ENTRYPOINT ["/service"]
 - `terminationGracePeriodSeconds` 必须大于 kit 停机超时
   （`kit.WithShutdownTimeout`，默认 10 秒）加上平台负载均衡器注销延迟，
   否则在途请求会在停机途中被切断；
+- 承载长流（SSE、chunked、轮询）的组件，其流 handler 必须在 `kit.Stopping` 上结束
+  （见生命周期）：无视该信号的 handler 会花光整个停机份额，于是每一次恰逢活跃流的
+  滚动发布都会以 `kit.ErrShutdownIncomplete` 收尾。组件里有流时，改为逐端点约束有限
+  路由，而不是用 `kit.WithTimeout`——那会把流自己一起切掉；
 - 入口已经在 `SIGTERM` 时取消 `Host.Run`（见生命周期）；优先用
   `kit.WithDrainDelay` 而不是 `preStop` sleep——Host 先让 readiness 失败再等待，
   于是 Pod 在仍然应答的同时就停止声称自己就绪，这是单靠 `preStop` sleep 表达不出来的。
@@ -447,6 +451,8 @@ ENTRYPOINT ["/service"]
 
 - 配置在部署环境中通过校验。
 - HTTP/gRPC 限制与超时匹配工作负载。
+- 流 handler 在 `kit.Stopping` 上结束；承载流的组件对有限路由逐端点设截止时间，而
+  不是用 `kit.WithTimeout`。
 - 启用 MCP 时写超时支持长时响应。
 - 用 `SIGTERM` 演练过停机。
 - 终止宽限期大于 kit 停机超时加注销延迟。

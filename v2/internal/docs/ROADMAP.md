@@ -2260,8 +2260,11 @@ Recorded with file and line, not yet acted on:
 - A live SSE stream burns the HTTP component's whole shutdown share and produces
   `ErrShutdownIncomplete` on any rolling deploy that catches one; `WithTimeout` is
   component-wide with no per-route escape, so hosting a long stream means dropping the
-  deadline for the JSON routes beside it. Both are mechanisms the code states; the
-  trade-off is not written down.
+  deadline for the JSON routes beside it. The trade-off itself is now written down
+  (`docs/lifecycle.md`, `PRODUCTION.md`, both languages). A component-level per-route
+  deadline override stays a deliberate non-decision: per-endpoint
+  `endpoint.TimeoutMiddleware` already bounds the finite routes beside a stream, and a
+  component-level override would only let a stream route opt back into being cut.
 - The canonical SSE example in `kit/sse.go` selected only on `ctx.Done()` and ignored
   the `Stopping` announcement, contradicting the drain example in `kit/drain.go` — and
   the SSE one is the one an SSE author reads. It now watches both.
@@ -2537,6 +2540,48 @@ backoff tests; the following records why it was deferred from v2.22.0.
   `retry.New(balancer, opts...)` with the existing three kept as convenience wrappers.
   That is a public API addition with its own snapshot and documentation work, so it is
   recorded here rather than half-built at the end of a session.
+
+## Milestone 25 (In Progress): The Runtime Side Of The Promise
+
+Goal: the gates already state what the framework promises; this milestone gives
+consumers a standard way to state what a request is for, closes the remaining
+promise-coverage holes, and makes the documentation disclose progressively. The
+gaps were found by reviewing the framework against the model-mediated harness
+pattern: intent as a first-class API parameter, anti-guessing contract
+discipline, progressive disclosure, and promise coverage everywhere. Work is
+ordered by risk, one commit series per item.
+
+Work packages:
+
+1. **The SSE shutdown trade-off, written down.** `docs/lifecycle.md` and
+   `PRODUCTION.md` state what a live stream costs the component: the shared
+   shutdown share and the all-or-nothing `WithTimeout`. A component-level
+   per-route deadline override is a deliberate non-decision.
+2. **Promise coverage for the unpinned packages.** `observability/slog`,
+   `integrations/zap`, `health`, `integrations/consul`, `integrations/etcd`,
+   `sd/balancer`, `sd/endpointer`, and the unmarked parts of `security/http`
+   carry no `Stable:` markers. Audit each: promise what is real, mark what is
+   deliberately not, refresh `protocol_behaviour.txt`.
+3. **An operation-intent seam.** Identity (`security.Subject`), correlation
+   (request ID, trace context), and the MCP audit sink exist, but a plain
+   endpoint call has no standard way to carry why it is happening. `endpoint`
+   grows a context pair carrying an `OperationIntent` that deployments choose
+   to set and choose to read; the framework applies no policy of its own.
+4. **The generated guide teaches API discovery.** `.ai/PROJECT_GUIDE.md` gains
+   the reading order, the no-source-grep rule, and a named stop signal
+   (`MICROGEN_API_GAP`) for an operation the generated API does not expose.
+5. **The docs index routes by task.** `DOCS_INDEX.md` and `docs/index.md` gain
+   shortest-reading-path sections. Package-level godoc deepening is recorded
+   as future work, not begun here.
+
+Acceptance:
+
+```bash
+go test ./endpoint/ ./health/ ./sd/balancer/ ./sd/endpointer/ ./observability/... -count=1
+go test ./integrations/... ./security/... -count=1
+go -C ./tools test . -run "TestStableProtocolBehaviour|TestPublicAPISurfaceSnapshot|TestAgentGuide" -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
 
 ## Maintenance Rules / 维护规则
 

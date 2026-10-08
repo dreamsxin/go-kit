@@ -108,6 +108,25 @@ channel 接收会永久阻塞，所以上面的 select 两种情况下都是对�
 剩下的连接，并返回一个包着 `kit.ErrShutdownIncomplete` 的错误，说明打断了多少个请求。
 它不会在自己拥有的连接仍然打开时返回。
 
+### 一条活跃流给组件带来的权衡
+
+本页的两道保护都是组件级的，而流同时活在两者里面。
+
+关闭份额是共享的。`Shutdown` 分不清一条"该在 drain 时结束"的流和一个卡在慢查询上的
+JSON handler；它对每个 handler 都等到预算用尽。一个既不看 `kit.Stopping`、也不看客户端
+断开的流 handler 会花光整个份额，而每一次恰逢这条流还活跃的滚动发布都会以
+`kit.ErrShutdownIncomplete` 告终。本节开头的 select 不是锦上添花：无视该信号的流会把组件
+内每一次重启都变成对所有在途请求的硬切断。
+
+超时是有则全有、无则全无。`kit.WithTimeout` 约束组件内的每一条路由——包括流——而组件级
+没有逐路由的覆盖项。因此承载流的组件不设 `WithTimeout`，改为逐端点约束有限路由：通过
+`Builder` 使用 `endpoint.TimeoutMiddleware`（`Builder.WithTimeout`，或对单条路由用
+`kit.HandleJSONTypedWithMiddleware`）。流保留客户端给它的生命周期；每条应当有截止时间的
+路由仍然有。
+
+框架不替任何一条路由在两者之间做选择。打开流的那段 handler 是唯一知道自己是哪种 handler
+的地方，所以两个逃生口——停止信号与逐端点截止时间——都留在那里。
+
 ## 被 hijack 的连接不会被 drain
 
 有一类连接在这一切之外。一旦 handler 调用了 `Hijack`——WebSocket，或任何其它协议升级——

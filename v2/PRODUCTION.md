@@ -484,6 +484,12 @@ budget with the framework's shutdown timeout:
 - `terminationGracePeriodSeconds` must exceed the kit shutdown timeout
   (`kit.WithShutdownTimeout`, default 10s) plus the platform's load-balancer
   deregistration delay, or in-flight requests are cut mid-shutdown;
+- a component that serves long streams (SSE, chunked, poll) needs its stream
+  handlers to end on `kit.Stopping` (Lifecycle): one that ignores the signal
+  spends the entire shutdown share, so every rolling deploy that catches a live
+  stream finishes with `kit.ErrShutdownIncomplete`. With a stream in the
+  component, bound the finite routes per endpoint instead of via
+  `kit.WithTimeout`, which would cut the stream itself;
 - the entry point already cancels `Host.Run` on `SIGTERM` (see
   Lifecycle); prefer `kit.WithDrainDelay` over a `preStop` sleep — the Host fails
   readiness first and then waits, so the pod stops claiming to be ready while it is
@@ -529,6 +535,8 @@ dependency's on-call, not the caller's.
 
 - Configuration validates in the deployment environment.
 - HTTP/gRPC limits and timeouts match the workload.
+- Stream handlers end on `kit.Stopping`, and a component hosting streams bounds
+  its finite routes per endpoint rather than with `kit.WithTimeout`.
 - MCP write timeout supports long-lived responses when enabled.
 - Shutdown is exercised with `SIGTERM`.
 - Termination grace period exceeds the kit shutdown timeout plus
