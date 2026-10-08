@@ -34,6 +34,11 @@ English | [简体中文](CHANGELOG_zh.md)
   zero value, and the transport mapping and the consumers stay
   deployment-owned. `examples/best_practice` demonstrates both halves; the
   promise is pinned as `endpoint.operation-intent`.
+- The generated `.ai/PROJECT_GUIDE.md` gains an API Discovery Protocol: the
+  reading order (guide, README, godoc), the rule against hand-editing or
+  grepping generator-owned files, and a named stop signal —
+  `MICROGEN_API_GAP` with the language, service, missing operation, and
+  compiler diagnostic — for an operation the generated API does not expose.
 
 ### Fixed
 

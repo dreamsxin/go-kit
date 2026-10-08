@@ -84,6 +84,8 @@ func TestGenerateFull_Interaction(t *testing.T) {
 	mustContain(t, guidePath, "POST /mcp")
 	mustContain(t, guidePath, "cmd/generated_interaction.go")
 	mustContain(t, guidePath, "Validation Commands")
+	mustContain(t, guidePath, "API Discovery Protocol")
+	mustContain(t, guidePath, "MICROGEN_API_GAP")
 
 	readmePath := filepath.Join(outDir, "README.md")
 	mustNotExist(t, readmePath) // WithDocs=false

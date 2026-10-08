@@ -25,6 +25,9 @@
   写操作的审计原因。框架不对意图施加任何策略：不要求、不校验、也不由框架记录，
   缺席或零值的意图读回零值，传输映射与消费端都归部署方所有。`examples/best_practice`
   演示了两半；承诺以 `endpoint.operation-intent` 钉住。
+- 生成的 `.ai/PROJECT_GUIDE.md` 新增 API 探索协议：阅读顺序（指南、README、
+  godoc）、禁止手改或翻查生成文件找 API 的规则，以及生成 API 未暴露所需操作时的
+  命名停止信号——`MICROGEN_API_GAP`，附语言、服务、缺失操作与编译器诊断。
 
 ### 修复
 

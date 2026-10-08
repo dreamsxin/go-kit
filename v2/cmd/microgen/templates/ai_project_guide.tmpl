@@ -37,6 +37,23 @@ Generator-owned (do not hand-edit; use `microgen extend`):
 - `cmd/generated_interaction.go`
 {{- end }}
 
+## API Discovery Protocol
+
+Work in this order, and never guess at a generated name:
+
+1. **Read this guide first**, then the project `README.md` and the generated
+   `docs` package.
+2. **Godoc is the API reference.** Generated declarations carry their contracts
+   as doc comments; `go doc ./model` and `go doc ./endpoint/<name>` answer most
+   questions without opening the files.
+3. **Never hand-edit generator-owned files**, and never grep or read generated
+   source to discover an API this guide and godoc do not show. When the model
+   itself must change, run `microgen extend -check -out .` and extend the model.
+4. **If the generated API does not expose the operation you need**, stop that
+   path and report `MICROGEN_API_GAP` with the language, the service, the
+   missing operation, and the compiler diagnostic. A reported gap is progress;
+   a guessed method name is a defect.
+
 ## AI-Facing Endpoints
 
 {{- if .WithInteraction }}
