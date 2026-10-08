@@ -6,6 +6,21 @@ Choose the shortest document for the job. The [book](docs/index.md) gives the
 end-to-end path; package READMEs are the API reference; the root guides cover
 generation, architecture, production, and upgrades.
 
+## How To Read Less
+
+Three layers, and stop as soon as your question is answered:
+
+1. **This index** — pick the one row that matches your job.
+2. **One topic document** from that row — read it, not the neighbouring ones.
+3. **Godoc** for the exact contracts of the symbols that document introduced
+   (`go doc ./endpoint`, `go doc ./sd/endpointer` — or your editor's hover).
+
+Do not read framework implementation to learn an API: the doc comments carry
+the contracts. Generated projects carry their own `.ai/PROJECT_GUIDE.md` with
+the same rule, including the named stop signal — `MICROGEN_API_GAP` — for an
+operation the generated API does not expose: report it rather than search
+generated source.
+
 ## Start Here
 
 | Goal | Document |

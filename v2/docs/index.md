@@ -5,6 +5,11 @@ English | [简体中文](index_zh.md)
 Use this book to complete a task end to end. Use package README files when you
 need the complete API reference.
 
+Read in layers, and stop when your question is answered: pick one path below,
+read the one document it names, then drop to godoc for exact symbol contracts.
+The framework's implementation is not reading material — the doc comments carry
+the contracts.
+
 ## Choose A Path
 
 | I want to... | Read first | Then use |
