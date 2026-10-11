@@ -25,3 +25,6 @@ tools/__pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# local sqlite fixtures
+*.db
