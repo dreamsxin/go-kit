@@ -25,6 +25,20 @@ English | [简体中文](CHANGELOG_zh.md)
   `security.contract-middleware`.
 - `security.RequireAnyRole(roles...)` — the any-of reading of a role list,
   the shape IDL-declared roles need.
+- Both features reach the `.proto` source: protovalidate field options
+  (`string.min_len`/`max_len`, numeric `gte`/`lte`, `in` lists, in either the
+  aggregate or separate-option spelling) become the same contract
+  constraints, and `auth:` directives parse from the RPC's comment — refused
+  at generation time when malformed. A multi-line RPC comment is read in
+  full. Verified against a generated proto project: the contract carries the
+  minimum bound and the security requirement, and the endpoints enforce the
+  declared auth.
+- `client.HandleSSE[T]` — the client-side mirror of the server's typed SSE
+  routes: connects with GET and Accept: text/event-stream, decodes each
+  framed event's JSON data into T, consumes comment/id/retry fields, surfaces
+  non-2xx answers as the classified status error, and blocks with the same
+  shape the server's stream function has. A stream typed string receives the
+  raw payload. Promised as `http.sse-client`.
 
 - `client.NewTypedJSONClient[Req, Resp]` is the client-side mirror of the
   server's typed JSON routes, one rule on both sides of the wire: GET and

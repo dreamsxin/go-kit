@@ -254,8 +254,10 @@ type CreateUserRequest struct {
 （`validation.username.minLen`）；类型化的 kit 路由经同一个包执行相同 tag，手写
 服务与生成服务以同样的错误拒绝同样的请求。`default` 是契约携带的表单提示——任
 何东西都不执行它。从数据库生成的项目直接从 DDL 推导约束：`varchar(n)` 列界定字
-符串长度，`enum(...)` 列列出取值，无需写任何 tag。tag 里的未知规则或畸形值在生成
-期即被拒绝。
+符串长度，`enum(...)` 列列出取值，无需写任何 tag。`.proto` 源以同样方式从
+protovalidate 字段选项推导——`string.min_len`/`max_len`、数值 `gte`/`lte` 与
+`in` 列表——聚合与分离命名两种写法都支持。tag 里的未知规则或畸形值在生成期即被
+拒绝。
 
 ### 声明式认证
 
@@ -286,7 +288,8 @@ UpdateUser(ctx context.Context, req UpdateUserRequest) (UpdateUserResponse, erro
 key）留在应用的 HTTP 边界；见[认证教程](docs/tutorial-auth_zh.md)与 `security`
 包。
 
-认证注解之前生成的项目还没有该钩子——把这两个函数加进 `service.go`（或重新生
+同样的 `auth:` 行也适用于 `.proto` 源：指令从 RPC 的注释中解析，生成的 OpenAPI
+文档与传输以相同方式执行。认证注解之前生成的项目还没有该钩子——把这两个函数加进 `service.go`（或重新生
 成到新目录）就是全部迁移；在那之前，带注解的方法持续 fail-closed。
 
 ## 依据契约生成前端

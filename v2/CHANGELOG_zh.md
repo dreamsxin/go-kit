@@ -18,6 +18,15 @@
   有生成的强制；保护整个表面仍是部署的决策。承诺为 `security.contract-middleware`。
 - `security.RequireAnyRole(roles...)`——角色列表的 any-of 语义，IDL 声明角色所需
   的形状。
+- 两项特性同样覆盖 `.proto` 源：protovalidate 字段选项
+  （`string.min_len`/`max_len`、数值 `gte`/`lte`、`in` 列表，聚合与分离命名两种写
+  法均支持）成为相同的契约约束；`auth:` 指令从 RPC 注释解析——畸形即生成期拒绝。
+  多行 RPC 注释完整读取。已对生成的 proto 项目实测：契约携带下界与安全要求，端点
+  执行声明的认证。
+- `client.HandleSSE[T]`——服务端类型化 SSE 路由的客户端镜像：以 GET 与
+  Accept: text/event-stream 连接，把每个帧事件的 JSON 数据解码为 T，消费注释/
+  id/retry 字段，非 2xx 应答以分类的状态错误呈现，并以与服务端流函数相同的阻塞
+  形态工作。事件类型为 string 的流接收原始负载。承诺为 `http.sse-client`。
 
 - `client.NewTypedJSONClient[Req, Resp]` 是服务端类型化 JSON 路由的客户端镜像，
   线路两侧同一条规则：GET 与 HEAD 从请求结构体填充 URL 占位符与查询串，其他方法

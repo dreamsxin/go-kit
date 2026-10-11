@@ -277,6 +277,9 @@ reject the same request with the same error. `default` is a form hint the
 contract carries — nothing enforces it. Projects generated from a database
 derive the constraints from the DDL itself: a `varchar(n)` column bounds its
 string, and an `enum(...)` column lists its values, with no tag to write.
+A `.proto` source derives them the same way from protovalidate field options —
+`string.min_len`/`max_len`, numeric `gte`/`lte`, and `in` lists — in either
+the aggregate or the separate named-option spelling.
 An unknown rule or a malformed value in the tag is refused at generation time.
 
 ### Declared Authentication
