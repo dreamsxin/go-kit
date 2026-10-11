@@ -17,3 +17,6 @@ coverage.html
 # OS
 .DS_Store
 Thumbs.db
+
+# ZCode session-local planning material
+.zcode/
