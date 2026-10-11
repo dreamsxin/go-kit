@@ -103,6 +103,7 @@ class BaseClient {
 export interface CreateUserRequest {
   "username": string;
   "email": string;
+  "status": string;
 }
 
 export interface CreateUserResponse {

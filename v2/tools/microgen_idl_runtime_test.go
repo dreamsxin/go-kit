@@ -62,7 +62,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
 		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusNotFound, "404 page not found")
 		expectStatusContains(t, "GET", baseURL+"/skill", "", http.StatusNotFound, "404 page not found")
-		expectJSONStatusContains(t, "POST", baseURL+"/createuser", `{"username":"alice","email":"alice@example.com"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+		expectJSONStatusContains(t, "POST", baseURL+"/createuser", `{"username":"alice","email":"alice@example.com","status":"active"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 	})
 
 	t.Run("IDL_MinimalProject_BuildsAndRunsWithoutOptionalFeatures", func(t *testing.T) {
@@ -193,9 +193,9 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		waitServer(t, baseURL+"/health")
 		smokeTest{method: "GET", path: "/health", want: "ok"}.run(t, baseURL)
 		expectStatusContains(t, "GET", baseURL+"/debug/routes", "", http.StatusNotFound, "404 page not found")
-		expectJSONStatusContains(t, "POST", baseURL+"/api/runtime/userservice/createuser", `{"username":"alice","email":"alice@example.com"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+		expectJSONStatusContains(t, "POST", baseURL+"/api/runtime/userservice/createuser", `{"username":"alice","email":"alice@example.com","status":"active"}`, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
 
-		resp, err := http.Post(baseURL+"/createuser", "application/json", strings.NewReader(`{"username":"alice","email":"alice@example.com"}`))
+		resp, err := http.Post(baseURL+"/createuser", "application/json", strings.NewReader(`{"username":"alice","email":"alice@example.com","status":"active"}`))
 		if err != nil {
 			t.Fatalf("POST /createuser: %v", err)
 		}
@@ -303,6 +303,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 		_, err := client.CreateUser(context.Background(), idl.CreateUserRequest{
 			Username: "sdk-user",
 			Email:    "sdk@example.com",
+			Status:   "active",
 		})
 		if err == nil {
 			panic("expected generated sdk call to surface scaffold error")

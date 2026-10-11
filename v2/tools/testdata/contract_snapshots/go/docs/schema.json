@@ -10,6 +10,15 @@
           "type": "string",
           "example": "email"
         },
+        "status": {
+          "type": "string",
+          "example": "status",
+          "enum": [
+            "active",
+            "suspended"
+          ],
+          "default": "active"
+        },
         "username": {
           "type": "string",
           "example": "username",
@@ -20,6 +29,7 @@
       "additionalProperties": false,
       "required": [
         "email",
+        "status",
         "username"
       ]
     },

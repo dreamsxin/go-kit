@@ -394,7 +394,7 @@ func main() {
 	endpoints := userserviceendpoint.MakeServerEndpoints(svc, logger)
 	handler := userservicetransport.NewHTTPHandler(endpoints)
 
-	reqBody := []byte(` + "`" + `{"username":"component-user","email":"component@example.com"}` + "`" + `)
+	reqBody := []byte(` + "`" + `{"username":"component-user","email":"component@example.com","status":"active"}` + "`" + `)
 	req := httptest.NewRequest(http.MethodPost, "/createuser", bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()

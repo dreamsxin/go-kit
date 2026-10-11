@@ -180,7 +180,7 @@ func TestMicrogenInteractionIntegration(t *testing.T) {
 			"method":  "tools/call",
 			"params": map[string]any{
 				"name":      "CreateUser",
-				"arguments": map[string]any{"username": "alice", "email": "alice@example.com"},
+				"arguments": map[string]any{"username": "alice", "email": "alice@example.com", "status": "active"},
 			},
 		})
 		if resp["error"] != nil {

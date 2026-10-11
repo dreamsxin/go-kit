@@ -16,6 +16,7 @@ type User struct {
 type CreateUserRequest struct {
 	Username string `json:"username" validate:"minLen=1,maxLen=64"`
 	Email    string `json:"email"`
+	Status   string `json:"status" validate:"enum=active|suspended,default=active"`
 }
 
 type CreateUserResponse struct {
