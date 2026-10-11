@@ -195,7 +195,8 @@ Run it from the `v2/` module directory and try the rows from the goal table:
 ```bash
 go run ./examples/auth
 curl -i -X POST http://localhost:8080/api/me -d '{}'                                  # 401
-curl -H "Authorization: Bearer reader-key" -X POST http://localhost:8080/api/me -d '{}'  # 200
+curl -H "Authorization: Bearer reader-key" -H "Content-Type: application/json" \
+     -X POST http://localhost:8080/api/me -d '{}'                           # 200
 curl -i -H "Authorization: Bearer reader-key" http://localhost:8080/api/admin          # 403
 curl -H "Authorization: Bearer admin-key" http://localhost:8080/api/admin              # 200
 curl http://localhost:8080/health                                                      # 200

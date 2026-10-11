@@ -21,7 +21,9 @@
 //
 //	# Reader key: 200 with the caller identity
 //	curl -X POST http://localhost:8080/api/me \
-//	     -H "Authorization: Bearer reader-key" -d '{}'
+//	     -H "Authorization: Bearer reader-key" \
+//	     -H "Content-Type: application/json" \
+//	     -d '{}'
 //
 //	# Reader key on the admin route: 403 permission denied
 //	curl -i -H "Authorization: Bearer reader-key" http://localhost:8080/api/admin

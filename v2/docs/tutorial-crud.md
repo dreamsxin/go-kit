@@ -137,7 +137,9 @@ to the repository workspace:
 ```bash
 go run ./examples/todosvc
 
-curl -X POST http://localhost:8080/todos -d '{"title":"write the tutorial"}'
+curl -X POST http://localhost:8080/todos \
+     -H "Content-Type: application/json" \
+     -d '{"title":"write the tutorial"}'
 curl http://localhost:8080/todos
 curl -X POST http://localhost:8080/todos/1/done
 curl -i -X DELETE http://localhost:8080/todos/1

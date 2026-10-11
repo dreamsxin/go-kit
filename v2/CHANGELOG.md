@@ -31,6 +31,13 @@ English | [简体中文](CHANGELOG_zh.md)
   `go test ./...` died in a nil-pointer dereference inside the logging
   middleware instead of reporting the not-implemented stubs. The demos now
   pass a discard logger.
+- The CRUD and authentication tutorials' example curl calls left out
+  `Content-Type: application/json`, so the documented commands were answered
+  415 by the strict JSON decoding they teach. All five tutorials were then
+  executed step by step against the released version: getting-started,
+  generating a service (install, generate, run, extend), the CRUD service,
+  authentication (all five rows of its goal table), and the MCP server on
+  both protocol revisions.
 
 ### Documentation
 
