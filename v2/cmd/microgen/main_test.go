@@ -125,9 +125,9 @@ func TestConfigValidateExtend(t *testing.T) {
 			want: "not supported for -append-service, -append-model, or -append-middleware",
 		},
 		{
-			name: "missing append target",
-			cfg:  config{idlPath: "combined.go"},
-			want: "requires -append-service <Name>, -append-model <Name>, or -append-middleware <Name[,Name...]>",
+			name: "refresh without idl and without a project contract copy",
+			cfg:  config{},
+			want: "extend refresh requires -idl with a full combined Go IDL contract",
 		},
 		{
 			name: "multiple append targets",
@@ -138,7 +138,7 @@ func TestConfigValidateExtend(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tc.cfg.validateExtend()
+			_, err := tc.cfg.validateExtend()
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("validateExtend() error = %v, want substring %q", err, tc.want)
 			}
@@ -148,36 +148,35 @@ func TestConfigValidateExtend(t *testing.T) {
 
 func TestConfigValidateExtend_PassesForSupportedAppendService(t *testing.T) {
 	cfg := config{idlPath: "combined.go", appendSvc: "OrderService"}
-	if err := cfg.validateExtend(); err != nil {
+	if _, err := cfg.validateExtend(); err != nil {
 		t.Fatalf("validateExtend() error = %v, want nil", err)
 	}
 }
 
 func TestConfigValidateExtend_PassesForSupportedAppendModel(t *testing.T) {
 	cfg := config{idlPath: "combined.go", appendModel: "Product"}
-	if err := cfg.validateExtend(); err != nil {
+	if _, err := cfg.validateExtend(); err != nil {
 		t.Fatalf("validateExtend() error = %v, want nil", err)
 	}
 }
 
 func TestConfigValidateExtend_PassesForSupportedAppendMiddleware(t *testing.T) {
 	cfg := config{idlPath: "combined.go", appendMW: []string{"tracing", "metrics"}}
-	if err := cfg.validateExtend(); err != nil {
+	if _, err := cfg.validateExtend(); err != nil {
 		t.Fatalf("validateExtend() error = %v, want nil", err)
 	}
 }
 
 func TestConfigValidateExtend_PassesForCheckMode(t *testing.T) {
 	cfg := config{outputDir: "project", checkOnly: true}
-	if err := cfg.validateExtend(); err != nil {
+	if _, err := cfg.validateExtend(); err != nil {
 		t.Fatalf("validateExtend() error = %v, want nil", err)
 	}
 }
 
 func TestConfigValidateExtend_RejectsCheckWithMutation(t *testing.T) {
 	cfg := config{outputDir: "project", checkOnly: true, appendSvc: "OrderService"}
-	err := cfg.validateExtend()
-	if err == nil || !strings.Contains(err.Error(), "-check cannot be combined") {
+	if _, err := cfg.validateExtend(); err == nil || !strings.Contains(err.Error(), "-check cannot be combined") {
 		t.Fatalf("validateExtend() error = %v, want check/mutation guidance", err)
 	}
 }

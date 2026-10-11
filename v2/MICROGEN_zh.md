@@ -389,37 +389,44 @@ APP_DB_AUTO_MIGRATE=true
 
 ## 扩展既有项目
 
-extend 模式当前只接受完整合并的 Go IDL 契约，不支持 Protobuf 输入。
+项目自带完整契约：`idl.go`，与代码并列存放，并由每次 extend 更新。就地编辑它再
+执行 extend，就是增量循环。
 
-先运行只读兼容性扫描：
-
-```bash
-microgen extend -check -out .
-```
-
-追加一个服务或模型，或一组受支持的中间件：
+**刷新**——服务多了方法、类型变了、加了 validate 标签。编辑 `idl.go`，然后不带
+任何追加标志运行 extend：能力来自 manifest，所有生成器持有的工件被刷新，你的文
+件不会被写入：
 
 ```bash
-microgen extend \
-  -idl full_combined.go \
-  -out . \
-  -append-service OrderService
-
-microgen extend \
-  -idl full_combined.go \
-  -out . \
-  -append-model Product
-
-microgen extend \
-  -idl full_combined.go \
-  -out . \
-  -append-middleware tracing,error-handling,metrics
+microgen extend -out .
 ```
 
-extend 模式更新新文件与生成器持有的聚合文件。追加服务或模型时，若契约
-输出已启用，还会刷新 OpenAPI、JSON Schema 与 TypeScript SDK。每次追加
-操作都会刷新 `.microgen/manifest.json`。对存在清单漂移或缺少必需所有权
-接缝的项目，它会拒绝执行。
+给服务加方法会触及你自己的 `service.go` 的三处——接口、实现、日志包装——编译器
+会带你走完（报错先指向生成文件；修复永远在用户持有的文件里）。契约移除了什么，
+会产生一条警告，指名不再生成的生成器持有工件；它们原地保留，因为删除文件是一个
+决策，而不是副作用。下一次不带 `-idl` 的 extend 会读取 `idl.go`，而每次 extend
+都会把它更新为本次运行所用契约。
+
+**追加**——全新的服务、模型或中间件集：
+
+```bash
+microgen extend -append-service OrderService
+microgen extend -append-model Product
+microgen extend -append-middleware tracing,error-handling,metrics
+```
+
+三者同样接受 `-idl`——传入另一份完整合并的 Go IDL 契约，或让项目自带的
+`idl.go` 应答。追加在触碰任何文件之前会校验来源覆盖了每个既有服务与模型，缺失
+会被指名。追加同样会在契约输出启用时刷新 OpenAPI、JSON Schema 与 TypeScript
+SDK；每次 extend 都会刷新 `.microgen/manifest.json`，对存在清单漂移或缺少必需
+所有权接缝的项目拒绝执行。
+
+需要只看报告不做改动时，先运行只读兼容性扫描：
+
+```bash
+microgen extend -check
+```
+
+extend 模式不支持 Protobuf 输入：契约副本是 Go 文件。
 
 ## 文件所有权
 

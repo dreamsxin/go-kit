@@ -6,6 +6,17 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Added
 
+- `microgen extend` without append flags is **refresh**: the project's own
+  contract (`idl.go`) is the default `-idl`, the capabilities come from the
+  manifest, and every generator-owned artifact is regenerated — the loop for
+  a service that grew a method, a type that changed, validate tags that were
+  added. User-owned files are never written; the compiler then guides the
+  edits inside `service.go` (interface, implementation, logging wrapper).
+  Artifacts the new contract no longer produces are warned about and left in
+  place, and the contract copy is updated to the contract the refresh ran
+  with, so the next extend reads the same loop. `-check` and `-out` default
+  to running from the project root. Promised as `extend.refresh`.
+
 - Route groups carry middleware, in both layers the framework distinguishes.
   `group.UseEndpointMiddleware(...)` governs the routes registered through the
   group from here on, running inside the component's chain (and its

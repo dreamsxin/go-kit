@@ -54,6 +54,7 @@ stable/etcd.register-deregister-serialised
 stable/etcd.register-idempotent
 stable/etcd.reregister-on-lease-loss
 stable/etcd.revision-watch
+stable/extend.refresh
 stable/grpc.drains
 stable/grpc.health-watch
 stable/grpc.recording-method-label

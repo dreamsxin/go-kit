@@ -420,39 +420,51 @@ Production schema changes should normally use a dedicated migration process.
 
 ## Extend An Existing Project
 
-Extend mode currently accepts a full combined Go IDL contract. Protobuf extend
-input is not supported.
+The project carries its own full contract: `idl.go`, written beside the code
+and updated by every extend. Editing it in place and extending is the loop.
 
-Run the read-only compatibility scan first:
-
-```bash
-microgen extend -check -out .
-```
-
-Append one service or model, or a supported middleware set:
+**Refresh** — the service grew a method, a type changed, validate tags were
+added. Edit `idl.go`, then run extend with no append flags: the capabilities
+come from the manifest, every generator-owned artifact is refreshed, and your
+files are not written:
 
 ```bash
-microgen extend \
-  -idl full_combined.go \
-  -out . \
-  -append-service OrderService
-
-microgen extend \
-  -idl full_combined.go \
-  -out . \
-  -append-model Product
-
-microgen extend \
-  -idl full_combined.go \
-  -out . \
-  -append-middleware tracing,error-handling,metrics
+microgen extend -out .
 ```
 
-Extend mode updates new files and generator-owned aggregation files. Appending a
-service or model also refreshes OpenAPI, JSON Schema, and the TypeScript SDK when
-contract output is enabled. Every append operation refreshes
-`.microgen/manifest.json`. It refuses projects with manifest drift or without
+Adding a method touches three places in your own `service.go` — the
+interface, the implementation, and the logging wrapper — and the compiler
+walks you through them (the errors name the generated files first; the fix is
+always in the user-owned file). A contract change that removes something
+produces a warning naming the generator-owned artifacts that are no longer
+produced; they are left in place, because deleting a file is a decision, not
+a side effect. The next `extend` without `-idl` reads `idl.go`, and every
+extend updates it to the contract it ran with.
+
+**Append** — a brand-new service, model, or middleware set:
+
+```bash
+microgen extend -append-service OrderService
+microgen extend -append-model Product
+microgen extend -append-middleware tracing,error-handling,metrics
+```
+
+All three read `-idl` too — pass a different full combined Go IDL contract or
+let the project's `idl.go` answer. An append validates that the source covers
+every existing service and model before touching anything; a missing one is
+named. Appending also refreshes OpenAPI, JSON Schema, and the TypeScript SDK
+when contract output is enabled, and every extend refreshes
+`.microgen/manifest.json`, refusing projects with manifest drift or without
 the required ownership seams.
+
+Run the read-only compatibility scan first when you want the report without
+changes:
+
+```bash
+microgen extend -check
+```
+
+Protobuf extend input is not supported: the contract copy is a Go file.
 
 ## File Ownership
 

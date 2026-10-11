@@ -237,7 +237,8 @@ func (c config) generatorOptions(idlPath, serviceName string) generator.Options 
 func runExtend() {
 	fs := newExtendFlagSet(os.Stderr)
 	cfg := parseConfig(fs, os.Args[2:])
-	if err := cfg.validateExtend(); err != nil {
+	cfg, err := cfg.validateExtend()
+	if err != nil {
 		log.Fatal(err)
 	}
 	if cfg.checkOnly {
@@ -254,6 +255,18 @@ func runExtend() {
 	project, err := runFromIDL(cfg)
 	if err != nil {
 		log.Fatal(err)
+	}
+	if cfg.appendSvc == "" && cfg.appendModel == "" && len(cfg.appendMW) == 0 {
+		result, err := generator.ApplyRefresh(&templateFS, cfg.outputDir, project, cfg.idlPath)
+		if err != nil {
+			log.Fatalf("extend refresh failed: %v", err)
+		}
+		plan := result.Plan
+		log.Printf("extend refresh complete: %d file(s) created, %d updated, %d warning(s)", len(plan.NewFiles), len(plan.UpdatedFiles), len(plan.Warnings))
+		for _, warning := range plan.Warnings {
+			log.Printf("warning: %s", warning)
+		}
+		return
 	}
 	extendOpts := generator.ExtendOptions{
 		AppendService:    cfg.appendSvc,
@@ -280,9 +293,14 @@ func runExtend() {
 	log.Printf("append-model complete: %s -> %s", cfg.appendModel, cfg.outputDir)
 }
 
-func (c config) validateExtend() error {
+func (c config) validateExtend() (config, error) {
 	if c.fromDB {
-		return fmt.Errorf("extend mode does not support -from-db; use -idl with a full combined Go IDL contract instead")
+		return c, fmt.Errorf("extend mode does not support -from-db; use -idl with a full combined Go IDL contract instead")
+	}
+	if c.outputDir == "" {
+		// The natural extend loop runs from the project root; "." is the
+		// project, exactly as it is for `go test ./...`.
+		c.outputDir = "."
 	}
 	if c.checkOnly {
 		targetCount := 0
@@ -296,18 +314,9 @@ func (c config) validateExtend() error {
 			targetCount++
 		}
 		if targetCount > 0 {
-			return fmt.Errorf("extend mode -check cannot be combined with -append-service, -append-model, or -append-middleware")
+			return c, fmt.Errorf("extend mode -check cannot be combined with -append-service, -append-model, or -append-middleware")
 		}
-		if c.outputDir == "" {
-			return fmt.Errorf("extend mode -check requires -out with an existing generated project path")
-		}
-		return nil
-	}
-	if c.idlPath == "" {
-		return fmt.Errorf("extend mode requires -idl with a full combined Go IDL contract")
-	}
-	if strings.HasSuffix(strings.ToLower(c.idlPath), ".proto") {
-		return fmt.Errorf("extend mode currently supports Go IDL only; .proto input is not supported for -append-service, -append-model, or -append-middleware")
+		return c, nil
 	}
 	targetCount := 0
 	if c.appendSvc != "" {
@@ -319,13 +328,33 @@ func (c config) validateExtend() error {
 	if len(c.appendMW) > 0 {
 		targetCount++
 	}
+	if c.idlPath == "" && targetCount == 0 {
+		// Refresh mode. The project already carries its own full contract:
+		// the idl.go copy the generator wrote beside the code. Editing it in
+		// place and extending is the loop, so the flag is only required when
+		// that copy is absent (projects generated from a database schema or
+		// proto).
+		projectCopy := filepath.Join(c.outputDir, "idl.go")
+		if _, err := os.Stat(projectCopy); err == nil {
+			c.idlPath = projectCopy
+			fmt.Fprintf(os.Stderr, "extend: using the project's contract %s (pass -idl to use a different file)\n", projectCopy)
+		} else {
+			return c, fmt.Errorf("extend refresh requires -idl with a full combined Go IDL contract: no -idl was passed and %s does not exist", projectCopy)
+		}
+	}
+	if c.idlPath == "" {
+		return c, fmt.Errorf("extend mode requires -idl with a full combined Go IDL contract")
+	}
+	if strings.HasSuffix(strings.ToLower(c.idlPath), ".proto") {
+		return c, fmt.Errorf("extend mode currently supports Go IDL only; .proto input is not supported for -append-service, -append-model, or -append-middleware")
+	}
 	if targetCount > 1 {
-		return fmt.Errorf("extend mode supports only one mutation target at a time; choose either -append-service, -append-model, or -append-middleware")
+		return c, fmt.Errorf("extend mode supports only one mutation target at a time; choose either -append-service, -append-model, or -append-middleware")
 	}
-	if targetCount == 0 {
-		return fmt.Errorf("extend mode currently requires -append-service <Name>, -append-model <Name>, or -append-middleware <Name[,Name...]>")
-	}
-	return nil
+	// targetCount == 0 is refresh mode: the project's generator-owned
+	// artifacts are regenerated from the passed contract under the manifest's
+	// capabilities, with user-owned files untouched.
+	return c, nil
 }
 
 func printExtendCheckReport(w io.Writer, existing *generator.ExistingProject) {

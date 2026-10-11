@@ -173,8 +173,9 @@ guessing a method name.
 1. **Inspect project capabilities or generated ownership** → read `.microgen/manifest.json`
 2. **Add business logic** → edit `service/<name>/service.go`
 3. **Add endpoint middleware** → edit `endpoint/<name>/custom_chain.go`
-4. **Add a new service or model** → run `microgen extend -check -out .` first, then use `-append-service` or `-append-model`
-5. **Change AI tool behavior** → the tools are auto-registered from endpoints; change the underlying service logic instead
+4. **Add a new service or model** → run `microgen extend -check` first, then use `-append-service` or `-append-model`
+5. **Changed a method or type in idl.go** → run `microgen extend -out .` (refresh): generator-owned artifacts update, your files stay; the compiler then guides the edits inside `service.go`
+6. **Change AI tool behavior** → the tools are auto-registered from endpoints; change the underlying service logic instead
 
 ## Validation Commands
 
