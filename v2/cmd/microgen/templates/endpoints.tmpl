@@ -56,7 +56,11 @@ func Make{{.Name}}Endpoint(s svc.{{$.Service.ServiceName}}) endpoint.Endpoint {
 	// The service method is already typed, so Wrap is the whole adapter: it
 	// classifies a request of the wrong type instead of panicking on it.
 	typed := endpoint.TypedEndpoint[idl.{{.InputName}}, idl.{{.OutputName}}](s.{{.Name}})
-	return typed.Wrap()
+	ep := typed.Wrap()
+{{- if .Auth.Declared}}
+	ep = svc.EnforceAuth(ep, "{{.Name}}", []string{ {{- range .Auth.Roles }}"{{.}}", {{ end -}} })
+{{- end}}
+	return ep
 }
 {{end}}
 {{range .UnaryMethods}}

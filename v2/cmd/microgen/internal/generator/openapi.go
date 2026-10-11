@@ -45,6 +45,19 @@ type openAPIOperation struct {
 	Parameters  []openAPIParameter         `json:"parameters,omitempty"`
 	RequestBody *openAPIRequestBody        `json:"requestBody,omitempty"`
 	Responses   map[string]openAPIResponse `json:"responses"`
+	Security    []map[string][]string      `json:"security,omitempty"`
+}
+
+// Stable: openapi.security-scheme — a method whose IDL declares auth carries
+// security: [{auth: []}], the components declare the http bearer scheme
+// named auth, and the operation's responses document 401 (and 403 when roles
+// are listed) with the shared error schema.
+// Covered by: TestOpenAPISecurityDeclaredForSecuredMethods,
+// TestOpenAPISecurityAbsentForUnsecuredMethods
+
+type openAPISecurityScheme struct {
+	Type   string `json:"type"`
+	Scheme string `json:"scheme"`
 }
 
 type openAPIParameter struct {
@@ -72,7 +85,8 @@ type openAPIMedia struct {
 }
 
 type openAPIComponents struct {
-	Schemas map[string]*openAPISchema `json:"schemas"`
+	Schemas         map[string]*openAPISchema        `json:"schemas"`
+	SecuritySchemes map[string]openAPISecurityScheme `json:"securitySchemes,omitempty"`
 }
 
 type openAPISchema struct {
@@ -139,7 +153,7 @@ func buildOpenAPIDocument(project *ir.Project, basePrefix string) openAPIDocumen
 			Version:     "1.0.0",
 		},
 		Paths:      map[string]openAPIPath{},
-		Components: openAPIComponents{Schemas: schemas},
+		Components: openAPIComponents{Schemas: schemas, SecuritySchemes: securitySchemesFor(project)},
 	}
 
 	for _, service := range project.Services {
@@ -187,6 +201,13 @@ func openAPIOperationFor(service *ir.Service, method *ir.Method, path string, me
 			"400": errorOpenAPIResponse("Invalid request"),
 			"500": errorOpenAPIResponse("Internal server error"),
 		},
+	}
+	if method.Auth.Declared() {
+		operation.Security = []map[string][]string{{"auth": {}}}
+		operation.Responses["401"] = errorOpenAPIResponse("Unauthenticated")
+		if len(method.Auth.Roles) > 0 {
+			operation.Responses["403"] = errorOpenAPIResponse("Forbidden")
+		}
 	}
 	if strings.EqualFold(method.HTTPMethod, "GET") {
 		operation.Parameters = openAPIQueryParameters(input, path, messageNames)
@@ -258,6 +279,24 @@ func openAPIQueryParameters(message *ir.Message, path string, messageNames map[s
 		parameters = append(parameters, parameter)
 	}
 	return parameters
+}
+
+// securitySchemesFor declares the scheme the generated enforcement expects:
+// an authenticated subject established by the application's authenticator.
+// The wire credential (bearer token, API key) is the deployment's choice; the
+// document carries the http bearer shape as the default and the deployment
+// adjusts it when its authenticator speaks something else.
+func securitySchemesFor(project *ir.Project) map[string]openAPISecurityScheme {
+	for _, service := range project.Services {
+		for _, method := range service.Methods {
+			if method.Auth.Declared() {
+				return map[string]openAPISecurityScheme{
+					"auth": {Type: "http", Scheme: "bearer"},
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func successOpenAPIResponse(outputName string) openAPIResponse {

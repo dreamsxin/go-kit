@@ -270,6 +270,8 @@ curl http://localhost:8080/health                                               
 
 ## 接下来去哪
 
+- [MICROGEN：声明式认证](../MICROGEN_zh.md#声明式认证)：服务是生成的时候，IDL 文
+  档注释即可按方法声明要求，生成的传输负责执行
 - [中间件](middleware_zh.md)：组合与流控
 - [错误处理](errors_zh.md)：分类与线上格式
 - [security/http](../security/http/README_zh.md)：面向浏览器服务的 CORS、CSRF 与

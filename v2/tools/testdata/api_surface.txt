@@ -2016,7 +2016,9 @@ func SlowStart(weight WeightFunc, first FirstSeenFunc, window time.Duration) Wei
 ## github.com/dreamsxin/go-kit/v2/security
 package security // import "github.com/dreamsxin/go-kit/v2/security"
 FUNCTIONS
+func Contract(auth Authenticator, roles []string) endpoint.Middleware
 func Middleware(auth Authenticator) endpoint.Middleware
+func RequireAnyRole(roles ...string) endpoint.Middleware
 func RequireAuthenticated() endpoint.Middleware
 func RequireRole(role string) endpoint.Middleware
 func WithSubject(ctx context.Context, subject Subject) context.Context

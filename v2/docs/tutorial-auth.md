@@ -282,6 +282,9 @@ in the `v2/` module directory.
 
 ## Where to go next
 
+- [MICROGEN: declared authentication](../MICROGEN.md#declared-authentication):
+  when the service is generated, the IDL doc comment can declare the
+  requirement per method and the generated transport enforces it
 - [middleware](middleware.md): composition and flow control
 - [error handling](errors.md): the classification and wire format
 - [security/http](../security/http/README.md): CORS, CSRF, and IP policy for

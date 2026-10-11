@@ -6,6 +6,26 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Added
 
+- A method's IDL doc comment can declare its authentication requirement, and
+  one `auth:` line reaches three places. `auth: required` and
+  `auth: roles=admin,operator` (any-of) are parsed from the Go IDL at
+  generation time — an unknown directive or an empty role list is refused,
+  never silently ignored. The generated OpenAPI document carries the
+  per-operation `security` requirement, the http bearer scheme in
+  `components.securitySchemes`, and 401/403 responses with the shared error
+  schema, so a frontend generated from the document knows the route needs a
+  signed-in caller. The generated endpoints enforce the declaration through
+  the new `security.Contract` middleware, backed by the application's
+  authenticator hook (`NewAuthenticator` in the user-owned service file,
+  returning nil while unimplemented). Fail-closed is the promise: until the
+  hook returns an authenticator, every secured method answers 401 with
+  `auth.not_configured` — no request ever runs unauthenticated by accident.
+  Undeclared methods get no generated enforcement; securing the whole
+  surface stays the deployment's decision. Promised as
+  `security.contract-middleware`.
+- `security.RequireAnyRole(roles...)` — the any-of reading of a role list,
+  the shape IDL-declared roles need.
+
 - `client.NewTypedJSONClient[Req, Resp]` is the client-side mirror of the
   server's typed JSON routes, one rule on both sides of the wire: GET and
   HEAD fill the URL's path placeholders and query string from the request

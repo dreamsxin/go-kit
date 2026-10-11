@@ -34,6 +34,14 @@ type Method struct {
 	Route         string // HTTP/OpenAPI 路径（默认 /{lower(Name)}）
 	StreamsInput  bool   // true for proto client-streaming or bidirectional-streaming RPCs
 	StreamsOutput bool   // true for proto server-streaming or bidirectional-streaming RPCs
+	Auth          Auth   // 解析后的认证要求（auth: 注释）
+}
+
+// Auth is one method's declared authentication requirement, parsed from the
+// `auth:` doc-comment lines.
+type Auth struct {
+	Required bool
+	Roles    []string
 }
 
 // ModelField 模型字段（结构体字段）
@@ -162,6 +170,48 @@ func parseService(ts *ast.TypeSpec, iface *ast.InterfaceType, declarationDoc *as
 	return svc, nil
 }
 
+// parseAuthDoc parses the `auth:` lines of a method doc comment. The
+// directives are `required` and `roles=a,b` (any-of); lines and directives
+// may be combined. An unknown directive or an empty roles list is refused at
+// generation time, never silently ignored at request time.
+func parseAuthDoc(doc string) (Auth, error) {
+	var auth Auth
+	for _, line := range strings.Split(doc, "\n") {
+		// Accept the line with or without the comment marker: commentText
+		// strips it, and raw doc text may carry it.
+		line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "//"))
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "auth:") {
+			continue
+		}
+		body := strings.TrimSpace(strings.TrimPrefix(line, "auth:"))
+		if body == "" {
+			return Auth{}, fmt.Errorf("auth: directive has no value")
+		}
+		for _, directive := range strings.Fields(body) {
+			switch {
+			case directive == "required":
+				auth.Required = true
+			case strings.HasPrefix(directive, "roles="):
+				list := strings.TrimPrefix(directive, "roles=")
+				if list == "" {
+					return Auth{}, fmt.Errorf("auth: roles lists no values")
+				}
+				for _, role := range strings.Split(list, ",") {
+					role = strings.TrimSpace(role)
+					if role == "" {
+						return Auth{}, fmt.Errorf("auth: roles lists an empty role")
+					}
+					auth.Roles = append(auth.Roles, role)
+				}
+			default:
+				return Auth{}, fmt.Errorf("auth: unknown directive %q (want required or roles=a,b)", directive)
+			}
+		}
+	}
+	return auth, nil
+}
+
 // parseMethod 解析接口方法
 func parseMethod(field *ast.Field, serviceName string) (Method, error) {
 	if len(field.Names) == 0 {
@@ -173,7 +223,8 @@ func parseMethod(field *ast.Field, serviceName string) (Method, error) {
 	}
 
 	// 注释 → Doc & Summary
-	if raw := commentText(field.Doc, field.Comment); raw != "" {
+	raw := commentText(field.Doc, field.Comment)
+	if raw != "" {
 		method.Doc = raw
 		// Summary 取第一行（去掉可能的方法名前缀）
 		firstLine := strings.SplitN(raw, "\n", 2)[0]
@@ -182,6 +233,13 @@ func parseMethod(field *ast.Field, serviceName string) (Method, error) {
 	if method.Summary == "" {
 		method.Summary = method.Name
 	}
+
+	// auth: 注释行 → 认证要求。语法在解析期校验，畸形即拒绝生成。
+	auth, err := parseAuthDoc(raw)
+	if err != nil {
+		return Method{}, fmt.Errorf("method %s: %w", method.Name, err)
+	}
+	method.Auth = auth
 
 	// Tags 默认使用服务名
 	method.Tags = serviceName

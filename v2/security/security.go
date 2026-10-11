@@ -156,6 +156,72 @@ func RequireAuthenticated() endpoint.Middleware {
 	}
 }
 
+// RequireAnyRole returns endpoint middleware that rejects subjects holding
+// none of the listed roles using KindPermissionDenied (HTTP 403), the any-of
+// reading of a role list: one matching role is enough. Requests without an
+// authenticated subject are rejected with the same classification. An empty
+// role list panics — a requirement nobody can state is a requirement nobody
+// can meet.
+func RequireAnyRole(roles ...string) endpoint.Middleware {
+	if len(roles) == 0 {
+		panic("security: role list cannot be empty")
+	}
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request any) (any, error) {
+			subject, ok := SubjectFromContext(ctx)
+			if !ok || !subject.Authenticated() {
+				return nil, apperror.New(apperror.KindPermissionDenied,
+					"security.role_required", "caller does not hold a required role")
+			}
+			for _, role := range roles {
+				if subject.HasRole(role) {
+					return next(ctx, request)
+				}
+			}
+			return nil, apperror.New(apperror.KindPermissionDenied,
+				"security.role_required", "caller does not hold a required role")
+		}
+	}
+}
+
+// Contract returns endpoint middleware enforcing an IDL-declared
+// authentication requirement: the subject is established with auth, must be
+// authenticated, and must hold at least one of the listed roles when any are
+// given. It is what the generated transports call for a method whose IDL
+// declares `auth: required` or `auth: roles=...`.
+//
+// A nil authenticator fails closed: every request is answered 401 with
+// "auth.not_configured", because a contract that demands authentication must
+// never silently run unauthenticated. The fix is in the application's
+// authenticator hook, not in the middleware.
+//
+// Stable: security.contract-middleware — Contract with a nil authenticator
+// fails closed with auth.not_configured; with an authenticator it enforces
+// authentication and any-of roles, classified invalid_argument-free as
+// unauthenticated (401) and permission_denied (403).
+// Covered by: TestContractFailsClosedWithoutAuthenticator,
+// TestContractAuthenticatesAndAuthorizes
+func Contract(auth Authenticator, roles []string) endpoint.Middleware {
+	if auth == nil {
+		return func(next endpoint.Endpoint) endpoint.Endpoint {
+			return func(ctx context.Context, request any) (any, error) {
+				return nil, apperror.New(apperror.KindUnauthenticated,
+					"auth.not_configured", "the service has not configured an authenticator for this contract")
+			}
+		}
+	}
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
+		// Innermost first: the subject is established, then authenticated,
+		// then roles — the requirements read in the same order they fail.
+		secured := next
+		if len(roles) > 0 {
+			secured = RequireAnyRole(roles...)(secured)
+		}
+		secured = RequireAuthenticated()(secured)
+		return Middleware(auth)(secured)
+	}
+}
+
 // RequireRole returns endpoint middleware that rejects subjects not holding
 // the given role using KindPermissionDenied (HTTP 403). Requests without an
 // authenticated subject are rejected with the same classification. Business

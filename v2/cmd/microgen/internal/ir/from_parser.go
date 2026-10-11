@@ -58,12 +58,16 @@ func FromParseResult(result *parser.ParseResult) *Project {
 				Name:        method.Name,
 				Summary:     method.Summary,
 				Description: method.Doc,
-				Kind:        methodKindFromParser(method),
-				HTTPMethod:  strings.ToUpper(method.HTTPMethod),
-				Route:       method.Route,
-				Tags:        compactTags(method.Tags),
-				InputName:   trimTypeRef(method.Input),
-				OutputName:  trimTypeRef(method.Output),
+				Auth: MethodAuth{
+					Required: method.Auth.Required,
+					Roles:    method.Auth.Roles,
+				},
+				Kind:       methodKindFromParser(method),
+				HTTPMethod: strings.ToUpper(method.HTTPMethod),
+				Route:      method.Route,
+				Tags:       compactTags(method.Tags),
+				InputName:  trimTypeRef(method.Input),
+				OutputName: trimTypeRef(method.Output),
 			}
 			m.Input = messageByName[m.InputName]
 			m.Output = messageByName[m.OutputName]

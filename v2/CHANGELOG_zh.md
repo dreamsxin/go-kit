@@ -6,6 +6,19 @@
 
 ### 新增
 
+- 方法的 IDL 文档注释可以声明认证要求，一句 `auth:` 到达三处。`auth: required`
+  与 `auth: roles=admin,operator`（any-of）在生成期从 Go IDL 解析——未知指令或空
+  角色列表被拒绝，绝不会在请求期被悄悄忽略。生成的 OpenAPI 文档携带每操作的
+  `security` 要求、`components.securitySchemes` 中的 http bearer scheme，以及带共
+  享错误 schema 的 401/403 应答，依据文档生成的表单因此知道该路由需要登录调用
+  方。生成的端点经新的 `security.Contract` 中间件执行声明，背后是应用的认证器钩
+  子（用户持有的 service 文件中的 `NewAuthenticator`，未实现时返回 nil）。
+  **fail-closed** 是承诺：钩子返回认证器之前，每个受保护方法都以 401
+  `auth.not_configured` 应答——绝不会有请求因疏忽而未认证地运行。未声明的方法没
+  有生成的强制；保护整个表面仍是部署的决策。承诺为 `security.contract-middleware`。
+- `security.RequireAnyRole(roles...)`——角色列表的 any-of 语义，IDL 声明角色所需
+  的形状。
+
 - `client.NewTypedJSONClient[Req, Resp]` 是服务端类型化 JSON 路由的客户端镜像，
   线路两侧同一条规则：GET 与 HEAD 从请求结构体填充 URL 占位符与查询串，其他方法
   填充占位符并把结构体作为 JSON 体发送（重叠时服务端的路径解码获胜，客户端无需

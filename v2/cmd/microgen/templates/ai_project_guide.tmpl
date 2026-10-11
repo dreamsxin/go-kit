@@ -188,6 +188,7 @@ Every framework component has one right place in this project:
 | enforce authentication or roles | `endpoint/<name>/custom_chain.go` | `security` |
 | observe outcomes per route | `cmd/main.go` | `kit.WithMetrics`, `kit.WithRecorder` |
 | call a downstream service with retry or discovery | `service/<name>/service.go` | `sd` |
+| enforce a method's declared authentication | `service/<name>/service.go` | `NewAuthenticator` + `security.Contract` |
 | settings the wiring needs | `config/custom.go` | generated config |
 
 All of those files are user-owned: the generator wrote them once and never

@@ -19,6 +19,7 @@ go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 - [常用选项](#常用选项)
 - [生成项目清单](#生成项目清单)
 - [API 与 Schema 契约](#api-与-schema-契约)
+- [声明式认证](#声明式认证)
 - [依据契约生成前端](#依据契约生成前端)
 - [最小生成与完整生成](#最小生成与完整生成)
 - [生成配置](#生成配置)
@@ -255,6 +256,38 @@ type CreateUserRequest struct {
 何东西都不执行它。从数据库生成的项目直接从 DDL 推导约束：`varchar(n)` 列界定字
 符串长度，`enum(...)` 列列出取值，无需写任何 tag。tag 里的未知规则或畸形值在生成
 期即被拒绝。
+
+### 声明式认证
+
+方法的文档注释可以声明它的认证要求，一句声明到达三处：契约记载它（每操作的
+`security` 与 401/403 应答、`components.securitySchemes` 中的 http bearer
+scheme）、生成的传输执行它、依据文档生成的表单知道该路由需要登录调用方：
+
+```go
+// DeleteUser removes a user.
+//
+// auth: roles=admin
+DeleteUser(ctx context.Context, req DeleteUserRequest) (DeleteUserResponse, error)
+
+// UpdateUser modifies a user.
+//
+// auth: required
+UpdateUser(ctx context.Context, req UpdateUserRequest) (UpdateUserResponse, error)
+```
+
+`auth: required` 要求已认证主体；`auth: roles=a,b` 要求主体持有任一所列角色
+（any-of）。两个指令可写在同一行。未声明的方法没有生成的强制——保护整个表面仍
+是部署自己的决策，在 `cmd/main.go` 或 custom chain 中做出。
+
+强制需要一个认证器，而认证器是你的：生成的 `service/<name>/service.go` 声明了
+`NewAuthenticator() security.Authenticator`，未实现时返回 nil。fail-closed 是契
+约的承诺：钩子返回认证器之前，每个受保护方法都以 401 `auth.not_configured`
+应答——绝不会有请求因疏忽而未认证地运行。凭证交换本身（bearer token、API
+key）留在应用的 HTTP 边界；见[认证教程](docs/tutorial-auth_zh.md)与 `security`
+包。
+
+认证注解之前生成的项目还没有该钩子——把这两个函数加进 `service.go`（或重新生
+成到新目录）就是全部迁移；在那之前，带注解的方法持续 fail-closed。
 
 ## 依据契约生成前端
 

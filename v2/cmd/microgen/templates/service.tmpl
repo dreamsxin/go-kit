@@ -10,6 +10,9 @@ import (
 	"time"
 
 	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
+
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/security"
 )
 
 // {{.Service.ServiceName}} defines the business contract.
@@ -131,6 +134,20 @@ func (s *serviceImpl) {{.Name}}(ctx context.Context, recv func() (idl.{{.InputNa
 	return errors.New("{{.Name}}: not implemented")
 }
 {{end}}
+
+// EnforceAuth applies the contract's declared authentication for one
+// method: establish the subject, require it, and require any of the roles
+// the IDL listed. The generated endpoints call it for every method whose
+// IDL declares `auth:`.
+func EnforceAuth(ep endpoint.Endpoint, method string, roles []string) endpoint.Endpoint {
+	return security.Contract(NewAuthenticator(), roles)(ep)
+}
+
+// NewAuthenticator returns the authenticator that establishes the calling
+// subject for contract-secured methods. Return nil while unimplemented:
+// every secured method then fails closed with 401 auth.not_configured, and
+// no request ever runs unauthenticated by accident.
+func NewAuthenticator() security.Authenticator { return nil }
 
 type ServiceMiddleware func({{.Service.ServiceName}}) {{.Service.ServiceName}}
 

@@ -18,6 +18,7 @@ go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 - [Common Options](#common-options)
 - [Generated Project Manifest](#generated-project-manifest)
 - [API And Schema Contracts](#api-and-schema-contracts)
+- [Declared Authentication](#declared-authentication)
 - [Generate A Frontend From The Contract](#generate-a-frontend-from-the-contract)
 - [Minimal And Full Generation](#minimal-and-full-generation)
 - [Generated Configuration](#generated-configuration)
@@ -277,6 +278,46 @@ contract carries — nothing enforces it. Projects generated from a database
 derive the constraints from the DDL itself: a `varchar(n)` column bounds its
 string, and an `enum(...)` column lists its values, with no tag to write.
 An unknown rule or a malformed value in the tag is refused at generation time.
+
+### Declared Authentication
+
+A method's doc comment can declare its authentication requirement, and one
+declaration reaches three places: the contract documents it (per-operation
+`security` and 401/403 responses, the http bearer scheme in
+`components.securitySchemes`), the generated transport enforces it, and a
+form generated from the document knows the route needs a signed-in caller:
+
+```go
+// DeleteUser removes a user.
+//
+// auth: roles=admin
+DeleteUser(ctx context.Context, req DeleteUserRequest) (DeleteUserResponse, error)
+
+// UpdateUser modifies a user.
+//
+// auth: required
+UpdateUser(ctx context.Context, req UpdateUserRequest) (UpdateUserResponse, error)
+```
+
+`auth: required` demands an authenticated subject; `auth: roles=a,b` demands
+a subject holding any of the roles (any-of). Both directives may be combined
+on one line. Undeclared methods get no generated enforcement — securing the
+whole surface remains the deployment's own decision, made in
+`cmd/main.go` or the custom chain.
+
+The enforcement needs an authenticator, and the authenticator is yours: the
+generated `service/<name>/service.go` declares
+`NewAuthenticator() security.Authenticator`, returning nil while
+unimplemented. Fail-closed is the contract's promise: until the hook returns
+an authenticator, every secured method answers 401 with
+`auth.not_configured` — no request ever runs unauthenticated by accident.
+The credential exchange itself (bearer token, API key) stays in the
+application's HTTP boundary; see the [authentication
+tutorial](docs/tutorial-auth.md) and the `security` package.
+
+Projects generated before the auth annotations gained the hook — adding the
+two functions to `service.go` (or re-generating into a fresh directory) is
+the whole migration; until then, annotated methods keep failing closed.
 
 ## Generate A Frontend From The Contract
 

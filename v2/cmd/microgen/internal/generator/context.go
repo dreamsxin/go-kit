@@ -30,6 +30,8 @@ type methodView struct {
 	Tags       string
 	HTTPMethod string
 	Route      string
+	Auth       *ir.MethodAuth
+	AuthRoles  string
 }
 
 type modelView struct {
@@ -94,7 +96,7 @@ func servicesFromProject(project *ir.Project) []*serviceView {
 			if method == nil {
 				continue
 			}
-			view.Methods = append(view.Methods, methodView{
+			entry := methodView{
 				Name:       method.Name,
 				Input:      method.InputName,
 				Output:     method.OutputName,
@@ -103,7 +105,13 @@ func servicesFromProject(project *ir.Project) []*serviceView {
 				Tags:       strings.Join(method.Tags, ", "),
 				HTTPMethod: strings.ToLower(method.HTTPMethod),
 				Route:      method.Route,
-			})
+			}
+			if method.Auth.Declared() {
+				authCopy := method.Auth
+				entry.Auth = &authCopy
+				entry.AuthRoles = strings.Join(method.Auth.Roles, ", ")
+			}
+			view.Methods = append(view.Methods, entry)
 		}
 		services = append(services, view)
 	}

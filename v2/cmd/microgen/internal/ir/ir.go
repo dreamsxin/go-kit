@@ -48,6 +48,21 @@ type Method struct {
 	OutputName  string
 	Input       *Message
 	Output      *Message
+	Auth        MethodAuth
+}
+
+// MethodAuth is one method's declared authentication requirement, parsed
+// from the Go IDL's `auth:` doc-comment lines.
+type MethodAuth struct {
+	Required bool
+	Roles    []string
+}
+
+// Declared reports whether the method declares any authentication
+// requirement. Undeclared methods get no generated enforcement: securing the
+// whole surface stays the deployment's own decision.
+func (m MethodAuth) Declared() bool {
+	return m.Required || len(m.Roles) > 0
 }
 
 // IsStreaming reports whether the method uses a long-lived stream shape.
