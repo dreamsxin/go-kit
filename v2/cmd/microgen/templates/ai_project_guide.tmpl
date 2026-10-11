@@ -177,6 +177,24 @@ guessing a method name.
 5. **Changed a method or type in idl.go** → run `microgen extend -out .` (refresh): generator-owned artifacts update, your files stay; the compiler then guides the edits inside `service.go`
 6. **Change AI tool behavior** → the tools are auto-registered from endpoints; change the underlying service logic instead
 
+## Wire A Framework Component
+
+Every framework component has one right place in this project:
+
+| You want to... | Where | Component |
+| --- | --- | --- |
+| fail readiness when a dependency is down | `cmd/main.go` | `kit.WithReadinessCheck` |
+| rate limit, break, or bulkhead endpoints | `endpoint/<name>/custom_chain.go` | the endpoint middleware catalog |
+| enforce authentication or roles | `endpoint/<name>/custom_chain.go` | `security` |
+| observe outcomes per route | `cmd/main.go` | `kit.WithMetrics`, `kit.WithRecorder` |
+| call a downstream service with retry or discovery | `service/<name>/service.go` | `sd` |
+| settings the wiring needs | `config/custom.go` | generated config |
+
+All of those files are user-owned: the generator wrote them once and never
+overwrites them. See MICROGEN.md's "Wire The Framework's Components" for the
+code, and report `MICROGEN_API_GAP` when a component's generated surface
+cannot express what you need.
+
 ## Validation Commands
 
 ```bash

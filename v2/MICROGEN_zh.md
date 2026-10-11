@@ -22,6 +22,7 @@ go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 - [依据契约生成前端](#依据契约生成前端)
 - [最小生成与完整生成](#最小生成与完整生成)
 - [生成配置](#生成配置)
+- [在生成项目中使用框架组件](#在生成项目中使用框架组件)
 - [数据库迁移](#数据库迁移)
 - [扩展既有项目](#扩展既有项目)
 - [文件所有权](#文件所有权)
@@ -372,6 +373,81 @@ microgen \
 限流、熔断及其他持有依赖的适配器有意不加入新项目的 module 图。需要时
 显式安装，并在用户持有的 `endpoint/<service>/custom_chain.go` 钩子中
 组装。
+
+## 在生成项目中使用框架组件
+
+生成项目本身就是框架的装配体；加入你自己的使用，是一个**位置**问题——每个意图
+都有唯一正确的位置：
+
+| 你想…… | 位置 | 组件 |
+| --- | --- | --- |
+| 依赖故障时让就绪检查失败 | `cmd/main.go` | `kit.WithReadinessCheck` |
+| 对端点限流、熔断或舱壁隔离 | `endpoint/<name>/custom_chain.go` | endpoint 中间件目录 |
+| 执行认证与角色 | `endpoint/<name>/custom_chain.go` | `security` |
+| 按路由观测结果 | `cmd/main.go` | `kit.WithMetrics`、`kit.WithRecorder` |
+| 带重试或服务发现调用下游 | `service/<name>/service.go` | `sd` |
+| 装配所需的设置 | `config/custom.go` | 生成的配置 |
+
+`cmd/main.go`、`service/<name>/service.go` 与 `custom_chain.go` 都是用户持有：
+生成器只写一次、绝不覆盖，装配由你保留。
+
+### custom_chain.go 中的端点中间件
+
+该钩子包裹服务的每个端点，位于组件链内侧：
+
+```go
+func applyCustomMiddleware(ep endpoint.Endpoint, logger *slog.Logger, cfg MiddlewareConfig, name string) endpoint.Endpoint {
+	ep = endpoint.NewCircuitBreaker().Middleware()(ep)
+	ep = endpoint.RateLimitMiddleware(limiter)(ep)
+	return ep
+}
+```
+
+限流器本身归应用所有——任何具备 `Allow()` 与 `Wait(ctx)` 的类型都满足
+`endpoint.RateLimiter`，`golang.org/x/time/rate` 的 `Limiter` 开箱即满足：
+
+```go
+var limiter = rate.NewLimiter(rate.Every(100*time.Millisecond), 20)
+```
+
+目录、顺序规则，以及每种中间件产生的错误到状态码映射，见[中间件章节]
+(docs/middleware_zh.md)。
+
+### 认证与角色
+
+`security` 包承载与传输无关的执行：
+
+```go
+func applyCustomMiddleware(ep endpoint.Endpoint, logger *slog.Logger, cfg MiddlewareConfig, name string) endpoint.Endpoint {
+	ep = security.Middleware(authenticator)(ep) // 解析主体
+	ep = security.RequireAuthenticated()(ep)
+	if name == "DeleteUser" {
+		ep = security.RequireRole("admin")(ep)
+	}
+	return ep
+}
+```
+
+`name` 是路由的操作名，单个钩子即可对破坏性操作做差异化限制。失败以分类错误到
+达，与其他错误一样映射为 401 与 403。
+
+### main.go 中的就绪检查与指标
+
+组件在 `cmd/main.go` 中装配；检查与可观测性也加在那里：
+
+```go
+svc, err := kit.NewHTTP(*httpAddr,
+	kit.WithRequestID(),
+	kit.WithMetrics(&metrics),
+	kit.WithReadinessCheck("database", func(ctx context.Context) error {
+		return store.Ping(ctx)
+	}),
+)
+```
+
+就绪检查失败会把 `/readyz` 翻成 503——负载均衡器据此摘除实例。日志、追踪与基
+数规则见[可观测性](docs/observability_zh.md)；带重试与健康检查实例的下游调用见
+[服务发现](docs/service-discovery_zh.md)。
 
 ## 数据库迁移
 

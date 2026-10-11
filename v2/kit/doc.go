@@ -15,8 +15,10 @@
 // axes only — whether the endpoint middleware chain and the endpoint recorders
 // run, and which request-body limit applies.
 //
-// Full chain (WithEndpointMiddleware, WithMetrics, WithRecorder, WithRateLimit,
-// WithCircuitBreaker and the component's JSON server options all apply):
+// Full chain (WithEndpointMiddleware — where the endpoint package's rate
+// limiting, circuit breaking, and bulkhead middleware are added —
+// WithMetrics, WithRecorder, and the component's JSON server options all
+// apply):
 //
 //   - HandleJSONTyped — the default. Concrete request and response types.
 //     A typed route fills its request struct from the request itself: GET and

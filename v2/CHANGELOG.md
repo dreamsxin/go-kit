@@ -6,6 +6,16 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Added
 
+- MICROGEN now answers the question every generated-project author asks next:
+  **where does framework component wiring go?** A new chapter maps the
+  intents to their one right place — readiness checks and metrics in
+  `cmd/main.go`, the endpoint middleware catalog and transport-neutral
+  security in `endpoint/<name>/custom_chain.go`, downstream retry and
+  discovery in `service/<name>/service.go`, settings in `config/custom.go` —
+  with code that compiles against the framework. The generated AI guide
+  carries the same map, the custom-middleware hook documents the catalog it
+  composes, and kit's package doc no longer names options that do not exist.
+
 - `microgen extend` without append flags is **refresh**: the project's own
   contract (`idl.go`) is the default `-idl`, the capabilities come from the
   manifest, and every generator-owned artifact is regenerated — the loop for

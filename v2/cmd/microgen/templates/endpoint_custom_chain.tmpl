@@ -8,6 +8,18 @@ import (
 
 // applyCustomMiddleware is the user-owned hook for endpoint middleware.
 // Add custom endpoint middleware here; microgen will not overwrite this file on rerun.
+//
+// The endpoint package ships the catalog: RateLimitMiddleware,
+// NewCircuitBreaker().Middleware(), BulkheadMiddleware, BackpressureMiddleware.
+// Compose them with Use, or stack them here:
+//
+//	ep = endpoint.NewCircuitBreaker().Middleware()(ep)
+//	ep = endpoint.RateLimitMiddleware(limiter)(ep)
+//
+// Authentication and roles live in the security package
+// (security.Middleware, security.RequireAuthenticated, security.RequireRole);
+// see the middleware and errors chapters of the documentation for the full
+// catalog and the status mapping.
 func applyCustomMiddleware(ep endpoint.Endpoint, logger *slog.Logger, cfg MiddlewareConfig, name string) endpoint.Endpoint {
 	_ = logger
 	_ = cfg

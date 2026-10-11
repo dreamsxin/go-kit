@@ -21,6 +21,7 @@ go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 - [Generate A Frontend From The Contract](#generate-a-frontend-from-the-contract)
 - [Minimal And Full Generation](#minimal-and-full-generation)
 - [Generated Configuration](#generated-configuration)
+- [Wire The Framework's Components](#wire-the-frameworks-components)
 - [Database Migration](#database-migration)
 - [Extend An Existing Project](#extend-an-existing-project)
 - [File Ownership](#file-ownership)
@@ -401,6 +402,87 @@ the selected provider-neutral generated middleware. Rate limiting, circuit
 breaking, and other dependency-owning adapters are intentionally not added to a
 new project's module graph. Install them explicitly and compose them in the
 user-owned `endpoint/<service>/custom_chain.go` hook when required.
+
+## Wire The Framework's Components
+
+A generated project already assembles the framework; adding your own use of
+it is a question of **where**, and every intent has one right place:
+
+| You want to... | Where | Component |
+| --- | --- | --- |
+| fail readiness when a dependency is down | `cmd/main.go` | `kit.WithReadinessCheck` |
+| rate limit, break, or bulkhead endpoints | `endpoint/<name>/custom_chain.go` | the endpoint middleware catalog |
+| enforce authentication or roles | `endpoint/<name>/custom_chain.go` | `security` |
+| observe outcomes per route | `cmd/main.go` | `kit.WithMetrics`, `kit.WithRecorder` |
+| call a downstream service with retry or discovery | `service/<name>/service.go` | `sd` |
+| settings the wiring needs | `config/custom.go` | generated config |
+
+`cmd/main.go`, `service/<name>/service.go`, and `custom_chain.go` are
+user-owned: the generator writes them once and never overwrites them, so the
+wiring is yours to keep.
+
+### Endpoint middleware in custom_chain.go
+
+The hook wraps every endpoint of the service, inside the component's chain:
+
+```go
+func applyCustomMiddleware(ep endpoint.Endpoint, logger *slog.Logger, cfg MiddlewareConfig, name string) endpoint.Endpoint {
+	ep = endpoint.NewCircuitBreaker().Middleware()(ep)
+	ep = endpoint.RateLimitMiddleware(limiter)(ep)
+	return ep
+}
+```
+
+The rate limiter itself is application-owned — anything with `Allow()` and
+`Wait(ctx)` satisfies `endpoint.RateLimiter`, and `golang.org/x/time/rate`'s
+`Limiter` does out of the box:
+
+```go
+var limiter = rate.NewLimiter(rate.Every(100*time.Millisecond), 20)
+```
+
+The catalog, ordering rules, and the error-to-status mapping each middleware
+produces are in the [middleware chapter](docs/middleware.md).
+
+### Authentication and roles
+
+The `security` package carries the transport-neutral enforcement:
+
+```go
+func applyCustomMiddleware(ep endpoint.Endpoint, logger *slog.Logger, cfg MiddlewareConfig, name string) endpoint.Endpoint {
+	ep = security.Middleware(authenticator)(ep) // resolves the subject
+	ep = security.RequireAuthenticated()(ep)
+	if name == "DeleteUser" {
+		ep = security.RequireRole("admin")(ep)
+	}
+	return ep
+}
+```
+
+`name` is the route's operation, so a single hook can gate destructive
+operations differently. Failures arrive as classified errors and map to 401
+and 403 like every other error.
+
+### Readiness checks and metrics in main.go
+
+The component is assembled in `cmd/main.go`; add the checks and the
+observability there:
+
+```go
+svc, err := kit.NewHTTP(*httpAddr,
+	kit.WithRequestID(),
+	kit.WithMetrics(&metrics),
+	kit.WithReadinessCheck("database", func(ctx context.Context) error {
+		return store.Ping(ctx)
+	}),
+)
+```
+
+A failing readiness check turns `/readyz` to 503, which is what a load
+balancer removes the instance on. See [observability](docs/observability.md)
+for logs, traces, and the cardinality rules, and [service
+discovery](docs/service-discovery.md) for calling downstream services with
+retry and health-checked instances.
 
 ## Database Migration
 
