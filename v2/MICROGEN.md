@@ -276,7 +276,9 @@ through the same package, so a hand-assembled service and a generated one
 reject the same request with the same error. `default` is a form hint the
 contract carries — nothing enforces it. Projects generated from a database
 derive the constraints from the DDL itself: a `varchar(n)` column bounds its
-string, and an `enum(...)` column lists its values, with no tag to write.
+string, and an `enum(...)` column lists its values, with no tag to write — and
+the written contract copy (`idl.go`) carries the same `validate` tags, so the
+extend loop, the contract, and the service stay consistent.
 A `.proto` source derives them the same way from protovalidate field options —
 `string.min_len`/`max_len`, numeric `gte`/`lte`, and `in` lists — in either
 the aggregate or the separate named-option spelling.
@@ -316,7 +318,10 @@ an authenticator, every secured method answers 401 with
 `auth.not_configured` — no request ever runs unauthenticated by accident.
 The credential exchange itself (bearer token, API key) stays in the
 application's HTTP boundary; see the [authentication
-tutorial](docs/tutorial-auth.md) and the `security` package.
+tutorial](docs/tutorial-auth.md) and the `security` package. The same
+`auth:` lines work in a `.proto` source: the directives are parsed from the
+RPC's comment, and the generated OpenAPI document and transport enforce them
+identically.
 
 Projects generated before the auth annotations gained the hook — adding the
 two functions to `service.go` (or re-generating into a fresh directory) is

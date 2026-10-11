@@ -254,7 +254,8 @@ type CreateUserRequest struct {
 （`validation.username.minLen`）；类型化的 kit 路由经同一个包执行相同 tag，手写
 服务与生成服务以同样的错误拒绝同样的请求。`default` 是契约携带的表单提示——任
 何东西都不执行它。从数据库生成的项目直接从 DDL 推导约束：`varchar(n)` 列界定字
-符串长度，`enum(...)` 列列出取值，无需写任何 tag。`.proto` 源以同样方式从
+符串长度，`enum(...)` 列列出取值，无需写任何 tag。从数据库生成的项目的契约副本（`idl.go`）携带同样的 `validate`
+tag——extend 循环、契约与服务三者保持一致。`.proto` 源以同样方式从
 protovalidate 字段选项推导——`string.min_len`/`max_len`、数值 `gte`/`lte` 与
 `in` 列表——聚合与分离命名两种写法都支持。tag 里的未知规则或畸形值在生成期即被
 拒绝。

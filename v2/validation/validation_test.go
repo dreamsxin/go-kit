@@ -139,3 +139,47 @@ func TestValidateNonStruct(t *testing.T) {
 		t.Errorf("nil failed: %v", err)
 	}
 }
+
+// TestTagRoundTrip: Tag renders the ruleset back into tag text, and the
+// rendered tag parses back into the same constraints — the inverse of
+// ParseTag, which is what the from-db contract copy relies on.
+func TestTagRoundTrip(t *testing.T) {
+	maxLen := 64
+	min := 0.0
+	max := 150.0
+	minLen := 1
+	cons := validation.Constraints{
+		Enum:       []string{"active", "suspended"},
+		Min:        &min,
+		Max:        &max,
+		MinLen:     &minLen,
+		MaxLen:     &maxLen,
+		Default:    "active",
+		HasDefault: true,
+	}
+	tag := cons.Tag()
+	want := "enum=active|suspended,min=0,max=150,minLen=1,maxLen=64,default=active"
+	if tag != want {
+		t.Fatalf("tag = %q, want %q", tag, want)
+	}
+	parsed, err := validation.ParseTag(tag)
+	if err != nil {
+		t.Fatalf("ParseTag(%q): %v", tag, err)
+	}
+	if strings.Join(parsed.Enum, ",") != strings.Join(cons.Enum, ",") {
+		t.Errorf("round-trip enum = %v, want %v", parsed.Enum, cons.Enum)
+	}
+	if parsed.Min == nil || *parsed.Min != *cons.Min || parsed.Max == nil || *parsed.Max != *cons.Max {
+		t.Errorf("round-trip min/max = %v/%v", parsed.Min, parsed.Max)
+	}
+	if parsed.MinLen == nil || *parsed.MinLen != 1 || parsed.MaxLen == nil || *parsed.MaxLen != 64 {
+		t.Errorf("round-trip lengths = %v/%v", parsed.MinLen, parsed.MaxLen)
+	}
+	if !parsed.HasDefault || parsed.Default != "active" {
+		t.Errorf("round-trip default = %q %v", parsed.Default, parsed.HasDefault)
+	}
+	emptyTag := validation.Constraints{}.Tag()
+	if emptyTag != "" {
+		t.Errorf("empty constraints tag = %q, want empty", emptyTag)
+	}
+}

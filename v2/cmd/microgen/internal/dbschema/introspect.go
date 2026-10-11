@@ -7,9 +7,11 @@ package dbschema
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/parser"
+	"github.com/dreamsxin/go-kit/v2/validation"
 )
 
 // TableSchema 单张表的列信息
@@ -457,6 +459,33 @@ func tableToModel(schema *TableSchema) *parser.Model {
 	return model
 }
 
+// ConstraintsFromDBType derives contract constraints from the column's own
+// DDL, which is truth the database already states: a varchar or char length
+// bounds the string, and a MySQL enum column lists its values. Nothing is
+// invented — a rule the schema does not make is not written into the
+// contract.
+func ConstraintsFromDBType(dbType string) validation.Constraints {
+	text := strings.TrimSpace(strings.ToLower(dbType))
+	if open := strings.Index(text, "("); open > 0 && strings.HasSuffix(text, ")") {
+		inner := text[open+1 : len(text)-1]
+		switch {
+		case strings.HasPrefix(text, "varchar"), strings.HasPrefix(text, "char"):
+			if n, err := strconv.Atoi(inner); err == nil && n > 0 {
+				maxLen := n
+				return validation.Constraints{MaxLen: &maxLen}
+			}
+		case strings.HasPrefix(text, "enum"):
+			values := strings.Split(inner, ",")
+			enum := make([]string, 0, len(values))
+			for _, v := range values {
+				enum = append(enum, strings.Trim(strings.TrimSpace(v), "'"))
+			}
+			return validation.Constraints{Enum: enum}
+		}
+	}
+	return validation.Constraints{}
+}
+
 // columnToField 将列信息转换为 parser.ModelField
 func columnToField(col ColumnInfo) parser.ModelField {
 	// 主键字段不应为 nullable
@@ -480,7 +509,7 @@ func columnToField(col ColumnInfo) parser.ModelField {
 		gormParts = append(gormParts, "type:"+normalizeDBType(col.DBType))
 	}
 
-	return parser.ModelField{
+	field := parser.ModelField{
 		Name:       snakeToCamel(col.Name),
 		Type:       goType,
 		JSONTag:    jsonTag,
@@ -491,6 +520,10 @@ func columnToField(col ColumnInfo) parser.ModelField {
 		IsNotNull:  !col.IsNullable,
 		IsUnique:   col.IsUnique,
 	}
+	// The DDL's own truth becomes the contract's constraints, so the
+	// contract copy and the direct ir path agree.
+	field.Constraints = ConstraintsFromDBType(col.DBType)
+	return field
 }
 
 // buildService 为所有表构建一个聚合 Service，每张表生成 standard CRUD 方法

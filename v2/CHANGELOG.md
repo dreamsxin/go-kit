@@ -133,8 +133,13 @@ English | [简体中文](CHANGELOG_zh.md)
   is refused at generation time, never silently ignored at request time.
   Promised as `validation.tag-semantics`.
 - Projects generated from a database derive the constraints from the DDL
-  itself: a `varchar(n)` column bounds its string, an `enum(...)` column lists
-  its values — truth the schema already states, with no tag to write.
+  itself: a `varchar(n)` column bounds its string, an `enum(...)` column
+  lists its values — truth the schema already states, with no tag to write —
+  and the written contract copy (`idl.go`) carries the same `validate` tags,
+  so the extend loop, the contract, and the service agree. A from-db table
+  that already owns its audit columns no longer collides with the injected
+  audit fields: the db source now suppresses the injection the same way it
+  always suppressed it for hand-annotated models.
 
 ### Changed
 

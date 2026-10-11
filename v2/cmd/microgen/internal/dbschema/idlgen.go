@@ -54,6 +54,14 @@ func WriteIDL(schemas []*TableSchema, pkgName, outDir string) (string, error) {
 		sb.WriteString(fmt.Sprintf("type %s struct {\n", m.Name))
 		for _, f := range m.Fields {
 			tag := buildTag(f.JSONTag, f.GormTag)
+			if validateRules := f.Constraints.Tag(); validateRules != "" {
+				validatePart := fmt.Sprintf(`validate:"%s"`, validateRules)
+				if tag == "" {
+					tag = " `" + validatePart + "`"
+				} else {
+					tag = strings.TrimSuffix(tag, "`") + " " + validatePart + "`"
+				}
+			}
 			comment := ""
 			if f.Comment != "" {
 				comment = " // " + f.Comment

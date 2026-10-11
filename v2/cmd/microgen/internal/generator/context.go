@@ -134,6 +134,7 @@ func modelsFromProject(project *ir.Project) []*modelView {
 			TableName:   msg.TableName,
 			Comment:     msg.Description,
 			HasGormTags: msg.HasGormTags,
+			Source:      project.Source,
 		}
 		for _, field := range msg.Fields {
 			if field == nil {

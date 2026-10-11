@@ -129,6 +129,34 @@ func ParseTag(tag string) (Constraints, error) {
 	return c, nil
 }
 
+// Tag renders the constraints back into a validate tag's rule text, the
+// inverse of ParseTag. It is what generators write into the contracts they
+// emit, so a model derived from a database schema carries the same rules the
+// direct ir path derived. The returned text has no surrounding tag; empty
+// constraints render as an empty string.
+func (c Constraints) Tag() string {
+	var parts []string
+	if len(c.Enum) > 0 {
+		parts = append(parts, "enum="+strings.Join(c.Enum, "|"))
+	}
+	if c.Min != nil {
+		parts = append(parts, "min="+trimFloat(*c.Min))
+	}
+	if c.Max != nil {
+		parts = append(parts, "max="+trimFloat(*c.Max))
+	}
+	if c.MinLen != nil {
+		parts = append(parts, "minLen="+strconv.Itoa(*c.MinLen))
+	}
+	if c.MaxLen != nil {
+		parts = append(parts, "maxLen="+strconv.Itoa(*c.MaxLen))
+	}
+	if c.HasDefault {
+		parts = append(parts, "default="+c.Default)
+	}
+	return strings.Join(parts, ",")
+}
+
 // Validate checks value against its validate tags and returns the first
 // violation, classified as an invalid_argument apperror. A value that is not
 // a struct passes: rules live on struct fields, and a decoded map or slice
