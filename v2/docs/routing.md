@@ -153,7 +153,10 @@ escape hatch.
 | `WithHTTPRecorder(recs...)` | HTTP-level observations (method, route, status). Covers application routes, never probes. |
 | `WithRecorder(recs...)` / `WithMetrics(m)` | Endpoint-level outcomes, labeled with the route pattern. |
 
-Why the HTTP recorder is installed per route rather than around the mux:
+Errors a route answers are not silent: a server constructed without an
+explicit error handler logs them through slog's default logger at Warn
+level, and `transport.NopErrorHandler` restores silence on purpose. Why the
+HTTP recorder is installed per route rather than around the mux:
 `Observation.Route` comes from `http.Request.Pattern`, which a wrapper around
 the mux never sees. An unmatched URL reports an empty `Route`, which is what
 keeps an unrouted path from becoming an unbounded metric dimension.

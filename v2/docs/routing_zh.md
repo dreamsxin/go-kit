@@ -132,7 +132,9 @@ v2 := svc.Group("/api/v2") // 分组可嵌套：两个前缀都会拼接
 | `WithHTTPRecorder(recs...)` | HTTP 层观测（方法、路由、状态）。覆盖应用路由，从不覆盖探针。 |
 | `WithRecorder(recs...)` / `WithMetrics(m)` | 端点层结果，以路由模式标注。 |
 
-HTTP 记录器为何按路由安装而不是包在 mux 外面：`Observation.Route` 来自
+路由应答的错误并非无声：未显式设置错误处理器的服务器会以 Warn 级别把错误记入
+slog 默认日志器，`transport.NopErrorHandler` 可有意恢复静默。HTTP 记录器为何按
+路由安装而不是包在 mux 外面：`Observation.Route` 来自
 `http.Request.Pattern`，而包在 mux 外的包装器永远看不到它。未匹配的 URL 上报空
 `Route`，这正是未路由路径不会变成无界指标维度的原因。
 

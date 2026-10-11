@@ -22,6 +22,7 @@
 | `todosvc/` | 数据库 CRUD 服务：SQLite 仓储、Service -> Endpoint -> HTTP、优雅关闭 | `go run ./examples/todosvc` |
 | `interaction_policy/` | AI 交互运行时：带授权与审计钩子的 MCP 风格工具调用 | `go run ./examples/interaction_policy` |
 | `mcp_basic/` | 最小 MCP 服务器：单个工具、`NewRuntime()`、`mcp.ListenAndServe` | `go run ./examples/mcp_basic` |
+| `sse/` | Server-Sent Events 流：类型化流路由、`kit.Stopping(ctx)`、停机交互 | `go run ./examples/sse` |
 | `mcp_full/` | 完整 MCP 服务器：工具、资源、提示词、通知、补全、SSE 流式传输 | `go run ./examples/mcp_full` |
 | `sd/` | 服务发现：instance.Cache、Endpointer、RoundRobin、Retry、sd/client.NewEndpoint、InvalidateOnError、元数据过滤、selector、feedback.Table 与 Ejector、主动健康检查、Ranker、SlowStart、draining | `go run ./examples/sd` |
 | `multisvc/` | 在一个包中为两个服务定义 IDL | （库） |

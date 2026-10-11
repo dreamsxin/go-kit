@@ -23,6 +23,7 @@ after dropping the `./examples/` prefix.
 | `todosvc/` | Database CRUD service: SQLite repository, Service -> Endpoint -> HTTP, graceful shutdown | `go run ./examples/todosvc` |
 | `interaction_policy/` | AI interaction runtime: MCP-style tool calls with authorization and audit hooks | `go run ./examples/interaction_policy` |
 | `mcp_basic/` | Minimal MCP server: single tool, `NewRuntime()`, `mcp.ListenAndServe` | `go run ./examples/mcp_basic` |
+| `sse/` | Server-Sent Events stream: typed stream route, `kit.Stopping(ctx)`, shutdown interaction | `go run ./examples/sse` |
 | `mcp_full/` | Full MCP server: tools, resources, prompts, notifications, completions, SSE streaming | `go run ./examples/mcp_full` |
 | `sd/` | Service discovery: instance.Cache, Endpointer, RoundRobin, Retry, sd/client.NewEndpoint, InvalidateOnError, metadata filtering, selector, feedback.Table with Ejector, active health checks, Ranker, SlowStart, draining | `go run ./examples/sd` |
 | `multisvc/` | IDL definition for two services in one package | (library) |

@@ -337,6 +337,14 @@ svc, err := kit.NewHTTP(":8080", kit.WithJSONServerOptions(
 码的错误会保留它，与默认编码器一致。正是这一点保证了映射器不会静默改写转发的
 `client.HTTPStatusError` 或 `endpoint.ValidationError`。
 
+## 谁看见错误
+
+路由用上面的信封应答错误——同时把它记入日志。未显式设置错误处理器的服务器会把
+每一次解码、端点与编码失败以 Warn 级别记入 slog 默认日志器
+（`transport.DefaultErrorHandler`）；`transport.NopErrorHandler` 可有意恢复静默；
+`observability/slog.NewErrorHandler` 是带请求关联的富适配器。一个被应答却无人记
+录的错误，永远无法被修复。
+
 ## 经验法则
 
 - 业务代码用 `apperror` 分类；传输层映射状态码；绝不向客户端泄露内部细节。

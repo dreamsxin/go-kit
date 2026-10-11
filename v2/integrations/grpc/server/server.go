@@ -57,14 +57,14 @@ func NewServer(
 		e:            e,
 		dec:          dec,
 		enc:          enc,
-		errorHandler: transport.NopErrorHandler,
+		errorHandler: transport.DefaultErrorHandler,
 		errorEncoder: DefaultErrorEncoder,
 	}
 	for _, option := range options {
 		option(s)
 	}
 	if s.errorHandler == nil {
-		s.errorHandler = transport.NopErrorHandler
+		s.errorHandler = transport.DefaultErrorHandler
 	}
 	if s.errorEncoder == nil {
 		s.errorEncoder = DefaultErrorEncoder

@@ -6,6 +6,29 @@
 
 ### 新增
 
+- 示例目录新增 SSE：`examples/sse` 注册类型化流路由，解码器读取路径值，从
+  channel 推送事件，并在停机时经 `kit.Stopping(ctx)` 结束流——这是最后一个没有
+  可运行代码陪伴的传输特性。
+
+### 变更
+
+- 传输应答的错误不再无声。两个服务传输的默认错误处理器改为经 slog 默认日志器以
+  Warn 级别记录（`transport.DefaultErrorHandler`），被拒绝的请求体或失败的解码会
+  出现在部署日志里，而不是藏在一个正确的状态码后面。`transport.NopErrorHandler`
+  可有意恢复静默；`observability/slog.NewErrorHandler` 仍是带请求关联的富适配
+  器。承诺为 `transport.default-error-handler`。
+
+### 变更（文档）
+
+- 错误处理一章写明"谁看见错误"，路由章节在影响路由的选项旁声明同一默认。
+
+### 有意不做
+
+- validate tag 的 `pattern` 规则：Go 结构体 tag 无法可靠携带反斜杠——reflect 的
+  tag 约定把它们当作转义消费，而表单所需的 pattern 里全是反斜杠——规则无法从源
+  码到 tag 走完这一程，除非引入没人该学的双重转义约定。validation 包记录了这一发
+  现。
+
 - `validate` 结构体 tag 打通了契约、依据契约生成的表单与应答请求的服务之间的闭
   环。子集与 JSON Schema 关键词一一对应——`enum`、`min`/`max`（数值）、
   `minLen`/`maxLen`（字符串长度）、`default`（表单预填提示）——一个 tag、三个读者：

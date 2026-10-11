@@ -2131,6 +2131,9 @@ func (b Binding[Req, Resp]) TypedEndpoint() endpoint.TypedEndpoint[Req, Resp]
 type ErrorHandler interface {
 	Handle(ctx context.Context, err error)
 }
+var DefaultErrorHandler ErrorHandler = ErrorHandlerFunc(func(ctx context.Context, err error) {
+	slog.WarnContext(ctx, "go-kit transport error", "err", err)
+})
 var NopErrorHandler ErrorHandler = ErrorHandlerFunc(func(_ context.Context, _ error) {})
 type ErrorHandlerFunc func(ctx context.Context, err error)
 func (f ErrorHandlerFunc) Handle(ctx context.Context, err error)

@@ -6,6 +6,34 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Added
 
+- An SSE example joins the catalog: `examples/sse` registers a typed stream
+  route whose decoder reads the path value, pushes from a channel, and ends
+  the stream through `kit.Stopping(ctx)` during shutdown — the last transport
+  feature without runnable code beside it.
+
+### Changed
+
+- An error a transport answers is no longer silent. The default error handler
+  of both serving transports logs through slog's default logger at Warn level
+  (`transport.DefaultErrorHandler`), so a rejected body or a failed decode is
+  recorded where the deployment's logs go instead of vanishing behind a
+  correct status code. `transport.NopErrorHandler` restores silence on
+  purpose, and `observability/slog.NewErrorHandler` stays the rich adapter.
+  Promised as `transport.default-error-handler`.
+
+### Changed (documentation)
+
+- The errors chapter names who sees the errors, and the routing chapter
+  states the same default beside the route-shaping options.
+
+### Deliberately not done
+
+- A `pattern` rule for the validate tag: Go struct tags cannot carry
+  backslashes reliably — reflect's tag conventions consume them as escapes,
+  and the patterns a form needs are full of them — so the rule cannot survive
+  the journey from source to struct tag without a double-escaping convention
+  nobody should have to learn. The validation package documents the finding.
+
 - A `validate` struct tag closes the loop between the contract, the form built
   from it, and the service that answers it. The subset maps one-to-one onto
   JSON Schema keywords — `enum`, `min`/`max` (numeric), `minLen`/`maxLen`

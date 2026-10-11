@@ -28,6 +28,9 @@ func ServerAfter(after ...ResponseFunc) ServerOption {
 }
 
 // ServerErrorHandler sets the handler called when any step returns an error.
+// The default logs through slog's default logger at Warn level
+// (transport.DefaultErrorHandler); transport.NopErrorHandler restores
+// silence.
 func ServerErrorHandler(errorHandler transport.ErrorHandler) ServerOption {
 	return func(s *Server) { s.errorHandler = errorHandler }
 }

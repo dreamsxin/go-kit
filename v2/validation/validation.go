@@ -13,7 +13,10 @@
 // fields. minLen and maxLen bound the length of strings, slices, and maps.
 // default is a form-filling hint carried by the contract; validation does not
 // enforce it, because a default is what a form pre-fills, not what a server
-// assumes. A pointer field that is nil is absent — constraints do not run on
+// assume. A pattern rule is deliberately absent from the subset: Go struct
+// tags cannot carry backslashes reliably (reflect's tag conventions consume
+// them as escapes), and the patterns a form needs are full of them. A pointer
+// field that is nil is absent — constraints do not run on
 // it, because required-ness is the field's own business: a non-pointer field
 // is already required in the generated contract.
 //

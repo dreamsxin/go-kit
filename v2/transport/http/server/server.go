@@ -61,7 +61,7 @@ func NewServer(
 		s.errorEncoder = DefaultErrorEncoder
 	}
 	if s.errorHandler == nil {
-		s.errorHandler = transport.NopErrorHandler
+		s.errorHandler = transport.DefaultErrorHandler
 	}
 	return s
 }

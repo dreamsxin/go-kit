@@ -375,6 +375,16 @@ through `transporthttp.StatusCoder` keeps it, exactly as with the default
 encoder. That is what stops a mapper from silently rewriting a relayed
 `client.HTTPStatusError` or an `endpoint.ValidationError`.
 
+## Who Sees The Errors
+
+A route answers an error with the envelope above — and logs it. A server
+constructed without an explicit error handler records every decode, endpoint,
+and encode failure through slog's default logger at Warn level
+(`transport.DefaultErrorHandler`); `transport.NopErrorHandler` restores
+silence on purpose, and `observability/slog.NewErrorHandler` is the rich
+adapter with request correlation. An error that is answered but never logged
+cannot be fixed.
+
 ## Rules of thumb
 
 - Business code classifies with `apperror`; transports map statuses; never

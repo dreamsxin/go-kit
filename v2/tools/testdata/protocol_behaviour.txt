@@ -207,6 +207,7 @@ stable/slog.panic-logged
 stable/slog.record-fields
 stable/slog.telemetry-order
 stable/slog.telemetry-signals
+stable/transport.default-error-handler
 stable/validation.tag-semantics
 stable/zap.error-handler-nil-logger
 stable/zap.middleware-transparency
