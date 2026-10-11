@@ -144,6 +144,13 @@ reader worse than the copy does.
   through `microgen`.
 - Prefer explicit ownership, validated configuration, deterministic generation,
   cancellation-aware lifecycle, and safe concurrency defaults.
+- Ownership of a generated project's files is stated by the artifacts
+  themselves: the standard generated-code marker as the first line of every
+  rewritten file, write-once scaffolds that announce they are never
+  overwritten, the `generated_` filename prefix, and the manifest artifact
+  list. Separating user and generated code into different directories was
+  considered and rejected: it would rewrite every existing generated project
+  and its extend-mode drift checks for a property the markers already carry.
 - The public library surface is documented by construction: a reviewed gate
   rejects an exported top-level declaration with no doc comment, so a new
   exported name cannot ship unexplained. Methods, internal packages, testdata,
