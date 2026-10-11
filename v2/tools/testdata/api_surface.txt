@@ -2271,6 +2271,7 @@ func DecodeJSONResponse[Resp any](_ context.Context, r *http.Response) (any, err
 func DefaultClient() *http.Client
 func EncodeJSONRequest(c context.Context, req *http.Request, request any) (*http.Request, error)
 func EncodeQueryRequest(_ context.Context, req *http.Request, request any) (*http.Request, error)
+func HandleSSE[T any](ctx context.Context, rawURL string, onEvent func(context.Context, SSEEvent[T]) error, options ...ClientOption) error
 func KindForStatus(status int) apperror.Kind
 func NewJSONClient[Resp any](method, rawURL string, options ...ClientOption) (endpoint.Endpoint, error)
 func NewJSONClientWithMaxResponseBodyBytes[Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (endpoint.Endpoint, error)
@@ -2330,6 +2331,10 @@ type ResponseBodyTooLargeError struct {
 func (e *ResponseBodyTooLargeError) Error() string
 func (e *ResponseBodyTooLargeError) Unwrap() error
 type ResponseFunc func(context.Context, *http.Response, error) context.Context
+type SSEEvent[T any] struct {
+	Name string
+	Data T
+}
 
 ## github.com/dreamsxin/go-kit/v2/transport/http/server
 package server // import "github.com/dreamsxin/go-kit/v2/transport/http/server"
@@ -2590,3 +2595,4 @@ type Constraints struct {
 }
 func ParseTag(tag string) (Constraints, error)
 func (c Constraints) Empty() bool
+func (c Constraints) Tag() string

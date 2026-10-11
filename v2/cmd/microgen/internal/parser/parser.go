@@ -42,6 +42,10 @@ type Method struct {
 type Auth struct {
 	Required bool
 	Roles    []string
+	// CleanedDoc is the doc comment with the auth: directive lines removed —
+	// the requirement is carried structurally, so the public description
+	// does not repeat the internal syntax.
+	CleanedDoc string
 }
 
 // ModelField 模型字段（结构体字段）
@@ -174,42 +178,45 @@ func parseService(ts *ast.TypeSpec, iface *ast.InterfaceType, declarationDoc *as
 // directives are `required` and `roles=a,b` (any-of); lines and directives
 // may be combined. An unknown directive or an empty roles list is refused at
 // generation time, never silently ignored at request time.
-func parseAuthDoc(doc string) (Auth, error) {
+func parseAuthDoc(doc string) (Auth, string, error) {
 	var auth Auth
+	var kept []string
 	for _, line := range strings.Split(doc, "\n") {
 		// Accept the line with or without the comment marker: commentText
 		// strips it, and raw doc text may carry it.
 		line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "//"))
 		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "auth:") {
+		if strings.HasPrefix(line, "auth:") {
+			body := strings.TrimSpace(strings.TrimPrefix(line, "auth:"))
+			if body == "" {
+				return Auth{}, doc, fmt.Errorf("auth: directive has no value")
+			}
+			for _, directive := range strings.Fields(body) {
+				switch {
+				case directive == "required":
+					auth.Required = true
+				case strings.HasPrefix(directive, "roles="):
+					list := strings.TrimPrefix(directive, "roles=")
+					if list == "" {
+						return Auth{}, doc, fmt.Errorf("auth: roles lists no values")
+					}
+					for _, role := range strings.Split(list, ",") {
+						role = strings.TrimSpace(role)
+						if role == "" {
+							return Auth{}, doc, fmt.Errorf("auth: roles lists an empty role")
+						}
+						auth.Roles = append(auth.Roles, role)
+					}
+				default:
+					return Auth{}, doc, fmt.Errorf("auth: unknown directive %q (want required or roles=a,b)", directive)
+				}
+			}
 			continue
 		}
-		body := strings.TrimSpace(strings.TrimPrefix(line, "auth:"))
-		if body == "" {
-			return Auth{}, fmt.Errorf("auth: directive has no value")
-		}
-		for _, directive := range strings.Fields(body) {
-			switch {
-			case directive == "required":
-				auth.Required = true
-			case strings.HasPrefix(directive, "roles="):
-				list := strings.TrimPrefix(directive, "roles=")
-				if list == "" {
-					return Auth{}, fmt.Errorf("auth: roles lists no values")
-				}
-				for _, role := range strings.Split(list, ",") {
-					role = strings.TrimSpace(role)
-					if role == "" {
-						return Auth{}, fmt.Errorf("auth: roles lists an empty role")
-					}
-					auth.Roles = append(auth.Roles, role)
-				}
-			default:
-				return Auth{}, fmt.Errorf("auth: unknown directive %q (want required or roles=a,b)", directive)
-			}
-		}
+		kept = append(kept, strings.TrimSpace(line))
 	}
-	return auth, nil
+	auth.CleanedDoc = strings.TrimSpace(strings.Join(kept, "\n"))
+	return auth, auth.CleanedDoc, nil
 }
 
 // parseMethod 解析接口方法
@@ -224,22 +231,22 @@ func parseMethod(field *ast.Field, serviceName string) (Method, error) {
 
 	// 注释 → Doc & Summary
 	raw := commentText(field.Doc, field.Comment)
-	if raw != "" {
-		method.Doc = raw
-		// Summary 取第一行（去掉可能的方法名前缀）
-		firstLine := strings.SplitN(raw, "\n", 2)[0]
-		method.Summary = firstLine
-	}
-	if method.Summary == "" {
-		method.Summary = method.Name
-	}
 
-	// auth: 注释行 → 认证要求。语法在解析期校验，畸形即拒绝生成。
-	auth, err := parseAuthDoc(raw)
+	// auth: 注释行 → 认证要求。语法在解析期校验，畸形即拒绝生成；指令行从
+	// Doc 中剥离——需求由 security 键结构化承载，公开描述不重复内部语法。
+	auth, cleaned, err := parseAuthDoc(raw)
 	if err != nil {
 		return Method{}, fmt.Errorf("method %s: %w", method.Name, err)
 	}
 	method.Auth = auth
+	if cleaned != "" {
+		method.Doc = cleaned
+		// Summary 取第一行（去掉可能的方法名前缀）
+		method.Summary = strings.SplitN(cleaned, "\n", 2)[0]
+	}
+	if method.Summary == "" {
+		method.Summary = method.Name
+	}
 
 	// Tags 默认使用服务名
 	method.Tags = serviceName

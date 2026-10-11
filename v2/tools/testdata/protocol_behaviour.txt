@@ -103,6 +103,7 @@ stable/http.response-content-type
 stable/http.response-headers
 stable/http.response-status
 stable/http.retry-after
+stable/http.sse-client
 stable/http.sse-framing
 stable/http.sse-headers
 stable/http.sse-line-terminators

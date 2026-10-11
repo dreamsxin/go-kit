@@ -59,17 +59,17 @@ func ParseProto(protoPath string) (*ParseResult, error) {
 				StreamsOutput: r.StreamsReturns,
 			}
 			if r.Comment != nil {
-				raw := strings.TrimSpace(r.Comment.Message())
-				method.Doc = raw
-				method.Summary = strings.SplitN(raw, "\n", 2)[0]
 				// auth: directives parse identically on both IDL sources.
 				// Comment.Message() returns only the first line of a
-				// multi-line group, so the auth scan reads the raw lines.
-				auth, authErr := parseAuthDoc(strings.Join(r.Comment.Lines, "\n"))
+				// multi-line group, so the auth scan reads the raw lines,
+				// and the directive lines are stripped from the public doc.
+				auth, cleaned, authErr := parseAuthDoc(strings.Join(r.Comment.Lines, "\n"))
 				if authErr != nil {
 					parseErrors = append(parseErrors, fmt.Errorf("rpc %s: %w", r.Name, authErr))
 				}
 				method.Auth = auth
+				method.Doc = cleaned
+				method.Summary = strings.SplitN(cleaned, "\n", 2)[0]
 			}
 			if method.Summary == "" {
 				method.Summary = r.Name

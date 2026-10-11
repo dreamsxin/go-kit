@@ -103,6 +103,26 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -113,7 +133,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "auth": []
+          }
+        ]
       }
     },
     "/api/idl/userservice/editprofile": {
@@ -644,6 +669,16 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -654,7 +689,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "auth": []
+          }
+        ]
       }
     }
   },
@@ -939,6 +979,12 @@
           "status",
           "username"
         ]
+      }
+    },
+    "securitySchemes": {
+      "auth": {
+        "type": "http",
+        "scheme": "bearer"
       }
     }
   }

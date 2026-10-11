@@ -71,8 +71,12 @@ type UserService interface {
 	// ListUsers lists all users.
 	ListUsers(ctx context.Context, req ListUsersRequest) (ListUsersResponse, error)
 	// DeleteUser removes a user.
+	//
+	// auth: roles=admin
 	DeleteUser(ctx context.Context, req DeleteUserRequest) (DeleteUserResponse, error)
 	// UpdateUser modifies a user.
+	//
+	// auth: required
 	UpdateUser(ctx context.Context, req UpdateUserRequest) (UpdateUserResponse, error)
 	// FindByEmail finds users by email prefix.
 	FindByEmail(ctx context.Context, req GetUserRequest) (GetUserResponse, error)

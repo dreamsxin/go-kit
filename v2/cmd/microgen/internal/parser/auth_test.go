@@ -27,7 +27,7 @@ func TestParseAuthDoc(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			auth, err := parseAuthDoc(tc.doc)
+			auth, cleaned, err := parseAuthDoc(tc.doc)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("parseAuthDoc(%q) error = %v, want substring %q", tc.doc, err, tc.wantErr)
@@ -42,6 +42,13 @@ func TestParseAuthDoc(t *testing.T) {
 			}
 			if strings.Join(auth.Roles, ",") != strings.Join(tc.roles, ",") {
 				t.Errorf("roles = %v, want %v", auth.Roles, tc.roles)
+			}
+			// The directive lines never reach the public description.
+			if strings.Contains(cleaned, "auth:") {
+				t.Errorf("cleaned doc still carries the directive: %q", cleaned)
+			}
+			if tc.name == "required" && !strings.Contains(cleaned, "Creates.") {
+				t.Errorf("cleaned doc lost the prose: %q", cleaned)
 			}
 		})
 	}
