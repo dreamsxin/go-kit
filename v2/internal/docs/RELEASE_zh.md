@@ -3,7 +3,7 @@
 
 ## 当前状态
 
-v2.24.0 是本次从 `main` 准备的补丁候选版本：
+v2.24.0 是当前已发布的模块版本：
 
 ```text
 github.com/dreamsxin/go-kit/v2
