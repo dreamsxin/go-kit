@@ -37,3 +37,4 @@ github.com/dreamsxin/go-kit/v2/transport
 github.com/dreamsxin/go-kit/v2/transport/http
 github.com/dreamsxin/go-kit/v2/transport/http/client
 github.com/dreamsxin/go-kit/v2/transport/http/server
+github.com/dreamsxin/go-kit/v2/validation

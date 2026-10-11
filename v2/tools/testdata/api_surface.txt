@@ -2563,3 +2563,21 @@ func (e UnsupportedMediaTypeError) Error() string
 func (e UnsupportedMediaTypeError) ErrorCode() string
 func (e UnsupportedMediaTypeError) PublicMessage() string
 func (e UnsupportedMediaTypeError) StatusCode() int
+
+## github.com/dreamsxin/go-kit/v2/validation
+package validation // import "github.com/dreamsxin/go-kit/v2/validation"
+FUNCTIONS
+func Middleware() endpoint.Middleware
+func Validate(value any) error
+TYPES
+type Constraints struct {
+	Enum       []string
+	Min        *float64
+	Max        *float64
+	MinLen     *int
+	MaxLen     *int
+	Default    string
+	HasDefault bool
+}
+func ParseTag(tag string) (Constraints, error)
+func (c Constraints) Empty() bool

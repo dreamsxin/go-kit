@@ -38,7 +38,7 @@ func TestArchitectureDependencyGates(t *testing.T) {
 		{
 			name:         "kit",
 			pattern:      "./kit",
-			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/health", coreModulePath + "/sd", coreModulePath + "/transport"},
+			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/health", coreModulePath + "/sd", coreModulePath + "/transport", coreModulePath + "/validation"},
 			allowedTrees: []string{coreModulePath + "/kit", coreModulePath + "/transport/http"},
 		},
 		{
