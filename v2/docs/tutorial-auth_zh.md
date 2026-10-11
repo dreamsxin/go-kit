@@ -3,8 +3,10 @@
 [English](tutorial-auth.md) | 简体中文
 
 本教程为一个 kit 服务添加 Bearer 密钥认证与基于角色的授权。认证在设计上由应用
-自有；框架提供中间件边界与错误分类。完整代码即可运行的
-[examples/auth/main.go](../examples/auth/main.go) 示例。
+自有；框架提供中间件边界与错误分类。下面每个代码块都是完整的——按节顺序操作，
+`main.go` 就能拼装成可运行的服务，与可运行的
+[examples/auth/main.go](../examples/auth/main.go) 示例是同一个文件，示例只多一段
+更长的包注释。
 
 ## 1. 目标
 
@@ -18,83 +20,104 @@
 这三条健康路由由 `kit.NewHTTP` 自己注册，因此公开前缀列表必须覆盖全部三条——
 不只是 `/health`。
 
-## 2. 标准分层
-
 认证分为两个边界：HTTP middleware 从线路请求提取凭证；与传输无关的 `security`
-包把凭证解析为 `security.Subject`，并在 endpoint middleware 中执行路由要求。
-这样 service 不依赖 bearer header、cookie 或某一种协议。
+包可以把凭证解析为 `security.Subject`，并在 endpoint middleware 中执行路由要求
+（`security.Middleware`、`security.RequireAuthenticated`）——那种形态让 service
+不依赖 bearer header、cookie 或某一种协议，见
+[security/http README](../security/http/README_zh.md)。本教程改为把线路决策保留
+在朴素的 HTTP middleware 里以便直接查看；它拼装的所有文件只依赖标准库与 `kit`。
 
-```go
-type credentialKey struct{}
+## 2. 建立模块
 
-func extractBearer(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-        ctx := context.WithValue(r.Context(), credentialKey{}, token)
-        next.ServeHTTP(w, r.WithContext(ctx))
-    })
-}
-
-type bearerAuthenticator struct{ keys map[string]identity }
-
-func (a bearerAuthenticator) Authenticate(ctx context.Context) (security.Subject, error) {
-    token, _ := ctx.Value(credentialKey{}).(string)
-    id, ok := a.keys[token]
-    if !ok || token == "" {
-        return security.Subject{}, apperror.Unauthenticated(
-            "auth.invalid", "credentials are missing or invalid",
-        )
-    }
-    return security.Subject{
-        ID: id.Subject, Kind: security.SubjectUser, Roles: id.Roles,
-    }, nil
-}
+```bash
+mkdir authsvc && cd authsvc
+go mod init example.com/authsvc
+go get github.com/dreamsxin/go-kit/v2@latest
 ```
 
-把提取器安装在 HTTP 边界，把解析器安装在 endpoint 边界。公开健康路由是组件的
-raw 路由，因此不受保护；私有 JSON 路由显式添加认证要求：
+创建 `main.go`，写入包子句和后续每一节都要用到的 import：
 
 ```go
-svc, _ := kit.NewHTTP(":8080",
-    kit.WithHTTPMiddleware(extractBearer),
-    kit.WithEndpointMiddleware(security.Middleware(bearerAuthenticator{keys: apiKeys})),
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"flag"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+
+	"github.com/dreamsxin/go-kit/v2/apperror"
+	"github.com/dreamsxin/go-kit/v2/kit"
 )
-
-kit.HandleJSONTypedWithMiddleware(svc, "POST /api/me", meHandler,
-    func(b *endpoint.Builder) *endpoint.Builder {
-        return b.Use(security.RequireAuthenticated())
-    })
 ```
-
-需要角色控制时使用 `security.RequireRole("admin")`。依赖资源所有权或业务状态的
-授权仍应放在 service 层。下面继续用小型应用 HTTP helper 展示同一流程，以便看清
-线路层的决策。
 
 ## 3. 身份
 
-身份是一个通过 context 传递的普通值：
+身份是一个经由 context 传递的普通值。追加类型、它的 context helper、真实服务会
+换成数据库或目录查询的密钥表，以及公开前缀列表：
 
 ```go
+// identity 是已认证的调用方。authenticate 中间件从凭证解析出它；
+// handler 与 requireRole 中间件消费它。
 type identity struct {
 	Subject string   `json:"subject"`
 	Roles   []string `json:"roles"`
+}
+
+func (i identity) hasRole(role string) bool {
+	for _, r := range i.Roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+type identityKey struct{}
+
+func withIdentity(ctx context.Context, id identity) context.Context {
+	return context.WithValue(ctx, identityKey{}, id)
 }
 
 func identityFromContext(ctx context.Context) (identity, bool) {
 	id, ok := ctx.Value(identityKey{}).(identity)
 	return id, ok
 }
+
+// apiKeys 把 bearer 凭证映射为身份。真实服务会从数据库、目录服务或
+// 令牌内省端点解析身份。
+var apiKeys = map[string]identity{
+	"reader-key": {Subject: "reader", Roles: []string{"reader"}},
+	"admin-key":  {Subject: "admin", Roles: []string{"reader", "admin"}},
+}
+
+// publicPrefixes 列出无需凭证即可访问的路由。
+var publicPrefixes = []string{"/health", "/livez", "/readyz"}
+
+func isPublic(path string) bool {
+	for _, prefix := range publicPrefixes {
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
 ```
 
 ## 4. 中间件
 
-认证中间件校验 `Authorization` 头并注入身份。它通过 `kit.WithHTTPMiddleware`
-以服务级方式安装，包裹整个 mux——没有按路由排除的选项，因此由中间件自己决定
-什么是公开的：
+认证中间件校验 `Authorization` header 并注入身份。它通过 `kit.WithHTTPMiddleware`
+安装在整个服务上，包裹整个 mux——没有按路由排除的选项，所以哪些请求公开由
+中间件自己决定：
 
 ```go
-var publicPrefixes = []string{"/health", "/livez", "/readyz"}
-
+// authenticate 返回校验 Authorization header 并把身份注入请求 context 的
+// HTTP 中间件。用 kit.WithHTTPMiddleware 安装在整个服务上。
 func authenticate(keys map[string]identity) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -102,8 +125,10 @@ func authenticate(keys map[string]identity) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
+
+			const prefix = "Bearer "
 			header := r.Header.Get("Authorization")
-			if !strings.HasPrefix(header, "Bearer ") {
+			if !strings.HasPrefix(header, prefix) {
 				writeAuthError(w, apperror.New(
 					apperror.KindUnauthenticated,
 					"auth.bearer_required",
@@ -111,7 +136,7 @@ func authenticate(keys map[string]identity) func(http.Handler) http.Handler {
 				))
 				return
 			}
-			id, ok := keys[strings.TrimPrefix(header, "Bearer ")]
+			id, ok := keys[strings.TrimPrefix(header, prefix)]
 			if !ok {
 				writeAuthError(w, apperror.New(
 					apperror.KindUnauthenticated,
@@ -120,19 +145,23 @@ func authenticate(keys map[string]identity) func(http.Handler) http.Handler {
 				))
 				return
 			}
+
 			next.ServeHTTP(w, r.WithContext(withIdentity(r.Context(), id)))
 		})
 	}
 }
 ```
 
-失败用 `apperror` 分类，因此响应携带稳定的机器可读码，而不是一段散文。
+失败用 `apperror` 分类，因此响应携带稳定的机器可读代码而不是散文。
 
-## 5. 单个路由上的授权
+## 5. 单条路由上的授权
 
-角色检查在认证运行之后包裹单个路由：
+角色检查包裹单条路由，在认证之后运行。追加中间件，以及它与 `authenticate` 共享
+的错误渲染器：
 
 ```go
+// requireRole 返回只放行持有指定角色身份的 HTTP 中间件。
+// 用它包裹单条路由的 handler。
 func requireRole(role string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -150,43 +179,85 @@ func requireRole(role string) func(http.Handler) http.Handler {
 	}
 }
 
-svc.Handle("/api/admin", requireRole("admin")(adminHandler))
-```
+// writeAuthError 把已分类的 apperror 渲染成 HTTP 传输使用的 JSON 错误形态，
+// HTTP 状态码由 kind 推导。
+func writeAuthError(w http.ResponseWriter, err *apperror.Error) {
+	status := http.StatusInternalServerError
+	switch err.ErrorKind() {
+	case apperror.KindUnauthenticated:
+		status = http.StatusUnauthorized
+	case apperror.KindPermissionDenied:
+		status = http.StatusForbidden
+	}
 
-`Handle` 接受的是裸路径，而不是 `"GET /api/admin"` 这样的模式，因此该路由对所有
-方法都响应。如果希望 mux 帮你拒绝其他方法，请把动词写进模式里。
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"code":    err.ErrorCode(),
+		"message": err.PublicMessage(),
+	})
+}
+```
 
 ## 6. 装配
 
+追加装配代码，文件就完整了。`Handle` 接受裸路径而不是 `"GET /api/admin"` 模式，
+因此 admin 路由响应所有方法；想让 mux 替你拒绝其他方法，就在模式里加上动词：
+
 ```go
-httpAddr := flag.String("http.addr", ":8080", "HTTP listen address")
-flag.Parse()
+func main() {
+	httpAddr := flag.String("http.addr", ":8080", "HTTP listen address")
+	flag.Parse()
 
-ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-defer stop()
+	svc, err := kit.NewHTTP(*httpAddr,
+		kit.WithHTTPMiddleware(authenticate(apiKeys)),
+		kit.WithRequestID(),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-svc, err := kit.NewHTTP(*httpAddr,
-	kit.WithHTTPMiddleware(authenticate(apiKeys)),
-	kit.WithRequestID(),
-)
-if err != nil {
-	log.Fatal(err)
-}
-registerRoutes(svc)
+	// 读取注入身份的类型化 JSON 端点。
+	type meRequest struct{}
+	kit.HandleJSONTyped(svc, "/api/me", func(ctx context.Context, _ meRequest) (identity, error) {
+		id, ok := identityFromContext(ctx)
+		if !ok {
+			return identity{}, apperror.New(
+				apperror.KindUnauthenticated,
+				"auth.no_identity",
+				"request was not authenticated",
+			)
+		}
+		return id, nil
+	})
 
-host, err := kit.NewHost(kit.WithLifecycle(svc))
-if err != nil {
-	log.Fatal(err)
-}
-if err := host.Run(ctx); err != nil {
-	log.Fatal(err)
+	// 原生 handler 上的路由级授权。
+	svc.Handle("/api/admin", requireRole("admin")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"welcome"}`))
+	})))
+
+	log.Println("auth example listening on", *httpAddr)
+
+	host, err := kit.NewHost(kit.WithLifecycle(svc))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := host.Run(ctx); err != nil {
+		log.Fatal(err)
+	}
 }
 ```
 
-从 `v2/` 模块目录运行它，并尝试目标表格中的各行：
+## 7. 运行它
+
+在教程模块里运行你刚拼装好的文件，并逐一尝试目标表中的每一行：
 
 ```bash
-go run ./examples/auth
+go run .
 curl -i -X POST http://localhost:8080/api/me -d '{}'                                  # 401
 curl -H "Authorization: Bearer reader-key" -H "Content-Type: application/json" \
      -X POST http://localhost:8080/api/me -d '{}'                           # 200
@@ -195,9 +266,11 @@ curl -H "Authorization: Bearer admin-key" http://localhost:8080/api/admin       
 curl http://localhost:8080/health                                                      # 200
 ```
 
+同一个服务也可以在仓库检出里从 `v2/` 模块目录用 `go run ./examples/auth` 运行。
+
 ## 接下来去哪
 
 - [中间件](middleware_zh.md)：组合与流控
 - [错误处理](errors_zh.md)：分类与线上格式
-- [security/http](../security/http/README_zh.md)：面向浏览器的服务的 CORS、CSRF
-  与 IP 策略
+- [security/http](../security/http/README_zh.md)：面向浏览器服务的 CORS、CSRF 与
+  IP 策略

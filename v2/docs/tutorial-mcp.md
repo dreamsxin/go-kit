@@ -122,7 +122,10 @@ curl -X POST http://localhost:8080/mcp \
 ## 5. Ask the caller something
 
 A tool that needs a confirmation or a missing field returns a question instead of
-a result. It runs again when the answer arrives, so write it as a guard:
+a result. It runs again when the answer arrives, so write it as a guard: the
+first round returns `InputRequired` together with a state map, the second round
+finds the collected answers in the context and does the real work — here,
+deleting the rows the state named:
 
 ```go
 Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
@@ -135,7 +138,8 @@ Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult
 			State: map[string]any{"rows": 42},
 		}
 	}
-	return interaction.ToolResult{Output: deleted(state)}, nil
+	rows := state["rows"].(int)
+	return interaction.ToolResult{Output: map[string]any{"deleted": rows}}, nil
 }
 ```
 

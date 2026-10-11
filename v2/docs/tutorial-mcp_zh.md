@@ -116,7 +116,8 @@ curl -X POST http://localhost:8080/mcp \
 ## 5. 向调用方提问
 
 需要确认或缺少字段的工具，返回一个问题而不是结果。答案到达时它会再跑一遍，所以把它
-写成一道门禁：
+写成一道门禁：第一轮返回 `InputRequired` 和一个状态 map，第二轮在 context 里拿到收集
+的答案后做真正的工作——这里就是删除状态里指名的那些行：
 
 ```go
 Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult, error) {
@@ -129,7 +130,8 @@ Fn: func(ctx context.Context, call interaction.ToolCall) (interaction.ToolResult
 			State: map[string]any{"rows": 42},
 		}
 	}
-	return interaction.ToolResult{Output: deleted(state)}, nil
+	rows := state["rows"].(int)
+	return interaction.ToolResult{Output: map[string]any{"deleted": rows}}, nil
 }
 ```
 

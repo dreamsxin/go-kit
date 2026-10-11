@@ -2,6 +2,21 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [Unreleased]
+
+### Documentation
+
+- The CRUD and authentication tutorials are now complete walkthroughs for a
+  beginner: each carries a module-setup step, and every layer (storage,
+  service, HTTP, wire-up) is shown as finished code, so assembling the
+  sections in order yields a runnable `main.go` — the same file as the
+  corresponding example, minus its package comment. Both were verified the
+  way a beginner reads them: the Go blocks were extracted from the tutorial
+  in order, compiled into a fresh module, run, and exercised against every
+  documented response. The MCP tutorial's elicitation example no longer
+  calls an undefined helper; it now shows the second round doing the real
+  work with the returned state.
+
 ## [2.24.0] - 2026-10-11
 
 ### Added
