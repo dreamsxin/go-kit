@@ -1293,6 +1293,8 @@ type Group struct {
 func (g *Group) Group(prefix string) *Group
 func (g *Group) Handle(pattern string, handler http.Handler)
 func (g *Group) HandleFunc(pattern string, fn http.HandlerFunc)
+func (g *Group) UseEndpointMiddleware(mw ...endpoint.Middleware)
+func (g *Group) UseHTTPMiddleware(mw ...func(http.Handler) http.Handler)
 type HTTP struct {
 	// Has unexported fields.
 }

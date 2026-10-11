@@ -6,6 +6,25 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Added
 
+- Route groups carry middleware, in both layers the framework distinguishes.
+  `group.UseEndpointMiddleware(...)` governs the routes registered through the
+  group from here on, running inside the component's chain (and its
+  recorders) and outside the route's own middleware — a group-level rejection
+  is still observed with the joined pattern. `group.UseHTTPMiddleware(...)`
+  wraps the route's handler inside the component's HTTP middleware. Both are
+  first-outermost, inherited by nested groups, and govern only the
+  registrations that follow the `Use` call — the chain is fixed at
+  registration, which is what makes it readable. The semantics follow the
+  framework-agnostic convention (Echo's groups) adapted to the two-layer
+  model.
+- A fresh generated project's `go test ./...` is green. The generated tests
+  skip every not-yet-implemented method — the skip message names the method
+  and the file to implement in, turning the stub list into a checklist — and
+  each skip becomes a real assertion the moment its method is implemented. A
+  fresh project no longer greets its author with a red suite; a failing
+  generated test now means the implementation misbehaves, not that work
+  remains.
+
 - An SSE example joins the catalog: `examples/sse` registers a typed stream
   route whose decoder reads the path value, pushes from a channel, and ends
   the stream through `kit.Stopping(ctx)` during shutdown — the last transport

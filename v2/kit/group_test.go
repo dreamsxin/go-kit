@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/kit"
 )
@@ -176,5 +177,162 @@ func TestGroupRawHandlerKeepsComponentContext(t *testing.T) {
 	component.ServeHTTP(recorder, request)
 	if recorder.Body.String() != "group-test-id" {
 		t.Errorf("request id echoed %q, want %q: a raw route through a group keeps the component context", recorder.Body.String(), "group-test-id")
+	}
+}
+
+// TestGroupEndpointMiddlewareAppliesToGroupRoutes: the group's endpoint
+// middleware governs routes registered through the group, and the
+// component's chain still wraps it.
+func TestGroupEndpointMiddlewareAppliesToGroupRoutes(t *testing.T) {
+	var order []string
+	component := kit.MustNewHTTP("127.0.0.1:0",
+		kit.WithEndpointMiddleware(func(next endpoint.Endpoint) endpoint.Endpoint {
+			return func(ctx context.Context, request any) (any, error) {
+				order = append(order, "component")
+				return next(ctx, request)
+			}
+		}),
+	)
+	api := component.Group("/api")
+	api.UseEndpointMiddleware(func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request any) (any, error) {
+			order = append(order, "group")
+			return next(ctx, request)
+		}
+	})
+	kit.HandleJSONTyped(api, "POST /todos", func(_ context.Context, _ struct{}) (string, error) {
+		return "created", nil
+	})
+	kit.HandleJSONTyped(component, "POST /open", func(_ context.Context, _ struct{}) (string, error) {
+		return "open", nil
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/todos", nil)
+	component.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("group route = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if strings.Join(order, ">") != "component>group" {
+		t.Errorf("chain = %v, want component outside group", order)
+	}
+
+	order = nil
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, "/open", nil)
+	component.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("component route = %d", recorder.Code)
+	}
+	if len(order) != 1 || order[0] != "component" {
+		t.Errorf("component route chain = %v, want only the component middleware", order)
+	}
+}
+
+// TestGroupEndpointMiddlewareRunsInsideComponentChain: a group endpoint
+// middleware that rejects runs inside the component's recorders, so the
+// rejection is still observed with the joined pattern.
+func TestGroupEndpointMiddlewareRunsInsideComponentChain(t *testing.T) {
+	var recorded bool
+	component := kit.MustNewHTTP("127.0.0.1:0",
+		kit.WithRecorder(endpoint.RecorderFunc(func(_ context.Context, obs endpoint.Observation) {
+			recorded = true
+		})),
+	)
+	api := component.Group("/api")
+	api.UseEndpointMiddleware(func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request any) (any, error) {
+			return nil, apperror.New(apperror.KindPermissionDenied, "test.denied", "denied")
+		}
+	})
+	kit.HandleJSONTyped(api, "POST /todos", func(_ context.Context, _ struct{}) (string, error) {
+		return "created", nil
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/todos", nil)
+	component.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("rejected route = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if !recorded {
+		t.Error("the recorder did not observe the group middleware's rejection")
+	}
+}
+
+// TestGroupHTTPMiddlewareWrapsGroupHandlers: the group's HTTP middleware
+// wraps the handlers registered through the group, inside the component's
+// HTTP middleware, and never touches routes outside the group.
+func TestGroupHTTPMiddlewareWrapsGroupHandlers(t *testing.T) {
+	var order []string
+	component := kit.MustNewHTTP("127.0.0.1:0",
+		kit.WithHTTPMiddleware(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				order = append(order, "component")
+				next.ServeHTTP(w, r)
+			})
+		}),
+	)
+	api := component.Group("/api")
+	api.UseHTTPMiddleware(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			order = append(order, "group")
+			next.ServeHTTP(w, r)
+		})
+	})
+	api.HandleFunc("GET /things", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("things"))
+	})
+	component.HandleFunc("GET /open", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("open"))
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/things", nil)
+	component.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("group route = %d", recorder.Code)
+	}
+	if strings.Join(order, ">") != "component>group" {
+		t.Errorf("chain = %v, want component outside group", order)
+	}
+
+	order = nil
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodGet, "/open", nil)
+	component.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("component route = %d", recorder.Code)
+	}
+	if len(order) != 1 || order[0] != "component" {
+		t.Errorf("component route chain = %v, want only the component middleware", order)
+	}
+}
+
+// TestNestedGroupInheritsMiddleware: a child group's routes carry the
+// parent's middleware without re-declaring it.
+func TestNestedGroupInheritsMiddleware(t *testing.T) {
+	var hits int
+	component := kit.MustNewHTTP("127.0.0.1:0")
+	api := component.Group("/api")
+	api.UseEndpointMiddleware(func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request any) (any, error) {
+			hits++
+			return next(ctx, request)
+		}
+	})
+	v1 := api.Group("/v1")
+	kit.HandleJSONTyped(v1, "GET /todos", func(_ context.Context, _ struct{}) (string, error) {
+		return "v1 list", nil
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/todos", nil)
+	component.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("nested route = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if hits != 1 {
+		t.Errorf("parent middleware ran %d times, want 1", hits)
 	}
 }

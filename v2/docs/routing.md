@@ -115,13 +115,28 @@ kit.HandleJSONTyped(api, "GET /todos/{id}", getTodo)
 v2 := svc.Group("/api/v2") // groups nest: both prefixes join
 ```
 
-A group only joins patterns: the route goes through the component's HTTP
-context, endpoint middleware (labeled with the joined pattern), recorders, and
-JSON server options exactly as if the pattern had been written out in full.
-It is not a sub-mux, takes no options, and carries no middleware of its own —
-middleware belongs to the component or to the route. `svc.Group("")` is the
-component's own view; `Handle`/`HandleFunc` work through a group for the raw
-escape hatch.
+A group only joins patterns by default: the route goes through the component's
+HTTP context, endpoint middleware (labeled with the joined pattern), recorders,
+and JSON server options exactly as if the pattern had been written out in full.
+`svc.Group("")` is the component's own view; `Handle`/`HandleFunc` work through
+a group for the raw escape hatch.
+
+A group can also carry middleware for its routes, stated once instead of
+repeated per route:
+
+```go
+api := svc.Group("/api")
+api.UseEndpointMiddleware(security.RequireAuthenticated()) // endpoint layer
+api.UseHTTPMiddleware(requestAuditor)                      // HTTP layer
+```
+
+`UseEndpointMiddleware` runs inside the component's chain (and its recorders)
+and outside the route's own middleware, so a group-level rejection is still
+observed with the joined pattern. `UseHTTPMiddleware` wraps the route's
+handler inside the component's HTTP middleware and touches no endpoint chain.
+Both are first-outermost, are inherited by nested groups, and govern the
+routes registered **after** the `Use` call — the chain is fixed at
+registration, which is what makes it readable.
 
 ## Beyond the JSON body
 

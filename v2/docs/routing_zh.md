@@ -99,10 +99,22 @@ kit.HandleJSONTyped(api, "GET /todos/{id}", getTodo)
 v2 := svc.Group("/api/v2") // 分组可嵌套：两个前缀都会拼接
 ```
 
-分组只拼接模式：路由照常经过组件的 HTTP context、端点中间件（以拼接后的模式标
-注）、记录器与 JSON 服务器选项，与把模式写全没有分别。它不是子 mux、不接收选
-项、不携带自己的中间件——中间件属于组件或路由。`svc.Group("")` 即组件自身视图；
-`Handle`/`HandleFunc` 可经分组用于原生逃生舱。
+分组默认只拼接模式：路由照常经过组件的 HTTP context、端点中间件（以拼接后的模
+式标注）、记录器与 JSON 服务器选项，与把模式写全没有分别。`svc.Group("")` 即组
+件自身视图；`Handle`/`HandleFunc` 可经分组用于原生逃生舱。
+
+分组也可以为自己的路由携带中间件，声明一次而不是逐路由重复：
+
+```go
+api := svc.Group("/api")
+api.UseEndpointMiddleware(security.RequireAuthenticated()) // 端点层
+api.UseHTTPMiddleware(requestAuditor)                      // HTTP 层
+```
+
+`UseEndpointMiddleware` 运行在组件链内侧（记录器之内）、路由自身中间件之外，因此
+组级拒绝仍会以拼接后的模式被观测到。`UseHTTPMiddleware` 包住路由 handler，位于
+组件 HTTP 中间件内侧，不触碰端点链。两者都是首个在最外层、由嵌套分组继承，并且
+只约束其后的注册——链在注册时定型，这正是可读性的来源。
 
 ## JSON 请求体之外
 

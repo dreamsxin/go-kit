@@ -539,6 +539,14 @@ go test ./...
 go run ./cmd
 ```
 
+The generated tests pass on the fresh project: every not-yet-implemented
+method is **skipped**, with the skip message naming the method and the file to
+implement in — the suite turns the stub list into a checklist, and each test
+becomes a real assertion the moment its method is implemented. Implement the
+methods in `service/<name>/service.go`, then read [Generate A Frontend From
+The Contract](#generate-a-frontend-from-the-contract) if a frontend will
+consume the API.
+
 Read the generated `README.md`, inspect the copied source contract, and implement
 business methods before exposing the service.
 

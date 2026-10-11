@@ -97,7 +97,9 @@ func HandleSSETyped[Req any](
 	// decode failure — one service with two error contracts.
 	streamOptions := append(append([]httpserver.ServerOption(nil), h.jsonServerOptions...), opts...)
 	handler := httpserver.NewSSEServerTyped(stream, dec, streamOptions...)
-	h.Handle(pattern, h.sseMiddlewareHandler(pattern, handler))
+	streamHandler := h.sseMiddlewareHandler(pattern, handler, r.routerEndpointMiddleware())
+	streamHandler = wrapHTTPMiddleware(r.routerHTTPMiddleware(), streamHandler)
+	h.Handle(pattern, streamHandler)
 }
 
 // streamOutcome records whether the stream handler was reached, which is what
@@ -129,8 +131,8 @@ type streamOutcomeKey struct{}
 //
 // Stable: kit.sse-one-error-contract — a middleware rejection of an SSE route is encoded with the same error encoder the route's decode failures use.
 // Covered by: TestHandleSSETyped_RejectionUsesTheComponentErrorEncoder
-func (h *HTTP) sseMiddlewareHandler(pattern string, handler *httpserver.SSEServer) http.Handler {
-	if len(h.middleware) == 0 && len(h.recorders) == 0 {
+func (h *HTTP) sseMiddlewareHandler(pattern string, handler *httpserver.SSEServer, groupMiddleware []endpoint.Middleware) http.Handler {
+	if len(h.middleware) == 0 && len(h.recorders) == 0 && len(groupMiddleware) == 0 {
 		return handler
 	}
 	encodeError := handler.ErrorEncoder()
@@ -141,6 +143,12 @@ func (h *HTTP) sseMiddlewareHandler(pattern string, handler *httpserver.SSEServe
 		request := requestFromContext(ctx)
 		return struct{}{}, handler.ServeStream(responseWriterFromContext(ctx), request.WithContext(ctx))
 	})
+	for _, mw := range groupMiddleware {
+		// The group's chain wraps the stream base before the component's
+		// chain, so the component's recorders still observe the whole
+		// stream, and the stream outcome plumbing stays outside both.
+		base = mw(base)
+	}
 	wrapped := h.applyEndpointMiddleware(pattern, base)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		outcome := &streamOutcome{}

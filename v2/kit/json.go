@@ -139,9 +139,21 @@ func HandleJSONEndpoint[Req any](
 	if ep == nil {
 		panic("kit: JSON endpoint cannot be nil")
 	}
+	for _, mw := range r.routerEndpointMiddleware() {
+		ep = mw(ep)
+	}
 	ep = h.applyEndpointMiddleware(pattern, ep)
 	handler := newTypedJSONHandler[Req](ep, h, h.jsonMaxBodyBytes, options...)
+	handler = wrapHTTPMiddleware(r.routerHTTPMiddleware(), handler)
 	h.mux.Handle(pattern, h.withHTTPContext(handler))
+}
+
+// wrapHTTPMiddleware applies middleware to a handler, first outermost.
+func wrapHTTPMiddleware(middleware []func(http.Handler) http.Handler, handler http.Handler) http.Handler {
+	for i := len(middleware) - 1; i >= 0; i-- {
+		handler = middleware[i](handler)
+	}
+	return handler
 }
 
 // newTypedJSONHandler assembles the HTTP transport of a typed JSON route:
@@ -195,8 +207,12 @@ func HandleJSONEndpointWithBodyLimit[Req any](
 	if maxBodyBytes <= 0 {
 		panic("kit: per-route JSON body limit must be positive")
 	}
+	for _, mw := range r.routerEndpointMiddleware() {
+		ep = mw(ep)
+	}
 	ep = h.applyEndpointMiddleware(pattern, ep)
 	handler := newTypedJSONHandler[Req](ep, h, maxBodyBytes, options...)
+	handler = wrapHTTPMiddleware(r.routerHTTPMiddleware(), handler)
 	h.mux.Handle(pattern, h.withHTTPContext(handler))
 }
 
