@@ -54,7 +54,7 @@ func NewJSONTypedHandler[Req, Resp any](handler func(ctx context.Context, req Re
 // transport boundary as generated projects while avoiding boilerplate. JSON
 // decoding is strict by default.
 func HandleJSON[Req any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	handler func(ctx context.Context, req Req) (any, error),
 	options ...httpserver.ServerOption,
@@ -63,13 +63,13 @@ func HandleJSON[Req any](
 		panic("kit: JSON handler cannot be nil")
 	}
 	ep := endpoint.TypedEndpoint[Req, any](handler).Wrap()
-	HandleJSONEndpoint[Req](h, pattern, ep, options...)
+	HandleJSONEndpoint[Req](r, pattern, ep, options...)
 }
 
 // HandleJSONTyped registers a JSON endpoint with compile-time request and
 // response types. Prefer it for new handlers that return a concrete response.
 func HandleJSONTyped[Req, Resp any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	handler func(ctx context.Context, req Req) (Resp, error),
 	options ...httpserver.ServerOption,
@@ -77,7 +77,7 @@ func HandleJSONTyped[Req, Resp any](
 	if handler == nil {
 		panic("kit: JSON handler cannot be nil")
 	}
-	HandleJSONEndpoint[Req](h, pattern, endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), options...)
+	HandleJSONEndpoint[Req](r, pattern, endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), options...)
 }
 
 // HandleJSONWithMiddleware registers a JSON route whose endpoint is wrapped
@@ -86,7 +86,7 @@ func HandleJSONTyped[Req, Resp any](
 // WithEndpointMiddleware wraps outside it. Use it for per-route concerns
 // such as a route-specific rate limiter or audit hook.
 func HandleJSONWithMiddleware[Req any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	handler func(ctx context.Context, req Req) (any, error),
 	middleware func(*endpoint.Builder) *endpoint.Builder,
@@ -99,14 +99,14 @@ func HandleJSONWithMiddleware[Req any](
 		panic("kit: route middleware cannot be nil")
 	}
 	ep := middleware(endpoint.NewBuilder(endpoint.TypedEndpoint[Req, any](handler).Wrap())).Build()
-	HandleJSONEndpoint[Req](h, pattern, ep, options...)
+	HandleJSONEndpoint[Req](r, pattern, ep, options...)
 }
 
 // HandleJSONTypedWithMiddleware is the typed variant of
 // HandleJSONWithMiddleware: compile-time request and response types plus
 // route-local endpoint middleware.
 func HandleJSONTypedWithMiddleware[Req, Resp any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	handler func(ctx context.Context, req Req) (Resp, error),
 	middleware func(*endpoint.Builder) *endpoint.Builder,
@@ -119,18 +119,20 @@ func HandleJSONTypedWithMiddleware[Req, Resp any](
 		panic("kit: route middleware cannot be nil")
 	}
 	ep := middleware(endpoint.NewTypedBuilder(endpoint.TypedEndpoint[Req, Resp](handler))).Build()
-	HandleJSONEndpoint[Req](h, pattern, ep, options...)
+	HandleJSONEndpoint[Req](r, pattern, ep, options...)
 }
 
 // HandleJSONEndpoint registers an already-built endpoint.Endpoint as a strict
 // JSON route on an HTTP component, preserving the normal endpoint middleware
 // and HTTP transport chain.
 func HandleJSONEndpoint[Req any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	ep endpoint.Endpoint,
 	options ...httpserver.ServerOption,
 ) {
+	h := r.component()
+	pattern = r.routePattern(pattern)
 	if h == nil {
 		panic("kit: HTTP component cannot be nil")
 	}
@@ -138,9 +140,26 @@ func HandleJSONEndpoint[Req any](
 		panic("kit: JSON endpoint cannot be nil")
 	}
 	ep = h.applyEndpointMiddleware(pattern, ep)
-	routeOptions := append(append([]httpserver.ServerOption(nil), h.jsonServerOptions...), options...)
-	handler := httpserver.NewJSONEndpointWithBodyLimit[Req](ep, h.jsonMaxBodyBytes, routeOptions...)
+	handler := newTypedJSONHandler[Req](ep, h, h.jsonMaxBodyBytes, options...)
 	h.mux.Handle(pattern, h.withHTTPContext(handler))
+}
+
+// newTypedJSONHandler assembles the HTTP transport of a typed JSON route:
+// the component's decode strictness and body limit, the request filled from
+// the request itself (see typedRequestDecoder), the shared JSON response
+// encoder, the default error encoder, then the component's JSON server
+// options, then the route's — the same order the transport packages
+// assemble by hand, so a per-route option can still override a component one.
+func newTypedJSONHandler[Req any](
+	ep endpoint.Endpoint,
+	h *HTTP,
+	maxBodyBytes int64,
+	options ...httpserver.ServerOption,
+) http.Handler {
+	routeOptions := append([]httpserver.ServerOption{httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder)}, h.jsonServerOptions...)
+	routeOptions = append(routeOptions, options...)
+	decoder := typedRequestDecoder[Req](httpserver.StrictJSONDecodeOptions(maxBodyBytes))
+	return httpserver.NewServer(ep, decoder, httpserver.EncodeJSONResponse, routeOptions...)
 }
 
 // HandleJSONEndpointWithBodyLimit registers a JSON route that accepts a different
@@ -159,12 +178,14 @@ func HandleJSONEndpoint[Req any](
 // Stable: kit.per-route-body-limit — a route can accept a different body size through the same registration path, so it keeps the endpoint middleware, recorders, and JSON server options the component installs.
 // Covered by: TestPerRouteBodyLimitKeepsEndpointMiddleware, TestPerRouteBodyLimitAppliesToThatRouteOnly
 func HandleJSONEndpointWithBodyLimit[Req any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	ep endpoint.Endpoint,
 	maxBodyBytes int64,
 	options ...httpserver.ServerOption,
 ) {
+	h := r.component()
+	pattern = r.routePattern(pattern)
 	if h == nil {
 		panic("kit: HTTP component cannot be nil")
 	}
@@ -175,15 +196,14 @@ func HandleJSONEndpointWithBodyLimit[Req any](
 		panic("kit: per-route JSON body limit must be positive")
 	}
 	ep = h.applyEndpointMiddleware(pattern, ep)
-	routeOptions := append(append([]httpserver.ServerOption(nil), h.jsonServerOptions...), options...)
-	handler := httpserver.NewJSONEndpointWithBodyLimit[Req](ep, maxBodyBytes, routeOptions...)
+	handler := newTypedJSONHandler[Req](ep, h, maxBodyBytes, options...)
 	h.mux.Handle(pattern, h.withHTTPContext(handler))
 }
 
 // HandleJSONTypedWithBodyLimit is HandleJSONTyped for a route that accepts a
 // different maximum request body than the component default.
 func HandleJSONTypedWithBodyLimit[Req, Resp any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	handler func(ctx context.Context, req Req) (Resp, error),
 	maxBodyBytes int64,
@@ -192,5 +212,5 @@ func HandleJSONTypedWithBodyLimit[Req, Resp any](
 	if handler == nil {
 		panic("kit: JSON handler cannot be nil")
 	}
-	HandleJSONEndpointWithBodyLimit[Req](h, pattern, endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), maxBodyBytes, options...)
+	HandleJSONEndpointWithBodyLimit[Req](r, pattern, endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), maxBodyBytes, options...)
 }

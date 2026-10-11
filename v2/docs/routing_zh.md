@@ -41,7 +41,7 @@ kit.HandleJSONTyped(svc, "GET /todos/{id}", getTodo)
 
 | 调用 | 使用时机 |
 | --- | --- |
-| `kit.HandleJSONTyped` | 默认。类型化的请求与响应，完整链。 |
+| `kit.HandleJSONTyped` | 默认。类型化的请求与响应，完整链；请求结构体从请求本身填充（见下文）。 |
 | `kit.HandleJSON` | 相同，但响应类型是动态的。 |
 | `kit.HandleJSONTypedWithMiddleware` / `HandleJSONWithMiddleware` | 单条路由需要额外中间件；它落在组件链的**内侧**。 |
 | `kit.HandleJSONEndpoint` | 你已经持有 `endpoint.Endpoint`。 |
@@ -60,48 +60,49 @@ JSON。
 
 ## 路径与查询参数
 
-类型化 JSON 路由只解码请求**体**。身份在路径里的请求需要两种形态之一。
-
-简单的——原生 handler 读取路径值：
-
-```go
-svc.HandleFunc("GET /todos/{id}", func(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "todo.invalid_id"})
-		return
-	}
-	todo, err := todos.Get(r.Context(), id)
-	// ...
-})
-```
-
-框架形态的——用 helper 填充结构体，规则相同：路径与查询参数按字段的 `form` tag
-命名，其次 `json` tag，其次小写字段名；同名时路径参数优先于查询参数：
+类型化路由从请求本身填充请求结构体，因此路径与查询参数是类型化路由的一部分——
+而不是退回原生 handler 的理由：
 
 ```go
 type getTodoRequest struct {
-	ID    int64  `form:"id"    json:"id"`
-	Verbose bool `form:"verbose" json:"verbose"`
+	ID      int64  `form:"id"       json:"id"`
+	Keyword string `form:"keyword"  json:"keyword"`
 }
 
-// 请求体与路径一起：严格 JSON 解码，然后是路径值。
-func decodeGetTodo(r *http.Request) (getTodoRequest, error) {
-	var req getTodoRequest
-	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
-		return req, err
-	}
-	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
-		return req, err
-	}
-	return req, nil
-}
+kit.HandleJSONTyped(svc, "GET /todos/{id}", func(ctx context.Context, req getTodoRequest) (Todo, error) {
+	return todos.Get(ctx, req.ID) // req.ID 来自路径
+})
 ```
 
-这正是生成传输在它的解码器里做的事。没有请求体的 GET 请求，
-`transporthttp.DecodeQueryRequest` 改从查询串填充结构体。客户端侧也有对应的
-URL 构造 helper：`transporthttp.EncodePath` 与 `EncodePathAndQuery` 在
-`{占位符}` 未解析时宁可报错也不发送。
+- GET 与 HEAD 从查询串**和**路径值填充结构体。
+- 其他方法读严格解码的 JSON 体再加路径值——一个结构体可以同时携带 body 字段与
+  `{id}`。
+- 完全没有请求体的请求解为零值，这让不带体的 `POST /todos/{id}/done` 也能保持
+  类型化；handler 的校验用应用自己的话回答"什么都没发"。
+- 字段按 `form` tag 命名，其次 `json` tag，其次小写字段名；同名时路径值优先于查询
+  参数——与生成传输的解码规则完全一致。
+
+应答不是 JSON（204、文件）或需要手工解码时，原生 handler 仍是答案：
+`transporthttp.DecodePathRequest` 与 `DecodeQueryRequest` 按需从原生请求填充结构
+体，`server.DecodeJSONBody` 按传输规则裁决请求体。客户端侧也有对应的 URL 构造
+helper：`transporthttp.EncodePath` 与 `EncodePathAndQuery` 在 `{占位符}` 未解析
+时宁可报错也不发送。
+
+## 路由分组
+
+分组让前缀只声明一次，而不是在每条路由上重复：
+
+```go
+api := svc.Group("/api/v1")
+kit.HandleJSONTyped(api, "POST /todos", createTodo)
+kit.HandleJSONTyped(api, "GET /todos/{id}", getTodo)
+v2 := svc.Group("/api/v2") // 分组可嵌套：两个前缀都会拼接
+```
+
+分组只拼接模式：路由照常经过组件的 HTTP context、端点中间件（以拼接后的模式标
+注）、记录器与 JSON 服务器选项，与把模式写全没有分别。它不是子 mux、不接收选
+项、不携带自己的中间件——中间件属于组件或路由。`svc.Group("")` 即组件自身视图；
+`Handle`/`HandleFunc` 可经分组用于原生逃生舱。
 
 ## JSON 请求体之外
 
@@ -154,8 +155,7 @@ kit.HandleSSETyped(svc, "GET /events/{tenant}", func(
 }, decodeEventsRequest)
 ```
 
-解码器拿到 `*http.Request`，因此路径与查询参数在那里读取——这是唯一能直接看到
-请求的类型化注册。流运行在端点链内：`WithTimeout` 约束**整条流**，且没有单路由
+解码器拿到 `*http.Request`，流可以自己读取路径与查询参数。流运行在端点链内：`WithTimeout` 约束**整条流**，且没有单路由
 豁免，所以长生命周期流应当挂在自己的第二个 `kit.NewHTTP` 组件上。流一旦应答过
 200，错误就只能被记录而无法渲染。停机期间 handler 观察 `kit.Stopping(ctx)` 并结
 束自己的响应。header 语义与 hook 细节在 [transport README](../transport/README.md)，

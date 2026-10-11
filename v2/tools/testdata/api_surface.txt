@@ -1212,53 +1212,53 @@ FUNCTIONS
 func DefaultProbePaths() health.Paths
 func DefaultRequestIDValidator(id string) bool
 func HandleJSON[Req any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	handler func(ctx context.Context, req Req) (any, error),
 	options ...httpserver.ServerOption,
 )
 func HandleJSONEndpoint[Req any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	ep endpoint.Endpoint,
 	options ...httpserver.ServerOption,
 )
 func HandleJSONEndpointWithBodyLimit[Req any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	ep endpoint.Endpoint,
 	maxBodyBytes int64,
 	options ...httpserver.ServerOption,
 )
 func HandleJSONTyped[Req, Resp any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	handler func(ctx context.Context, req Req) (Resp, error),
 	options ...httpserver.ServerOption,
 )
 func HandleJSONTypedWithBodyLimit[Req, Resp any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	handler func(ctx context.Context, req Req) (Resp, error),
 	maxBodyBytes int64,
 	options ...httpserver.ServerOption,
 )
 func HandleJSONTypedWithMiddleware[Req, Resp any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	handler func(ctx context.Context, req Req) (Resp, error),
 	middleware func(*endpoint.Builder) *endpoint.Builder,
 	options ...httpserver.ServerOption,
 )
 func HandleJSONWithMiddleware[Req any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	handler func(ctx context.Context, req Req) (any, error),
 	middleware func(*endpoint.Builder) *endpoint.Builder,
 	options ...httpserver.ServerOption,
 )
 func HandleSSETyped[Req any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	stream func(ctx context.Context, req Req, w *httpserver.SSEStream) error,
 	dec func(*http.Request) (Req, error),
@@ -1287,6 +1287,12 @@ func (fn CertificateSourceFunc) Certificate(hello *tls.ClientHelloInfo) (*tls.Ce
 type Draining interface {
 	Drain(ctx context.Context) error
 }
+type Group struct {
+	// Has unexported fields.
+}
+func (g *Group) Group(prefix string) *Group
+func (g *Group) Handle(pattern string, handler http.Handler)
+func (g *Group) HandleFunc(pattern string, fn http.HandlerFunc)
 type HTTP struct {
 	// Has unexported fields.
 }
@@ -1295,6 +1301,7 @@ func NewHTTP(addr string, opts ...Option) (*HTTP, error)
 func (h *HTTP) Addr() string
 func (h *HTTP) Drain(context.Context) error
 func (h *HTTP) Errors() <-chan error
+func (h *HTTP) Group(prefix string) *Group
 func (h *HTTP) Handle(pattern string, handler http.Handler)
 func (h *HTTP) HandleFunc(pattern string, fn http.HandlerFunc)
 func (h *HTTP) HandleSSE(pattern string, handler http.Handler)
@@ -1368,6 +1375,9 @@ type ReadinessSink interface {
 type RegistrarOption func(*registrarLifecycle)
 func WithRegistrarName(name string) RegistrarOption
 type RequestIDValidator = transporthttp.RequestIDValidator
+type Router interface {
+	// Has unexported methods.
+}
 
 ## github.com/dreamsxin/go-kit/v2/kit/grpc
 package grpc // import "github.com/dreamsxin/go-kit/v2/kit/grpc"

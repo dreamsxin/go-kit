@@ -50,7 +50,7 @@ request-body limit applies.
 
 | Call | Use it when |
 | --- | --- |
-| `kit.HandleJSONTyped` | The default. Typed request and response, full chain. |
+| `kit.HandleJSONTyped` | The default. Typed request and response, full chain; the request struct fills from the request itself (see below). |
 | `kit.HandleJSON` | Same, when the response type is dynamic. |
 | `kit.HandleJSONTypedWithMiddleware` / `HandleJSONWithMiddleware` | One route needs extra middleware; it ends up *inside* the component's chain. |
 | `kit.HandleJSONEndpoint` | You already hold an `endpoint.Endpoint`. |
@@ -71,52 +71,57 @@ skipping the chain is how a stream loses its middleware by accident.)
 
 ## Path and query parameters
 
-A typed JSON route decodes the request **body** only. A request whose
-identity is in the path needs one of two shapes.
-
-The simple one — a raw handler reading the path value:
-
-```go
-svc.HandleFunc("GET /todos/{id}", func(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "todo.invalid_id"})
-		return
-	}
-	todo, err := todos.Get(r.Context(), id)
-	// ...
-})
-```
-
-The framework-shaped one — helpers that fill a struct, with the same rules:
-path and query parameters are named by the field's `form` tag, else its
-`json` tag, else the lowercased field name, and a path parameter takes
-precedence over a query parameter of the same name:
+A typed route fills its request struct from the request itself, so path and
+query parameters are part of the typed route — not a reason to drop to a raw
+handler:
 
 ```go
 type getTodoRequest struct {
-	ID    int64  `form:"id"    json:"id"`
-	Verbose bool `form:"verbose" json:"verbose"`
+	ID      int64  `form:"id"       json:"id"`
+	Keyword string `form:"keyword"  json:"keyword"`
 }
 
-// Body and path together: strict JSON decode, then the path values.
-func decodeGetTodo(r *http.Request) (getTodoRequest, error) {
-	var req getTodoRequest
-	if err := server.DecodeJSONBody(r, &req, server.StrictJSONDecodeOptions(server.DefaultMaxJSONBodyBytes)); err != nil {
-		return req, err
-	}
-	if err := transporthttp.DecodePathRequest(r, &req); err != nil {
-		return req, err
-	}
-	return req, nil
-}
+kit.HandleJSONTyped(svc, "GET /todos/{id}", func(ctx context.Context, req getTodoRequest) (Todo, error) {
+	return todos.Get(ctx, req.ID) // req.ID came from the path
+})
 ```
 
-This is exactly what generated transports do inside their decoders. For GET
-requests without a body, `transporthttp.DecodeQueryRequest` fills the struct
-from the query string instead. Client-side counterparts exist for building
-URLs: `transporthttp.EncodePath` and `EncodePathAndQuery` fail rather than
-send a URL with an unresolved `{placeholder}`.
+- GET and HEAD fill the struct from the query string **and** the path values.
+- Every other method reads a strictly decoded JSON body and then the path
+  values — so one struct can carry body fields and `{id}` at once.
+- A request that carries no body at all decodes to the zero value, which is
+  what lets a body-less `POST /todos/{id}/done` stay typed; the handler's
+  validation answers "nothing sent" in the application's own words.
+- Fields are named by the `form` tag, else the `json` tag, else the lowercased
+  field name, and a path value wins over a query parameter of the same name —
+  the same rules the generated transports decode with.
+
+A raw handler stays the answer when the response is not JSON (a 204, a file)
+or for hand-rolled decode; `transporthttp.DecodePathRequest` and
+`DecodeQueryRequest` fill a struct from a raw request on demand, and
+`server.DecodeJSONBody` judges a body by the transport rules. Client-side
+counterparts exist for building URLs: `transporthttp.EncodePath` and
+`EncodePathAndQuery` fail rather than send a URL with an unresolved
+`{placeholder}`.
+
+## Route groups
+
+A group states a prefix once instead of repeating it on every route:
+
+```go
+api := svc.Group("/api/v1")
+kit.HandleJSONTyped(api, "POST /todos", createTodo)
+kit.HandleJSONTyped(api, "GET /todos/{id}", getTodo)
+v2 := svc.Group("/api/v2") // groups nest: both prefixes join
+```
+
+A group only joins patterns: the route goes through the component's HTTP
+context, endpoint middleware (labeled with the joined pattern), recorders, and
+JSON server options exactly as if the pattern had been written out in full.
+It is not a sub-mux, takes no options, and carries no middleware of its own —
+middleware belongs to the component or to the route. `svc.Group("")` is the
+component's own view; `Handle`/`HandleFunc` work through a group for the raw
+escape hatch.
 
 ## Beyond the JSON body
 
@@ -172,8 +177,8 @@ kit.HandleSSETyped(svc, "GET /events/{tenant}", func(
 }, decodeEventsRequest)
 ```
 
-The decoder takes the `*http.Request`, so path and query parameters are read
-there — the one typed registration that sees the request directly. The stream
+The decoder takes the `*http.Request`, so a stream can read path and query
+parameters itself. The stream
 runs inside the endpoint chain: `WithTimeout` bounds the **whole stream** and
 there is no per-route escape from it, so a long-lived stream belongs on a
 second `kit.NewHTTP` component of its own. Once the stream has answered 200

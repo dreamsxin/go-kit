@@ -6,6 +6,29 @@
 
 ### 变更
 
+- 类型化 JSON 路由从请求本身填充请求结构体，路径与查询参数因此是类型化路由的一
+  部分，而不是退回原生 handler 的理由。GET 与 HEAD 读查询串与路径值；其他方法读严
+  格解码的 JSON 体再加路径值；完全没有请求体的请求解为零值，于是不带体的 POST 保
+  持类型化，handler 的校验用应用自己的话回答。字段按 form tag 命名，其次 json tag，
+  其次小写字段名，路径值优先于同名查询参数——与生成传输的解码规则完全一致。非结构
+  体请求（map、slice）只从请求体解码。承诺为 `kit.typed-request-decoding`。
+- 类型化 JSON 注册族（`HandleJSON`、`HandleJSONTyped` 及其中间件/端点/请求体限制变
+  体，以及 `HandleSSETyped`）的第一个参数改为 `Router`：HTTP 组件，或从组件切出的
+  `Group`。这是本次唯一的非兼容边界——传 `*HTTP` 的调用方仍然编译通过，因为
+  `*HTTP` 就是 `Router`——并已记入兼容性门禁的故意破坏清单。
+- 路由分组：`svc.Group("/api/v1")` 返回带前缀的注册视图，可嵌套，携带组件的完整注册
+  面（`HandleJSONTyped`、原生逃生舱、SSE 流）。分组只拼接模式——路由保留组件的
+  HTTP context、端点中间件（以拼接后模式标注）、记录器与 JSON 服务器选项。承诺为
+  `kit.route-groups`。
+
+### 变更（文档）
+
+- 路由章节的路径与查询一节改为展示类型化路由自己完成填充、原生 handler 回归逃生舱
+  本位，并新增路由分组一节。CRUD 教程的路由全部类型化——包括路径参数路由与不带体
+  的 done 路由——原生删除的错误走框架编码器，手搓的错误→状态码映射随之删除；
+  todosvc 示例与教程是同一个文件，两份教程都按代码块重新拼装并驱动过文档承诺的每个
+  响应。
+
 - `-openapi` 现在默认为 true：每个生成项目无需任何参数即应答 OpenAPI 3.1 契约、
   JSON Schema 包、内嵌 Swagger UI 与 TypeScript 客户端——这正是 AI 代理依据 API
   构建前端所需的输入。需要旧行为时传 `-openapi=false`。已生成的项目保持其

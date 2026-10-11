@@ -53,6 +53,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/kit"
+	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 
 	_ "modernc.org/sqlite"
 )
@@ -225,34 +226,29 @@ func classify(err error) error {
 
 // ── HTTP layer ────────────────────────────────────────────────────────────────
 
+// getTodoRequest names a todo by its path value. A typed route fills it from
+// the URL: GET reads the query string and path values, every other method
+// reads the strictly decoded JSON body and then the path values, and a request
+// without a body decodes to the zero value.
+type getTodoRequest struct {
+	ID int64 `form:"id" json:"id"`
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// writeServiceError maps classified application errors to HTTP statuses.
-func writeServiceError(w http.ResponseWriter, err error) {
-	var appErr *apperror.Error
-	if !errors.As(err, &appErr) {
-		log.Printf("unclassified error: %v", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{
-			"code":    "internal",
-			"message": "internal error",
-		})
-		return
+// pathID reads the path value of a raw handler. The typed routes above fill
+// their request structs themselves; this is the escape hatch's copy of it.
+func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "todo.invalid_id", "message": "todo id must be a positive integer"})
+		return 0, false
 	}
-	status := http.StatusInternalServerError
-	switch appErr.ErrorKind() {
-	case apperror.KindInvalidArgument:
-		status = http.StatusBadRequest
-	case apperror.KindNotFound:
-		status = http.StatusNotFound
-	}
-	writeJSON(w, status, map[string]string{
-		"code":    appErr.ErrorCode(),
-		"message": appErr.PublicMessage(),
-	})
+	return id, true
 }
 
 // storeLifecycle teaches kit to close the database during graceful shutdown.
@@ -266,68 +262,41 @@ func (l *storeLifecycle) Errors() <-chan error           { return l.errs }
 func (l *storeLifecycle) Shutdown(context.Context) error { return l.store.close() }
 
 func registerRoutes(svc *kit.HTTP, todos todoService) {
-	// Body-shaped requests use the typed JSON path: service middleware
-	// (request ID, endpoint middleware) and strict decoding apply. The
-	// ServeMux method pattern keeps GET on the raw handler below.
+	// Typed routes carry the whole request path: strict decoding, endpoint
+	// middleware, and the shared error encoder answer classified errors with
+	// {"code","message","request_id"}.
 	kit.HandleJSONTyped(svc, "POST /todos", func(ctx context.Context, req createTodoRequest) (Todo, error) {
 		return todos.Create(ctx, req.Title)
 	})
 
-	svc.HandleFunc("GET /todos", func(w http.ResponseWriter, r *http.Request) {
-		list, err := todos.List(r.Context())
-		if err != nil {
-			writeServiceError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, list)
+	kit.HandleJSONTyped(svc, "GET /todos", func(ctx context.Context, _ struct{}) (todoList, error) {
+		return todos.List(ctx)
 	})
 
-	svc.HandleFunc("GET /todos/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id, ok := pathID(w, r)
-		if !ok {
-			return
-		}
-		todo, err := todos.Get(r.Context(), id)
-		if err != nil {
-			writeServiceError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, todo)
+	kit.HandleJSONTyped(svc, "GET /todos/{id}", func(ctx context.Context, req getTodoRequest) (Todo, error) {
+		return todos.Get(ctx, req.ID)
 	})
 
+	// A body-less POST: the request decodes to the zero value and the path
+	// value fills the ID, so the button route is typed like the rest.
+	kit.HandleJSONTyped(svc, "POST /todos/{id}/done", func(ctx context.Context, req getTodoRequest) (Todo, error) {
+		return todos.MarkDone(ctx, req.ID)
+	})
+
+	// The raw escape hatch stays where a response is not JSON: 204 with no
+	// body. Errors go through the framework encoder, so the shape matches the
+	// typed routes.
 	svc.HandleFunc("DELETE /todos/{id}", func(w http.ResponseWriter, r *http.Request) {
 		id, ok := pathID(w, r)
 		if !ok {
 			return
 		}
 		if err := todos.Delete(r.Context(), id); err != nil {
-			writeServiceError(w, err)
+			httpserver.JSONErrorEncoder(r.Context(), err, w)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
-
-	svc.HandleFunc("POST /todos/{id}/done", func(w http.ResponseWriter, r *http.Request) {
-		id, ok := pathID(w, r)
-		if !ok {
-			return
-		}
-		todo, err := todos.MarkDone(r.Context(), id)
-		if err != nil {
-			writeServiceError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, todo)
-	})
-}
-
-func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil || id <= 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "todo.invalid_id", "message": "todo id must be a positive integer"})
-		return 0, false
-	}
-	return id, true
 }
 
 // ── Wire-up ───────────────────────────────────────────────────────────────────

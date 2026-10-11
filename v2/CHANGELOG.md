@@ -6,6 +6,41 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Changed
 
+- A typed JSON route fills its request struct from the request itself, so path
+  and query parameters are part of the typed route instead of a reason to drop
+  to a raw handler. GET and HEAD read the query string and the path values;
+  every other method reads a strictly decoded JSON body and then the path
+  values; a request that carries no body decodes to the zero value, so a
+  body-less POST stays typed and the handler's validation answers in the
+  application's own words. Fields are named by the form tag, else the json tag,
+  else the lowercased field name, and a path value wins over a query parameter —
+  the same rules the generated transports decode with. A non-struct request
+  (a map, a slice) decodes from the body only. Promised as
+  `kit.typed-request-decoding`.
+- The typed JSON registration family (`HandleJSON`, `HandleJSONTyped` and
+  their middleware, endpoint, and body-limit variants, and `HandleSSETyped`)
+  now takes a `Router`: an HTTP component, or a `Group` cut from one. This is
+  the one incompatible edge of the change — every caller that passed an
+  `*HTTP` still compiles, because an `*HTTP` is a `Router` — and it is
+  recorded in the compatibility gate's deliberate-breaks ledger.
+- Routes group: `svc.Group("/api/v1")` returns a prefixed view whose
+  registrations carry the prefix, nestable, with the component's full
+  registration surface (`HandleJSONTyped`, the raw escape hatch, SSE streams).
+  A group only joins patterns — the route keeps the component's HTTP context,
+  endpoint middleware (labeled with the joined pattern), recorders, and JSON
+  server options. Promised as `kit.route-groups`.
+
+### Changed (documentation)
+
+- The Routing chapter's path-and-query section now shows the typed route doing
+  the filling and the raw handler as the escape hatch it always was, and gains
+  a Route groups section. The CRUD tutorial's routes are typed end to end —
+  including the path-parameter routes and the body-less done route — and its
+  raw delete sends errors through the framework encoder, so its hand-rolled
+  error-to-status mapping is gone; the todosvc example is the same file, and
+  both tutorials were reassembled block by block and driven through every
+  documented response.
+
 - `-openapi` now defaults to true: every generated project answers with the
   OpenAPI 3.1 contract, the JSON Schema bundle, the embedded Swagger UI, and
   the TypeScript client without asking for it — the input an AI agent needs

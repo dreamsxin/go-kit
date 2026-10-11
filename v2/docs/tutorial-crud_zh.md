@@ -50,6 +50,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/kit"
+	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 
 	_ "modernc.org/sqlite"
 )
@@ -242,12 +243,21 @@ func classify(err error) error {
 
 ## 5. 传输层
 
-以请求体为形态的请求使用类型化 JSON 路径：严格解码、端点中间件，以及统一的错误
-形态。路径参数使用原生 handler，因为 JSON 请求体无法携带它们。追加整个传输层——
-路由、共享的两个 helper，以及负责关闭数据库的生命周期组件：
+除删除外的每条路由都是类型化的：请求结构体从请求本身填充——GET 从查询串与路径值，
+其他方法从严格解码的 JSON 体再加路径值——因此路径参数是类型化路由的一部分，而不是
+退回原生 handler 的理由。没有请求体的请求解为零值，这让不带体的 done 路由也能保持
+类型化。删除保留原生逃生舱，因为它的应答是 204 无响应体，并且错误走框架的错误编码
+器保持形态一致。追加整个传输层：
 
 ```go
 // ── HTTP 层 ──────────────────────────────────────────────────────────────────
+
+// getTodoRequest 以路径值指名一个 todo。类型化路由从请求本身填充它：
+// GET 读查询串与路径值，其他方法读严格解码的 JSON 体再加路径值，
+// 不带请求体的请求解为零值。
+type getTodoRequest struct {
+	ID int64 `form:"id" json:"id"`
+}
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -255,27 +265,50 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// writeServiceError 把已分类的应用错误映射为 HTTP 状态码。
-func writeServiceError(w http.ResponseWriter, err error) {
-	var appErr *apperror.Error
-	if !errors.As(err, &appErr) {
-		log.Printf("unclassified error: %v", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{
-			"code":    "internal",
-			"message": "internal error",
-		})
-		return
+// pathID 读取原生 handler 的路径值。上面的类型化路由自己填充请求结构体；
+// 这是逃生舱的那一份。
+func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "todo.invalid_id", "message": "todo id must be a positive integer"})
+		return 0, false
 	}
-	status := http.StatusInternalServerError
-	switch appErr.ErrorKind() {
-	case apperror.KindInvalidArgument:
-		status = http.StatusBadRequest
-	case apperror.KindNotFound:
-		status = http.StatusNotFound
-	}
-	writeJSON(w, status, map[string]string{
-		"code":    appErr.ErrorCode(),
-		"message": appErr.PublicMessage(),
+	return id, true
+}
+
+func registerRoutes(svc *kit.HTTP, todos todoService) {
+	// 类型化路由承载完整请求路径：严格解码、端点中间件，
+	// 共享的错误编码器把分类后的错误应答为 {"code","message","request_id"}。
+	kit.HandleJSONTyped(svc, "POST /todos", func(ctx context.Context, req createTodoRequest) (Todo, error) {
+		return todos.Create(ctx, req.Title)
+	})
+
+	kit.HandleJSONTyped(svc, "GET /todos", func(ctx context.Context, _ struct{}) (todoList, error) {
+		return todos.List(ctx)
+	})
+
+	kit.HandleJSONTyped(svc, "GET /todos/{id}", func(ctx context.Context, req getTodoRequest) (Todo, error) {
+		return todos.Get(ctx, req.ID)
+	})
+
+	// 不带请求体的 POST：请求解为零值，路径值填充 ID，
+	// 于是按钮路由和其余路由一样是类型化的。
+	kit.HandleJSONTyped(svc, "POST /todos/{id}/done", func(ctx context.Context, req getTodoRequest) (Todo, error) {
+		return todos.MarkDone(ctx, req.ID)
+	})
+
+	// 原生逃生舱保留在应答不是 JSON 的地方：204 无响应体。
+	// 错误走框架编码器，因此形态与类型化路由一致。
+	svc.HandleFunc("DELETE /todos/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, ok := pathID(w, r)
+		if !ok {
+			return
+		}
+		if err := todos.Delete(r.Context(), id); err != nil {
+			httpserver.JSONErrorEncoder(r.Context(), err, w)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 }
 
@@ -288,71 +321,6 @@ type storeLifecycle struct {
 func (l *storeLifecycle) Start() error                   { return nil }
 func (l *storeLifecycle) Errors() <-chan error           { return l.errs }
 func (l *storeLifecycle) Shutdown(context.Context) error { return l.store.close() }
-
-func registerRoutes(svc *kit.HTTP, todos todoService) {
-	// 以请求体为形态的请求使用类型化 JSON 路径：服务中间件
-	// （请求 ID、端点中间件）与严格解码生效。ServeMux 的方法模式
-	// 让 GET 落到下面的原生 handler 上。
-	kit.HandleJSONTyped(svc, "POST /todos", func(ctx context.Context, req createTodoRequest) (Todo, error) {
-		return todos.Create(ctx, req.Title)
-	})
-
-	svc.HandleFunc("GET /todos", func(w http.ResponseWriter, r *http.Request) {
-		list, err := todos.List(r.Context())
-		if err != nil {
-			writeServiceError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, list)
-	})
-
-	svc.HandleFunc("GET /todos/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id, ok := pathID(w, r)
-		if !ok {
-			return
-		}
-		todo, err := todos.Get(r.Context(), id)
-		if err != nil {
-			writeServiceError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, todo)
-	})
-
-	svc.HandleFunc("DELETE /todos/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id, ok := pathID(w, r)
-		if !ok {
-			return
-		}
-		if err := todos.Delete(r.Context(), id); err != nil {
-			writeServiceError(w, err)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
-
-	svc.HandleFunc("POST /todos/{id}/done", func(w http.ResponseWriter, r *http.Request) {
-		id, ok := pathID(w, r)
-		if !ok {
-			return
-		}
-		todo, err := todos.MarkDone(r.Context(), id)
-		if err != nil {
-			writeServiceError(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, todo)
-	})
-}
-
-func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil || id <= 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "todo.invalid_id", "message": "todo id must be a positive integer"})
-		return 0, false
-	}
-	return id, true
-}
 ```
 
 成功的类型化响应直接写出值本身，不做包装：`POST /todos` 返回的就是 `Todo` 对象。
@@ -420,7 +388,7 @@ curl http://localhost:8080/todos
 curl -X POST http://localhost:8080/todos/1/done
 curl -i -X DELETE http://localhost:8080/todos/1
 curl -i http://localhost:8080/todos/999
-# 404 {"code":"todo.not_found","message":"todo not found"}
+# 404 {"code":"todo.not_found","message":"todo not found","request_id":"…"}
 ```
 
 每条命令都按注释所说响应。默认 DSN 是 `:memory:`，数据只存活一个进程周期；传

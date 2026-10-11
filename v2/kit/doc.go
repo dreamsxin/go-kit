@@ -19,6 +19,11 @@
 // WithCircuitBreaker and the component's JSON server options all apply):
 //
 //   - HandleJSONTyped — the default. Concrete request and response types.
+//     A typed route fills its request struct from the request itself: GET and
+//     HEAD read the query string and the path values, every other method reads
+//     a strictly decoded JSON body and then the path values, and a request that
+//     carries no body decodes to the zero value so the handler's validation
+//     answers in the application's own words.
 //   - HandleJSON — the same, when the response type is dynamic.
 //   - HandleJSONEndpoint — when you already hold an endpoint.Endpoint.
 //   - HandleJSONTypedWithMiddleware, HandleJSONWithMiddleware — add route-local
@@ -48,6 +53,12 @@
 //
 // Probes are mounted directly and are outside the HTTP context by design, so
 // recorders never see /health, /livez or /readyz.
+//
+// A Group prefixes every pattern registered through it, so a versioned
+// surface states its version once:
+//
+//	api := http.Group("/api/v1")
+//	kit.HandleJSONTyped(api, "POST /todos", createTodo)
 //
 // Quickstart:
 //

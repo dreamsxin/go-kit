@@ -73,12 +73,17 @@ func (h *HTTP) HandleSSE(pattern string, handler http.Handler) {
 //	    decodeEventsRequest,
 //	)
 func HandleSSETyped[Req any](
-	h *HTTP,
+	r Router,
 	pattern string,
 	stream func(ctx context.Context, req Req, w *httpserver.SSEStream) error,
 	dec func(*http.Request) (Req, error),
 	opts ...httpserver.ServerOption,
 ) {
+	h := r.component()
+	pattern = r.routePattern(pattern)
+	if h == nil {
+		panic("kit: HTTP component cannot be nil")
+	}
 	if stream == nil {
 		panic("kit: SSE stream function cannot be nil")
 	}

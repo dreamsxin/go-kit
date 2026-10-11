@@ -50,6 +50,7 @@ var transportContracts = map[string]struct {
 	"NamedLifecycle":    {false, "diagnostics, not a contract: kit/grpc.Component is named by its type in Host output"},
 	"ReadinessProvider": {false, "implemented by application components with warm-up, not by transports"},
 	"CertificateSource": {false, "implemented by the deployment, not by a transport: it answers where a certificate comes from, and only the HTTP listener terminates TLS here"},
+	"Router":            {false, "HTTP route registration: it joins a pattern onto the HTTP mux, and a gRPC service registers on the grpc.Server instead"},
 }
 
 func TestEveryKitContractIsClassifiedForBothTransports(t *testing.T) {
