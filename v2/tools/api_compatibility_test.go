@@ -78,13 +78,60 @@ func TestAPICompatibilityWithLastRelease(t *testing.T) {
 	newSurface := exportedSurface(t, root)
 
 	problems := incompatibleChanges(oldSurface, newSurface)
-	if len(problems) == 0 {
-		return
+
+	// Every deliberate pre-freeze break is listed below, spelled the way the
+	// classifier reports it, with the change named in the changelog. A problem
+	// not listed fails; a listed entry that matches nothing also fails, so the
+	// list cannot rot. v2 is pre-freeze: RELEASE.md lets a minor release change
+	// API before the freeze is declared. Once the freeze is declared this list
+	// must be empty — a listed break from then on is a new major module.
+	var unexpected []string
+	matched := make(map[int]bool, len(deliberateBreaks))
+	for _, problem := range problems {
+		expected := false
+		for i, allowed := range deliberateBreaks {
+			if strings.Contains(problem, allowed) {
+				expected = true
+				matched[i] = true
+				break
+			}
+		}
+		if !expected {
+			unexpected = append(unexpected, problem)
+		}
 	}
-	t.Fatalf("the exported surface is not compatible with %s:\n%s\n\n"+
-		"An addition is fine; these are removals or changes. If the break is deliberate, it needs a new major "+
-		"module version once the compatibility freeze is declared — see internal/docs/RELEASE.md.",
-		tag, strings.Join(problems, "\n"))
+	if len(unexpected) > 0 {
+		t.Fatalf("the exported surface is not compatible with %s:\n%s\n\n"+
+			"An addition is fine; these are removals or changes. An unlisted removal is a defect; a "+
+			"deliberate break belongs in deliberateBreaks with its changelog entry. After the compatibility "+
+			"freeze, a deliberate break needs a new major module version — see internal/docs/RELEASE.md.",
+			tag, strings.Join(unexpected, "\n"))
+	}
+	for i, allowed := range deliberateBreaks {
+		if !matched[i] {
+			t.Errorf("deliberateBreaks entry %d %q matches no incompatibility; it is stale and must be removed with the release that ships the break", i, allowed)
+		}
+	}
+}
+
+// deliberateBreaks names the API breaks since the previous release tag that
+// are intentional, spelled the way incompatibleChanges reports them. Each
+// entry leaves with the release that ships it: once the next release is tagged,
+// the entry is history and must be deleted, or the stale check above fails on
+// the first release that runs it.
+var deliberateBreaks = []string{
+	// v2.25.0 candidate: the typed JSON registration family takes a Router, so
+	// a route registers through an HTTP component or one of its Groups with the
+	// same call; every caller that passed an *HTTP still compiles, because an
+	// *HTTP is a Router.
+	"removed from func HandleJSON: h *HTTP,",
+	"removed from func HandleJSONWithMiddleware: h *HTTP,",
+	"removed from func HandleJSONTyped: h *HTTP,",
+	"removed from func HandleJSONTypedWithBodyLimit: h *HTTP,",
+	"removed from func HandleJSONTypedWithMiddleware: h *HTTP,",
+	"removed from func HandleJSONEndpoint: h *HTTP,",
+	"removed from func HandleJSONEndpointWithBodyLimit: h *HTTP,",
+	"removed from func HandleSSETyped: h *HTTP,",
 }
 
 // TestAPICompatibilityClassifier proves the classifier reports what it claims,
