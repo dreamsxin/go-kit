@@ -336,10 +336,13 @@ snapshot through their shared subscription state machine.
 
 ## Stability
 
-`v2.23.0` is the current released contract. It establishes the reviewed package
+`v2.24.0` is the patch candidate on `main`. It carries the reviewed package
 graph, lifecycle ownership, transport error model, and generated project layout
-captured by the release manifest and API snapshot. This release corrects
-discovery-state handling and selection and adds configurable retry backoff.
+captured by the release manifest and API snapshot. This candidate states file
+ownership in every generated project — the standard generated-code marker on
+rewritten files, write-once scaffolds that announce they are never overwritten —
+fixes a panic in the generated service tests, and corrects the tutorial curl
+calls.
 Existing public signatures and
 package boundaries remain compatible. The injected retry clock controls waits;
 context deadlines and measured request durations continue to use real time.

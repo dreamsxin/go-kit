@@ -2,7 +2,7 @@
 
 [English](CHANGELOG.md) | 简体中文
 
-## [Unreleased]
+## [2.24.0] - 发布候选
 
 ### 新增
 
