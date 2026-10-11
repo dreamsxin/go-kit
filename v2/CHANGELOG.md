@@ -6,6 +6,16 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Added
 
+- `client.NewTypedJSONClient[Req, Resp]` is the client-side mirror of the
+  server's typed JSON routes, one rule on both sides of the wire: GET and
+  HEAD fill the URL's path placeholders and query string from the request
+  struct, every other method fills the placeholders and sends the struct as
+  the JSON body (the server's path decode wins on overlap, so the client need
+  not strip path values), and the call returns Resp without a type assertion.
+  Non-struct requests are sent as the body with the URL left as written;
+  non-2xx answers surface as the classified `HTTPStatusError`. Promised as
+  `http.typed-json-client`.
+
 - MICROGEN now answers the question every generated-project author asks next:
   **where does framework component wiring go?** A new chapter maps the
   intents to their one right place — readiness checks and metrics in

@@ -84,9 +84,22 @@ kit.HandleJSONTyped(svc, "GET /todos/{id}", func(ctx context.Context, req getTod
 
 应答不是 JSON（204、文件）或需要手工解码时，原生 handler 仍是答案：
 `transporthttp.DecodePathRequest` 与 `DecodeQueryRequest` 按需从原生请求填充结构
-体，`server.DecodeJSONBody` 按传输规则裁决请求体。客户端侧也有对应的 URL 构造
-helper：`transporthttp.EncodePath` 与 `EncodePathAndQuery` 在 `{占位符}` 未解析
-时宁可报错也不发送。
+体，`server.DecodeJSONBody` 按传输规则裁决请求体。
+
+调用点与路由成镜像。`client.NewTypedJSONClient[Req, Resp]` 返回类型化的调用函
+数——调用处无需类型断言：
+
+```go
+call, err := client.NewTypedJSONClient[todoRequest, todoResponse](
+	http.MethodGet, "http://todos.internal/todos/{id}")
+todo, err := call(ctx, todoRequest{ID: 7, Keyword: "urgent"})
+```
+
+GET 与 HEAD 从结构体填充 URL 的占位符与查询串；其他方法填充占位符并把结构体作
+为 JSON 体发送——重叠时服务端的路径解码获胜，客户端无需从体中剥离路径值。非 2xx
+应答以 `client.HTTPStatusError` 呈现，按状态码分类供重试决策。
+`transporthttp.EncodePath` 与 `EncodePathAndQuery` 仍是手写客户端的积木：在
+`{占位符}` 未解析时宁可报错也不发送。
 
 ## 路由分组
 

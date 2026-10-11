@@ -415,6 +415,7 @@ it is a question of **where**, and every intent has one right place:
 | enforce authentication or roles | `endpoint/<name>/custom_chain.go` | `security` |
 | observe outcomes per route | `cmd/main.go` | `kit.WithMetrics`, `kit.WithRecorder` |
 | call a downstream service with retry or discovery | `service/<name>/service.go` | `sd` |
+| call an HTTP API with a typed function | `service/<name>/service.go` | `client.NewTypedJSONClient` |
 | settings the wiring needs | `config/custom.go` | generated config |
 
 `cmd/main.go`, `service/<name>/service.go`, and `custom_chain.go` are

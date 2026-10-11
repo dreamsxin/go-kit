@@ -386,6 +386,7 @@ microgen \
 | 执行认证与角色 | `endpoint/<name>/custom_chain.go` | `security` |
 | 按路由观测结果 | `cmd/main.go` | `kit.WithMetrics`、`kit.WithRecorder` |
 | 带重试或服务发现调用下游 | `service/<name>/service.go` | `sd` |
+| 以类型化函数调用 HTTP API | `service/<name>/service.go` | `client.NewTypedJSONClient` |
 | 装配所需的设置 | `config/custom.go` | 生成的配置 |
 
 `cmd/main.go`、`service/<name>/service.go` 与 `custom_chain.go` 都是用户持有：

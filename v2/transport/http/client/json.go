@@ -9,8 +9,11 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
+
+	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 )
@@ -144,6 +147,93 @@ func NewJSONClientWithMaxResponseBodyBytes[Resp any](method, rawURL string, maxR
 		encoder = EncodeQueryRequest
 	}
 	return NewClient(method, tgt, encoder, dec, options...).Endpoint(), nil
+}
+
+// NewTypedJSONClient returns a typed function that sends a Req and decodes
+// the response into a Resp — the client-side mirror of the server's typed
+// JSON routes, one rule on both sides of the wire. GET and HEAD fill the
+// URL's path placeholders and query string from the request struct; every
+// other method fills the path placeholders and sends the struct as the
+// strictly encoded JSON body. Fields are named by the form tag, else the
+// json tag, else the lowercased field name, and a path value wins over a
+// query parameter of the same name. A request that is not a struct (a map, a
+// slice) is sent as the JSON body with the URL left as written.
+//
+// Non-2xx responses surface as *HTTPStatusError, classified for retry
+// decisions by the status code.
+//
+// Stable: http.typed-json-client — NewTypedJSONClient fills the URL from the
+// request struct by the same rules the server decodes with, sends the body
+// strictly, and returns Resp without a type assertion; non-2xx answers are
+// HTTPStatusError.
+// Covered by: TestTypedJSONClientPostBodyAndResponse,
+// TestTypedJSONClientGetQueryAndPath, TestTypedJSONClientNonStructBody,
+// TestTypedJSONClientSurfacesHTTPStatusError
+func NewTypedJSONClient[Req, Resp any](method, rawURL string, options ...ClientOption) (func(context.Context, Req) (Resp, error), error) {
+	return newTypedJSONClient[Req, Resp](method, rawURL, DefaultMaxJSONResponseBytes, options...)
+}
+
+// NewTypedJSONClientWithMaxResponseBodyBytes is NewTypedJSONClient with an
+// explicit successful response body limit.
+func NewTypedJSONClientWithMaxResponseBodyBytes[Req, Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (func(context.Context, Req) (Resp, error), error) {
+	return newTypedJSONClient[Req, Resp](method, rawURL, maxResponseBodyBytes, options...)
+}
+
+func newTypedJSONClient[Req, Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (func(context.Context, Req) (Resp, error), error) {
+	method = strings.ToUpper(method)
+	var probe Req
+	fillsURL := reflect.TypeOf(&probe).Elem().Kind() == reflect.Struct
+	encoder := EncodeJSONRequest
+	if fillsURL {
+		switch method {
+		case http.MethodGet, http.MethodHead:
+			encoder = func(_ context.Context, req *http.Request, request any) (*http.Request, error) {
+				filled, err := transporthttp.EncodePathAndQuery(req.URL.String(), request)
+				if err != nil {
+					return nil, err
+				}
+				parsed, err := url.Parse(filled)
+				if err != nil {
+					return nil, fmt.Errorf("encode typed request: %w", err)
+				}
+				req.URL = parsed
+				return req, nil
+			}
+		default:
+			encoder = func(ctx context.Context, req *http.Request, request any) (*http.Request, error) {
+				filled, err := transporthttp.EncodePath(req.URL.String(), request)
+				if err != nil {
+					return nil, err
+				}
+				parsed, err := url.Parse(filled)
+				if err != nil {
+					return nil, fmt.Errorf("encode typed request: %w", err)
+				}
+				req.URL = parsed
+				return EncodeJSONRequest(ctx, req, request)
+			}
+		}
+	}
+	tgt, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("newTypedJSONClient: invalid URL %q: %w", rawURL, err)
+	}
+	decode := DecodeJSONResponseWithMaxBodyBytes[Resp](maxResponseBodyBytes)
+	ep := NewClient(method, tgt, encoder, decode, options...).Endpoint()
+	typed := func(ctx context.Context, req Req) (Resp, error) {
+		anyResp, err := ep(ctx, req)
+		if err != nil {
+			var zero Resp
+			return zero, err
+		}
+		resp, ok := anyResp.(Resp)
+		if !ok {
+			var zero Resp
+			return zero, fmt.Errorf("typed client: response of type %T is not %T", anyResp, zero)
+		}
+		return resp, nil
+	}
+	return typed, nil
 }
 
 // DecodeJSONResponse is the default JSON response decoder used by

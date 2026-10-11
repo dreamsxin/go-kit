@@ -99,10 +99,25 @@ kit.HandleJSONTyped(svc, "GET /todos/{id}", func(ctx context.Context, req getTod
 A raw handler stays the answer when the response is not JSON (a 204, a file)
 or for hand-rolled decode; `transporthttp.DecodePathRequest` and
 `DecodeQueryRequest` fill a struct from a raw request on demand, and
-`server.DecodeJSONBody` judges a body by the transport rules. Client-side
-counterparts exist for building URLs: `transporthttp.EncodePath` and
-`EncodePathAndQuery` fail rather than send a URL with an unresolved
-`{placeholder}`.
+`server.DecodeJSONBody` judges a body by the transport rules.
+
+The call site mirrors the route. `client.NewTypedJSONClient[Req, Resp]`
+returns a typed function — no type assertion at the call:
+
+```go
+call, err := client.NewTypedJSONClient[todoRequest, todoResponse](
+	http.MethodGet, "http://todos.internal/todos/{id}")
+todo, err := call(ctx, todoRequest{ID: 7, Keyword: "urgent"})
+```
+
+GET and HEAD fill the URL's placeholders and query string from the struct;
+every other method fills the placeholders and sends the struct as the JSON
+body — the server's path decode wins on overlap, so the client need not
+strip path values from the body. Non-2xx answers surface as
+`client.HTTPStatusError`, classified for retry decisions by the status code.
+`transporthttp.EncodePath` and `EncodePathAndQuery` remain the building
+blocks for hand-rolled clients: they fail rather than send a URL with an
+unresolved `{placeholder}`.
 
 ## Route groups
 

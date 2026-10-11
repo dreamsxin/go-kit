@@ -6,6 +6,13 @@
 
 ### 新增
 
+- `client.NewTypedJSONClient[Req, Resp]` 是服务端类型化 JSON 路由的客户端镜像，
+  线路两侧同一条规则：GET 与 HEAD 从请求结构体填充 URL 占位符与查询串，其他方法
+  填充占位符并把结构体作为 JSON 体发送（重叠时服务端的路径解码获胜，客户端无需
+  从体中剥离路径值），调用直接返回 Resp 而无需类型断言。非结构体请求按体发送、
+  URL 原样保留；非 2xx 应答以分类的 `HTTPStatusError` 呈现。承诺为
+  `http.typed-json-client`。
+
 - MICROGEN 现在回答每个生成项目作者的下一个问题：**框架组件的接线放在哪？** 新
   章节把意图映射到唯一正确的位置——就绪检查与指标在 `cmd/main.go`，端点中间件目
   录与传输无关安全在 `endpoint/<name>/custom_chain.go`，下游重试与发现在
