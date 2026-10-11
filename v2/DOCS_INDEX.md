@@ -52,6 +52,7 @@ generated source.
 | test a service | [Testing](docs/testing.md) |
 | diagnose a failure | [Troubleshooting](docs/troubleshooting.md) |
 | configure a generated project | [Configuration](docs/configuration.md), [microgen guide](MICROGEN.md) |
+| build a frontend from the API | [microgen guide](MICROGEN.md), [Routing](docs/routing.md) |
 
 ## Component Reference
 

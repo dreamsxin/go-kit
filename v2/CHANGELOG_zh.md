@@ -4,7 +4,23 @@
 
 ## [Unreleased]
 
+### 变更
+
+- `-openapi` 现在默认为 true：每个生成项目无需任何参数即应答 OpenAPI 3.1 契约、
+  JSON Schema 包、内嵌 Swagger UI 与 TypeScript 客户端——这正是 AI 代理依据 API
+  构建前端所需的输入。需要旧行为时传 `-openapi=false`。已生成的项目保持其
+  manifest 记录的能力；extend 从 `.microgen/manifest.json` 回读该能力，不会把新
+  默认回灌到它们身上。
+
 ### 文档
+
+- 生成的 `.ai/PROJECT_GUIDE.md` 新增"依据契约生成前端"：操作从哪里来
+  （`operationId`、`$ref`）、如何从 `docs/schema.json` 读取消息形态（`required`、
+  `format`、`example`、`additionalProperties: false`）、经 TypeScript 客户端或普通
+  fetch 调用，以及可复用的列表/表单/删除页面配方——`MICROGEN_API_GAP` 规则同样
+  适用于 TypeScript SDK。MICROGEN_zh.md 为开发者承载同一工作流，文档索引也路由
+  了该任务。IDL 的校验约束语法（enum、长度、范围）仍有意不做；契约已携带表单生
+  成器所需的最小集。
 
 - 新增[路由](docs/routing_zh.md)一章，端到端讲解路由定义：ServeMux 模式语法与语义
   （最具体优先、冲突、405+Allow）、各注册调用的选择及其代价、路径与查询参数（含

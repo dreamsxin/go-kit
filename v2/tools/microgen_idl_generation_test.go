@@ -38,7 +38,14 @@ func TestMicrogenIDLDefaultFlags(t *testing.T) {
 	mustNotExistFile(t, filepath.Join(outDir, "config", "config.go"))
 	mustNotExistFile(t, filepath.Join(outDir, "model", "generated_user.go"))
 	mustNotExistFile(t, filepath.Join(outDir, "repository", "generated_user_repository.go"))
-	mustNotExistFile(t, filepath.Join(outDir, "docs", "docs.go"))
 	mustNotExistFile(t, filepath.Join(outDir, "transport", "userservice", "transport_grpc.go"))
 	mustNotExistFile(t, filepath.Join(outDir, "pb", "userservice", "userservice.proto"))
+
+	// OpenAPI output is on by default: every generated project answers with a
+	// machine-readable contract, the Swagger UI, and the TypeScript client
+	// without asking for it.
+	mustExistFile(t, filepath.Join(outDir, "docs", "docs.go"))
+	mustExistFile(t, filepath.Join(outDir, "docs", "openapi.json"))
+	mustExistFile(t, filepath.Join(outDir, "docs", "schema.json"))
+	mustExistFile(t, filepath.Join(outDir, "sdk", "typescript", "client.ts"))
 }

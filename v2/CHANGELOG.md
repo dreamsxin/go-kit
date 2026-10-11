@@ -4,7 +4,28 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ## [Unreleased]
 
+### Changed
+
+- `-openapi` now defaults to true: every generated project answers with the
+  OpenAPI 3.1 contract, the JSON Schema bundle, the embedded Swagger UI, and
+  the TypeScript client without asking for it — the input an AI agent needs
+  to build a frontend from the API. Pass `-openapi=false` for the old
+  behavior. Projects already generated keep whatever their manifest records;
+  extend reads the capability back from `.microgen/manifest.json` and does
+  not retrofit the new default onto them.
+
 ### Documentation
+
+- The generated `.ai/PROJECT_GUIDE.md` gains "Generate A Frontend From The
+  Contract": where operations come from (`operationId`, `$ref`s), how to read
+  message shapes from `docs/schema.json` (`required`, `format`, `example`,
+  `additionalProperties: false`), calling through the TypeScript client or
+  plain fetch, and the repeating list/form/delete page recipe — with the
+  `MICROGEN_API_GAP` rule extended to the TypeScript SDK. MICROGEN.md carries
+  the same workflow for developers, and the documentation indexes route the
+  task. A constraint syntax for the IDL (enum, length, ranges) remains
+  deliberately out of scope; the contract carries what a form generator
+  needs.
 
 - A [Routing](docs/routing.md) chapter now teaches route definition end to
   end: ServeMux pattern syntax and its semantics (specificity, conflicts,

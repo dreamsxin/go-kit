@@ -77,6 +77,7 @@ func TestMicrogenIDLRuntimeIntegration(t *testing.T) {
 			"-docs=false",
 			"-model=false",
 			"-db=false",
+			"-openapi=false",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("microgen idl minimal failed: %v\n%s", err, out)

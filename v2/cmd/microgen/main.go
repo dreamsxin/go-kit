@@ -92,7 +92,7 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 	withModel := fs.Bool("model", false, "Generate model")
 	withDB := fs.Bool("db", false, "Include DB init in main")
 	driver := fs.String("driver", "mysql", "Database driver")
-	withOpenAPI := fs.Bool("openapi", false, "Generate OpenAPI 3.1, JSON Schema, Swagger UI, and TypeScript SDK")
+	withOpenAPI := fs.Bool("openapi", true, "Generate OpenAPI 3.1, JSON Schema, Swagger UI, and TypeScript SDK")
 	withInteraction := fs.Bool("interaction", false, "Generate AI interaction runtime and MCP endpoint")
 	serviceName := fs.String("service", "", "Service name")
 	routePrefix := fs.String("prefix", "", "HTTP route prefix")

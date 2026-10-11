@@ -19,6 +19,7 @@ go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 - [常用选项](#常用选项)
 - [生成项目清单](#生成项目清单)
 - [API 与 Schema 契约](#api-与-schema-契约)
+- [依据契约生成前端](#依据契约生成前端)
 - [最小生成与完整生成](#最小生成与完整生成)
 - [生成配置](#生成配置)
 - [数据库迁移](#数据库迁移)
@@ -35,9 +36,11 @@ go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 | Protobuf | `microgen -idl service.proto ...` | 生成 proto 传输和客户端 |
 | 已有数据库 | `microgen -from-db -driver ... -dsn ...` | 模型、仓库和服务骨架 |
 
-先生成最小能力集；只有项目确实需要时再加 `-config`、`-db`、`-model`、
-`-openapi` 或 `-interaction`。生成后先读项目 README 和 `.microgen/manifest.json`，
-再开始编辑。
+OpenAPI 输出默认开启——每个生成项目都会应答机器可读契约、Swagger UI 与
+TypeScript 客户端，这正是 AI 代理生成前端所需的全部输入（见[依据契约生成前端]
+(#依据契约生成前端)）。除此之外仍从最小能力集开始：只有项目确实需要时再加
+`-config`、`-db`、`-model` 或 `-interaction`（`-openapi=false` 关闭契约输出）。
+生成后先读项目 README 和 `.microgen/manifest.json`，再开始编辑。
 
 ## 安装
 
@@ -125,7 +128,7 @@ microgen \
 | `-docs` | 生成项目文档，默认 `true` |
 | `-tests` | 生成项目测试 |
 | `-interaction` | 生成交互运行时与 `/mcp` 端点 |
-| `-openapi` | 生成 OpenAPI 3.1、JSON Schema、Swagger UI 与 TypeScript SDK |
+| `-openapi` | 生成 OpenAPI 3.1、JSON Schema、Swagger UI 与 TypeScript SDK；默认 `true` |
 
 以 `microgen -h` 为权威选项列表。
 
@@ -224,6 +227,26 @@ SDK，而不是维护第二套 HTTP 或 gRPC 实现。
 
 生成的 repository 通过模型派生的字段白名单解析 `order_by`。不支持的名称
 返回错误，而不是透传给 SQL。
+
+## 依据契约生成前端
+
+契约的书写目标就是让 AI 代理——或开发者——无需阅读 Go 源码即可构建前端，包
+括后台管理：
+
+- **操作**：`docs/openapi.json` 列出每条路由及其 `operationId`
+  （`<Service>_<Method>`）、来自 IDL 注释的 summary，以及作为 `components.schemas`
+  `$ref` 的请求/响应体。
+- **消息形态**：`docs/schema.json` 在 `$defs` 下承载相同 schema。每个字段标注
+  `type` 与 `format`（`int64`、`date-time`、`uuid`）、`example` 与对象的 `required`
+  清单，且每个消息都设置 `additionalProperties: false`——按声明的字段渲染，一个
+  不多。
+- **调用**：`sdk/typescript/client.ts` 暴露 `APIClient`，每个操作一个类型化方法，
+  非 2xx 应答统一抛 `APIError`；按文档路由直接 `fetch` 亦可。
+
+可复用的页面配方：从 `List`/`Get` 操作得到列表页，从 `Create`/`Update` 请求
+schema 得到表单（`required` 驱动校验、`format` 驱动输入控件），从 `Delete` 操作
+得到删除确认。文档中的每条路径已含服务前缀。生成的 `.ai/PROJECT_GUIDE.md` 为在
+项目内工作的代理携带同一工作流。
 
 ## 最小生成与完整生成
 

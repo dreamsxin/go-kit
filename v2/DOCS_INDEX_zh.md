@@ -49,6 +49,7 @@ API 参考；根目录指南负责生成、架构、生产部署和升级。
 | 测试服务 | [测试](docs/testing_zh.md) |
 | 排查故障 | [排障](docs/troubleshooting_zh.md) |
 | 配置生成项目 | [配置](docs/configuration_zh.md)、[microgen 指南](MICROGEN_zh.md) |
+| 依据 API 生成前端 | [microgen 指南](MICROGEN_zh.md)、[路由](docs/routing_zh.md) |
 
 ## 组件参考
 

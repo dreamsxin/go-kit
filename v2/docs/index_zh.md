@@ -14,6 +14,7 @@ godoc 查符号的精确契约。框架的实现不是阅读材料——契约�
 | 几分钟运行服务 | [快速上手](getting-started_zh.md) | [examples](../examples/README_zh.md) |
 | 定义 HTTP 路由 | [路由](routing_zh.md) | [Transport README](../transport/README_zh.md) |
 | 生成项目 | [microgen 教程](tutorial-microgen_zh.md) | [microgen 指南](../MICROGEN_zh.md) |
+| 依据 API 生成前端 | [microgen 指南](../MICROGEN_zh.md) | [路由](routing_zh.md) |
 | 手工组装小型服务 | [快速上手](getting-started_zh.md) | [`kit` README](../README_zh.md#使用-kit) |
 | 理解请求链路 | [核心概念](concepts_zh.md) | [中间件](middleware_zh.md)、[错误处理](errors_zh.md) |
 | 接入 HTTP、gRPC、SSE 或自定义编解码 | [Transport README](../transport/README_zh.md) | [自定义传输](custom-transport_zh.md) |

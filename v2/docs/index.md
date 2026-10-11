@@ -17,6 +17,7 @@ the contracts.
 | run a service in minutes | [Getting started](getting-started.md) | [examples](../examples/README.md) |
 | define HTTP routes | [Routing](routing.md) | [transport README](../transport/README.md) |
 | generate a project | [microgen tutorial](tutorial-microgen.md) | [microgen guide](../MICROGEN.md) |
+| build a frontend from the API | [microgen guide](../MICROGEN.md) | [Routing](routing.md) |
 | assemble a small service by hand | [Getting started](getting-started.md) | [`kit` README](../README.md#build-with-kit) |
 | understand the request path | [Core concepts](concepts.md) | [Middleware](middleware.md), [Errors](errors.md) |
 | add HTTP, gRPC, SSE, or custom codecs | [Transport README](../transport/README.md) | [Custom transport](custom-transport.md) |

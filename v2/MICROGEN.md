@@ -18,6 +18,7 @@ go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 - [Common Options](#common-options)
 - [Generated Project Manifest](#generated-project-manifest)
 - [API And Schema Contracts](#api-and-schema-contracts)
+- [Generate A Frontend From The Contract](#generate-a-frontend-from-the-contract)
 - [Minimal And Full Generation](#minimal-and-full-generation)
 - [Generated Configuration](#generated-configuration)
 - [Database Migration](#database-migration)
@@ -34,9 +35,14 @@ go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 | Protobuf | `microgen -idl service.proto ...` | generated proto-aware transport and clients |
 | existing database | `microgen -from-db -driver ... -dsn ...` | models, repositories, and service scaffolding |
 
-Start with the smallest capability set. Add `-config`, `-db`, `-model`,
-`-openapi`, or `-interaction` only when the generated project needs it. After
-generation, read the project README and `.microgen/manifest.json` before editing.
+OpenAPI output is on by default — every generated project answers with a
+machine-readable contract, the Swagger UI, and a TypeScript client, which is
+what an AI agent needs to build a frontend (see [Generate A Frontend From
+The Contract](#generate-a-frontend-from-the-contract)). Beyond that, start
+with the smallest capability set: add `-config`, `-db`, `-model`, or
+`-interaction` only when the generated project needs it (`-openapi=false`
+turns the contract output off). After generation, read the project README
+and `.microgen/manifest.json` before editing.
 
 ## Install
 
@@ -127,7 +133,7 @@ opt-in through `-db`, and startup migration is disabled by default.
 | `-docs` | Generate project documentation, default `true` |
 | `-tests` | Generate project tests |
 | `-interaction` | Generate interaction runtime and `/mcp` endpoint |
-| `-openapi` | Generate OpenAPI 3.1, JSON Schema, Swagger UI, and TypeScript SDK |
+| `-openapi` | Generate OpenAPI 3.1, JSON Schema, Swagger UI, and TypeScript SDK; default `true` |
 
 Use `microgen -h` as the authoritative option list.
 
@@ -239,6 +245,30 @@ maintaining a second HTTP or gRPC implementation.
 
 Generated repositories resolve `order_by` through a model-derived field
 whitelist. Unsupported names return an error instead of being passed to SQL.
+
+## Generate A Frontend From The Contract
+
+The contract is written so that an AI agent — or a developer — can build a
+frontend, an admin panel included, without reading Go source:
+
+- **Operations**: `docs/openapi.json` lists every route with an `operationId`
+  (`<Service>_<Method>`), a summary from the IDL doc comment, and
+  request/response bodies as `$ref`s into `components.schemas`.
+- **Message shapes**: `docs/schema.json` carries the same schemas under
+  `$defs`. Each field names its `type` and `format` (`int64`, `date-time`,
+  `uuid`), carries an `example` and the object's `required` list, and every
+  message sets `additionalProperties: false` — render exactly the declared
+  fields.
+- **Calls**: `sdk/typescript/client.ts` exposes `APIClient` with one typed
+  method per operation and a single `APIError` for non-2xx answers; plain
+  `fetch` against the documented routes works the same way.
+
+The repeating page recipe: a list page from the `List`/`Get` operations, a
+form from the `Create`/`Update` request schema (`required` drives validation,
+`format` drives input types), and a delete confirmation from the `Delete`
+operation. Every documented path already includes the service prefix. The
+generated `.ai/PROJECT_GUIDE.md` carries this workflow for agents working
+inside the project.
 
 ## Minimal And Full Generation
 

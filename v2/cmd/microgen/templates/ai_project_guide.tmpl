@@ -132,6 +132,38 @@ Work in this order, and never guess at a generated name:
 - `GET /health` — liveness and readiness; 503 until the listeners are up and again once shutdown starts
 - `GET /livez` — liveness only; 200 while the process is alive
 - `GET /readyz` — readiness only; 503 while draining
+{{- if .WithOpenAPI }}
+
+## Generate A Frontend From The Contract
+
+The API document is complete enough to build pages from without reading Go
+source. Work from the contract, in this order:
+
+1. **Operations** come from `GET /openapi.json`: every route is a path with an
+   `operationId` (`<Service>_<Method>`), a `summary`, and request/response
+   bodies that are `$ref`s into `components.schemas`.
+2. **Message shapes** come from `GET /schema.json`: the same schemas under
+   `$defs`, reusable across pages. A field carries its `description` (from the
+   IDL doc comment), `type` and `format` (`int64`, `date-time`, `uuid` — map
+   them to the right input control), `example`, and the object's `required`
+   list. `additionalProperties: false` means render exactly the declared
+   fields, no more.
+3. **Calls** go through `sdk/typescript/client.ts`: import `APIClient`, one
+   instance per base URL, one property per service, one typed method per
+   operation. Non-2xx answers throw `APIError` carrying the upstream status
+   and body — surface it, never swallow it. Plain `fetch` against the
+   documented routes is equally valid.
+4. **Route prefix**: every documented path already includes the service
+   prefix; call them as documented.
+
+A page set for one entity follows the same shape every time: a list page from
+the `List`/`Get` operations, a form from the `Create`/`Update` request schema
+(`required` drives validation, `format` drives input types), and delete
+confirmation from the `Delete` operation. Never hand-edit
+`sdk/typescript/client.ts` — it is regenerated from the same contract; if an
+operation you need is missing, stop and report `MICROGEN_API_GAP` instead of
+guessing a method name.
+{{- end }}
 
 ## Common Modifications
 
