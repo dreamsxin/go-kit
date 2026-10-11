@@ -10,6 +10,22 @@ This guide covers the published `microgen` package in the main module, installed
 go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 ```
 
+## Contents
+
+- [Quick Choice](#quick-choice)
+- [Install](#install)
+- [Source Modes](#source-modes)
+- [Common Options](#common-options)
+- [Generated Project Manifest](#generated-project-manifest)
+- [API And Schema Contracts](#api-and-schema-contracts)
+- [Minimal And Full Generation](#minimal-and-full-generation)
+- [Generated Configuration](#generated-configuration)
+- [Database Migration](#database-migration)
+- [Extend An Existing Project](#extend-an-existing-project)
+- [File Ownership](#file-ownership)
+- [After Generation](#after-generation)
+- [Generator Guarantees](#generator-guarantees)
+
 ## Quick Choice
 
 | Source | Command shape | Result |

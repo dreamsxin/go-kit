@@ -32,6 +32,14 @@ English | [简体中文](CHANGELOG_zh.md)
   middleware instead of reporting the not-implemented stubs. The demos now
   pass a discard logger.
 
+### Documentation
+
+- MICROGEN.md and PRODUCTION.md gained a table of contents (13 and 18
+  sections respectively), in both languages. The audit behind it: every
+  relative documentation link resolves, every English/Chinese document pair
+  has matching structure, and the task router, book index, and examples
+  catalog cover every chapter and every example directory.
+
 ## [2.23.0] - 2026-10-08
 
 ### Added

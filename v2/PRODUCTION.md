@@ -5,6 +5,27 @@ This guide covers the framework-level checks needed before deploying a service.
 Application-specific authentication, authorization, data governance, and
 operations remain the application's responsibility.
 
+## Contents
+
+- [Deployment Gate](#deployment-gate)
+- [Lifecycle](#lifecycle)
+- [Background Jobs](#background-jobs)
+- [HTTP Server](#http-server)
+- [TLS Termination](#tls-termination)
+- [HTTP Clients](#http-clients)
+- [gRPC](#grpc)
+- [Service Discovery And Retry](#service-discovery-and-retry)
+- [Configuration And Secrets](#configuration-and-secrets)
+- [Authentication And Authorization](#authentication-and-authorization)
+- [Browser-Facing HTTP](#browser-facing-http)
+- [Logging](#logging)
+- [Metrics](#metrics)
+- [Tracing](#tracing)
+- [Health](#health)
+- [Deployment](#deployment)
+- [Alerting](#alerting)
+- [Pre-Deployment Checklist](#pre-deployment-checklist)
+
 ## Deployment Gate
 
 Before shipping, verify these six areas:
