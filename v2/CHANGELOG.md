@@ -6,6 +6,26 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Documentation
 
+- A [Routing](docs/routing.md) chapter now teaches route definition end to
+  end: ServeMux pattern syntax and its semantics (specificity, conflicts,
+  405+Allow), the registration call to reach for with the trade each makes,
+  path and query parameters (including combining a typed JSON body with path
+  values), pagination, multipart, downloads, the options that shape every
+  route, SSE route definition with its timeout and shutdown rules, the gRPC
+  registration story, and how generated projects register, extend
+  (`cmd/custom_routes.go`), and expose `/debug/routes`. The chapter's code
+  was verified by compiling it against the module and running it.
+- The transport-neutral `security` package and the standalone `health`
+  package each gained the README their contracts deserve, and the
+  documentation indexes now reach them, `kit/grpc`, and `integrations/zap`.
+  `docs/configuration.md` states how a hand-built service configures itself,
+  MICROGEN.md shows how to call the generated Go and TypeScript SDKs, the
+  authentication tutorial links the security package's README instead of
+  security/http's, and the testing chapter covers SSE, multipart, and
+  outbound-call substitution. A runnable SSE example remains deliberately
+  out of scope; the routing chapter and the transport README carry the
+  behavior until then.
+
 - The CRUD and authentication tutorials are now complete walkthroughs for a
   beginner: each carries a module-setup step, and every layer (storage,
   service, HTTP, wire-up) is shown as finished code, so assembling the

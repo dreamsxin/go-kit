@@ -12,6 +12,7 @@ godoc 查符号的精确契约。框架的实现不是阅读材料——契约�
 | 你要做什么 | 先读 | 然后使用 |
 | --- | --- | --- |
 | 几分钟运行服务 | [快速上手](getting-started_zh.md) | [examples](../examples/README_zh.md) |
+| 定义 HTTP 路由 | [路由](routing_zh.md) | [Transport README](../transport/README_zh.md) |
 | 生成项目 | [microgen 教程](tutorial-microgen_zh.md) | [microgen 指南](../MICROGEN_zh.md) |
 | 手工组装小型服务 | [快速上手](getting-started_zh.md) | [`kit` README](../README_zh.md#使用-kit) |
 | 理解请求链路 | [核心概念](concepts_zh.md) | [中间件](middleware_zh.md)、[错误处理](errors_zh.md) |
@@ -36,6 +37,7 @@ godoc 查符号的精确契约。框架的实现不是阅读材料——契约�
 ## 核心章节
 
 - [核心概念](concepts_zh.md)：分层、所有权、请求路径，以及错误在哪里被分类。
+- [路由](routing_zh.md)：模式语法、注册调用的选择、路径与查询参数，以及影响路由的选项。
 - [中间件](middleware_zh.md)：组合、顺序、流控与内置目录。
 - [错误处理](errors_zh.md)：分类、状态映射和安全消息。
 - [生命周期](lifecycle_zh.md)：启动、停机、draining、健康检查和任务。
@@ -53,6 +55,9 @@ godoc 查符号的精确契约。框架的实现不是阅读材料——契约�
 
 - [`endpoint`](../endpoint/README_zh.md)
 - [`transport`](../transport/README_zh.md)
+- [`health`](../health/README_zh.md)
+- [`security`](../security/README_zh.md)
+- [`kit/grpc`](routing_zh.md#grpc-路由)：gRPC 生命周期组件及其注册方式
 - [`kit`](../README_zh.md#使用-kit)
 - [`sd`](../sd/README_zh.md)
 - [`interaction`](../interaction/README_zh.md)
@@ -63,6 +68,7 @@ godoc 查符号的精确契约。框架的实现不是阅读材料——契约�
 - [`integrations/grpc`](../integrations/grpc/README_zh.md)
 - [`integrations/consul`](../integrations/consul/README_zh.md)
 - [`integrations/etcd`](../integrations/etcd/README_zh.md)
+- [`integrations/zap`](../integrations/zap/README_zh.md)
 - [`microgen`](../MICROGEN_zh.md)
 - [`tools`](../tools/README_zh.md)：集成测试与文档探针。
 

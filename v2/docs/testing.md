@@ -164,6 +164,23 @@ Lifecycle and concurrency claims need the race detector, not a longer test:
 go test -race -run 'TestShutdown|TestDrain' -count=1 ./...
 ```
 
+## Transport features and outbound calls
+
+The patterns above cover the JSON request/response path; three more show up
+in real services:
+
+- **SSE routes**: `httptest` works unchanged — `comp.ServeHTTP` is the whole
+  component, and a stream under test ends when your test closes its
+  connection. Assert on the raw `text/event-stream` body; the header
+  contract is pinned in the transport package, so tests should not re-assert
+  it.
+- **Multipart limits**: a test upload over `multipart.Writer` is the honest
+  way to hit `MultipartLimits`; the classification (413/415) comes back like
+  any other error envelope.
+- **Outbound calls**: substitute the transport with
+  `client.SetClient(fake)` (a `ClientOption`) instead of pointing the client
+  at a fake server; `examples/httpclient` shows the option in use.
+
 ## Reference patterns
 
 The example tests are the canonical reference: `examples/quickstart`,

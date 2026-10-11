@@ -391,7 +391,7 @@ make release-check-clean
     [CRUD 服务](docs/tutorial-crud_zh.md)、
     [生成服务](docs/tutorial-microgen_zh.md)、
     [认证](docs/tutorial-auth_zh.md)、[MCP 服务器](docs/tutorial-mcp_zh.md)
-  - 章节：[核心概念](docs/concepts_zh.md)、[错误处理](docs/errors_zh.md)、
+  - 章节：[路由定义](docs/routing_zh.md)、[核心概念](docs/concepts_zh.md)、[错误处理](docs/errors_zh.md)、
     [中间件](docs/middleware_zh.md)、[生命周期](docs/lifecycle_zh.md)、
     [配置](docs/configuration_zh.md)、[服务发现](docs/service-discovery_zh.md)、
     [自定义](docs/customization_zh.md)、[自定义传输](docs/custom-transport_zh.md)、

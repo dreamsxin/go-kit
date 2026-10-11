@@ -27,7 +27,7 @@ the wire; the transport-neutral `security` package can then resolve it to a
 `security.Subject` and enforce route requirements in endpoint middleware
 (`security.Middleware`, `security.RequireAuthenticated`) -- that shape keeps
 the service independent of bearer headers, cookies, or another protocol, and is
-covered in the [security README](../security/http/README.md). This tutorial
+covered in the [security README](../security/README.md). This tutorial
 keeps the wire decisions visible in plain HTTP middleware instead; every file
 it assembles uses only the standard library and `kit`.
 

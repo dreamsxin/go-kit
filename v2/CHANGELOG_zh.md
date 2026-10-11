@@ -6,6 +6,19 @@
 
 ### 文档
 
+- 新增[路由](docs/routing_zh.md)一章，端到端讲解路由定义：ServeMux 模式语法与语义
+  （最具体优先、冲突、405+Allow）、各注册调用的选择及其代价、路径与查询参数（含
+  类型化 JSON 体与路径值的组合）、分页、multipart、文件下载、影响每条路由的选
+  项、SSE 路由定义及其超时与停机规则、gRPC 注册方式，以及生成项目如何注册、扩展
+  （`cmd/custom_routes.go`）并暴露 `/debug/routes`。章节代码已在模块内编译并运
+  行验证。
+- 与传输无关的 `security` 包和独立的 `health` 包各自补上了应有的 README，文档索
+  引现在能到达它们、`kit/grpc` 与 `integrations/zap`。`docs/configuration_zh.md`
+  说明手写服务如何自我配置，MICROGEN_zh.md 展示如何调用生成的 Go 与 TypeScript
+  SDK，认证教程的链接改指 security 包的 README 而非 security/http，测试章节补上
+  SSE、multipart 与出站调用替换。可运行的 SSE 示例仍有意不做；在此之前由路由章
+  节与 transport README 承载行为说明。
+
 - CRUD 与认证教程现在是面向新手的完整走查：每篇都有建模块步骤，每一层（存储、
   服务、HTTP、装配）都以成品代码呈现，按节顺序拼装即得到可运行的 `main.go`——
   与对应示例是同一个文件，只少一段包注释。两篇都按新手阅读的方式验证：从教程

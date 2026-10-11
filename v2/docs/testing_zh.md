@@ -148,6 +148,18 @@ go test ./...          # 在生成项目的根目录执行
 go test -race -run 'TestShutdown|TestDrain' -count=1 ./...
 ```
 
+## 传输特性与出站调用
+
+上面的模式覆盖 JSON 请求/响应路径；真实服务里还会遇到三个：
+
+- **SSE 路由**：`httptest` 原样可用——`comp.ServeHTTP` 就是整个组件，测试关闭连
+  接时被测的流随之结束。直接对 `text/event-stream` 响应体断言；header 契约由传输
+  包钉住，测试不必重新断言。
+- **Multipart 限制**：用 `multipart.Writer` 构造测试上传是命中
+  `MultipartLimits` 的真实方式；分类（413/415）像其他错误一样以信封返回。
+- **出站调用**：用 `client.SetClient(fake)`（一个 `ClientOption`）替换传输层，而
+  不是把客户端指向假服务器；`examples/httpclient` 演示了该选项的用法。
+
 ## 参考模式
 
 示例测试是权威参考：`examples/quickstart`、`examples/todosvc`（服务层、存储层与

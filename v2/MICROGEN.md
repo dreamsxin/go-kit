@@ -438,6 +438,37 @@ notice, no attribution, nothing flowing back to this project, and no `LICENSE`
 file is written so the choice stays yours. The framework the project imports stays
 MIT. See [Licensing](docs/licenses.md).
 
+## Call The Generated Service
+
+The generated Go SDK needs no codegen step of your own:
+
+```go
+client := helloservicesdk.New("http://localhost:8080")
+
+resp, err := client.SayHello(ctx, idl.HelloRequest{Name: "world"})
+var apiErr *helloservicesdk.APIError
+if errors.As(err, &apiErr) {
+	// apiErr.Status is the upstream HTTP status; apiErr.Body the response.
+	// Handle it here — do not let an upstream 404 become your handler's 404.
+}
+```
+
+With gRPC output, `NewGRPC(conn)` serves the same client interface over the
+generated protobuf stubs; streaming methods live on the streaming client.
+`client/<service>/demo.go` is a runnable main showing the full call. The
+TypeScript SDK is a Fetch client with no runtime dependencies:
+
+```ts
+import { APIClient } from "./sdk/typescript/client";
+
+const client = new APIClient("http://localhost:8080");
+const response = await client.helloservice.SayHello({ name: "world" });
+```
+
+`APIClient` methods throw `APIError` for non-2xx responses, carrying the same
+status and body the Go SDK surfaces. Route prefixes apply to both: a service
+generated with `-prefix /api` is called at `/api/...`.
+
 ## After Generation
 
 ```bash

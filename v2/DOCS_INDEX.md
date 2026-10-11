@@ -39,7 +39,9 @@ generated source.
 | --- | --- |
 | understand layers and ownership | [Architecture](ARCHITECTURE.md), [Core concepts](docs/concepts.md) |
 | compose endpoint middleware | [Middleware](docs/middleware.md), [endpoint README](endpoint/README.md) |
+| define HTTP routes | [Routing](docs/routing.md), [transport README](transport/README.md) |
 | expose or call HTTP | [transport README](transport/README.md) |
+| call a generated service | [microgen guide](MICROGEN.md), [Routing](docs/routing.md) |
 | add gRPC | [transport README](transport/README.md), [gRPC README](integrations/grpc/README.md) |
 | add a custom body or protocol | [Custom transports](docs/custom-transport.md), [transport README](transport/README.md) |
 | customize errors and envelopes | [Error handling](docs/errors.md), [Customization](docs/customization.md) |
@@ -60,7 +62,8 @@ generated source.
 | HTTP and gRPC transport | [`transport`](transport/README.md), [`integrations/grpc`](integrations/grpc/README.md) |
 | discovery and balancing | [`sd`](sd/README.md), [Service discovery](docs/service-discovery.md) |
 | interaction and MCP | [`interaction`](interaction/README.md) |
-| security | [`security/http`](security/http/README.md) |
+| health checks | [`health`](health/README.md) |
+| security | [`security`](security/README.md), [`security/http`](security/http/README.md) |
 | observability | [`observability/slog`](observability/slog/README.md), [`observability/otel`](observability/otel/README.md), [`observability/metrics`](observability/metrics/README.md), [`integrations/zap`](integrations/zap/README.md) |
 | providers | [`consul`](integrations/consul/README.md), [`etcd`](integrations/etcd/README.md) |
 | project generator | [`microgen`](MICROGEN.md) |

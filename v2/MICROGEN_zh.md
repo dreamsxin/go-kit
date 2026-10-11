@@ -411,6 +411,35 @@ extend 模式更新新文件与生成器持有的聚合文件。追加服务或�
 本项目的义务，也不会写 `LICENSE` 文件，从而把选择权留给你。项目所 import 的框架仍然是
 MIT。参见[开源协议](docs/licenses_zh.md)。
 
+## 调用生成的服务
+
+生成的 Go SDK 不需要你自己做任何代码生成步骤：
+
+```go
+client := helloservicesdk.New("http://localhost:8080")
+
+resp, err := client.SayHello(ctx, idl.HelloRequest{Name: "world"})
+var apiErr *helloservicesdk.APIError
+if errors.As(err, &apiErr) {
+	// apiErr.Status 是上游 HTTP 状态码；apiErr.Body 是响应体。
+	// 在这里处理它——不要让上游的 404 变成你的 handler 的 404。
+}
+```
+
+启用 gRPC 输出时，`NewGRPC(conn)` 在生成的 protobuf 桩上提供同一个客户端接口；
+流式方法在流式客户端上。`client/<service>/demo.go` 是展示完整调用的可运行
+main。TypeScript SDK 是一个无运行时依赖的 Fetch 客户端：
+
+```ts
+import { APIClient } from "./sdk/typescript/client";
+
+const client = new APIClient("http://localhost:8080");
+const response = await client.helloservice.SayHello({ name: "world" });
+```
+
+`APIClient` 的方法在非 2xx 响应时抛出 `APIError`，携带与 Go SDK 相同的状态码与
+响应体。路由前缀对两者同样生效：以 `-prefix /api` 生成的服务从 `/api/...` 调用。
+
 ## 生成之后
 
 ```bash

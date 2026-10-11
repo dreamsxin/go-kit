@@ -24,7 +24,7 @@
 包可以把凭证解析为 `security.Subject`，并在 endpoint middleware 中执行路由要求
 （`security.Middleware`、`security.RequireAuthenticated`）——那种形态让 service
 不依赖 bearer header、cookie 或某一种协议，见
-[security/http README](../security/http/README_zh.md)。本教程改为把线路决策保留
+[security README](../security/README_zh.md)。本教程改为把线路决策保留
 在朴素的 HTTP middleware 里以便直接查看；它拼装的所有文件只依赖标准库与 `kit`。
 
 ## 2. 建立模块

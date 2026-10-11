@@ -2,7 +2,33 @@
 
 [English](configuration.md) | 简体中文
 
-只有用 `-config` 生成的项目才存在配置。本页说明优先级、校验和自定义配置段。
+用 `-config` 生成的项目通过生成的 `config` 包完成配置；本页说明其优先级、校验
+与自定义配置段。手工组装的服务用下方[手写服务](#手写服务)中的手段完成配置。
+
+## 手写服务
+
+手工组装的服务没有生成的 YAML；它的配置就是你写在 `kit.NewHTTP` 之前的代码。
+教程确立了可用的惯例：
+
+- 命令行 flag 沿用生成项目的点号命名（`-http.addr`、`-db.dsn`），让本地覆盖在
+  所有服务里长一个样；
+- 部署期取值用 `APP_` 前缀的环境变量，显式读取或通过你自有的配置包读取；
+- 每个值最终落入构造时的一个 `kit` 选项，校验也发生在那里：地址、证书不对，或
+  `WithTimeout` 传了非正数，`kit.NewHTTP` 都会在监听之前失败。
+
+```go
+addr := flag.String("http.addr", ":8080", "HTTP listen address")
+flag.Parse()
+
+svc, err := kit.NewHTTP(*addr,
+	kit.WithRequestID(),
+	kit.WithTimeout(5*time.Second),
+)
+```
+
+装配选项的完整清单——请求体限制、探针路径、TLS、记录器——影响路由的部分在
+[路由](routing_zh.md)中说明，其余见 godoc（`go doc ./kit`）。生成的配置在同一
+批选项之上增加了优先级、校验与远端来源；见下文各节。
 
 ## 快速结论
 

@@ -36,7 +36,9 @@ API 参考；根目录指南负责生成、架构、生产部署和升级。
 | --- | --- |
 | 理解分层与所有权 | [架构](ARCHITECTURE_zh.md)、[核心概念](docs/concepts_zh.md) |
 | 组合端点中间件 | [中间件](docs/middleware_zh.md)、[endpoint README](endpoint/README_zh.md) |
+| 定义 HTTP 路由 | [路由](docs/routing_zh.md)、[transport README](transport/README_zh.md) |
 | 提供或调用 HTTP | [transport README](transport/README_zh.md) |
+| 调用生成的服务 | [microgen 指南](MICROGEN_zh.md)、[路由](docs/routing_zh.md) |
 | 添加 gRPC | [transport README](transport/README_zh.md)、[gRPC README](integrations/grpc/README_zh.md) |
 | 添加自定义 body 或协议 | [自定义传输](docs/custom-transport_zh.md)、[transport README](transport/README_zh.md) |
 | 自定义错误和信封 | [错误处理](docs/errors_zh.md)、[自定义](docs/customization_zh.md) |
@@ -57,7 +59,8 @@ API 参考；根目录指南负责生成、架构、生产部署和升级。
 | HTTP 与 gRPC 传输 | [`transport`](transport/README_zh.md)、[`integrations/grpc`](integrations/grpc/README_zh.md) |
 | 服务发现与均衡 | [`sd`](sd/README_zh.md)、[服务发现](docs/service-discovery_zh.md) |
 | interaction 与 MCP | [`interaction`](interaction/README_zh.md) |
-| 安全 | [`security/http`](security/http/README_zh.md) |
+| 健康检查 | [`health`](health/README_zh.md) |
+| 安全 | [`security`](security/README_zh.md)、[`security/http`](security/http/README_zh.md) |
 | 可观测性 | [`observability/slog`](observability/slog/README_zh.md)、[`observability/otel`](observability/otel/README_zh.md)、[`observability/metrics`](observability/metrics/README_zh.md)、[`integrations/zap`](integrations/zap/README_zh.md) |
 | provider | [`consul`](integrations/consul/README_zh.md)、[`etcd`](integrations/etcd/README_zh.md) |
 | 项目生成器 | [`microgen`](MICROGEN_zh.md) |

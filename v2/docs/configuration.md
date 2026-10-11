@@ -2,8 +2,40 @@
 
 English | [简体中文](configuration_zh.md)
 
-Configuration only exists when a project is generated with `-config`. This page
-is a reference for precedence, validation, and custom sections.
+Generated projects configure themselves through the generated `config`
+package; this page is the reference for its precedence, validation, and
+custom sections. A service you assemble by hand configures itself with the
+means in [Hand-built services](#hand-built-services) below.
+
+## Hand-Built Services
+
+A hand-assembled service has no generated YAML; its configuration is the
+code you write before `kit.NewHTTP`. The tutorials establish the working
+conventions:
+
+- command-line flags with the generated project's dotted names
+  (`-http.addr`, `-db.dsn`), so local overrides look the same everywhere;
+- environment variables with the `APP_` prefix for deployment-time values,
+  read explicitly or through a package like `config` you own;
+- every value lands in a `kit` option at construction, where it is
+  validated: `kit.NewHTTP` fails on a bad address, a bad certificate, or a
+  non-positive `WithTimeout` before anything listens.
+
+```go
+addr := flag.String("http.addr", ":8080", "HTTP listen address")
+flag.Parse()
+
+svc, err := kit.NewHTTP(*addr,
+	kit.WithRequestID(),
+	kit.WithTimeout(5*time.Second),
+)
+```
+
+The full menu of assembly options — body limits, probe paths, TLS,
+recorders — is documented in [Routing](routing.md) for the route-shaping
+ones and in godoc (`go doc ./kit`) for the rest. Generated configuration
+adds precedence, validation, and a remote source on top of the same
+options; see the sections below.
 
 ## Quick Answer
 

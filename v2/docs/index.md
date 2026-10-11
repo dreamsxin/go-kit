@@ -15,6 +15,7 @@ the contracts.
 | I want to... | Read first | Then use |
 | --- | --- | --- |
 | run a service in minutes | [Getting started](getting-started.md) | [examples](../examples/README.md) |
+| define HTTP routes | [Routing](routing.md) | [transport README](../transport/README.md) |
 | generate a project | [microgen tutorial](tutorial-microgen.md) | [microgen guide](../MICROGEN.md) |
 | assemble a small service by hand | [Getting started](getting-started.md) | [`kit` README](../README.md#build-with-kit) |
 | understand the request path | [Core concepts](concepts.md) | [Middleware](middleware.md), [Errors](errors.md) |
@@ -40,6 +41,8 @@ Read these in the order that matches your goal:
 
 - [Core concepts](concepts.md): layers, ownership, the request path, and where
   errors are classified.
+- [Routing](routing.md): pattern syntax, the registration to reach for, path
+  and query parameters, and route-shaping options.
 - [Middleware](middleware.md): composition, ordering, flow control, and the
   built-in catalog.
 - [Error handling](errors.md): classification, status mapping, and safe messages.
@@ -60,6 +63,9 @@ The detailed contracts live beside the implementation:
 
 - [`endpoint`](../endpoint/README.md)
 - [`transport`](../transport/README.md)
+- [`health`](../health/README.md)
+- [`security`](../security/README.md)
+- [`kit/grpc`](routing.md#grpc-routes): the gRPC lifecycle component and its registration
 - [`kit`](../README.md#build-with-kit)
 - [`sd`](../sd/README.md)
 - [`interaction`](../interaction/README.md)
@@ -70,6 +76,7 @@ The detailed contracts live beside the implementation:
 - [`integrations/grpc`](../integrations/grpc/README.md)
 - [`integrations/consul`](../integrations/consul/README.md)
 - [`integrations/etcd`](../integrations/etcd/README.md)
+- [`integrations/zap`](../integrations/zap/README.md)
 - [`microgen`](../MICROGEN.md)
 - [`tools`](../tools/README.md): the integration and documentation probes.
 

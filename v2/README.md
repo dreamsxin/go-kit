@@ -434,7 +434,8 @@ document by task.
     [generating a service](docs/tutorial-microgen.md),
     [authentication](docs/tutorial-auth.md),
     [an MCP server](docs/tutorial-mcp.md)
-  - Chapters: [core concepts](docs/concepts.md),
+  - Chapters: [route definition](docs/routing.md),
+    [core concepts](docs/concepts.md),
     [error handling](docs/errors.md), [middleware](docs/middleware.md),
     [lifecycle](docs/lifecycle.md), [configuration](docs/configuration.md),
      [service discovery](docs/service-discovery.md), [customization](docs/customization.md),
