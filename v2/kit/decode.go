@@ -8,6 +8,7 @@ import (
 
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
+	"github.com/dreamsxin/go-kit/v2/validation"
 )
 
 // Stable: kit.typed-request-decoding — a typed JSON route fills the request
@@ -21,8 +22,11 @@ import (
 // 400, 413 and 415 as before. Fields are named by the form tag, else the json
 // tag, else the lowercased field name, and a path value wins over a query
 // parameter of the same name — the same rules the generated transports decode
-// with. A non-struct request (a map, a slice, a named scalar) cannot be filled
-// from the URL; it decodes from the body only.
+// with. A validate tag on the request struct is enforced after the fill, by
+// the same package the generated transports call, so a hand-assembled service
+// and a generated one reject the same request with the same error. A
+// non-struct request (a map, a slice, a named scalar) cannot be filled from
+// the URL; it decodes from the body only and carries no field rules.
 // Covered by: TestTypedRouteDecodesQueryAndPath, TestTypedRouteDecodesBodyAndPath,
 // TestTypedRouteEmptyBodyIsZeroValue, TestTypedRoutePathWinsOverQuery,
 // TestTypedRouteStrictnessStays
@@ -42,11 +46,17 @@ func typedRequestDecoder[Req any](decodeOptions httpserver.JSONDecodeOptions) ht
 			if err := transporthttp.DecodeQueryRequest(r, &req); err != nil {
 				return nil, err
 			}
+			if err := validation.Validate(req); err != nil {
+				return nil, err
+			}
 		default:
 			if err := decodeBody(r, &req, decodeOptions); err != nil {
 				return nil, err
 			}
 			if err := transporthttp.DecodePathRequest(r, &req); err != nil {
+				return nil, err
+			}
+			if err := validation.Validate(req); err != nil {
 				return nil, err
 			}
 		}

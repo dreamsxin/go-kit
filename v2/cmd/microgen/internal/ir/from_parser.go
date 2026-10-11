@@ -39,6 +39,7 @@ func FromParseResult(result *parser.ParseResult) *Project {
 				IsAutoIncr:  field.IsAutoIncr,
 				IsUnique:    field.IsUnique,
 				Example:     field.Example,
+				Constraints: field.Constraints,
 			})
 		}
 		project.Messages = append(project.Messages, msg)

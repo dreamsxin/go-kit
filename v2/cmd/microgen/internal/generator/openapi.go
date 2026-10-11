@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/ir"
@@ -88,6 +89,12 @@ type openAPISchema struct {
 	AdditionalProperties any                       `json:"additionalProperties,omitempty"`
 	Required             []string                  `json:"required,omitempty"`
 	Example              any                       `json:"example,omitempty"`
+	Enum                 []any                     `json:"enum,omitempty"`
+	Minimum              *float64                  `json:"minimum,omitempty"`
+	Maximum              *float64                  `json:"maximum,omitempty"`
+	MinLength            *int                      `json:"minLength,omitempty"`
+	MaxLength            *int                      `json:"maxLength,omitempty"`
+	Default              any                       `json:"default,omitempty"`
 }
 
 func (g *Generator) generateContracts(ctx generationContext) error {
@@ -320,7 +327,78 @@ func contractFieldSchema(field *ir.Field, messageNames map[string]struct{}, refP
 		}
 		schema.Example = example
 	}
+	applyConstraints(schema, field)
 	return schema
+}
+
+// applyConstraints carries the IDL's validate tag onto the contract as JSON
+// Schema keywords, so a form generated from the document validates with the
+// same rules the service enforces. One tag, one rule, three readers: enum
+// bounds a string or number to its listed values (the dropdown's options),
+// min and max bound a number, minLen and maxLen bound a string's length, and
+// default is the value a form pre-fills — a hint the contract carries, never
+// a rule anything enforces.
+func applyConstraints(schema *openAPISchema, field *ir.Field) {
+	cons := field.Constraints
+	if cons.Empty() {
+		return
+	}
+	if len(cons.Enum) > 0 {
+		values := make([]any, 0, len(cons.Enum))
+		for _, entry := range cons.Enum {
+			values = append(values, typedScalar(entry, field.GoType))
+		}
+		schema.Enum = values
+	}
+	if cons.Min != nil && isNumericGoType(field.GoType) {
+		schema.Minimum = cons.Min
+	}
+	if cons.Max != nil && isNumericGoType(field.GoType) {
+		schema.Maximum = cons.Max
+	}
+	if isTextualGoType(field.GoType) {
+		if cons.MinLen != nil {
+			schema.MinLength = cons.MinLen
+		}
+		if cons.MaxLen != nil {
+			schema.MaxLength = cons.MaxLen
+		}
+	}
+	if cons.HasDefault {
+		schema.Default = typedScalar(cons.Default, field.GoType)
+	}
+}
+
+func isNumericGoType(goType string) bool {
+	t := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(goType), "*"))
+	switch t {
+	case "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64",
+		"float32", "float64":
+		return true
+	}
+	return false
+}
+
+func isTextualGoType(goType string) bool {
+	return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(goType), "*")) == "string"
+}
+
+// typedScalar converts one validate-tag value into the JSON type of the field
+// it belongs to, so the contract says `"enum": ["active"]` for a string field
+// and `"enum": [1, 2]` for an int field — not a document where every value is
+// a string.
+func typedScalar(value, goType string) any {
+	t := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(goType), "*"))
+	if isNumericGoType(t) {
+		if f, err := strconv.ParseFloat(value, 64); err == nil {
+			return f
+		}
+	}
+	if t == "bool" {
+		return value == "true"
+	}
+	return value
 }
 
 func isPointerGoType(goType string) bool {

@@ -13,6 +13,7 @@ import (
 	grpcserver "github.com/dreamsxin/go-kit/v2/integrations/grpc/server"
 {{- end}}
 	"google.golang.org/grpc"
+	"github.com/dreamsxin/go-kit/v2/validation"
 	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
 	genendpoint "{{.ImportPath}}/endpoint/{{.Service.ServiceName | lower}}"
 )
@@ -135,6 +136,9 @@ func decodeGRPC{{.Name}}Request(_ context.Context, grpcReq any) (any, error) {
 	req, ok := grpcReq.(*idl.{{.InputName}})
 	if !ok {
 		return nil, endpoint.NewTypeAssertError[*idl.{{.InputName}}](grpcReq)
+	}
+	if err := validation.Validate(*req); err != nil {
+		return nil, err
 	}
 	return *req, nil
 }

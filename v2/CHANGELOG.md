@@ -4,7 +4,31 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ## [Unreleased]
 
+### Added
+
+- A `validate` struct tag closes the loop between the contract, the form built
+  from it, and the service that answers it. The subset maps one-to-one onto
+  JSON Schema keywords — `enum`, `min`/`max` (numeric), `minLen`/`maxLen`
+  (string length), and `default` as a form pre-fill hint — and one tag has
+  three readers: the generated OpenAPI document and JSON Schema bundle carry
+  the keywords, the generated transports validate each decoded request and
+  answer a violation with 400 and a code naming the field and the rule
+  (`validation.username.minLen`), and a typed kit route enforces the same tags
+  through the same package, so a hand-assembled service and a generated one
+  reject the same request with the same error. An MCP tool's input schema
+  carries the enum of a constrained field, so an AI client sees the options.
+  A malformed tag — an unknown rule, a missing value, min greater than max —
+  is refused at generation time, never silently ignored at request time.
+  Promised as `validation.tag-semantics`.
+- Projects generated from a database derive the constraints from the DDL
+  itself: a `varchar(n)` column bounds its string, an `enum(...)` column lists
+  its values — truth the schema already states, with no tag to write.
+
 ### Changed
+
+- The generated interaction file validates each tool call's decoded input and
+  carries the constrained field's enum in the tool descriptor, so an MCP
+  client cannot offer an option the service would refuse.
 
 - A typed JSON route fills its request struct from the request itself, so path
   and query parameters are part of the typed route instead of a reason to drop

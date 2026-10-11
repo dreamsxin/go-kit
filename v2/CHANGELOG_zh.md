@@ -4,7 +4,24 @@
 
 ## [Unreleased]
 
+### 新增
+
+- `validate` 结构体 tag 打通了契约、依据契约生成的表单与应答请求的服务之间的闭
+  环。子集与 JSON Schema 关键词一一对应——`enum`、`min`/`max`（数值）、
+  `minLen`/`maxLen`（字符串长度）、`default`（表单预填提示）——一个 tag、三个读者：
+  生成的 OpenAPI 文档与 JSON Schema 包携带关键词；生成的传输对每个解码后的请求执
+  行校验，违规以 400 应答且 code 指名字段与规则（`validation.username.minLen`）；
+  类型化的 kit 路由经同一个包执行相同 tag，手写服务与生成服务以同样的错误拒绝同样
+  的请求。MCP 工具的输入 schema 携带受限字段的 enum，AI 客户端看得见选项。畸形
+  tag——未知规则、缺值、min 大于 max——在生成期即被拒绝，绝不会在请求期被悄悄忽
+  略。承诺为 `validation.tag-semantics`。
+- 从数据库生成的项目直接从 DDL 推导约束：`varchar(n)` 列界定字符串长度，
+  `enum(...)` 列列出取值——schema 早已声明的真值，无需写任何 tag。
+
 ### 变更
+
+- 生成的 interaction 文件对每次工具调用的解码输入执行校验，并在工具描述符中携带
+  受限字段的 enum，MCP 客户端因此不会提供服务端会拒绝的选项。
 
 - 类型化 JSON 路由从请求本身填充请求结构体，路径与查询参数因此是类型化路由的一
   部分，而不是退回原生 handler 的理由。GET 与 HEAD 读查询串与路径值；其他方法读严

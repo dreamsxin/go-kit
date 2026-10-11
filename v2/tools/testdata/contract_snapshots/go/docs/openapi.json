@@ -669,7 +669,9 @@
           },
           "username": {
             "type": "string",
-            "example": "username"
+            "example": "username",
+            "minLength": 1,
+            "maxLength": 64
           }
         },
         "additionalProperties": false,
@@ -885,7 +887,9 @@
           "age": {
             "type": "integer",
             "format": "int64",
-            "example": 1
+            "example": 1,
+            "minimum": 0,
+            "maximum": 150
           },
           "email": {
             "type": "string",
@@ -901,6 +905,15 @@
             "format": "double",
             "example": 1
           },
+          "status": {
+            "type": "string",
+            "example": "status",
+            "enum": [
+              "active",
+              "suspended"
+            ],
+            "default": "active"
+          },
           "username": {
             "type": "string",
             "example": "username"
@@ -913,6 +926,7 @@
           "email",
           "id",
           "score",
+          "status",
           "username"
         ]
       }

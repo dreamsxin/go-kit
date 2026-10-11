@@ -1,9 +1,11 @@
 package ir
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/dbschema"
+	"github.com/dreamsxin/go-kit/v2/validation"
 )
 
 // FromTableSchemas converts database schema introspection output into the
@@ -70,6 +72,7 @@ func dbTableToMessage(schema *dbschema.TableSchema) *Message {
 			IsPrimary:   col.IsPrimary,
 			IsAutoIncr:  col.IsAutoIncr,
 			IsUnique:    col.IsUnique,
+			Constraints: dbColumnConstraints(col.DBType),
 		})
 	}
 	return msg
@@ -373,4 +376,30 @@ func dbColumnGormTag(col dbschema.ColumnInfo) string {
 		parts = append(parts, "type:"+dbType)
 	}
 	return strings.Join(parts, ";")
+}
+
+// dbColumnConstraints derives contract constraints from the column's own DDL,
+// which is truth the database already states: a varchar or char length bounds
+// the string, and a MySQL enum column lists its values. Nothing is invented —
+// a rule the schema does not make is not written into the contract.
+func dbColumnConstraints(dbType string) validation.Constraints {
+	t := strings.TrimSpace(strings.ToLower(dbType))
+	if open := strings.Index(t, "("); open > 0 && strings.HasSuffix(t, ")") {
+		inner := t[open+1 : len(t)-1]
+		switch {
+		case strings.HasPrefix(t, "varchar"), strings.HasPrefix(t, "char"):
+			if n, err := strconv.Atoi(inner); err == nil && n > 0 {
+				maxLen := n
+				return validation.Constraints{MaxLen: &maxLen}
+			}
+		case strings.HasPrefix(t, "enum"):
+			values := strings.Split(inner, ",")
+			enum := make([]string, 0, len(values))
+			for _, v := range values {
+				enum = append(enum, strings.Trim(strings.TrimSpace(v), "'"))
+			}
+			return validation.Constraints{Enum: enum}
+		}
+	}
+	return validation.Constraints{}
 }

@@ -246,6 +246,37 @@ maintaining a second HTTP or gRPC implementation.
 Generated repositories resolve `order_by` through a model-derived field
 whitelist. Unsupported names return an error instead of being passed to SQL.
 
+### Field Constraints
+
+A field can carry a `validate` tag, a small ruleset whose every rule maps
+one-to-one onto a JSON Schema keyword — one tag, one rule, three readers: the
+contract documents it, a generated form validates with it, and the generated
+service (and a typed kit route) enforces it:
+
+| Tag | Contract keyword | Form effect |
+| --- | --- | --- |
+| `enum=active\|suspended` | `enum` | a select with the listed options |
+| `min=0,max=150` | `minimum` / `maximum` | numeric range |
+| `minLen=1,maxLen=64` | `minLength` / `maxLength` | string length |
+| `default=active` | `default` | the value a form pre-fills |
+
+```go
+type CreateUserRequest struct {
+	Username string `json:"username" validate:"minLen=1,maxLen=64"`
+	Status   string `json:"status"   validate:"enum=active|suspended,default=active"`
+}
+```
+
+The generated transports validate each decoded request and answer a violation
+with 400 and a code naming the field and the rule
+(`validation.username.minLen`); a typed kit route enforces the same tags
+through the same package, so a hand-assembled service and a generated one
+reject the same request with the same error. `default` is a form hint the
+contract carries — nothing enforces it. Projects generated from a database
+derive the constraints from the DDL itself: a `varchar(n)` column bounds its
+string, and an `enum(...)` column lists its values, with no tag to write.
+An unknown rule or a malformed value in the tag is refused at generation time.
+
 ## Generate A Frontend From The Contract
 
 The contract is written so that an AI agent — or a developer — can build a

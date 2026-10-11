@@ -1,6 +1,10 @@
 package ir
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/dreamsxin/go-kit/v2/validation"
+)
 
 // MethodKind describes the interaction shape of a service method.
 type MethodKind string
@@ -97,6 +101,7 @@ type Field struct {
 	IsAutoIncr  bool
 	IsUnique    bool
 	Example     string
+	Constraints validation.Constraints
 }
 
 // HasFields reports whether the message contains any fields.

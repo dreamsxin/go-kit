@@ -228,6 +228,33 @@ SDK，而不是维护第二套 HTTP 或 gRPC 实现。
 生成的 repository 通过模型派生的字段白名单解析 `order_by`。不支持的名称
 返回错误，而不是透传给 SQL。
 
+### 字段约束
+
+字段可以携带 `validate` tag——一个小心选定的规则集，每条规则一一映射到 JSON
+Schema 关键词：一个 tag、一条规则、三个读者：契约记载它，生成的表单用它校验，
+生成的服务（以及类型化的 kit 路由）执行它：
+
+| Tag | 契约关键词 | 表单效果 |
+| --- | --- | --- |
+| `enum=active\|suspended` | `enum` | 列出选项的下拉框 |
+| `min=0,max=150` | `minimum` / `maximum` | 数值范围 |
+| `minLen=1,maxLen=64` | `minLength` / `maxLength` | 字符串长度 |
+| `default=active` | `default` | 表单预填值 |
+
+```go
+type CreateUserRequest struct {
+	Username string `json:"username" validate:"minLen=1,maxLen=64"`
+	Status   string `json:"status"   validate:"enum=active|suspended,default=active"`
+}
+```
+
+生成的传输对每个解码后的请求执行校验，违规以 400 应答，code 指名字段与规则
+（`validation.username.minLen`）；类型化的 kit 路由经同一个包执行相同 tag，手写
+服务与生成服务以同样的错误拒绝同样的请求。`default` 是契约携带的表单提示——任
+何东西都不执行它。从数据库生成的项目直接从 DDL 推导约束：`varchar(n)` 列界定字
+符串长度，`enum(...)` 列列出取值，无需写任何 tag。tag 里的未知规则或畸形值在生成
+期即被拒绝。
+
 ## 依据契约生成前端
 
 契约的书写目标就是让 AI 代理——或开发者——无需阅读 Go 源码即可构建前端，包

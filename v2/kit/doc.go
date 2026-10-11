@@ -23,7 +23,9 @@
 //     HEAD read the query string and the path values, every other method reads
 //     a strictly decoded JSON body and then the path values, and a request that
 //     carries no body decodes to the zero value so the handler's validation
-//     answers in the application's own words.
+//     answers in the application's own words. A validate tag on the request
+//     struct is enforced after the fill — the same package the generated
+//     transports call, so both shapes of service reject the same request.
 //   - HandleJSON — the same, when the response type is dynamic.
 //   - HandleJSONEndpoint — when you already hold an endpoint.Endpoint.
 //   - HandleJSONTypedWithMiddleware, HandleJSONWithMiddleware — add route-local

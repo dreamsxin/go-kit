@@ -4,16 +4,17 @@ import "context"
 
 // User is a simple DTO.
 type User struct {
-	ID       uint   `json:"id"       gorm:"primaryKey;autoIncrement"`
-	Username string `json:"username" gorm:"column:username;not null;uniqueIndex"`
-	Email    string `json:"email"    gorm:"column:email;not null"`
-	Age      int    `json:"age"`
+	ID       uint    `json:"id"       gorm:"primaryKey;autoIncrement"`
+	Username string  `json:"username" gorm:"column:username;not null;uniqueIndex"`
+	Email    string  `json:"email"    gorm:"column:email;not null"`
+	Age      int     `json:"age"      validate:"min=0,max=150"`
+	Status   string  `json:"status"   validate:"enum=active|suspended,default=active"`
 	Score    float64 `json:"score"`
-	Active   bool   `json:"active"`
+	Active   bool    `json:"active"`
 }
 
 type CreateUserRequest struct {
-	Username string `json:"username"`
+	Username string `json:"username" validate:"minLen=1,maxLen=64"`
 	Email    string `json:"email"`
 }
 

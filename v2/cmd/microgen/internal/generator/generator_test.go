@@ -509,7 +509,8 @@ func TestGenerateFull_ProtoFile_Contents(t *testing.T) {
 	mustContain(t, protoPath, "User user = 1;")
 	mustContain(t, protoPath, "string error = 2;")
 	mustContain(t, protoPath, "int64 id = 1;")
-	mustContain(t, protoPath, "double score = 5;")
+	mustContain(t, protoPath, "double score = 6;")
+	mustContain(t, protoPath, "string status = 5;")
 	mustNotContain(t, protoPath, "TODO: fill in the message fields")
 }
 

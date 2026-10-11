@@ -147,7 +147,10 @@ source. Work from the contract, in this order:
    IDL doc comment), `type` and `format` (`int64`, `date-time`, `uuid` — map
    them to the right input control), `example`, and the object's `required`
    list. `additionalProperties: false` means render exactly the declared
-   fields, no more.
+   fields, no more. A field with `enum` renders as a select with those
+   options, `minimum`/`maximum` and `minLength`/`maxLength` are the validation
+   rules the service itself enforces — generate the same rules client-side,
+   they cannot disagree.
 3. **Calls** go through `sdk/typescript/client.ts`: import `APIClient`, one
    instance per base URL, one property per service, one typed method per
    operation. Non-2xx answers throw `APIError` carrying the upstream status

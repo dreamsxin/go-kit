@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/dreamsxin/go-kit/v2/interaction"
+	"github.com/dreamsxin/go-kit/v2/validation"
 {{- if .Project.Services }}
 {{- if eq .Project.Source "proto" }}
 	idl "{{.ImportPath}}/pb"
@@ -43,7 +44,9 @@ func (t {{.Name}}Tool) Descriptor() interaction.ToolDescriptor {
 				"{{ .JSONName }}": map[string]interface{}{
 					"type": "{{ .SchemaType }}",
 					"description": {{quote .Description}},
-
+				{{- if .Constraints.Enum }}
+					"enum": []string{ {{- range .Constraints.Enum }}{{quote .}}, {{ end -}} },
+				{{- end }}
 				},
 				{{- end }}
 				{{- end }}
@@ -68,6 +71,9 @@ func (t {{.Name}}Tool) Call(ctx context.Context, call interaction.ToolCall) (int
 		}
 		if err := json.Unmarshal(data, &req); err != nil {
 			return interaction.ToolResult{}, fmt.Errorf("unmarshal input: %w", err)
+		}
+		if err := validation.Validate(req); err != nil {
+			return interaction.ToolResult{}, err
 		}
 	}
 	resp, err := t.endpoints.{{.Name}}Endpoint(ctx, req)

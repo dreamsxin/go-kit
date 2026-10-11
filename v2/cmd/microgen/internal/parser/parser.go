@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"github.com/dreamsxin/go-kit/v2/validation"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -37,16 +38,17 @@ type Method struct {
 
 // ModelField 模型字段（结构体字段）
 type ModelField struct {
-	Name       string // Go 字段名
-	Type       string // Go 类型
-	JSONTag    string // json tag 值
-	GormTag    string // gorm tag 值
-	Comment    string // 行注释
-	IsPrimary  bool   // 是否主键
-	IsAutoIncr bool   // 是否自增
-	IsNotNull  bool   // 是否非空
-	IsUnique   bool   // 是否唯一索引
-	Example    string // schema 示例值
+	Name        string                 // Go 字段名
+	Type        string                 // Go 类型
+	JSONTag     string                 // json tag 值
+	GormTag     string                 // gorm tag 值
+	Constraints validation.Constraints // 解析后的 validate 规则
+	Comment     string                 // 行注释
+	IsPrimary   bool                   // 是否主键
+	IsAutoIncr  bool                   // 是否自增
+	IsNotNull   bool                   // 是否非空
+	IsUnique    bool                   // 是否唯一索引
+	Example     string                 // schema 示例值
 }
 
 // Model 从 IDL 解析出的 gorm Model 定义
@@ -126,7 +128,11 @@ func ParseFull(idlPath string) (*ParseResult, error) {
 				}
 				result.Services = append(result.Services, service)
 			case *ast.StructType:
-				result.Models = append(result.Models, parseModel(ts, typeNode, declarationDoc))
+				model, err := parseModel(ts, typeNode, declarationDoc)
+				if err != nil {
+					return nil, err
+				}
+				result.Models = append(result.Models, model)
 			}
 		}
 	}
@@ -252,7 +258,7 @@ func validateMethodSignature(funcType *ast.FuncType) error {
 
 // ─────────────────────────── 结构体/Model 解析 ───────────────────────────
 
-func parseModel(ts *ast.TypeSpec, st *ast.StructType, declarationDoc *ast.CommentGroup) *Model {
+func parseModel(ts *ast.TypeSpec, st *ast.StructType, declarationDoc *ast.CommentGroup) (*Model, error) {
 	model := &Model{
 		Name:      ts.Name.Name,
 		TableName: ToSnakeCase(ts.Name.Name),
@@ -284,6 +290,15 @@ func parseModel(ts *ast.TypeSpec, st *ast.StructType, declarationDoc *ast.Commen
 
 			mf.JSONTag = st.Get("json")
 			mf.GormTag = st.Get("gorm")
+			// A malformed validate tag is refused here, at generation time,
+			// instead of being silently ignored at request time.
+			if raw := st.Get("validate"); raw != "" {
+				cons, err := validation.ParseTag(raw)
+				if err != nil {
+					return nil, fmt.Errorf("model %s: field %s: %w", model.Name, mf.Name, err)
+				}
+				mf.Constraints = cons
+			}
 
 			if mf.GormTag != "" {
 				model.HasGormTags = true
@@ -303,7 +318,7 @@ func parseModel(ts *ast.TypeSpec, st *ast.StructType, declarationDoc *ast.Commen
 		model.Fields = append(model.Fields, mf)
 	}
 
-	return model
+	return model, nil
 }
 
 // ─────────────────────────── 辅助函数 ───────────────────────────

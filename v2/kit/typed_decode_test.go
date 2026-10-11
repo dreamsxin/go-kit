@@ -144,3 +144,42 @@ func TestTypedRouteStrictnessStays(t *testing.T) {
 		t.Errorf("text/plain body = %d, want 415", recorder.Code)
 	}
 }
+
+// TestTypedRouteEnforcesValidateTags: a validate tag on the request struct is
+// enforced by the typed route through the same package the generated
+// transports call, so a hand-assembled service and a generated one reject the
+// same request with the same error.
+func TestTypedRouteEnforcesValidateTags(t *testing.T) {
+	type validatedRequest struct {
+		Username string `json:"username" validate:"minLen=2"`
+	}
+	component := kit.MustNewHTTP("127.0.0.1:0")
+	kit.HandleJSONTyped(component, "GET /todos/{id}", func(_ context.Context, req validatedRequest) (validatedRequest, error) {
+		return req, nil
+	})
+
+	// "a" is below minLen=2 on Username: the request is answered 400 with the
+	// validation code naming the field and the rule.
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/todos/7?username=a", nil)
+	component.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("GET with a too-short username = %d: %s; want 400", recorder.Code, recorder.Body.String())
+	}
+	var got struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode error body: %v", err)
+	}
+	if got.Code != "validation.username.minLen" {
+		t.Errorf("code = %q, want validation.username.minLen", got.Code)
+	}
+
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodGet, "/todos/7?username=ada", nil)
+	component.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Errorf("GET with a valid username = %d: %s", recorder.Code, recorder.Body.String())
+	}
+}

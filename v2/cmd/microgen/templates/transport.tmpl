@@ -11,6 +11,7 @@ import (
 
 {{- if .UnaryMethods}}
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
+	"github.com/dreamsxin/go-kit/v2/validation"
 {{- end}}
 {{- if .UnaryMethods}}
 	"github.com/dreamsxin/go-kit/v2/transport/http/server"
@@ -80,6 +81,9 @@ func decode{{.Name}}Request(_ context.Context, r *http.Request) (any, error) {
 		return nil, err
 	}
 {{- end}}
+	if err := validation.Validate(req); err != nil {
+		return nil, err
+	}
 	return req, nil
 }
 
