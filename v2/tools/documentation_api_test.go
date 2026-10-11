@@ -40,6 +40,15 @@ var documentedPackageAliases = map[string]string{
 	"oteladapter":   filepath.Join("observability", "otel"),
 }
 
+// ambiguousAliases extends an alias to every package a document may denote by
+// it. Two framework packages are named health — the top-level process-health
+// registry and sd/health, the remote-instance prober — and a document uses the
+// package's own name for either. A mention is valid when any candidate
+// package declares the symbol.
+var ambiguousAliases = map[string][]string{
+	"health": {"health"},
+}
+
 var frameworkAPIPattern = regexp.MustCompile(`\b(` + documentedAliasAlternation() + `)\.([A-Z]\w+)`)
 
 // historicalDocumentation records past releases and therefore names APIs that
@@ -70,6 +79,13 @@ func TestDocumentationReferencesExistingAPIs(t *testing.T) {
 	declared := make(map[string]map[string]struct{}, len(documentedPackageAliases))
 	for alias, directory := range documentedPackageAliases {
 		declared[alias] = exportedDeclarations(t, filepath.Join(root, directory))
+	}
+	for alias, directories := range ambiguousAliases {
+		for _, directory := range directories {
+			for name := range exportedDeclarations(t, filepath.Join(root, directory)) {
+				declared[alias][name] = struct{}{}
+			}
+		}
 	}
 
 	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
