@@ -288,7 +288,7 @@ sd/health -> sd/instance
 
 ## 稳定性
 
-`v2.26.1` 是 `main` 上的候选版本。它建立了发布清单和 API 快照记录的 package 图、生命周期所有权、传输错误模型和
+`v2.26.1` 是当前已发布契约。它建立了发布清单和 API 快照记录的 package 图、生命周期所有权、传输错误模型和
 生成项目布局。本版本让 IDL 声明确切的路由（`route:`）与每条路由的响应和错误编码
 （`transport/<service>/custom_options.go`），并让 `-prefix` 与 HTTP 一样命名 gRPC 表面。
 既有公开签名和包边界保持兼容。注入的重试时钟只控制等待；context 截止时间和实际请求耗时继续使用真实时间。

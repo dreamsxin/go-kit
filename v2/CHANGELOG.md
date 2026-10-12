@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.26.1] - Release Candidate
+## [2.26.1] - 2026-10-12
 
 ### Fixed
 
