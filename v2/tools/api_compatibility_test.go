@@ -116,23 +116,11 @@ func TestAPICompatibilityWithLastRelease(t *testing.T) {
 
 // deliberateBreaks names the API breaks since the previous release tag that
 // are intentional, spelled the way incompatibleChanges reports them. Each
-// entry leaves with the release that ships it: once the next release is tagged,
-// the entry is history and must be deleted, or the stale check above fails on
-// the first release that runs it.
-var deliberateBreaks = []string{
-	// v2.25.0 candidate: the typed JSON registration family takes a Router, so
-	// a route registers through an HTTP component or one of its Groups with the
-	// same call; every caller that passed an *HTTP still compiles, because an
-	// *HTTP is a Router.
-	"removed from func HandleJSON: h *HTTP,",
-	"removed from func HandleJSONWithMiddleware: h *HTTP,",
-	"removed from func HandleJSONTyped: h *HTTP,",
-	"removed from func HandleJSONTypedWithBodyLimit: h *HTTP,",
-	"removed from func HandleJSONTypedWithMiddleware: h *HTTP,",
-	"removed from func HandleJSONEndpoint: h *HTTP,",
-	"removed from func HandleJSONEndpointWithBodyLimit: h *HTTP,",
-	"removed from func HandleSSETyped: h *HTTP,",
-}
+// entry leaves with the release that ships it: the v2.24.0 Router breaks were
+// removed when v2.25.0 was tagged, because from that tag the Router shape is
+// the baseline and the entries match nothing. New entries appear only when a
+// future candidate deliberately breaks the surface.
+var deliberateBreaks = []string{}
 
 // TestAPICompatibilityClassifier proves the classifier reports what it claims,
 // on inputs written here rather than on the real surface — the real surface is

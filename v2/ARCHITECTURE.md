@@ -336,9 +336,9 @@ snapshot through their shared subscription state machine.
 
 ## Stability
 
-`v2.25.0` is the candidate on `main`. It carries the reviewed package
+`v2.25.0` is the current released contract. It establishes the reviewed package
 graph, lifecycle ownership, transport error model, and generated project layout
-captured by the release manifest and API snapshot. This candidate states file
+captured by the release manifest and API snapshot. This release states file
 ownership in every generated project — the standard generated-code marker on
 rewritten files, write-once scaffolds that announce they are never overwritten —
 fixes a panic in the generated service tests, and corrects the tutorial curl
