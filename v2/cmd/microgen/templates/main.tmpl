@@ -135,7 +135,7 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 {{end}}
 
-{{if .WithDB}}	db, err := gorm.Open({{.DBOpenCall}}, &gorm.Config{})
+{{if .WithDB}}	db, err := gorm.Open({{.DBOpenCall}}, &gorm.Config{TranslateError: true})
 	if err != nil {
 		panic(fmt.Sprintf("FATAL: connect database failed: %v", err))
 	}

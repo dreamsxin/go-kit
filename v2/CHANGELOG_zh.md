@@ -2,7 +2,7 @@
 
 [English](CHANGELOG.md) | 简体中文
 
-## [Unreleased]
+## [2.26.2] - 发布候选
 
 ### 修复
 
@@ -12,6 +12,17 @@
   处理，`[][]string` 正确嵌套）；`map` 字段保留它真正解码自的对象默认值，
   `[]byte` 给 base64 字符串，`time.Time` 给 RFC3339 时间戳。契约快照已刷新
   并评审。
+
+## [Unreleased]
+
+### 修复
+
+- 唯一约束冲突在所有生成路径上都有分类。生成的 main 以 `TranslateError`
+  打开 gorm，驱动的重复键错误以 `gorm.ErrDuplicatedKey` 到达；生成的仓储
+  三条写路径（Create、Update、Updates）把它包进新的
+  `repository.ErrDuplicated` 哨兵，CRUD 教程展示把它映射到
+  `apperror.KindAlreadyExists` 的那一条 `errors.Is` 分支——409，而不是未分类
+  的 500。由复刻的全量 API 巡检发现，一条未分类的 UNIQUE 冲突以 500 露出。
 
 ## [2.26.1] - 2026-10-12
 

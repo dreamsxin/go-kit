@@ -2660,8 +2660,7 @@ Findings recorded by the replication, still open:
   teaches the mapping, and a hand-written store falls back to fragile
   string-matching against driver text. The full API sweep of the
   replication hit it — an unclassified UNIQUE violation surfaced as 500.
-  Deferred: classify duplicates in the generated repository, and show the
-  same classification beside the not-found pattern in the CRUD tutorial.
+  Landed in v2.26.2: the generated repository classifies duplicates and the CRUD tutorial shows the mapping.
 Acceptance:
 
 ```bash

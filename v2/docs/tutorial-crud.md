@@ -246,6 +246,25 @@ func classify(err error) error {
 }
 ```
 
+Duplicate keys deserve the same treatment, and the not-found pattern above is
+the template for it. In a model-mode project the generated repository already
+wraps a driver-reported unique-constraint violation in
+`repository.ErrDuplicated` (the generated main opens gorm with
+`TranslateError`, so the driver's error arrives as `gorm.ErrDuplicatedKey`
+inside the chain), and one `errors.Is` branch maps it to the kind whose
+status is 409:
+
+```go
+if errors.Is(err, repository.ErrDuplicated) {
+	return apperror.New(apperror.KindAlreadyExists, "todo.exists", "title already exists")
+}
+```
+
+In a hand-written store like this tutorial's, the same check reads the
+driver's own error — a SQLite driver reports the unique-constraint code — and
+lands in the same kind. What matters is the shape: classify at the service
+layer, and a duplicate insert answers 409 instead of surfacing as a 500.
+
 ## 5. The HTTP layer
 
 Every route below the delete is typed: the request struct fills from the

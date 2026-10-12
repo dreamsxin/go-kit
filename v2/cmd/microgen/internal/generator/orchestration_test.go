@@ -212,3 +212,40 @@ func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testin
 	mustContain(t, filepath.Join(outDir, "docs", "schema.json"), `"$schema": "https://json-schema.org/draft/2020-12/schema"`)
 	mustContain(t, filepath.Join(outDir, "sdk", "typescript", "client.ts"), expectedPrefix)
 }
+
+// TestGenerateFull_DuplicateKeysClassifyToAlreadyExists pins the generated
+// storage story for unique-constraint violations: the main opens gorm with
+// error translation, every repository write path routes through
+// classifyWrite, and the ErrDuplicated sentinel is the service's mapping
+// point to apperror.KindAlreadyExists — a 409, never a raw 500.
+func TestGenerateFull_DuplicateKeysClassifyToAlreadyExists(t *testing.T) {
+	outDir := newTmpDir(t)
+	idlPath := filepath.Join("..", "parser", "testdata", "basic.go")
+	project := parseIDLProject(t, "basic.go")
+
+	gen := mustNewGenerator(t, generator.Options{
+		OutputDir:  outDir,
+		ImportPath: "example.com/basic",
+		Protocols:  []string{"http"},
+		DBDriver:   "sqlite",
+		IDLSrcPath: idlPath,
+		WithDB:     true,
+		WithModel:  true,
+	})
+	if err := gen.GenerateIR(project); err != nil {
+		t.Fatalf("GenerateIR: %v", err)
+	}
+
+	mustContain(t, filepath.Join(outDir, "cmd", "main.go"), "TranslateError: true")
+	repo := filepath.Join(outDir, "repository", "generated_user_repository.go")
+	for _, want := range []string{
+		"Create: %w\", classifyWrite(err)",
+		"Update: %w\", classifyWrite(err)",
+		"Updates(%d): %w\", id, classifyWrite(result.Error)",
+	} {
+		mustContain(t, repo, want)
+	}
+	base := filepath.Join(outDir, "repository", "generated_base.go")
+	mustContain(t, base, "var ErrDuplicated = errors.New(\"duplicate key\")")
+	mustContain(t, base, "errors.Is(err, gorm.ErrDuplicatedKey)")
+}

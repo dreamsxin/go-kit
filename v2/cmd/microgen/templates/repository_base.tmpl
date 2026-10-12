@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 )
@@ -52,3 +53,19 @@ func (d *DB) AutoMigrate(dst ...interface{}) error {
 
 // ErrNotFound is returned when a generated repository cannot find a record.
 var ErrNotFound = errors.New("record not found")
+
+// ErrDuplicated wraps a write the driver rejected for a unique-constraint
+// violation. The generated main opens gorm with TranslateError, so the
+// driver's duplicate-key error arrives as gorm.ErrDuplicatedKey in the chain;
+// the write paths add this sentinel on top, and the service maps it to
+// apperror.KindAlreadyExists with errors.Is — a 409, never a 500.
+var ErrDuplicated = errors.New("duplicate key")
+
+// classifyWrite appends ErrDuplicated to the chain of a driver-reported
+// duplicate-key error and passes everything else through untouched.
+func classifyWrite(err error) error {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return fmt.Errorf("%w: %w", ErrDuplicated, err)
+	}
+	return err
+}

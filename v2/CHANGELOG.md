@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [Unreleased]
+## [2.26.2] - Release Candidate
 
 ### Fixed
 
@@ -14,6 +14,19 @@ English | [简体中文](CHANGELOG_zh.md)
   default they genuinely decode from, `[]byte` gives a base64 string, and
   `time.Time` an RFC3339 timestamp. Contract snapshots refreshed and
   reviewed.
+
+## [Unreleased]
+
+### Fixed
+
+- Unique-constraint violations are classified on every generated path. The
+  generated main opens gorm with `TranslateError`, so a driver's
+  duplicate-key error arrives as `gorm.ErrDuplicatedKey`; the generated
+  repository's write paths (Create, Update, Updates) wrap it in the new
+  `repository.ErrDuplicated` sentinel, and the CRUD tutorial shows the one
+  `errors.Is` branch that maps it to `apperror.KindAlreadyExists` — a 409,
+  never an unclassified 500. Found by the replication's full API sweep,
+  where an unclassified UNIQUE violation surfaced as 500.
 
 ## [2.26.1] - 2026-10-12
 

@@ -241,6 +241,22 @@ func classify(err error) error {
 }
 ```
 
+重复键值得同样的待遇，上面的 not-found 模式就是它的模板。在 model 模式的项目
+里，生成的仓储已经把驱动报告的唯一约束冲突包进 `repository.ErrDuplicated`
+（生成的 main 以 `TranslateError` 打开 gorm，驱动错误在链条中以
+`gorm.ErrDuplicatedKey` 到达），一条 `errors.Is` 分支把它映射到状态码 409
+的那个 kind：
+
+```go
+if errors.Is(err, repository.ErrDuplicated) {
+	return apperror.New(apperror.KindAlreadyExists, "todo.exists", "title already exists")
+}
+```
+
+像本教程这样手写存储时，同样的检查读驱动自己的错误——SQLite 驱动会报告唯一
+约束的错误码——落进同一个 kind。要紧的是形状：在服务层分类，重复插入应答
+409，而不是以 500 露出。
+
 ## 5. 传输层
 
 除删除外的每条路由都是类型化的：请求结构体从请求本身填充——GET 从查询串与路径值，

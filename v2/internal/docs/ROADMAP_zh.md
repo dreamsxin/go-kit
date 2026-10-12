@@ -2057,8 +2057,7 @@ go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,
 - 重复键存储错误在框架拥有的任何路径上都没有分类：生成的仓储不会把
   `gorm.ErrDuplicatedKey` 映射到 `apperror.KindAlreadyExists`，没有文档教这个
   映射，手写存储只能退化成对驱动错误文本的易碎字符串匹配。复刻的全量 API
-  巡检踩中了它——一条未分类的 UNIQUE 冲突以 500 露出。延后处理：在生成的
-  仓储里分类重复键，并在 CRUD 教程的 not-found 模式旁边展示同样的分类。
+  巡检踩中了它——一条未分类的 UNIQUE 冲突以 500 露出。已在 v2.26.2 落地：生成的仓储分类重复键，CRUD 教程展示该映射。
 验收：
 
 ```bash
