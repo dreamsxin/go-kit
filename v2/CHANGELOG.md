@@ -19,6 +19,21 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Fixed
 
+- An asynchronous component failure could be lost in a `kit.Host`. The
+  watchers forwarded every component error through a non-blocking send into a
+  buffer one wider than the component count, and `Run` consumed a single value
+  and then stopped listening — so a burst wider than the buffer, or any
+  failure arriving while Run announced the stop and tore the components down,
+  vanished silently. That contradicted the architecture's own promise that
+  asynchronous component errors are reported until shutdown. Every serve error
+  is now retained until Shutdown completes and joined into `Run`'s result
+  (`kit.serve-errors-retained`); the `Errors` channel is the wake-up stream a
+  caller selects on. The HTTP and gRPC components' serve goroutines now wait
+  for the consumer that owns their channel instead of dropping a terminal
+  serve failure, and the wait ends when the stop is announced. Pinned by
+  `TestRunJoinsEveryAsyncComponentFailure`, which fails on the previous
+  behaviour with four of five failures lost.
+
 - Unique-constraint violations are classified on every generated path. The
   generated main opens gorm with `TranslateError`, so a driver's
   duplicate-key error arrives as `gorm.ErrDuplicatedKey`; the generated

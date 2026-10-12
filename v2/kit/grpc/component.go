@@ -163,12 +163,25 @@ func (c *Component) Start() error {
 		if errors.Is(err, net.ErrClosed) && c.stoppingBegun() {
 			return
 		}
-		select {
-		case c.errors <- fmt.Errorf("kit/grpc: serve: %w", err):
-		default:
-		}
+		// The send waits for the consumer that owns the channel — a serve
+		// failure is terminal and must not be dropped while the process runs.
+		// The wait ends when the stop is announced, because from then on the
+		// shutdown sequence owns the outcome.
+		c.reportServeError(fmt.Errorf("kit/grpc: serve: %w", err))
 	}()
 	return nil
+}
+
+// reportServeError reports one asynchronous serve failure. The send waits for
+// the consumer that owns the channel rather than dropping: a serve failure is
+// terminal for the component, and a listener that died with nobody told is
+// worse than a parked goroutine. The wait ends when the stop is announced,
+// because from then on the shutdown sequence owns the outcome.
+func (c *Component) reportServeError(err error) {
+	select {
+	case c.errors <- err:
+	case <-c.stopping:
+	}
 }
 
 // stoppingBegun reports whether the stop has been announced, which is what makes a

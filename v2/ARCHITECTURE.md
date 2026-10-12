@@ -240,8 +240,10 @@ Components may implement `kit.NamedLifecycle` to attach a stable name to
 startup, asynchronous failure, and shutdown diagnostics, `kit.ReadinessProvider`
 to bridge asynchronous warm-up into the `/readyz` and `/health` readiness checks,
 and `kit.Draining` to be told the process is stopping before any shutdown runs.
-Asynchronous component errors are reported to the service error channel until
-shutdown.
+Every asynchronous component error is retained until shutdown completes and
+joined into `Run`'s result; the `Errors` channel is the wake-up stream a caller
+selects on, and a component's own serve failure waits for its consumer instead
+of being dropped.
 
 Resource-owning constructors return a closer. Shutdown proceeds from consumers
 to providers: close endpoint/endpointer resources before stopping their

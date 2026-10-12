@@ -23,6 +23,8 @@ import (
 type Host struct {
 	components      []Lifecycle
 	serveErrors     chan error
+	serveErrs       []error
+	watchers        sync.WaitGroup
 	lifecycleDone   chan struct{}
 	shutdownTimeout time.Duration
 	drainDelay      time.Duration
@@ -146,6 +148,9 @@ func (h *Host) Run(ctx context.Context) error {
 		return err
 	}
 
+	// The error that ends the wait is not captured here: every serve error the
+	// watchers report is retained, and the join below reads the complete set.
+	// The channel is the wake-up stream.
 	var runErr error
 	select {
 	case <-ctx.Done():
@@ -153,7 +158,7 @@ func (h *Host) Run(ctx context.Context) error {
 		if cause != nil && !errors.Is(cause, context.Canceled) {
 			runErr = cause
 		}
-	case runErr = <-h.Errors():
+	case <-h.Errors():
 	}
 
 	drainCtx, cancelDrain := context.WithTimeout(context.Background(), h.shutdownTimeout)
@@ -163,7 +168,12 @@ func (h *Host) Run(ctx context.Context) error {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), h.shutdownTimeout)
 	defer cancel()
-	return errors.Join(runErr, drainErr, h.Shutdown(shutdownCtx))
+	shutdownErr := h.Shutdown(shutdownCtx)
+	// The serve errors are joined from the retained set, not from the single
+	// value the select woke on: every failure the watchers reported — including
+	// the ones that arrived after the select had already been woken and during
+	// the drain — is part of the result.
+	return errors.Join(runErr, h.joinedServeErrors(), drainErr, shutdownErr)
 }
 
 // Start starts all attached components in the background. Component startup
@@ -198,6 +208,7 @@ func (h *Host) Start() error {
 	for i, component := range h.components {
 		componentErrors := component.Errors()
 		if componentErrors != nil {
+			h.watchers.Add(1)
 			go h.watchLifecycle(lifecycleLabel(i, component), componentErrors, h.lifecycleDone)
 		}
 	}
@@ -205,18 +216,39 @@ func (h *Host) Start() error {
 }
 
 // Errors reports asynchronous component failures after Start.
+//
+// Stable: kit.serve-errors-retained — every asynchronous component failure is
+// retained until Shutdown completes and joined into Run's result, whatever the
+// order and the burst; the Errors channel is the wake-up stream a caller
+// selects on, not the record.
+// Covered by: TestRunJoinsEveryAsyncComponentFailure
 func (h *Host) Errors() <-chan error {
 	return h.serveErrors
 }
 
 func (h *Host) reportServeError(err error) {
+	// Retain first: the channel send is only a wake-up, so a burst wider than
+	// the buffer, or the window after Run stopped selecting, cannot lose one.
+	h.mu.Lock()
+	h.serveErrs = append(h.serveErrs, err)
+	h.mu.Unlock()
 	select {
 	case h.serveErrors <- err:
 	default:
 	}
 }
 
+// joinedServeErrors is the complete record of the asynchronous failures the
+// watchers reported. It stops growing once Shutdown has closed the watchers
+// down, so a caller reading it after Shutdown sees a settled value.
+func (h *Host) joinedServeErrors() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return errors.Join(h.serveErrs...)
+}
+
 func (h *Host) watchLifecycle(label string, componentErrors <-chan error, done <-chan struct{}) {
+	defer h.watchers.Done()
 	for {
 		select {
 		case err, ok := <-componentErrors:
@@ -264,6 +296,10 @@ func (h *Host) Shutdown(ctx context.Context) error {
 
 	if lifecycleDone != nil {
 		close(lifecycleDone)
+		// The watchers stop with the announcement, so the retained set is
+		// settled before any component is torn down and no late report races
+		// the record Run joins.
+		h.watchers.Wait()
 	}
 	return errors.Join(drainErr, shutdownLifecycles(ctx, components))
 }

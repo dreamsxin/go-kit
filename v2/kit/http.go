@@ -189,9 +189,14 @@ func (h *HTTP) Errors() <-chan error {
 }
 
 func (h *HTTP) reportServeError(err error) {
+	// A serve failure is terminal for the component, so it is never dropped
+	// while the process runs: the send waits for the consumer that owns the
+	// channel. The wait ends when the stop is announced — from then on the
+	// shutdown sequence owns the outcome, and a Serve error on the way out is
+	// the stop working, not a failure to report.
 	select {
 	case h.serveErrors <- err:
-	default:
+	case <-h.stopping:
 	}
 }
 

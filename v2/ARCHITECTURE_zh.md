@@ -205,7 +205,9 @@ main creates signal context
 组件可以实现 `kit.NamedLifecycle`，为启动、异步故障与停机诊断提供稳定
 名称；实现 `kit.ReadinessProvider` 可把异步预热桥接到 `/readyz` 与
 `/health` 的就绪检查；实现 `kit.Draining` 则会在任何 shutdown 之前被告知
-进程正在停止。组件的异步错误会持续汇报到服务错误通道直至停机。
+进程正在停止。每一条组件异步错误都会保留到停机完成，并合并进 `Run`
+返回的错误；`Errors` 通道是调用方 select 的唤醒流，组件自身的 serve
+故障会等待消费者而不是被丢弃。
 
 持有资源的构造函数返回 closer。停机按消费者到提供者的顺序进行：先关闭
 endpoint/endpointer 资源再停止其 Instancer，然后关闭传输与进程级依赖。

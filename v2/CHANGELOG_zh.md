@@ -17,6 +17,17 @@
 
 ### 修复
 
+- `kit.Host` 可能丢失异步组件故障。watcher 把每条组件错误经一次非阻塞发送
+  转入比组件数仅多一的缓冲，而 `Run` 只取一个值便不再监听——爆发宽度超过
+  缓冲的故障，以及 Run 宣告停止、拆除组件期间到达的故障，都会无声消失。
+  这与架构文档"异步组件错误持续汇报直至停机"的承诺直接矛盾。现在每条
+  serve 错误都保留到 Shutdown 完成并合并进 `Run` 的返回值
+  （`kit.serve-errors-retained`）；`Errors` 通道是调用方 select 的唤醒流。
+  HTTP 与 gRPC 组件的 serve goroutine 改为等待持有通道的消费者而不是丢弃
+  终结性的 serve 故障，等待在宣告停止时结束。由
+  `TestRunJoinsEveryAsyncComponentFailure` 钉住——它在旧行为下以五条丢失
+  四条的方式失败。
+
 - 唯一约束冲突在所有生成路径上都有分类。生成的 main 以 `TranslateError`
   打开 gorm，驱动的重复键错误以 `gorm.ErrDuplicatedKey` 到达；生成的仓储
   三条写路径（Create、Update、Updates）把它包进新的
