@@ -3,7 +3,7 @@ English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
-v2.24.0 is the current published release of the module:
+v2.25.0 is the candidate being prepared from `main`:
 
 ```text
 github.com/dreamsxin/go-kit/v2
@@ -67,7 +67,7 @@ but their generated public behavior is a product surface.
 
 ## Release Entry Criteria
 
-The v2.24.0 candidate must satisfy these criteria before tagging:
+The v2.25.0 candidate must satisfy these criteria before tagging:
 
 - Every surface the compatibility contract covers names the gate that enforces
   it, and the protocol behaviours v2 promises are declared beside the code that
