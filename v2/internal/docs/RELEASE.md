@@ -3,15 +3,15 @@ English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
-v2.26.0 is the current published release of the module:
+v2.26.1 is the candidate being prepared from `main`:
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
 
-It lets an IDL declare its exact HTTP routes and per-route response and error
-encoding, and names the gRPC surface with the same prefix as HTTP. A minor
-version reflects the new public API.
+It fixes the generated startup banner to name the Swagger UI address that
+answers, on top of v2.26.0: IDL-declared routes, per-route response and error
+encoding, and one prefix naming both HTTP and gRPC.
 
 Runtime, generator, providers, and adapters ship together: one `require`, one
 tag, and no version skew between the framework and the things that plug into it.
@@ -67,7 +67,7 @@ but their generated public behavior is a product surface.
 
 ## Release Entry Criteria
 
-The v2.26.0 candidate must satisfy these criteria before tagging:
+The v2.26.1 candidate must satisfy these criteria before tagging:
 
 - Every surface the compatibility contract covers names the gate that enforces
   it, and the protocol behaviours v2 promises are declared beside the code that

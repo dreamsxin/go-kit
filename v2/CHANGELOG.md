@@ -2,7 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [Unreleased]
+## [2.26.1] - Release Candidate
 
 ### Fixed
 
