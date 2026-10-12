@@ -35,5 +35,6 @@ sdk/userservicesdk/client.go
 service/userservice/generated_repos.go
 service/userservice/service.go
 test/userservice_test.go
+transport/userservice/custom_options.go
 transport/userservice/transport_grpc.go
 transport/userservice/transport_http.go

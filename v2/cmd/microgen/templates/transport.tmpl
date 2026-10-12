@@ -40,8 +40,10 @@ func RegisterHTTPRoutes(router server.RouteRegistrar, endpoints genendpoint.{{.S
 		endpoints.{{.Name}}Endpoint,
 		decode{{.Name}}Request,
 		encode{{.Name}}Response,
-		server.ServerErrorEncoder(server.JSONErrorEncoder),
-		server.ServerBefore(transporthttp.ExtractTraceparent),
+		append([]server.ServerOption{
+			server.ServerErrorEncoder(server.JSONErrorEncoder),
+			server.ServerBefore(transporthttp.ExtractTraceparent),
+		}, customServerOptions()...)...,
 	))
 {{end}}
 }
@@ -52,8 +54,10 @@ func registerHTTPServeMuxRoutes(m *http.ServeMux, endpoints genendpoint.{{.Servi
 		endpoints.{{.Name}}Endpoint,
 		decode{{.Name}}Request,
 		encode{{.Name}}Response,
-		server.ServerErrorEncoder(server.JSONErrorEncoder),
-		server.ServerBefore(transporthttp.ExtractTraceparent),
+		append([]server.ServerOption{
+			server.ServerErrorEncoder(server.JSONErrorEncoder),
+			server.ServerBefore(transporthttp.ExtractTraceparent),
+		}, customServerOptions()...)...,
 	))
 {{end}}
 }

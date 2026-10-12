@@ -421,13 +421,14 @@ microgen \
 | 依赖故障时让就绪检查失败 | `cmd/main.go` | `kit.WithReadinessCheck` |
 | 对端点限流、熔断或舱壁隔离 | `endpoint/<name>/custom_chain.go` | endpoint 中间件目录 |
 | 执行认证与角色 | `endpoint/<name>/custom_chain.go` | `security` |
+| 包装响应或重塑每条路由的错误 | `transport/<name>/custom_options.go` | `server.ServerResponseEncoder`、`server.ServerErrorEncoder` |
 | 按路由观测结果 | `cmd/main.go` | `kit.WithMetrics`、`kit.WithRecorder` |
 | 带重试或服务发现调用下游 | `service/<name>/service.go` | `sd` |
 | 以类型化函数调用 HTTP API | `service/<name>/service.go` | `client.NewTypedJSONClient` |
 | 装配所需的设置 | `config/custom.go` | 生成的配置 |
 
-`cmd/main.go`、`service/<name>/service.go` 与 `custom_chain.go` 都是用户持有：
-生成器只写一次、绝不覆盖，装配由你保留。
+`cmd/main.go`、`service/<name>/service.go` 与 `custom_chain.go` /
+`custom_options.go` 钩子都是用户持有：生成器只写一次、绝不覆盖，装配由你保留。
 
 ### custom_chain.go 中的端点中间件
 
@@ -554,6 +555,8 @@ extend 模式不支持 Protobuf 输入：契约副本是 Go 文件。
 - `cmd/main.go`
 - `service/<service>/service.go`
 - `endpoint/<service>/custom_chain.go`
+- `transport/<service>/custom_options.go`（按路由的 HTTP server 选项，追加在
+  生成默认值之后，返回的选项覆盖默认值）
 - `cmd/custom_routes.go`（标准库契约：路由直接注册到 mux；
   `customRouteDescriptions` 为调试路由清单提供条目）
 - `model/<model>.go` —— GORM 生命周期钩子，只写一次

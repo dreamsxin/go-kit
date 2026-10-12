@@ -12,8 +12,10 @@ type ServerOption func(*Server)
 // envelope, such as {"code": 0, "message": "ok", "data": ...}, without
 // changing business response types.
 //
-// It has no effect on servers built directly with NewServer, which take their
-// encode function as a constructor argument.
+// The option also overrides the encode argument of a server built directly
+// with NewServer: options apply after the constructor argument, which is what
+// lets a generated transport's per-route defaults be replaced from a seam
+// that appends options last.
 func ServerResponseEncoder(ee EncodeResponseFunc) ServerOption {
 	return func(s *Server) {
 		if ee != nil {

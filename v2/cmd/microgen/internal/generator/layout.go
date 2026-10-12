@@ -100,6 +100,10 @@ func (l projectLayout) httpTransportFile(serviceName string) string {
 	return filepath.Join(l.root, "transport", l.servicePackage(serviceName), "transport_http.go")
 }
 
+func (l projectLayout) transportCustomOptionsFile(serviceName string) string {
+	return filepath.Join(l.root, "transport", l.servicePackage(serviceName), "custom_options.go")
+}
+
 func (l projectLayout) grpcTransportFile(serviceName string) string {
 	return filepath.Join(l.root, "transport", l.servicePackage(serviceName), "transport_grpc.go")
 }

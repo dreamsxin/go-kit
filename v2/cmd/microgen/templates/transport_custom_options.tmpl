@@ -1,0 +1,16 @@
+package {{.Service.ServiceName | lower}}
+
+import (
+	"github.com/dreamsxin/go-kit/v2/transport/http/server"
+)
+
+// customServerOptions is the user-owned hook for per-route HTTP server
+// options. What it returns is appended after the generated defaults on every
+// route this service registered, and later options win — so an entry here
+// overrides the generated error encoder, adds a response envelope through
+// ServerResponseEncoder, or attaches finalizers and request-wide hooks.
+// Return nil to keep the generated defaults untouched; microgen will not
+// overwrite this file on rerun.
+func customServerOptions() []server.ServerOption {
+	return nil
+}

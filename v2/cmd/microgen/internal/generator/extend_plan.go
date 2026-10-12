@@ -100,6 +100,11 @@ func BuildAppendServicePlan(existing *ExistingProject, project *ir.Project, opts
 				Reason:    "new HTTP transport scaffold",
 			},
 			{
+				Path:      layout.transportCustomOptionsFile(target.Name),
+				Ownership: OwnershipUserProtected,
+				Reason:    "custom server-options seam for appended service",
+			},
+			{
 				Path:      layout.clientDemoFile(target.Name),
 				Ownership: OwnershipGeneratorRebuildable,
 				Reason:    "generated demo client for appended service",

@@ -259,6 +259,8 @@ func classifyOwnership(root, rel string) FileOwnership {
 		return FileOwnership{Path: rel, Tier: OwnershipUserProtected, Reason: "service implementations are user-owned after creation"}
 	case strings.HasPrefix(rel, "endpoint/"):
 		return FileOwnership{Path: rel, Tier: OwnershipUserProtected, Reason: "endpoint code is not a supported extend mutation point"}
+	case strings.HasPrefix(rel, "transport/") && strings.HasSuffix(rel, "/custom_options.go"):
+		return FileOwnership{Path: rel, Tier: OwnershipUserProtected, Reason: "custom server-options seam is user-owned"}
 	case strings.HasPrefix(rel, "transport/"):
 		return FileOwnership{Path: rel, Tier: OwnershipGeneratorRebuildable, Reason: "generated protocol transport output"}
 	case strings.HasPrefix(rel, "model/"):

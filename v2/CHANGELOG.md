@@ -4,6 +4,27 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ## [Unreleased]
 
+### Added
+
+- A method's IDL doc comment can declare its exact HTTP route with a
+  `route: <METHOD> <path>` line (`route: POST /user/page`,
+  `route: DELETE /user/{id}`). The name-based derivation stays the default;
+  the override exists so a generated service can match an existing frontend's
+  contract path-for-path. The verb is validated against the ServeMux set, the
+  path must start with `/`, and a malformed directive fails generation rather
+  than bending a route silently. A `route:` line never reaches the public
+  description — the parser strips it the way it strips `auth:`.
+- Generated HTTP transports spread a user-owned server-options seam after
+  their per-route defaults: `transport/<service>/custom_options.go` (written
+  once, never overwritten) returns extra `server.ServerOption` values, and
+  because later options win, an application can replace the success encoder
+  (a transport envelope such as `{"code":200,"msg":"success","data":...}`),
+  the error encoder, or attach finalizers without editing a generator-owned
+  file. Extend treats the seam as user-protected. The
+  `ServerResponseEncoder` option is documented — and now tested — to
+  override the constructor's encode argument of `NewServer`, which is the
+  property the seam relies on.
+
 ### Changed
 
 - `-prefix` now names the gRPC surface too: the prefix's segments become the

@@ -27,14 +27,24 @@ type Method struct {
 	Name          string
 	Input         string
 	Output        string
-	Doc           string // 方法注释（原始文本）
-	Summary       string // OpenAPI operation summary（取 Doc 第一行）
-	Tags          string // API tags（默认 = ServiceName）
-	HTTPMethod    string // HTTP/OpenAPI 方法（默认 POST）
-	Route         string // HTTP/OpenAPI 路径（默认 /{lower(Name)}）
-	StreamsInput  bool   // true for proto client-streaming or bidirectional-streaming RPCs
-	StreamsOutput bool   // true for proto server-streaming or bidirectional-streaming RPCs
-	Auth          Auth   // 解析后的认证要求（auth: 注释）
+	Doc           string         // 方法注释（原始文本）
+	Summary       string         // OpenAPI operation summary（取 Doc 第一行）
+	Tags          string         // API tags（默认 = ServiceName）
+	HTTPMethod    string         // HTTP/OpenAPI 方法（默认 POST）
+	Route         string         // HTTP/OpenAPI 路径（默认 /{lower(Name)}）
+	StreamsInput  bool           // true for proto client-streaming or bidirectional-streaming RPCs
+	StreamsOutput bool           // true for proto server-streaming or bidirectional-streaming RPCs
+	Auth          Auth           // 解析后的认证要求（auth: 注释）
+	RouteOverride *RouteOverride // route: 指令（覆盖派生的方法与路径）
+}
+
+// RouteOverride is one method's declared HTTP method and path, parsed from
+// the `route:` doc-comment lines. It exists so a generated service can match
+// an existing frontend's contract — the derived name-based route cannot
+// express paths like /user/page.
+type RouteOverride struct {
+	HTTPMethod string
+	Path       string
 }
 
 // Auth is one method's declared authentication requirement, parsed from the
@@ -219,6 +229,45 @@ func parseAuthDoc(doc string) (Auth, string, error) {
 	return auth, auth.CleanedDoc, nil
 }
 
+// parseRouteDoc parses the `route:` doc-comment lines of one method. The
+// directive is `route: <METHOD> <path>` — the path may carry ServeMux
+// placeholders ({id}). The derived name-based route remains the default;
+// the override exists so a generated service can match an existing
+// frontend's contract exactly.
+//
+// Stable: microgen.route-override — a method whose IDL doc comment declares
+// `route: <METHOD> <path>` registers that verb and path instead of the
+// name-derived one; a malformed directive fails generation, and the
+// directive line never reaches the method's public description.
+// Covered by: TestRouteDirective, TestRouteDirectiveRefusesBroken
+func parseRouteDoc(doc string) (*RouteOverride, error) {
+	var override *RouteOverride
+	for _, line := range strings.Split(doc, "\n") {
+		line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "//"))
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "route:") {
+			continue
+		}
+		body := strings.TrimSpace(strings.TrimPrefix(line, "route:"))
+		fields := strings.Fields(body)
+		if len(fields) != 2 {
+			return nil, fmt.Errorf("route: directive must be `route: <METHOD> <path>`")
+		}
+		httpMethod := strings.ToUpper(fields[0])
+		path := fields[1]
+		switch httpMethod {
+		case "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS":
+		default:
+			return nil, fmt.Errorf("route: unknown HTTP method %q", fields[0])
+		}
+		if !strings.HasPrefix(path, "/") {
+			return nil, fmt.Errorf("route: path %q must start with /", path)
+		}
+		override = &RouteOverride{HTTPMethod: httpMethod, Path: path}
+	}
+	return override, nil
+}
+
 // parseMethod 解析接口方法
 func parseMethod(field *ast.Field, serviceName string) (Method, error) {
 	if len(field.Names) == 0 {
@@ -239,6 +288,13 @@ func parseMethod(field *ast.Field, serviceName string) (Method, error) {
 		return Method{}, fmt.Errorf("method %s: %w", method.Name, err)
 	}
 	method.Auth = auth
+
+	// route: 注释行 → 显式方法与路径覆盖。
+	routeOverride, routeErr := parseRouteDoc(raw)
+	if routeErr != nil {
+		return Method{}, fmt.Errorf("method %s: %w", method.Name, routeErr)
+	}
+	method.RouteOverride = routeOverride
 	if cleaned != "" {
 		method.Doc = cleaned
 		// Summary 取第一行（去掉可能的方法名前缀）
@@ -267,6 +323,12 @@ func parseMethod(field *ast.Field, serviceName string) (Method, error) {
 		method.HTTPMethod = "post"
 	}
 	method.Route = "/" + name
+
+	// route: 指令覆盖派生的方法与路径——注册在最后，覆盖一切推导。
+	if method.RouteOverride != nil {
+		method.HTTPMethod = method.RouteOverride.HTTPMethod
+		method.Route = method.RouteOverride.Path
+	}
 
 	funcType, ok := field.Type.(*ast.FuncType)
 	if !ok {

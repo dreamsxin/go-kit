@@ -302,10 +302,58 @@ middleware needs the method name reads it through
 registration is the only place a handler and its pattern are in scope, which
 is why per-route middleware is installed there. The `-prefix` flag sets a
 route prefix; with `-prefix /api` a `userservice` route becomes
-`/api/userservice/...` — the HTTP surface only; the gRPC full method path is
-unaffected (see [gRPC routes](#grpc-routes)). On Git Bash, quote the value
-(`-prefix "api/v1"`) so the path is not rewritten by the shell's path
-conversion.
+`/api/userservice/...` — and with gRPC enabled the same prefix becomes the
+leading segments of the proto package (see [gRPC routes](#grpc-routes)). On
+Git Bash, quote the value (`-prefix "api/v1"`) so the path is not rewritten by
+the shell's path conversion.
+
+### The `route:` directive
+
+Without a directive, a method's HTTP verb and path derive from its name,
+lowercased as a whole: a get/find/query/list/search prefix means GET,
+delete/remove means DELETE, update/edit/modify/patch means PUT, anything else
+means POST — and the path is `/<methodname>`, so `UserPage` becomes
+`POST /userpage`. When an existing frontend's contract fixes the path — an
+axios call to `POST /user/page` — declare it on the method in the Go IDL
+instead of renaming anything:
+
+```go
+// 用户分页
+//
+// route: POST /user/page
+UserPage(ctx context.Context, req UserPageRequest) (UserPageResp, error)
+```
+
+The directive is `route: <METHOD> <path>` on its own doc-comment line. The
+path may carry ServeMux placeholders (`route: DELETE /user/{id}`); the method
+must be one of GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS; and a malformed
+directive fails generation rather than bending a route silently. A `route:`
+line never reaches the public description — the parser strips it.
+
+Authentication is declared the same way, with `auth: required` or
+`auth: roles=a,b` (any-of); see the auth tutorial for the full semantics.
+
+### Response and error encoding per route
+
+Every generated route is built with the generated defaults —
+`server.JSONErrorEncoder` for failures, `EncodeJSONResponse` for successes —
+followed by everything `customServerOptions()` returns, and later options win.
+The write-once hook `transport/<service>/custom_options.go` is where an
+application shape that the defaults do not carry goes: wrapping every success
+in an envelope (`{"code":200,"msg":"success","data":...}`), mapping errors to
+a legacy body, or attaching a finalizer:
+
+```go
+// User-owned file: microgen writes it once and never overwrites it.
+func customServerOptions() []server.ServerOption {
+	return []server.ServerOption{
+		server.ServerResponseEncoder(func(ctx context.Context, w http.ResponseWriter, response any) error {
+			return server.EncodeJSONResponse(ctx, w, respEnvelope{Code: 200, Msg: "success", Data: response})
+		}),
+		server.ServerErrorEncoder(legacyErrorEncoder),
+	}
+}
+```
 
 Your routes go in the write-once hook `cmd/custom_routes.go`:
 

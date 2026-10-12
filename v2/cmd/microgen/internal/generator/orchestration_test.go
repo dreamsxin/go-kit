@@ -188,6 +188,7 @@ func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testin
 	mustExist(t, filepath.Join(outDir, "endpoint", "userservice", "generated_chain.go"))
 	mustExist(t, filepath.Join(outDir, "endpoint", "userservice", "custom_chain.go"))
 	mustExist(t, filepath.Join(outDir, "transport", "userservice", "transport_http.go"))
+	mustExist(t, filepath.Join(outDir, "transport", "userservice", "custom_options.go"))
 	mustExist(t, filepath.Join(outDir, "transport", "userservice", "transport_grpc.go"))
 	mustExist(t, filepath.Join(outDir, "pb", "userservice", "userservice.proto"))
 	mustExist(t, filepath.Join(outDir, "client", "userservice", "demo.go"))

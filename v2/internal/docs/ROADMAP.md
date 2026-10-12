@@ -2596,6 +2596,66 @@ go -C ./tools test . -run "TestStableProtocolBehaviour|TestPublicAPISurfaceSnaps
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## Milestone 26 (Complete): The Contract A Frontend Already Owns
+
+Found by replicating a real admin frontend against a generated service: the
+frontend's axios layer fixed route paths the name-based derivation could not
+produce (`POST /user/page`), wrapped every response in an envelope the
+generated encoder did not emit, and gated each route with its own role list.
+The role list was already solvable with IDL-declared `auth:`; two gaps
+remained, and both are closed.
+
+Landed:
+
+- **The `route:` directive.** A `route: <METHOD> <path>` doc-comment line on
+  an IDL method overrides the name-based verb and path derivation at
+  generation time. Malformed directives fail generation; the line is stripped
+  from the public description like `auth:` is. Deliberately generation-only:
+  no runtime route rewriting, no regex routes.
+- **The per-route server-options seam.** Generated HTTP transports append
+  `customServerOptions()` after their defaults on every route; the write-once
+  file `transport/<service>/custom_options.go` owns it. Later options win, so
+  the application's encoder replaces the generated one — the envelope case —
+  without editing a generator-owned file. The override property
+  (`ServerResponseEncoder` beating `NewServer`'s constructor argument) is
+  pinned by a test and now stated in the option's doc.
+- **gRPC prefix alignment** (previous round, CHANGELOG'd): `-prefix` names
+  both surfaces — HTTP routes and the proto package — so a generated client
+  and its routes move together.
+
+Deliberate non-decisions:
+
+- The envelope itself stays application code inside the seam. An envelope is
+  a deployment's wire contract, not framework policy; the framework ships the
+  option, the shape stays with the application.
+- Pagination shapes stay DTO-owned (`{list,currentPage,pageSize,total}` was
+  declared in the IDL, not generated). A generic page-result abstraction was
+  considered and rejected: it would either guess the shape or grow flags.
+
+Findings recorded by the replication, still open:
+
+- The generated service smoke test sends one empty request per method and
+  skips on a scaffold not-implemented error. Once the implementation returns
+  real validation errors, every case fails — the test's assumption expires
+  the moment the scaffold is filled in. Deferred: the generated test should
+  either skip on any error the empty request provokes, or become a contract
+  test the implementation is expected to satisfy. Until then, deleting the
+  generated test when filling the scaffold is the documented move.
+- The Go compiler rejects a call that mixes positional options with a slice
+  spread in the variadic slot (`f(a, b, opt, opts...)`); the generated
+  transport therefore assembles one `append([]server.ServerOption{...},
+  customServerOptions()...)` list. The generated code is correct, but the
+  shape is non-obvious — worth remembering before anyone "simplifies" it back
+  to a trailing spread.
+Acceptance:
+
+```bash
+go test ./cmd/microgen/... -count=1
+go test ./transport/http/server/ -run TestServerResponseEncoder -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

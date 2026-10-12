@@ -82,6 +82,9 @@ func (g *Generator) generateServiceArtifacts(ctx generationContext) error {
 		if err := g.generateHTTPTransportFile(service, irService, ctx.source); err != nil {
 			return fmt.Errorf("generate http transport[%s] failed: %w", service.ServiceName, err)
 		}
+		if err := g.generateTransportCustomOptionsFile(service); err != nil {
+			return fmt.Errorf("generate transport custom options[%s] failed: %w", service.ServiceName, err)
+		}
 		if g.config.WithGRPC {
 			if err := g.generateGRPCTransportFile(service, irService, ctx.source); err != nil {
 				return fmt.Errorf("generate grpc transport[%s] failed: %w", service.ServiceName, err)

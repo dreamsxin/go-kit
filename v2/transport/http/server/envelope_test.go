@@ -50,6 +50,30 @@ func TestServerResponseEncoder_AssemblesEnvelope(t *testing.T) {
 	}
 }
 
+// TestServerResponseEncoder_OverridesConstructorArgument pins the ordering the
+// generated transports rely on: options passed to NewServer apply after the
+// constructor's encode argument, so a user-owned customServerOptions seam can
+// replace the default encoder on a server built with NewServer.
+func TestServerResponseEncoder_OverridesConstructorArgument(t *testing.T) {
+	h := server.NewServer(
+		func(context.Context, any) (any, error) { return "raw", nil },
+		func(_ context.Context, _ *http.Request) (any, error) { return struct{}{}, nil },
+		server.EncodeJSONResponse,
+		server.ServerResponseEncoder(envelopeEncoder),
+	)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`)))
+
+	var body envelope
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Message != "ok" || body.Data != "raw" {
+		t.Errorf("envelope option must win over the constructor argument: got %+v", body)
+	}
+}
+
 func TestServerResponseEncoder_ErrorPathUnchanged(t *testing.T) {
 	h := server.NewTypedJSONServer(
 		func(_ context.Context, _ struct{}) (struct{}, error) {

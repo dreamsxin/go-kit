@@ -2011,6 +2011,53 @@ go -C ./tools test . -run "TestStableProtocolBehaviour|TestPublicAPISurfaceSnaps
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## Milestone 26（完成）：前端已经拥有的那份契约
+
+由"用生成的服务复刻一个真实管理前端"发现：前端的 axios 层固定了按名称推导
+无法产出的路由路径（`POST /user/page`）、把每个响应包进生成编码器不会发出的
+信封、并且每条路由有自己的角色门。角色门用 IDL 声明的 `auth:` 已经可解；剩下
+两个缺口，均已关闭。
+
+已落地：
+
+- **`route:` 指令。** IDL 方法文档注释中的一行 `route: <METHOD> <path>` 在生成
+  期覆盖按名称推导的动词与路径。畸形指令让生成失败；该行像 `auth:` 一样从公共
+  描述中剥离。刻意只做生成期：没有运行期路由改写，没有正则路由。
+- **按路由的 server 选项接缝。** 生成的 HTTP 传输在每条路由的默认值之后追加
+  `customServerOptions()`；只写一次的 `transport/<service>/custom_options.go`
+  拥有它。靠后的选项获胜，应用编码器替换生成的编码器——信封场景——而无需编辑
+  生成器持有的文件。覆盖性质（`ServerResponseEncoder` 胜过 `NewServer` 的构造
+  参数）由测试钉住，并已写入该选项的文档。
+- **gRPC 前缀对齐**（上一轮，已记 CHANGELOG）：`-prefix` 同时命名两个表面——
+  HTTP 路由与 proto 包——生成的客户端与路由一起移动。
+
+刻意不做：
+
+- 信封本身留在接缝内的应用代码里。信封是一个部署的线缆契约，不是框架策略；
+  框架交付选项，形状留给应用。
+- 分页形状由 DTO 自己声明（`{list,currentPage,pageSize,total}` 写在 IDL 里，
+  而非生成）。考虑过并否决了通用分页结果抽象：它要么猜形状，要么长出开关。
+
+复刻记录在案、尚未解决的发现：
+
+- 生成的服务冒烟测试对每个方法发送一个空请求，并在脚手架 not-implemented
+  错误上跳过。一旦实现返回真实的校验错误，每个用例都会失败——脚手架被填上的
+  那一刻，这个测试的假设就过期了。延后处理：生成的测试要么对空请求必然引发的
+  错误一律跳过，要么改成实现应当满足的契约测试。在那之前，填脚手架时删除生成
+  的测试是既定做法。
+- Go 编译器拒绝在变参槽里混用位置实参与切片展开（`f(a, b, opt, opts...)`），
+  因此生成的传输把选项组装成一个 `append([]server.ServerOption{...},
+  customServerOptions()...)` 列表。生成代码是正确的，但形状并不直观——在有人
+  想"简化"回尾随展开之前，值得记住这一点。
+验收：
+
+```bash
+go test ./cmd/microgen/... -count=1
+go test ./transport/http/server/ -run TestServerResponseEncoder -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

@@ -63,6 +63,7 @@ func TestGenerateFull_OwnershipMarkers(t *testing.T) {
 		"cmd/custom_routes.go",
 		"service/userservice/service.go",
 		"endpoint/userservice/custom_chain.go",
+		"transport/userservice/custom_options.go",
 		"model/user.go",
 		"config/custom.go",
 		"config/config.yaml",

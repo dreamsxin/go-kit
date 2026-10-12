@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+### 新增
+
+- 方法的 IDL 文档注释可以用一行 `route: <METHOD> <path>` 声明确切的 HTTP 路由
+  （`route: POST /user/page`、`route: DELETE /user/{id}`）。基于名称的推导仍是
+  默认；覆盖的存在理由是让生成的服务逐路径匹配既有前端的契约。动词按 ServeMux
+  集合校验，路径必须以 `/` 开头，畸形的指令让生成期失败，而不是悄悄弯曲路由。
+  `route:` 行绝不会进入公共描述——解析器剥离它的方式与 `auth:` 相同。
+- 生成的 HTTP 传输在每条路由的默认值之后展开一个用户持有的 server 选项接缝：
+  `transport/<service>/custom_options.go`（只写一次、绝不覆盖）返回额外的
+  `server.ServerOption`，由于靠后的选项获胜，应用可以替换成功编码器（形如
+  `{"code":200,"msg":"success","data":...}` 的传输信封）、错误编码器或附加
+  finalizer，而无需编辑生成器持有的文件。extend 把该接缝视为用户保护。
+  `ServerResponseEncoder` 选项的文档——以及现在新增的测试——明确了它会覆盖
+  `NewServer` 构造参数中的编码函数，这正是该接缝依赖的性质。
+
 ### 变更
 
 - `-prefix` 现在同样命名 gRPC 表面：前缀的各段成为生成的 proto 包名的开头段

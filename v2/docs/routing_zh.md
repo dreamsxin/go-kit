@@ -257,9 +257,53 @@ pb.RegisterOrderServiceServer(comp.Server(), orderServer)
 `microgen` 通过 `transport/http/server.RouteRegistrar` 为每个一元方法注册一条
 路由——`*http.ServeMux` 天然满足它，而注册点是 handler 与其模式唯一同时可见的
 地方，这正是按路由中间件安装在那里的原因。`-prefix` 标志设置路由前缀；带
-`-prefix /api` 时 `userservice` 的路由变成 `/api/userservice/...`——只触及
-HTTP 表面；gRPC 的完整方法路径不受影响（见 [gRPC 路由](#gRPC-路由)）。在 Git
+`-prefix /api` 时 `userservice` 的路由变成 `/api/userservice/...`——启用 gRPC
+时，同一前缀还会成为 proto 包的头部段（见 [gRPC 路由](#gRPC-路由)）。在 Git
 Bash 中请给值加引号（`-prefix "api/v1"`），避免路径被 shell 的路径转换改写。
+
+### `route:` 指令
+
+没有指令时，方法的 HTTP 动词与路径由方法名整体小写推导：get/find/query/list/
+search 前缀意味着 GET，delete/remove 意味着 DELETE，update/edit/modify/patch
+意味着 PUT，其余都是 POST——路径是 `/<方法名全小写>`，所以 `UserPage` 变成
+`POST /userpage`。当既有前端的契约固定了路径——axios 调用的是
+`POST /user/page`——在 Go IDL 的方法上直接声明，而不是重命名任何东西：
+
+```go
+// 用户分页
+//
+// route: POST /user/page
+UserPage(ctx context.Context, req UserPageRequest) (UserPageResp, error)
+```
+
+指令是独立的文档注释行 `route: <METHOD> <path>`。路径可以携带 ServeMux
+占位符（`route: DELETE /user/{id}`）；动词限于 GET、POST、PUT、DELETE、PATCH、
+HEAD、OPTIONS；畸形的指令让生成期直接失败，而不是悄悄弯曲路由。`route:` 行
+绝不会进入公共描述——解析器会剥离它。
+
+认证以同样方式声明：`auth: required` 或 `auth: roles=a,b`（任一满足）；完整
+语义见认证教程。
+
+### 每条路由的响应与错误编码
+
+每条生成路由先应用生成的默认值——失败用 `server.JSONErrorEncoder`，成功用
+`EncodeJSONResponse`——再追加 `customServerOptions()` 返回的一切，而靠后的
+选项获胜。只写一次的钩子 `transport/<service>/custom_options.go` 是应用形态
+与默认值不合时的去处：把每个成功响应包进信封
+（`{"code":200,"msg":"success","data":...}`）、把错误映射成旧系统的响应体，
+或附加 finalizer：
+
+```go
+// User-owned file: microgen writes it once and never overwrites it.
+func customServerOptions() []server.ServerOption {
+	return []server.ServerOption{
+		server.ServerResponseEncoder(func(ctx context.Context, w http.ResponseWriter, response any) error {
+			return server.EncodeJSONResponse(ctx, w, respEnvelope{Code: 200, Msg: "success", Data: response})
+		}),
+		server.ServerErrorEncoder(legacyErrorEncoder),
+	}
+}
+```
 
 你的路由放进只写一次的钩子 `cmd/custom_routes.go`：
 

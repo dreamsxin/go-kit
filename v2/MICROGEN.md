@@ -462,14 +462,15 @@ it is a question of **where**, and every intent has one right place:
 | fail readiness when a dependency is down | `cmd/main.go` | `kit.WithReadinessCheck` |
 | rate limit, break, or bulkhead endpoints | `endpoint/<name>/custom_chain.go` | the endpoint middleware catalog |
 | enforce authentication or roles | `endpoint/<name>/custom_chain.go` | `security` |
+| wrap responses or reshape errors on every route | `transport/<name>/custom_options.go` | `server.ServerResponseEncoder`, `server.ServerErrorEncoder` |
 | observe outcomes per route | `cmd/main.go` | `kit.WithMetrics`, `kit.WithRecorder` |
 | call a downstream service with retry or discovery | `service/<name>/service.go` | `sd` |
 | call an HTTP API with a typed function | `service/<name>/service.go` | `client.NewTypedJSONClient` |
 | settings the wiring needs | `config/custom.go` | generated config |
 
-`cmd/main.go`, `service/<name>/service.go`, and `custom_chain.go` are
-user-owned: the generator writes them once and never overwrites them, so the
-wiring is yours to keep.
+`cmd/main.go`, `service/<name>/service.go`, and the `custom_chain.go` /
+`custom_options.go` hooks are user-owned: the generator writes them once and
+never overwrites them, so the wiring is yours to keep.
 
 ### Endpoint middleware in custom_chain.go
 
@@ -612,6 +613,8 @@ and never touched again; they are the user's to edit, unconditionally.
 - `cmd/main.go`
 - `service/<service>/service.go`
 - `endpoint/<service>/custom_chain.go`
+- `transport/<service>/custom_options.go` (per-route HTTP server options,
+  appended after the generated defaults, so what it returns overrides them)
 - `cmd/custom_routes.go` (standard-library contract: routes register on the
   mux directly; `customRouteDescriptions` feeds the debug route listing)
 - `model/<model>.go` — the GORM lifecycle hooks, written once

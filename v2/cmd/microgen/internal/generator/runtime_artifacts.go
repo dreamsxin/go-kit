@@ -77,6 +77,17 @@ func (g *Generator) generateHTTPTransportFile(service *serviceView, irService *i
 	return g.executeTemplate("transport.tmpl", g.layout.httpTransportFile(service.ServiceName), data)
 }
 
+// generateTransportCustomOptionsFile writes the per-route server-options seam
+// once: the generated HTTP transport spreads customServerOptions() after its
+// defaults, so the application can override encoders without editing a
+// generator-owned file.
+func (g *Generator) generateTransportCustomOptionsFile(service *serviceView) error {
+	data := endpointCustomChainTemplateData{
+		Service: service,
+	}
+	return g.executeTemplateIfAbsent("transport_custom_options.tmpl", g.layout.transportCustomOptionsFile(service.ServiceName), data)
+}
+
 func (g *Generator) generateGRPCTransportFile(service *serviceView, irService *ir.Service, source string) error {
 	grpcPackage, err := grpcProtoPackage(g.config.RoutePrefix, service.PackageName)
 	if err != nil {
