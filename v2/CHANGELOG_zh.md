@@ -2,6 +2,13 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [Unreleased]
+
+### 修复
+
+- 生成的启动横幅把 Swagger UI 地址写成 `/swagger/index.html`，而内嵌 UI 不响应
+  这个路径——页面挂在挂载路径 `/swagger/` 本身。横幅现在写的是真实可用的地址。
+
 ## [2.26.0] - 2026-10-12
 
 ### 新增

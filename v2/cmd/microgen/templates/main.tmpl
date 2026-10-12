@@ -49,7 +49,7 @@ func printBanner(logger *slog.Logger, httpAddr string, scheme string{{if .WithGR
 	base := scheme + "://localhost" + httpAddr
 	logger.Info("service started", "service", "{{range .Project.Services}}{{.Name}} {{end}}", "http", base)
 	if withOpenAPI {
-		logger.Info("API documentation", "openapi", base+"/openapi.json", "schema", base+"/schema.json", "ui", base+"/swagger/index.html")
+		logger.Info("API documentation", "openapi", base+"/openapi.json", "schema", base+"/schema.json", "ui", base+"/swagger/")
 	}
 {{if .WithInteraction}}	if withInteraction {
 		logger.Info("MCP enabled", "url", base+"/mcp")

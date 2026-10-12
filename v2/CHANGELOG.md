@@ -2,6 +2,15 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [Unreleased]
+
+### Fixed
+
+- The generated startup banner advertised the Swagger UI at
+  `/swagger/index.html`, a path the embedded UI does not answer — the page is
+  served at the mount path `/swagger/` itself. The banner now names the URL
+  that works.
+
 ## [2.26.0] - 2026-10-12
 
 ### Added
