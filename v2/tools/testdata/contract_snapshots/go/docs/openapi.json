@@ -874,7 +874,9 @@
             "items": {
               "$ref": "#/components/schemas/User"
             },
-            "example": {}
+            "example": [
+              {}
+            ]
           }
         },
         "additionalProperties": false,

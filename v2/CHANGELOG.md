@@ -2,6 +2,19 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [Unreleased]
+
+### Fixed
+
+- The generated contract's `example` for slice-typed fields was `{}` — an
+  object — so the Swagger UI's "Try it out" prefilled a body the service
+  rightly refused (`json: cannot unmarshal object into ... []string`).
+  `schemaExample` now emits an array prefilled with one element example
+  (recursively, so `[][]string` nests), while `map` fields keep the object
+  default they genuinely decode from, `[]byte` gives a base64 string, and
+  `time.Time` an RFC3339 timestamp. Contract snapshots refreshed and
+  reviewed.
+
 ## [2.26.1] - 2026-10-12
 
 ### Fixed

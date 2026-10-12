@@ -177,7 +177,9 @@
           "items": {
             "$ref": "#/$defs/User"
           },
-          "example": {}
+          "example": [
+            {}
+          ]
         }
       },
       "additionalProperties": false,

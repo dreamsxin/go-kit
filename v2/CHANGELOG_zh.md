@@ -2,6 +2,17 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [Unreleased]
+
+### 修复
+
+- 生成契约里切片字段的 `example` 是 `{}`——一个对象——导致 Swagger UI 的
+  "Try it out" 预填出服务端必然拒绝的请求体（`json: cannot unmarshal object
+  into ... []string`）。`schemaExample` 现在生成数组并预填一个元素示例（递归
+  处理，`[][]string` 正确嵌套）；`map` 字段保留它真正解码自的对象默认值，
+  `[]byte` 给 base64 字符串，`time.Time` 给 RFC3339 时间戳。契约快照已刷新
+  并评审。
+
 ## [2.26.1] - 2026-10-12
 
 ### 修复

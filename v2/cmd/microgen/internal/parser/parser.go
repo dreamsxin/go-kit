@@ -532,12 +532,23 @@ func ToSnakeCase(s string) string {
 	return res.String()
 }
 
-// schemaExample returns a readable schema example for a parsed field.
+// schemaExample returns a readable schema example for a parsed field. The
+// value lands in the contract's example keyword, which generated forms use as
+// their prefill — so it must have the shape the field actually decodes from:
+// an object default is correct for a map, and wrong for a slice, which a form
+// would then submit as {} and the service would rightly refuse.
 func schemaExample(goType, jsonTag string) string {
 	// 用 json tag 的首段作为字段名提示
 	name := strings.Split(jsonTag, ",")[0]
 	t := strings.TrimPrefix(goType, "*")
 	switch {
+	case t == "[]byte":
+		// JSON carries []byte as a base64 string.
+		return `""`
+	case t == "time.Time":
+		return `"2026-01-01T00:00:00Z"`
+	case strings.HasPrefix(t, "[]"):
+		return "[" + schemaExample(strings.TrimPrefix(t, "[]"), jsonTag) + "]"
 	case t == "string":
 		if name != "" {
 			return `"` + name + `"`
@@ -550,6 +561,8 @@ func schemaExample(goType, jsonTag string) string {
 	case strings.HasPrefix(t, "float"):
 		return "1.0"
 	default:
+		// maps and structs decode from an object; struct fields are the
+		// form-user's to fill.
 		return "{}"
 	}
 }
