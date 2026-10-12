@@ -36,6 +36,9 @@ func (opt Options) Validate() error {
 	if opt.WithDB && opt.DBDriver == "" {
 		return fmt.Errorf("database generation requires a db driver")
 	}
+	if err := validateRoutePrefix(opt.RoutePrefix); err != nil {
+		return err
+	}
 	if opt.DBDriver != "" {
 		if _, ok := supportedDrivers[opt.DBDriver]; !ok {
 			return fmt.Errorf("unsupported db driver: %s", opt.DBDriver)

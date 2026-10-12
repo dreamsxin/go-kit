@@ -2,7 +2,7 @@
 
 syntax = "proto3";
 
-package userservice;
+package api.proto.userservice;
 
 option go_package = "./pb";
 

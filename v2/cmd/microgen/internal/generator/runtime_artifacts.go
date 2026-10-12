@@ -78,8 +78,13 @@ func (g *Generator) generateHTTPTransportFile(service *serviceView, irService *i
 }
 
 func (g *Generator) generateGRPCTransportFile(service *serviceView, irService *ir.Service, source string) error {
+	grpcPackage, err := grpcProtoPackage(g.config.RoutePrefix, service.PackageName)
+	if err != nil {
+		return err
+	}
 	data := grpcTransportTemplateData{
 		Service:             service,
+		GRPCService:         grpcPackage + "." + service.ServiceName,
 		IRService:           irService,
 		UnaryMethods:        unaryMethods(irService),
 		ServerStreamMethods: serverStreamMethods(irService),
@@ -105,8 +110,13 @@ func (g *Generator) generateProtoFile(service *serviceView, models []*modelView,
 			schema = buildProtoSchemaFromIR(irService, project.Messages)
 		}
 	}
+	grpcPackage, err := grpcProtoPackage(g.config.RoutePrefix, service.PackageName)
+	if err != nil {
+		return err
+	}
 	data := protoTemplateData{
 		Service:        service,
+		GRPCPackage:    grpcPackage,
 		IRService:      irService,
 		Messages:       schema.Messages,
 		NeedsTimestamp: schema.NeedsTimestamp,

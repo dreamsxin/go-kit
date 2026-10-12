@@ -2,6 +2,17 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [Unreleased]
+
+### 变更
+
+- `-prefix` 现在同样命名 gRPC 表面：前缀的各段成为生成的 proto 包名的开头段
+  （`UserService` 配 `-prefix /api/v1` 声明 `package api.v1.userservice;`），gRPC
+  完整方法路径随之移动到 `/api.v1.userservice.UserService/...`，与 HTTP 路由同步。
+  生成的客户端与服务端从相同字段推导路径、自动保持同步；pb 的 Go 包与文件布局不
+  受影响。前缀段必须是小写标识符——protoc 会拒绝的段在生成期即被拒绝。既有项目
+  带前缀重新生成会移动 gRPC 线缆路径；从刷新后的契约生成的客户端会跟随。
+
 ## [2.25.0] - 2026-10-12
 
 ### 新增

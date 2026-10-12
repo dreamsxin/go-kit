@@ -245,30 +245,36 @@ interceptors labeled with the full method name.
 
 ### How a gRPC method is addressed
 
-A gRPC method has no URL prefix — its address is the full method path from
-the proto contract:
+A gRPC method's address is the full method path from the proto contract:
 
 ```text
 /<proto package>.<Service>/<Method>
 ```
 
-For a service named `UserService` in the IDL, the generated proto declares
-`package userservice;` and `service UserService`, so a client calls
-`/userservice.UserService/SayHello`. The name chain is fixed: the proto
-package is the lowercased service name, the service type is the service name,
-and the methods are the IDL methods — none of them move when the HTTP prefix
-changes, because the prefix is an HTTP concept. Renaming the service in the
-IDL renames all three.
+The proto package is where the prefix lands. For a service named
+`UserService` generated with `-prefix /api/v1`, the generated proto declares
+`package api.v1.userservice;` and `service UserService`, so a client calls
+`/api.v1.userservice.UserService/SayHello` — the same prefix the HTTP routes
+carry (`/api/v1/userservice/...`), expressed in the dot-separated form the
+gRPC wire path requires. Without a prefix the package is the lowercased
+service name (`/userservice.UserService/SayHello`).
+
+The generated client and server stay in sync automatically: the transport's
+gRPC client composes the full method path from the same fields the proto
+file was written from, and the protoc-generated stub owns the server side.
+Prefix segments must be lowercase identifiers (letters first, then letters,
+digits, underscores) — a segment protoc would reject is refused at
+generation time. Regenerating an existing project with a new prefix moves
+the gRPC wire path; clients generated from the refreshed contract follow.
 
 ### What the HTTP prefix does and does not touch
 
 `-prefix /api/v1` (or `-prefix api/v1` — the leading slash is normalized)
 prepends `/api/v1` to the **HTTP** routes and the OpenAPI paths of a
-generated project. It does not rename the proto package, the gRPC service,
-or the full method path: a gRPC client generated from the same contract
-keeps calling `/userservice.UserService/SayHello` unchanged. The two
-transports share the endpoints and the health probes; only the HTTP surface
-moves.
+generated project, and (as above) becomes the leading segments of the proto
+package. The two transports share the endpoints and the health probes; the
+proto package naming is the one place the shared prefix is expressed in
+gRPC's own grammar.
 
 ### Routes in hand-written gRPC
 

@@ -50,6 +50,7 @@ type httpTransportTemplateData struct {
 
 type grpcTransportTemplateData struct {
 	Service             *serviceView
+	GRPCService         string
 	IRService           *ir.Service
 	UnaryMethods        []*ir.Method
 	ServerStreamMethods []*ir.Method
@@ -61,6 +62,7 @@ type grpcTransportTemplateData struct {
 
 type protoTemplateData struct {
 	Service        *serviceView
+	GRPCPackage    string
 	IRService      *ir.Service
 	Messages       []protoMessage
 	NeedsTimestamp bool

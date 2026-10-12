@@ -211,25 +211,29 @@ context 的是 `grpcserver.Interceptor`。一个 handler、两种协议：`trans
 
 ### gRPC 方法如何被寻址
 
-gRPC 方法没有 URL 前缀——它的地址是 proto 契约中的完整方法路径：
+gRPC 方法的地址是 proto 契约的完整方法路径：
 
 ```text
 /<proto 包名>.<Service>/<Method>
 ```
 
-IDL 中名为 `UserService` 的服务，生成的 proto 声明 `package userservice;` 与
-`service UserService`，客户端调用的即
-`/userservice.UserService/SayHello`。这条名字链是固定的：proto 包名是小写的服
-务名，服务类型是服务名，方法是 IDL 方法——HTTP 前缀变化时它们都不移动，因为前
-缀是 HTTP 的概念。重命名 IDL 中的服务会同时重命名三者。
+前缀落在 proto 包名上。以 `-prefix /api/v1` 生成的 `UserService` 服务，其 proto
+声明 `package api.v1.userservice;` 与 `service UserService`，客户端调用的即
+`/api.v1.userservice.UserService/SayHello`——与 HTTP 路由携带的前缀
+（`/api/v1/userservice/...`）相同，只是写成 gRPC 线缆路径所需的点分隔形式。无前
+缀时包名就是小写的服务名（`/userservice.UserService/SayHello`）。
+
+生成的客户端与服务端自动保持同步：传输的 gRPC 客户端从与 proto 文件相同的字段
+组合完整方法路径，服务端由 protoc 生成的桩持有。前缀段必须是小写标识符（首字
+母开头，后接字母、数字、下划线）——protoc 会拒绝的段在生成期即被拒绝。以新前缀
+重新生成既有项目会移动 gRPC 线缆路径；从刷新后的契约生成的客户端会跟随。
 
 ### HTTP 前缀触及什么、不触及什么
 
 `-prefix /api/v1`（或 `-prefix api/v1`——开头的斜杠会被归一化）把 `/api/v1` 加到
-生成项目的 **HTTP** 路由与 OpenAPI 路径前面。它不会重命名 proto 包名、gRPC 服务
-或完整方法路径：由同一契约生成的 gRPC 客户端调用
-`/userservice.UserService/SayHello` 保持不变。两种传输共享端点与健康探针；移动
-的只有 HTTP 表面。
+生成项目的 **HTTP** 路由与 OpenAPI 路径前面，并（如上）成为 proto 包名的开头
+段。两种传输共享端点与健康探针；proto 包命名是共享前缀以 gRPC 自身语法表达的
+唯一位置。
 
 ### 手写 gRPC 的路由
 

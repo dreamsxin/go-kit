@@ -102,7 +102,7 @@ func RegisterGRPCServer(s *grpc.Server, service streamService, endpoints genendp
 func NewGRPC{{.Name}}Client(conn *grpc.ClientConn, options ...grpcclient.ClientOption) endpoint.Endpoint {
 	return grpcclient.NewClient(
 		conn,
-		"{{$.Service.PackageName}}.{{$.Service.ServiceName}}",
+		"{{$.GRPCService}}",
 		"{{.Name}}",
 		EncodeGRPC{{.Name}}Request,
 		DecodeGRPC{{.Name}}Response,

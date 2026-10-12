@@ -125,7 +125,7 @@ opt-in through `-db`, and startup migration is disabled by default.
 | `-import` | Generated Go module path |
 | `-service` | Generated service name; defaults to the first service in the contract |
 | `-protocols` | `http` or `http,grpc` |
-| `-prefix` | HTTP route prefix (the gRPC full method path is unaffected) |
+| `-prefix` | Route prefix for both surfaces: the HTTP path, and the leading segments of the proto package (the gRPC full method path) |
 | `-config` | Generate configuration support, default `false` |
 | `-config-mode` | `file`, `hybrid`, or `remote` |
 | `-remote-provider` | Remote provider; currently `consul` |

@@ -609,6 +609,9 @@ func detectRoutePrefix(path string) string {
 	if end < 0 {
 		return ""
 	}
+	// The scraped value is a full HTTP route ("/api/v1/userservice/create"):
+	// the prefix is everything before the last segment (the method name the
+	// CRUD mapping derives from the table).
 	prefix := rest[:end]
 	if prefix == "" {
 		return ""

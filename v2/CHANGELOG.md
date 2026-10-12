@@ -2,6 +2,21 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [Unreleased]
+
+### Changed
+
+- `-prefix` now names the gRPC surface too: the prefix's segments become the
+  leading segments of the generated proto package (`-prefix /api/v1` for
+  `UserService` declares `package api.v1.userservice;`), so the gRPC full
+  method path moves to `/api.v1.userservice.UserService/...` in lockstep with
+  the HTTP routes. The generated client and server derive the path from the
+  same fields and stay in sync; the pb Go package and file layout are
+  unaffected. Prefix segments must be lowercase identifiers — a segment
+  protoc would reject is refused at generation time. Existing projects
+  regenerating with a prefix move their gRPC wire path; clients generated
+  from the refreshed contract follow.
+
 ## [2.25.0] - 2026-10-12
 
 ### Added
