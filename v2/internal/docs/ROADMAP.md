@@ -2647,6 +2647,13 @@ Findings recorded by the replication, still open:
   customServerOptions()...)` list. The generated code is correct, but the
   shape is non-obvious — worth remembering before anyone "simplifies" it back
   to a trailing spread.
+- Regeneration never prunes artifacts of a service that was renamed or
+  removed from the IDL: the old service/endpoint/transport/sdk trees stay on
+  disk, unmanaged and unlisted. They still compile together, so nothing
+  breaks until the user deletes some of them by hand — as happened during
+  the replication cleanup, when removing one stale tree without the others
+  broke the build. Deferred: a pruning pass (or at least a warning) when a
+  manifest's service list shrinks.
 Acceptance:
 
 ```bash

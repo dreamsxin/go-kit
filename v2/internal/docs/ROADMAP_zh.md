@@ -2049,6 +2049,11 @@ go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,
   因此生成的传输把选项组装成一个 `append([]server.ServerOption{...},
   customServerOptions()...)` 列表。生成代码是正确的，但形状并不直观——在有人
   想"简化"回尾随展开之前，值得记住这一点。
+- 重新生成从不清理已从 IDL 中改名或删除的服务的产物：旧的
+  service/endpoint/transport/sdk 树留在磁盘上，不受管理、不在清单里。它们
+  放在一起仍能编译，所以什么都不坏——直到用户手动删掉其中一部分。复刻收尾
+  清理时就发生了：删了一棵旧树而漏了另一棵，构建随即失败。延后处理：清单的
+  服务列表缩小时做一次清理（或至少警告）。
 验收：
 
 ```bash
