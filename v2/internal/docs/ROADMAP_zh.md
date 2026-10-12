@@ -2054,6 +2054,11 @@ go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,
   放在一起仍能编译，所以什么都不坏——直到用户手动删掉其中一部分。复刻收尾
   清理时就发生了：删了一棵旧树而漏了另一棵，构建随即失败。延后处理：清单的
   服务列表缩小时做一次清理（或至少警告）。
+- 重复键存储错误在框架拥有的任何路径上都没有分类：生成的仓储不会把
+  `gorm.ErrDuplicatedKey` 映射到 `apperror.KindAlreadyExists`，没有文档教这个
+  映射，手写存储只能退化成对驱动错误文本的易碎字符串匹配。复刻的全量 API
+  巡检踩中了它——一条未分类的 UNIQUE 冲突以 500 露出。延后处理：在生成的
+  仓储里分类重复键，并在 CRUD 教程的 not-found 模式旁边展示同样的分类。
 验收：
 
 ```bash

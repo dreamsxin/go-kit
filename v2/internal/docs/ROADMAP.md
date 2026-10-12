@@ -2654,6 +2654,14 @@ Findings recorded by the replication, still open:
   the replication cleanup, when removing one stale tree without the others
   broke the build. Deferred: a pruning pass (or at least a warning) when a
   manifest's service list shrinks.
+- Duplicate-key storage errors have no classification anywhere the
+  framework owns: the generated repository does not map
+  `gorm.ErrDuplicatedKey` to `apperror.KindAlreadyExists`, no document
+  teaches the mapping, and a hand-written store falls back to fragile
+  string-matching against driver text. The full API sweep of the
+  replication hit it — an unclassified UNIQUE violation surfaced as 500.
+  Deferred: classify duplicates in the generated repository, and show the
+  same classification beside the not-found pattern in the CRUD tutorial.
 Acceptance:
 
 ```bash
