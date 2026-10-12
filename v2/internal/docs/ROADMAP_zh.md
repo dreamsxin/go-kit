@@ -2067,6 +2067,69 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## 里程碑 27（已完成）：无人丢失的记录
+
+以模块级设计评审对照成熟 Go 框架（原版 go-kit、kratos、go-zero、
+failsafe-go、OpenTelemetry SDK、官方 MCP Go SDK）得出：分层与防御性默认值
+经得起对比，而框架自身承诺超出接线能力的两处已经修复。两处都是"记录丢失"
+型缺陷——只在出事之后才显形的那一类。
+
+已落地：
+
+- **Serve 错误保留，不再丢弃。** `kit.Host` 把异步组件故障经一次非阻塞发送
+  转入比组件数仅多一的缓冲，`Run` 取一个值便不再监听：爆发宽度超过缓冲的
+  故障、drain 与拆除窗口期到达的任何故障都会无声消失——与架构文档"持续
+  汇报直至停机"的承诺相悖。现在每条 serve 错误都保留到 Shutdown 完成并
+  合并进 `Run` 的返回值（`kit.serve-errors-retained`）；`Errors` 通道是
+  唤醒流。HTTP 与 gRPC 组件的 serve goroutine 等待持有通道的消费者——
+  终结性的 serve 故障宁可停靠也不消失——等待在宣告停止时结束。门禁对照
+  旧行为验证：五条故障，丢失四条。
+- **traceparent 头与 OpenTelemetry trace 是同一条 trace。** 传输层把入站
+  `traceparent` 提取进 `endpoint.TraceContext`，而
+  `oteladapter.TracingMiddleware` 的 `tracer.Start` 看不见它：每个服务的
+  span 都是带着新 trace ID 的全新根，头部本已连起来的跨服务树对任何后端
+  都不可见。中间件现在双向桥接（`otel.traceparent-bridged`）：框架提取的
+  context 作为 span 的父，并把采样决定经父采样器带过来；没有框架关联值的
+  span 把自己的身份发布为关联值，出站 `traceparent` 头与日志 `trace_id`
+  因此指向导出的 trace。context 里已有的 OpenTelemetry 父节点仍然优先；
+  已有关联值永不被覆盖。两份 README、`PRODUCTION.md` 与架构文档的生命周期
+  契约已改为陈述实际运行的机制。
+
+评审记录的发现，此处有意不修：
+
+- 校验是两套并行系统：tag 驱动的 `validation` 包与接口驱动的
+  `endpoint.Validatable`，产出两种错误形状；`default` tag 被解析却从未
+  生效。tag 子集远小于 go-playground/validator，而框架手里有 microgen 这个
+  天然的单一来源——延后是因为还没在"实现 default（中间件改写入参，是策略
+  决定）"与"删掉该 tag（破坏性变更，留给下一个触碰校验的里程碑）"之间
+  做出选择。
+- `endpoint.DefaultRetryable` 只看结构化 `ErrorKindName()` 契约，只实现
+  typed `apperror.Kinder` 而没有名字字符串的错误永远不会被重试。每个
+  `apperror.Error` 值两者都满足，所以缺口只影响第三方模仿者；补上它要么
+  引入 import（破坏 endpoint 的 stdlib-only 边界），要么对命名字符串类型做
+  反射。记录为隔离税的已知形态。
+- apperror 的 kind 名以常量形式复制在 `endpoint/classification.go`，为的是
+  该包 stdlib-only。传输层先读 typed kind，漂移只会误分类第三方错误；跨包
+  一致性门禁得解析源码（常量未导出），代价大于它防住的漂移。
+- endpoint 包有三个语义重叠的并发限制器：Backpressure（全局、拒绝）、
+  InFlight（同一者外加暴露的计数器）、Bulkhead（按 key、排队）。InFlight
+  就是 Backpressure 加计数器；合并它们只会删掉一个有文档的构造函数，换一个
+  命名收益。
+- interaction 包的 `Hook` 只覆盖工具调用——会话、资源、prompt 没有钩子；
+  `mcp.StreamableHandler` 用导出字段而非其他包一律采用的 options 风格配置。
+  两者都是可加的缝隙，都不阻塞任何有文档的工作流。
+- 框架自维护 MCP 协议实现，而官方 Go SDK 已存在。本框架的版本在协议之上
+  加了 `MethodAuthorizer` 与关联值契约；留在树内是当前决定，代价是跟随规范的
+  协议版本演进（已支持两版）——若出现第三个版本，值得重新评估。
+
+验收：
+
+```bash
+go test ./kit/... ./observability/otel -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

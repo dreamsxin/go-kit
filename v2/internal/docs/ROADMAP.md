@@ -2670,6 +2670,86 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## Milestone 27 (Complete): The Record Nobody Loses
+
+Found by a module-level design review against the mature Go frameworks (the
+original go-kit, kratos, go-zero, failsafe-go, the OpenTelemetry SDK, the
+official MCP Go SDK): the layering and the defensive defaults held up, and two
+places where the framework's own promise outran its wiring were fixed. Both
+fixes were lost-record problems — the kind that only shows up when something
+has already gone wrong.
+
+Landed:
+
+- **Serve errors are retained, not dropped.** A `kit.Host` forwarded
+  asynchronous component failures through a non-blocking send into a buffer one
+  wider than the component count, and `Run` consumed one value and stopped
+  listening: a burst wider than the buffer, or any failure during the drain and
+  teardown window, vanished — against the architecture's own "reported until
+  shutdown" promise. Every serve error is now retained until Shutdown completes
+  and joined into `Run`'s result (`kit.serve-errors-retained`); the `Errors`
+  channel is the wake-up stream. The HTTP and gRPC components' serve goroutines
+  wait for the consumer that owns their channel — a terminal serve failure
+  parks rather than vanishes — and the wait ends when the stop is announced.
+  Gate verified against the old behaviour: five failures, four lost.
+- **The traceparent header and the OpenTelemetry trace are one trace.** The
+  transports extract the incoming `traceparent` into `endpoint.TraceContext`,
+  which `oteladapter.TracingMiddleware`'s `tracer.Start` could not see: every
+  service's spans were fresh roots with fresh trace IDs, and the cross-service
+  tree the header already connected was invisible to any backend. The
+  middleware now bridges both ways (`otel.traceparent-bridged`): a
+  framework-extracted context parents the span and carries the sampling
+  decision through the parent-based sampler; a span with no framework
+  correlation publishes its identity as the correlation values, so outgoing
+  `traceparent` headers and logged `trace_id`s name the exported trace. An
+  OpenTelemetry parent already present still wins; an existing correlation is
+  never overridden. The READMEs, `PRODUCTION.md`, and the architecture's
+  lifecycle contract now state the mechanism that actually runs.
+
+Findings recorded by the review, deliberately not fixed here:
+
+- Validation is two parallel systems: the tag-driven `validation` package and
+  the interface-driven `endpoint.Validatable`, producing two different error
+  shapes; the `default` tag is parsed and silently never enforced. The tag
+  system's subset is far smaller than go-playground/validator's, and the
+  framework has microgen as a natural single source — the deferral is between
+  implementing defaults (middleware that mutates requests, a policy decision)
+  and removing the tag (a breaking change saved for the next milestone that
+  touches validation). Neither half of the choice has been made.
+- `endpoint.DefaultRetryable` only sees the structural `ErrorKindName()`
+  contract, so an error implementing only the typed `apperror.Kinder` — without
+  the name string — is never retried. Every `apperror.Error` value satisfies
+  both, so the gap is third-party mimics only; closing it needs either an
+  import (breaking endpoint's stdlib-only boundary) or reflection over a named
+  string type. Recorded as a known shape of the isolation tax.
+- The apperror kind names are duplicated as constants in
+  `endpoint/classification.go` to keep that package stdlib-only. Transports
+  read the typed kind first, so a drift would only misclassify third-party
+  errors; a cross-package agreement gate would have to parse source (the
+  constants are unexported), which costs more than the drift it guards.
+- The endpoint package carries three overlapping concurrency limiters:
+  Backpressure (global, sheds), InFlight (the same plus an exposed counter),
+  and Bulkhead (per-key, queues). InFlight is Backpressure plus a counter;
+  collapsing them would delete a documented constructor for a naming gain
+  only.
+- The interaction package's `Hook` covers tool calls only — sessions,
+  resources, and prompts have no hooks — and `mcp.StreamableHandler` is
+  configured through exported fields rather than the options style every other
+  package uses. Both are additive seams; neither blocks a documented workflow.
+- The framework maintains its own MCP protocol implementation while an official
+  Go SDK exists. The framework's version adds `MethodAuthorizer` and the
+  correlation contract on top; keeping it in-tree is the current decision, and
+  the cost is tracking the spec's protocol revisions (two are already
+  supported) — worth revisiting if a third revision lands.
+
+Acceptance:
+
+```bash
+go test ./kit/... ./observability/otel -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria
