@@ -243,6 +243,52 @@ function as both `TypedEndpoint()` (for `HandleJSONTyped`) and `GRPCServer()`
 (for the generated register call). Per-call metrics use the recording
 interceptors labeled with the full method name.
 
+### How a gRPC method is addressed
+
+A gRPC method has no URL prefix — its address is the full method path from
+the proto contract:
+
+```text
+/<proto package>.<Service>/<Method>
+```
+
+For a service named `UserService` in the IDL, the generated proto declares
+`package userservice;` and `service UserService`, so a client calls
+`/userservice.UserService/SayHello`. The name chain is fixed: the proto
+package is the lowercased service name, the service type is the service name,
+and the methods are the IDL methods — none of them move when the HTTP prefix
+changes, because the prefix is an HTTP concept. Renaming the service in the
+IDL renames all three.
+
+### What the HTTP prefix does and does not touch
+
+`-prefix /api/v1` (or `-prefix api/v1` — the leading slash is normalized)
+prepends `/api/v1` to the **HTTP** routes and the OpenAPI paths of a
+generated project. It does not rename the proto package, the gRPC service,
+or the full method path: a gRPC client generated from the same contract
+keeps calling `/userservice.UserService/SayHello` unchanged. The two
+transports share the endpoints and the health probes; only the HTTP surface
+moves.
+
+### Routes in hand-written gRPC
+
+The component's server accepts standard registration:
+
+```go
+comp, err := kitgrpc.New(":8081")
+if err != nil {
+	log.Fatal(err)
+}
+pb.RegisterOrderServiceServer(comp.Server(), orderServer)
+```
+
+Health (`grpc_health_v1.Check` and `Watch`) is registered automatically from
+the probe registry, and per-call metrics attach through the recording
+interceptors — both without extra wiring. A hand-written method whose
+middleware needs the method name reads it through
+`grpcserver.Interceptor`; error encoding follows the same
+`apperror`-kind-to-status mapping as HTTP, via the gRPC error encoder.
+
 ## Routes in generated projects
 
 `microgen` registers one route per unary method through
@@ -250,7 +296,10 @@ interceptors labeled with the full method name.
 registration is the only place a handler and its pattern are in scope, which
 is why per-route middleware is installed there. The `-prefix` flag sets a
 route prefix; with `-prefix /api` a `userservice` route becomes
-`/api/userservice/...`.
+`/api/userservice/...` — the HTTP surface only; the gRPC full method path is
+unaffected (see [gRPC routes](#grpc-routes)). On Git Bash, quote the value
+(`-prefix "api/v1"`) so the path is not rewritten by the shell's path
+conversion.
 
 Your routes go in the write-once hook `cmd/custom_routes.go`:
 

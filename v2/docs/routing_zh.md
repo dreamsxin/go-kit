@@ -209,12 +209,53 @@ context 的是 `grpcserver.Interceptor`。一个 handler、两种协议：`trans
 `GRPCServer()`（给生成的注册调用）。按调用指标使用以完整方法名标注的记录拦截
 器。
 
+### gRPC 方法如何被寻址
+
+gRPC 方法没有 URL 前缀——它的地址是 proto 契约中的完整方法路径：
+
+```text
+/<proto 包名>.<Service>/<Method>
+```
+
+IDL 中名为 `UserService` 的服务，生成的 proto 声明 `package userservice;` 与
+`service UserService`，客户端调用的即
+`/userservice.UserService/SayHello`。这条名字链是固定的：proto 包名是小写的服
+务名，服务类型是服务名，方法是 IDL 方法——HTTP 前缀变化时它们都不移动，因为前
+缀是 HTTP 的概念。重命名 IDL 中的服务会同时重命名三者。
+
+### HTTP 前缀触及什么、不触及什么
+
+`-prefix /api/v1`（或 `-prefix api/v1`——开头的斜杠会被归一化）把 `/api/v1` 加到
+生成项目的 **HTTP** 路由与 OpenAPI 路径前面。它不会重命名 proto 包名、gRPC 服务
+或完整方法路径：由同一契约生成的 gRPC 客户端调用
+`/userservice.UserService/SayHello` 保持不变。两种传输共享端点与健康探针；移动
+的只有 HTTP 表面。
+
+### 手写 gRPC 的路由
+
+组件的 server 接受标准注册：
+
+```go
+comp, err := kitgrpc.New(":8081")
+if err != nil {
+	log.Fatal(err)
+}
+pb.RegisterOrderServiceServer(comp.Server(), orderServer)
+```
+
+健康服务（`grpc_health_v1.Check` 与 `Watch`）从探针注册表自动注册，按调用指标
+通过记录拦截器附加——都无需额外接线。中间件需要方法名的 handler 通过
+`grpcserver.Interceptor` 读取；错误编码与 HTTP 一样遵循
+`apperror`-kind-到-状态的映射，经 gRPC 错误编码器实现。
+
 ## 生成项目中的路由
 
 `microgen` 通过 `transport/http/server.RouteRegistrar` 为每个一元方法注册一条
 路由——`*http.ServeMux` 天然满足它，而注册点是 handler 与其模式唯一同时可见的
 地方，这正是按路由中间件安装在那里的原因。`-prefix` 标志设置路由前缀；带
-`-prefix /api` 时 `userservice` 的路由变成 `/api/userservice/...`。
+`-prefix /api` 时 `userservice` 的路由变成 `/api/userservice/...`——只触及
+HTTP 表面；gRPC 的完整方法路径不受影响（见 [gRPC 路由](#gRPC-路由)）。在 Git
+Bash 中请给值加引号（`-prefix "api/v1"`），避免路径被 shell 的路径转换改写。
 
 你的路由放进只写一次的钩子 `cmd/custom_routes.go`：
 

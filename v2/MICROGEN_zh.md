@@ -120,7 +120,7 @@ microgen \
 | `-import` | 生成的 Go module 路径 |
 | `-service` | 生成的服务名；默认取契约中的第一个服务 |
 | `-protocols` | `http` 或 `http,grpc` |
-| `-prefix` | HTTP 路由前缀 |
+| `-prefix` | HTTP 路由前缀（gRPC 完整方法路径不受影响） |
 | `-config` | 生成配置支持，默认 `false` |
 | `-config-mode` | `file`、`hybrid` 或 `remote` |
 | `-remote-provider` | 远程配置提供方；当前支持 `consul` |

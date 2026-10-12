@@ -82,6 +82,12 @@ English | [简体中文](CHANGELOG_zh.md)
   registration, which is what makes it readable. The semantics follow the
   framework-agnostic convention (Echo's groups) adapted to the two-layer
   model.
+- The Routing chapter explains how a gRPC method is addressed (the full
+  method path from the proto contract), that the HTTP `-prefix` moves only
+  the HTTP surface — the gRPC full method path is unaffected — and how
+  hand-written gRPC services register through the kit/grpc component with
+  health and metrics wired. The generated-project section and MICROGEN's
+  option table state the same scope for `-prefix`.
 - A fresh generated project's `go test ./...` is green. The generated tests
   skip every not-yet-implemented method — the skip message names the method
   and the file to implement in, turning the stub list into a checklist — and
