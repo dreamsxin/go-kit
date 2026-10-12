@@ -38,9 +38,11 @@ defer func() {
 - 给 `Shutdown` 一个截止时间。它会等最后一批数据导出完成，否则一个不再应答的
   collector 会一直拖住进程退出。
 
-`Setup` 之所以装配全局 propagator：正是它让一条 trace 能跨越一跳——本框架的传输
-读写 `traceparent` 头，而任何使用 OpenTelemetry API 的库都通过这个 propagator
-与它们互通。
+`Setup` 装配全局 propagator，是为了让任何使用 OpenTelemetry API 的库都能
+提取并注入本框架传输层读写的同一个 `traceparent` 头。而端点追踪中间件负责
+反方向的桥接：框架传输层提取出的 trace context 会作为它所启动 span 的父
+节点；没有框架关联值时，span 会把自己的身份发布出去——导出的 trace、
+出站的 `traceparent` 头、日志里的 `trace_id` 由此是同一条，跨每一跳都成立。
 
 ## Endpoint 遥测
 

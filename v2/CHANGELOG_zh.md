@@ -27,6 +27,17 @@
   终结性的 serve 故障，等待在宣告停止时结束。由
   `TestRunJoinsEveryAsyncComponentFailure` 钉住——它在旧行为下以五条丢失
   四条的方式失败。
+- `observability/otel` 追踪中间件启动的 OpenTelemetry span 永远是全新根。
+  框架传输层把入站 W3C `traceparent` 提取进 context 里的
+  `endpoint.TraceContext`，OpenTelemetry 的 tracer 看不见它，于是每个服务
+  的 span 都带着新的 trace ID，头部本已连起来的跨服务树对任何追踪后端都
+  不可见——而文档声称的互操作在接线上并不存在。中间件现在双向桥接
+  （`otel.traceparent-bridged`）：框架提取的 trace context 作为 span 的父
+  （其 sampled 标志经父采样器决定采样），没有框架关联值的 span 把自己的
+  身份发布为关联值——导出的 trace、出站的 `traceparent` 头、日志里的
+  `trace_id` 由此跨每一跳是同一条 trace。context 里已有的 OpenTelemetry
+  父节点仍然优先，已有的关联值永不被覆盖。`PRODUCTION.md`、两份 otel
+  README 与架构文档的生命周期契约已改为描述实际运行的机制。
 
 - 唯一约束冲突在所有生成路径上都有分类。生成的 main 以 `TranslateError`
   打开 gorm，驱动的重复键错误以 `gorm.ErrDuplicatedKey` 到达；生成的仓储

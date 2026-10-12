@@ -39,10 +39,14 @@ defer func() {
 - Give `Shutdown` a deadline. It blocks while the last batch is exported, and a
   collector that stopped answering would otherwise hold process exit.
 
-`Setup` installs the global propagator because that is what makes a trace
-continue across a hop: the transports in this framework read and write the
-`traceparent` header, and any library using the OpenTelemetry API interoperates
-with them through that propagator.
+`Setup` installs the global propagator so that any library speaking the
+OpenTelemetry API extracts and injects the same `traceparent` header this
+framework's transports carry. The endpoint tracing middleware does the
+bridging in the other direction: a trace context the framework's transports
+extracted parents the span it starts, and a span with no framework
+correlation publishes its own — so the exported trace, the outgoing
+`traceparent` header, and the `trace_id` the logs carry are one trace, across
+every hop.
 
 ## Endpoint Telemetry
 

@@ -33,6 +33,22 @@ English | [简体中文](CHANGELOG_zh.md)
   serve failure, and the wait ends when the stop is announced. Pinned by
   `TestRunJoinsEveryAsyncComponentFailure`, which fails on the previous
   behaviour with four of five failures lost.
+- An OpenTelemetry span started by `observability/otel`'s tracing middleware
+  was always a fresh root. The framework's transports extract the incoming W3C
+  `traceparent` into an `endpoint.TraceContext` in the context, which the
+  OpenTelemetry tracer cannot see, so every service's spans carried a new
+  trace ID and the cross-service tree the header already connected was
+  invisible to any tracing backend — the docs claimed interoperability the
+  wiring did not have. The middleware now bridges both ways
+  (`otel.traceparent-bridged`): a framework-extracted trace context parents
+  the span (and its sampled flag decides sampling through the parent-based
+  sampler), and a span with no framework correlation publishes its identity as
+  the correlation values — so the exported trace, the outgoing `traceparent`
+  header, and the logged `trace_id` are one trace across every hop. An
+  OpenTelemetry parent already in the context still wins, and an existing
+  correlation is never overridden. `PRODUCTION.md`, both otel READMEs, and
+  the architecture's lifecycle contract now describe the mechanism that
+  actually runs.
 
 - Unique-constraint violations are classified on every generated path. The
   generated main opens gorm with `TranslateError`, so a driver's

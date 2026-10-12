@@ -5,6 +5,7 @@ package oteladapter
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 
 	"go.opentelemetry.io/otel"
@@ -47,9 +48,23 @@ var errEndpointPanicked = errors.New("endpoint panicked")
 // TracingMiddleware creates one span for each endpoint invocation. A nil
 // tracer uses the application's configured global provider.
 //
+// The trace context the framework's transports extracted — the W3C traceparent
+// header parsed into an endpoint.TraceContext — parents this span when the
+// context carries no OpenTelemetry span of its own, and the span's identity is
+// installed as the correlation values the framework reads when none are set.
+// One request therefore describes one trace everywhere it goes: the traceparent
+// header a client receives continues this span, and the trace_id the logging
+// middleware records is the exported trace's own.
+//
 // A panic ends the span with an Error status and a recorded exception, then
 // propagates. Only span.End would run otherwise, leaving the span Unset —
 // indistinguishable from a success to most backends.
+//
+// Stable: otel.traceparent-bridged — a framework-extracted traceparent parents
+// the span when no OpenTelemetry span is present, and a span with no
+// framework correlation installs its own, so the header, the exported trace,
+// and the logged trace_id name one trace.
+// Covered by: TestTracingMiddlewareBridgesTheFrameworkTraceContext, TestTracingMiddlewareInstallsCorrelationFromTheSpan, TestTracingMiddlewareDefersToAnOtelParent
 func TracingMiddleware(tracer trace.Tracer, operation string, options ...TraceOption) endpoint.Middleware {
 	if tracer == nil {
 		tracer = otel.Tracer(instrumentationName)
@@ -63,10 +78,12 @@ func TracingMiddleware(tracer trace.Tracer, operation string, options ...TraceOp
 
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (response any, err error) {
+			ctx = bridgeFrameworkTraceContext(ctx)
 			spanCtx, span := tracer.Start(ctx, operation,
 				trace.WithSpanKind(cfg.kind),
 				trace.WithAttributes(cfg.attributes...),
 			)
+			spanCtx = installSpanCorrelation(spanCtx, span)
 			returned := false
 			defer func() {
 				if !returned {
@@ -87,6 +104,85 @@ func TracingMiddleware(tracer trace.Tracer, operation string, options ...TraceOp
 			return response, err
 		}
 	}
+}
+
+// bridgeFrameworkTraceContext parents the span in the trace context the
+// framework's transports extracted when the request context carries no
+// OpenTelemetry span of its own. Without it, the first span of every service
+// would be a fresh root with a fresh trace ID, and the cross-service tree the
+// traceparent header already connects would stay invisible to a tracing
+// backend.
+//
+// An OpenTelemetry span already in the context wins: a caller that extracted
+// through the OpenTelemetry API — or a middleware above this one that started
+// a span — set the parent, and the correlation values it carried are left
+// untouched rather than overridden.
+func bridgeFrameworkTraceContext(ctx context.Context) context.Context {
+	if trace.SpanContextFromContext(ctx).IsValid() {
+		return ctx
+	}
+	tc := endpoint.TraceContextFromContext(ctx)
+	if !tc.Valid() {
+		return ctx
+	}
+	var traceID trace.TraceID
+	var spanID trace.SpanID
+	// The lengths and the lowercase-hex alphabet were checked by tc.Valid();
+	// the decode cannot fail, and a zero value on the impossible path would
+	// simply fail the span context's own validation below.
+	_, _ = hex.Decode(traceID[:], []byte(tc.TraceID))
+	_, _ = hex.Decode(spanID[:], []byte(tc.SpanID))
+	flags := w3cFlags(tc.Flags)
+	sc := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    traceID,
+		SpanID:     spanID,
+		TraceFlags: flags,
+		Remote:     true,
+	})
+	if !sc.IsValid() {
+		return ctx
+	}
+	return trace.ContextWithRemoteSpanContext(ctx, sc)
+}
+
+// installSpanCorrelation publishes the span's identity through the
+// correlation values the framework reads when none are set: the trace context
+// the HTTP client injects into outgoing traceparent headers, and the trace ID
+// the logging middleware records. It fills an absence; a correlation that
+// arrived from elsewhere is not overridden, so an assembly that runs both this
+// middleware and endpoint.TracingMiddleware keeps the identity the built-in
+// middleware minted.
+func installSpanCorrelation(ctx context.Context, span trace.Span) context.Context {
+	if endpoint.TraceContextFromContext(ctx).Valid() {
+		return ctx
+	}
+	sc := span.SpanContext()
+	if !sc.IsValid() {
+		return ctx
+	}
+	flags := "00"
+	if sc.IsSampled() {
+		flags = "01"
+	}
+	tc := endpoint.TraceContext{
+		TraceID: sc.TraceID().String(),
+		SpanID:  sc.SpanID().String(),
+		Flags:   flags,
+	}
+	ctx = endpoint.WithTraceContext(ctx, tc)
+	return endpoint.WithTraceID(ctx, endpoint.TraceID(tc.TraceID))
+}
+
+// w3cFlags converts the two-hex-digit trace-flags field into OpenTelemetry
+// trace flags. Only the sampled bit is defined by the specification today; the
+// reserved bits are cleared rather than forwarded, which is what a
+// propagator is supposed to do with them.
+func w3cFlags(field string) trace.TraceFlags {
+	raw, err := hex.DecodeString(field)
+	if err != nil || len(raw) != 1 {
+		return 0
+	}
+	return trace.TraceFlags(raw[0] & byte(trace.FlagsSampled))
 }
 
 type metricsOptions struct {

@@ -456,9 +456,12 @@ the W3C `traceparent` header end to end:
 - Clients forward the active trace with `transport/http.InjectTraceparent`
   as a client `Before` hook.
 
-`observability/otel` remains the right choice for full span trees; the core
-helpers keep trace IDs connected across service boundaries with no
-dependencies.
+`observability/otel` is the right choice for full span trees, and the tree now
+survives service boundaries by construction: the adapter's tracing middleware
+parents each span in the trace context the framework's transports extracted,
+so the trace the backend sees, the traceparent header the next hop receives,
+and the `trace_id` the logs carry are one and the same. Provider setup,
+exporters, and sampling remain application owned.
 
 ## Health
 

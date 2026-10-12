@@ -387,8 +387,10 @@ endpoint、transport、发现与交互调用；在有意义的边界创建 span�
 - 客户端用 `transport/http.InjectTraceparent` 作为 `Before` 钩子转发
   活跃追踪。
 
-完整 span 树仍应使用 `observability/otel`；核心辅助函数以零依赖的方式
-让 trace ID 跨服务边界保持连通。
+完整 span 树应使用 `observability/otel`，而且这棵树如今在构造上就能跨过
+服务边界：适配层的追踪中间件以框架传输层提取出的 trace context 作为每个
+span 的父节点，后端看到的 trace、下一跳收到的 `traceparent` 头、日志里
+记录的 `trace_id` 因此是同一条。provider 设置、导出器与采样仍由应用持有。
 
 ## 健康检查
 

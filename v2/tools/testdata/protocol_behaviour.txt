@@ -177,6 +177,7 @@ stable/metrics.series-are-per-operation
 stable/microgen.route-override
 stable/openapi.security-scheme
 stable/otel.metrics-agree-with-the-exposition
+stable/otel.traceparent-bridged
 stable/sd.client-invalid-balancer-releases-resources
 stable/sd.client-retry-timing-is-configurable
 stable/sd.feedback-ejection-cap-holds-under-concurrency
