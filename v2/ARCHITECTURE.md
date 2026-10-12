@@ -336,13 +336,12 @@ snapshot through their shared subscription state machine.
 
 ## Stability
 
-`v2.25.0` is the current released contract. It establishes the reviewed package
+`v2.26.0` is the candidate on `main`. It carries the reviewed package
 graph, lifecycle ownership, transport error model, and generated project layout
-captured by the release manifest and API snapshot. This release states file
-ownership in every generated project — the standard generated-code marker on
-rewritten files, write-once scaffolds that announce they are never overwritten —
-fixes a panic in the generated service tests, and corrects the tutorial curl
-calls.
+captured by the release manifest and API snapshot. This candidate lets an IDL
+declare its exact routes (`route:`) and its per-route response and error
+encoding (`transport/<service>/custom_options.go`), and names the gRPC surface
+with the same `-prefix` as HTTP.
 Existing public signatures and
 package boundaries remain compatible. The injected retry clock controls waits;
 context deadlines and measured request durations continue to use real time.
