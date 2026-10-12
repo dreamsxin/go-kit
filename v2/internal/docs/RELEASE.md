@@ -3,7 +3,7 @@ English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
-v2.26.0 is the candidate being prepared from `main`:
+v2.26.0 is the current published release of the module:
 
 ```text
 github.com/dreamsxin/go-kit/v2

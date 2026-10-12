@@ -336,9 +336,9 @@ snapshot through their shared subscription state machine.
 
 ## Stability
 
-`v2.26.0` is the candidate on `main`. It carries the reviewed package
+`v2.26.0` is the current released contract. It establishes the reviewed package
 graph, lifecycle ownership, transport error model, and generated project layout
-captured by the release manifest and API snapshot. This candidate lets an IDL
+captured by the release manifest and API snapshot. This release lets an IDL
 declare its exact routes (`route:`) and its per-route response and error
 encoding (`transport/<service>/custom_options.go`), and names the gRPC surface
 with the same `-prefix` as HTTP.

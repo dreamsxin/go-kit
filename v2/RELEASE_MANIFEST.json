@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "phase": "candidate",
-  "releaseDate": "",
+  "phase": "released",
+  "releaseDate": "2026-10-12",
   "coreVersion": "v2.26.0",
   "tag": "v2.26.0"
 }

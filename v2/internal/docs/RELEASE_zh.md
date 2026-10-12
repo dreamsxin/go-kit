@@ -3,7 +3,7 @@
 
 ## 当前状态
 
-v2.26.0 是本次从 `main` 准备的候选版本：
+v2.26.0 是当前已发布的模块版本：
 
 ```text
 github.com/dreamsxin/go-kit/v2
