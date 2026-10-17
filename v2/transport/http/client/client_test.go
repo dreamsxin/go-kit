@@ -14,8 +14,73 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dreamsxin/go-kit/v2/endpoint"
 	httpclient "github.com/dreamsxin/go-kit/v2/transport/http/client"
 )
+
+// TestClientInjectsTraceparentByDefault pins httpclient.traceparent-by-default:
+// the HTTP client matches the gRPC client and propagates without an opt-in hook.
+func TestClientInjectsTraceparentByDefault(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("traceparent")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	target, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ep := httpclient.NewExplicitClient(
+		func(ctx context.Context, _ *http.Request, _ any) (*http.Request, error) {
+			return http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+		},
+		func(context.Context, *http.Response) (any, error) { return nil, nil },
+	).Endpoint()
+
+	tc := endpoint.TraceContext{
+		TraceID: "4bf92f3577b34da6a3ce929d0e0e4736",
+		SpanID:  "00f067aa0ba902b7",
+		Flags:   "01",
+	}
+	ctx := endpoint.WithTraceContext(context.Background(), tc)
+	if _, err := ep(ctx, struct{}{}); err != nil {
+		t.Fatalf("call: %v", err)
+	}
+	if want := "00-" + tc.TraceID + "-" + tc.SpanID + "-01"; got != want {
+		t.Fatalf("traceparent = %q, want %q", got, want)
+	}
+}
+
+// TestClientWithoutTraceLeavesHeaderUnset pins the other half: no context
+// correlation means no invented header.
+func TestClientWithoutTraceLeavesHeaderUnset(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("traceparent")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	target, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ep := httpclient.NewExplicitClient(
+		func(ctx context.Context, _ *http.Request, _ any) (*http.Request, error) {
+			return http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+		},
+		func(context.Context, *http.Response) (any, error) { return nil, nil },
+	).Endpoint()
+
+	if _, err := ep(context.Background(), struct{}{}); err != nil {
+		t.Fatalf("call: %v", err)
+	}
+	if got != "" {
+		t.Fatalf("traceparent = %q, want unset for a context without a trace", got)
+	}
+}
 
 type echoReq struct {
 	Message string `json:"message"`

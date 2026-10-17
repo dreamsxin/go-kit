@@ -21,6 +21,7 @@ const (
 	logAttrSuccess   = "success"
 	logAttrError     = "error"
 	logAttrTraceID   = "trace_id"
+	logAttrSpanID    = "span_id"
 	logAttrRequestID = "request_id"
 )
 
@@ -39,6 +40,11 @@ func (r *Runtime) WithLogger(logger *slog.Logger) *Runtime {
 
 // logToolCall reports one completed or rejected tool call.
 //
+// Stable: mcp.tool-log-span-id — a tool-call record carries the same
+// trace_id/span_id the request path logs, naming this node's span only, so
+// several tool calls under one request are distinguishable in a log replay.
+// Covered by: TestLogToolCallCarriesCorrelation
+//
 // A failure logs at Error because nothing else reports it: a failed tool call
 // travels back to the model as a result, not as a transport error, so a
 // service with no log here has no signal that its tools are failing.
@@ -54,6 +60,9 @@ func (r *Runtime) logToolCall(ctx context.Context, call ToolCall, duration time.
 	}
 	if traceID := endpoint.TraceIDFromContext(ctx); traceID != "" {
 		attrs = append(attrs, slog.String(logAttrTraceID, string(traceID)))
+	}
+	if spanID := endpoint.SpanIDFromContext(ctx); spanID != "" {
+		attrs = append(attrs, slog.String(logAttrSpanID, string(spanID)))
 	}
 	if requestID := endpoint.RequestIDFromContext(ctx); requestID != "" {
 		attrs = append(attrs, slog.String(logAttrRequestID, requestID))

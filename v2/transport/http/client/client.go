@@ -36,6 +36,12 @@ func NewClient(method string, tgt *url.URL, enc EncodeRequestFunc, dec DecodeRes
 }
 
 // NewExplicitClient constructs an HTTP client from explicit request/response functions.
+//
+// Stable: httpclient.traceparent-by-default — every outbound call carries the
+// context's W3C traceparent without an opt-in hook, matching the gRPC client;
+// a context without a trace leaves the header unset, and a ClientBefore hook
+// still wins because it runs after the built-in one.
+// Covered by: TestClientInjectsTraceparentByDefault, TestClientWithoutTraceLeavesHeaderUnset
 func NewExplicitClient(req EncodeRequestFunc, dec DecodeResponseFunc, options ...ClientOption) *Client {
 	if req == nil || dec == nil {
 		panic("essential parameters cannot be nil")
@@ -44,6 +50,11 @@ func NewExplicitClient(req EncodeRequestFunc, dec DecodeResponseFunc, options ..
 		client: defaultClient,
 		req:    req,
 		dec:    dec,
+		// Trace context propagates by default, matching the gRPC client: a
+		// client that had to opt in would silently break every trace at the
+		// first HTTP hop somebody forgot. ClientBefore hooks run after this
+		// one and can overwrite the header.
+		before: []RequestFunc{transporthttp.InjectTraceparent},
 	}
 	for _, option := range options {
 		option(c)

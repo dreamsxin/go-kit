@@ -97,10 +97,25 @@ func NewTraceContext() TraceContext {
 	}
 }
 
-// WithTraceContext injects a W3C TraceContext into the context.
+// WithTraceContext injects a W3C TraceContext as the identity this node is
+// operating with — for example the OpenTelemetry span the tracing middleware
+// started — so SpanIDFromContext reports its span ID.
 func WithTraceContext(ctx context.Context, tc TraceContext) context.Context {
 	values := correlationFromContext(ctx)
 	values.trace = tc
+	values.spanOwned = tc.Valid()
+	return withCorrelation(ctx, values)
+}
+
+// WithIncomingTraceContext injects a trace context extracted from an inbound
+// request. Its span ID is the caller's — a remote parent — not a span this
+// node started, so TraceIDFromContext joins the caller's trace while
+// SpanIDFromContext stays empty until this node continues the trace through
+// TracingMiddleware or ContinueIncomingTrace.
+func WithIncomingTraceContext(ctx context.Context, tc TraceContext) context.Context {
+	values := correlationFromContext(ctx)
+	values.trace = tc
+	values.spanOwned = false
 	return withCorrelation(ctx, values)
 }
 
@@ -118,9 +133,32 @@ func WithTraceID(ctx context.Context, id TraceID) context.Context {
 }
 
 // TraceIDFromContext extracts the trace ID from the context.
-// Returns an empty string if not set.
+//
+// The W3C TraceContext is the single source of truth: an ID extracted from an
+// inbound traceparent is visible here even when no TracingMiddleware ran,
+// which is what lets a raw handler's logs join the caller's trace. A trace ID
+// installed explicitly through WithTraceID still wins, so the pre-W3C string
+// correlation API keeps its published semantics.
+// Returns an empty string when neither is set.
 func TraceIDFromContext(ctx context.Context) TraceID {
-	return correlationFromContext(ctx).traceID
+	values := correlationFromContext(ctx)
+	if values.traceID != "" {
+		return values.traceID
+	}
+	return TraceID(values.trace.TraceID)
+}
+
+// SpanIDFromContext extracts the span ID the framework minted for this
+// operation. It is empty when the context only carries a remote parent
+// extracted from an inbound request and no framework span was started on this
+// node: reporting the parent's ID as this node's span would build a wrong
+// tree. TracingMiddleware and ContinueIncomingTrace mint one.
+func SpanIDFromContext(ctx context.Context) SpanID {
+	values := correlationFromContext(ctx)
+	if !values.spanOwned {
+		return ""
+	}
+	return SpanID(values.trace.SpanID)
 }
 
 // WithRequestID injects a request ID into the context.
@@ -145,6 +183,9 @@ type correlation struct {
 	trace     TraceContext
 	traceID   TraceID
 	requestID string
+	// spanOwned marks trace.SpanID as minted by this node. Extraction installs
+	// a remote parent, whose ID must not be reported as this node's span.
+	spanOwned bool
 }
 
 func withCorrelation(ctx context.Context, values correlation) context.Context {
@@ -209,27 +250,49 @@ func fillWeakRandom(b []byte) {
 func TracingMiddleware() Middleware {
 	return func(next Endpoint) Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
-			values := correlationFromContext(ctx)
-			switch {
-			case values.trace.Valid():
-				values.trace.SpanID = newSpanID()
-			case values.traceID != "":
-				values.trace = TraceContext{TraceID: string(values.traceID), SpanID: newSpanID(), Flags: "00"}
-				if !values.trace.Valid() {
-					values.trace = NewTraceContext()
-				}
-			default:
-				values.trace = NewTraceContext()
-			}
-			if values.traceID == "" {
-				values.traceID = TraceID(values.trace.TraceID)
-			}
-			if values.requestID == "" {
-				values.requestID = newID()
-			}
-			return next(withCorrelation(ctx, values), request)
+			return next(ContinueIncomingTrace(ctx), request)
 		}
 	}
+}
+
+// ContinueIncomingTrace advances the correlation for one operation on this
+// node: a valid trace context keeps its trace ID and flags and receives a
+// freshly minted span ID; a bare WithTraceID value is bridged into a W3C
+// context; otherwise a new trace is minted. A request ID is minted when the
+// context carries none.
+//
+// It is the identity step TracingMiddleware performs, exposed for a server
+// boundary that has no endpoint chain to hang the middleware on — a handler
+// mounted raw on the mux. TracingMiddleware stays the right call for an
+// endpoint.
+//
+// Stable: endpoint.trace-id-derives-from-context — an ID extracted from an
+// inbound traceparent is visible to TraceIDFromContext without running
+// TracingMiddleware, and SpanIDFromContext reports this node's span only
+// after the correlation was continued here.
+// Covered by: TestTraceIDFromContextDerivesFromExtractedContext,
+// TestContinueIncomingTraceMintsAChildSpan, TestSpanIDIsEmptyForARemoteParent
+func ContinueIncomingTrace(ctx context.Context) context.Context {
+	values := correlationFromContext(ctx)
+	switch {
+	case values.trace.Valid():
+		values.trace.SpanID = newSpanID()
+	case values.traceID != "":
+		values.trace = TraceContext{TraceID: string(values.traceID), SpanID: newSpanID(), Flags: "00"}
+		if !values.trace.Valid() {
+			values.trace = NewTraceContext()
+		}
+	default:
+		values.trace = NewTraceContext()
+	}
+	if values.traceID == "" {
+		values.traceID = TraceID(values.trace.TraceID)
+	}
+	if values.requestID == "" {
+		values.requestID = newID()
+	}
+	values.spanOwned = true
+	return withCorrelation(ctx, values)
 }
 
 func splitN(s string, sep byte) []string {

@@ -96,12 +96,14 @@ var (
 	}
 )
 FUNCTIONS
+func ContinueIncomingTrace(ctx context.Context) context.Context
 func DefaultPanicHandler(context.Context, any, any) error
 func DefaultRetryable(err error) bool
 func NewRetryAfterError(err error, after time.Duration) error
 func Nop(context.Context, any) (any, error)
 func RequestIDFromContext(ctx context.Context) string
 func ResponseError(response any) error
+func WithIncomingTraceContext(ctx context.Context, tc TraceContext) context.Context
 func WithOperationIntent(ctx context.Context, intent OperationIntent) context.Context
 func WithRequestID(ctx context.Context, id string) context.Context
 func WithTraceContext(ctx context.Context, tc TraceContext) context.Context
@@ -359,6 +361,7 @@ func WithRetryBackoff(backoff func(attempt int) time.Duration) RetryOption
 func WithRetryClock(clock Clock) RetryOption
 func WithRetryable(retryable func(error) bool) RetryOption
 type SpanID string
+func SpanIDFromContext(ctx context.Context) SpanID
 type Timer interface {
 	// C receives once when the wait is due.
 	C() <-chan time.Time
@@ -705,6 +708,7 @@ var (
 	ErrRuntimeNotConfigured = errors.New("interaction: runtime is missing a required component")
 )
 FUNCTIONS
+func ContinueTrace(ctx context.Context, traceparent string) context.Context
 func InputAnswersFromContext(ctx context.Context) (answers, state map[string]any)
 func WithInputAnswers(ctx context.Context, answers, state map[string]any) context.Context
 TYPES

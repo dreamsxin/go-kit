@@ -52,13 +52,21 @@ func WithAttrs(attrs func(context.Context) []slog.Attr) Option {
 // using the standard library slog API. Logger setup and handler selection stay
 // under application control.
 //
+// Stable: slog.record-span-id — a record carrying a trace context this node
+// continued names that operation's span_id; an inbound-only context (a remote
+// parent this node did not continue) logs the trace_id without a span_id, so a
+// log replay never sees the caller's span misnamed as this node's.
+// Covered by: TestLoggingMiddlewareRecordsSpanID, TestLoggingMiddlewareDoesNotMintARemoteSpanID
+//
 // A panic is logged at Error level as a panic and left to propagate. The record
 // is emitted from a defer, so a panicking call is never silently unlogged.
 //
 // Stable: slog.record-fields — every endpoint record carries operation,
-// duration, success, and trace_id/request_id when present; WithAttrs adds
-// application-owned attributes without logging request or response payloads.
-// Covered by: TestLoggingMiddlewareRecordsBoundedContext
+// duration, success, and trace_id/span_id/request_id when present; WithAttrs
+// adds application-owned attributes without logging request or response
+// payloads. span_id names this node's span only, so nested calls sharing one
+// trace are distinguishable in a log replay without misnaming a remote parent.
+// Covered by: TestLoggingMiddlewareRecordsBoundedContext, TestLoggingMiddlewareRecordsSpanID
 //
 // Stable: slog.panic-logged — a panicking call is logged at Error level as a
 // panic, and the panic still propagates.
@@ -89,6 +97,9 @@ func LoggingMiddleware(logger *slog.Logger, operation string, options ...Option)
 				}
 				if traceID := endpoint.TraceIDFromContext(ctx); traceID != "" {
 					attrs = append(attrs, slog.String("trace_id", string(traceID)))
+				}
+				if spanID := endpoint.SpanIDFromContext(ctx); spanID != "" {
+					attrs = append(attrs, slog.String("span_id", string(spanID)))
 				}
 				if requestID := endpoint.RequestIDFromContext(ctx); requestID != "" {
 					attrs = append(attrs, slog.String("request_id", requestID))

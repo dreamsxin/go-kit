@@ -62,6 +62,56 @@ func TestToolCallLogCarriesTheRequestCorrelation(t *testing.T) {
 	}
 }
 
+// TestLogToolCallCarriesCorrelation pins mcp.tool-log-span-id: a call that
+// continued an inbound trace logs the caller's trace and this node's span.
+func TestLogToolCallCarriesCorrelation(t *testing.T) {
+	logs := &strings.Builder{}
+	runtime := NewRuntime().WithLogger(slog.New(slog.NewJSONHandler(logs, nil)))
+	if err := runtime.RegisterTool(ToolFunc{
+		ToolName: "search",
+		Fn:       func(context.Context, ToolCall) (ToolResult, error) { return ToolResult{Output: "ok"}, nil },
+	}); err != nil {
+		t.Fatalf("RegisterTool: %v", err)
+	}
+	session, err := runtime.StartSession(context.Background(), "operator", nil)
+	if err != nil {
+		t.Fatalf("StartSession: %v", err)
+	}
+
+	// ContinueTrace is what the built-in MCP server runs before dispatch.
+	ctx := ContinueTrace(context.Background(),
+		"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	if _, err := runtime.CallTool(ctx, ToolCall{SessionID: session.ID, Name: "search"}); err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+
+	record := lastLogRecord(t, logs.String())
+	if record["trace_id"] != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Fatalf("trace_id = %v, want the inbound trace", record["trace_id"])
+	}
+	spanID, _ := record["span_id"].(string)
+	if spanID == "" || spanID == "00f067aa0ba902b7" {
+		t.Fatalf("span_id = %v, want a fresh child span rather than the remote parent", record["span_id"])
+	}
+}
+
+func TestContinueTraceMintsWhenAbsent(t *testing.T) {
+	ctx := ContinueTrace(context.Background(), "")
+	if endpoint.TraceIDFromContext(ctx) == "" {
+		t.Fatal("a trace should be minted when no traceparent is present")
+	}
+	if endpoint.SpanIDFromContext(ctx) == "" {
+		t.Fatal("the minted operation should own a span ID")
+	}
+}
+
+func TestContinueTraceIgnoresMalformed(t *testing.T) {
+	ctx := ContinueTrace(context.Background(), "garbage")
+	if endpoint.TraceIDFromContext(ctx) == "" {
+		t.Fatal("a malformed header should start a fresh trace, not leave the call uncorrelated")
+	}
+}
+
 func TestFailedToolCallIsReportedAtError(t *testing.T) {
 	logs := &strings.Builder{}
 	runtime := NewRuntime().WithLogger(slog.New(slog.NewJSONHandler(logs, nil)))

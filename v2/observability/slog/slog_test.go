@@ -77,6 +77,58 @@ func TestLoggingMiddlewareRecordsBoundedContext(t *testing.T) {
 	}
 }
 
+func TestLoggingMiddlewareRecordsSpanID(t *testing.T) {
+	handler := &captureHandler{}
+	logger := slog.New(handler)
+	middleware := endpoint.TracingMiddleware()(
+		LoggingMiddleware(logger, "GetUser")(
+			func(ctx context.Context, _ any) (any, error) { return nil, nil },
+		),
+	)
+
+	if _, err := middleware(context.Background(), struct{}{}); err != nil {
+		t.Fatalf("error = %v", err)
+	}
+
+	attrs := recordAttrs(handler.latest())
+	traceID, _ := attrs["trace_id"].(string)
+	spanID, _ := attrs["span_id"].(string)
+	if traceID == "" || spanID == "" {
+		t.Fatalf("correlation attrs = %#v, want trace_id and span_id", attrs)
+	}
+	if traceID == spanID {
+		t.Fatalf("trace_id and span_id must differ: %q", traceID)
+	}
+}
+
+// TestLoggingMiddlewareDoesNotMintARemoteSpanID pins the remote-parent rule:
+// a context that only carries an inbound traceparent logs the caller's
+// trace_id but no span_id, rather than misnaming the parent as this node.
+func TestLoggingMiddlewareDoesNotMintARemoteSpanID(t *testing.T) {
+	handler := &captureHandler{}
+	logger := slog.New(handler)
+	middleware := LoggingMiddleware(logger, "GetUser")(
+		func(ctx context.Context, _ any) (any, error) { return nil, nil },
+	)
+	incoming := endpoint.TraceContext{
+		TraceID: "4bf92f3577b34da6a3ce929d0e0e4736",
+		SpanID:  "00f067aa0ba902b7",
+		Flags:   "01",
+	}
+
+	if _, err := middleware(endpoint.WithIncomingTraceContext(context.Background(), incoming), struct{}{}); err != nil {
+		t.Fatalf("error = %v", err)
+	}
+
+	attrs := recordAttrs(handler.latest())
+	if attrs["trace_id"] != incoming.TraceID {
+		t.Fatalf("trace_id = %#v, want the inbound trace", attrs["trace_id"])
+	}
+	if _, present := attrs["span_id"]; present {
+		t.Fatalf("span_id = %#v, want no span for a remote parent", attrs["span_id"])
+	}
+}
+
 func TestLoggingMiddlewareUsesDefaultLoggerWhenNil(t *testing.T) {
 	middleware := LoggingMiddleware(nil, "Health", WithLevel(slog.LevelDebug))
 	if _, err := middleware(func(context.Context, any) (any, error) { return "ok", nil })(context.Background(), nil); err != nil {

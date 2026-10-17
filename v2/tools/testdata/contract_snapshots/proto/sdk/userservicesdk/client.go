@@ -272,6 +272,10 @@ func (c *httpClient) do(ctx context.Context, method, path string, reqBody, respB
 	for k, v := range c.headers {
 		req.Header.Set(k, v)
 	}
+	// Propagate the call's W3C trace context by default, matching the gRPC
+	// SDK: a caller without a trace context leaves the header untouched, and
+	// static headers/hooks below can still overwrite it.
+	transporthttp.InjectTraceparent(ctx, req)
 	for _, hook := range c.hooks {
 		hook(req)
 	}

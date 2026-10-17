@@ -17,6 +17,28 @@
 
 ### 修复
 
+- 框架自有边界上的关联不再丢 trace。入站 `traceparent` 提取出的 trace 存在
+  一个 context 字段，而所有日志读的是另一个只由 `endpoint.TracingMiddleware`
+  同步的字段，于是裸 handler 挂载（`kit.Handle`、内置 MCP 服务器、未开启
+  tracing 中间件的生成服务）收到合法入站 trace，日志却没有 `trace_id`。
+  `TraceIDFromContext` 现在从唯一的 W3C `TraceContext` 派生
+  （`endpoint.trace-id-derives-from-context`）；新的
+  `endpoint.WithIncomingTraceContext` 把提取来的 context 标记为远程父，
+  `endpoint.SpanIDFromContext` 只在本节点续接 trace 后才报告 span ID。
+  `endpoint.ContinueIncomingTrace` 把 tracing 中间件执行的身份步骤暴露给没有
+  endpoint 链的边界。
+- 出站 HTTP 现在默认传播 trace，与 gRPC 客户端对齐：
+  `transport/http/client` 为每个构造出的客户端安装 `traceparent` 注入钩子，
+  生成的独立 HTTP SDK 在每次调用上写出该头
+  （`httpclient.traceparent-by-default`）。context 无 trace 时不写头；
+  `ClientBefore` 钩子与请求钩子仍在内置钩子之后运行，可以覆盖它。
+- 内置 MCP HTTP 服务器（`mcp.NewHTTPServer`、`mcp.Serve`）在分发前续接入站
+  W3C `traceparent`（`mcp.server-extracts-traceparent`），工具调用日志因此
+  并入调用方的 trace；缺头或坏头则开新 trace。手动挂在自有 mux 上的 handler
+  仍自己负责提取。
+- endpoint 与工具调用日志现在在本节点启动或续接过 span 时携带 `span_id`
+  （`slog.record-span-id`、`mcp.tool-log-span-id`），让平铺日志回放中共享
+  一条 trace 的嵌套调用可区分，且不会把远程父错记为本节点 span。
 - `kit.Host` 可能丢失异步组件故障。watcher 把每条组件错误经一次非阻塞发送
   转入比组件数仅多一的缓冲，而 `Run` 只取一个值便不再监听——爆发宽度超过
   缓冲的故障，以及 Run 宣告停止、拆除组件期间到达的故障，都会无声消失。

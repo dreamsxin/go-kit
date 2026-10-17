@@ -2130,6 +2130,62 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## 里程碑 28（已完成）：一份关联，贯穿每个边界
+
+由一次端到端 trace 评审发现，评审只问一个问题——是否每个关键调用都是一个
+span，串成一棵出事之后能够回放的 trace 树。两层设计成立（核心层只传 W3C
+关联标识、不依赖任何追踪库；`observability/otel` 负责 span），里程碑 27 的
+桥接也让导出的 span 与 `traceparent` 头指向同一条 trace。但评审发现：作为
+一切基础的关联层，在设计自己承诺要覆盖的边界上是断的。下面每个缺陷都是
+"丢记录"形态：平时不可见，直到事故已经需要这份记录。
+
+- **日志里的 `trace_id` 与传播的 trace 是两个事实来源。** `correlation`
+  同时持有 W3C `TraceContext` 与遗留的 `TraceID` 字符串，且二者只在
+  `endpoint.TracingMiddleware` 内同步。传输层提取器只写第一个字段，而所有
+  日志读的是第二个，于是裸 handler 挂载——`kit.Handle`、MCP handler、没有
+  开启生成 tracing 中间件的服务——收到合法入站 `traceparent`，打出的日志却
+  没有 `trace_id`。探针已复现：提取后 context 合法，但
+  `TraceIDFromContext` 为空。字符串现在从唯一的 `TraceContext` 派生
+  （`endpoint.trace-id-derives-from-context`）；`WithTraceID` 保留为兼容
+  入口，把裸 ID 桥接进 W3C context。
+- **出站 HTTP 默认不传播，与 gRPC 不一致。** gRPC 客户端默认注入
+  `traceparent`，理由是"需要显式开启会在第一个被人忘记的 hop 静默断掉所有
+  trace"；HTTP 客户端却没有默认 `before` 钩子，生成的独立 SDK 直接构造裸
+  `http.Request`，从不写该头。HTTP 客户端现在默认注入，可用
+  `ClientBefore` 覆盖（`httpclient.traceparent-by-default`）；生成的 SDK
+  在每次出站调用上写出 context 中的 `traceparent`。
+- **独立 MCP 服务器从不读入站头。** `mcp.NewHTTPServer` 把 handler 挂在
+  裸 mux 上，工具调用到达 runtime 时没有调用方 trace，其日志行不指向上游
+  trace。内置服务器现在在分发前提取 W3C 头
+  （`mcp.server-extracts-traceparent`）；手动挂载的 handler 仍与其他裸
+  handler 一样自己负责提取。
+- **记录只命名了 trace，没有命名 span。** 没有 `span_id` 字段，进程内
+  共享一条 trace 的两个操作（一次扇出多个工具的请求、一串嵌套 endpoint
+  调用）在日志回放时只能靠时间戳排序。endpoint 记录与工具调用记录现在在
+  存在 trace context 时携带 `span_id`
+  （`slog.record-span-id`、`mcp.tool-log-span-id`）。
+
+有意延后，记录在此以免被当成疏忽：
+
+- otel 适配器仍然只在 endpoint 边界开一个 span。传输服务端 span、出站调用
+  span、DB span、重试 attempt span、逐事件 SSE span 尚不存在，所以即使接了
+  collector，树也只有一层深度，内部关键调用不可见。缝隙（应用自有 tracer、
+  中间件装配）是对的；覆盖面属于后续里程碑，且应在传输边界包
+  `otelhttp`/`otelgrpc`，而不是让核心认识 OpenTelemetry。
+- `integrations/zap` 的日志中间件仍完全不记录关联字段。与 slog 适配器
+  拉平放到 span 覆盖那个后续里程碑。
+- 内置层仍然只做关联：传播 W3C 标识、输出每调用一行的平铺记录，永不产
+  span 树。这是文档写明的分工，不会改变。
+
+验收：
+
+```bash
+go test ./endpoint/... ./transport/http/... ./integrations/grpc/... ./interaction/... ./observability/slog -count=1
+go test ./cmd/microgen/... -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

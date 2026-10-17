@@ -45,8 +45,21 @@ func ListenAndServe(addr string, rt *interaction.Runtime) error {
 func NewHTTPServer(addr string, rt *interaction.Runtime) (*http.Server, *StreamableHandler) {
 	h := NewStreamableHandler(rt)
 	mux := http.NewServeMux()
-	mux.Handle("/mcp", h)
+	mux.Handle("/mcp", withIncomingTrace(h))
 	return &http.Server{Addr: addr, Handler: mux}, h
+}
+
+// withIncomingTrace continues the inbound W3C trace before dispatch, the way
+// the kit HTTP component does for endpoint routes: the runtime's tool-call
+// logs join the caller's trace instead of naming no upstream. An absent or
+// malformed traceparent starts a fresh trace inside ContinueTrace. A handler
+// mounted by hand on its own mux sits outside this server and owns its
+// extraction, like every other raw handler.
+func withIncomingTrace(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := interaction.ContinueTrace(r.Context(), r.Header.Get("traceparent"))
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // Serve starts an MCP HTTP server and shuts it down when ctx is cancelled.

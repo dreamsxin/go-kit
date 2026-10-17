@@ -24,7 +24,7 @@ func ExtractTraceparent(ctx context.Context, r *http.Request) context.Context {
 	if !ok {
 		return ctx
 	}
-	return endpoint.WithTraceContext(ctx, tc)
+	return endpoint.WithIncomingTraceContext(ctx, tc)
 }
 
 // InjectTraceparent is a RequestFunc that writes the endpoint.TraceContext

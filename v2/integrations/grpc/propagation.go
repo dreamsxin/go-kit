@@ -34,7 +34,7 @@ func ExtractTraceparent(ctx context.Context, md metadata.MD) context.Context {
 		// invented parent.
 		return ctx
 	}
-	return endpoint.WithTraceContext(ctx, traceContext)
+	return endpoint.WithIncomingTraceContext(ctx, traceContext)
 }
 
 // InjectTraceparent writes the context's W3C trace context into outgoing

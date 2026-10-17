@@ -19,6 +19,34 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Fixed
 
+- Correlation at the framework's own boundaries no longer loses the trace.
+  A trace extracted from an inbound `traceparent` was stored in one context
+  field while every logger read a second field that only
+  `endpoint.TracingMiddleware` synchronized, so a raw handler mount
+  (`kit.Handle`, the built-in MCP server, a generated service without the
+  tracing middleware) received a valid inbound trace and logged records with
+  no `trace_id`. `TraceIDFromContext` now derives from the single W3C
+  `TraceContext` (`endpoint.trace-id-derives-from-context`); the new
+  `endpoint.WithIncomingTraceContext` marks an extracted context as a remote
+  parent, and `endpoint.SpanIDFromContext` reports a span ID only after this
+  node continued the trace. `endpoint.ContinueIncomingTrace` exposes the
+  identity step the tracing middleware performs for a boundary with no
+  endpoint chain.
+- Outbound HTTP now propagates the trace by default, matching the gRPC
+  client: `transport/http/client` installs the `traceparent` injection hook
+  in every constructed client, and the generated standalone HTTP SDK writes
+  it on every call (`httpclient.traceparent-by-default`). A context without
+  a trace leaves the header unset; `ClientBefore` hooks and request hooks
+  still run after the built-in one and can overwrite it.
+- The built-in MCP HTTP server (`mcp.NewHTTPServer`, `mcp.Serve`) continues
+  the inbound W3C `traceparent` before dispatch
+  (`mcp.server-extracts-traceparent`), so a tool call's log joins the
+  caller's trace; an absent or malformed header starts a fresh trace. A
+  handler mounted by hand on its own mux still owns its extraction.
+- Endpoint and tool-call log records now carry `span_id` when this node
+  started or continued a span (`slog.record-span-id`,
+  `mcp.tool-log-span-id`), distinguishing nested calls that share one trace
+  in a flat-log replay without misnaming a remote parent as the local span.
 - An asynchronous component failure could be lost in a `kit.Host`. The
   watchers forwarded every component error through a non-blocking send into a
   buffer one wider than the component count, and `Run` consumed a single value

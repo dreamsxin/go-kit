@@ -30,6 +30,7 @@ stable/endpoint.manual-clock-stop-releases-wait
 stable/endpoint.metrics-clock
 stable/endpoint.operation-intent
 stable/endpoint.retry-clock
+stable/endpoint.trace-id-derives-from-context
 stable/endpointer.cache-carries-metadata
 stable/endpointer.cache-close
 stable/endpointer.cache-empty-update
@@ -116,6 +117,7 @@ stable/http.traceparent
 stable/http.typed-json-client
 stable/httpclient.no-invented-deadline
 stable/httpclient.pool-is-ours
+stable/httpclient.traceparent-by-default
 stable/kit.deregister-before-close
 stable/kit.drain-delay
 stable/kit.drain-notification
@@ -160,10 +162,12 @@ stable/mcp.request-state-authenticated
 stable/mcp.response-is-whole-or-an-error
 stable/mcp.result-type
 stable/mcp.server-discover
+stable/mcp.server-extracts-traceparent
 stable/mcp.server-identity
 stable/mcp.session-header
 stable/mcp.sse-framing
 stable/mcp.stateless-request
+stable/mcp.tool-log-span-id
 stable/mcp.transport-operation-authorization
 stable/mcp.unknown-meta-preserved
 stable/mcp.version-negotiation
@@ -213,6 +217,7 @@ stable/slog.error-handler
 stable/slog.nil-logger-default
 stable/slog.panic-logged
 stable/slog.record-fields
+stable/slog.record-span-id
 stable/slog.telemetry-order
 stable/slog.telemetry-signals
 stable/transport.default-error-handler

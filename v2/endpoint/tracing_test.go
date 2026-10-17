@@ -178,6 +178,72 @@ func TestTracingMiddleware_JoinsIncomingTraceContext(t *testing.T) {
 	}
 }
 
+func TestTraceIDFromContextDerivesFromExtractedContext(t *testing.T) {
+	// What a transport extractor installs: only the inbound context, no
+	// middleware run. Before the single-source fix this logged an empty
+	// trace_id on every raw-handler path.
+	incoming := endpoint.TraceContext{
+		TraceID: "4bf92f3577b34da6a3ce929d0e0e4736",
+		SpanID:  "00f067aa0ba902b7",
+		Flags:   "01",
+	}
+	ctx := endpoint.WithIncomingTraceContext(context.Background(), incoming)
+
+	if got := endpoint.TraceIDFromContext(ctx); got != endpoint.TraceID(incoming.TraceID) {
+		t.Fatalf("TraceIDFromContext = %q, want the inbound trace ID without middleware", got)
+	}
+}
+
+func TestSpanIDIsEmptyForARemoteParent(t *testing.T) {
+	incoming := endpoint.TraceContext{
+		TraceID: "4bf92f3577b34da6a3ce929d0e0e4736",
+		SpanID:  "00f067aa0ba902b7",
+		Flags:   "01",
+	}
+	ctx := endpoint.WithIncomingTraceContext(context.Background(), incoming)
+
+	if got := endpoint.SpanIDFromContext(ctx); got != "" {
+		t.Fatalf("SpanIDFromContext = %q, want empty for a span this node did not mint", got)
+	}
+}
+
+func TestContinueIncomingTraceMintsAChildSpan(t *testing.T) {
+	incoming := endpoint.TraceContext{
+		TraceID: "4bf92f3577b34da6a3ce929d0e0e4736",
+		SpanID:  "00f067aa0ba902b7",
+		Flags:   "01",
+	}
+	ctx := endpoint.ContinueIncomingTrace(endpoint.WithIncomingTraceContext(context.Background(), incoming))
+
+	got := endpoint.TraceContextFromContext(ctx)
+	if got.TraceID != incoming.TraceID {
+		t.Errorf("trace ID: want %q, got %q", incoming.TraceID, got.TraceID)
+	}
+	if got.SpanID == incoming.SpanID || got.SpanID == "" {
+		t.Errorf("span ID should be a fresh child span, got %q", got.SpanID)
+	}
+	if got.Flags != "01" {
+		t.Errorf("flags should follow the parent, got %q", got.Flags)
+	}
+	if endpoint.SpanIDFromContext(ctx) != endpoint.SpanID(got.SpanID) {
+		t.Error("SpanIDFromContext should name the span this node minted")
+	}
+	if endpoint.RequestIDFromContext(ctx) == "" {
+		t.Error("a request ID should be minted")
+	}
+}
+
+func TestContinueIncomingTraceMintsWhenAbsent(t *testing.T) {
+	ctx := endpoint.ContinueIncomingTrace(context.Background())
+
+	if !endpoint.TraceContextFromContext(ctx).Valid() {
+		t.Fatal("a new trace should be minted when none is present")
+	}
+	if endpoint.SpanIDFromContext(ctx) == "" {
+		t.Error("the minted span should be owned by this node")
+	}
+}
+
 func TestTracingMiddleware_BridgesLegacyTraceID(t *testing.T) {
 	const legacy = endpoint.TraceID("4bf92f3577b34da6a3ce929d0e0e4736")
 	ctx := endpoint.WithTraceID(context.Background(), legacy)

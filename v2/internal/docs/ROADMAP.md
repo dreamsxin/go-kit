@@ -2750,6 +2750,76 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## Milestone 28 (Complete): One Correlation, Every Boundary
+
+Found by an end-to-end trace review that asked one question — whether every
+key call is a span joined into one trace tree that can be replayed after an
+incident. The two-layer design holds (the core propagates W3C correlation
+identifiers with no tracing dependency; `observability/otel` owns spans), and
+the milestone 27 bridge made an exported span and a `traceparent` header name
+one trace. But the review found that correlation, the layer everything else
+builds on, broke at boundaries the design itself promised to cover. Every
+defect below is a lost-record shape: each is invisible until an incident
+already needs the record.
+
+- **The logged `trace_id` and the propagated trace were two sources of
+  truth.** `correlation` carried both a W3C `TraceContext` and a legacy
+  `TraceID` string, synchronized only inside `endpoint.TracingMiddleware`.
+  The transports' extractors wrote only the first field, while every logger
+  reads the second, so a raw handler mount — `kit.Handle`, the MCP handler, a
+  service that did not opt into generated tracing middleware — received a
+  valid inbound `traceparent` and logged records with no `trace_id`. A
+  probe reproduced it: extraction reported a valid context and an empty
+  `TraceIDFromContext`. The string is now derived from the single
+  `TraceContext` (`endpoint.trace-id-derives-from-context`); `WithTraceID`
+  stays as the compatibility entrance that bridges a bare ID into a W3C
+  context.
+- **Outbound HTTP did not propagate by default, unlike gRPC.** The gRPC
+  client injects `traceparent` by default with the documented rule that an
+  opt-in client silently breaks every trace at the first forgotten hop; the
+  HTTP client shipped no default `before` hook, and the generated standalone
+  SDK built raw `http.Request` values and never wrote the header. The HTTP
+  client now injects by default, overridable through `ClientBefore`
+  (`httpclient.traceparent-by-default`), and the generated SDK writes the
+  context's `traceparent` on every outbound call.
+- **The standalone MCP server never read the inbound header.**
+  `mcp.NewHTTPServer` mounts the handler on a bare mux, so a tool call
+  reached the runtime without the caller's trace and its log line named no
+  upstream trace. The built-in server now extracts the W3C header before
+  dispatch (`mcp.server-extracts-traceparent`); a hand-mounted handler still
+  owns its extraction, as every other raw handler does.
+- **Records named the trace but not the span.** Without a `span_id` field,
+  two operations sharing one trace inside a process (a request that fans out
+  to several tools, a chain of nested endpoint calls) can only be ordered by
+  timestamp in a log replay. The endpoint and tool-call records now carry
+  `span_id` when a trace context is present
+  (`slog.record-span-id`, `mcp.tool-log-span-id`).
+
+Deliberately deferred, recorded so it is not mistaken for an oversight:
+
+- The otel adapter still starts exactly one span, at the endpoint boundary.
+  Transport server spans, outbound-call spans, DB spans, retry-attempt spans
+  and per-event SSE spans do not exist yet, so even with a collector
+  deployed the tree is depth one and internal key calls are invisible. The
+  seam (application-owned tracer, middleware assembly) is right; the
+  coverage is a follow-up milestone that should wrap `otelhttp`/`otelgrpc`
+  at the transport boundary rather than teaching the core about OpenTelemetry.
+- `integrations/zap`'s logging middleware still records no correlation
+  fields at all. Bringing it to parity with the slog adapter is part of the
+  span-coverage follow-up.
+- The built-in layer remains correlation-only: it propagates W3C identifiers
+  and emits flat per-call records, never a span tree. That is the documented
+  division of labour and is not changing.
+
+Acceptance:
+
+```bash
+go test ./endpoint/... ./transport/http/... ./integrations/grpc/... ./interaction/... ./observability/slog -count=1
+go test ./cmd/microgen/... -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria
