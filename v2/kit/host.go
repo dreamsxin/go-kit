@@ -221,7 +221,7 @@ func (h *Host) Start() error {
 // retained until Shutdown completes and joined into Run's result, whatever the
 // order and the burst; the Errors channel is the wake-up stream a caller
 // selects on, not the record.
-// Covered by: TestRunJoinsEveryAsyncComponentFailure
+// Covered by: TestRunJoinsEveryAsyncComponentFailure, TestRunRetainsAWideBurst
 func (h *Host) Errors() <-chan error {
 	return h.serveErrors
 }
@@ -259,7 +259,26 @@ func (h *Host) watchLifecycle(label string, componentErrors <-chan error, done <
 				h.reportServeError(fmt.Errorf("lifecycle component %s: %w", label, err))
 			}
 		case <-done:
-			return
+			// The stop announcement and a buffered error are both ready often
+			// enough for select to take the stop: Shutdown closes done while a
+			// burst is still sitting in the component's Errors buffer. Those
+			// failures were emitted before the stop was announced, so they are
+			// part of the record kit.serve-errors-retained promises; drain them
+			// before leaving. An error a component emits after this point
+			// arrives after Shutdown and is outside the promise.
+			for {
+				select {
+				case err, ok := <-componentErrors:
+					if !ok {
+						return
+					}
+					if err != nil {
+						h.reportServeError(fmt.Errorf("lifecycle component %s: %w", label, err))
+					}
+				default:
+					return
+				}
+			}
 		}
 	}
 }

@@ -47,6 +47,43 @@ func TestRunJoinsEveryAsyncComponentFailure(t *testing.T) {
 	}
 }
 
+// TestRunRetainsAWideBurst widens the window the watcher used to lose: Run
+// wakes on the first failure and announces the stop while dozens of
+// pre-shutdown failures are still buffered in the component channel. The
+// retained record must name every one of them; the watcher drains the buffer
+// on the stop signal before leaving. Pre-fix the watcher's select took the
+// stop and exited, so most of the burst was missing.
+func TestRunRetainsAWideBurst(t *testing.T) {
+	const total = 50
+	var events []string
+	component := &recordingLifecycle{name: "worker", events: &events, errors: make(chan error, total)}
+	host := kit.MustNewHost(
+		kit.WithLifecycle(component),
+		kit.WithShutdownTimeout(time.Second),
+		kit.WithDrainDelay(0),
+	)
+
+	done := make(chan error, 1)
+	go func() { done <- host.Run(context.Background()) }()
+	for i := 0; i < total; i++ {
+		component.errors <- fmt.Errorf("failure %d", i)
+	}
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("Run returned no error for a component that failed")
+		}
+		for i := 0; i < total; i++ {
+			if !strings.Contains(err.Error(), fmt.Sprintf("failure %d", i)) {
+				t.Errorf("Run's error lost failure %d", i)
+			}
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return")
+	}
+}
+
 // TestRunJoinsServeErrorsArrivingDuringDrain covers the window the wake-up
 // channel never protected: Run has already been woken by the first failure and
 // is announcing the stop, so nothing selects on Errors any more. The watchers

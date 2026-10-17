@@ -19,6 +19,18 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Fixed
 
+- A burst of asynchronous component failures could still be truncated by
+  `kit.Host.Run`. The retained set recorded every error the watcher read,
+  but the watcher also exited on Shutdown's stop announcement, and when the
+  announcement and buffered errors were both ready its select could take
+  the stop and leave the rest of the burst unread in the component's
+  `Errors` channel — those failures were emitted before shutdown began, so
+  they belong to the `kit.serve-errors-retained` record. The watcher now
+  drains buffered errors non-blockingly when the stop signal fires before
+  it leaves. Pinned by `TestRunRetainsAWideBurst` (fifty pre-shutdown
+  failures), which loses the tail of the burst on the previous behaviour;
+  the existing burst and drain-window tests pass under a 200-run race
+  stress.
 - Correlation at the framework's own boundaries no longer loses the trace.
   A trace extracted from an inbound `traceparent` was stored in one context
   field while every logger read a second field that only

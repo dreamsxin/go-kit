@@ -17,6 +17,14 @@
 
 ### 修复
 
+- 异步组件故障的爆发仍可能被 `kit.Host.Run` 截断。保留集合记录了 watcher
+  读到的每条错误，但 watcher 也在 Shutdown 宣告停止时退出；当停止信号与缓冲
+  错误同时就绪时，它的 select 可能取走停止信号，把爆发的其余部分留在组件
+  `Errors` 通道里未读——这些故障在停机开始前就已发出，属于
+  `kit.serve-errors-retained` 承诺的记录。watcher 现在在收到停止信号时先
+  非阻塞排空缓冲错误再退出。由 `TestRunRetainsAWideBurst`（停机前五十条
+  故障）钉住，旧行为会丢失爆发尾部；既有的爆发与停机窗口测试在 200 次 race
+  加压下通过。
 - 框架自有边界上的关联不再丢 trace。入站 `traceparent` 提取出的 trace 存在
   一个 context 字段，而所有日志读的是另一个只由 `endpoint.TracingMiddleware`
   同步的字段，于是裸 handler 挂载（`kit.Handle`、内置 MCP 服务器、未开启
