@@ -277,7 +277,9 @@ return transporthttp.NewPageResult(page, total, rows), nil
 - `ServerErrorEncoder`
 - `ServerResponseEncoder`（仅 JSON 入口）
 
-默认的错误处理器是 no-op。当错误必须被记录或上报时，应安装应用自有的处理器，
+默认错误处理器经 slog 默认 logger 以 Warn 记录每条传输错误
+（`transport.DefaultErrorHandler`），请求/响应服务器与 SSE 服务器皆然。
+有意静默用 `transport.NopErrorHandler`；要路由到别处，安装应用自有的处理器，
 例如来自 `integrations/zap` 的 `zapadapter.NewErrorHandler(logger)`。
 
 典型流程：

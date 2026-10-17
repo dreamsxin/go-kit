@@ -77,9 +77,11 @@ Custom attributes must stay bounded and non-sensitive; request and response
 payloads are never logged by the adapters. Protocol lines (method, path,
 status, bytes, duration) come from `server.AccessLogMiddleware`.
 
-Errors are only *mapped* by default, not *logged*: the default
-`ServerErrorHandler` is a no-op. Install a handler to see transport and
-endpoint failures in the log:
+Errors are both mapped and logged by default: an unconfigured
+`ServerErrorHandler` records transport failures through slog's default
+logger at Warn (`transport.DefaultErrorHandler`). Replace it to route them
+through your own logger (for example with correlation fields), or install
+`transport.NopErrorHandler` for deliberate silence:
 
 ```go
 kit.NewHTTP(":8080", kit.WithJSONServerOptions(

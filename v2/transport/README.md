@@ -298,9 +298,12 @@ Primary extension points:
 - `ServerErrorEncoder`
 - `ServerResponseEncoder` (JSON entry points only)
 
-The default error handler is a no-op. Install an application-owned handler when
-errors must be logged or recorded, for example
-`zapadapter.NewErrorHandler(logger)` from `integrations/zap`.
+The default error handler logs every transport error through slog's default
+logger at Warn level (`transport.DefaultErrorHandler`), on both the
+request/response server and the SSE server. Install
+`transport.NopErrorHandler` for deliberate silence, or an application-owned
+handler such as `zapadapter.NewErrorHandler(logger)` from `integrations/zap`
+when errors must be routed elsewhere.
 
 Typical flow:
 

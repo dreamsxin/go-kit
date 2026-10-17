@@ -69,8 +69,10 @@ logging := slogadapter.LoggingMiddleware(logger, "CreateUser",
 自定义属性必须有界且不含敏感信息；适配器绝不记录请求与响应载荷。协议日志行
 （方法、路径、状态码、字节数、耗时）来自 `server.AccessLogMiddleware`。
 
-错误默认只被**映射**，不被**记录**：默认的 `ServerErrorHandler` 是空操作。
-要在日志里看到传输与端点失败，安装处理器：
+错误默认既被**映射**也被**记录**：未配置的 `ServerErrorHandler` 经 slog 默认
+logger 以 Warn 记录传输失败（`transport.DefaultErrorHandler`）。要经自己的
+logger 路由（例如带关联字段）就替换它；有意静默则安装
+`transport.NopErrorHandler`：
 
 ```go
 kit.NewHTTP(":8080", kit.WithJSONServerOptions(

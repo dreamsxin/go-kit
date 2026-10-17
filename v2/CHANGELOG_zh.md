@@ -36,6 +36,10 @@
 
 ### 修复
 
+- `AccessLogMiddleware` 此前只从入站 header 读 `trace_id`，于是在续接过 trace
+  的链内写出的 access 行命名的是远程父而非本节点，且从不携带 `span_id`。
+  现在优先从续接过的请求 context 读 `trace_id`/`span_id`，裸挂载时回退到可解析
+  的入站 header（不产生 `span_id`，父 span 不可被冒名）。
 - 未显式配置错误处理器的 SSE 服务器现在与 `NewServer` 一样，经 slog 默认
   logger 记录传输错误；此前它回退到空操作处理器，而
   `transport.default-error-handler` 承诺说未配置的服务器会记录日志，手工

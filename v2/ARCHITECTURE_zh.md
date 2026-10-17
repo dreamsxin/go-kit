@@ -246,7 +246,7 @@ module 的依赖元数据仍包含这些可选依赖。
 
 ```text
 kit/grpc -> kit, health, integrations/grpc, google.golang.org/grpc
-kit -> health, endpoint, sd, transport/http/server
+kit -> health, endpoint, sd, transport, transport/http/server, validation
 integrations/grpc -> endpoint, apperror, transport, google.golang.org/grpc
 integrations/consul or integrations/etcd -> sd, sd/instance, provider SDK
 sd/client -> sd/endpointer, sd/balancer, sd/retry
@@ -278,6 +278,26 @@ sd/health -> sd/instance
 进程 `health.Registry` 回答本进程是否就绪，`sd/health` 回答哪些远端实例通过探测。
 两者保持分离，因为一方的结果无法证明另一方的状态。健康探测不能清除发现源错误；消费方通过共享订阅状态机，
 按自己的策略决定保留最后一次成功快照多久。
+
+## 关联与可观测性
+
+请求关联是一份 W3C Trace Context，由核心层传播且不依赖任何追踪库：
+
+- 身份的唯一来源是 `endpoint.TraceContext`（trace ID、本节点 span ID、flags）。
+  `TraceIDFromContext` 从它派生；遗留的 `WithTraceID` 字符串会被桥接进这同一份
+  context。从入站请求提取出的 trace 是*远程父*——在 `endpoint.TracingMiddleware`
+  （或无 endpoint 链的边界上用 `ContinueIncomingTrace`）续接之前，它的 span ID
+  不会被报成本节点 span。
+- 提取在每个服务端边界默认开启（`kit` HTTP 与 gRPC、内置 MCP 服务器）；注入在
+  每个出站客户端默认开启（HTTP、gRPC unary 与 stream、生成的独立 HTTP SDK）。
+  关闭要靠显式钩子或 `Nop*` 选择，默认不关。
+- 内置层输出每调用一行的平铺记录（slog、Zap），携带 `operation`、`duration`、
+  `success`、`trace_id`、`span_id`、`request_id`。这是关联，不是 span 树：核心层
+  永不建模父子 span。
+- 真正的 span 属于可选的 `observability/otel` 适配器，它在 endpoint 边界开 span，
+  并把框架 trace context 桥接为 OpenTelemetry 父节点、再反向桥回。传输边界、出站
+  调用、数据库与重试 attempt 的 span 仍是路线图记录的后续工作；在它们补齐前，
+  即使部署了 collector，导出的树也只有一层深度。
 
 ## 上下文传递规范
 

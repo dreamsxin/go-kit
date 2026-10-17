@@ -165,18 +165,27 @@ Skip `Setup` when the application owns its provider configuration; pass any
   same ID in endpoint logs. `AccessLogMiddleware` reads it from the request
   context or response header.
 - W3C `traceparent` is extracted at the transport boundary without wiring:
-  `kit.NewHTTP` and `kit/grpc.New` both do it, and `integrations/grpc/client`
-  injects it on the way out. Endpoint middleware then records the current trace
-  ID. `transporthttp.ExtractTraceparent` / `InjectTraceparent` and
-  `transportgrpc.ExtractTraceparent` / `InjectTraceparent` cover hand-assembled
-  servers and clients.
+  `kit.NewHTTP` and `kit/grpc.New` both do it, and the built-in MCP server
+  continues the inbound trace before dispatch. Every outbound client injects
+  it by default — `transport/http/client` and the generated standalone HTTP
+  SDK on every call, `integrations/grpc/client` for unary calls, and
+  `grpc.TraceparentStreamClientInterceptor` for generated streaming stubs.
+  `endpoint.TracingMiddleware` continues the trace on this node (a fresh
+  child span ID, the inbound one kept as the remote parent); endpoint and
+  tool-call log records then carry `trace_id`, this node's `span_id`, and
+  `request_id`. For a raw handler mount with no endpoint chain, call
+  `endpoint.ContinueIncomingTrace` (or `interaction.ContinueTrace`) on the
+  request context yourself. `transporthttp.ExtractTraceparent` /
+  `InjectTraceparent` and `transportgrpc.ExtractTraceparent` /
+  `InjectTraceparent` cover hand-assembled servers and clients.
 - `interaction.Runtime.WithLogger(logger)` reports tool calls through the same
-  logger and the same `trace_id` / `request_id`, so an MCP tool call joins the
-  request that carried it.
+  logger and the same `trace_id` / `span_id` / `request_id`, so an MCP tool
+  call joins the request that carried it.
 - Use route patterns or fixed operation names as metric labels. Never use user
   IDs, arbitrary URLs, raw error text, or request payloads as dimensions.
-- Install `ServerErrorHandler` when transport errors must be logged. The default
-  handler is a no-op; error encoders only decide the wire response.
+- Both serving transports default to the logging `DefaultErrorHandler`;
+  pass `transport.NopErrorHandler` for deliberate silence. Error encoders
+  only decide the wire response.
 
 ## Ownership And Shutdown
 

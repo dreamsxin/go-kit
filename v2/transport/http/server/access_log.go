@@ -16,9 +16,11 @@ const requestIDResponseHeader = "X-Request-ID"
 
 // AccessLogMiddleware returns standard http.Handler middleware that records one
 // access line per request: method, path, status, response bytes, and duration,
-// plus request_id when kit.WithRequestID is enabled and trace_id when the
-// request carries a valid W3C traceparent header. Install it with
-// kit.WithHTTPMiddleware. A nil logger falls back to slog.Default().
+// plus request_id when kit.WithRequestID is enabled. It reads trace_id and
+// span_id from the request context after a chain continued the trace, falling
+// back to a valid W3C traceparent header for a raw mount with no endpoint
+// chain. Install it with kit.WithHTTPMiddleware. A nil logger falls back to
+// slog.Default().
 //
 // Access logging is a transport-layer concern: this middleware sees protocol
 // facts (status codes, bytes), not business outcomes. Business-level logging
@@ -46,8 +48,22 @@ func AccessLogMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 			if id := requestIDForAccessLog(r, w); id != "" {
 				attrs = append(attrs, slog.String("request_id", id))
 			}
-			if tc, ok := endpoint.ParseTraceparent(r.Header.Get("traceparent")); ok {
-				attrs = append(attrs, slog.String("trace_id", tc.TraceID))
+			// Prefer the continued context over the inbound header: when the
+			// middleware sits inside a chain that ran TracingMiddleware, the
+			// context carries this node's child span ID, while the header only
+			// names the remote parent. Fall back to a parseable inbound header
+			// for a raw mount with no endpoint chain.
+			traceID := endpoint.TraceIDFromContext(r.Context())
+			if traceID == "" {
+				if tc, ok := endpoint.ParseTraceparent(r.Header.Get("traceparent")); ok {
+					traceID = endpoint.TraceID(tc.TraceID)
+				}
+			}
+			if traceID != "" {
+				attrs = append(attrs, slog.String("trace_id", string(traceID)))
+			}
+			if spanID := endpoint.SpanIDFromContext(r.Context()); spanID != "" {
+				attrs = append(attrs, slog.String("span_id", string(spanID)))
 			}
 			logger.LogAttrs(r.Context(), slog.LevelInfo, "http access", attrs...)
 		})

@@ -148,3 +148,54 @@ func TestAccessLogMiddleware_DefaultsMissingTraceparent(t *testing.T) {
 		t.Errorf("status = %v, want %d", attrs["status"], http.StatusOK)
 	}
 }
+
+// The access line names this node's continued span, not the remote parent in
+// the inbound header, and reports no span_id when only the header is present.
+func TestAccessLogMiddleware_PrefersTheContinuedTrace(t *testing.T) {
+	handler := &captureHandler{}
+	mw := server.AccessLogMiddleware(slog.New(handler))
+	served := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	inbound := "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	req.Header.Set("traceparent", inbound)
+	tc, ok := endpoint.ParseTraceparent(inbound)
+	if !ok {
+		t.Fatal("parse inbound traceparent")
+	}
+	continued := endpoint.ContinueIncomingTrace(endpoint.WithIncomingTraceContext(req.Context(), tc))
+	served.ServeHTTP(httptest.NewRecorder(), req.WithContext(continued))
+
+	attrs := handler.latestAttrs()
+	if attrs["trace_id"] != "0af7651916cd43dd8448eb211c80319c" {
+		t.Errorf("trace_id = %v, want the inbound trace", attrs["trace_id"])
+	}
+	span, _ := attrs["span_id"].(string)
+	if span == "" || span == "b7ad6b7169203331" {
+		t.Errorf("span_id = %v, want this node's child span rather than the remote parent", attrs["span_id"])
+	}
+}
+
+// A raw mount with only an inbound header logs the trace but never misnames
+// the parent span as this node's.
+func TestAccessLogMiddleware_InboundHeaderHasNoSpanID(t *testing.T) {
+	handler := &captureHandler{}
+	mw := server.AccessLogMiddleware(slog.New(handler))
+	served := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	req.Header.Set("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+	served.ServeHTTP(httptest.NewRecorder(), req)
+
+	attrs := handler.latestAttrs()
+	if attrs["trace_id"] != "0af7651916cd43dd8448eb211c80319c" {
+		t.Errorf("trace_id = %v", attrs["trace_id"])
+	}
+	if _, present := attrs["span_id"]; present {
+		t.Errorf("span_id = %v, want no local span for an uncontinued inbound header", attrs["span_id"])
+	}
+}

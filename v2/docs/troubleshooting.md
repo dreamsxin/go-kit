@@ -45,8 +45,9 @@ host, _ := kit.NewHost(kit.WithLifecycle(svc))
 
 Then a failing request is traceable by the `X-Request-ID` response header and
 the `request_id` / `trace_id` fields in the business and access log lines.
-Note: the default `ServerErrorHandler` is a no-op — transport and endpoint
-errors are only *mapped*, not *logged*, until a handler is installed.
+Transport errors are logged by default too: a server without an explicit
+`ServerErrorHandler` records them through slog's default logger at Warn; pass
+`transport.NopErrorHandler` for deliberate silence.
 
 ## The service does not start
 

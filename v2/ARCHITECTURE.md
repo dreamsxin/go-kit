@@ -284,7 +284,7 @@ The principal import directions are:
 
 ```text
 kit/grpc -> kit, health, integrations/grpc, google.golang.org/grpc
-kit -> health, endpoint, sd, transport/http/server
+kit -> health, endpoint, sd, transport, transport/http/server, validation
 integrations/grpc -> endpoint, apperror, transport, google.golang.org/grpc
 integrations/consul or integrations/etcd -> sd, sd/instance, provider SDK
 sd/client -> sd/endpointer, sd/balancer, sd/retry
@@ -323,6 +323,31 @@ answers which remote instances passed probes. They remain separate because
 neither result can establish the other's truth. A discovery error is not cleared
 by a healthy probe. Consumers decide how long to keep their last successful
 snapshot through their shared subscription state machine.
+
+## Correlation And Observability
+
+Request correlation is one W3C Trace Context, propagated by the core with no
+tracing dependency:
+
+- The single source of identity is `endpoint.TraceContext` (trace ID, this
+  node's span ID, flags). `TraceIDFromContext` derives from it; a legacy
+  `WithTraceID` string is bridged into that one context. A trace extracted
+  from an inbound request is a *remote parent* — its span ID is not reported
+  as this node's until `endpoint.TracingMiddleware` (or
+  `ContinueIncomingTrace` at a boundary with no endpoint chain) continues it.
+- Extraction is on by default at every server boundary (`kit` HTTP and gRPC,
+  the built-in MCP server); injection is on by default at every outbound
+  client (HTTP, gRPC unary and stream, the generated standalone HTTP SDK).
+  Opting out is an explicit hook or `Nop*` choice, never the default.
+- The built-in layer emits flat per-call records (slog, Zap) carrying
+  `operation`, `duration`, `success`, `trace_id`, `span_id` and `request_id`.
+  That is correlation, not a span tree: the core never models parent/child
+  spans.
+- Actual spans live in the optional `observability/otel` adapter, which starts
+  a span at the endpoint boundary and bridges a framework trace context to an
+  OpenTelemetry parent and back. Transport, outbound-call, database and
+  retry-attempt spans remain follow-up work recorded in the roadmap; without
+  them the exported tree is depth one even with a collector deployed.
 
 ## Context Conventions
 

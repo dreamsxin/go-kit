@@ -150,15 +150,23 @@ ep := endpoint.NewBuilder(createUser).
 - 启用 `kit.WithRequestID()`，响应会带 `X-Request-ID`，端点日志使用同一个 ID。
   `AccessLogMiddleware` 会从 request context 或响应 header 读取它。
 - W3C `traceparent` 在传输边界无需接线就会被提取：`kit.NewHTTP` 与 `kit/grpc.New`
-  都会做，`integrations/grpc/client` 在出方向注入。端点 middleware 随后记录当前
-  trace ID。手工装配的服务端与客户端可用 `transporthttp.ExtractTraceparent` /
-  `InjectTraceparent` 和 `transportgrpc.ExtractTraceparent` / `InjectTraceparent`。
-- `interaction.Runtime.WithLogger(logger)` 用同一个 logger 与同样的 `trace_id` /
-  `request_id` 上报工具调用，于是一次 MCP 工具调用能和承载它的请求对上。
+  都会做，内置 MCP 服务器在分发前续接入站 trace。每个出站客户端默认注入：
+  `transport/http/client` 与生成的独立 HTTP SDK 在每次调用上注入，
+  `integrations/grpc/client` 覆盖 unary，生成的流式 stub 用
+  `grpc.TraceparentStreamClientInterceptor`。`endpoint.TracingMiddleware` 在本
+  节点续接 trace（新的子 span ID，入站 ID 保留为远程父）；endpoint 与工具调用
+  日志随之携带 `trace_id`、本节点的 `span_id` 与 `request_id`。没有 endpoint
+  链的裸 handler 挂载需自行对请求 context 调 `endpoint.ContinueIncomingTrace`
+  （或 `interaction.ContinueTrace`）。手工装配的服务端与客户端可用
+  `transporthttp.ExtractTraceparent` / `InjectTraceparent` 和
+  `transportgrpc.ExtractTraceparent` / `InjectTraceparent`。
+- `interaction.Runtime.WithLogger(logger)` 用同一个 logger 与同样的
+  `trace_id` / `span_id` / `request_id` 上报工具调用，于是一次 MCP 工具调用能
+  和承载它的请求对上。
 - 指标 label 使用路由 pattern 或固定 operation 名称。不要用用户 ID、任意 URL、
   原始错误文本或请求 body 作为维度。
-- 需要记录传输错误时安装 `ServerErrorHandler`。默认 handler 是 no-op；错误编码器
-  只负责决定线上响应。
+- 两种服务传输都默认使用会记录日志的 `DefaultErrorHandler`；有意静默传
+  `transport.NopErrorHandler`。错误编码器只负责决定线上响应。
 
 ## 所有权与停机
 

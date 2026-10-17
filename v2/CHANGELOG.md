@@ -43,6 +43,12 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Fixed
 
+- `AccessLogMiddleware` read `trace_id` only from the inbound header, so an
+  access line written inside a chain that continued the trace named the
+  remote parent rather than this node and never carried `span_id`. It now
+  reads `trace_id`/`span_id` from the continued request context first and
+  falls back to a parseable inbound header for a raw mount (which keeps no
+  `span_id`, the parent must not be misnamed).
 - An SSE server constructed without an explicit error handler now logs
   transport errors through slog's default logger, the same default
   `NewServer` already had; it used to fall back to the no-op handler while

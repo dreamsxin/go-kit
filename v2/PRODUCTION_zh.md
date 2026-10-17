@@ -378,14 +378,17 @@ provider 设置、资源、导出器、采样与停机。让 context 贯穿 serv
 endpoint、transport、发现与交互调用；在有意义的边界创建 span，而不是为
 每个小函数都创建。
 
-无追踪后端时的请求关联，核心包提供端到端的 W3C `traceparent` 头部传播：
+无追踪后端时的请求关联，核心包无需接线即提供端到端的 W3C `traceparent`
+头部传播：
 
-- 服务端用 `transport/http.ExtractTraceparent` 作为 `ServerBefore` 钩子
-  提取入站头部；
-- `endpoint.TracingMiddleware` 加入调用方的追踪，否则生成符合 W3C 的
-  追踪；
-- 客户端用 `transport/http.InjectTraceparent` 作为 `Before` 钩子转发
-  活跃追踪。
+- 服务端默认提取入站头部（`kit.NewHTTP`、`kit/grpc.New` 与内置 MCP 服务器）；
+  裸 handler 挂载自行调 `endpoint.ContinueIncomingTrace`，或把
+  `transport/http.ExtractTraceparent` 装成 `ServerBefore` 钩子；
+- `endpoint.TracingMiddleware` 把调用方追踪作为远程父加入，否则生成符合 W3C
+  的追踪；
+- 每个出站客户端默认注入：`transport/http/client`、生成的独立 HTTP SDK、
+  `integrations/grpc/client` 覆盖 unary，生成的流式 stub 用
+  `grpc.TraceparentStreamClientInterceptor`。
 
 完整 span 树应使用 `observability/otel`，而且这棵树如今在构造上就能跨过
 服务边界：适配层的追踪中间件以框架传输层提取出的 trace context 作为每个

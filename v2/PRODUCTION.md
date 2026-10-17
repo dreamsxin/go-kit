@@ -447,14 +447,17 @@ create spans at meaningful boundaries without creating a span for every small
 helper.
 
 For request correlation without a tracing backend, the core packages propagate
-the W3C `traceparent` header end to end:
+the W3C `traceparent` header end to end with no wiring:
 
-- Servers extract the incoming header with
+- Servers extract the incoming header by default (`kit.NewHTTP`, `kit/grpc.New`,
+  and the built-in MCP server); a raw handler mount calls
+  `endpoint.ContinueIncomingTrace` itself, or installs
   `transport/http.ExtractTraceparent` as a `ServerBefore` hook;
-- `endpoint.TracingMiddleware` joins the caller's trace or mints a
-  W3C-conformant one;
-- Clients forward the active trace with `transport/http.InjectTraceparent`
-  as a client `Before` hook.
+- `endpoint.TracingMiddleware` joins the caller's trace as the remote parent or
+  mints a W3C-conformant one;
+- Every outbound client injects by default — `transport/http/client`, the
+  generated standalone HTTP SDK, `integrations/grpc/client` for unary calls, and
+  `grpc.TraceparentStreamClientInterceptor` for generated streaming stubs.
 
 `observability/otel` is the right choice for full span trees, and the tree now
 survives service boundaries by construction: the adapter's tracing middleware
