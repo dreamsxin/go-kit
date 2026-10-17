@@ -20,3 +20,8 @@ Thumbs.db
 
 # ZCode session-local planning material
 .zcode/
+
+# Local scratch output from running the microgen CLI by hand. The maintained
+# gate fixtures and tooling live in v2/tools; this root-level directory is not
+# a module and is never published. Anchored so v2/tools stays tracked.
+/tools/

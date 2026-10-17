@@ -18,9 +18,12 @@ func TestArchitectureDependencyGates(t *testing.T) {
 		allowedTrees []string
 	}{
 		{
+			// endpoint imports nothing from this module at all, not even
+			// apperror: TestEndpointHasOnlyStandardLibraryImports already pins
+			// that stronger fact, so listing apperror here would only advertise
+			// an import the gate would later reject.
 			name:         "endpoint",
 			pattern:      "./endpoint/...",
-			allowedExact: []string{coreModulePath + "/apperror"},
 			allowedTrees: []string{coreModulePath + "/endpoint"},
 		},
 		{
