@@ -109,6 +109,38 @@ func withIncomingTraceparent(ctx context.Context) context.Context {
 	return ExtractTraceparent(ctx, md)
 }
 
+// TraceparentStreamClientInterceptor is the streaming counterpart of
+// TraceparentUnaryClientInterceptor: it writes the context's W3C trace
+// context into the outgoing metadata of a generated streaming stub, so an
+// RPC the unary interceptor cannot wrap still continues the trace. The
+// interceptor wraps the ClientStream once; messages flowing through it need
+// no per-message metadata.
+//
+// Stable: grpc.traceparent-stream-client — a streaming client call carries
+// the context's traceparent exactly once in its outgoing metadata, and a
+// context without a trace invents none.
+// Covered by: TestTraceparentStreamClientInterceptorInjectsAndReplaces,
+// TestTraceparentStreamClientInterceptorLeavesAnAbsentContextUntouched
+func TraceparentStreamClientInterceptor() grpc.StreamClientInterceptor {
+	return func(
+		ctx context.Context,
+		desc *grpc.StreamDesc,
+		cc *grpc.ClientConn,
+		method string,
+		streamer grpc.Streamer,
+		opts ...grpc.CallOption,
+	) (grpc.ClientStream, error) {
+		traceContext := endpoint.TraceContextFromContext(ctx)
+		if traceContext.Valid() {
+			md, _ := metadata.FromOutgoingContext(ctx)
+			md = md.Copy()
+			md.Set(TraceparentKey, traceContext.String())
+			ctx = metadata.NewOutgoingContext(ctx, md)
+		}
+		return streamer(ctx, desc, cc, method, opts...)
+	}
+}
+
 // tracedServerStream carries a context the interceptor derived, which is the
 // only way a stream handler can see it.
 type tracedServerStream struct {

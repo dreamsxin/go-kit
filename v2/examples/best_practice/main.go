@@ -158,7 +158,17 @@ func main() {
 	})
 
 	// ── Graceful shutdown ─────────────────────────────────────────────────────
-	srv := &http.Server{Addr: *httpAddr, Handler: mux}
+	// Production-shaped server: bound the read side and idle connections.
+	// WriteTimeout stays off here only if the service streams; the full set
+	// is documented in v2/PRODUCTION.md.
+	srv := &http.Server{
+		Addr:              *httpAddr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
 
 	serveErr := make(chan error, 1)
 	go func() {

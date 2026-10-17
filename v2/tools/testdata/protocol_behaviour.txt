@@ -60,6 +60,7 @@ stable/grpc.drains
 stable/grpc.health-watch
 stable/grpc.recording-method-label
 stable/grpc.shutdown-ends
+stable/grpc.traceparent-stream-client
 stable/health.check-in-progress
 stable/health.checks-added-after-mount
 stable/health.default-paths
@@ -224,6 +225,7 @@ stable/transport.default-error-handler
 stable/validation.tag-semantics
 stable/zap.error-handler-nil-logger
 stable/zap.middleware-transparency
+stable/zap.record-fields
 unstable/consul.registrar-conflict
 unstable/grpc.observation-fields
 unstable/http.access-log-line

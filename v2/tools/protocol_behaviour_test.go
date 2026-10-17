@@ -3,6 +3,9 @@ package tools_test
 import (
 	"flag"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -383,5 +386,143 @@ func TestProtocolBehaviourMarkerShape(t *testing.T) {
 	}
 	if names := coveringTests(block[2:]); len(names) != 0 {
 		t.Fatalf("covering tests = %v, want none once the comment block ends", names)
+	}
+}
+
+// TestStableBehaviourTestsAreNotUnconditionallySkipped closes a hole in the
+// "Covered by" check: a named test that exists but calls t.Skip unconditionally
+// at function top level never runs in CI, so the promise it was cited for has
+// no proof. A skip guarded by an `if` (an optional integration/live test) is
+// fine; a marker is also fine when at least one of its named tests runs.
+func TestStableBehaviourTestsAreNotUnconditionallySkipped(t *testing.T) {
+	t.Parallel()
+	root := goKitRoot(t)
+	behaviours := scanProtocolBehaviours(t, root)
+
+	for _, behaviour := range behaviours {
+		if behaviour.kind != "Stable" || len(behaviour.tests) == 0 {
+			continue
+		}
+		skippers := unconditionallySkippedTests(t, behaviour.dir)
+		var all []string
+		for _, name := range behaviour.tests {
+			if skippers[name] {
+				all = append(all, name)
+			}
+		}
+		if len(all) == len(behaviour.tests) {
+			t.Errorf("%s (%s) is covered only by tests that skip unconditionally: %s\n\n"+
+				"A live/integration skip needs an env or capability `if` guard, and the promise needs at least one test that runs in CI.",
+				behaviour.id, behaviour.where, strings.Join(all, ", "))
+		}
+	}
+}
+
+// unconditionallySkippedTests parses the test files in dir and reports test
+// functions whose body calls t.Skip/Skipf/SkipNow as a top-level statement.
+func unconditionallySkippedTests(t *testing.T, dir string) map[string]bool {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read %s: %v", dir, err)
+	}
+	result := map[string]bool{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, filepath.Join(dir, entry.Name()), nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", entry.Name(), err)
+		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv != nil || fn.Body == nil || !strings.HasPrefix(fn.Name.Name, "Test") {
+				continue
+			}
+			if bodySkipsUnconditionally(fn.Body) {
+				result[fn.Name.Name] = true
+			}
+		}
+	}
+	return result
+}
+
+// bodySkipsUnconditionally reports whether a test body reaches t.Skip at its
+// top level (before any conditional that could make it reachable). A skip
+// nested in an `if` or loop is conditional and does not count.
+func bodySkipsUnconditionally(body *ast.BlockStmt) bool {
+	for _, stmt := range body.List {
+		call, ok := skipCall(stmt)
+		if ok {
+			_ = call
+			return true
+		}
+	}
+	return false
+}
+
+// skipCall recognises t.Skip(...), t.Skipf(...) and t.SkipNow() written as a
+// direct expression statement, including the helper form skipIfNoX(t) that
+// itself skips is deliberately not recognised: only literal skip calls count.
+func skipCall(stmt ast.Stmt) (*ast.CallExpr, bool) {
+	exprStmt, ok := stmt.(*ast.ExprStmt)
+	if !ok {
+		return nil, false
+	}
+	call, ok := exprStmt.X.(*ast.CallExpr)
+	if !ok {
+		return nil, false
+	}
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return nil, false
+	}
+	switch selector.Sel.Name {
+	case "Skip", "Skipf", "SkipNow":
+		return call, true
+	}
+	return nil, false
+}
+
+// TestBodySkipsUnconditionallyDetector proves the skip gate sees the live
+// test shape (top-level t.Skip) without flagging a guarded one.
+func TestBodySkipsUnconditionallyDetector(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	src := `package p
+
+import "testing"
+
+func TestLiveThing(t *testing.T) {
+	t.Skip("set LIVE env to run")
+}
+
+func TestGuardedThing(t *testing.T) {
+	if x := osGetenv(); x == "" {
+		t.Skip("env absent")
+	}
+	_ = x
+}
+
+func TestNormalThing(t *testing.T) {
+	t.Log("runs")
+}
+
+func osGetenv() string { return "" }
+`
+	if err := os.WriteFile(filepath.Join(dir, "x_test.go"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := unconditionallySkippedTests(t, dir)
+	if !got["TestLiveThing"] {
+		t.Error("top-level skip was not detected")
+	}
+	if got["TestGuardedThing"] {
+		t.Error("a guarded skip was wrongly flagged as unconditional")
+	}
+	if got["TestNormalThing"] {
+		t.Error("a normal test was wrongly flagged")
 	}
 }

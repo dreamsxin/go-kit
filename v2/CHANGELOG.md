@@ -17,8 +17,50 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ## [Unreleased]
 
+### Changed
+
+- The Zap logging middleware now speaks the same record schema as the slog
+  adapter: `operation`/`duration`/`success` plus `trace_id`, `span_id` and
+  `request_id` when the context carries them (`zap.record-fields`), and a
+  failed or panicking call logs at Error instead of Info, so a deployment
+  mixing the two adapters can run one query and failures reach error alerts.
+  The old `op`/`took` field names are replaced; log queries over them need
+  updating.
+
+### Added
+
+- `grpc.TraceparentStreamClientInterceptor` propagates the W3C trace context
+  on streaming client calls (`grpc.traceparent-stream-client`), closing the
+  asymmetry where only unary calls and the server stream interceptor existed;
+  a context without a trace still invents none.
+- The reviewed generated contract now includes `generated_chain.go`, so the
+  middleware chain every fresh project receives is part of the signed-off
+  snapshot rather than invisible to contract gates.
+- The protocol-behaviour gate fails when a stable promise is covered only by
+  tests that call `t.Skip` unconditionally at function top level. A guarded
+  live/integration skip is still allowed, as long as the promise also names
+  a test that runs in CI.
+
 ### Fixed
 
+- An SSE server constructed without an explicit error handler now logs
+  transport errors through slog's default logger, the same default
+  `NewServer` already had; it used to fall back to the no-op handler while
+  the `transport.default-error-handler` promise said unconfigured servers
+  log, so a mid-stream failure on a hand-assembled `SSEServer` left no
+  record. The promise test now covers the SSE server too;
+  `ServerErrorHandler(transport.NopErrorHandler)` still restores silence.
+- Extend mode's generated-middleware detection matched the pre-rename
+  `MetricsMiddleware(generatedMetrics(name))` string while the template
+  emits `RecordingMiddleware(name, generatedMetricsCollector)`, so every
+  current generated project looked metrics-less and a later
+  `-append-middleware metrics` duplicated the middleware. Both generations
+  are now recognized.
+- The flagship examples now model the production checklist: the profilesvc
+  request decoders cap bodies with `http.MaxBytesReader`, the best-practice
+  server sets read/header/idle timeouts and header size, and the MCP
+  examples set the read-side bounds that are safe beside SSE (no write
+  timeout that would close a stream).
 - A burst of asynchronous component failures could still be truncated by
   `kit.Host.Run`. The retained set recorded every error the watcher read,
   but the watcher also exited on Shutdown's stop announcement, and when the

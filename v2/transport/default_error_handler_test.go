@@ -3,6 +3,7 @@ package transport_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -68,5 +69,30 @@ func TestNopErrorHandlerSilences(t *testing.T) {
 	}
 	if buf.String() != "" {
 		t.Errorf("an explicit NopErrorHandler still logged: %q", buf.String())
+	}
+}
+
+// TestSSEServerDefaultsToTheLoggingErrorHandler pins the same default for the
+// streaming transport: NewSSEServer used to fall back to NopErrorHandler while
+// the stable transport.default-error-handler promise says an unconfigured
+// server logs. A decode failure is the cheapest error reachable before headers.
+func TestSSEServerDefaultsToTheLoggingErrorHandler(t *testing.T) {
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	defer slog.SetDefault(previous)
+
+	sse := httpserver.NewSSEServer(
+		func(context.Context, any, *httpserver.SSEStream) error { return nil },
+		func(context.Context, *http.Request) (any, error) { return nil, errors.New("decode failed") },
+	)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/events", nil)
+	if err := sse.ServeStream(recorder, request); err == nil {
+		t.Fatal("ServeStream returned no error")
+	}
+	logged := buf.String()
+	if !strings.Contains(logged, "go-kit transport error") || !strings.Contains(logged, "decode failed") {
+		t.Errorf("the SSE decode failure was not logged by the default handler: %q", logged)
 	}
 }

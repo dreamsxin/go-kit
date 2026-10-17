@@ -15,8 +15,41 @@
 
 ## [Unreleased]
 
+### 变更
+
+- Zap 日志中间件现在与 slog 适配器使用同一套记录字段：
+  `operation`/`duration`/`success`，以及 context 中存在时的 `trace_id`、
+  `span_id`、`request_id`（`zap.record-fields`）；失败与 panic 以 Error
+  而非 Info 记录，混用两个适配器的部署可以用一条查询回放、失败也能进入
+  错误告警。旧的 `op`/`took` 字段名被替换，针对它们的日志查询需要更新。
+
+### 新增
+
+- `grpc.TraceparentStreamClientInterceptor` 在流式客户端调用上传播 W3C
+  trace context（`grpc.traceparent-stream-client`），补上此前只有 unary
+  与服务端流式拦截器的不对称；无 trace 的 context 仍不发明 trace。
+- 评审生成契约现在包含 `generated_chain.go`，每个新生成项目获得的中间件
+  链成为签字快照的一部分，不再对契约门禁不可见。
+- 协议行为门禁现在会在某个稳定承诺只被函数顶层无条件 `t.Skip` 的测试
+  覆盖时失败。带条件保护的 live/集成 skip 仍允许，只要该承诺还点名了一个
+  在 CI 实际运行的测试。
+
 ### 修复
 
+- 未显式配置错误处理器的 SSE 服务器现在与 `NewServer` 一样，经 slog 默认
+  logger 记录传输错误；此前它回退到空操作处理器，而
+  `transport.default-error-handler` 承诺说未配置的服务器会记录日志，手工
+  装配的 `SSEServer` 在流中途失败时不留任何记录。承诺测试现在也覆盖 SSE
+  服务器；`ServerErrorHandler(transport.NopErrorHandler)` 仍可恢复静默。
+- extend 模式的生成中间件检测匹配的是改名前的
+  `MetricsMiddleware(generatedMetrics(name))` 字符串，而模板实际发的是
+  `RecordingMiddleware(name, generatedMetricsCollector)`，导致每个当前
+  生成项目都被判定为没有 metrics，之后 `-append-middleware metrics` 会
+  重复追加中间件。两代写法现在都能识别。
+- 旗舰示例现在示范生产清单：profilesvc 的请求解码器用
+  `http.MaxBytesReader` 限制 body，best-practice 服务器设置读/请求头/空闲
+  超时与请求头大小，MCP 示例设置与 SSE 共存安全的读侧边界（不设会关闭
+  流的写超时）。
 - 异步组件故障的爆发仍可能被 `kit.Host.Run` 截断。保留集合记录了 watcher
   读到的每条错误，但 watcher 也在 Shutdown 宣告停止时退出；当停止信号与缓冲
   错误同时就绪时，它的 select 可能取走停止信号，把爆发的其余部分留在组件

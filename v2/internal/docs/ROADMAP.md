@@ -2804,12 +2804,40 @@ Deliberately deferred, recorded so it is not mistaken for an oversight:
   seam (application-owned tracer, middleware assembly) is right; the
   coverage is a follow-up milestone that should wrap `otelhttp`/`otelgrpc`
   at the transport boundary rather than teaching the core about OpenTelemetry.
-- `integrations/zap`'s logging middleware still records no correlation
-  fields at all. Bringing it to parity with the slog adapter is part of the
-  span-coverage follow-up.
+  Same follow-up owns an otel gRPC metrics adapter — the gRPC transport can
+  only be scraped, not pushed through OTel, while HTTP has one.
 - The built-in layer remains correlation-only: it propagates W3C identifiers
   and emits flat per-call records, never a span tree. That is the documented
-  division of labour and is not changing.
+  division of labour and is not changing. Correlation still has recorded thin
+  edges the follow-up covers: the TypeScript SDK does not inject traceparent
+  (the Go SDK does), MCP server-initiated sampling/notification messages
+  carry no trace fields, and repeated retry attempts share one traceparent
+  with no attempt sequence, so a flat-log replay orders them by timestamp
+  only.
+- A freshly generated project keeps its minimal opt-in middleware default:
+  tracing, metrics and error handling are appended through `extend
+  -append-middleware`, not generated on a new project. The multi-agent audit
+  recommended turning them on by default; the decision stays minimal because
+  the foundation stance is explicit opt-in generator defaults, and the
+  transport layer already extracts traceparent either way. The generated
+  chain is now in the reviewed contract snapshots, so flipping the default
+  later is a reviewed one-template change.
+- Log schema pairing (the bilingual gate checks a counterpart exists, not
+  that the two halves stayed in sync) and the compatibility classifier's
+  blind spot on struct-tag renames are known gate limits, recorded by the
+  audit rather than fixed.
+
+The structured multi-agent design audit that followed (four independent
+judges over architecture, reliability, observability and maintainability,
+all 4/5) also fixed: the SSE server's default error handler was the no-op
+one while the stable `transport.default-error-handler` promise said
+unconfigured servers log; extend mode's middleware detector matched the
+pre-rename metrics string and could duplicate middleware; the gRPC client
+had no streaming traceparent interceptor; the Zap middleware used a
+different schema, logged failures at Info and carried no correlation fields;
+the reviewed contract omitted generated_chain.go; a stable marker could be
+"covered" by a test that unconditionally skips; and the flagship examples
+taught unbounded decodes and timeout-less servers.
 
 Acceptance:
 

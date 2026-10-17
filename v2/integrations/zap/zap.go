@@ -26,17 +26,28 @@ func NewErrorHandler(logger *zap.Logger) transport.ErrorHandler {
 	})
 }
 
-// LoggingMiddleware records the operation outcome and elapsed duration.
+// LoggingMiddleware records the operation outcome, elapsed duration, and the
+// correlation identifiers the context carries, using the same attribute
+// vocabulary as observability/slog's LoggingMiddleware — operation, duration,
+// success, trace_id, span_id, request_id — so a deployment mixing the two can
+// query one schema.
 //
-// A panic is logged as a panic and left to propagate. The deferred log runs
-// while the stack unwinds, where err is still nil, so without this the call
-// would be recorded as a success. Install endpoint.RecoveryMiddleware inside
-// this one if the panic should become an error instead.
+// A failure and a panic are logged at Error because an error-only-at-Info
+// record never reaches an error alert. The panic record is emitted from a
+// defer while the stack unwinds, where err is still nil, so the success field
+// is computed from whether the endpoint returned. Install
+// endpoint.RecoveryMiddleware inside this one if the panic should become an
+// error instead.
 //
 // Stable: zap.middleware-transparency — LoggingMiddleware returns the
 // endpoint's response and error unchanged, and a nil logger becomes a no-op
 // logger.
 // Covered by: TestLoggingMiddlewareSuccess, TestLoggingMiddlewareError, TestLoggingMiddlewareNilLogger
+//
+// Stable: zap.record-fields — every endpoint record carries operation,
+// duration and success; trace_id/span_id/request_id are added when present;
+// a failed or panicking call logs at Error.
+// Covered by: TestLoggingMiddlewareRecordsCorrelationAndLevel
 func LoggingMiddleware(logger *zap.Logger, operation string) endpoint.Middleware {
 	if logger == nil {
 		logger = zap.NewNop()
@@ -47,16 +58,27 @@ func LoggingMiddleware(logger *zap.Logger, operation string) endpoint.Middleware
 			returned := false
 			defer func() {
 				fields := []zap.Field{
-					zap.String("op", operation),
-					zap.Duration("took", time.Since(start)),
+					zap.String("operation", operation),
+					zap.Duration("duration", time.Since(start)),
+				}
+				if traceID := endpoint.TraceIDFromContext(ctx); traceID != "" {
+					fields = append(fields, zap.String("trace_id", string(traceID)))
+				}
+				if spanID := endpoint.SpanIDFromContext(ctx); spanID != "" {
+					fields = append(fields, zap.String("span_id", string(spanID)))
+				}
+				if requestID := endpoint.RequestIDFromContext(ctx); requestID != "" {
+					fields = append(fields, zap.String("request_id", requestID))
 				}
 				switch {
 				case !returned:
+					fields = append(fields, zap.Bool("success", false))
 					logger.Error("endpoint call panicked", fields...)
 				case err != nil:
-					fields = append(fields, zap.Error(err))
-					logger.Info("endpoint call failed", fields...)
+					fields = append(fields, zap.Bool("success", false), zap.Error(err))
+					logger.Error("endpoint call failed", fields...)
 				default:
+					fields = append(fields, zap.Bool("success", true))
 					logger.Info("endpoint call succeeded", fields...)
 				}
 			}()

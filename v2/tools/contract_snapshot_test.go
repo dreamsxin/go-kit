@@ -41,6 +41,11 @@ func assertGeneratedContractSnapshot(t *testing.T, name, root string) {
 		"sdk/typescript/client.ts",
 	}
 	paths = append(paths, matchingContractFiles(t, root, filepath.Join("sdk", "*sdk", "client.go"))...)
+	// The generated endpoint chain is the product surface that decides whether
+	// a fresh service gets recovery/tracing/metrics/error handling. Without it
+	// in the reviewed set, a template regression to an empty chain was
+	// invisible: the other artefacts never render middleware order.
+	paths = append(paths, matchingContractFiles(t, root, filepath.Join("endpoint", "*", "generated_chain.go"))...)
 	paths = append(paths, matchingContractFiles(t, root, filepath.Join("pb", "*", "*.proto"))...)
 	if _, err := os.Stat(filepath.Join(root, "idl.go")); err == nil {
 		paths = append(paths, "idl.go")

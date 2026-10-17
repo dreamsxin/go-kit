@@ -573,6 +573,7 @@ func ExtractTraceparent(ctx context.Context, md metadata.MD) context.Context
 func InjectTraceparent(ctx context.Context, md *metadata.MD) context.Context
 func KindNameForCode(code codes.Code) string
 func Retryable(err error) bool
+func TraceparentStreamClientInterceptor() grpc.StreamClientInterceptor
 func TraceparentStreamServerInterceptor() grpc.StreamServerInterceptor
 func TraceparentUnaryClientInterceptor() grpc.UnaryClientInterceptor
 func TraceparentUnaryServerInterceptor() grpc.UnaryServerInterceptor

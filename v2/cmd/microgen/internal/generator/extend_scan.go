@@ -563,7 +563,13 @@ func detectGeneratedMiddlewares(services []ExistingService) []string {
 		if strings.Contains(content, "endpoint.ErrorHandlingMiddleware(name)") {
 			seen["error-handling"] = true
 		}
-		if strings.Contains(content, "endpoint.MetricsMiddleware(generatedMetrics(name))") {
+		// Both middleware generations are recognized: the current template
+		// records through RecordingMiddleware with the shared collector, and
+		// projects generated before that rename still contain MetricsMiddleware.
+		// Matching only the old string made extend re-append metrics to every
+		// current project because it could not see the middleware already there.
+		if strings.Contains(content, "endpoint.RecordingMiddleware(name, generatedMetricsCollector)") ||
+			strings.Contains(content, "endpoint.MetricsMiddleware(generatedMetrics(name))") {
 			seen["metrics"] = true
 		}
 	}

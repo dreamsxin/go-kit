@@ -2171,11 +2171,29 @@ span，串成一棵出事之后能够回放的 trace 树。两层设计成立（
   span、DB span、重试 attempt span、逐事件 SSE span 尚不存在，所以即使接了
   collector，树也只有一层深度，内部关键调用不可见。缝隙（应用自有 tracer、
   中间件装配）是对的；覆盖面属于后续里程碑，且应在传输边界包
-  `otelhttp`/`otelgrpc`，而不是让核心认识 OpenTelemetry。
-- `integrations/zap` 的日志中间件仍完全不记录关联字段。与 slog 适配器
-  拉平放到 span 覆盖那个后续里程碑。
+  `otelhttp`/`otelgrpc`，而不是让核心认识 OpenTelemetry。同一后续还负责
+  otel gRPC 指标适配器——目前 gRPC 传输只能被 scrape，不能经 OTel push，
+  而 HTTP 两者皆有。
 - 内置层仍然只做关联：传播 W3C 标识、输出每调用一行的平铺记录，永不产
-  span 树。这是文档写明的分工，不会改变。
+  span 树。这是文档写明的分工，不会改变。关联仍有已记录的薄边：TypeScript
+  SDK 不注入 traceparent（Go SDK 注入）、MCP 服务端发起的采样/通知消息不带
+  trace 字段、重试的多次 attempt 共用一个 traceparent 且无 attempt 序号，
+  平铺日志回放只能按时间戳排序。
+- 全新生成项目保持最小 opt-in 的中间件默认：tracing、metrics、error
+  handling 通过 `extend -append-middleware` 追加，而非新项目直接生成。多
+  Agent 评审建议默认开启；决定仍是最小化，因为基础立场是生成器默认显式
+  opt-in，且无论如何传输层都已提取 traceparent。生成链现已进入评审契约快照，
+  将来翻转默认只是一处受评审的模板变更。
+- 日志式双语配对（门禁只检查对偶文件存在，不检查两半内容是否同步）与兼容性
+  分类器对 struct tag 重命名的盲区，是评审记录在案的门禁已知限制，此次不修。
+
+其后的结构化多 Agent 设计评审（架构、可靠性、可观测性、可维护性四位独立
+法官，均 4/5）还修复了：SSE 服务器的默认错误处理器是空操作处理器，而稳定
+承诺 `transport.default-error-handler` 说未配置的服务器会记录日志；extend
+模式的中间件检测器匹配改名前的 metrics 字符串，可能重复追加中间件；gRPC
+客户端没有流式 traceparent 拦截器；Zap 中间件用不同 schema、失败记 Info、
+无关联字段；评审契约漏掉 generated_chain.go；稳定标记可能被无条件 skip 的
+测试"覆盖"；旗舰示例教授无界解码与无超时服务器。
 
 验收：
 

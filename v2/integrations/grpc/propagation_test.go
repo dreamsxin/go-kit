@@ -135,3 +135,51 @@ type fakeServerStream struct {
 }
 
 func (s *fakeServerStream) Context() context.Context { return s.ctx }
+
+// TestTraceparentStreamClientInterceptorInjectsAndReplaces pins the streaming
+// counterpart of the unary client interceptor: a generated streaming stub has
+// no client.Client to inject through, so the interceptor must write the
+// context's traceparent exactly once into outgoing metadata.
+func TestTraceparentStreamClientInterceptorInjectsAndReplaces(t *testing.T) {
+	interceptor := TraceparentStreamClientInterceptor()
+	ctx := metadata.NewOutgoingContext(
+		endpoint.WithTraceContext(context.Background(), endpoint.TraceContext{
+			TraceID: testTraceID,
+			SpanID:  testSpanID,
+			Flags:   "01",
+		}),
+		metadata.Pairs(TraceparentKey, "00-11111111111111111111111111111111-2222222222222222-00"),
+	)
+
+	var sent metadata.MD
+	streamer := func(ctx context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption) (grpc.ClientStream, error) {
+		sent, _ = metadata.FromOutgoingContext(ctx)
+		return nil, nil
+	}
+	if _, err := interceptor(ctx, &grpc.StreamDesc{}, nil, "/svc/Stream", streamer); err != nil {
+		t.Fatalf("interceptor: %v", err)
+	}
+	if got := sent.Get(TraceparentKey); len(got) != 1 || got[0] != testParent {
+		t.Fatalf("outgoing metadata = %v, want [%s]", got, testParent)
+	}
+}
+
+// TestTraceparentStreamClientInterceptorLeavesAnAbsentContextUntouched keeps
+// the injection opt-out for a context with no trace: it must not invent one.
+func TestTraceparentStreamClientInterceptorLeavesAnAbsentContextUntouched(t *testing.T) {
+	interceptor := TraceparentStreamClientInterceptor()
+	called := false
+	streamer := func(ctx context.Context, _ *grpc.StreamDesc, _ *grpc.ClientConn, _ string, _ ...grpc.CallOption) (grpc.ClientStream, error) {
+		called = true
+		if md, ok := metadata.FromOutgoingContext(ctx); ok && len(md.Get(TraceparentKey)) != 0 {
+			t.Fatalf("invented traceparent for an untraced context: %v", md)
+		}
+		return nil, nil
+	}
+	if _, err := interceptor(context.Background(), &grpc.StreamDesc{}, nil, "/svc/Stream", streamer); err != nil {
+		t.Fatalf("interceptor: %v", err)
+	}
+	if !called {
+		t.Fatal("streamer was not called")
+	}
+}

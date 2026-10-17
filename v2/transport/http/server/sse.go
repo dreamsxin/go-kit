@@ -164,7 +164,12 @@ func NewSSEServer(stream SSEStreamHandler, dec DecodeRequestFunc, options ...Ser
 		s.cfg.errorEncoder = DefaultErrorEncoder
 	}
 	if s.cfg.errorHandler == nil {
-		s.cfg.errorHandler = transport.NopErrorHandler
+		// Same default as NewServer, keeping transport.default-error-handler
+		// honest for both transports: a server constructed without an explicit
+		// error handler logs errors. A stream cannot send a mid-flight failure
+		// to its client, so silencing it here by default would lose the only
+		// record; ServerErrorHandler(transport.NopErrorHandler) restores silence.
+		s.cfg.errorHandler = transport.DefaultErrorHandler
 	}
 	return s
 }

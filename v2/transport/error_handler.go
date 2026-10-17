@@ -21,17 +21,20 @@ var NopErrorHandler ErrorHandler = ErrorHandlerFunc(func(_ context.Context, _ er
 //
 // Stable: transport.default-error-handler — a transport server constructed
 // without an explicit error handler logs errors through slog's default
-// logger at Warn level.
-// Covered by: TestUnhandledDecodeErrorIsLogged, TestNopErrorHandlerSilences
+// logger at Warn level, on both the request/response server and the SSE
+// server.
+// Covered by: TestUnhandledDecodeErrorIsLogged, TestNopErrorHandlerSilences,
+// TestSSEServerDefaultsToTheLoggingErrorHandler
 var DefaultErrorHandler ErrorHandler = ErrorHandlerFunc(func(ctx context.Context, err error) {
 	slog.WarnContext(ctx, "go-kit transport error", "err", err)
 })
 
 // ErrorHandler observes errors a transport encounters outside the endpoint
-// result — while decoding, encoding, or relaying. The default NopErrorHandler
-// discards them: the transport still encodes the response, and nothing records
-// why. Nothing wires one for you; pass one to the server option explicitly —
-// observability/slog.NewErrorHandler is a ready implementation.
+// result — while decoding, encoding, relaying, or after an SSE stream
+// started. Both serving transports default to DefaultErrorHandler; pass
+// NopErrorHandler to restore deliberate silence, or wire a richer adapter
+// such as observability/slog.NewErrorHandler for request correlation,
+// level and attribute control.
 type ErrorHandler interface {
 	Handle(ctx context.Context, err error)
 }

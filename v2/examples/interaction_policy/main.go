@@ -41,6 +41,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/dreamsxin/go-kit/v2/interaction"
 	interactionmcp "github.com/dreamsxin/go-kit/v2/interaction/mcp"
@@ -61,7 +62,16 @@ func main() {
 	})
 
 	log.Println("interaction policy example listening on :8080")
-	log.Fatal(http.ListenAndServe(":8080", mux))
+	srv := &http.Server{
+		Addr:              ":8080",
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+		// No Read/Write timeout: MCP GET streams Server-Sent Events for the
+		// session's lifetime, so a global response deadline would close it.
+	}
+	log.Fatal(srv.ListenAndServe())
 }
 
 func newRuntime() (*interaction.Runtime, *memoryAuditSink) {

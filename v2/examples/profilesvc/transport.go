@@ -60,6 +60,10 @@ func MakeHTTPHandler(s Service, logger *slog.Logger) http.Handler {
 
 func decodePostProfileRequest(_ context.Context, r *http.Request) (request interface{}, err error) {
 	var req postProfileRequest
+	// Cap the body the way the production codecs do: an unbounded decoder
+	// lets one request exhaust memory. The framework's
+	// httpserver.DefaultRawBodyBytes is the same value.
+	r.Body = http.MaxBytesReader(nil, r.Body, httptransportserver.DefaultRawBodyBytes)
 	if e := json.NewDecoder(r.Body).Decode(&req.Profile); e != nil {
 		return nil, e
 	}
@@ -80,6 +84,7 @@ func decodePutProfileRequest(_ context.Context, r *http.Request) (request interf
 		return nil, ErrBadRouting
 	}
 	var profile Profile
+	r.Body = http.MaxBytesReader(nil, r.Body, httptransportserver.DefaultRawBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&profile); err != nil {
 		return nil, err
 	}

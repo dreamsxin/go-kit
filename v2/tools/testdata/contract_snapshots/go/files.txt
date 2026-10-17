@@ -1,6 +1,7 @@
 .microgen/manifest.json
 docs/openapi.json
 docs/schema.json
+endpoint/userservice/generated_chain.go
 idl.go
 sdk/typescript/client.ts
 sdk/userservicesdk/client.go

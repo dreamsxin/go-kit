@@ -74,7 +74,16 @@ func main() {
 	log.Println("  DELETE /mcp         - terminate session")
 	log.Println("  GET  /demo/notify-tools-changed?session=<sid>")
 	log.Println("  GET  /demo/log?session=<sid>&msg=<message>")
-	log.Fatal(http.ListenAndServe(":8090", mux))
+	srv := &http.Server{
+		Addr:              ":8090",
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+		// No Read/Write timeout: MCP GET streams Server-Sent Events for the
+		// session's lifetime, so a global response deadline would close it.
+	}
+	log.Fatal(srv.ListenAndServe())
 }
 
 func buildRuntime() *interaction.Runtime {
