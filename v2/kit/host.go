@@ -217,11 +217,14 @@ func (h *Host) Start() error {
 
 // Errors reports asynchronous component failures after Start.
 //
-// Stable: kit.serve-errors-retained — every asynchronous component failure is
-// retained until Shutdown completes and joined into Run's result, whatever the
-// order and the burst; the Errors channel is the wake-up stream a caller
-// selects on, not the record.
-// Covered by: TestRunJoinsEveryAsyncComponentFailure, TestRunRetainsAWideBurst
+// Stable: kit.serve-errors-retained — every asynchronous component failure
+// emitted before the stop announcement is retained until Shutdown completes
+// and joined into Run's result, whatever the order and the burst; the Errors
+// channel is the wake-up stream a caller selects on, not the record. A failure
+// arriving after the announcement (for example a component goroutine that
+// ignores its context) is outside the promise and is shut down with it.
+// Covered by: TestRunJoinsEveryAsyncComponentFailure, TestRunRetainsAWideBurst,
+// TestRunJoinsServeErrorsArrivingDuringDrain
 func (h *Host) Errors() <-chan error {
 	return h.serveErrors
 }

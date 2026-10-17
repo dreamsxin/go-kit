@@ -26,11 +26,17 @@ func TestRunJoinsEveryAsyncComponentFailure(t *testing.T) {
 		kit.WithDrainDelay(0),
 	)
 
-	done := make(chan error, 1)
-	go func() { done <- host.Run(context.Background()) }()
+	// Fill the whole burst before Run starts: a channel send is a scheduling
+	// point, so starting Run first lets it announce the stop while the test
+	// goroutine is still filling the buffer, and an error arriving after the
+	// announcement is outside the retained-record promise. Pre-filling makes
+	// every failure a pre-announcement one the watcher must drain, which is
+	// the property under test.
 	for i := 0; i < 5; i++ {
 		component.errors <- fmt.Errorf("failure %d", i)
 	}
+	done := make(chan error, 1)
+	go func() { done <- host.Run(context.Background()) }()
 
 	select {
 	case err := <-done:
@@ -63,11 +69,14 @@ func TestRunRetainsAWideBurst(t *testing.T) {
 		kit.WithDrainDelay(0),
 	)
 
-	done := make(chan error, 1)
-	go func() { done <- host.Run(context.Background()) }()
+	// Pre-fill before Run starts (see TestRunJoinsEveryAsyncComponentFailure):
+	// all fifty are then pre-announcement errors the watcher must drain when
+	// the stop and the buffered errors are both ready.
 	for i := 0; i < total; i++ {
 		component.errors <- fmt.Errorf("failure %d", i)
 	}
+	done := make(chan error, 1)
+	go func() { done <- host.Run(context.Background()) }()
 
 	select {
 	case err := <-done:
