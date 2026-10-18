@@ -91,6 +91,16 @@
   恢复为两条独立条目。
 - 生成测试模板对所有源都从 module 根导入 `idl`，导致用 `-tests` 生成的
   proto 项目无法编译（它的类型在 `pb`）；现在与其他模板使用同一套导入选择。
+- `microgen extend -append-service` 现在能用于启用了模型输出的项目。此前它只
+  复制新服务的骨架，却没有复制它的 `generated_repos.go`，于是包里引用了
+  `GeneratedRepos` 而无人声明；它还会为合并契约里声明、但项目尚未拥有的模型
+  写出仓库接线，同时在 `cmd/generated_services.go` 已按新字段重生成时让既有服务
+  的接线保持旧状（`unknown field ProductRepo`、
+  `undefined: repository.ProductRepository`）。现在计划会带上被追加服务的仓库
+  接线，补齐契约声明而项目缺失的 model/repository/hooks 文件，并在同一步里刷新
+  每个既有服务的接线，因此"先追加服务、后追加模型"也能得到可编译的项目。
+- 两个生成服务的测试都把 `isScaffoldError` 和 `expectScaffoldOrOK` 放进同一个
+  `test` 包，导致扩展出第二个服务的项目无法构建；辅助函数现在按服务命名。
 - `AccessLogMiddleware` 此前只从入站 header 读 `trace_id`，于是在续接过 trace
   的链内写出的 access 行命名的是远程父而非本节点，且从不携带 `span_id`。
   现在优先从续接过的请求 context 读 `trace_id`/`span_id`，裸挂载时回退到可解析

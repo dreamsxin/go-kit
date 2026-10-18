@@ -28,7 +28,10 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 			"-import", "example.com/gen_idl_extend_append",
 			"-config=false",
 			"-docs=false",
-			"-model=false",
+			// With model output on, the appended service scaffold refers to
+			// GeneratedRepos, so its generated_repos.go has to be written too;
+			// the build below is what proves it.
+			"-model=true",
 			"-db=false",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {

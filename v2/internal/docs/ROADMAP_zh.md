@@ -2223,6 +2223,15 @@ go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,
    `pb` 导入。
 3. **有可直接使用的 gRPC 契约。** `examples/usersvc/userservice.proto` 是 Go IDL
    示例的 protobuf 孪生，gRPC 相关 make 目标从它生成。
+4. **Agent 环路是走出来的，不是假设的。** 一个项目完整走完文档流程：实现一个服务
+   方法（`go test` 从 scaffold skip 变成真实断言）、用合并契约
+   `extend -append-service` 追加第二个服务、`extend -append-model` 追加新模型、
+   `extend -append-middleware` 追加三个受支持的中间件，然后 `go run ./cmd` 并
+   调用 `/health`、已实现的业务路由、`/openapi.json` 与 `/internal/metrics`。
+   走查发现四个被测试夹具遮住的缺陷，已在此修复：启用模型输出时 append-service
+   漏写新服务的 `generated_repos.go`；它为项目尚未拥有的模型写出仓库接线；它在
+   重生成聚合文件时让既有服务的仓库接线保持旧状；两个服务的生成测试在相同辅助
+   函数名上冲突。extend 集成夹具现在以开启模型输出生成，构建会抓住前三个。
 
 刻意推迟，记录在案以免被当成疏漏：
 
@@ -2230,8 +2239,9 @@ go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,
   `grpc.ServiceDesc`、把服务端与客户端的 codec 选择接进生成的 runtime、替换 Go
   SDK 里的 protobuf stub 客户端，并回答"不会 JSON codec 的非 Go 客户端怎么办"。
   在它存在之前，gRPC 只走 protobuf——这也是 gRPC 服务唯一可互操作的定义。
-- 审计覆盖生成项目及其文档命令，没有覆盖 agent 端到端修改生成项目
-  （extend append-service、编译、运行）；那条环有测试，但没有记录的走查。
+- 启用 OpenAPI 输出的生成项目会解析 `github.com/swaggest/swgui`，它仍依赖已弃用的
+  `golang.org/x/tools/godoc` 模块，新项目的 `go mod tidy` 会下载它。替换内嵌
+  Swagger UI 属于依赖决策而非生成器缺陷，因此记录而不在此改动。
 
 验收：
 

@@ -2871,6 +2871,20 @@ Work packages:
    package for proto sources like the other templates already did.
 3. **A gRPC contract to start from.** `examples/usersvc/userservice.proto` is the
    protobuf twin of the Go IDL example, and the gRPC make targets build from it.
+4. **The agent loop was walked, not assumed.** One project went through the whole
+   documented workflow: implement a service method (`go test` turns the scaffold
+   skip into an assertion), `extend -append-service` a second service from a
+   combined contract, `extend -append-model` a new model, `extend
+   -append-middleware` the three supported middlewares, then `go run ./cmd` and
+   call `/health`, the implemented business route, `/openapi.json` and
+   `/internal/metrics`. The walkthrough found four defects the fixtures had
+   hidden, all fixed here: append-service omitted the new service's
+   `generated_repos.go` when model output was on; it wired repositories for
+   models the project did not have yet; it left existing services' repository
+   wiring stale while regenerating the aggregation file; and two services'
+   generated tests collided on the same helper names. The extend integration
+   fixture now generates with model output on, so the build catches the first
+   three.
 
 Deliberately deferred, recorded so it is not mistaken for an oversight:
 
@@ -2880,9 +2894,11 @@ Deliberately deferred, recorded so it is not mistaken for an oversight:
   client in the Go SDK, and a decision about non-Go clients that cannot speak
   the JSON codec. Until that exists, gRPC is protobuf-only, which is also the
   only interoperable definition of a gRPC service.
-- The audit covered generated projects and their documented commands. It did not
-  cover an agent editing a generated project end-to-end (extend append-service,
-  compile, run); that loop has tests but no recorded walkthrough.
+- A generated project with OpenAPI output resolves `github.com/swaggest/swgui`,
+  which still depends on the deprecated `golang.org/x/tools/godoc` module;
+  `go mod tidy` in a fresh project downloads it. Replacing the embedded Swagger
+  UI is a dependency decision, not a generator defect, so it is recorded rather
+  than changed here.
 
 Acceptance:
 

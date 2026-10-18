@@ -31,6 +31,20 @@ English | [简体中文](CHANGELOG_zh.md)
   source, so a proto-generated project with `-tests` failed to compile
   (`pb` is where its types live); it now selects the same import the other
   templates already did.
+- `microgen extend -append-service` works on a project generated with model
+  output. It used to copy the new service's scaffold without its
+  `generated_repos.go`, so the package referenced `GeneratedRepos` and nothing
+  declared it; it also wrote repository wiring for models the combined contract
+  declared but the project did not have yet, and left the existing services'
+  wiring stale while `cmd/generated_services.go` was regenerated to use the new
+  fields (`unknown field ProductRepo`, `undefined: repository.ProductRepository`).
+  The plan now carries the appended service's repository wiring, adds the
+  model/repository/hooks files the contract declares and the project lacks, and
+  refreshes every existing service's wiring in the same step, so appending a
+  service before its models still leaves a project that compiles.
+- Two generated services put `isScaffoldError` and `expectScaffoldOrOK` into the
+  same `test` package, so a project extended beyond one service no longer built;
+  the helpers are named per service.
 
 ### Changed
 

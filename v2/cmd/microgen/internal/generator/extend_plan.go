@@ -136,6 +136,60 @@ func BuildAppendServicePlan(existing *ExistingProject, project *ir.Project, opts
 		Warnings: append([]string(nil), existing.Warnings...),
 	}
 
+	if opts.WithModel {
+		// service.tmpl refers to GeneratedRepos when model output is on, so an
+		// appended service needs its generated_repos.go next to it; without it
+		// the scaffold references a type nothing declares.
+		plan.NewFiles = append(plan.NewFiles, PlannedFile{
+			Path:      layout.serviceGeneratedReposFile(target.Name),
+			Ownership: OwnershipGeneratorRebuildable,
+			Reason:    "generated repository wiring for appended service",
+		})
+		// That file wires every model in the combined contract, so a model the
+		// project does not have yet has to be added in the same step. Appending
+		// the service first and its models second would otherwise leave a
+		// project that does not compile, and a caller has no reason to know the
+		// order matters.
+		existingModels := make(map[string]struct{}, len(existing.Models))
+		for _, model := range existing.Models {
+			existingModels[model.Name] = struct{}{}
+		}
+		for _, message := range project.Messages {
+			if message == nil || !message.HasGormTags {
+				continue
+			}
+			if _, ok := existingModels[message.Name]; ok {
+				continue
+			}
+			plan.NewFiles = append(plan.NewFiles,
+				PlannedFile{
+					Path:      layout.generatedModelFile(message.Name),
+					Ownership: OwnershipGeneratorRebuildable,
+					Reason:    "generated model declared by the appended service contract",
+				},
+				PlannedFile{
+					Path:      layout.modelHooksFile(message.Name),
+					Ownership: OwnershipUserProtected,
+					Reason:    "model hooks seam declared by the appended service contract",
+				},
+				PlannedFile{
+					Path:      layout.repositoryFile(message.Name),
+					Ownership: OwnershipGeneratorRebuildable,
+					Reason:    "generated repository for the appended service's model",
+				},
+			)
+		}
+		// Every service's GeneratedRepos is regenerated with the project's full
+		// model set, and cmd/generated_services.go wires that struct, so the
+		// existing services' wiring files have to move with it.
+		for _, service := range existing.Services {
+			plan.UpdatedFiles = append(plan.UpdatedFiles, PlannedUpdate{
+				Path:      layout.serviceGeneratedReposFile(service.Name),
+				Ownership: OwnershipGeneratorRebuildable,
+				Reason:    "regenerate repository wiring for an existing service after the model set grew",
+			})
+		}
+	}
 	if opts.WithGRPC {
 		plan.NewFiles = append(plan.NewFiles,
 			PlannedFile{

@@ -724,6 +724,7 @@ func TestApplyAppendService_WritesNewFilesAndPreservesExistingService(t *testing
 		WithDocs:    false,
 		WithConfig:  false,
 		WithOpenAPI: true,
+		WithModel:   true,
 	})
 	if err := gen.GenerateIR(base); err != nil {
 		t.Fatalf("GenerateIR: %v", err)
@@ -762,6 +763,11 @@ type UserService interface {
 	GetUser(ctx context.Context, req GetUserRequest) (GetUserResponse, error)
 }
 
+type Product struct {
+	ID   uint   ` + "`json:\"id\" gorm:\"primaryKey\"`" + `
+	Name string ` + "`json:\"name\" gorm:\"column:name\"`" + `
+}
+
 type PlaceOrderRequest struct {
 	UserID uint ` + "`json:\"user_id\"`" + `
 }
@@ -787,6 +793,11 @@ type OrderService interface {
 	}
 
 	mustExist(t, filepath.Join(outDir, "service", "orderservice", "service.go"))
+	mustExist(t, filepath.Join(outDir, "service", "orderservice", "generated_repos.go"))
+	mustExist(t, filepath.Join(outDir, "model", "generated_product.go"))
+	mustExist(t, filepath.Join(outDir, "model", "product.go"))
+	mustExist(t, filepath.Join(outDir, "repository", "generated_product_repository.go"))
+	mustContain(t, filepath.Join(outDir, "service", "userservice", "generated_repos.go"), "ProductRepo *repository.ProductRepository")
 	mustExist(t, filepath.Join(outDir, "endpoint", "orderservice", "endpoints.go"))
 	mustExist(t, filepath.Join(outDir, "transport", "orderservice", "transport_http.go"))
 	mustContain(t, filepath.Join(outDir, "cmd", "generated_routes.go"), "/placeorder")

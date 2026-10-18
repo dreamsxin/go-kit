@@ -12,31 +12,31 @@ import (
 	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
 )
 
-// isScaffoldError reports whether err is the scaffold's own "not
+// isScaffoldError{{$.Service.ServiceName}} reports whether err is the scaffold's own "not
 // implemented" stub. The generated tests skip such failures — a fresh
 // project's `go test ./...` is green, with every stub named in its skip
 // message — and become real assertions the moment the stub is replaced by
 // business logic.
-func isScaffoldError(err error) bool {
+func isScaffoldError{{$.Service.ServiceName}}(err error) bool {
 	return err != nil && strings.HasSuffix(err.Error(), "not implemented")
 }
 
-// expectScaffoldOrOK skips while the method is the not-implemented stub and
+// expectScaffoldOrOK{{$.Service.ServiceName}} skips while the method is the not-implemented stub and
 // fails on any other error, so an implemented method that misbehaves still
 // fails its test.
-func expectScaffoldOrOK(t *testing.T, method string, err error) {
+func expectScaffoldOrOK{{$.Service.ServiceName}}(t *testing.T, method string, err error) {
 	t.Helper()
 	switch {
 	case err == nil:
 		return
-	case isScaffoldError(err):
+	case isScaffoldError{{$.Service.ServiceName}}(err):
 		t.Skipf("implement %s: add business logic in service/<name>/service.go", method)
 	default:
 		t.Fatalf("%s failed: %v", method, err)
 	}
 }
 
-func Test{{.Service.ServiceName}}(t *testing.T) {
+func Test{{$.Service.ServiceName}}(t *testing.T) {
 	svc := {{.Service.PackageName}}.NewService(nil)
 	ctx := context.Background()
 
@@ -44,14 +44,14 @@ func Test{{.Service.ServiceName}}(t *testing.T) {
 	t.Run("{{.Name}}", func(t *testing.T) {
 		req := idl.{{.InputName}}{}
 		_, err := svc.{{.Name}}(ctx, req)
-		expectScaffoldOrOK(t, "{{.Name}}", err)
+		expectScaffoldOrOK{{$.Service.ServiceName}}(t, "{{.Name}}", err)
 	})
 {{end}}
 {{range .ServerStreamMethods}}
 	t.Run("{{.Name}}", func(t *testing.T) {
 		req := idl.{{.InputName}}{}
 		err := svc.{{.Name}}(ctx, req, func(idl.{{.OutputName}}) error { return nil })
-		expectScaffoldOrOK(t, "{{.Name}}", err)
+		expectScaffoldOrOK{{$.Service.ServiceName}}(t, "{{.Name}}", err)
 	})
 {{end}}
 {{range .ClientStreamMethods}}
@@ -59,7 +59,7 @@ func Test{{.Service.ServiceName}}(t *testing.T) {
 		_, err := svc.{{.Name}}(ctx, func() (idl.{{.InputName}}, error) {
 			return idl.{{.InputName}}{}, context.Canceled
 		})
-		expectScaffoldOrOK(t, "{{.Name}}", err)
+		expectScaffoldOrOK{{$.Service.ServiceName}}(t, "{{.Name}}", err)
 	})
 {{end}}
 {{range .BidiStreamMethods}}
@@ -67,12 +67,12 @@ func Test{{.Service.ServiceName}}(t *testing.T) {
 		err := svc.{{.Name}}(ctx, func() (idl.{{.InputName}}, error) {
 			return idl.{{.InputName}}{}, context.Canceled
 		}, func(idl.{{.OutputName}}) error { return nil })
-		expectScaffoldOrOK(t, "{{.Name}}", err)
+		expectScaffoldOrOK{{$.Service.ServiceName}}(t, "{{.Name}}", err)
 	})
 {{end}}
 }
 
-func Test{{.Service.ServiceName}}Middleware(t *testing.T) {
+func Test{{$.Service.ServiceName}}Middleware(t *testing.T) {
 	ctx := context.Background()
 
 {{range .UnaryMethods}}
@@ -82,7 +82,7 @@ func Test{{.Service.ServiceName}}Middleware(t *testing.T) {
 
 		req := idl.{{.InputName}}{}
 		_, err := loggingSvc.{{.Name}}(ctx, req)
-		expectScaffoldOrOK(t, "{{.Name}}WithLogging", err)
+		expectScaffoldOrOK{{$.Service.ServiceName}}(t, "{{.Name}}WithLogging", err)
 	})
 {{end}}
 {{range .ServerStreamMethods}}
@@ -92,7 +92,7 @@ func Test{{.Service.ServiceName}}Middleware(t *testing.T) {
 
 		req := idl.{{.InputName}}{}
 		err := loggingSvc.{{.Name}}(ctx, req, func(idl.{{.OutputName}}) error { return nil })
-		expectScaffoldOrOK(t, "{{.Name}}WithLogging", err)
+		expectScaffoldOrOK{{$.Service.ServiceName}}(t, "{{.Name}}WithLogging", err)
 	})
 {{end}}
 {{range .ClientStreamMethods}}
@@ -103,7 +103,7 @@ func Test{{.Service.ServiceName}}Middleware(t *testing.T) {
 		_, err := loggingSvc.{{.Name}}(ctx, func() (idl.{{.InputName}}, error) {
 			return idl.{{.InputName}}{}, context.Canceled
 		})
-		expectScaffoldOrOK(t, "{{.Name}}WithLogging", err)
+		expectScaffoldOrOK{{$.Service.ServiceName}}(t, "{{.Name}}WithLogging", err)
 	})
 {{end}}
 {{range .BidiStreamMethods}}
@@ -114,7 +114,7 @@ func Test{{.Service.ServiceName}}Middleware(t *testing.T) {
 		err := loggingSvc.{{.Name}}(ctx, func() (idl.{{.InputName}}, error) {
 			return idl.{{.InputName}}{}, context.Canceled
 		}, func(idl.{{.OutputName}}) error { return nil })
-		expectScaffoldOrOK(t, "{{.Name}}WithLogging", err)
+		expectScaffoldOrOK{{$.Service.ServiceName}}(t, "{{.Name}}WithLogging", err)
 	})
 {{end}}
 }
