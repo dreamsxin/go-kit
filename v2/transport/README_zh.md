@@ -53,7 +53,7 @@ binding := transport.Binding[HelloRequest, HelloResponse]{
 }
 
 // HTTP：一次调用完成严格类型化 JSON。
-kit.HandleJSONTyped(httpComponent, "POST /hello", binding.TypedEndpoint())
+kit.HandleJSON(httpComponent, "POST /hello", binding.TypedEndpoint())
 
 // gRPC：protobuf 编解码把线上消息映射为领域类型。
 srv := grpcserver.NewServer(
@@ -125,8 +125,8 @@ svc.Handle("POST /shout", server.NewServer(ep, decode, encode,
 **替换式** - 每条路由只有一个生效，最后设置者胜出：
 
 - 成功响应编码器（`server.ServerResponseEncoder`，默认
-  `EncodeJSONResponse`）——注意它只作用于 **JSON 入口**（`NewJSONServer`、
-  `NewJSONEndpoint` 及其类型化与 `WithBodyLimit` 变体）。用 `NewServer` 构造的
+  `EncodeJSONResponse`）——注意它只作用于 **JSON 入口**（`NewJSON`、
+  `NewTypedJSON`、`NewJSONEndpoint`）。用 `NewServer` 构造的
   服务端在构造参数里接收编码函数，因此传给它的 `ServerResponseEncoder` 会被静默
   覆盖；
 - 错误编码器（`server.ServerErrorEncoder`）；
@@ -223,12 +223,11 @@ return transporthttp.NewPageResult(page, total, rows), nil
 推荐入口：
 
 - `server.NewServer` —— 通用服务端，解码与编码由你提供
-- `server.NewJSONServer` / `server.NewTypedJSONServer` —— 传入处理函数，得到 JSON 路由
+- `server.NewJSON` / `server.NewTypedJSON` —— 传入处理函数，得到 JSON 路由
 - `server.NewJSONEndpoint` —— 同上，但用于你已经构建好的 endpoint
-- `server.NewJSONServerWithBodyLimit` / `server.NewTypedJSONServerWithBodyLimit` /
-  `server.NewJSONEndpointWithBodyLimit` —— 上述三者的显式请求体上限版本
-- `server.NewJSONServerWithMiddleware` / `server.NewTypedJSONServerWithMiddleware`
-- `server.NewJSONEndpointWithDecodeOptions` —— 改变严格性本身的逃生口
+- 三者都接收一个 `server.JSONDecodeOptions` —— 请求体上限、未知字段、尾部数据与
+  媒体类型严格性都在这一值里；`server.DefaultJSONDecodeOptions` 是包默认，
+  `server.StrictJSONDecodeOptions(n)` 是同样规则换一个上限
 - `server.DecodeJSONRequest` / `server.DecodeJSONRequestWithOptions` /
   `server.DecodeJSONBody`
 - `server.StrictJSONDecodeOptions`、`server.JSONDecodeOptions`、
@@ -245,9 +244,9 @@ return transporthttp.NewPageResult(page, total, rows), nil
 - `server.WriteAttachment` 用于文件下载
 - `server.AccessLogMiddleware` 用于基于标准库 `slog` 的访问日志
 
-所有 JSON 入口都**严格**解码：未知对象字段、第二个 JSON 值、以及超过
-`DefaultMaxJSONBodyBytes` 的请求体都会以 400 拒绝。`WithBodyLimit` 变体只改变
-大小上限；只有 `NewJSONEndpointWithDecodeOptions` 能放宽严格性。
+所有 JSON 入口在传入 `DefaultJSONDecodeOptions` 时都**严格**解码：未知对象字段、
+第二个 JSON 值、以及超过 `DefaultMaxJSONBodyBytes` 的请求体都会以 400 拒绝。
+换一个上限或换一套严格性是一个 `JSONDecodeOptions` 值，不是一个新构造函数。
 
 `ParseMultipartForm` 在分片溢出到临时文件之前强制执行总请求体上限、单文件上限
 和内存阈值；超限违规通过标准错误编码器归类为 413，格式错误的请求归类为
@@ -294,24 +293,25 @@ return transporthttp.NewPageResult(page, total, rows), nil
 最小示例：
 
 ```go
-handler := server.NewTypedJSONServer(
+handler := server.NewTypedJSON(
     func(ctx context.Context, req HelloReq) (HelloResp, error) {
         return hello(ctx, req)
     },
+    server.DefaultJSONDecodeOptions(),
     server.ServerErrorEncoder(server.JSONErrorEncoder),
 )
 
 http.Handle("/hello", handler)
 ```
 
-当响应具有具体类型时，优先使用完全类型化的辅助函数。所有 JSON 辅助函数都是
-严格的：它们会拒绝未知对象字段、第二个 JSON 值，以及超过默认字节上限的
-请求体。当某个路由需要不同的请求体上限时，使用 `WithBodyLimit` 辅助函数：
+当响应具有具体类型时，优先使用完全类型化的辅助函数。所有 JSON 辅助函数都
+严格解码：它们会拒绝未知对象字段、第二个 JSON 值，以及超过所配字节上限的
+请求体。某条路由需要不同上限时，传另一个 `JSONDecodeOptions`：
 
 ```go
-handler := server.NewJSONEndpointWithBodyLimit[HelloReq](
+handler := server.NewJSONEndpoint[HelloReq](
     ep,
-    64<<10,
+    server.StrictJSONDecodeOptions(64<<10),
     server.ServerErrorEncoder(server.JSONErrorEncoder),
 )
 ```
@@ -340,17 +340,17 @@ HTTP。HTTP 传输层将应用错误类别映射到状态码，并使用其稳�
 推荐入口：
 
 - `client.NewClient`
-- `client.NewJSONClient`
-- `client.NewJSONClientWithMaxResponseBodyBytes`
-- `client.NewJSONClientWithTimeout`
+- `client.NewJSON`
+- `client.NewTypedJSON`
 - `client.EncodeJSONRequest`
 - `client.DecodeJSONResponse`
 - `client.DecodeJSONResponseWithMaxBodyBytes`
 
-`NewJSONClient` 将 GET/HEAD 请求编码为路径/查询参数，并将请求体保持为空。
-成功的 JSON 响应默认上限为 4 MiB；当需要刻意采用更大的契约时，使用
-`NewJSONClientWithMaxResponseBodyBytes`。`NewJSONClientWithTimeout` 会添加
-上下文超时；当需要重试时，应使用带显式重试分类器的 `sd/client.NewEndpoint`。
+`NewJSON` 与 `NewTypedJSON` 将 GET/HEAD 请求编码为路径/查询参数，并将请求体保持为空。
+成功响应的体积上限是一个参数：除非契约刻意更大，传
+`client.DefaultMaxJSONResponseBytes`（4 MiB）。需要截止时间时用
+`endpoint.TimeoutMiddleware` 包住 endpoint；当需要重试时，应使用带显式重试分类器的
+`sd/client.NewEndpoint`。
 
 主要扩展点：
 
@@ -368,9 +368,10 @@ HTTP。HTTP 传输层将应用错误类别映射到状态码，并使用其稳�
 最小示例：
 
 ```go
-ep, err := client.NewJSONClient[HelloResp](
+ep, err := client.NewJSON[HelloResp](
     http.MethodPost,
     "http://localhost:8080/hello",
+    client.DefaultMaxJSONResponseBytes,
 )
 if err != nil {
     return err

@@ -131,7 +131,7 @@ func WriteProblemJSON(w http.ResponseWriter, problem ProblemDetails) {
 // a service speaks is a decision its clients live with, so it is a seam, not
 // framework policy. Install it where the interoperability is worth the change:
 //
-//	server.NewJSONServer[Req](handler,
+//	server.NewJSON[Req](handler, server.DefaultJSONDecodeOptions(),
 //	    server.ServerErrorEncoder(server.ProblemJSONErrorEncoder(nil)),
 //	)
 //

@@ -318,21 +318,21 @@ func registerRoutes(svc *kit.HTTP, todos todoService) {
 	// Typed routes carry the whole request path: strict decoding, endpoint
 	// middleware, and the shared error encoder answer classified errors with
 	// {"code","message","request_id"}.
-	kit.HandleJSONTyped(svc, "POST /todos", func(ctx context.Context, req createTodoRequest) (Todo, error) {
+	kit.HandleJSON(svc, "POST /todos", func(ctx context.Context, req createTodoRequest) (Todo, error) {
 		return todos.Create(ctx, req.Title)
 	})
 
-	kit.HandleJSONTyped(svc, "GET /todos", func(ctx context.Context, _ struct{}) (todoList, error) {
+	kit.HandleJSON(svc, "GET /todos", func(ctx context.Context, _ struct{}) (todoList, error) {
 		return todos.List(ctx)
 	})
 
-	kit.HandleJSONTyped(svc, "GET /todos/{id}", func(ctx context.Context, req getTodoRequest) (Todo, error) {
+	kit.HandleJSON(svc, "GET /todos/{id}", func(ctx context.Context, req getTodoRequest) (Todo, error) {
 		return todos.Get(ctx, req.ID)
 	})
 
 	// A body-less POST: the request decodes to the zero value and the path
 	// value fills the ID, so the button route is typed like the rest.
-	kit.HandleJSONTyped(svc, "POST /todos/{id}/done", func(ctx context.Context, req getTodoRequest) (Todo, error) {
+	kit.HandleJSON(svc, "POST /todos/{id}/done", func(ctx context.Context, req getTodoRequest) (Todo, error) {
 		return todos.MarkDone(ctx, req.ID)
 	})
 

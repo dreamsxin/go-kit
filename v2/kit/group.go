@@ -12,12 +12,12 @@ import (
 // surface states the version once instead of repeating it on every route:
 //
 //	api := svc.Group("/api/v1")
-//	api.HandleJSONTyped("POST /todos", createTodo)
-//	api.HandleJSONTyped("GET /todos/{id}", getTodo)
+//	api.HandleJSON("POST /todos", createTodo)
+//	api.HandleJSON("GET /todos/{id}", getTodo)
 //
 // Groups nest (a group of a group joins both prefixes) and expose the same
-// registration surface as the component: the full typed JSON family, the raw
-// escape hatch, and the SSE stream. Registration is all a group does — it is
+// registration surface as the component: JSON registration, the raw escape
+// hatch, and the SSE stream. Registration is all a group does — it is
 // not a sub-mux, takes no options, and carries no middleware of its own; a
 // route joined through a group is the component's route in every other
 // respect.

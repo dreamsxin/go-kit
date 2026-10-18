@@ -25,7 +25,7 @@ func TestSeriesCountIsBoundedByRoutesNotByRequests(t *testing.T) {
 	collector := &endpoint.Metrics{}
 	component := kit.MustNewHTTP("127.0.0.1:0", kit.WithMetrics(collector))
 	component.Handle("GET /metrics", metrics.Handler(collector))
-	kit.HandleJSONTyped(component, "POST /users/{id}/notes", func(context.Context, map[string]string) (map[string]string, error) {
+	kit.HandleJSON(component, "POST /users/{id}/notes", func(context.Context, map[string]string) (map[string]string, error) {
 		return map[string]string{"ok": "true"}, nil
 	})
 

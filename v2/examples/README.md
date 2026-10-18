@@ -11,12 +11,12 @@ after dropping the `./examples/` prefix.
 
 | Directory | What it shows | Run |
 |-----------|--------------|-----|
-| `quickstart/` | Recommended kit API: `kit.NewHTTP` + `kit.HandleJSONTyped` + `kit.NewHost` / `host.Run` | `go run ./examples/quickstart` |
+| `quickstart/` | Recommended kit API: `kit.NewHTTP` + `kit.HandleJSON` + `kit.NewHost` / `host.Run` | `go run ./examples/quickstart` |
 | `basic/` | Middleware chain execution order | `go test ./examples/basic/...` |
 | `manual_composition/` | Explicit endpoint Builder + HTTP transport composition | `go run ./examples/manual_composition` |
 | `best_practice/` | Production patterns: metrics, circuit breaker, rate limit, graceful shutdown | `go run ./examples/best_practice` |
 | `middleware/` | Endpoint middleware: Chain, Builder, Failer, Timeout, CircuitBreaker, RateLimit, DelayRateLimit | `go run ./examples/middleware` |
-| `httpclient/` | HTTP client: NewJSONClient, ClientBefore/After/Finalizer, SetClient | `go run ./examples/httpclient` |
+| `httpclient/` | HTTP client: NewJSON/NewTypedJSON, ClientBefore/After/Finalizer, SetClient | `go run ./examples/httpclient` |
 | `auth/` | Application-owned authentication and authorization middleware: Bearer keys, 401/403 via apperror, public health routes | `go run ./examples/auth` |
 | `envelope/` | Transport-level response assembly: envelope and error format defined once via `kit.WithJSONServerOptions` | `go run ./examples/envelope` |
 | `customcodec/` | Custom body format over HTTP: RawBodyCodec, format-matched error encoder | `go run ./examples/customcodec` |
@@ -91,7 +91,7 @@ ep := endpoint.NewBuilder(base).
 ```go
 // Automatic JSON decode/encode with concrete request and response types.
 typed := endpoint.Unwrap[helloRequest, helloResponse](ep)
-mux.Handle("/hello", server.NewTypedJSONServer(typed))
+mux.Handle("/hello", server.NewTypedJSON(typed, server.DefaultJSONDecodeOptions()))
 ```
 
 ### 4. Service discovery in one line

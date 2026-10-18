@@ -11,10 +11,10 @@ import (
 	"github.com/dreamsxin/go-kit/v2/kit"
 )
 
-// ExampleHandleJSONTyped registers a fully typed JSON handler on an HTTP
+// ExampleHandleJSON registers a fully typed JSON handler on an HTTP
 // component. The component implements http.Handler, so it can be attached to
 // a Host and run in production or served by any net/http server in tests.
-func ExampleHandleJSONTyped() {
+func ExampleHandleJSON() {
 	type greetRequest struct {
 		Name string `json:"name"`
 	}
@@ -28,7 +28,7 @@ func ExampleHandleJSONTyped() {
 		return
 	}
 
-	kit.HandleJSONTyped(httpComponent, "/greet",
+	kit.HandleJSON(httpComponent, "/greet",
 		func(_ context.Context, req greetRequest) (greetResponse, error) {
 			return greetResponse{Message: "Hello, " + req.Name + "!"}, nil
 		})

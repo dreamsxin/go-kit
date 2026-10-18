@@ -23,7 +23,7 @@ type idRequest struct {
 // parameterized path possible without dropping to a raw handler.
 func TestTypedRouteDecodesQueryAndPath(t *testing.T) {
 	component := kit.MustNewHTTP("127.0.0.1:0")
-	kit.HandleJSONTyped(component, "GET /todos/{id}", func(_ context.Context, req idRequest) (idRequest, error) {
+	kit.HandleJSON(component, "GET /todos/{id}", func(_ context.Context, req idRequest) (idRequest, error) {
 		return req, nil
 	})
 
@@ -47,7 +47,7 @@ func TestTypedRouteDecodesQueryAndPath(t *testing.T) {
 // addressed; a query parameter of the same name must not override it.
 func TestTypedRoutePathWinsOverQuery(t *testing.T) {
 	component := kit.MustNewHTTP("127.0.0.1:0")
-	kit.HandleJSONTyped(component, "GET /todos/{id}", func(_ context.Context, req idRequest) (idRequest, error) {
+	kit.HandleJSON(component, "GET /todos/{id}", func(_ context.Context, req idRequest) (idRequest, error) {
 		return req, nil
 	})
 
@@ -68,7 +68,7 @@ func TestTypedRoutePathWinsOverQuery(t *testing.T) {
 // JSON body and then the path values into the same struct.
 func TestTypedRouteDecodesBodyAndPath(t *testing.T) {
 	component := kit.MustNewHTTP("127.0.0.1:0")
-	kit.HandleJSONTyped(component, "PUT /todos/{id}", func(_ context.Context, req idRequest) (idRequest, error) {
+	kit.HandleJSON(component, "PUT /todos/{id}", func(_ context.Context, req idRequest) (idRequest, error) {
 		return req, nil
 	})
 
@@ -95,7 +95,7 @@ func TestTypedRouteDecodesBodyAndPath(t *testing.T) {
 // own words.
 func TestTypedRouteEmptyBodyIsZeroValue(t *testing.T) {
 	component := kit.MustNewHTTP("127.0.0.1:0")
-	kit.HandleJSONTyped(component, "POST /todos/{id}/done", func(_ context.Context, req idRequest) (idRequest, error) {
+	kit.HandleJSON(component, "POST /todos/{id}/done", func(_ context.Context, req idRequest) (idRequest, error) {
 		if req.ID == 0 {
 			return idRequest{}, apperror.New(apperror.KindInvalidArgument, "todo.id_required", "todo id is required")
 		}
@@ -124,7 +124,7 @@ func TestTypedRouteEmptyBodyIsZeroValue(t *testing.T) {
 // speak is still 415.
 func TestTypedRouteStrictnessStays(t *testing.T) {
 	component := kit.MustNewHTTP("127.0.0.1:0")
-	kit.HandleJSONTyped(component, "POST /todos", func(_ context.Context, req idRequest) (idRequest, error) {
+	kit.HandleJSON(component, "POST /todos", func(_ context.Context, req idRequest) (idRequest, error) {
 		return req, nil
 	})
 
@@ -154,7 +154,7 @@ func TestTypedRouteEnforcesValidateTags(t *testing.T) {
 		Username string `json:"username" validate:"minLen=2"`
 	}
 	component := kit.MustNewHTTP("127.0.0.1:0")
-	kit.HandleJSONTyped(component, "GET /todos/{id}", func(_ context.Context, req validatedRequest) (validatedRequest, error) {
+	kit.HandleJSON(component, "GET /todos/{id}", func(_ context.Context, req validatedRequest) (validatedRequest, error) {
 		return req, nil
 	})
 

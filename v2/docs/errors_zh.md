@@ -133,7 +133,7 @@ status 上附加 `google.rpc.RetryInfo`。熔断器在开窗期内拒绝时会�
 无需自定义分类器即可用于客户端 endpoint：
 
 ```go
-call, _ := client.NewJSONClient[UserResp](http.MethodGet, "https://api/users/1")
+call, _ := client.NewJSON[UserResp](http.MethodGet, "https://api/users/1", client.DefaultMaxJSONResponseBytes)
 ep := endpoint.NewBuilder(call).
     WithTimeout(2 * time.Second).
     WithCircuitBreaker(breaker).

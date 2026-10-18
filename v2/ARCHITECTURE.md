@@ -56,9 +56,9 @@ transport packages and mounts into a Host through the provider-neutral
 
 - `kit.NewHTTP` and `kit.NewHost` validate configuration and return errors.
 - `Host.Run(ctx)` follows a caller-owned context.
-- `kit.HandleJSONTyped`, `kit.HandleJSON`, and `kit.HandleJSONEndpoint` preserve
-  endpoint middleware; the typed entry point is preferred for concrete
-  responses.
+- `kit.HandleJSON` and `kit.HandleJSONEndpoint` preserve
+  endpoint middleware; request and response types are inferred from the
+  handler, and per-route differences are `kit.RouteOption` values.
 - `HTTP.Handle` and `HTTP.HandleFunc` are raw HTTP escape hatches.
 - `kit/grpc` is an optional lifecycle component and is not imported by core
   `kit`.

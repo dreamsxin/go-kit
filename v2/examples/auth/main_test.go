@@ -17,7 +17,7 @@ func newAuthServer(t *testing.T) *httptest.Server {
 	svc := kit.MustNewHTTP(":0", kit.WithHTTPMiddleware(authenticate(apiKeys)))
 
 	type meRequest struct{}
-	kit.HandleJSONTyped(svc, "/api/me", func(ctx context.Context, _ meRequest) (identity, error) {
+	kit.HandleJSON(svc, "/api/me", func(ctx context.Context, _ meRequest) (identity, error) {
 		id, ok := identityFromContext(ctx)
 		if !ok {
 			return identity{}, apperror.New(apperror.KindUnauthenticated, "auth.no_identity", "not authenticated")

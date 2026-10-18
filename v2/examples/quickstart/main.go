@@ -1,10 +1,10 @@
 // Command quickstart demonstrates the recommended kit path from zero to a
-// running HTTP service. kit.NewHTTP, kit.HandleJSONTyped, and kit.NewHost own
+// running HTTP service. kit.NewHTTP, kit.HandleJSON, and kit.NewHost own
 // HTTP assembly, middleware, lifecycle, and graceful shutdown.
 //
 // Concepts shown:
 //   - kit.NewHTTP validates configuration and creates an HTTP component with /health
-//   - kit.HandleJSONTyped keeps request and response types checked at compile time
+//   - kit.HandleJSON keeps request and response types checked at compile time
 //   - host.Run follows the caller-owned context lifecycle
 //
 // Run:
@@ -73,9 +73,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// HandleJSONTyped preserves the normal service -> endpoint -> transport path, so
+	// HandleJSON preserves the normal service -> endpoint -> transport path, so
 	// configured endpoint middleware and strict JSON decoding both apply.
-	kit.HandleJSONTyped(svc, "/greet", greet)
+	kit.HandleJSON(svc, "/greet", greet)
 
 	host, err := kit.NewHost(kit.WithLifecycle(svc))
 	if err != nil {

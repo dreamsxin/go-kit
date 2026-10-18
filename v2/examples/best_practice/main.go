@@ -1,7 +1,7 @@
 // Package main demonstrates go-kit best practices:
 //   - Pure business logic separated from transport
 //   - Fluent endpoint.Builder for middleware assembly
-//   - NewTypedJSONServer for type-safe HTTP handling
+//   - server.NewTypedJSON for type-safe HTTP handling
 //   - MetricsMiddleware for built-in request counters
 //   - Operation intent: the caller declares why, the deployment maps and reads it
 //   - Graceful shutdown
@@ -132,10 +132,11 @@ func main() {
 	// ── HTTP handlers ─────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
 
-	// /hello — automatic JSON decode/encode via NewTypedJSONServer, with the
+	// /hello — automatic JSON decode/encode via NewTypedJSON, with the
 	// deployment's header-to-intent mapping wrapped around it
-	mux.Handle("/hello", withIntentFromHeader(server.NewTypedJSONServer(
+	mux.Handle("/hello", withIntentFromHeader(server.NewTypedJSON(
 		endpoint.Unwrap[helloRequest, helloResponse](ep),
+		server.DefaultJSONDecodeOptions(),
 		server.ServerErrorEncoder(jsonErrorEncoder(logger)),
 	)))
 

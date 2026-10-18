@@ -136,12 +136,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	kit.HandleJSONTyped(svc, "/hello", hello)
+	kit.HandleJSON(svc, "/hello", hello)
 
 	// A route that opts out of the envelope: per-route options run after
 	// the service-wide ones and take precedence.
-	kit.HandleJSONTyped(svc, "/raw", hello,
-		server.ServerResponseEncoder(server.EncodeJSONResponse),
+	kit.HandleJSON(svc, "/raw", hello,
+		kit.RouteServerOptions(server.ServerResponseEncoder(server.EncodeJSONResponse)),
 	)
 
 	log.Println("envelope example listening on", *httpAddr)

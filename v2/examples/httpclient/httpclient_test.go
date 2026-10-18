@@ -12,10 +12,11 @@ import (
 
 func newServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	handler := httpserver.NewJSONServer[echoReq](
+	handler := httpserver.NewJSON[echoReq](
 		func(_ context.Context, req echoReq) (any, error) {
 			return echoResp{Echo: "echo: " + req.Message}, nil
 		},
+		httpserver.DefaultJSONDecodeOptions(),
 	)
 	return httptest.NewServer(handler)
 }
@@ -24,7 +25,7 @@ func TestNewJSONClient_Success(t *testing.T) {
 	srv := newServer(t)
 	defer srv.Close()
 
-	ep, err := httpclient.NewJSONClient[echoResp](http.MethodPost, srv.URL)
+	ep, err := httpclient.NewJSON[echoResp](http.MethodPost, srv.URL, httpclient.DefaultMaxJSONResponseBytes)
 	if err != nil {
 		t.Fatalf("NewJSONClient: %v", err)
 	}
@@ -48,9 +49,7 @@ func TestClientBefore_InjectsHeader(t *testing.T) {
 	}))
 	defer inner.Close()
 
-	ep, err := httpclient.NewJSONClient[echoResp](
-		http.MethodPost,
-		inner.URL,
+	ep, err := httpclient.NewJSON[echoResp](http.MethodPost, inner.URL, httpclient.DefaultMaxJSONResponseBytes,
 		httpclient.ClientBefore(func(ctx context.Context, r *http.Request) context.Context {
 			r.Header.Set("X-Test", "injected")
 			return ctx
@@ -75,9 +74,7 @@ func TestClientAfter_ReadsResponseHeader(t *testing.T) {
 	defer inner.Close()
 
 	var gotHeader string
-	ep, err := httpclient.NewJSONClient[echoResp](
-		http.MethodPost,
-		inner.URL,
+	ep, err := httpclient.NewJSON[echoResp](http.MethodPost, inner.URL, httpclient.DefaultMaxJSONResponseBytes,
 		httpclient.ClientAfter(func(ctx context.Context, r *http.Response, _ error) context.Context {
 			gotHeader = r.Header.Get("X-Custom")
 			return ctx
@@ -98,9 +95,7 @@ func TestClientFinalizer_AlwaysRuns(t *testing.T) {
 	defer srv.Close()
 
 	finalized := make(chan struct{}, 1)
-	ep, err := httpclient.NewJSONClient[echoResp](
-		http.MethodPost,
-		srv.URL,
+	ep, err := httpclient.NewJSON[echoResp](http.MethodPost, srv.URL, httpclient.DefaultMaxJSONResponseBytes,
 		httpclient.ClientFinalizer(func(_ context.Context, err error) {
 			finalized <- struct{}{}
 		}),
@@ -123,9 +118,7 @@ func TestSetClient_CustomHTTPClient(t *testing.T) {
 	defer srv.Close()
 
 	custom := &http.Client{}
-	ep, err := httpclient.NewJSONClient[echoResp](
-		http.MethodPost,
-		srv.URL,
+	ep, err := httpclient.NewJSON[echoResp](http.MethodPost, srv.URL, httpclient.DefaultMaxJSONResponseBytes,
 		httpclient.SetClient(custom),
 	)
 	if err != nil {
@@ -146,7 +139,7 @@ func TestNewEchoServer_RoundTrip(t *testing.T) {
 	srv := newEchoServer()
 	defer srv.Close()
 
-	ep, err := httpclient.NewJSONClient[echoResp](http.MethodPost, srv.URL)
+	ep, err := httpclient.NewJSON[echoResp](http.MethodPost, srv.URL, httpclient.DefaultMaxJSONResponseBytes)
 	if err != nil {
 		t.Fatalf("NewJSONClient: %v", err)
 	}

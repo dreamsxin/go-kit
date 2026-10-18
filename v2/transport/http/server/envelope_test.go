@@ -24,10 +24,11 @@ func envelopeEncoder(_ context.Context, w http.ResponseWriter, response any) err
 }
 
 func TestServerResponseEncoder_AssemblesEnvelope(t *testing.T) {
-	h := server.NewTypedJSONServer(
+	h := server.NewTypedJSON(
 		func(_ context.Context, req struct{ Name string }) (struct{ Greeting string }, error) {
 			return struct{ Greeting string }{"Hello, " + req.Name}, nil
 		},
+		server.DefaultJSONDecodeOptions(),
 		server.ServerResponseEncoder(envelopeEncoder),
 	)
 
@@ -75,10 +76,11 @@ func TestServerResponseEncoder_OverridesConstructorArgument(t *testing.T) {
 }
 
 func TestServerResponseEncoder_ErrorPathUnchanged(t *testing.T) {
-	h := server.NewTypedJSONServer(
+	h := server.NewTypedJSON(
 		func(_ context.Context, _ struct{}) (struct{}, error) {
 			return struct{}{}, apperror.New(apperror.KindNotFound, "demo.missing", "not found")
 		},
+		server.DefaultJSONDecodeOptions(),
 		server.ServerResponseEncoder(envelopeEncoder),
 		server.ServerErrorEncoder(server.JSONErrorEncoder),
 	)
@@ -101,10 +103,11 @@ func TestServerResponseEncoder_ErrorPathUnchanged(t *testing.T) {
 }
 
 func TestServerResponseEncoder_NilOptionIsIgnored(t *testing.T) {
-	h := server.NewTypedJSONServer(
+	h := server.NewTypedJSON(
 		func(_ context.Context, _ struct{ Name string }) (struct{ Greeting string }, error) {
 			return struct{ Greeting string }{"hi"}, nil
 		},
+		server.DefaultJSONDecodeOptions(),
 		server.ServerResponseEncoder(nil),
 	)
 

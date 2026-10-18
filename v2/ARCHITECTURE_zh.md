@@ -52,8 +52,9 @@ Transport request
 
 - `kit.NewHTTP` 与 `kit.NewHost` 校验配置并返回错误。
 - `Host.Run(ctx)` 跟随调用方持有的 context。
-- `kit.HandleJSONTyped`、`kit.HandleJSON` 和 `kit.HandleJSONEndpoint`
-  保留 endpoint 中间件；具体响应类型优先使用类型化入口。
+- `kit.HandleJSON` 与 `kit.HandleJSONEndpoint`
+  保留 endpoint 中间件；请求与响应类型由 handler 推断，逐路由差异用
+  `kit.RouteOption` 表达。
 - `HTTP.Handle` 和 `HTTP.HandleFunc` 是原生 HTTP 逃生口。
 - `kit/grpc` 是可选的生命周期组件，核心 `kit` 不导入它。
 

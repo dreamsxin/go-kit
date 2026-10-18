@@ -465,7 +465,7 @@ it is a question of **where**, and every intent has one right place:
 | wrap responses or reshape errors on every route | `transport/<name>/custom_options.go` | `server.ServerResponseEncoder`, `server.ServerErrorEncoder` |
 | observe outcomes per route | `cmd/main.go` | `kit.WithMetrics`, `kit.WithRecorder` |
 | call a downstream service with retry or discovery | `service/<name>/service.go` | `sd` |
-| call an HTTP API with a typed function | `service/<name>/service.go` | `client.NewTypedJSONClient` |
+| call an HTTP API with a typed function | `service/<name>/service.go` | `client.NewTypedJSON` |
 | settings the wiring needs | `config/custom.go` | generated config |
 
 `cmd/main.go`, `service/<name>/service.go`, and the `custom_chain.go` /

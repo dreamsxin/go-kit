@@ -79,10 +79,8 @@ svc, err := kit.NewHTTP(addr,
 )
 
 // 公开路由不加链；admin 路由按路由追加角色检查：
-kit.HandleJSONTypedWithMiddleware(svc, "POST /api/admin", adminHandler,
-	func(b *endpoint.Builder) *endpoint.Builder {
-		return b.Use(security.RequireRole("admin"))
-	})
+kit.HandleJSON(svc, "POST /api/admin", adminHandler,
+	kit.RouteMiddleware(security.RequireRole("admin")))
 ```
 
 组件注册的健康路由等公开端点在链之外，因此也在执行之外。

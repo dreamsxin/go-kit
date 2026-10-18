@@ -103,7 +103,7 @@ func run(ctx context.Context, addr string) error {
 	}, decodeStreamRequest)
 
 	// The plain health routes round the service out.
-	kit.HandleJSONTyped(svc, "GET /whoami", func(_ context.Context, _ struct{}) (string, error) {
+	kit.HandleJSON(svc, "GET /whoami", func(_ context.Context, _ struct{}) (string, error) {
 		return "sse example", nil
 	})
 

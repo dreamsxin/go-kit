@@ -20,20 +20,21 @@
 // WithMetrics, WithRecorder, and the component's JSON server options all
 // apply):
 //
-//   - HandleJSONTyped — the default. Concrete request and response types.
-//     A typed route fills its request struct from the request itself: GET and
-//     HEAD read the query string and the path values, every other method reads
-//     a strictly decoded JSON body and then the path values, and a request that
-//     carries no body decodes to the zero value so the handler's validation
-//     answers in the application's own words. A validate tag on the request
-//     struct is enforced after the fill — the same package the generated
-//     transports call, so both shapes of service reject the same request.
-//   - HandleJSON — the same, when the response type is dynamic.
+//   - HandleJSON — the default. Request and response types are inferred from the
+//     handler, so a concrete response needs no type arguments. A typed route
+//     fills its request struct from the request itself: GET and HEAD read the
+//     query string and the path values, every other method reads a strictly
+//     decoded JSON body and then the path values, and a request that carries no
+//     body decodes to the zero value so the handler's validation answers in the
+//     application's own words. A validate tag on the request struct is enforced
+//     after the fill — the same package the generated transports call, so both
+//     shapes of service reject the same request.
 //   - HandleJSONEndpoint — when you already hold an endpoint.Endpoint.
-//   - HandleJSONTypedWithMiddleware, HandleJSONWithMiddleware — add route-local
-//     middleware, which ends up inside the component's chain.
-//   - HandleJSONTypedWithBodyLimit, HandleJSONEndpointWithBodyLimit — one route
-//     accepts a different maximum body. A limit of zero or less panics.
+//   - RouteBodyLimit, RouteMiddleware, RouteServerOptions — one route's
+//     differences, expressed as options on those two registrations rather than
+//     as another function name. A per-route body limit keeps the endpoint
+//     middleware, the recorders, and the component's JSON server options, which
+//     is what makes it different from reaching for Handle.
 //   - HandleSSETyped — a Server-Sent Events stream. The chain observes the whole
 //     stream as one request, so a timeout middleware bounds its total duration,
 //     the component's JSON server options apply to it, and an error that ends the
@@ -44,16 +45,14 @@
 // Escape hatch — no endpoint middleware, no endpoint recorders:
 //
 //   - Handle, HandleFunc — a raw http.Handler, for static files, third-party
-//     handlers, or a protocol this package does not model. HandleSSE is a
-//     deprecated alias for Handle: a name promising SSE behaviour while silently
-//     skipping the chain is how a stream loses its middleware by accident. Reach
-//     for Handle and know what you are giving up.
+//     handlers, or a protocol this package does not model. Reach for Handle and
+//     know what you are giving up.
 //
-// Neither of the above — these register nothing and return a handler you mount
+// Neither of the above — this registers nothing and returns a handler you mount
 // yourself, so no component is involved at all:
 //
-//   - NewJSONHandler, NewJSONTypedHandler. JSON and JSONTyped are the deprecated
-//     spellings; they differed from HandleJSON and HandleJSONTyped by one verb.
+//   - NewJSONHandler. The returned handler carries no endpoint middleware, no
+//     recorders, and no component JSON server options.
 //
 // Probes are mounted directly and are outside the HTTP context by design, so
 // recorders never see /health, /livez or /readyz.
@@ -62,7 +61,7 @@
 // surface states its version once:
 //
 //	api := http.Group("/api/v1")
-//	kit.HandleJSONTyped(api, "POST /todos", createTodo)
+//	kit.HandleJSON(api, "POST /todos", createTodo)
 //
 // Quickstart:
 //
@@ -71,7 +70,7 @@
 //	    if err != nil {
 //	        return err
 //	    }
-//	    kit.HandleJSONTyped(http, "/hello", func(ctx context.Context, req HelloReq) (HelloResp, error) {
+//	    kit.HandleJSON(http, "/hello", func(ctx context.Context, req HelloReq) (HelloResp, error) {
 //	        return HelloResp{Message: "Hello, " + req.Name}, nil
 //	    })
 //	    host, err := kit.NewHost(kit.WithLifecycle(http))

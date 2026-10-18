@@ -25,7 +25,7 @@ import (
 //	if err != nil {
 //	    return err
 //	}
-//	kit.HandleJSONTyped(component, "POST /hello", handler)
+//	kit.HandleJSON(component, "POST /hello", handler)
 //	host, err := kit.NewHost(kit.WithLifecycle(component))
 type HTTP struct {
 	addr               string
@@ -265,8 +265,8 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // What it does not get: WithMetrics, WithRecorder, WithRateLimit,
 // WithCircuitBreaker, and anything added through WithEndpointMiddleware, since
 // those observe or gate an endpoint call rather than an http.Handler. Use
-// HandleJSONTyped, HandleJSON, or HandleJSONEndpoint for application endpoints
-// that should run the service -> endpoint -> transport chain.
+// HandleJSON or HandleJSONEndpoint for application endpoints that should run
+// the service -> endpoint -> transport chain.
 func (h *HTTP) Handle(pattern string, handler http.Handler) {
 	h.mux.Handle(pattern, h.withHTTPContext(handler))
 }

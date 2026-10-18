@@ -19,9 +19,9 @@ func newEnvelopeServer(t *testing.T) *httptest.Server {
 			server.ServerErrorEncoder(encodeAPIError),
 		),
 	)
-	kit.HandleJSONTyped(svc, "/hello", hello)
-	kit.HandleJSONTyped(svc, "/raw", hello,
-		server.ServerResponseEncoder(server.EncodeJSONResponse),
+	kit.HandleJSON(svc, "/hello", hello)
+	kit.HandleJSON(svc, "/raw", hello,
+		kit.RouteServerOptions(server.ServerResponseEncoder(server.EncodeJSONResponse)),
 	)
 	return httptest.NewServer(svc)
 }

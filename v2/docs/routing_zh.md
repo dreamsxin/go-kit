@@ -14,8 +14,8 @@
 路由模式是 Go 的 ServeMux 模式。框架约定为 `"METHOD /path"`：
 
 ```go
-kit.HandleJSONTyped(svc, "POST /todos", createTodo)
-kit.HandleJSONTyped(svc, "GET /todos/{id}", getTodo)
+kit.HandleJSON(svc, "POST /todos", createTodo)
+kit.HandleJSON(svc, "GET /todos/{id}", getTodo)
 ```
 
 - 方法前缀可省略。`"POST /todos"` 响应 POST，其他方法得到 `405` 和一个
@@ -41,11 +41,11 @@ kit.HandleJSONTyped(svc, "GET /todos/{id}", getTodo)
 
 | 调用 | 使用时机 |
 | --- | --- |
-| `kit.HandleJSONTyped` | 默认。类型化的请求与响应，完整链；请求结构体从请求本身填充（见下文）。 |
-| `kit.HandleJSON` | 相同，但响应类型是动态的。 |
-| `kit.HandleJSONTypedWithMiddleware` / `HandleJSONWithMiddleware` | 单条路由需要额外中间件；它落在组件链的**内侧**。 |
+| `kit.HandleJSON` | 默认。请求与响应类型由 handler 推断，具体响应无需写类型参数；完整链生效，请求结构体从请求本身填充（见下文）。 |
 | `kit.HandleJSONEndpoint` | 你已经持有 `endpoint.Endpoint`。 |
-| `kit.HandleJSONTypedWithBodyLimit` / `HandleJSONEndpointWithBodyLimit` | 单条路由接受不同的最大请求体；零或负数会 panic。保留完整链——不像直接改用 `Handle`。 |
+| `kit.RouteMiddleware` | 单条路由需要额外中间件；它落在组件链的**内侧**。 |
+| `kit.RouteBodyLimit` | 单条路由接受不同的最大请求体；零或负数会 panic。保留完整链——不像直接改用 `Handle`。 |
+| `kit.RouteServerOptions` | 单条路由需要组件没装的传输层选项，例如它自己的响应编码器。 |
 | `kit.HandleSSETyped` | Server-Sent Events 流。见 [SSE 路由](#sse-路由)。 |
 | `svc.HandleFunc` / `svc.Handle` | 逃生舱：静态文件、第三方 handler、kit 不建模的协议。 |
 
@@ -54,9 +54,8 @@ kit.HandleJSONTyped(svc, "GET /todos/{id}", getTodo)
 `WithMetrics`、`WithRecorder`、限流与熔断都看不到它。路由需要这些时，请注册为
 JSON。
 
-`kit.NewJSONHandler` / `NewJSONTypedHandler` 不注册任何路由；它们返回一个由你
-自己挂载的 handler。（`kit.JSON` / `JSONTyped` 是已弃用的拼写，`HandleSSE` 也是
-——一个承诺 SSE 行为却悄悄跳过链的名字，正是流意外丢失中间件的方式。）
+`kit.NewJSONHandler` 不注册任何路由；它返回一个由你自己挂载的 handler，不携带组件的
+中间件、记录器或 JSON server 选项。
 
 ## 路径与查询参数
 
@@ -69,7 +68,7 @@ type getTodoRequest struct {
 	Keyword string `form:"keyword"  json:"keyword"`
 }
 
-kit.HandleJSONTyped(svc, "GET /todos/{id}", func(ctx context.Context, req getTodoRequest) (Todo, error) {
+kit.HandleJSON(svc, "GET /todos/{id}", func(ctx context.Context, req getTodoRequest) (Todo, error) {
 	return todos.Get(ctx, req.ID) // req.ID 来自路径
 })
 ```
@@ -86,12 +85,13 @@ kit.HandleJSONTyped(svc, "GET /todos/{id}", func(ctx context.Context, req getTod
 `transporthttp.DecodePathRequest` 与 `DecodeQueryRequest` 按需从原生请求填充结构
 体，`server.DecodeJSONBody` 按传输规则裁决请求体。
 
-调用点与路由成镜像。`client.NewTypedJSONClient[Req, Resp]` 返回类型化的调用函
+调用点与路由成镜像。`client.NewTypedJSON[Req, Resp]` 返回类型化的调用函
 数——调用处无需类型断言：
 
 ```go
-call, err := client.NewTypedJSONClient[todoRequest, todoResponse](
-	http.MethodGet, "http://todos.internal/todos/{id}")
+call, err := client.NewTypedJSON[todoRequest, todoResponse](
+	http.MethodGet, "http://todos.internal/todos/{id}",
+	client.DefaultMaxJSONResponseBytes)
 todo, err := call(ctx, todoRequest{ID: 7, Keyword: "urgent"})
 ```
 
@@ -107,8 +107,8 @@ GET 与 HEAD 从结构体填充 URL 的占位符与查询串；其他方法填�
 
 ```go
 api := svc.Group("/api/v1")
-kit.HandleJSONTyped(api, "POST /todos", createTodo)
-kit.HandleJSONTyped(api, "GET /todos/{id}", getTodo)
+kit.HandleJSON(api, "POST /todos", createTodo)
+kit.HandleJSON(api, "GET /todos/{id}", getTodo)
 v2 := svc.Group("/api/v2") // 分组可嵌套：两个前缀都会拼接
 ```
 
@@ -205,7 +205,7 @@ idl.RegisterTodoServiceServer(comp.Server(), todoServer)
 的 `grpcserver.NewServer(endpoint, decode, encode)`，选项形状
 （`ServerBefore`/`ServerAfter`/错误编码器）与 HTTP 相同；把完整方法名放进
 context 的是 `grpcserver.Interceptor`。一个 handler、两种协议：`transport.Binding`
-把一个类型化函数同时承载为 `TypedEndpoint()`（给 `HandleJSONTyped`）和
+把一个类型化函数同时承载为 `TypedEndpoint()`（给 `HandleJSON`）和
 `GRPCServer()`（给生成的注册调用）。按调用指标使用以完整方法名标注的记录拦截
 器。
 

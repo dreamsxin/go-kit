@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
-	"time"
 
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 
@@ -25,8 +24,7 @@ import (
 const MaxStatusErrorBodyBytes int64 = 64 << 10
 
 // DefaultMaxJSONResponseBytes bounds successful JSON responses decoded by
-// NewJSONClient. Callers with a larger, intentional contract can use
-// NewJSONClientWithMaxResponseBodyBytes.
+// NewJSON for callers that do not choose a limit of their own.
 const DefaultMaxJSONResponseBytes int64 = 4 << 20
 
 // ErrResponseBodyTooLarge indicates that a successful response exceeded the
@@ -44,7 +42,7 @@ func (e *ResponseBodyTooLargeError) Error() string {
 
 func (e *ResponseBodyTooLargeError) Unwrap() error { return ErrResponseBodyTooLarge }
 
-// HTTPStatusError reports a non-2xx response returned by NewJSONClient.
+// HTTPStatusError reports a non-2xx response returned by NewJSON.
 type HTTPStatusError struct {
 	StatusCode int
 	Status     string
@@ -110,8 +108,13 @@ func (e *HTTPStatusError) Retryable() bool {
 		e.StatusCode >= http.StatusInternalServerError
 }
 
-// NewJSONClient creates an HTTP client endpoint that sends JSON requests and
-// decodes JSON responses into values of type Resp.
+// NewJSON creates an HTTP client endpoint that sends JSON requests and decodes
+// a successful response into values of type Resp.
+//
+// maxResponseBodyBytes bounds the successful response body; pass
+// DefaultMaxJSONResponseBytes unless the contract is intentionally larger. A
+// non-positive value, or math.MaxInt64, is refused rather than interpreted: a
+// limit that is silently absent is not what the call said.
 //
 // method is the HTTP verb (GET, POST, …).
 // rawURL is the full target URL string (e.g. "http://localhost:8080/users").
@@ -121,24 +124,19 @@ func (e *HTTPStatusError) Retryable() bool {
 //	type CreateReq  struct { Name string `json:"name"` }
 //	type CreateResp struct { ID   uint   `json:"id"`   }
 //
-//	ep, err := client.NewJSONClient[CreateResp](
+//	ep, err := client.NewJSON[CreateResp](
 //	    http.MethodPost, "http://localhost:8080/users",
+//	    client.DefaultMaxJSONResponseBytes,
 //	)
 //	resp, err := ep(ctx, CreateReq{Name: "alice"})
 //	user := resp.(CreateResp)
-func NewJSONClient[Resp any](method, rawURL string, options ...ClientOption) (endpoint.Endpoint, error) {
-	return NewJSONClientWithMaxResponseBodyBytes[Resp](method, rawURL, DefaultMaxJSONResponseBytes, options...)
-}
-
-// NewJSONClientWithMaxResponseBodyBytes creates a JSON client with an
-// explicit successful response body limit.
-func NewJSONClientWithMaxResponseBodyBytes[Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (endpoint.Endpoint, error) {
-	if maxResponseBodyBytes <= 0 || maxResponseBodyBytes == math.MaxInt64 {
-		return nil, fmt.Errorf("NewJSONClient: max response body bytes must be between 1 and %d", int64(math.MaxInt64-1))
+func NewJSON[Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (endpoint.Endpoint, error) {
+	if err := validateResponseBodyLimit(maxResponseBodyBytes); err != nil {
+		return nil, err
 	}
 	tgt, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("NewJSONClient: invalid URL %q: %w", rawURL, err)
+		return nil, fmt.Errorf("NewJSON: invalid URL %q: %w", rawURL, err)
 	}
 	dec := DecodeJSONResponseWithMaxBodyBytes[Resp](maxResponseBodyBytes)
 	encoder := EncodeJSONRequest
@@ -149,7 +147,7 @@ func NewJSONClientWithMaxResponseBodyBytes[Resp any](method, rawURL string, maxR
 	return NewClient(method, tgt, encoder, dec, options...).Endpoint(), nil
 }
 
-// NewTypedJSONClient returns a typed function that sends a Req and decodes
+// NewTypedJSON returns a typed function that sends a Req and decodes
 // the response into a Resp — the client-side mirror of the server's typed
 // JSON routes, one rule on both sides of the wire. GET and HEAD fill the
 // URL's path placeholders and query string from the request struct; every
@@ -159,24 +157,30 @@ func NewJSONClientWithMaxResponseBodyBytes[Resp any](method, rawURL string, maxR
 // query parameter of the same name. A request that is not a struct (a map, a
 // slice) is sent as the JSON body with the URL left as written.
 //
+// maxResponseBodyBytes is the same bound NewJSON documents.
+//
 // Non-2xx responses surface as *HTTPStatusError, classified for retry
 // decisions by the status code.
 //
-// Stable: http.typed-json-client — NewTypedJSONClient fills the URL from the
+// Stable: http.typed-json-client — NewTypedJSON fills the URL from the
 // request struct by the same rules the server decodes with, sends the body
 // strictly, and returns Resp without a type assertion; non-2xx answers are
 // HTTPStatusError.
 // Covered by: TestTypedJSONClientPostBodyAndResponse,
 // TestTypedJSONClientGetQueryAndPath, TestTypedJSONClientNonStructBody,
 // TestTypedJSONClientSurfacesHTTPStatusError
-func NewTypedJSONClient[Req, Resp any](method, rawURL string, options ...ClientOption) (func(context.Context, Req) (Resp, error), error) {
-	return newTypedJSONClient[Req, Resp](method, rawURL, DefaultMaxJSONResponseBytes, options...)
+func NewTypedJSON[Req, Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (func(context.Context, Req) (Resp, error), error) {
+	if err := validateResponseBodyLimit(maxResponseBodyBytes); err != nil {
+		return nil, err
+	}
+	return newTypedJSONClient[Req, Resp](method, rawURL, maxResponseBodyBytes, options...)
 }
 
-// NewTypedJSONClientWithMaxResponseBodyBytes is NewTypedJSONClient with an
-// explicit successful response body limit.
-func NewTypedJSONClientWithMaxResponseBodyBytes[Req, Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (func(context.Context, Req) (Resp, error), error) {
-	return newTypedJSONClient[Req, Resp](method, rawURL, maxResponseBodyBytes, options...)
+func validateResponseBodyLimit(maxResponseBodyBytes int64) error {
+	if maxResponseBodyBytes <= 0 || maxResponseBodyBytes == math.MaxInt64 {
+		return fmt.Errorf("client: max response body bytes must be between 1 and %d", int64(math.MaxInt64-1))
+	}
+	return nil
 }
 
 func newTypedJSONClient[Req, Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (func(context.Context, Req) (Resp, error), error) {
@@ -216,7 +220,7 @@ func newTypedJSONClient[Req, Resp any](method, rawURL string, maxResponseBodyByt
 	}
 	tgt, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("newTypedJSONClient: invalid URL %q: %w", rawURL, err)
+		return nil, fmt.Errorf("NewTypedJSON: invalid URL %q: %w", rawURL, err)
 	}
 	decode := DecodeJSONResponseWithMaxBodyBytes[Resp](maxResponseBodyBytes)
 	ep := NewClient(method, tgt, encoder, decode, options...).Endpoint()
@@ -237,7 +241,7 @@ func newTypedJSONClient[Req, Resp any](method, rawURL string, maxResponseBodyByt
 }
 
 // DecodeJSONResponse is the default JSON response decoder used by
-// NewJSONClient. It rejects non-2xx responses with HTTPStatusError and caps
+// NewJSON. It rejects non-2xx responses with HTTPStatusError and caps
 // successful bodies at DefaultMaxJSONResponseBytes. Use it as a building
 // block when composing a custom client with NewExplicitClient, or wrap it to
 // change only part of the behavior.
@@ -286,30 +290,4 @@ func newHTTPStatusError(r *http.Response) error {
 		Body:       body,
 		Truncated:  truncated,
 	}
-}
-
-// NewJSONClientWithTimeout creates a JSON client endpoint wrapped with a
-// context timeout. It is a convenience shorthand for:
-//
-//	ep, _ := NewJSONClient[Resp](method, rawURL, options...)
-//	ep = endpoint.NewBuilder(ep).WithTimeout(timeout).Build()
-//
-// For retry with service discovery, use sd/client.NewEndpoint instead.
-//
-// Example:
-//
-//	ep, err := client.NewJSONClientWithTimeout[UserResp](
-//	    http.MethodGet, "http://localhost:8080/users/1",
-//	    2*time.Second,
-//	)
-func NewJSONClientWithTimeout[Resp any](
-	method, rawURL string,
-	timeout time.Duration,
-	options ...ClientOption,
-) (endpoint.Endpoint, error) {
-	base, err := NewJSONClient[Resp](method, rawURL, options...)
-	if err != nil {
-		return nil, err
-	}
-	return endpoint.NewBuilder(base).WithTimeout(timeout).Build(), nil
 }

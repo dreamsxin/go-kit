@@ -1216,51 +1216,17 @@ var ErrShutdownIncomplete = errors.New("kit: graceful shutdown did not finish")
 FUNCTIONS
 func DefaultProbePaths() health.Paths
 func DefaultRequestIDValidator(id string) bool
-func HandleJSON[Req any](
+func HandleJSON[Req, Resp any](
 	r Router,
 	pattern string,
-	handler func(ctx context.Context, req Req) (any, error),
-	options ...httpserver.ServerOption,
+	handler func(ctx context.Context, req Req) (Resp, error),
+	options ...RouteOption,
 )
 func HandleJSONEndpoint[Req any](
 	r Router,
 	pattern string,
 	ep endpoint.Endpoint,
-	options ...httpserver.ServerOption,
-)
-func HandleJSONEndpointWithBodyLimit[Req any](
-	r Router,
-	pattern string,
-	ep endpoint.Endpoint,
-	maxBodyBytes int64,
-	options ...httpserver.ServerOption,
-)
-func HandleJSONTyped[Req, Resp any](
-	r Router,
-	pattern string,
-	handler func(ctx context.Context, req Req) (Resp, error),
-	options ...httpserver.ServerOption,
-)
-func HandleJSONTypedWithBodyLimit[Req, Resp any](
-	r Router,
-	pattern string,
-	handler func(ctx context.Context, req Req) (Resp, error),
-	maxBodyBytes int64,
-	options ...httpserver.ServerOption,
-)
-func HandleJSONTypedWithMiddleware[Req, Resp any](
-	r Router,
-	pattern string,
-	handler func(ctx context.Context, req Req) (Resp, error),
-	middleware func(*endpoint.Builder) *endpoint.Builder,
-	options ...httpserver.ServerOption,
-)
-func HandleJSONWithMiddleware[Req any](
-	r Router,
-	pattern string,
-	handler func(ctx context.Context, req Req) (any, error),
-	middleware func(*endpoint.Builder) *endpoint.Builder,
-	options ...httpserver.ServerOption,
+	options ...RouteOption,
 )
 func HandleSSETyped[Req any](
 	r Router,
@@ -1270,10 +1236,7 @@ func HandleSSETyped[Req any](
 	opts ...httpserver.ServerOption,
 )
 func Healthy(ctx context.Context) error
-func JSON[Req any](handler func(ctx context.Context, req Req) (any, error)) http.Handler
-func JSONTyped[Req, Resp any](handler func(ctx context.Context, req Req) (Resp, error)) http.Handler
-func NewJSONHandler[Req any](handler func(ctx context.Context, req Req) (any, error)) http.Handler
-func NewJSONTypedHandler[Req, Resp any](handler func(ctx context.Context, req Req) (Resp, error)) http.Handler
+func NewJSONHandler[Req, Resp any](handler func(ctx context.Context, req Req) (Resp, error)) http.Handler
 func Stopping(ctx context.Context) <-chan struct{}
 func WithStopping(ctx context.Context, stopping <-chan struct{}) context.Context
 TYPES
@@ -1311,7 +1274,6 @@ func (h *HTTP) Errors() <-chan error
 func (h *HTTP) Group(prefix string) *Group
 func (h *HTTP) Handle(pattern string, handler http.Handler)
 func (h *HTTP) HandleFunc(pattern string, fn http.HandlerFunc)
-func (h *HTTP) HandleSSE(pattern string, handler http.Handler)
 func (h *HTTP) Name() string
 func (h *HTTP) Probes() *health.Registry
 func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request)
@@ -1382,6 +1344,10 @@ type ReadinessSink interface {
 type RegistrarOption func(*registrarLifecycle)
 func WithRegistrarName(name string) RegistrarOption
 type RequestIDValidator = transporthttp.RequestIDValidator
+type RouteOption func(*routeOptions)
+func RouteBodyLimit(maxBodyBytes int64) RouteOption
+func RouteMiddleware(middleware ...endpoint.Middleware) RouteOption
+func RouteServerOptions(options ...httpserver.ServerOption) RouteOption
 type Router interface {
 	// Has unexported methods.
 }
@@ -2278,15 +2244,9 @@ func EncodeJSONRequest(c context.Context, req *http.Request, request any) (*http
 func EncodeQueryRequest(_ context.Context, req *http.Request, request any) (*http.Request, error)
 func HandleSSE[T any](ctx context.Context, rawURL string, onEvent func(context.Context, SSEEvent[T]) error, options ...ClientOption) error
 func KindForStatus(status int) apperror.Kind
-func NewJSONClient[Resp any](method, rawURL string, options ...ClientOption) (endpoint.Endpoint, error)
-func NewJSONClientWithMaxResponseBodyBytes[Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (endpoint.Endpoint, error)
-func NewJSONClientWithTimeout[Resp any](
-	method, rawURL string,
-	timeout time.Duration,
-	options ...ClientOption,
+func NewJSON[Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (endpoint.Endpoint, error)
 func NewTransport() *http.Transport
-func NewTypedJSONClient[Req, Resp any](method, rawURL string, options ...ClientOption) (func(context.Context, Req) (Resp, error), error)
-func NewTypedJSONClientWithMaxResponseBodyBytes[Req, Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (func(context.Context, Req) (Resp, error), error)
+func NewTypedJSON[Req, Resp any](method, rawURL string, maxResponseBodyBytes int64, options ...ClientOption) (func(context.Context, Req) (Resp, error), error)
 TYPES
 type Client struct {
 	// Has unexported fields.
@@ -2439,6 +2399,7 @@ type JSONDecodeOptions struct {
 	// which without the check was accepted whenever the bytes happened to parse.
 	RequireJSONContentType bool
 }
+func DefaultJSONDecodeOptions() JSONDecodeOptions
 func StrictJSONDecodeOptions(maxBodyBytes int64) JSONDecodeOptions
 type MarshalFunc func(response any) ([]byte, error)
 type MultipartLimits struct {
@@ -2528,43 +2489,22 @@ type SSEStreamHandler func(ctx context.Context, request any, stream *SSEStream) 
 type Server struct {
 	// Has unexported fields.
 }
+func NewJSON[Req any](
+	handler func(ctx context.Context, req Req) (any, error),
+	decode JSONDecodeOptions,
+	options ...ServerOption,
 func NewJSONEndpoint[Req any](
 	e endpoint.Endpoint,
-	options ...ServerOption,
-func NewJSONEndpointWithBodyLimit[Req any](
-	e endpoint.Endpoint,
-	maxBodyBytes int64,
-	options ...ServerOption,
-func NewJSONEndpointWithDecodeOptions[Req any](
-	e endpoint.Endpoint,
-	decodeOptions JSONDecodeOptions,
-	options ...ServerOption,
-func NewJSONServer[Req any](
-	handler func(ctx context.Context, req Req) (any, error),
-	options ...ServerOption,
-func NewJSONServerWithBodyLimit[Req any](
-	handler func(ctx context.Context, req Req) (any, error),
-	maxBodyBytes int64,
-	options ...ServerOption,
-func NewJSONServerWithMiddleware[Req any](
-	handler func(ctx context.Context, req Req) (any, error),
-	middleware func(*endpoint.Builder) *endpoint.Builder,
+	decode JSONDecodeOptions,
 	options ...ServerOption,
 func NewServer(
 	e endpoint.Endpoint,
 	dec DecodeRequestFunc,
 	enc EncodeResponseFunc,
 	options ...ServerOption,
-func NewTypedJSONServer[Req, Resp any](
+func NewTypedJSON[Req, Resp any](
 	handler func(ctx context.Context, req Req) (Resp, error),
-	options ...ServerOption,
-func NewTypedJSONServerWithBodyLimit[Req, Resp any](
-	handler func(ctx context.Context, req Req) (Resp, error),
-	maxBodyBytes int64,
-	options ...ServerOption,
-func NewTypedJSONServerWithMiddleware[Req, Resp any](
-	handler func(ctx context.Context, req Req) (Resp, error),
-	middleware func(*endpoint.Builder) *endpoint.Builder,
+	decode JSONDecodeOptions,
 	options ...ServerOption,
 func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request)
 type ServerOption func(*Server)

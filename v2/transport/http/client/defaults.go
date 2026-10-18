@@ -23,8 +23,8 @@ import (
 // hosts once, and wrong for a service talking to a few hosts continuously.
 //
 // What this package still does not decide is the deadline. There is no Timeout here,
-// because a deadline belongs to the call: endpoint.Builder.WithTimeout,
-// NewJSONClientWithTimeout, or a context the caller derives. A Timeout set here would
+// because a deadline belongs to the call: endpoint.Builder.WithTimeout, or a context
+// the caller derives. A Timeout set here would
 // silently cap every call in the process at a number this package invented, and would
 // be invisible at the call site — see PRODUCTION.md.
 

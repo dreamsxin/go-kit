@@ -211,7 +211,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	kit.HandleJSONTyped(svc, "/hello", func(
+	kit.HandleJSON(svc, "/hello", func(
 		ctx context.Context,
 		req HelloRequest,
 	) (HelloResponse, error) {
@@ -286,16 +286,17 @@ policy, client certificates, or rotation without a restart. HTTP/2 arrives with 
 through ALPN; `HTTP.ServesTLS` reports what is actually being served. See
 [Serving TLS](docs/configuration.md#serving-tls).
 
-Use `kit.HandleJSONTyped` for concrete request and response types,
-`kit.HandleJSON` for intentionally dynamic responses, and
-`kit.HandleJSONEndpoint` for an existing endpoint. For per-route middleware,
-use `kit.HandleJSONTypedWithMiddleware` or `kit.HandleJSONWithMiddleware`;
-route middleware composes inside the component-level chain. Register
+Use `kit.HandleJSON` for both concrete and dynamic response types — the request
+and response types are inferred from the handler, so a concrete response needs
+no type arguments — and `kit.HandleJSONEndpoint` for an existing endpoint.
+Per-route differences are options on the same call: `kit.RouteMiddleware`
+composes route middleware inside the component-level chain,
+`kit.RouteBodyLimit` gives one route a different body limit without losing the
+chain, and `kit.RouteServerOptions` passes transport options for that route
+alone. Register
 Server-Sent Events streams with `kit.HandleSSETyped` so endpoint middleware
 applies to the stream. Use `HTTP.Handle` and `HTTP.HandleFunc` only for raw HTTP
-integrations, including a raw streaming handler — `HandleSSE` is a deprecated
-alias for `Handle`, because a name promising SSE behaviour while skipping the
-middleware chain is how a stream loses its middleware by accident.
+integrations, including a raw streaming handler.
 
 `endpoint.Metrics` is the built-in collector `RecordingMiddleware` writes into.
 Its counters are unexported and guarded internally; read them through

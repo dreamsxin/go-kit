@@ -18,7 +18,7 @@ import (
 //	    Endpoint: sayHello,
 //	}
 //	// HTTP: JSON decode is generated from the typed endpoint.
-//	kit.HandleJSONTyped(httpComponent, "POST /hello", binding.TypedEndpoint())
+//	kit.HandleJSON(httpComponent, "POST /hello", binding.TypedEndpoint())
 //	// gRPC: register the protobuf-facing codec.
 //	pb.RegisterGreeterServer(grpcComponent.Server(), binding.GRPCServer(protoToHello, helloToProto))
 //
@@ -29,8 +29,8 @@ type Binding[Req, Resp any] struct {
 }
 
 // TypedEndpoint returns the typed endpoint for HTTP transports that accept
-// concrete request and response types (kit.HandleJSONTyped and the typed
-// JSON servers).
+// concrete request and response types (kit.HandleJSON and the typed JSON
+// servers).
 func (b Binding[Req, Resp]) TypedEndpoint() endpoint.TypedEndpoint[Req, Resp] {
 	return endpoint.Unwrap[Req, Resp](b.Endpoint)
 }

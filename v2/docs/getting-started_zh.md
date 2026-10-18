@@ -42,7 +42,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	kit.HandleJSONTyped(svc, "POST /greet", func(
+	kit.HandleJSON(svc, "POST /greet", func(
 		_ context.Context, req GreetRequest,
 	) (GreetResponse, error) {
 		return GreetResponse{Message: "Hello, " + req.Name + "!"}, nil
@@ -76,7 +76,7 @@ curl http://localhost:8080/health
 ## 刚才发生了什么
 
 - `kit.NewHTTP` 校验了配置并注册了 `/health`、`/livez` 和 `/readyz`。
-- `HandleJSONTyped` 注册了一个类型化 JSON 路由：请求体被严格解码（未知字段和
+- `HandleJSON` 注册了一个类型化 JSON 路由：请求体被严格解码（未知字段和
   多余数据都会被拒绝），返回值以 `200` 写成 JSON。若返回错误，则改为编码为
   `{"code","message","request_id"}`，状态码由其 `apperror` kind 映射而来——
   `KindInvalidArgument` 对应 400，`KindNotFound` 对应 404，以此类推。

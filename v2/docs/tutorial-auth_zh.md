@@ -219,7 +219,7 @@ func main() {
 
 	// 读取注入身份的类型化 JSON 端点。
 	type meRequest struct{}
-	kit.HandleJSONTyped(svc, "/api/me", func(ctx context.Context, _ meRequest) (identity, error) {
+	kit.HandleJSON(svc, "/api/me", func(ctx context.Context, _ meRequest) (identity, error) {
 		id, ok := identityFromContext(ctx)
 		if !ok {
 			return identity{}, apperror.New(

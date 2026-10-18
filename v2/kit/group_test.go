@@ -18,7 +18,7 @@ import (
 func TestGroupPrefixesMethodPatterns(t *testing.T) {
 	component := kit.MustNewHTTP("127.0.0.1:0")
 	api := component.Group("/api")
-	kit.HandleJSONTyped(api, "POST /todos", func(_ context.Context, _ struct{}) (string, error) {
+	kit.HandleJSON(api, "POST /todos", func(_ context.Context, _ struct{}) (string, error) {
 		return "created", nil
 	})
 
@@ -42,7 +42,7 @@ func TestGroupPrefixesMethodPatterns(t *testing.T) {
 func TestGroupPrefixesBarePatterns(t *testing.T) {
 	component := kit.MustNewHTTP("127.0.0.1:0")
 	api := component.Group("/api")
-	kit.HandleJSONTyped(api, "/status", func(_ context.Context, _ struct{}) (string, error) {
+	kit.HandleJSON(api, "/status", func(_ context.Context, _ struct{}) (string, error) {
 		return "ok", nil
 	})
 
@@ -62,7 +62,7 @@ func TestNestedGroupsJoinPrefixes(t *testing.T) {
 	component := kit.MustNewHTTP("127.0.0.1:0")
 	api := component.Group("/api")
 	v1 := api.Group("/v1")
-	kit.HandleJSONTyped(v1, "GET /todos", func(_ context.Context, _ struct{}) (string, error) {
+	kit.HandleJSON(v1, "GET /todos", func(_ context.Context, _ struct{}) (string, error) {
 		return "v1 list", nil
 	})
 
@@ -99,7 +99,7 @@ func TestGroupKeepsEndpointMiddleware(t *testing.T) {
 			seenOperation = obs.Operation
 		})),
 	)
-	kit.HandleJSONTyped(component.Group("/api"), "POST /todos", func(_ context.Context, _ struct{}) (string, error) {
+	kit.HandleJSON(component.Group("/api"), "POST /todos", func(_ context.Context, _ struct{}) (string, error) {
 		return "created", nil
 	})
 
@@ -124,7 +124,7 @@ func TestGroupJoinPreservesPathParameters(t *testing.T) {
 	type idRequest struct {
 		ID int64 `form:"id" json:"id"`
 	}
-	kit.HandleJSONTyped(component.Group("/api"), "GET /todos/{id}", func(_ context.Context, req idRequest) (idRequest, error) {
+	kit.HandleJSON(component.Group("/api"), "GET /todos/{id}", func(_ context.Context, req idRequest) (idRequest, error) {
 		return req, nil
 	})
 
@@ -200,10 +200,10 @@ func TestGroupEndpointMiddlewareAppliesToGroupRoutes(t *testing.T) {
 			return next(ctx, request)
 		}
 	})
-	kit.HandleJSONTyped(api, "POST /todos", func(_ context.Context, _ struct{}) (string, error) {
+	kit.HandleJSON(api, "POST /todos", func(_ context.Context, _ struct{}) (string, error) {
 		return "created", nil
 	})
-	kit.HandleJSONTyped(component, "POST /open", func(_ context.Context, _ struct{}) (string, error) {
+	kit.HandleJSON(component, "POST /open", func(_ context.Context, _ struct{}) (string, error) {
 		return "open", nil
 	})
 
@@ -245,7 +245,7 @@ func TestGroupEndpointMiddlewareRunsInsideComponentChain(t *testing.T) {
 			return nil, apperror.New(apperror.KindPermissionDenied, "test.denied", "denied")
 		}
 	})
-	kit.HandleJSONTyped(api, "POST /todos", func(_ context.Context, _ struct{}) (string, error) {
+	kit.HandleJSON(api, "POST /todos", func(_ context.Context, _ struct{}) (string, error) {
 		return "created", nil
 	})
 
@@ -322,7 +322,7 @@ func TestNestedGroupInheritsMiddleware(t *testing.T) {
 		}
 	})
 	v1 := api.Group("/v1")
-	kit.HandleJSONTyped(v1, "GET /todos", func(_ context.Context, _ struct{}) (string, error) {
+	kit.HandleJSON(v1, "GET /todos", func(_ context.Context, _ struct{}) (string, error) {
 		return "v1 list", nil
 	})
 

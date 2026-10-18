@@ -266,9 +266,9 @@ func TestInterceptingWriter_CapturesCode(t *testing.T) {
 // ── NewJSONServer ─────────────────────────────────────────────────────────────
 
 func TestNewJSONServer_Success(t *testing.T) {
-	h := server.NewJSONServer[testReq](func(_ context.Context, req testReq) (any, error) {
+	h := server.NewJSON[testReq](func(_ context.Context, req testReq) (any, error) {
 		return map[string]string{"echo": req.Name}, nil
-	})
+	}, server.DefaultJSONDecodeOptions())
 	body, _ := json.Marshal(testReq{Name: "test"})
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	w := httptest.NewRecorder()
@@ -288,9 +288,9 @@ func TestNewTypedJSONServer_Success(t *testing.T) {
 	type response struct {
 		Echo string `json:"echo"`
 	}
-	h := server.NewTypedJSONServer(func(_ context.Context, req testReq) (response, error) {
+	h := server.NewTypedJSON(func(_ context.Context, req testReq) (response, error) {
 		return response{Echo: req.Name}, nil
-	})
+	}, server.DefaultJSONDecodeOptions())
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"typed"}`))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
@@ -309,19 +309,17 @@ func TestNewTypedJSONServer_Success(t *testing.T) {
 
 func TestNewTypedJSONServerWithMiddleware(t *testing.T) {
 	called := false
-	h := server.NewTypedJSONServerWithMiddleware(
+	ep := endpoint.NewBuilder(endpoint.TypedEndpoint[testReq, string](
 		func(_ context.Context, req testReq) (string, error) {
 			return req.Name, nil
 		},
-		func(builder *endpoint.Builder) *endpoint.Builder {
-			return builder.Use(func(next endpoint.Endpoint) endpoint.Endpoint {
-				return func(ctx context.Context, request any) (any, error) {
-					called = true
-					return next(ctx, request)
-				}
-			})
-		},
-	)
+	).Wrap()).Use(func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request any) (any, error) {
+			called = true
+			return next(ctx, request)
+		}
+	}).Build()
+	h := server.NewJSONEndpoint[testReq](ep, server.DefaultJSONDecodeOptions())
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"typed"}`))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
@@ -332,9 +330,9 @@ func TestNewTypedJSONServerWithMiddleware(t *testing.T) {
 }
 
 func TestNewJSONServer_HandlerError(t *testing.T) {
-	h := server.NewJSONServer[testReq](func(_ context.Context, _ testReq) (any, error) {
+	h := server.NewJSON[testReq](func(_ context.Context, _ testReq) (any, error) {
 		return nil, errors.New("handler error")
-	})
+	}, server.DefaultJSONDecodeOptions())
 	body, _ := json.Marshal(testReq{Name: "x"})
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 	w := httptest.NewRecorder()
@@ -347,10 +345,10 @@ func TestNewJSONServer_HandlerError(t *testing.T) {
 
 func TestNewJSONServer_RejectsUnknownFieldsByDefault(t *testing.T) {
 	called := false
-	h := server.NewJSONServer[testReq](func(_ context.Context, _ testReq) (any, error) {
+	h := server.NewJSON[testReq](func(_ context.Context, _ testReq) (any, error) {
 		called = true
 		return "ok", nil
-	})
+	}, server.DefaultJSONDecodeOptions())
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"x","extra":true}`))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
@@ -365,10 +363,10 @@ func TestNewJSONServer_RejectsUnknownFieldsByDefault(t *testing.T) {
 
 func TestNewJSONServerWithBodyLimit_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
 	called := false
-	h := server.NewJSONServerWithBodyLimit[testReq](func(_ context.Context, _ testReq) (any, error) {
+	h := server.NewJSON[testReq](func(_ context.Context, _ testReq) (any, error) {
 		called = true
 		return "ok", nil
-	}, 128)
+	}, server.StrictJSONDecodeOptions(128))
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"x","extra":true}`))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
@@ -388,10 +386,10 @@ func TestNewJSONServerWithBodyLimit_RejectsUnknownFieldsBeforeHandler(t *testing
 
 func TestNewTypedJSONServerWithBodyLimit_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
 	called := false
-	h := server.NewTypedJSONServerWithBodyLimit(func(_ context.Context, _ testReq) (string, error) {
+	h := server.NewTypedJSON(func(_ context.Context, _ testReq) (string, error) {
 		called = true
 		return "ok", nil
-	}, 128)
+	}, server.StrictJSONDecodeOptions(128))
 	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"name":"x","extra":true}`))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
@@ -409,13 +407,14 @@ func TestNewTypedJSONServerWithBodyLimit_RejectsUnknownFieldsBeforeHandler(t *te
 func TestServerBefore_RunsBeforeDecode(t *testing.T) {
 	type ctxKey struct{}
 	beforeRan := false
-	h := server.NewJSONServer[testReq](
+	h := server.NewJSON[testReq](
 		func(ctx context.Context, _ testReq) (any, error) {
 			if ctx.Value(ctxKey{}) != nil {
 				beforeRan = true
 			}
 			return "ok", nil
 		},
+		server.DefaultJSONDecodeOptions(),
 		server.ServerBefore(func(ctx context.Context, _ *http.Request) context.Context {
 			return context.WithValue(ctx, ctxKey{}, true)
 		}),
@@ -431,8 +430,9 @@ func TestServerBefore_RunsBeforeDecode(t *testing.T) {
 
 func TestServerFinalizer_AlwaysRuns(t *testing.T) {
 	finalized := false
-	h := server.NewJSONServer[testReq](
+	h := server.NewJSON[testReq](
 		func(_ context.Context, _ testReq) (any, error) { return "ok", nil },
+		server.DefaultJSONDecodeOptions(),
 		server.ServerFinalizer(func(_ context.Context, _ *http.Request, _ *server.InterceptingWriter) {
 			finalized = true
 		}),

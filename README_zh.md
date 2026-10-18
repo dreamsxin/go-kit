@@ -27,7 +27,7 @@ svc, err := kit.NewHTTP(":8080", kit.WithRequestID())
 if err != nil {
 	log.Fatal(err)
 }
-kit.HandleJSONTyped(svc, "POST /greet", func(
+kit.HandleJSON(svc, "POST /greet", func(
 	_ context.Context, req GreetRequest,
 ) (GreetResponse, error) {
 	return GreetResponse{Message: "Hello, " + req.Name + "!"}, nil

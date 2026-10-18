@@ -13,112 +13,62 @@ import (
 	"github.com/dreamsxin/go-kit/v2/endpoint"
 )
 
-// NewJSONServer creates an HTTP server that automatically handles JSON
-// encoding/decoding for the given handler function.
+// NewJSON creates an HTTP server that decodes a strict JSON request into Req
+// and encodes the handler's dynamic response as JSON.
 //
-// Every JSON entry point in this package decodes strictly: unknown object
-// fields, a second JSON value, and bodies over DefaultMaxJSONBodyBytes are
-// rejected with 400. Use the *WithBodyLimit variants for a different size cap
-// and NewJSONEndpointWithDecodeOptions to change strictness itself.
+// decode states how strictly the request body is read. Pass
+// DefaultJSONDecodeOptions for the package default, StrictJSONDecodeOptions(n)
+// for the same rules with another size cap, or a JSONDecodeOptions value built
+// by the caller. The body limit is part of that value rather than a constructor
+// of its own, so a route that accepts a larger body keeps every other rule the
+// default installed instead of silently acquiring a different decoder.
 //
-// JSONErrorEncoder is used by default — errors are written as
-// {"code": "...", "message": "..."} with an appropriate HTTP status code.
-// Pass ServerErrorEncoder to override.
+// Errors are written by JSONErrorEncoder unless ServerErrorEncoder overrides it.
 //
 // Example:
 //
-//	handler := server.NewJSONServer[HelloReq](func(ctx context.Context, req HelloReq) (any, error) {
-//	    return HelloResp{...}, nil
-//	})
+//	handler := server.NewJSON[HelloReq](
+//	    func(ctx context.Context, req HelloReq) (any, error) {
+//	        return HelloResp{Message: "Hello, " + req.Name}, nil
+//	    },
+//	    server.DefaultJSONDecodeOptions(),
+//	)
 //	http.ListenAndServe(":8080", handler)
-func NewJSONServer[Req any](
+func NewJSON[Req any](
 	handler func(ctx context.Context, req Req) (any, error),
+	decode JSONDecodeOptions,
 	options ...ServerOption,
 ) *Server {
-	return NewJSONEndpoint[Req](endpoint.TypedEndpoint[Req, any](handler).Wrap(), options...)
+	if handler == nil {
+		panic("server: JSON handler cannot be nil")
+	}
+	return NewJSONEndpoint[Req](endpoint.TypedEndpoint[Req, any](handler).Wrap(), decode, options...)
 }
 
-// NewTypedJSONServer creates an HTTP server with compile-time request and
-// response types.
-func NewTypedJSONServer[Req, Resp any](
+// NewTypedJSON creates a JSON HTTP server with compile-time request and
+// response types. It is NewJSON for a handler that returns a concrete response
+// type rather than any.
+func NewTypedJSON[Req, Resp any](
 	handler func(ctx context.Context, req Req) (Resp, error),
+	decode JSONDecodeOptions,
 	options ...ServerOption,
 ) *Server {
-	return NewJSONEndpoint[Req](endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), options...)
+	if handler == nil {
+		panic("server: JSON handler cannot be nil")
+	}
+	return NewJSONEndpoint[Req](endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), decode, options...)
 }
 
 // NewJSONEndpoint creates a strict JSON HTTP server for an existing
-// endpoint.Endpoint. Use this when you have already built your endpoint with
-// middleware.
+// endpoint.Endpoint. Use this when the endpoint already carries its middleware
+// chain; route-local middleware is composed into the endpoint, not passed here.
 func NewJSONEndpoint[Req any](
 	e endpoint.Endpoint,
-	options ...ServerOption,
-) *Server {
-	return NewJSONEndpointWithDecodeOptions[Req](e, StrictJSONDecodeOptions(DefaultMaxJSONBodyBytes), options...)
-}
-
-// NewJSONEndpointWithDecodeOptions creates an HTTP server for an existing
-// endpoint.Endpoint with explicit JSON request decoding options.
-func NewJSONEndpointWithDecodeOptions[Req any](
-	e endpoint.Endpoint,
-	decodeOptions JSONDecodeOptions,
+	decode JSONDecodeOptions,
 	options ...ServerOption,
 ) *Server {
 	opts := append([]ServerOption{ServerErrorEncoder(JSONErrorEncoder)}, options...)
-	return NewServer(e, DecodeJSONRequestWithOptions[Req](decodeOptions), EncodeJSONResponse, opts...)
-}
-
-// NewJSONEndpointWithBodyLimit is NewJSONEndpoint with an explicit maximum
-// request body size instead of DefaultMaxJSONBodyBytes.
-func NewJSONEndpointWithBodyLimit[Req any](
-	e endpoint.Endpoint,
-	maxBodyBytes int64,
-	options ...ServerOption,
-) *Server {
-	return NewJSONEndpointWithDecodeOptions[Req](e, StrictJSONDecodeOptions(maxBodyBytes), options...)
-}
-
-// NewJSONServerWithBodyLimit is NewJSONServer with an explicit maximum request
-// body size instead of DefaultMaxJSONBodyBytes.
-func NewJSONServerWithBodyLimit[Req any](
-	handler func(ctx context.Context, req Req) (any, error),
-	maxBodyBytes int64,
-	options ...ServerOption,
-) *Server {
-	return NewJSONEndpointWithBodyLimit[Req](endpoint.TypedEndpoint[Req, any](handler).Wrap(), maxBodyBytes, options...)
-}
-
-// NewTypedJSONServerWithBodyLimit is NewTypedJSONServer with an explicit
-// maximum request body size instead of DefaultMaxJSONBodyBytes.
-func NewTypedJSONServerWithBodyLimit[Req, Resp any](
-	handler func(ctx context.Context, req Req) (Resp, error),
-	maxBodyBytes int64,
-	options ...ServerOption,
-) *Server {
-	return NewJSONEndpointWithBodyLimit[Req](endpoint.TypedEndpoint[Req, Resp](handler).Wrap(), maxBodyBytes, options...)
-}
-
-// NewJSONServerWithMiddleware is a convenience wrapper that combines
-// a handler function with a middleware chain built via endpoint.Builder.
-func NewJSONServerWithMiddleware[Req any](
-	handler func(ctx context.Context, req Req) (any, error),
-	middleware func(*endpoint.Builder) *endpoint.Builder,
-	options ...ServerOption,
-) *Server {
-	e := endpoint.TypedEndpoint[Req, any](handler).Wrap()
-	ep := middleware(endpoint.NewBuilder(e)).Build()
-	return NewJSONEndpoint[Req](ep, options...)
-}
-
-// NewTypedJSONServerWithMiddleware combines a fully typed handler with an
-// endpoint middleware chain.
-func NewTypedJSONServerWithMiddleware[Req, Resp any](
-	handler func(ctx context.Context, req Req) (Resp, error),
-	middleware func(*endpoint.Builder) *endpoint.Builder,
-	options ...ServerOption,
-) *Server {
-	ep := middleware(endpoint.NewTypedBuilder(endpoint.TypedEndpoint[Req, Resp](handler))).Build()
-	return NewJSONEndpoint[Req](ep, options...)
+	return NewServer(e, DecodeJSONRequestWithOptions[Req](decode), EncodeJSONResponse, opts...)
 }
 
 // DecodeJSONRequest returns a DecodeRequestFunc that strictly decodes the HTTP
@@ -126,7 +76,7 @@ func NewTypedJSONServerWithMiddleware[Req, Resp any](
 func DecodeJSONRequest[T any]() DecodeRequestFunc {
 	return func(_ context.Context, r *http.Request) (any, error) {
 		var v T
-		if err := DecodeJSONBody(r, &v, StrictJSONDecodeOptions(DefaultMaxJSONBodyBytes)); err != nil {
+		if err := DecodeJSONBody(r, &v, DefaultJSONDecodeOptions()); err != nil {
 			return nil, decodeFailure(err)
 		}
 		return v, nil
@@ -189,6 +139,14 @@ func StrictJSONDecodeOptions(maxBodyBytes int64) JSONDecodeOptions {
 		RejectTrailingData:     true,
 		RequireJSONContentType: true,
 	}
+}
+
+// DefaultJSONDecodeOptions returns the strict decoding rules every JSON entry
+// point in this package applies when the caller does not choose others:
+// unknown fields, trailing data, a non-JSON media type and a body over
+// DefaultMaxJSONBodyBytes are all refused.
+func DefaultJSONDecodeOptions() JSONDecodeOptions {
+	return StrictJSONDecodeOptions(DefaultMaxJSONBodyBytes)
 }
 
 var (

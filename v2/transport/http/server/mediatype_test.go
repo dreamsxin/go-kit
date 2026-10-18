@@ -16,9 +16,9 @@ type mediaTypeRequest struct {
 }
 
 func mediaTypeHandler() http.Handler {
-	return server.NewTypedJSONServer(func(_ context.Context, req mediaTypeRequest) (mediaTypeRequest, error) {
+	return server.NewTypedJSON(func(_ context.Context, req mediaTypeRequest) (mediaTypeRequest, error) {
 		return req, nil
-	})
+	}, server.DefaultJSONDecodeOptions())
 }
 
 // TestUnsupportedMediaTypeIsAnswered415 covers the protocol question the server

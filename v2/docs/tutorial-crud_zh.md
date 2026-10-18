@@ -295,21 +295,21 @@ func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 func registerRoutes(svc *kit.HTTP, todos todoService) {
 	// 类型化路由承载完整请求路径：严格解码、端点中间件，
 	// 共享的错误编码器把分类后的错误应答为 {"code","message","request_id"}。
-	kit.HandleJSONTyped(svc, "POST /todos", func(ctx context.Context, req createTodoRequest) (Todo, error) {
+	kit.HandleJSON(svc, "POST /todos", func(ctx context.Context, req createTodoRequest) (Todo, error) {
 		return todos.Create(ctx, req.Title)
 	})
 
-	kit.HandleJSONTyped(svc, "GET /todos", func(ctx context.Context, _ struct{}) (todoList, error) {
+	kit.HandleJSON(svc, "GET /todos", func(ctx context.Context, _ struct{}) (todoList, error) {
 		return todos.List(ctx)
 	})
 
-	kit.HandleJSONTyped(svc, "GET /todos/{id}", func(ctx context.Context, req getTodoRequest) (Todo, error) {
+	kit.HandleJSON(svc, "GET /todos/{id}", func(ctx context.Context, req getTodoRequest) (Todo, error) {
 		return todos.Get(ctx, req.ID)
 	})
 
 	// 不带请求体的 POST：请求解为零值，路径值填充 ID，
 	// 于是按钮路由和其余路由一样是类型化的。
-	kit.HandleJSONTyped(svc, "POST /todos/{id}/done", func(ctx context.Context, req getTodoRequest) (Todo, error) {
+	kit.HandleJSON(svc, "POST /todos/{id}/done", func(ctx context.Context, req getTodoRequest) (Todo, error) {
 		return todos.MarkDone(ctx, req.ID)
 	})
 

@@ -243,9 +243,9 @@ func encodeJSONErrorWithStatus(ctx context.Context, err error, w http.ResponseWr
 //	    server.ServerErrorEncoder(server.JSONErrorEncoder),
 //	)
 //
-// Or with NewJSONServer:
+// Or with NewJSON:
 //
-//	server.NewJSONServer[Req](handler,
+//	server.NewJSON[Req](handler, server.DefaultJSONDecodeOptions(),
 //	    server.ServerErrorEncoder(server.JSONErrorEncoder),
 //	)
 var JSONErrorEncoder ErrorEncoder = func(ctx context.Context, err error, w http.ResponseWriter) {

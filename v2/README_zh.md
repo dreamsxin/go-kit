@@ -200,7 +200,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	kit.HandleJSONTyped(svc, "/hello", func(
+	kit.HandleJSON(svc, "/hello", func(
 		ctx context.Context,
 		req HelloRequest,
 	) (HelloResponse, error) {
@@ -265,13 +265,13 @@ host, err := kit.NewHost(kit.WithLifecycle(svc, grpcComponent))
 或不重启的轮换。HTTP/2 会随 TLS 经 ALPN 一起到来；`HTTP.ServesTLS` 报告实际在服务什么。
 见[提供 TLS](docs/configuration_zh.md#提供-tls)。
 
-请求和响应都有具体类型时使用 `kit.HandleJSONTyped`；有意返回动态响应时使用
-`kit.HandleJSON`；已有 endpoint 时使用 `kit.HandleJSONEndpoint`。
-需要路由级中间件时使用 `kit.HandleJSONTypedWithMiddleware` 或
-`kit.HandleJSONWithMiddleware`；路由中间件组合在组件级中间件链之内。
+请求和响应类型都由 handler 推断，所以 `kit.HandleJSON` 一个入口同时覆盖具体响应与
+动态响应；已有 endpoint 时使用 `kit.HandleJSONEndpoint`。单条路由的差异作为同一次
+调用上的选项表达：`kit.RouteMiddleware` 把路由级中间件组合在组件级链之内，
+`kit.RouteBodyLimit` 让某条路由使用不同的请求体上限而不丢失链路，
+`kit.RouteServerOptions` 只给这条路由传传输层选项。
 Server-Sent Events 流使用 `kit.HandleSSETyped` 注册，使 endpoint 中间件对流生效。
-`HTTP.Handle` 和 `HTTP.HandleFunc` 仅用于原生 HTTP 集成，原生流处理器也走这条路——
-`HandleSSE` 是 `Handle` 的弃用别名，因为"名字承诺 SSE 行为、却跳过中间件链"正是一条流不小心丢掉中间件的方式。
+`HTTP.Handle` 和 `HTTP.HandleFunc` 仅用于原生 HTTP 集成，原生流处理器也走这条路。
 
 `endpoint.Metrics` 是 `RecordingMiddleware` 写入的内置采集器。它的计数器不导出
 且由内部锁保护，读取入口为 `Snapshot()`（总量）、`SnapshotFor(operation)`

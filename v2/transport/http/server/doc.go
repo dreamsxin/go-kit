@@ -1,11 +1,11 @@
 // Package server adapts endpoints to inbound HTTP requests.
 //
 // NewServer wraps an endpoint with request decoding, response encoding, and
-// error encoding, and returns a standard http.Handler; NewTypedJSONServer and
-// the JSON helpers provide fully typed JSON assembly for concrete request and
-// response types. Behavior is extended through options: Before and After
-// RequestFuncs, FinalizerFunc for post-response observation, a bounded request
-// body limit, and strict JSON decoding.
+// error encoding, and returns a standard http.Handler; NewJSON, NewTypedJSON
+// and NewJSONEndpoint provide fully typed JSON assembly for concrete request
+// and response types. Behavior is extended through options: Before and After
+// RequestFuncs, FinalizerFunc for post-response observation, and strict JSON
+// decoding with a bounded request body.
 //
 // The package also owns two things that belong to the transport rather than to a
 // single handler. RouteRegistrar and DecorateRoutes install middleware at

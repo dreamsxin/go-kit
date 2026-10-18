@@ -29,6 +29,7 @@ func TestUnhandledDecodeErrorIsLogged(t *testing.T) {
 		endpoint.TypedEndpoint[map[string]any, string](func(_ context.Context, _ map[string]any) (string, error) {
 			return "ok", nil
 		}).Wrap(),
+		httpserver.DefaultJSONDecodeOptions(),
 	)
 
 	recorder := httptest.NewRecorder()
@@ -57,6 +58,7 @@ func TestNopErrorHandlerSilences(t *testing.T) {
 		endpoint.TypedEndpoint[map[string]any, string](func(_ context.Context, _ map[string]any) (string, error) {
 			return "", apperror.New(apperror.KindInvalidArgument, "test.rejected", "rejected")
 		}).Wrap(),
+		httpserver.DefaultJSONDecodeOptions(),
 		httpserver.ServerErrorHandler(transport.NopErrorHandler),
 	)
 

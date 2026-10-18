@@ -89,10 +89,8 @@ svc, err := kit.NewHTTP(addr,
 
 // A public route stays unwrapped; an admin route adds the role check
 // route-locally:
-kit.HandleJSONTypedWithMiddleware(svc, "POST /api/admin", adminHandler,
-	func(b *endpoint.Builder) *endpoint.Builder {
-		return b.Use(security.RequireRole("admin"))
-	})
+kit.HandleJSON(svc, "POST /api/admin", adminHandler,
+	kit.RouteMiddleware(security.RequireRole("admin")))
 ```
 
 Health routes and other public endpoints registered by the component stay

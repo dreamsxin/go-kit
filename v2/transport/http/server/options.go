@@ -6,8 +6,8 @@ import "github.com/dreamsxin/go-kit/v2/transport"
 type ServerOption func(*Server)
 
 // ServerResponseEncoder sets the function used to encode successful endpoint
-// responses for the JSON entry points (NewJSONServer, NewJSONEndpoint, and
-// their typed and strict variants). The default is EncodeJSONResponse, which
+// responses for the JSON entry points (NewJSON, NewTypedJSON, and
+// NewJSONEndpoint). The default is EncodeJSONResponse, which
 // writes the response value as-is; use this option to assemble a transport
 // envelope, such as {"code": 0, "message": "ok", "data": ...}, without
 // changing business response types.

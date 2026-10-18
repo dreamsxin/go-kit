@@ -10,8 +10,8 @@ import (
 // from one. The typed JSON registration family takes it, so a component and a
 // prefixed group register through the same call:
 //
-//	kit.HandleJSONTyped(svc, "POST /todos", createTodo)
-//	kit.HandleJSONTyped(svc.Group("/api/v1"), "POST /todos", createTodo)
+//	kit.HandleJSON(svc, "POST /todos", createTodo)
+//	kit.HandleJSON(svc.Group("/api/v1"), "POST /todos", createTodo)
 //
 // Only this package implements it: the methods are unexported on purpose, so a
 // Router is a component or one of its groups and nothing else.

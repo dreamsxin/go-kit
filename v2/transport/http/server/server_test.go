@@ -238,7 +238,7 @@ func TestServer_NilHooks_DoNotPanicAtRequestTime(t *testing.T) {
 	}
 }
 
-// ── NewJSONServer ─────────────────────────────────────────────────────────────
+// ── NewJSON ───────────────────────────────────────────────────────────────────
 
 func TestNewJSONServer_OK(t *testing.T) {
 	type req struct {
@@ -248,9 +248,9 @@ func TestNewJSONServer_OK(t *testing.T) {
 		Msg string `json:"msg"`
 	}
 
-	h := server.NewJSONServer[req](func(_ context.Context, r req) (any, error) {
+	h := server.NewJSON[req](func(_ context.Context, r req) (any, error) {
 		return resp{Msg: "hello " + r.Name}, nil
-	})
+	}, server.DefaultJSONDecodeOptions())
 
 	body := `{"name":"world"}`
 	rec := httptest.NewRecorder()
@@ -269,9 +269,9 @@ func TestNewJSONServer_OK(t *testing.T) {
 }
 
 func TestNewJSONServer_ErrorUsesJSONErrorEncoder(t *testing.T) {
-	h := server.NewJSONServer[struct{}](func(_ context.Context, _ struct{}) (any, error) {
+	h := server.NewJSON[struct{}](func(_ context.Context, _ struct{}) (any, error) {
 		return nil, errors.New("something failed")
-	})
+	}, server.DefaultJSONDecodeOptions())
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}")))
 
@@ -289,7 +289,7 @@ func TestNewJSONServer_ErrorUsesJSONErrorEncoder(t *testing.T) {
 	}
 }
 
-// ── NewJSONServerWithMiddleware ───────────────────────────────────────────────
+// ── route-local middleware ────────────────────────────────────────────────────
 
 func TestNewJSONServerWithMiddleware(t *testing.T) {
 	type req struct {
@@ -297,19 +297,17 @@ func TestNewJSONServerWithMiddleware(t *testing.T) {
 	}
 
 	var mwCalled bool
-	h := server.NewJSONServerWithMiddleware[req](
+	ep := endpoint.NewBuilder(endpoint.TypedEndpoint[req, any](
 		func(_ context.Context, r req) (any, error) {
 			return map[string]int{"doubled": r.V * 2}, nil
 		},
-		func(b *endpoint.Builder) *endpoint.Builder {
-			return b.Use(func(next endpoint.Endpoint) endpoint.Endpoint {
-				return func(ctx context.Context, req any) (any, error) {
-					mwCalled = true
-					return next(ctx, req)
-				}
-			})
-		},
-	)
+	).Wrap()).Use(func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, req any) (any, error) {
+			mwCalled = true
+			return next(ctx, req)
+		}
+	}).Build()
+	h := server.NewJSONEndpoint[req](ep, server.DefaultJSONDecodeOptions())
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"v":21}`)))

@@ -36,7 +36,7 @@ func TestTypedJSONClientPostBodyAndResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	call, err := client.NewTypedJSONClient[todoRequest, todoResponse](http.MethodPost, server.URL+"/todos/{id}")
+	call, err := client.NewTypedJSON[todoRequest, todoResponse](http.MethodPost, server.URL+"/todos/{id}", client.DefaultMaxJSONResponseBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestTypedJSONClientGetQueryAndPath(t *testing.T) {
 	}))
 	defer server.Close()
 
-	call, err := client.NewTypedJSONClient[todoRequest, todoResponse](http.MethodGet, server.URL+"/todos/{id}")
+	call, err := client.NewTypedJSON[todoRequest, todoResponse](http.MethodGet, server.URL+"/todos/{id}", client.DefaultMaxJSONResponseBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestTypedJSONClientSurfacesHTTPStatusError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	call, err := client.NewTypedJSONClient[todoRequest, todoResponse](http.MethodGet, server.URL+"/todos/9")
+	call, err := client.NewTypedJSON[todoRequest, todoResponse](http.MethodGet, server.URL+"/todos/9", client.DefaultMaxJSONResponseBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestTypedJSONClientNonStructBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	call, err := client.NewTypedJSONClient[map[string]string, map[string]string](http.MethodPost, server.URL+"/notes")
+	call, err := client.NewTypedJSON[map[string]string, map[string]string](http.MethodPost, server.URL+"/notes", client.DefaultMaxJSONResponseBytes)
 	if err != nil {
 		t.Fatal(err)
 	}

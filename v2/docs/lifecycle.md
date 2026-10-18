@@ -138,8 +138,8 @@ The deadline is all-or-nothing. `kit.WithTimeout` bounds every route in the
 component -- including the stream -- and there is no per-route override at the
 component level. A component hosting a stream therefore leaves `WithTimeout`
 unset and bounds its finite routes individually instead: `endpoint.TimeoutMiddleware`
-through the `Builder` (`Builder.WithTimeout`, or `kit.HandleJSONTypedWithMiddleware`
-on the one route). The stream keeps the lifetime its client gives it; every route
+through the `Builder` (`Builder.WithTimeout`, or `kit.RouteMiddleware`
+with `endpoint.TimeoutMiddleware` on the one route). The stream keeps the lifetime its client gives it; every route
 that should have a deadline still gets one.
 
 The framework does not choose between the two per route. The handler that opened

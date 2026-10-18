@@ -26,9 +26,9 @@ type benchResponse struct {
 }
 
 func BenchmarkJSONRoundTrip(b *testing.B) {
-	handler := server.NewTypedJSONServer(func(_ context.Context, req benchRequest) (benchResponse, error) {
+	handler := server.NewTypedJSON(func(_ context.Context, req benchRequest) (benchResponse, error) {
 		return benchResponse{ID: req.ID, Username: req.Username}, nil
-	})
+	}, server.DefaultJSONDecodeOptions())
 	body := `{"id":7,"username":"alice","email":"alice@example.com"}`
 
 	b.ReportAllocs()
@@ -51,9 +51,9 @@ func discardLogger() *slog.Logger {
 // difference against BenchmarkJSONRoundTrip is what observability costs per
 // request.
 func BenchmarkJSONRoundTripWithAccessLog(b *testing.B) {
-	inner := server.NewTypedJSONServer(func(_ context.Context, req benchRequest) (benchResponse, error) {
+	inner := server.NewTypedJSON(func(_ context.Context, req benchRequest) (benchResponse, error) {
 		return benchResponse{ID: req.ID, Username: req.Username}, nil
-	})
+	}, server.DefaultJSONDecodeOptions())
 	handler := server.AccessLogMiddleware(discardLogger())(inner)
 	body := `{"id":7,"username":"alice","email":"alice@example.com"}`
 

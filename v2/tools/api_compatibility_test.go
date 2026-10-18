@@ -120,7 +120,36 @@ func TestAPICompatibilityWithLastRelease(t *testing.T) {
 // removed when v2.25.0 was tagged, because from that tag the Router shape is
 // the baseline and the entries match nothing. New entries appear only when a
 // future candidate deliberately breaks the surface.
-var deliberateBreaks = []string{}
+var deliberateBreaks = []string{
+	// v2's JSON entry points are one call per layer (CHANGELOG [Unreleased]).
+	// More specific entries come before the names they prefix, because the
+	// matcher stops at the first entry a problem contains.
+	"kit: changed: func HandleJSON",
+	"kit: changed: func NewJSONHandler",
+	"kit: removed from func HandleJSONEndpoint: options ...httpserver.ServerOption",
+	"kit: removed: func HTTP.HandleSSE",
+	"kit: removed: func HandleJSONEndpointWithBodyLimit",
+	"kit: removed: func HandleJSONTypedWithBodyLimit",
+	"kit: removed: func HandleJSONTypedWithMiddleware",
+	"kit: removed: func HandleJSONTyped",
+	"kit: removed: func HandleJSONWithMiddleware",
+	"kit: removed: func JSONTyped",
+	"kit: removed: func JSON",
+	"kit: removed: func NewJSONTypedHandler",
+	"transport/http/client: removed: func NewJSONClientWithMaxResponseBodyBytes",
+	"transport/http/client: removed: func NewJSONClientWithTimeout",
+	"transport/http/client: removed: func NewJSONClient",
+	"transport/http/client: removed: func NewTypedJSONClientWithMaxResponseBodyBytes",
+	"transport/http/client: removed: func NewTypedJSONClient",
+	"transport/http/server: removed: func NewJSONEndpointWithBodyLimit",
+	"transport/http/server: removed: func NewJSONEndpointWithDecodeOptions",
+	"transport/http/server: removed: func NewJSONServerWithBodyLimit",
+	"transport/http/server: removed: func NewJSONServerWithMiddleware",
+	"transport/http/server: removed: func NewJSONServer",
+	"transport/http/server: removed: func NewTypedJSONServerWithBodyLimit",
+	"transport/http/server: removed: func NewTypedJSONServerWithMiddleware",
+	"transport/http/server: removed: func NewTypedJSONServer",
+}
 
 // TestAPICompatibilityClassifier proves the classifier reports what it claims,
 // on inputs written here rather than on the real surface — the real surface is

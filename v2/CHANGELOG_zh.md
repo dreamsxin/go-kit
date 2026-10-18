@@ -17,6 +17,24 @@
 
 ### 变更
 
+- JSON 构造函数族原本是"同一个调用 × 调用方之间的差异"，现在差异是值，多余的
+  名字被删除。`transport/http/server` 里九个
+  `NewJSONServer`/`NewTypedJSONServer`/`NewJSONEndpoint` 构造函数（及其
+  请求体上限、解码选项、中间件变体）收敛为 `NewJSON`、`NewTypedJSON` 与
+  `NewJSONEndpoint`，三者各自接收一个 `JSONDecodeOptions`
+  （`DefaultJSONDecodeOptions`、`StrictJSONDecodeOptions(n)` 或自建值）。
+  `transport/http/client` 里 `NewJSONClient`、
+  `NewJSONClientWithMaxResponseBodyBytes`、`NewJSONClientWithTimeout`、
+  `NewTypedJSONClient`、`NewTypedJSONClientWithMaxResponseBodyBytes` 收敛为
+  `NewJSON` 与 `NewTypedJSON`，各自接收成功响应体上限
+  （`DefaultMaxJSONResponseBytes`）；deadline 是
+  `endpoint.TimeoutMiddleware`，也正是被删除的 `WithTimeout` 变体所包装的东西。
+  `kit` 里八个 `HandleJSON`/`HandleJSONTyped` 注册函数收敛为 `HandleJSON`
+  ——请求与响应类型由 handler 推断，具体响应无需类型参数——逐路由差异用
+  `RouteOption` 表达：`RouteBodyLimit`、`RouteMiddleware`、`RouteServerOptions`。
+  弃用拼写 `kit.JSON`、`kit.JSONTyped`、`kit.NewJSONTypedHandler` 与
+  `kit.HTTP.HandleSSE` 已删除。评审过的 API 快照相应减少六十个声明；已有调用点
+  需要补上新参数或选项。
 - Zap 日志中间件现在与 slog 适配器使用同一套记录字段：
   `operation`/`duration`/`success`，以及 context 中存在时的 `trace_id`、
   `span_id`、`request_id`（`zap.record-fields`）；失败与 panic 以 Error

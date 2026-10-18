@@ -4,7 +4,7 @@
 // It demonstrates the component path after users understand the kit quickstart:
 //  1. Define plain request/response types.
 //  2. Write pure business logic (no framework imports).
-//  3. Wire everything with NewJSONServerWithMiddleware.
+//  3. Wire everything with NewJSONEndpoint over an explicitly built endpoint.
 //
 // Run:
 //
@@ -69,19 +69,20 @@ func main() {
 
 	var metrics endpoint.Metrics
 
-	// NewTypedJSONServerWithMiddleware wires business logic + middleware + HTTP in one call.
+	// NewJSONEndpoint wires business logic + middleware + HTTP: the endpoint
+	// carries its chain, the JSON server only owns the wire.
 	breaker := endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(3))
 	limiter := newFixedRateLimiter(100)
-	handler := httpserver.NewTypedJSONServerWithMiddleware(
-		hello,
-		func(b *endpoint.Builder) *endpoint.Builder {
-			return b.
-				WithMetrics(&metrics).
-				WithErrorHandling("hello").
-				WithTimeout(5 * time.Second).
-				Use(breaker.Middleware()).
-				Use(endpoint.RateLimitMiddleware(limiter))
-		},
+	ep := endpoint.NewBuilder(endpoint.TypedEndpoint[HelloRequest, HelloResponse](hello).Wrap()).
+		WithMetrics(&metrics).
+		WithErrorHandling("hello").
+		WithTimeout(5 * time.Second).
+		Use(breaker.Middleware()).
+		Use(endpoint.RateLimitMiddleware(limiter)).
+		Build()
+	handler := httpserver.NewJSONEndpoint[HelloRequest](
+		ep,
+		httpserver.DefaultJSONDecodeOptions(),
 		httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder),
 	)
 

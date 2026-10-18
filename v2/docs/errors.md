@@ -146,7 +146,7 @@ response header (both delay-seconds and HTTP-date forms). One consequence is
 that `WithRetry` works on a client endpoint with no custom classifier:
 
 ```go
-call, _ := client.NewJSONClient[UserResp](http.MethodGet, "https://api/users/1")
+call, _ := client.NewJSON[UserResp](http.MethodGet, "https://api/users/1", client.DefaultMaxJSONResponseBytes)
 ep := endpoint.NewBuilder(call).
     WithTimeout(2 * time.Second).
     WithCircuitBreaker(breaker).

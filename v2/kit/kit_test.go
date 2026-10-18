@@ -36,7 +36,7 @@ func helloHandler(_ context.Context, req helloReq) (any, error) {
 func newSvc(t *testing.T, opts ...kit.Option) (*kit.HTTP, *httptest.Server) {
 	t.Helper()
 	svc := kit.MustNewHTTP(":0", opts...)
-	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
+	kit.HandleJSON(svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc) // HTTP implements http.Handler
 	t.Cleanup(ts.Close)
 	return svc, ts
@@ -47,7 +47,7 @@ func newSvc(t *testing.T, opts ...kit.Option) (*kit.HTTP, *httptest.Server) {
 // TestReadme_QuickStart verifies the exact pattern shown in README.md works.
 func TestReadme_QuickStart(t *testing.T) {
 	svc := kit.MustNewHTTP(":0")
-	kit.HandleJSON[helloReq](svc, "/hello", func(_ context.Context, req helloReq) (any, error) {
+	kit.HandleJSON(svc, "/hello", func(_ context.Context, req helloReq) (any, error) {
 		return helloResp{Message: "Hello, " + req.Name + "!"}, nil
 	})
 
@@ -88,7 +88,7 @@ func TestReadme_WithMiddleware(t *testing.T) {
 		kit.WithRequestID(),
 		kit.WithMetrics(&metrics),
 	)
-	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
+	kit.HandleJSON(svc, "/hello", helloHandler)
 
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
@@ -516,7 +516,7 @@ func TestService_HandleFunc_DoesNotApplyEndpointMiddleware(t *testing.T) {
 
 func TestService_HandleJSON(t *testing.T) {
 	svc := kit.MustNewHTTP(":0")
-	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
+	kit.HandleJSON(svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
 
@@ -533,7 +533,7 @@ func TestService_HandleJSON(t *testing.T) {
 
 func TestService_HandleJSONTyped(t *testing.T) {
 	svc := kit.MustNewHTTP(":0")
-	kit.HandleJSONTyped(svc, "/hello", func(_ context.Context, req helloReq) (helloResp, error) {
+	kit.HandleJSON(svc, "/hello", func(_ context.Context, req helloReq) (helloResp, error) {
 		return helloResp{Message: "Hello, " + req.Name + "!"}, nil
 	})
 	ts := httptest.NewServer(svc)
@@ -564,20 +564,18 @@ func TestHandleJSONTypedWithMiddleware_RouteInsideComponent(t *testing.T) {
 	}
 	svc := kit.MustNewHTTP(":0", kit.WithEndpointMiddleware(componentMW))
 
-	routeMW := func(b *endpoint.Builder) *endpoint.Builder {
-		return b.Use(func(next endpoint.Endpoint) endpoint.Endpoint {
-			return func(ctx context.Context, req any) (any, error) {
-				order = append(order, "route")
-				return next(ctx, req)
-			}
-		})
+	routeMW := func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, req any) (any, error) {
+			order = append(order, "route")
+			return next(ctx, req)
+		}
 	}
 
 	type pingRequest struct{}
-	kit.HandleJSONTypedWithMiddleware(svc, "/ping", func(_ context.Context, _ pingRequest) (string, error) {
+	kit.HandleJSON(svc, "/ping", func(_ context.Context, _ pingRequest) (string, error) {
 		order = append(order, "handler")
 		return "pong", nil
-	}, routeMW)
+	}, kit.RouteMiddleware(routeMW))
 
 	srv := httptest.NewServer(svc)
 	defer srv.Close()
@@ -605,13 +603,13 @@ func TestHandleJSONWithMiddleware_NilMiddlewarePanics(t *testing.T) {
 			t.Fatal("expected panic for nil route middleware")
 		}
 	}()
-	kit.HandleJSONWithMiddleware(svc, "/ping", func(_ context.Context, _ pingRequest) (any, error) {
+	kit.HandleJSON(svc, "/ping", func(_ context.Context, _ pingRequest) (any, error) {
 		return "pong", nil
-	}, nil)
+	}, kit.RouteMiddleware(nil))
 }
 
 func TestJSONTyped(t *testing.T) {
-	h := kit.NewJSONTypedHandler(func(_ context.Context, req helloReq) (helloResp, error) {
+	h := kit.NewJSONHandler(func(_ context.Context, req helloReq) (helloResp, error) {
 		return helloResp{Message: req.Name}, nil
 	})
 	w := httptest.NewRecorder()
@@ -633,7 +631,7 @@ func TestJSONTyped(t *testing.T) {
 func TestService_HandleJSON_AppliesEndpointMiddlewareToBusinessErrors(t *testing.T) {
 	var m endpoint.Metrics
 	svc := kit.MustNewHTTP(":0", kit.WithMetrics(&m))
-	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
+	kit.HandleJSON(svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
 
@@ -661,7 +659,7 @@ func TestService_HandleJSON_AppliesEndpointMiddlewareToBusinessErrors(t *testing
 func TestService_HandleJSON_UsesStrictDecode(t *testing.T) {
 	called := false
 	svc := kit.MustNewHTTP(":0")
-	kit.HandleJSON[helloReq](svc, "/hello", func(_ context.Context, _ helloReq) (any, error) {
+	kit.HandleJSON(svc, "/hello", func(_ context.Context, _ helloReq) (any, error) {
 		called = true
 		return helloResp{Message: "ok"}, nil
 	})
@@ -683,7 +681,7 @@ func TestService_HandleJSON_UsesStrictDecode(t *testing.T) {
 
 func TestService_HandleJSON_WithRequestID(t *testing.T) {
 	svc := kit.MustNewHTTP(":0", kit.WithRequestID())
-	kit.HandleJSON[helloReq](svc, "/id", func(ctx context.Context, req helloReq) (any, error) {
+	kit.HandleJSON(svc, "/id", func(ctx context.Context, req helloReq) (any, error) {
 		return map[string]string{
 			"id":      endpoint.RequestIDFromContext(ctx),
 			"message": req.Name,
@@ -762,7 +760,7 @@ func TestService_WithMetrics_TracksRequests(t *testing.T) {
 
 func TestService_WithTimeout_CancelsSlowHandler(t *testing.T) {
 	svc := kit.MustNewHTTP(":0", kit.WithTimeout(20*time.Millisecond))
-	kit.HandleJSON[helloReq](svc, "/slow", func(ctx context.Context, _ helloReq) (any, error) {
+	kit.HandleJSON(svc, "/slow", func(ctx context.Context, _ helloReq) (any, error) {
 		select {
 		case <-time.After(5 * time.Second):
 			return "done", nil
@@ -788,7 +786,7 @@ func TestService_WithTimeout_CancelsSlowHandler(t *testing.T) {
 
 func TestService_WithRequestID(t *testing.T) {
 	svc := kit.MustNewHTTP(":0", kit.WithRequestID())
-	kit.HandleJSON[helloReq](svc, "/hello", helloHandler)
+	kit.HandleJSON(svc, "/hello", helloHandler)
 	ts := httptest.NewServer(svc)
 	defer ts.Close()
 
@@ -808,7 +806,7 @@ func TestService_WithRequestID(t *testing.T) {
 
 func TestService_WithRequestID_PreservesIncomingHeader(t *testing.T) {
 	svc := kit.MustNewHTTP(":0", kit.WithRequestID())
-	kit.HandleJSON[helloReq](svc, "/id", func(ctx context.Context, req helloReq) (any, error) {
+	kit.HandleJSON(svc, "/id", func(ctx context.Context, req helloReq) (any, error) {
 		return map[string]string{
 			"id":      endpoint.RequestIDFromContext(ctx),
 			"message": req.Name,
@@ -845,7 +843,7 @@ func TestService_WithRequestID_PreservesIncomingHeader(t *testing.T) {
 
 func TestService_WithRequestID_RejectsInvalidIncomingHeader(t *testing.T) {
 	svc := kit.MustNewHTTP(":0", kit.WithRequestID())
-	kit.HandleJSON[helloReq](svc, "/id", func(ctx context.Context, _ helloReq) (any, error) {
+	kit.HandleJSON(svc, "/id", func(ctx context.Context, _ helloReq) (any, error) {
 		return map[string]string{"id": endpoint.RequestIDFromContext(ctx)}, nil
 	})
 	ts := httptest.NewServer(svc)
@@ -873,7 +871,7 @@ func TestService_WithRequestIDValidator_IsOrderIndependent(t *testing.T) {
 		kit.WithRequestID(),
 		kit.WithRequestIDValidator(func(id string) bool { return id == "tenant/request" }),
 	)
-	kit.HandleJSON[helloReq](svc, "/id", func(ctx context.Context, _ helloReq) (any, error) {
+	kit.HandleJSON(svc, "/id", func(ctx context.Context, _ helloReq) (any, error) {
 		return map[string]string{"id": endpoint.RequestIDFromContext(ctx)}, nil
 	})
 	ts := httptest.NewServer(svc)
@@ -1024,7 +1022,7 @@ func TestThreeLayer_ServiceEndpointTransport(t *testing.T) {
 	// and applies service-level middleware (metrics, timeout, etc.)
 	var m endpoint.Metrics
 	service := kit.MustNewHTTP(":0", kit.WithMetrics(&m))
-	kit.HandleJSON[createUserReq](service, "/users", func(ctx context.Context, req createUserReq) (any, error) {
+	kit.HandleJSON(service, "/users", func(ctx context.Context, req createUserReq) (any, error) {
 		return svc.CreateUser(ctx, req)
 	})
 

@@ -184,7 +184,7 @@ func main() {
 
 	// Typed JSON endpoint reading the injected identity.
 	type meRequest struct{}
-	kit.HandleJSONTyped(svc, "/api/me", func(ctx context.Context, _ meRequest) (identity, error) {
+	kit.HandleJSON(svc, "/api/me", func(ctx context.Context, _ meRequest) (identity, error) {
 		id, ok := identityFromContext(ctx)
 		if !ok {
 			return identity{}, apperror.New(

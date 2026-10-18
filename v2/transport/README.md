@@ -52,7 +52,7 @@ binding := transport.Binding[HelloRequest, HelloResponse]{
 }
 
 // HTTP: strict typed JSON in one call.
-kit.HandleJSONTyped(httpComponent, "POST /hello", binding.TypedEndpoint())
+kit.HandleJSON(httpComponent, "POST /hello", binding.TypedEndpoint())
 
 // gRPC: the protobuf-facing codec maps wire messages to the domain types.
 srv := grpcserver.NewServer(
@@ -128,7 +128,7 @@ Components compose in two clearly separated styles.
 
 - the success response encoder (`server.ServerResponseEncoder`, default
   `EncodeJSONResponse`) — note it applies only to the **JSON entry points**
-  (`NewJSONServer`, `NewJSONEndpoint`, and their typed and strict variants). A
+  (`NewJSON`, `NewTypedJSON`, `NewJSONEndpoint`). A
   server built with `NewServer` takes its encode function as a constructor
   argument, so passing `ServerResponseEncoder` to it is silently overridden;
 - the error encoder (`server.ServerErrorEncoder`);
@@ -231,13 +231,12 @@ Use `transport/http/server` when exposing HTTP APIs.
 Recommended entry points:
 
 - `server.NewServer` — the general server; you supply decode and encode
-- `server.NewJSONServer` / `server.NewTypedJSONServer` — handler in, JSON route out
+- `server.NewJSON` / `server.NewTypedJSON` — handler in, JSON route out
 - `server.NewJSONEndpoint` — same, for an endpoint you already built
-- `server.NewJSONServerWithBodyLimit` / `server.NewTypedJSONServerWithBodyLimit` /
-  `server.NewJSONEndpointWithBodyLimit` — the same three with an explicit body cap
-- `server.NewJSONServerWithMiddleware` / `server.NewTypedJSONServerWithMiddleware`
-- `server.NewJSONEndpointWithDecodeOptions` — the escape hatch for changing
-  strictness itself
+- `server.JSONDecodeOptions` passed to any of the three — the body cap, unknown
+  fields, trailing data, and media-type strictness in one value;
+  `server.DefaultJSONDecodeOptions` is the package default and
+  `server.StrictJSONDecodeOptions(n)` the same rules with another cap
 - `server.DecodeJSONRequest` / `server.DecodeJSONRequestWithOptions` /
   `server.DecodeJSONBody`
 - `server.StrictJSONDecodeOptions`, `server.JSONDecodeOptions`,
@@ -254,10 +253,10 @@ Recommended entry points:
 - `server.WriteAttachment` for file downloads
 - `server.AccessLogMiddleware` for a standard-library `slog` access log
 
-Every JSON entry point decodes **strictly**: unknown object fields, a second
-JSON value, and bodies over `DefaultMaxJSONBodyBytes` are rejected with 400.
-The `WithBodyLimit` variants change only the size cap;
-`NewJSONEndpointWithDecodeOptions` is the only way to relax strictness.
+Every JSON entry point decodes **strictly** when given
+`DefaultJSONDecodeOptions`: unknown object fields, a second JSON value, and
+bodies over `DefaultMaxJSONBodyBytes` are rejected with 400. Another cap or
+another decoder is one `JSONDecodeOptions` value, not another constructor.
 
 `ParseMultipartForm` enforces a total body cap, a per-file cap, and the
 in-memory threshold before parts spill to temporary files; limit violations
@@ -317,10 +316,11 @@ Typical flow:
 Minimal example:
 
 ```go
-handler := server.NewTypedJSONServer(
+handler := server.NewTypedJSON(
     func(ctx context.Context, req HelloReq) (HelloResp, error) {
         return hello(ctx, req)
     },
+    server.DefaultJSONDecodeOptions(),
     server.ServerErrorEncoder(server.JSONErrorEncoder),
 )
 
@@ -328,14 +328,14 @@ http.Handle("/hello", handler)
 ```
 
 Prefer the fully typed helpers when the response has a concrete type. All JSON
-helpers are strict: they reject unknown object fields, a second JSON value, and
-bodies larger than the default byte limit. Use a `WithBodyLimit` helper when a
-route needs a different cap:
+helpers decode strictly: they reject unknown object fields, a second JSON value,
+and bodies larger than the configured byte limit. A route that needs a different
+cap passes another `JSONDecodeOptions`:
 
 ```go
-handler := server.NewJSONEndpointWithBodyLimit[HelloReq](
+handler := server.NewJSONEndpoint[HelloReq](
     ep,
-    64<<10,
+    server.StrictJSONDecodeOptions(64<<10),
     server.ServerErrorEncoder(server.JSONErrorEncoder),
 )
 ```
@@ -368,17 +368,17 @@ Use `transport/http/client` when calling HTTP APIs through endpoint-style abstra
 Recommended entry points:
 
 - `client.NewClient`
-- `client.NewJSONClient`
-- `client.NewJSONClientWithMaxResponseBodyBytes`
-- `client.NewJSONClientWithTimeout`
+- `client.NewJSON`
+- `client.NewTypedJSON`
 - `client.EncodeJSONRequest`
 - `client.DecodeJSONResponse`
 - `client.DecodeJSONResponseWithMaxBodyBytes`
 
-`NewJSONClient` encodes GET/HEAD requests as path/query parameters and keeps the
-request body empty. Successful JSON responses are capped at 4 MiB by default;
-use `NewJSONClientWithMaxResponseBodyBytes` for an intentional larger contract.
-`NewJSONClientWithTimeout` adds a context timeout; use `sd/client.NewEndpoint` with an
+`NewJSON` and `NewTypedJSON` encode GET/HEAD requests as path/query parameters
+and keep the request body empty. The successful-response body cap is an
+argument: pass `client.DefaultMaxJSONResponseBytes` (4 MiB) unless the contract
+is intentionally larger. Wrap the endpoint with
+`endpoint.TimeoutMiddleware` for a deadline; use `sd/client.NewEndpoint` with an
 explicit retry classifier when retries are required.
 
 Primary extension points:
@@ -397,9 +397,10 @@ reuses the same status handling and body limit instead of reimplementing them.
 Minimal example:
 
 ```go
-ep, err := client.NewJSONClient[HelloResp](
+ep, err := client.NewJSON[HelloResp](
     http.MethodPost,
     "http://localhost:8080/hello",
+    client.DefaultMaxJSONResponseBytes,
 )
 if err != nil {
     return err

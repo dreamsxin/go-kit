@@ -42,7 +42,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	kit.HandleJSONTyped(svc, "POST /greet", func(
+	kit.HandleJSON(svc, "POST /greet", func(
 		_ context.Context, req GreetRequest,
 	) (GreetResponse, error) {
 		return GreetResponse{Message: "Hello, " + req.Name + "!"}, nil
@@ -78,7 +78,7 @@ process state for free.
 
 - `kit.NewHTTP` validated the configuration and registered `/health`, `/livez`,
   and `/readyz`.
-- `HandleJSONTyped` registered a typed JSON route: the request body is decoded
+- `HandleJSON` registered a typed JSON route: the request body is decoded
   strictly (unknown fields and extra data are rejected), and the returned value
   is written as JSON with `200`. A returned error is encoded instead, as
   `{"code","message","request_id"}` with the status its `apperror` kind maps to

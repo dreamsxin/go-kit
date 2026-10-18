@@ -121,7 +121,7 @@ JSON handler；它对每个 handler 都等到预算用尽。一个既不看 `kit
 超时是有则全有、无则全无。`kit.WithTimeout` 约束组件内的每一条路由——包括流——而组件级
 没有逐路由的覆盖项。因此承载流的组件不设 `WithTimeout`，改为逐端点约束有限路由：通过
 `Builder` 使用 `endpoint.TimeoutMiddleware`（`Builder.WithTimeout`，或对单条路由用
-`kit.HandleJSONTypedWithMiddleware`）。流保留客户端给它的生命周期；每条应当有截止时间的
+`kit.RouteMiddleware` 传 `endpoint.TimeoutMiddleware`）。流保留客户端给它的生命周期；每条应当有截止时间的
 路由仍然有。
 
 框架不替任何一条路由在两者之间做选择。打开流的那段 handler 是唯一知道自己是哪种 handler

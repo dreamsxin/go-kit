@@ -40,10 +40,10 @@ func TestPerRouteBodyLimitKeepsEndpointMiddleware(t *testing.T) {
 			}
 		}),
 	)
-	kit.HandleJSONTypedWithBodyLimit[sizedRequest, map[string]string](component, "POST /upload",
+	kit.HandleJSON(component, "POST /upload",
 		func(_ context.Context, req sizedRequest) (map[string]string, error) {
 			return map[string]string{"got": req.Payload}, nil
-		}, 1<<20)
+		}, kit.RouteBodyLimit(1<<20))
 
 	recorder := doJSONPost(t, component, "/upload", `{"payload":"small"}`)
 	if recorder.Code != http.StatusOK {
@@ -59,14 +59,14 @@ func TestPerRouteBodyLimitKeepsEndpointMiddleware(t *testing.T) {
 func TestPerRouteBodyLimitAppliesToThatRouteOnly(t *testing.T) {
 	component := kit.MustNewHTTP("127.0.0.1:0", kit.WithJSONMaxBodyBytes(64))
 
-	kit.HandleJSONTyped[sizedRequest, map[string]string](component, "POST /small",
+	kit.HandleJSON(component, "POST /small",
 		func(_ context.Context, req sizedRequest) (map[string]string, error) {
 			return map[string]string{"got": req.Payload}, nil
 		})
-	kit.HandleJSONTypedWithBodyLimit[sizedRequest, map[string]string](component, "POST /large",
+	kit.HandleJSON(component, "POST /large",
 		func(_ context.Context, req sizedRequest) (map[string]string, error) {
 			return map[string]string{"got": req.Payload}, nil
-		}, 1<<20)
+		}, kit.RouteBodyLimit(1<<20))
 
 	body := `{"payload":"` + strings.Repeat("x", 512) + `"}`
 
@@ -87,6 +87,6 @@ func TestPerRouteBodyLimitRejectsANonPositiveLimit(t *testing.T) {
 			t.Error("a zero limit was accepted; an unbounded body should not be smuggled in per route")
 		}
 	}()
-	kit.HandleJSONTypedWithBodyLimit[sizedRequest, map[string]string](component, "POST /zero",
-		func(context.Context, sizedRequest) (map[string]string, error) { return nil, nil }, 0)
+	kit.HandleJSON(component, "POST /zero",
+		func(context.Context, sizedRequest) (map[string]string, error) { return nil, nil }, kit.RouteBodyLimit(0))
 }

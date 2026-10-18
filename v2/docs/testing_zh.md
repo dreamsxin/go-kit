@@ -45,7 +45,7 @@ if !errors.As(err, &appErr) || appErr.ErrorKind() != apperror.KindInvalidArgumen
 ```go
 func TestHTTP_Greet(t *testing.T) {
 	svc := kit.MustNewHTTP(":0", kit.WithRequestID())
-	kit.HandleJSONTyped(svc, "/greet", greet)
+	kit.HandleJSON(svc, "/greet", greet)
 
 	srv := httptest.NewServer(svc)
 	defer srv.Close()

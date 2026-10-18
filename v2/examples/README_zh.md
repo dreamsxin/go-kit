@@ -10,12 +10,12 @@
 
 | 目录 | 展示内容 | 运行 |
 |-----------|--------------|-----|
-| `quickstart/` | 推荐的 kit API：`kit.NewHTTP` + `kit.HandleJSONTyped` + `kit.NewHost` / `host.Run` | `go run ./examples/quickstart` |
+| `quickstart/` | 推荐的 kit API：`kit.NewHTTP` + `kit.HandleJSON` + `kit.NewHost` / `host.Run` | `go run ./examples/quickstart` |
 | `basic/` | 中间件链的执行顺序 | `go test ./examples/basic/...` |
 | `manual_composition/` | 显式的 endpoint Builder + HTTP 传输层组合 | `go run ./examples/manual_composition` |
 | `best_practice/` | 生产级模式：指标、熔断器、限流、优雅关闭 | `go run ./examples/best_practice` |
 | `middleware/` | endpoint 中间件：Chain、Builder、Failer、Timeout、CircuitBreaker、RateLimit、DelayRateLimit | `go run ./examples/middleware` |
-| `httpclient/` | HTTP 客户端：NewJSONClient、ClientBefore/After/Finalizer、SetClient | `go run ./examples/httpclient` |
+| `httpclient/` | HTTP 客户端：NewJSON/NewTypedJSON、ClientBefore/After/Finalizer、SetClient | `go run ./examples/httpclient` |
 | `auth/` | 应用自有的认证与授权中间件：Bearer 密钥、通过 apperror 返回 401/403、公开的健康检查路由 | `go run ./examples/auth` |
 | `envelope/` | 传输层响应组装：通过 `kit.WithJSONServerOptions` 一次定义信封与错误格式 | `go run ./examples/envelope` |
 | `customcodec/` | HTTP 上的自定义 body 格式：RawBodyCodec、同格式错误编码器 | `go run ./examples/customcodec` |
@@ -90,7 +90,7 @@ ep := endpoint.NewBuilder(base).
 ```go
 // 用具体的请求与响应类型自动完成 JSON 解码/编码。
 typed := endpoint.Unwrap[helloRequest, helloResponse](ep)
-mux.Handle("/hello", server.NewTypedJSONServer(typed))
+mux.Handle("/hello", server.NewTypedJSON(typed, server.DefaultJSONDecodeOptions()))
 ```
 
 ### 4. 一行完成服务发现

@@ -8,20 +8,6 @@ import (
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
-// HandleSSE registers a raw HTTP handler at pattern. Despite the name it does
-// nothing SSE-specific: the body is a call to Handle, so the endpoint middleware
-// chain and the endpoint recorders do not apply, exactly as they do not for any
-// raw handler.
-//
-// Deprecated: use Handle. A name that promises SSE behaviour while skipping the
-// middleware chain is how a stream loses its middleware by accident — a reader
-// following the name from HandleSSETyped has no reason to expect the difference.
-// Handle is the same call and says what it gives up. HandleSSETyped is what to
-// reach for when the stream should participate in the chain.
-func (h *HTTP) HandleSSE(pattern string, handler http.Handler) {
-	h.Handle(pattern, handler)
-}
-
 // HandleSSETyped registers a typed Server-Sent Events stream at pattern. The
 // stream participates in the endpoint middleware chain: middleware installed
 // through WithEndpointMiddleware (request ID, tracing, metrics, timeout,

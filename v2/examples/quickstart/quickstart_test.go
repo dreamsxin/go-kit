@@ -18,7 +18,7 @@ func newTestService(t *testing.T) *httptest.Server {
 		kit.WithRequestID(),
 		kit.WithTimeout(5*time.Second),
 	)
-	kit.HandleJSONTyped(svc, "/greet", greet)
+	kit.HandleJSON(svc, "/greet", greet)
 	return httptest.NewServer(svc)
 }
 

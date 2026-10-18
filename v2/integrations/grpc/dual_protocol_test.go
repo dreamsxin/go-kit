@@ -61,7 +61,7 @@ func TestDualProtocolBinding(t *testing.T) {
 	}
 
 	// HTTP side: typed JSON through the server transport.
-	httpHandler := httpserver.NewTypedJSONServer(binding.TypedEndpoint())
+	httpHandler := httpserver.NewTypedJSON(binding.TypedEndpoint(), httpserver.DefaultJSONDecodeOptions())
 	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpHandler.ServeHTTP(w, r)
 	}))

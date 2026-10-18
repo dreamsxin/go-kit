@@ -19,7 +19,7 @@ func TestWithHTTPRecorderReportsRouteAndStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHTTP: %v", err)
 	}
-	HandleJSONTyped(service, "POST /users/{id}", func(context.Context, map[string]any) (map[string]any, error) {
+	HandleJSON(service, "POST /users/{id}", func(context.Context, map[string]any) (map[string]any, error) {
 		return map[string]any{"ok": true}, nil
 	})
 	service.HandleFunc("GET /raw", func(w http.ResponseWriter, _ *http.Request) {

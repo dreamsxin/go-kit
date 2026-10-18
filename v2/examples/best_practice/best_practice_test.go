@@ -33,8 +33,9 @@ func newTestServer(t *testing.T) *httptest.Server {
 		Build()
 
 	mux := http.NewServeMux()
-	mux.Handle("/hello", server.NewTypedJSONServer(
+	mux.Handle("/hello", server.NewTypedJSON(
 		endpoint.Unwrap[helloRequest, helloResponse](ep),
+		server.DefaultJSONDecodeOptions(),
 	))
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

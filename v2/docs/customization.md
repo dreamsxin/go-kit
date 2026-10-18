@@ -20,7 +20,7 @@ endpoint middleware, and protocol facts in transport.
 | decide whether a tool call may run | `interaction.Authorizer` with `interaction.AuthorizationHook` |
 | add a namespaced MCP protocol extension | `mcp.Extension` with `StreamableHandler.RegisterExtension` |
 | decorate every route at registration | `httpserver.RouteRegistrar` with `httpserver.DecorateRoutes` |
-| accept a larger body on one route | `kit.HandleJSONTypedWithBodyLimit` (keeps the middleware and recorders `WithJSONMaxBodyBytes` routes would) |
+| accept a larger body on one route | `kit.HandleJSON(..., kit.RouteBodyLimit(n))` (keeps the middleware and recorders `WithJSONMaxBodyBytes` routes would) |
 
 | observe what only the transport knows (route, status, method) | `httpserver.Recorder` / `grpcserver.Recorder` |
 | tell your own transport's handlers the process is stopping | `kit.WithStopping`, read back with `kit.Stopping` |
@@ -137,7 +137,7 @@ security.RequireRole("admin")          // enforces at the endpoint layer
 | Scope | API |
 | --- | --- |
 | Every route | `kit.WithEndpointMiddleware(mw...)` |
-| One route (typed) | `kit.HandleJSONTypedWithMiddleware(svc, pattern, handler, compose)` |
+| One route (typed) | `kit.HandleJSON(svc, pattern, handler, kit.RouteMiddleware(mw...))` |
 | One route (existing endpoint) | `endpoint.NewBuilder(ep).Use(mw).Build()` + `kit.HandleJSONEndpoint` |
 | One endpoint ad hoc | `endpoint.NewBuilder(ep).Use(mw).Build()` |
 
@@ -238,8 +238,8 @@ svc := kit.MustNewHTTP(":8080", kit.WithJSONServerOptions(
 ```
 
 A per-route option overrides the service-wide one, so a route that must stay
-unwrapped passes `server.ServerResponseEncoder(server.EncodeJSONResponse)` to
-`kit.HandleJSON*`.
+unwrapped passes `kit.RouteServerOptions(server.ServerResponseEncoder(server.EncodeJSONResponse))`
+to `kit.HandleJSON`.
 
 Three things to get right:
 
@@ -260,9 +260,8 @@ services. The status-based classification, retry, and `Retry-After` handling all
 keep working; only the code needs a translation of your own.
 
 Streaming routes are exempt: an envelope cannot wrap an SSE stream, so
-`kit.HandleSSETyped` — and any raw stream you mount through `HTTP.Handle`, for
-which `HandleSSE` is a deprecated alias — writes its own frames and ignores
-`ServerResponseEncoder`.
+`kit.HandleSSETyped` — and any raw stream you mount through `HTTP.Handle` —
+writes its own frames and ignores `ServerResponseEncoder`.
 
 
 

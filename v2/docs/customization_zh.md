@@ -18,7 +18,7 @@
 | 决定某次工具调用是否可以执行 | `interaction.Authorizer` 配 `interaction.AuthorizationHook` |
 | 添加命名空间的 MCP 协议扩展 | `mcp.Extension` 配 `StreamableHandler.RegisterExtension` |
 | 在注册处装饰每一条路由 | `httpserver.RouteRegistrar` 配 `httpserver.DecorateRoutes` |
-| 让某一条路由接受更大的 body | `kit.HandleJSONTypedWithBodyLimit`（保留 `WithJSONMaxBodyBytes` 路由本该有的中间件与 recorder） |
+| 让某一条路由接受更大的 body | `kit.HandleJSON(..., kit.RouteBodyLimit(n))`（保留 `WithJSONMaxBodyBytes` 路由本该有的中间件与 recorder） |
 
 | 观察只有传输层知道的事（路由、状态码、方法） | `httpserver.Recorder` / `grpcserver.Recorder` |
 | 告诉你自己传输层的 handler 进程要停了 | `kit.WithStopping`，读取用 `kit.Stopping` |
@@ -125,7 +125,7 @@ security.RequireRole("admin")          // 在 endpoint 层强制
 | 作用域 | API |
 | --- | --- |
 | 每条路由 | `kit.WithEndpointMiddleware(mw...)` |
-| 单条路由（类型化） | `kit.HandleJSONTypedWithMiddleware(svc, pattern, handler, compose)` |
+| 单条路由（类型化） | `kit.HandleJSON(svc, pattern, handler, kit.RouteMiddleware(mw...))` |
 | 单条路由（已有端点） | `endpoint.NewBuilder(ep).Use(mw).Build()` + `kit.HandleJSONEndpoint` |
 | 单个端点临时组合 | `endpoint.NewBuilder(ep).Use(mw).Build()` |
 
@@ -219,8 +219,8 @@ svc := kit.MustNewHTTP(":8080", kit.WithJSONServerOptions(
 ))
 ```
 
-路由级 option 覆盖服务级，因此需要保持裸格式的路由，给 `kit.HandleJSON*` 传
-`server.ServerResponseEncoder(server.EncodeJSONResponse)` 即可。
+路由级 option 覆盖服务级，因此需要保持裸格式的路由，给 `kit.HandleJSON` 传
+`kit.RouteServerOptions(server.ServerResponseEncoder(server.EncodeJSONResponse))` 即可。
 
 三件必须做对的事：
 
@@ -238,7 +238,7 @@ svc := kit.MustNewHTTP(":8080", kit.WithJSONServerOptions(
 处理都照常工作，只有业务码需要你自己做一次转译。
 
 流式路由不适用：信封无法包裹 SSE 流，`kit.HandleSSETyped`——以及任何你通过 `HTTP.Handle`
-挂上的原生流（`HandleSSE` 是它的弃用别名）——都自行写帧，并忽略 `ServerResponseEncoder`。
+挂上的原生流——都自行写帧，并忽略 `ServerResponseEncoder`。
 
 
 

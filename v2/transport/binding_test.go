@@ -37,7 +37,7 @@ func newHelloBinding() transport.Binding[helloRequest, helloResponse] {
 
 func TestBinding_TypedEndpointServesHTTP(t *testing.T) {
 	binding := newHelloBinding()
-	h := server.NewTypedJSONServer(binding.TypedEndpoint())
+	h := server.NewTypedJSON(binding.TypedEndpoint(), server.DefaultJSONDecodeOptions())
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/hello", strings.NewReader(`{"Name":"kit"}`)))

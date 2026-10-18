@@ -33,7 +33,7 @@ ep := endpoint.NewBuilder(createUser).
 ```
 
 Service-wide middleware for every route goes through `kit.WithEndpointMiddleware`;
-a single route with its own chain uses `kit.HandleJSONTypedWithMiddleware`, or
+a single route with its own chain uses `kit.RouteMiddleware`, or
 is built with `endpoint.NewBuilder` and registered through
 `kit.HandleJSONEndpoint`.
 

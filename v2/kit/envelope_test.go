@@ -46,11 +46,11 @@ func TestWithJSONServerOptions_AppliesToAllRoutes(t *testing.T) {
 	)
 
 	type greetRequest struct{ Name string }
-	kit.HandleJSONTyped(svc, "/greet", func(_ context.Context, req greetRequest) (string, error) {
+	kit.HandleJSON(svc, "/greet", func(_ context.Context, req greetRequest) (string, error) {
 		return "Hello, " + req.Name, nil
 	})
 	type failRequest struct{}
-	kit.HandleJSONTyped(svc, "/fail", func(_ context.Context, _ failRequest) (string, error) {
+	kit.HandleJSON(svc, "/fail", func(_ context.Context, _ failRequest) (string, error) {
 		return "", apperror.New(apperror.KindInvalidArgument, "demo.invalid", "name is required")
 	})
 
@@ -97,14 +97,14 @@ func TestWithJSONServerOptions_RouteOptionsTakePrecedence(t *testing.T) {
 	)
 
 	type pingRequest struct{}
-	kit.HandleJSONTyped(svc, "/ping", func(_ context.Context, _ pingRequest) (string, error) {
+	kit.HandleJSON(svc, "/ping", func(_ context.Context, _ pingRequest) (string, error) {
 		return "pong", nil
 	})
-	kit.HandleJSONTyped(svc, "/raw", func(_ context.Context, _ pingRequest) (string, error) {
+	kit.HandleJSON(svc, "/raw", func(_ context.Context, _ pingRequest) (string, error) {
 		return "raw", nil
 	},
 		// A per-route option overrides the service-level encoder.
-		server.ServerResponseEncoder(server.EncodeJSONResponse),
+		kit.RouteServerOptions(server.ServerResponseEncoder(server.EncodeJSONResponse)),
 	)
 
 	srv := httptest.NewServer(svc)

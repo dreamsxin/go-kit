@@ -210,7 +210,7 @@ APP_TLS_KEY_FILE=/etc/tls/tls.key
 配置时从它出发。
 
 它刻意不设 `Timeout`。在那里设超时，等于用框架发明的一个数字给进程里每一次调用设上限，而且在调用
-现场看不见。deadline 要设在调用处：`NewJSONClientWithTimeout`、`endpoint.Builder.WithTimeout`，
+现场看不见。deadline 要设在调用处：`endpoint.Builder.WithTimeout`、`endpoint.TimeoutMiddleware`，
 或者你自己派生的 context。但一定要设——没有 deadline 的那个请求，就是故障开始时还在跑的那个。
 
 JSON 客户端对非 2xx 响应返回 `HTTPStatusError`，并限制捕获的错误响应体大小。确实需要重试时，

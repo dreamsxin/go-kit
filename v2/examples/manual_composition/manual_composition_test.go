@@ -16,16 +16,16 @@ import (
 func newManualCompositionServer(t *testing.T) (*httptest.Server, *endpoint.Metrics) {
 	t.Helper()
 	var metrics endpoint.Metrics
-	handler := httpserver.NewTypedJSONServerWithMiddleware(
-		hello,
-		func(b *endpoint.Builder) *endpoint.Builder {
-			return b.
-				WithMetrics(&metrics).
-				WithErrorHandling("hello").
-				WithTimeout(5 * time.Second).
-				Use(endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(3)).Middleware()).
-				Use(endpoint.RateLimitMiddleware(newFixedRateLimiter(100)))
-		},
+	ep := endpoint.NewBuilder(endpoint.TypedEndpoint[HelloRequest, HelloResponse](hello).Wrap()).
+		WithMetrics(&metrics).
+		WithErrorHandling("hello").
+		WithTimeout(5 * time.Second).
+		Use(endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(3)).Middleware()).
+		Use(endpoint.RateLimitMiddleware(newFixedRateLimiter(100))).
+		Build()
+	handler := httpserver.NewJSONEndpoint[HelloRequest](
+		ep,
+		httpserver.DefaultJSONDecodeOptions(),
 		httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder),
 	)
 

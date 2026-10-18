@@ -245,7 +245,7 @@ or a `tls.Config` but want the pool sizing.
 
 It sets no `Timeout`, deliberately. A timeout there would cap every call in the process
 at a number this framework invented, invisibly from the call site. Set the deadline
-where the call is: `NewJSONClientWithTimeout`, `endpoint.Builder.WithTimeout`, or a
+where the call is: `endpoint.Builder.WithTimeout`, `endpoint.TimeoutMiddleware`, or a
 context you derive. Always set one — a request with no deadline is the one that is still
 running when the incident starts.
 

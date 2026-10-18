@@ -70,7 +70,7 @@ func TestClientErrorRelayPreservesCodeAndStatus(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	call, err := httpclient.NewJSONClient[echoResp](http.MethodGet, upstream.URL)
+	call, err := httpclient.NewJSON[echoResp](http.MethodGet, upstream.URL, httpclient.DefaultMaxJSONResponseBytes)
 	if err != nil {
 		t.Fatalf("NewJSONClient: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestHTTPStatusErrorMarksATruncatedBody(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	call, err := httpclient.NewJSONClient[echoResp](http.MethodGet, upstream.URL)
+	call, err := httpclient.NewJSON[echoResp](http.MethodGet, upstream.URL, httpclient.DefaultMaxJSONResponseBytes)
 	if err != nil {
 		t.Fatalf("NewJSONClient: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestHTTPStatusErrorDoesNotMarkAWholeBody(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	call, err := httpclient.NewJSONClient[echoResp](http.MethodGet, upstream.URL)
+	call, err := httpclient.NewJSON[echoResp](http.MethodGet, upstream.URL, httpclient.DefaultMaxJSONResponseBytes)
 	if err != nil {
 		t.Fatalf("NewJSONClient: %v", err)
 	}
@@ -329,7 +329,7 @@ func TestClientEndpointRetriesTransientStatusWithSharedMiddleware(t *testing.T) 
 	}))
 	defer srv.Close()
 
-	call, err := httpclient.NewJSONClient[echoResp](http.MethodPost, srv.URL)
+	call, err := httpclient.NewJSON[echoResp](http.MethodPost, srv.URL, httpclient.DefaultMaxJSONResponseBytes)
 	if err != nil {
 		t.Fatalf("NewJSONClient: %v", err)
 	}
@@ -355,7 +355,7 @@ func TestClientEndpointDoesNotRetryClientError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	call, err := httpclient.NewJSONClient[echoResp](http.MethodPost, srv.URL)
+	call, err := httpclient.NewJSON[echoResp](http.MethodPost, srv.URL, httpclient.DefaultMaxJSONResponseBytes)
 	if err != nil {
 		t.Fatalf("NewJSONClient: %v", err)
 	}

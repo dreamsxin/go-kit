@@ -30,7 +30,7 @@ ep := endpoint.NewBuilder(createUser).
     Build()
 ```
 
-作用于每条路由的服务级中间件通过 `kit.WithEndpointMiddleware` 安装；拥有自己链的单个路由使用 `kit.HandleJSONTypedWithMiddleware`，或用 `endpoint.NewBuilder` 构建后通过 `kit.HandleJSONEndpoint` 注册。
+作用于每条路由的服务级中间件通过 `kit.WithEndpointMiddleware` 安装；拥有自己链的单个路由使用 `kit.RouteMiddleware`，或用 `endpoint.NewBuilder` 构建后通过 `kit.HandleJSONEndpoint` 注册。
 
 HTTP 中间件是另一个边界：`kit.WithHTTPMiddleware` 与 `security/http.Chain` 组合
 标准的 `http.Handler` 中间件，包裹包括健康检查在内的每一条路由。

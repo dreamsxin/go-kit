@@ -424,7 +424,7 @@ microgen \
 | 包装响应或重塑每条路由的错误 | `transport/<name>/custom_options.go` | `server.ServerResponseEncoder`、`server.ServerErrorEncoder` |
 | 按路由观测结果 | `cmd/main.go` | `kit.WithMetrics`、`kit.WithRecorder` |
 | 带重试或服务发现调用下游 | `service/<name>/service.go` | `sd` |
-| 以类型化函数调用 HTTP API | `service/<name>/service.go` | `client.NewTypedJSONClient` |
+| 以类型化函数调用 HTTP API | `service/<name>/service.go` | `client.NewTypedJSON` |
 | 装配所需的设置 | `config/custom.go` | 生成的配置 |
 
 `cmd/main.go`、`service/<name>/service.go` 与 `custom_chain.go` /

@@ -31,7 +31,7 @@ func metricsComponent(t *testing.T, path string) (*kit.HTTP, *endpoint.Metrics) 
 // usable per route rather than only in aggregate.
 func TestMountedMetricsEndpointServesWhatWasRecorded(t *testing.T) {
 	component, _ := metricsComponent(t, "/metrics")
-	kit.HandleJSONTyped(component, "POST /users", func(context.Context, map[string]string) (map[string]string, error) {
+	kit.HandleJSON(component, "POST /users", func(context.Context, map[string]string) (map[string]string, error) {
 		return map[string]string{"ok": "true"}, nil
 	})
 

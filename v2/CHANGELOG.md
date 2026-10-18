@@ -19,6 +19,26 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Changed
 
+- The JSON constructor families were the same call multiplied by the
+  differences between callers, so the differences are values now and the names
+  are gone. In `transport/http/server`, the nine
+  `NewJSONServer`/`NewTypedJSONServer`/`NewJSONEndpoint` constructors (and their
+  body-limit, decode-options, and middleware variants) became `NewJSON`,
+  `NewTypedJSON`, and `NewJSONEndpoint`, each taking one `JSONDecodeOptions`
+  (`DefaultJSONDecodeOptions`, `StrictJSONDecodeOptions(n)`, or your own). In
+  `transport/http/client`, `NewJSONClient`,
+  `NewJSONClientWithMaxResponseBodyBytes`, `NewJSONClientWithTimeout`,
+  `NewTypedJSONClient`, and `NewTypedJSONClientWithMaxResponseBodyBytes` became
+  `NewJSON` and `NewTypedJSON`, each taking the successful-response cap
+  (`DefaultMaxJSONResponseBytes`); a deadline is `endpoint.TimeoutMiddleware`,
+  which is what the removed `WithTimeout` variant wrapped. In `kit`, the eight
+  `HandleJSON`/`HandleJSONTyped` registrations became `HandleJSON` — request
+  and response types are inferred from the handler, so a concrete response
+  needs no type arguments — with per-route differences as `RouteOption`s:
+  `RouteBodyLimit`, `RouteMiddleware`, and `RouteServerOptions`. The deprecated
+  spellings `kit.JSON`, `kit.JSONTyped`, `kit.NewJSONTypedHandler`, and
+  `kit.HTTP.HandleSSE` are removed. The reviewed API snapshot shrank by
+  sixty declarations; existing call sites need the new argument or option.
 - The Zap logging middleware now speaks the same record schema as the slog
   adapter: `operation`/`duration`/`success` plus `trace_id`, `span_id` and
   `request_id` when the context carries them (`zap.record-fields`), and a

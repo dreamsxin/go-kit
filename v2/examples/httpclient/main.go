@@ -1,10 +1,10 @@
 // Package main demonstrates the HTTP client components:
 //
-//   - transport/http/client.NewJSONClient  — zero-boilerplate typed client
+//   - transport/http/client.NewJSON  — zero-boilerplate typed client
 //   - transport/http/client.NewClient      — full-control client
 //   - ClientBefore / ClientAfter hooks
 //   - ClientFinalizer
-//   - Round-trip test: NewJSONServer (server) + NewJSONClient (client)
+//   - Round-trip test: server.NewJSON + client.NewJSON
 //
 // The example starts an in-process httptest server so no external service
 // is needed.
@@ -37,26 +37,24 @@ type echoResp struct {
 
 // newEchoServer creates an httptest.Server that echoes the request message.
 func newEchoServer() *httptest.Server {
-	handler := httpserver.NewJSONServer[echoReq](
+	handler := httpserver.NewJSON[echoReq](
 		func(_ context.Context, req echoReq) (any, error) {
 			return echoResp{Echo: "echo: " + req.Message}, nil
 		},
+		httpserver.DefaultJSONDecodeOptions(),
 	)
 	return httptest.NewServer(handler)
 }
 
 // ── Client demos ──────────────────────────────────────────────────────────────
 
-// demo1_NewJSONClient shows the simplest typed client.
-func demo1_NewJSONClient(baseURL string) {
-	fmt.Println("=== 1. NewJSONClient[echoResp] ===")
+// demo1_NewJSON shows the simplest typed client.
+func demo1_NewJSON(baseURL string) {
+	fmt.Println("=== 1. NewJSON[echoResp] ===")
 
-	ep, err := httpclient.NewJSONClient[echoResp](
-		http.MethodPost,
-		baseURL,
-	)
+	ep, err := httpclient.NewJSON[echoResp](http.MethodPost, baseURL, httpclient.DefaultMaxJSONResponseBytes)
 	if err != nil {
-		fmt.Printf("  NewJSONClient error: %v\n", err)
+		fmt.Printf("  NewJSON error: %v\n", err)
 		return
 	}
 
@@ -72,9 +70,7 @@ func demo1_NewJSONClient(baseURL string) {
 func demo2_ClientBefore(baseURL string) {
 	fmt.Println("\n=== 2. ClientBefore — inject Authorization header ===")
 
-	ep, _ := httpclient.NewJSONClient[echoResp](
-		http.MethodPost,
-		baseURL,
+	ep, _ := httpclient.NewJSON[echoResp](http.MethodPost, baseURL, httpclient.DefaultMaxJSONResponseBytes,
 		httpclient.ClientBefore(func(ctx context.Context, r *http.Request) context.Context {
 			r.Header.Set("Authorization", "Bearer demo-token")
 			fmt.Printf("  injected header: %s\n", r.Header.Get("Authorization"))
@@ -89,9 +85,7 @@ func demo2_ClientBefore(baseURL string) {
 func demo3_ClientAfter(baseURL string) {
 	fmt.Println("\n=== 3. ClientAfter — read response headers ===")
 
-	ep, _ := httpclient.NewJSONClient[echoResp](
-		http.MethodPost,
-		baseURL,
+	ep, _ := httpclient.NewJSON[echoResp](http.MethodPost, baseURL, httpclient.DefaultMaxJSONResponseBytes,
 		httpclient.ClientAfter(func(ctx context.Context, r *http.Response, _ error) context.Context {
 			fmt.Printf("  response Content-Type: %s\n", r.Header.Get("Content-Type"))
 			return ctx
@@ -106,9 +100,7 @@ func demo4_ClientFinalizer(baseURL string) {
 	fmt.Println("\n=== 4. ClientFinalizer — always runs ===")
 
 	finalized := make(chan struct{}, 1)
-	ep, _ := httpclient.NewJSONClient[echoResp](
-		http.MethodPost,
-		baseURL,
+	ep, _ := httpclient.NewJSON[echoResp](http.MethodPost, baseURL, httpclient.DefaultMaxJSONResponseBytes,
 		httpclient.ClientFinalizer(func(_ context.Context, err error) {
 			fmt.Printf("  finalizer called, err=%v\n", err)
 			finalized <- struct{}{}
@@ -124,9 +116,7 @@ func demo5_SetClient(baseURL string) {
 	fmt.Println("\n=== 5. SetClient — custom http.Client ===")
 
 	custom := &http.Client{Timeout: 0} // no timeout for demo
-	ep, _ := httpclient.NewJSONClient[echoResp](
-		http.MethodPost,
-		baseURL,
+	ep, _ := httpclient.NewJSON[echoResp](http.MethodPost, baseURL, httpclient.DefaultMaxJSONResponseBytes,
 		httpclient.SetClient(custom),
 	)
 
@@ -146,7 +136,7 @@ func main() {
 
 	fmt.Printf("in-process server: %s\n\n", srv.URL)
 
-	demo1_NewJSONClient(srv.URL)
+	demo1_NewJSON(srv.URL)
 	demo2_ClientBefore(srv.URL)
 	demo3_ClientAfter(srv.URL)
 	demo4_ClientFinalizer(srv.URL)

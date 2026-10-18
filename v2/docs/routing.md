@@ -16,8 +16,8 @@ A route pattern is a Go ServeMux pattern. The framework convention is
 `"METHOD /path"`:
 
 ```go
-kit.HandleJSONTyped(svc, "POST /todos", createTodo)
-kit.HandleJSONTyped(svc, "GET /todos/{id}", getTodo)
+kit.HandleJSON(svc, "POST /todos", createTodo)
+kit.HandleJSON(svc, "GET /todos/{id}", getTodo)
 ```
 
 - The method prefix is optional. `"POST /todos"` answers POST and answers
@@ -50,11 +50,11 @@ request-body limit applies.
 
 | Call | Use it when |
 | --- | --- |
-| `kit.HandleJSONTyped` | The default. Typed request and response, full chain; the request struct fills from the request itself (see below). |
-| `kit.HandleJSON` | Same, when the response type is dynamic. |
-| `kit.HandleJSONTypedWithMiddleware` / `HandleJSONWithMiddleware` | One route needs extra middleware; it ends up *inside* the component's chain. |
+| `kit.HandleJSON` | The default. Request and response types are inferred from the handler, so a concrete response needs no type arguments; the full chain runs and the request struct fills from the request itself (see below). |
 | `kit.HandleJSONEndpoint` | You already hold an `endpoint.Endpoint`. |
-| `kit.HandleJSONTypedWithBodyLimit` / `HandleJSONEndpointWithBodyLimit` | One route accepts a different maximum body; zero or less panics. Keeps the full chain — unlike reaching for `Handle`. |
+| `kit.RouteMiddleware` | One route needs extra middleware; it ends up *inside* the component's chain. |
+| `kit.RouteBodyLimit` | One route accepts a different maximum body; zero or less panics. Keeps the full chain — unlike reaching for `Handle`. |
+| `kit.RouteServerOptions` | One route needs a transport option the component does not install, such as its own response encoder. |
 | `kit.HandleSSETyped` | A Server-Sent Events stream. See [SSE routes](#sse-routes). |
 | `svc.HandleFunc` / `svc.Handle` | The escape hatch: static files, third-party handlers, protocols kit does not model. |
 
@@ -64,10 +64,8 @@ no endpoint recorders**: `WithEndpointMiddleware`, `WithMetrics`,
 `WithRecorder`, rate limiting, and circuit breaking do not see it. If a route
 needs those, register it as JSON.
 
-`kit.NewJSONHandler` / `NewJSONTypedHandler` register nothing; they return a
-handler you mount yourself. (`kit.JSON` / `JSONTyped` are deprecated
-spellings, as is `HandleSSE` — a name promising SSE behaviour while silently
-skipping the chain is how a stream loses its middleware by accident.)
+`kit.NewJSONHandler` registers nothing; it returns a handler you mount
+yourself, carrying no component middleware, recorders, or JSON server options.
 
 ## Path and query parameters
 
@@ -81,7 +79,7 @@ type getTodoRequest struct {
 	Keyword string `form:"keyword"  json:"keyword"`
 }
 
-kit.HandleJSONTyped(svc, "GET /todos/{id}", func(ctx context.Context, req getTodoRequest) (Todo, error) {
+kit.HandleJSON(svc, "GET /todos/{id}", func(ctx context.Context, req getTodoRequest) (Todo, error) {
 	return todos.Get(ctx, req.ID) // req.ID came from the path
 })
 ```
@@ -101,12 +99,13 @@ or for hand-rolled decode; `transporthttp.DecodePathRequest` and
 `DecodeQueryRequest` fill a struct from a raw request on demand, and
 `server.DecodeJSONBody` judges a body by the transport rules.
 
-The call site mirrors the route. `client.NewTypedJSONClient[Req, Resp]`
+The call site mirrors the route. `client.NewTypedJSON[Req, Resp]`
 returns a typed function — no type assertion at the call:
 
 ```go
-call, err := client.NewTypedJSONClient[todoRequest, todoResponse](
-	http.MethodGet, "http://todos.internal/todos/{id}")
+call, err := client.NewTypedJSON[todoRequest, todoResponse](
+	http.MethodGet, "http://todos.internal/todos/{id}",
+	client.DefaultMaxJSONResponseBytes)
 todo, err := call(ctx, todoRequest{ID: 7, Keyword: "urgent"})
 ```
 
@@ -125,8 +124,8 @@ A group states a prefix once instead of repeating it on every route:
 
 ```go
 api := svc.Group("/api/v1")
-kit.HandleJSONTyped(api, "POST /todos", createTodo)
-kit.HandleJSONTyped(api, "GET /todos/{id}", getTodo)
+kit.HandleJSON(api, "POST /todos", createTodo)
+kit.HandleJSON(api, "GET /todos/{id}", getTodo)
 v2 := svc.Group("/api/v2") // groups nest: both prefixes join
 ```
 
@@ -239,7 +238,7 @@ probe registry as the HTTP component. The handler side is
 with the same `ServerBefore`/`ServerAfter`/error-encoder option shapes as
 HTTP; `grpcserver.Interceptor` is what puts the full method name into the
 context. One handler, two protocols: a `transport.Binding` carries a typed
-function as both `TypedEndpoint()` (for `HandleJSONTyped`) and `GRPCServer()`
+function as both `TypedEndpoint()` (for `HandleJSON`) and `GRPCServer()`
 (for the generated register call). Per-call metrics use the recording
 interceptors labeled with the full method name.
 
