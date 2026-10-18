@@ -45,8 +45,9 @@ go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,
 go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-tags
 ```
 
-要在已提交的树上跑。`tidy` 这一档会 diff 工作区，所以任何未提交的改动都会让它失败——包括
-你正要提交的那一份。`race` 需要 cgo，也就是 `PATH` 上要有 C 工具链。
+任何树上都能跑。`tidy` 这一档会在每个受维护的 module 里执行 `go mod tidy`，
+把 `go.mod` 与 `go.sum` 和原内容比较后再恢复，因此能在未提交的树上报告 module
+不整洁——包括你正要提交的那一份。`race` 需要 cgo，也就是 `PATH` 上要有 C 工具链。
 
 迭代过程中用更省时间的定向目标：`make test-runtime`、`make test-microgen`、
 `make test-contracts`、`make test-snapshots`、`make test-boundaries`。

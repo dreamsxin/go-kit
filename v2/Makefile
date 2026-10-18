@@ -127,7 +127,8 @@ release-check-clean:
 ## them. Running all of it here is the point: one command that cannot be greener
 ## than CI.
 ##
-## The tidy suite diffs the worktree, so run this from a committed tree. Use
+## The tidy suite runs `go mod tidy` per module, compares go.mod/go.sum with what
+## was there, and restores the files, so it works on an uncommitted tree. Use
 ## `make test` and the focused test-* targets while iterating.
 verify:
 	@echo ">>> Running the release suites CI runs..."

@@ -52,9 +52,11 @@ go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,
 go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-tags
 ```
 
-Run it from a committed tree. The `tidy` suite diffs the worktree, so any
-uncommitted change fails it — including the change you are about to commit. The
-`race` suite needs cgo and therefore a C toolchain on `PATH`.
+Run it on any tree. The `tidy` suite runs `go mod tidy` in every maintained
+module, compares `go.mod` and `go.sum` with their previous contents, and puts the
+files back, so it reports an untidy module without requiring a clean worktree —
+including on the change you are about to commit. The `race` suite needs cgo and
+therefore a C toolchain on `PATH`.
 
 While iterating, the focused targets are cheaper: `make test-runtime`,
 `make test-microgen`, `make test-contracts`, `make test-snapshots`,

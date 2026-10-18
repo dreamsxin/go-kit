@@ -52,13 +52,9 @@ func main() {
 		case "vet":
 			runForModules(maintained, nil, "go", "vet", "./...")
 		case "tidy":
-			runForModules(maintained, nil, "go", "mod", "tidy")
-			repoRoot := strings.TrimSpace(commandOutput(root, nil, "git", "rev-parse", "--show-toplevel"))
-			scope, err := filepath.Rel(repoRoot, root)
-			if err != nil || scope == ".." || strings.HasPrefix(scope, ".."+string(filepath.Separator)) {
-				fatalf("resolve v2 git scope from %s: %v", repoRoot, err)
+			if err := verifyTidy(maintained); err != nil {
+				fatalf("tidy: %v", err)
 			}
-			run(repoRoot, nil, "git", "diff", "--exit-code", "--", filepath.ToSlash(scope))
 		case "race":
 			runRace(root)
 		}
@@ -133,17 +129,6 @@ func run(dir string, extraEnv []string, name string, args ...string) {
 	if err := cmd.Run(); err != nil {
 		fatalf("%s: %s %s: %v", filepath.ToSlash(dir), name, strings.Join(args, " "), err)
 	}
-}
-
-func commandOutput(dir string, extraEnv []string, name string, args ...string) string {
-	cmd := exec.Command(name, args...)
-	cmd.Dir = dir
-	cmd.Env = commandEnv(extraEnv)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		fatalf("%s: %s %s: %v\n%s", filepath.ToSlash(dir), name, strings.Join(args, " "), err, output)
-	}
-	return string(output)
 }
 
 func commandEnv(overrides []string) []string {
