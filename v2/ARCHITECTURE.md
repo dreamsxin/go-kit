@@ -366,14 +366,15 @@ tracing dependency:
 
 ## Stability
 
-`v2.26.2` is the current released contract. It establishes the reviewed package
+`v2.27.0` is the candidate on `main`. It establishes the reviewed package
 graph, lifecycle ownership, transport error model, and generated project layout
-captured by the release manifest and API snapshot. This release lets an IDL
-declare its exact routes (`route:`) and its per-route response and error
-encoding (`transport/<service>/custom_options.go`), and names the gRPC surface
-with the same `-prefix` as HTTP.
-Existing public signatures and
-package boundaries remain compatible. The injected retry clock controls waits;
+captured by the release manifest and API snapshot. This release gives each layer
+one JSON entry point with its differences as options, moves retry, circuit
+breaking, rate limiting, backpressure, bulkhead and fallback into
+`endpoint/resilience`, and makes the generator refuse the source-mode
+combinations it cannot compile.
+The package boundaries it records are unchanged; the exported signatures that
+changed are recorded in the changelog. The injected retry clock controls waits;
 context deadlines and measured request durations continue to use real time.
 Until the v2
 compatibility freeze, minor releases may change behavior or remove APIs; after

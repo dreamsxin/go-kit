@@ -2,20 +2,7 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
-## [2.26.2] - 2026-10-12
-
-### Fixed
-
-- The generated contract's `example` for slice-typed fields was `{}` — an
-  object — so the Swagger UI's "Try it out" prefilled a body the service
-  rightly refused (`json: cannot unmarshal object into ... []string`).
-  `schemaExample` now emits an array prefilled with one element example
-  (recursively, so `[][]string` nests), while `map` fields keep the object
-  default they genuinely decode from, `[]byte` gives a base64 string, and
-  `time.Time` an RFC3339 timestamp. Contract snapshots refreshed and
-  reviewed.
-
-## [Unreleased]
+## [2.27.0] - Release Candidate
 
 ### Added
 
@@ -233,6 +220,19 @@ English | [简体中文](CHANGELOG_zh.md)
   `errors.Is` branch that maps it to `apperror.KindAlreadyExists` — a 409,
   never an unclassified 500. Found by the replication's full API sweep,
   where an unclassified UNIQUE violation surfaced as 500.
+
+## [2.26.2] - 2026-10-12
+
+### Fixed
+
+- The generated contract's `example` for slice-typed fields was `{}` — an
+  object — so the Swagger UI's "Try it out" prefilled a body the service
+  rightly refused (`json: cannot unmarshal object into ... []string`).
+  `schemaExample` now emits an array prefilled with one element example
+  (recursively, so `[][]string` nests), while `map` fields keep the object
+  default they genuinely decode from, `[]byte` gives a base64 string, and
+  `time.Time` an RFC3339 timestamp. Contract snapshots refreshed and
+  reviewed.
 
 ## [2.26.1] - 2026-10-12
 

@@ -3,16 +3,20 @@ English | [简体中文](RELEASE_zh.md)
 
 ## Current Position
 
-v2.26.2 is the current published release of the module:
+v2.27.0 is the candidate being prepared from `main`:
 
 ```text
 github.com/dreamsxin/go-kit/v2
 ```
 
-It classifies unique-constraint violations on every generated storage path
-— a duplicate insert answers 409, never an unclassified 500 — on top of
-v2.26.1: IDL-declared routes, per-route encoding, the user-owned
-server-options seam, and the corrected generated example shapes.
+This release folds the JSON constructors in `server`, `client` and `kit` into
+one call per layer with the differences as options, moves retry, circuit
+breaking, rate limiting, backpressure, bulkhead and fallback into
+`endpoint/resilience`, and makes the generator refuse the source-mode
+combinations it cannot compile: gRPC without a protobuf contract, and model
+output without a model type. Generated projects gain a directory map that names
+every folder and its owner, and `extend -append-service` now leaves a project
+that compiles.
 
 Runtime, generator, providers, and adapters ship together: one `require`, one
 tag, and no version skew between the framework and the things that plug into it.
@@ -68,7 +72,7 @@ but their generated public behavior is a product surface.
 
 ## Release Entry Criteria
 
-The v2.26.2 candidate must satisfy these criteria before tagging:
+The v2.27.0 candidate must satisfy these criteria before tagging:
 
 - Every surface the compatibility contract covers names the gate that enforces
   it, and the protocol behaviours v2 promises are declared beside the code that

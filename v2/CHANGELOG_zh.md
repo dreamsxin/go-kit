@@ -2,18 +2,7 @@
 
 [English](CHANGELOG.md) | 简体中文
 
-## [2.26.2] - 2026-10-12
-
-### 修复
-
-- 生成契约里切片字段的 `example` 是 `{}`——一个对象——导致 Swagger UI 的
-  "Try it out" 预填出服务端必然拒绝的请求体（`json: cannot unmarshal object
-  into ... []string`）。`schemaExample` 现在生成数组并预填一个元素示例（递归
-  处理，`[][]string` 正确嵌套）；`map` 字段保留它真正解码自的对象默认值，
-  `[]byte` 给 base64 字符串，`time.Time` 给 RFC3339 时间戳。契约快照已刷新
-  并评审。
-
-## [Unreleased]
+## [2.27.0] - 发布候选
 
 ### 变更
 
@@ -177,6 +166,17 @@
   `repository.ErrDuplicated` 哨兵，CRUD 教程展示把它映射到
   `apperror.KindAlreadyExists` 的那一条 `errors.Is` 分支——409，而不是未分类
   的 500。由复刻的全量 API 巡检发现，一条未分类的 UNIQUE 冲突以 500 露出。
+
+## [2.26.2] - 2026-10-12
+
+### 修复
+
+- 生成契约里切片字段的 `example` 是 `{}`——一个对象——导致 Swagger UI 的
+  "Try it out" 预填出服务端必然拒绝的请求体（`json: cannot unmarshal object
+  into ... []string`）。`schemaExample` 现在生成数组并预填一个元素示例（递归
+  处理，`[][]string` 正确嵌套）；`map` 字段保留它真正解码自的对象默认值，
+  `[]byte` 给 base64 字符串，`time.Time` 给 RFC3339 时间戳。契约快照已刷新
+  并评审。
 
 ## [2.26.1] - 2026-10-12
 
