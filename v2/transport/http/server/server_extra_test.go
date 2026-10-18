@@ -1,4 +1,4 @@
-package server_test
+﻿package server_test
 
 import (
 	"bytes"
@@ -265,7 +265,7 @@ func TestInterceptingWriter_CapturesCode(t *testing.T) {
 
 // ── NewJSONServer ─────────────────────────────────────────────────────────────
 
-func TestNewJSONServer_Success(t *testing.T) {
+func TestNewJSON_Success(t *testing.T) {
 	h := server.NewJSON[testReq](func(_ context.Context, req testReq) (any, error) {
 		return map[string]string{"echo": req.Name}, nil
 	}, server.DefaultJSONDecodeOptions())
@@ -284,7 +284,7 @@ func TestNewJSONServer_Success(t *testing.T) {
 	}
 }
 
-func TestNewTypedJSONServer_Success(t *testing.T) {
+func TestNewTypedJSON_Success(t *testing.T) {
 	type response struct {
 		Echo string `json:"echo"`
 	}
@@ -307,7 +307,7 @@ func TestNewTypedJSONServer_Success(t *testing.T) {
 	}
 }
 
-func TestNewTypedJSONServerWithMiddleware(t *testing.T) {
+func TestNewTypedJSON_WithMiddleware(t *testing.T) {
 	called := false
 	ep := endpoint.NewBuilder(endpoint.TypedEndpoint[testReq, string](
 		func(_ context.Context, req testReq) (string, error) {
@@ -329,7 +329,7 @@ func TestNewTypedJSONServerWithMiddleware(t *testing.T) {
 	}
 }
 
-func TestNewJSONServer_HandlerError(t *testing.T) {
+func TestNewJSON_HandlerError(t *testing.T) {
 	h := server.NewJSON[testReq](func(_ context.Context, _ testReq) (any, error) {
 		return nil, errors.New("handler error")
 	}, server.DefaultJSONDecodeOptions())
@@ -343,7 +343,7 @@ func TestNewJSONServer_HandlerError(t *testing.T) {
 	}
 }
 
-func TestNewJSONServer_RejectsUnknownFieldsByDefault(t *testing.T) {
+func TestNewJSON_RejectsUnknownFieldsByDefault(t *testing.T) {
 	called := false
 	h := server.NewJSON[testReq](func(_ context.Context, _ testReq) (any, error) {
 		called = true
@@ -361,7 +361,7 @@ func TestNewJSONServer_RejectsUnknownFieldsByDefault(t *testing.T) {
 	}
 }
 
-func TestNewJSONServerWithBodyLimit_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
+func TestNewJSON_WithBodyLimit_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
 	called := false
 	h := server.NewJSON[testReq](func(_ context.Context, _ testReq) (any, error) {
 		called = true
@@ -384,7 +384,7 @@ func TestNewJSONServerWithBodyLimit_RejectsUnknownFieldsBeforeHandler(t *testing
 	}
 }
 
-func TestNewTypedJSONServerWithBodyLimit_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
+func TestNewTypedJSON_WithBodyLimit_RejectsUnknownFieldsBeforeHandler(t *testing.T) {
 	called := false
 	h := server.NewTypedJSON(func(_ context.Context, _ testReq) (string, error) {
 		called = true

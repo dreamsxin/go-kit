@@ -1,4 +1,4 @@
-package server_test
+﻿package server_test
 
 import (
 	"context"
@@ -240,7 +240,7 @@ func TestServer_NilHooks_DoNotPanicAtRequestTime(t *testing.T) {
 
 // ── NewJSON ───────────────────────────────────────────────────────────────────
 
-func TestNewJSONServer_OK(t *testing.T) {
+func TestNewJSON_OK(t *testing.T) {
 	type req struct {
 		Name string `json:"name"`
 	}
@@ -268,7 +268,7 @@ func TestNewJSONServer_OK(t *testing.T) {
 	}
 }
 
-func TestNewJSONServer_ErrorUsesJSONErrorEncoder(t *testing.T) {
+func TestNewJSON_ErrorUsesJSONErrorEncoder(t *testing.T) {
 	h := server.NewJSON[struct{}](func(_ context.Context, _ struct{}) (any, error) {
 		return nil, errors.New("something failed")
 	}, server.DefaultJSONDecodeOptions())
@@ -291,7 +291,7 @@ func TestNewJSONServer_ErrorUsesJSONErrorEncoder(t *testing.T) {
 
 // ── route-local middleware ────────────────────────────────────────────────────
 
-func TestNewJSONServerWithMiddleware(t *testing.T) {
+func TestNewJSON_WithMiddleware(t *testing.T) {
 	type req struct {
 		V int `json:"v"`
 	}

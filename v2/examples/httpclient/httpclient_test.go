@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"context"
@@ -21,7 +21,7 @@ func newServer(t *testing.T) *httptest.Server {
 	return httptest.NewServer(handler)
 }
 
-func TestNewJSONClient_Success(t *testing.T) {
+func TestNewJSON_Success(t *testing.T) {
 	srv := newServer(t)
 	defer srv.Close()
 

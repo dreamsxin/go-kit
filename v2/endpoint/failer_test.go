@@ -50,10 +50,6 @@ func TestResponseErrorIgnoresNonFailers(t *testing.T) {
 	}
 }
 
-// With the breaker outside it, the converted failure is what trips the breaker.
-// The breaker lives in endpoint/resilience, so the test that pins the pairing
-// lives there too; this file keeps the middleware's own contract.
-
 // context.WithTimeout(ctx, 0) yields an already expired context, so an unset
 // timeout must mean no timeout instead of a guaranteed failure.
 func TestTimeoutMiddlewareTreatsNonPositiveAsNoDeadline(t *testing.T) {

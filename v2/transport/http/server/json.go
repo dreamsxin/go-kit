@@ -185,7 +185,7 @@ func (e UnsupportedMediaTypeError) PublicMessage() string { return "unsupported 
 // preserving the underlying error for errors.Is/errors.As.
 //
 // Stable: http.json-decode-400 — a malformed or unknown-field body is 400 bad_request.invalid_json, an empty one bad_request.empty_body.
-// Covered by: TestMalformedJSONStays400, TestNewJSONServer_RejectsUnknownFieldsByDefault, TestEmptyBodyReportsItself
+// Covered by: TestMalformedJSONStays400, TestNewJSON_RejectsUnknownFieldsByDefault, TestEmptyBodyReportsItself
 //
 // Stable: http.json-body-limit-413 — a body over the configured limit is 413 request_too_large.
 // Covered by: TestOverLimitBodyIs413, TestRawOverLimitBodyMessageIsNotJSONSpecific

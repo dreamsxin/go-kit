@@ -1,4 +1,4 @@
-package client_test
+﻿package client_test
 
 import (
 	"bytes"
@@ -101,7 +101,7 @@ func newEchoServer(t *testing.T) *httptest.Server {
 
 // ── NewJSONClient ─────────────────────────────────────────────────────────────
 
-func TestNewJSONClient_Success(t *testing.T) {
+func TestNewJSON_Success(t *testing.T) {
 	srv := newEchoServer(t)
 	defer srv.Close()
 
@@ -118,14 +118,14 @@ func TestNewJSONClient_Success(t *testing.T) {
 	}
 }
 
-func TestNewJSONClient_InvalidURL(t *testing.T) {
+func TestNewJSON_InvalidURL(t *testing.T) {
 	_, err := httpclient.NewJSON[echoResp](http.MethodPost, "://bad-url", httpclient.DefaultMaxJSONResponseBytes)
 	if err == nil {
 		t.Error("expected error for invalid URL")
 	}
 }
 
-func TestNewJSONClient_Non2xxReturnsStatusError(t *testing.T) {
+func TestNewJSON_Non2xxReturnsStatusError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -153,7 +153,7 @@ func TestNewJSONClient_Non2xxReturnsStatusError(t *testing.T) {
 	}
 }
 
-func TestNewJSONClient_ResponseBodyLimit(t *testing.T) {
+func TestNewJSON_ResponseBodyLimit(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"echo":"this response is intentionally larger than the limit"}`)
@@ -177,7 +177,7 @@ func TestNewJSONClient_ResponseBodyLimit(t *testing.T) {
 	}
 }
 
-func TestNewJSONClient_ResponseBodyLimitValidation(t *testing.T) {
+func TestNewJSON_ResponseBodyLimitValidation(t *testing.T) {
 	for _, limit := range []int64{0, -1, math.MaxInt64} {
 		if _, err := httpclient.NewJSON[echoResp](http.MethodGet, "http://example.com", limit); err == nil {
 			t.Fatalf("limit %d: expected validation error", limit)
@@ -185,7 +185,7 @@ func TestNewJSONClient_ResponseBodyLimitValidation(t *testing.T) {
 	}
 }
 
-func TestNewJSONClient_GETEncodesQueryWithoutBody(t *testing.T) {
+func TestNewJSON_GETEncodesQueryWithoutBody(t *testing.T) {
 	type getRequest struct {
 		ID    string   `json:"id"`
 		Limit int      `form:"limit"`
@@ -228,7 +228,7 @@ func TestHTTPStatusError_Retryable(t *testing.T) {
 
 // ── Timeout composition ──────────────────────────────────────────────────────
 
-func TestNewJSONClientWithTimeout_Success(t *testing.T) {
+func TestJSONClientTimeoutMiddleware_Success(t *testing.T) {
 	srv := newEchoServer(t)
 	defer srv.Close()
 
@@ -246,7 +246,7 @@ func TestNewJSONClientWithTimeout_Success(t *testing.T) {
 	}
 }
 
-func TestNewJSONClientWithTimeout_Timeout(t *testing.T) {
+func TestJSONClientTimeoutMiddleware_Timeout(t *testing.T) {
 	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(5 * time.Second)
 		w.Write([]byte(`{}`)) //nolint:errcheck
