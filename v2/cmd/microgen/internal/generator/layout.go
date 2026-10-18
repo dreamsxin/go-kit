@@ -175,17 +175,3 @@ func (l projectLayout) ensureDirs(services []*serviceView, opts Options) error {
 	}
 	return nil
 }
-
-func routePrefix(basePrefix, serviceName string) string {
-	if basePrefix == "" {
-		return ""
-	}
-	prefix := basePrefix
-	if !strings.HasPrefix(prefix, "/") {
-		prefix = "/" + prefix
-	}
-	if !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
-	return prefix + strings.ToLower(serviceName)
-}

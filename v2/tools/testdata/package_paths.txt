@@ -1,5 +1,6 @@
 github.com/dreamsxin/go-kit/v2/apperror
 github.com/dreamsxin/go-kit/v2/cmd/microgen
+github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/contract
 github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/dbschema
 github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/generator
 github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/ir

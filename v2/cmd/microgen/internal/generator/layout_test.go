@@ -78,25 +78,3 @@ func TestProjectLayoutArtifactPaths(t *testing.T) {
 		t.Fatalf("protoFile() = %q, want %q", got, want)
 	}
 }
-
-func TestRoutePrefix(t *testing.T) {
-	tests := []struct {
-		name       string
-		basePrefix string
-		service    string
-		want       string
-	}{
-		{name: "empty", basePrefix: "", service: "UserService", want: ""},
-		{name: "no slash", basePrefix: "api/v1", service: "UserService", want: "/api/v1/userservice"},
-		{name: "leading slash", basePrefix: "/v2", service: "Greeter", want: "/v2/greeter"},
-		{name: "trailing slash", basePrefix: "/api/", service: "OrderService", want: "/api/orderservice"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := routePrefix(tt.basePrefix, tt.service); got != tt.want {
-				t.Fatalf("routePrefix(%q, %q) = %q, want %q", tt.basePrefix, tt.service, got, tt.want)
-			}
-		})
-	}
-}

@@ -2,22 +2,6 @@ package generator
 
 import "github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/ir"
 
-func unaryMethods(service *ir.Service) []*ir.Method {
-	if service == nil {
-		return nil
-	}
-	out := make([]*ir.Method, 0, len(service.Methods))
-	for _, method := range service.Methods {
-		if method == nil {
-			continue
-		}
-		if method.Kind == "" || method.Kind == ir.MethodKindUnary {
-			out = append(out, method)
-		}
-	}
-	return out
-}
-
 func serverStreamMethods(service *ir.Service) []*ir.Method {
 	if service == nil {
 		return nil
@@ -75,7 +59,7 @@ func hasStreamingMethods(service *ir.Service) bool {
 func unaryServiceRoutes(routes []SvcRoute) []SvcRoute {
 	out := make([]SvcRoute, 0, len(routes))
 	for _, route := range routes {
-		methods := unaryMethods(route.Service)
+		methods := ir.UnaryMethods(route.Service)
 		if len(methods) == 0 {
 			continue
 		}

@@ -10,7 +10,7 @@ func (g *Generator) generateServiceFileFull(service *serviceView, models []*mode
 	data := serviceTemplateData{
 		Service:             service,
 		IRService:           irService,
-		UnaryMethods:        unaryMethods(irService),
+		UnaryMethods:        ir.UnaryMethods(irService),
 		ServerStreamMethods: serverStreamMethods(irService),
 		ClientStreamMethods: clientStreamMethods(irService),
 		BidiStreamMethods:   bidiStreamMethods(irService),
@@ -36,7 +36,7 @@ func (g *Generator) generateEndpointsFile(service *serviceView, irService *ir.Se
 	data := endpointTemplateData{
 		Service:      service,
 		IRService:    irService,
-		UnaryMethods: unaryMethods(irService),
+		UnaryMethods: ir.UnaryMethods(irService),
 		ImportPath:   g.config.ImportPath,
 		Source:       source,
 	}
@@ -65,13 +65,13 @@ func (g *Generator) generateEndpointCustomChainFile(service *serviceView) error 
 }
 
 func (g *Generator) generateHTTPTransportFile(service *serviceView, irService *ir.Service, source string) error {
-	methods := unaryMethods(irService)
+	methods := ir.UnaryMethods(irService)
 	data := httpTransportTemplateData{
 		Service:      service,
 		IRService:    irService,
 		UnaryMethods: methods,
 		ImportPath:   g.config.ImportPath,
-		RoutePrefix:  routePrefix(g.config.RoutePrefix, service.ServiceName),
+		RoutePrefix:  ir.RoutePrefix(g.config.RoutePrefix, service.ServiceName),
 		Source:       source,
 	}
 	return g.executeTemplate("transport.tmpl", g.layout.httpTransportFile(service.ServiceName), data)
@@ -97,7 +97,7 @@ func (g *Generator) generateGRPCTransportFile(service *serviceView, irService *i
 		Service:             service,
 		GRPCService:         grpcPackage + "." + service.ServiceName,
 		IRService:           irService,
-		UnaryMethods:        unaryMethods(irService),
+		UnaryMethods:        ir.UnaryMethods(irService),
 		ServerStreamMethods: serverStreamMethods(irService),
 		ClientStreamMethods: clientStreamMethods(irService),
 		BidiStreamMethods:   bidiStreamMethods(irService),
@@ -143,7 +143,7 @@ func (g *Generator) generateTestFile(service *serviceView, irService *ir.Service
 	data := serviceTestTemplateData{
 		Service:             service,
 		IRService:           irService,
-		UnaryMethods:        unaryMethods(irService),
+		UnaryMethods:        ir.UnaryMethods(irService),
 		ServerStreamMethods: serverStreamMethods(irService),
 		ClientStreamMethods: clientStreamMethods(irService),
 		BidiStreamMethods:   bidiStreamMethods(irService),
@@ -160,13 +160,13 @@ func (g *Generator) generateClientDemo(service *serviceView, irService *ir.Servi
 	data := clientTemplateData{
 		Service:             service,
 		IRService:           irService,
-		UnaryMethods:        unaryMethods(irService),
+		UnaryMethods:        ir.UnaryMethods(irService),
 		ServerStreamMethods: serverStreamMethods(irService),
 		ClientStreamMethods: clientStreamMethods(irService),
 		BidiStreamMethods:   bidiStreamMethods(irService),
 		ImportPath:          g.config.ImportPath,
 		WithGRPC:            g.config.WithGRPC,
-		RoutePrefix:         routePrefix(g.config.RoutePrefix, service.ServiceName),
+		RoutePrefix:         ir.RoutePrefix(g.config.RoutePrefix, service.ServiceName),
 		Source:              source,
 	}
 	return g.executeTemplate("client.tmpl", g.layout.clientDemoFile(service.ServiceName), data)
@@ -176,14 +176,14 @@ func (g *Generator) generateSDKFile(service *serviceView, irService *ir.Service,
 	data := sdkTemplateData{
 		Service:             service,
 		IRService:           irService,
-		UnaryMethods:        unaryMethods(irService),
+		UnaryMethods:        ir.UnaryMethods(irService),
 		ServerStreamMethods: serverStreamMethods(irService),
 		ClientStreamMethods: clientStreamMethods(irService),
 		BidiStreamMethods:   bidiStreamMethods(irService),
 		ImportPath:          g.config.ImportPath,
 		WithGRPC:            g.config.WithGRPC,
 		Source:              source,
-		RoutePrefix:         routePrefix(g.config.RoutePrefix, service.ServiceName),
+		RoutePrefix:         ir.RoutePrefix(g.config.RoutePrefix, service.ServiceName),
 	}
 	if err := os.MkdirAll(g.layout.sdkDir(service.ServiceName), 0o755); err != nil {
 		return err

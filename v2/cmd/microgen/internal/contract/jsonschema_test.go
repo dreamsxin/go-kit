@@ -1,4 +1,4 @@
-package generator
+package contract
 
 import (
 	"encoding/json"
@@ -25,7 +25,7 @@ func TestBuildJSONSchemaDocument(t *testing.T) {
 		}},
 	}
 
-	doc := buildJSONSchemaDocument(project)
+	doc := BuildJSONSchemaDocument(project)
 	if doc.Schema != jsonSchemaVersion {
 		t.Fatalf("schema = %q", doc.Schema)
 	}

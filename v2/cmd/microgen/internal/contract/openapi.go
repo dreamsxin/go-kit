@@ -1,9 +1,7 @@
-package generator
+package contract
 
 import (
 	"encoding/json"
-	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -111,38 +109,12 @@ type openAPISchema struct {
 	Default              any                       `json:"default,omitempty"`
 }
 
-func (g *Generator) generateContracts(ctx generationContext) error {
-	if err := os.MkdirAll(g.layout.docsDir(), 0o755); err != nil {
-		return err
-	}
-	if err := g.executeTemplate("docs.tmpl", g.layout.docsEmbed(), struct{}{}); err != nil {
-		return err
-	}
-	doc := buildOpenAPIDocument(ctx.project, g.config.RoutePrefix)
-	if err := writeJSONDocument(g.layout.openAPIFile(), doc); err != nil {
-		return fmt.Errorf("write OpenAPI document: %w", err)
-	}
-	if err := writeJSONDocument(g.layout.jsonSchemaFile(), buildJSONSchemaDocument(ctx.project)); err != nil {
-		return fmt.Errorf("write JSON Schema document: %w", err)
-	}
-	return nil
-}
-
-func writeJSONDocument(path string, document any) error {
-	data, err := json.MarshalIndent(document, "", "  ")
-	if err != nil {
-		return err
-	}
-	data = append(data, '\n')
-	return os.WriteFile(path, data, 0o644)
-}
-
-func buildOpenAPIDocument(project *ir.Project, basePrefix string) openAPIDocument {
+func BuildOpenAPIDocument(project *ir.Project, basePrefix string) openAPIDocument {
 	if project == nil {
 		project = &ir.Project{}
 	}
-	messages := collectOpenAPIMessages(project)
-	messageNames := contractMessageNames(messages)
+	messages := CollectOpenAPIMessages(project)
+	messageNames := ContractMessageNames(messages)
 	schemas := buildContractSchemas(messages, messageNames, openAPIRefPrefix)
 
 	doc := openAPIDocument{
@@ -161,9 +133,9 @@ func buildOpenAPIDocument(project *ir.Project, basePrefix string) openAPIDocumen
 			continue
 		}
 		doc.Tags = append(doc.Tags, openAPITag{Name: service.Name, Description: service.Description})
-		prefix := routePrefix(basePrefix, service.Name)
-		for _, method := range unaryMethods(service) {
-			path := joinOpenAPIPath(prefix, method.Route)
+		prefix := ir.RoutePrefix(basePrefix, service.Name)
+		for _, method := range ir.UnaryMethods(service) {
+			path := JoinOpenAPIPath(prefix, method.Route)
 			verb := strings.ToLower(method.HTTPMethod)
 			if verb == "" {
 				verb = "post"
@@ -181,8 +153,8 @@ func buildOpenAPIDocument(project *ir.Project, basePrefix string) openAPIDocumen
 }
 
 func openAPIOperationFor(service *ir.Service, method *ir.Method, path string, messages map[string]*ir.Message, messageNames map[string]struct{}) openAPIOperation {
-	inputName := openAPIMessageName(method.InputName, method.Input)
-	outputName := openAPIMessageName(method.OutputName, method.Output)
+	inputName := OpenAPIMessageName(method.InputName, method.Input)
+	outputName := OpenAPIMessageName(method.OutputName, method.Output)
 	input := messages[inputName]
 	if input == nil {
 		input = method.Input
@@ -193,7 +165,7 @@ func openAPIOperationFor(service *ir.Service, method *ir.Method, path string, me
 	}
 	operation := openAPIOperation{
 		OperationID: service.Name + "_" + method.Name,
-		Summary:     firstNonEmpty(method.Summary, method.Name),
+		Summary:     FirstNonEmpty(method.Summary, method.Name),
 		Description: method.Description,
 		Tags:        tags,
 		Responses: map[string]openAPIResponse{
@@ -223,7 +195,7 @@ func openAPIOperationFor(service *ir.Service, method *ir.Method, path string, me
 	return operation
 }
 
-func openAPIMessageName(explicit string, message *ir.Message) string {
+func OpenAPIMessageName(explicit string, message *ir.Message) string {
 	if explicit != "" {
 		return explicit
 	}
@@ -253,7 +225,7 @@ func openAPIQueryParameters(message *ir.Message, path string, messageNames map[s
 		if field == nil || field.JSONName == "-" {
 			continue
 		}
-		name := firstNonEmpty(field.JSONName, strings.ToLower(field.Name))
+		name := FirstNonEmpty(field.JSONName, strings.ToLower(field.Name))
 		location := "query"
 		required := false
 		if strings.Contains(path, "{"+name+"}") || strings.Contains(path, "{"+field.Name+"}") {
@@ -339,7 +311,7 @@ func contractMessageSchema(message *ir.Message, messageNames map[string]struct{}
 		if field == nil || field.JSONName == "-" {
 			continue
 		}
-		name := firstNonEmpty(field.JSONName, strings.ToLower(field.Name))
+		name := FirstNonEmpty(field.JSONName, strings.ToLower(field.Name))
 		schema.Properties[name] = contractFieldSchema(field, messageNames, refPrefix)
 		if field.Required {
 			schema.Required = append(schema.Required, name)
@@ -355,7 +327,7 @@ func openAPIFieldSchema(field *ir.Field, messageNames map[string]struct{}) *open
 
 func contractFieldSchema(field *ir.Field, messageNames map[string]struct{}, refPrefix string) *openAPISchema {
 	schema := contractSchemaForType(field.GoType, field.SchemaType, messageNames, refPrefix)
-	if isPointerGoType(field.GoType) {
+	if IsPointerGoType(field.GoType) {
 		schema = nullableSchema(schema)
 	}
 	schema.Description = field.Description
@@ -440,7 +412,7 @@ func typedScalar(value, goType string) any {
 	return value
 }
 
-func isPointerGoType(goType string) bool {
+func IsPointerGoType(goType string) bool {
 	return strings.HasPrefix(strings.TrimSpace(goType), "*")
 }
 
@@ -512,9 +484,9 @@ func contractSchemaForType(goType, schemaType string, messageNames map[string]st
 	case "uuid.UUID":
 		return &openAPISchema{Type: "string", Format: "uuid"}
 	case "any", "interface{}", "":
-		return &openAPISchema{Type: firstNonEmpty(schemaType, "object")}
+		return &openAPISchema{Type: FirstNonEmpty(schemaType, "object")}
 	}
-	return &openAPISchema{Type: firstNonEmpty(schemaType, "object")}
+	return &openAPISchema{Type: FirstNonEmpty(schemaType, "object")}
 }
 
 func openAPIRef(name string) *openAPISchema {
@@ -525,7 +497,7 @@ func contractSchemaRef(refPrefix, name string) *openAPISchema {
 	return &openAPISchema{Ref: refPrefix + name}
 }
 
-func contractMessageNames(messages map[string]*ir.Message) map[string]struct{} {
+func ContractMessageNames(messages map[string]*ir.Message) map[string]struct{} {
 	names := make(map[string]struct{}, len(messages))
 	for name := range messages {
 		names[name] = struct{}{}
@@ -562,7 +534,7 @@ func errorResponseSchema() *openAPISchema {
 	}
 }
 
-func collectOpenAPIMessages(project *ir.Project) map[string]*ir.Message {
+func CollectOpenAPIMessages(project *ir.Project) map[string]*ir.Message {
 	messages := map[string]*ir.Message{}
 	for _, message := range project.Messages {
 		if message != nil && message.Name != "" {
@@ -604,19 +576,19 @@ func collectOpenAPIMessages(project *ir.Project) map[string]*ir.Message {
 
 func openAPITitle(project *ir.Project) string {
 	if len(project.Services) == 1 && project.Services[0] != nil {
-		return firstNonEmpty(project.Services[0].Title, project.Services[0].Name+" API")
+		return FirstNonEmpty(project.Services[0].Title, project.Services[0].Name+" API")
 	}
-	return firstNonEmpty(project.PackageName, "Microservice") + " API"
+	return FirstNonEmpty(project.PackageName, "Microservice") + " API"
 }
 
 func openAPIDescription(project *ir.Project) string {
 	if len(project.Services) == 1 && project.Services[0] != nil {
-		return firstNonEmpty(project.Services[0].Description, project.Services[0].Name+" service API")
+		return FirstNonEmpty(project.Services[0].Description, project.Services[0].Name+" service API")
 	}
 	return "Generated service API"
 }
 
-func joinOpenAPIPath(prefix, route string) string {
+func JoinOpenAPIPath(prefix, route string) string {
 	path := strings.TrimSuffix(prefix, "/") + "/" + strings.TrimPrefix(route, "/")
 	if path == "" {
 		return "/"
@@ -624,7 +596,7 @@ func joinOpenAPIPath(prefix, route string) string {
 	return path
 }
 
-func firstNonEmpty(values ...string) string {
+func FirstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
 			return value

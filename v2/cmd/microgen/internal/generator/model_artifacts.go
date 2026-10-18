@@ -4,6 +4,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/contract"
 )
 
 func (g *Generator) generateModelFile(model *modelView) error {
@@ -78,7 +80,7 @@ func repositoryOrderColumns(model *modelView) ([]repositoryOrderColumn, string) 
 			}
 		}
 		if field.IsPrimary || defaultAlias == "" {
-			defaultAlias = firstNonEmpty(field.JSONTag, toSnakeCase(field.Name))
+			defaultAlias = contract.FirstNonEmpty(field.JSONTag, toSnakeCase(field.Name))
 			defaultAlias = strings.TrimSpace(strings.Split(defaultAlias, ",")[0])
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/contract"
 	"github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/ir"
 )
 
@@ -84,8 +85,8 @@ func buildTypeScriptSDKData(project *ir.Project, basePrefix string) typeScriptSD
 	if project == nil {
 		project = &ir.Project{}
 	}
-	messages := collectOpenAPIMessages(project)
-	messageNames := contractMessageNames(messages)
+	messages := contract.CollectOpenAPIMessages(project)
+	messageNames := contract.ContractMessageNames(messages)
 	data := typeScriptSDKData{
 		CompilerVersion: TypeScriptCompilerVersion,
 		Messages:        make([]typeScriptMessage, 0, len(messages)),
@@ -105,7 +106,7 @@ func buildTypeScriptSDKData(project *ir.Project, basePrefix string) typeScriptSD
 				continue
 			}
 			view.Fields = append(view.Fields, typeScriptField{
-				Name:        firstNonEmpty(field.JSONName, toSnakeCase(field.Name)),
+				Name:        contract.FirstNonEmpty(field.JSONName, toSnakeCase(field.Name)),
 				Type:        typeScriptFieldType(field, messageNames),
 				Description: typeScriptComment(field.Description),
 				Required:    field.Required,
@@ -125,8 +126,8 @@ func buildTypeScriptSDKData(project *ir.Project, basePrefix string) typeScriptSD
 			PropertyName: lowerFirst(service.Name),
 			Description:  typeScriptComment(service.Description),
 		}
-		prefix := routePrefix(basePrefix, service.Name)
-		for _, method := range unaryMethods(service) {
+		prefix := ir.RoutePrefix(basePrefix, service.Name)
+		for _, method := range ir.UnaryMethods(service) {
 			view.Methods = append(view.Methods, buildTypeScriptMethod(method, messages, messageNames, prefix))
 		}
 		data.Services = append(data.Services, view)
@@ -140,15 +141,15 @@ func buildTypeScriptMethod(method *ir.Method, messages map[string]*ir.Message, m
 	if httpMethod == "" {
 		httpMethod = "POST"
 	}
-	inputName := openAPIMessageName(method.InputName, method.Input)
-	outputName := openAPIMessageName(method.OutputName, method.Output)
+	inputName := contract.OpenAPIMessageName(method.InputName, method.Input)
+	outputName := contract.OpenAPIMessageName(method.OutputName, method.Output)
 	view := typeScriptMethod{
 		Name:         lowerFirst(method.Name),
-		Description:  typeScriptComment(firstNonEmpty(method.Description, method.Summary)),
-		RequestType:  firstNonEmpty(inputName, "Record<string, never>"),
-		ResponseType: firstNonEmpty(outputName, "void"),
+		Description:  typeScriptComment(contract.FirstNonEmpty(method.Description, method.Summary)),
+		RequestType:  contract.FirstNonEmpty(inputName, "Record<string, never>"),
+		ResponseType: contract.FirstNonEmpty(outputName, "void"),
 		HTTPMethod:   httpMethod,
-		Route:        joinOpenAPIPath(prefix, method.Route),
+		Route:        contract.JoinOpenAPIPath(prefix, method.Route),
 		HasRequest:   inputName != "",
 		HasBody:      httpMethod != "GET" && inputName != "",
 	}
@@ -164,7 +165,7 @@ func buildTypeScriptMethod(method *ir.Method, messages map[string]*ir.Message, m
 		if field == nil || field.JSONName == "-" {
 			continue
 		}
-		name := firstNonEmpty(field.JSONName, toSnakeCase(field.Name))
+		name := contract.FirstNonEmpty(field.JSONName, toSnakeCase(field.Name))
 		placeholder := ""
 		for _, candidate := range []string{name, field.Name} {
 			if strings.Contains(view.Route, "{"+candidate+"}") {
@@ -201,7 +202,7 @@ func buildTypeScriptMethod(method *ir.Method, messages map[string]*ir.Message, m
 // consumer's guard is written against the wrong shape.
 func typeScriptFieldType(field *ir.Field, messageNames map[string]struct{}) string {
 	name := typeScriptType(field.GoType, field.SchemaType, messageNames)
-	if isPointerGoType(field.GoType) {
+	if contract.IsPointerGoType(field.GoType) {
 		return name + " | null"
 	}
 	return name

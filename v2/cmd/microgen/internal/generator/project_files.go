@@ -212,7 +212,7 @@ func (g *Generator) serviceRoutes(project *ir.Project) []SvcRoute {
 	for _, svc := range project.Services {
 		routes = append(routes, SvcRoute{
 			Service:    svc,
-			FullPrefix: routePrefix(g.config.RoutePrefix, svc.Name),
+			FullPrefix: ir.RoutePrefix(g.config.RoutePrefix, svc.Name),
 		})
 	}
 	return routes

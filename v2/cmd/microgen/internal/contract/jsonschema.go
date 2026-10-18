@@ -1,4 +1,4 @@
-package generator
+package contract
 
 import "github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/ir"
 
@@ -14,12 +14,12 @@ type jsonSchemaDocument struct {
 	Defs        map[string]*openAPISchema `json:"$defs"`
 }
 
-func buildJSONSchemaDocument(project *ir.Project) jsonSchemaDocument {
+func BuildJSONSchemaDocument(project *ir.Project) jsonSchemaDocument {
 	if project == nil {
 		project = &ir.Project{}
 	}
-	messages := collectOpenAPIMessages(project)
-	messageNames := contractMessageNames(messages)
+	messages := CollectOpenAPIMessages(project)
+	messageNames := ContractMessageNames(messages)
 	return jsonSchemaDocument{
 		Schema:      jsonSchemaVersion,
 		Title:       openAPITitle(project) + " Schemas",

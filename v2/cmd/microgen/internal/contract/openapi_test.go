@@ -1,4 +1,4 @@
-package generator
+package contract
 
 import (
 	"encoding/json"
@@ -37,7 +37,7 @@ func TestBuildOpenAPIDocument(t *testing.T) {
 		}},
 	}
 
-	doc := buildOpenAPIDocument(project, "/api/v1")
+	doc := BuildOpenAPIDocument(project, "/api/v1")
 	if doc.OpenAPI != "3.1.0" {
 		t.Fatalf("openapi = %q", doc.OpenAPI)
 	}
