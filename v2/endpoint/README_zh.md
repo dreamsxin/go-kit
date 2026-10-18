@@ -1,4 +1,4 @@
-﻿# endpoint（端点）
+# endpoint（端点）
 
 [English](README.md) | 简体中文
 

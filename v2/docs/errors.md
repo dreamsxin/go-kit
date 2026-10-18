@@ -1,4 +1,4 @@
-﻿# Error Handling
+# Error Handling
 
 English | [简体中文](errors_zh.md)
 

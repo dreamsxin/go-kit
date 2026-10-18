@@ -1,4 +1,4 @@
-﻿# 测试
+# 测试
 
 [English](testing.md) | 简体中文
 

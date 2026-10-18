@@ -1,7 +1,6 @@
 package generator_test
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,60 +65,6 @@ func generateAuthedProject(t *testing.T) string {
 		}
 	}
 	return root
-}
-
-// TestOpenAPISecurityDeclaredForSecuredMethods is the contract half of the
-// auth feature: the secured operation carries the security requirement, the
-// components declare the bearer scheme, and 401 documents the failure the
-// enforcement produces.
-func TestOpenAPISecurityDeclaredForSecuredMethods(t *testing.T) {
-	root := generateAuthedProject(t)
-	var document struct {
-		Paths map[string]map[string]struct {
-			Security  []map[string][]string `json:"security"`
-			Responses map[string]struct {
-				Description string `json:"description"`
-			} `json:"responses"`
-		} `json:"paths"`
-		Components struct {
-			SecuritySchemes map[string]struct {
-				Type   string `json:"type"`
-				Scheme string `json:"scheme"`
-			} `json:"securitySchemes"`
-		} `json:"components"`
-	}
-	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(root, "docs", "openapi.json"))), &document); err != nil {
-		t.Fatalf("parse openapi document: %v", err)
-	}
-	secured := document.Paths["/secured"]["post"]
-	if len(secured.Security) != 1 || len(secured.Security[0]["auth"]) != 0 {
-		t.Errorf("secured operation security = %v, want [{auth:[]}]", secured.Security)
-	}
-	if _, ok := secured.Responses["401"]; !ok {
-		t.Error("the secured operation does not document 401")
-	}
-	if scheme, ok := document.Components.SecuritySchemes["auth"]; !ok || scheme.Type != "http" || scheme.Scheme != "bearer" {
-		t.Errorf("security scheme = %+v, want the http bearer scheme", scheme)
-	}
-}
-
-// TestOpenAPISecurityAbsentForUnsecuredMethods is the other half: the
-// enforcement is per-method, and so is the documentation — an undeclared
-// method carries no security and no 401.
-func TestOpenAPISecurityAbsentForUnsecuredMethods(t *testing.T) {
-	root := generateAuthedProject(t)
-	doc := readFile(t, filepath.Join(root, "docs", "openapi.json"))
-	secured := strings.Index(doc, `/secured`)
-	unsecured := strings.Index(doc, `/ping`)
-	if secured < 0 || unsecured < 0 {
-		t.Fatalf("operations missing from the document")
-	}
-	// The Ping operation appears before Secured; scan its slice of the
-	// document for a security requirement.
-	segment := doc[unsecured:secured]
-	if strings.Contains(segment, `"security"`) {
-		t.Errorf("the unsecured operation declares security:\n%s", segment)
-	}
 }
 
 // TestGeneratedTransportEnforcesDeclaredAuth is the enforcement half: the

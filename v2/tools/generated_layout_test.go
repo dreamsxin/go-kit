@@ -77,7 +77,7 @@ func TestGeneratedLayout(t *testing.T) {
 		t.Fatalf("microgen gRPC run failed: %v\n%s", err, out)
 	}
 
-	generated := unionPaths(generatedFilePaths(t, httpDir), generatedFilePaths(t, grpcDir))
+	generated := unionNames(generatedFilePaths(t, httpDir), generatedFilePaths(t, grpcDir))
 	if len(generated) < 20 {
 		// A generator that silently stopped writing would otherwise leave this
 		// test comparing two short lists and passing.
@@ -87,8 +87,8 @@ func TestGeneratedLayout(t *testing.T) {
 	generatedProjectLayout.assert(t, generated, *updateGeneratedLayout)
 }
 
-// unionPaths merges path lists and returns them sorted with duplicates removed.
-func unionPaths(lists ...[]string) []string {
+// unionNames merges name or path lists and returns them sorted with duplicates removed.
+func unionNames(lists ...[]string) []string {
 	seen := make(map[string]struct{})
 	var union []string
 	for _, list := range lists {

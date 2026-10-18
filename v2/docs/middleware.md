@@ -1,4 +1,4 @@
-﻿# Middleware
+# Middleware
 
 English | [简体中文](middleware_zh.md)
 

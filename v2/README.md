@@ -1,4 +1,4 @@
-﻿# go-kit v2
+# go-kit v2
 
 [![Go Version](https://img.shields.io/badge/go-1.26.0+-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)

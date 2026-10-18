@@ -30,30 +30,54 @@ var configurationReferenceDocs = []string{
 // nothing when an operator sets it in production.
 func TestGeneratedConfigKeysAreDocumented(t *testing.T) {
 	root := goKitRoot(t)
-	outDir := generatedProjectDir(t, "gen_config_keys")
 
-	// Every configuration surface at once: the DB, gRPC and remote sections each
-	// contribute keys that a narrower project would not emit.
+	// Every configuration surface, across two projects: the database section
+	// needs a gorm-tagged Go IDL, the gRPC section needs a protobuf contract.
+	// No single source mode emits both any more.
 	idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-	cmd := microgenCommand(t,
-		"-idl", idlFile,
-		"-out", outDir,
-		"-import", "example.com/gen_config_keys",
-		"-protocols", "http,grpc",
-		"-config",
-		"-config-mode", "hybrid",
-		"-remote-provider", "consul",
-		"-db",
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("microgen failed: %v\n%s", err, out)
+	protoFile := filepath.Join(root, "tools", "testdata", "service.proto")
+	projects := []struct {
+		outDir     string
+		importPath string
+		args       []string
+	}{
+		{
+			outDir:     generatedProjectDir(t, "gen_config_keys_db"),
+			importPath: "example.com/gen_config_keys_db",
+			args: []string{
+				"-idl", idlFile,
+				"-protocols", "http",
+				"-config",
+				"-config-mode", "hybrid",
+				"-remote-provider", "consul",
+				"-db",
+			},
+		},
+		{
+			outDir:     generatedProjectDir(t, "gen_config_keys_grpc"),
+			importPath: "example.com/gen_config_keys_grpc",
+			args: []string{
+				"-idl", protoFile,
+				"-protocols", "http,grpc",
+				"-config",
+				"-config-mode", "hybrid",
+				"-remote-provider", "consul",
+			},
+		},
 	}
-
-	read := loaderEnvironmentKeys(t, filepath.Join(outDir, "config"))
+	var read []string
+	for _, project := range projects {
+		args := append([]string{"-out", project.outDir, "-import", project.importPath}, project.args...)
+		if out, err := microgenCommand(t, args...).CombinedOutput(); err != nil {
+			t.Fatalf("microgen failed: %v\n%s", err, out)
+		}
+		read = append(read, loaderEnvironmentKeys(t, filepath.Join(project.outDir, "config"))...)
+	}
+	read = unionNames(read)
 	if len(read) < 20 {
 		// A changed loader shape would leave the parse short and let this test
 		// pass while comparing almost nothing.
-		t.Fatalf("found only %d environment keys in the generated loader, so its shape changed: %v", len(read), read)
+		t.Fatalf("found only %d environment keys in the generated loaders, so its shape changed: %v", len(read), read)
 	}
 
 	for _, name := range configurationReferenceDocs {
@@ -143,24 +167,38 @@ var documentedFlagPattern = regexp.MustCompile(`(?m)^(-[a-z][a-z0-9.\-_]*)\s+\S`
 // environment keys above it are a table.
 func TestGeneratedMainFlagsAreDocumented(t *testing.T) {
 	root := goKitRoot(t)
-	outDir := generatedProjectDir(t, "gen_main_flags")
 
+	// The flags of both source modes, unioned: the database flags exist only
+	// with a gorm-tagged Go IDL and the gRPC flag only with a protobuf contract.
 	idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-	cmd := microgenCommand(t,
-		"-idl", idlFile,
-		"-out", outDir,
-		"-import", "example.com/gen_main_flags",
-		"-protocols", "http,grpc",
-		"-config",
-		"-db",
-	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("microgen failed: %v\n%s", err, out)
+	protoFile := filepath.Join(root, "tools", "testdata", "service.proto")
+	projects := []struct {
+		outDir     string
+		importPath string
+		args       []string
+	}{
+		{
+			outDir:     generatedProjectDir(t, "gen_main_flags_db"),
+			importPath: "example.com/gen_main_flags_db",
+			args:       []string{"-idl", idlFile, "-config", "-db"},
+		},
+		{
+			outDir:     generatedProjectDir(t, "gen_main_flags_grpc"),
+			importPath: "example.com/gen_main_flags_grpc",
+			args:       []string{"-idl", protoFile, "-protocols", "http,grpc", "-config"},
+		},
 	}
-
-	declared := declaredMainFlags(t, filepath.Join(outDir, "cmd"))
+	var declared []string
+	for _, project := range projects {
+		args := append([]string{"-out", project.outDir, "-import", project.importPath}, project.args...)
+		if out, err := microgenCommand(t, args...).CombinedOutput(); err != nil {
+			t.Fatalf("microgen failed: %v\n%s", err, out)
+		}
+		declared = append(declared, declaredMainFlags(t, filepath.Join(project.outDir, "cmd"))...)
+	}
+	declared = unionNames(declared)
 	if len(declared) == 0 {
-		t.Fatal("the generated main declares no flags, so its shape changed")
+		t.Fatal("the generated mains declare no flags, so their shape changed")
 	}
 
 	for _, name := range configurationReferenceDocs {

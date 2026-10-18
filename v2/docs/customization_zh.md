@@ -1,4 +1,4 @@
-﻿# 自定义
+# 自定义
 
 [English](customization.md) | 简体中文
 

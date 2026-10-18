@@ -1,4 +1,4 @@
-﻿# Customization
+# Customization
 
 English | [简体中文](customization_zh.md)
 

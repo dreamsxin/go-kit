@@ -1,4 +1,4 @@
-﻿# 示例
+# 示例
 
 [English](README.md) | 简体中文
 

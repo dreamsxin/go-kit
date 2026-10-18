@@ -1,4 +1,4 @@
-﻿# endpoint
+# endpoint
 English | [简体中文](README_zh.md)
 
 The `endpoint` package is the core runtime abstraction of `go-kit`.
