@@ -17,7 +17,45 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ## [Unreleased]
 
+### Added
+
+- `examples/usersvc/userservice.proto` is the protobuf twin of the existing Go
+  IDL example, so the documented gRPC workflow has a contract to start from.
+
+### Fixed
+
+- The generated `.ai/PROJECT_GUIDE.md` ran the `GET /debug/routes` bullet into
+  the preceding `sdk/typescript/client.ts` line whenever both config and
+  OpenAPI output were enabled; the two are separate bullets again.
+- The generated test template imported the module root as `idl` for every
+  source, so a proto-generated project with `-tests` failed to compile
+  (`pb` is where its types live); it now selects the same import the other
+  templates already did.
+
 ### Changed
+
+- `microgen -protocols http,grpc` now requires a `.proto` IDL. With a Go IDL or
+  `-from-db` the command used to write a project that could not compile: the
+  generated transport registered through `pb.Register<Service>Server` and the
+  Go SDK called `pb.New<Service>Client`, and neither symbol exists because a Go
+  struct is not a protobuf message. The CLI now refuses the combination before
+  parsing and names the input that works; `make gen-grpc`/`gen-full` build from
+  the new `examples/usersvc/userservice.proto` instead, and `-protocols` in
+  `-h` says so.
+- `microgen -model`/`-db` now requires model types. A contract with no message
+  carrying `gorm` tags (a `.proto` contract, or a Go IDL without tags) used to
+  write runtime and service wiring that imported `model` and `repository`
+  packages with no files, so the project could not compile. The CLI refuses it
+  after parsing and names the alternatives: a `gorm`-tagged Go IDL struct,
+  `-from-db`, or generating without those flags. Extend refresh is unchanged: a
+  contract that drops its last model still warns about the obsolete artifacts
+  instead of refusing.
+- The generated project README's Project Map now lists every directory the
+  project has — `transport/`, `config/`, `model/`+`repository/`, `test/`,
+  `docs/`, `sdk/`+`client/`, `.microgen/`, `.ai/` — with an explicit owner for
+  each, gated on the features the project was generated with, so a reader can
+  learn the module layout from the directory alone. The README is written once
+  and is not refreshed for existing projects.
 
 - The JSON constructor families were the same call multiplied by the
   differences between callers, so the differences are values now and the names

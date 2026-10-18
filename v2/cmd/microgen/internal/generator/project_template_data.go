@@ -73,7 +73,10 @@ type readmeTemplateData struct {
 	WithOpenAPI     bool
 	WithInteraction bool
 	WithConfig      bool
+	WithModel       bool
+	WithTests       bool
 	WithDB          bool
+	WithGRPC        bool
 	ConfigMode      string
 	RemoteProvider  string
 }

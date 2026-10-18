@@ -83,14 +83,14 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 
 	outputDir := fs.String("out", ".", "Output directory")
 	importPath := fs.String("import", "", "Go module import path")
-	protocols := fs.String("protocols", "http", "Supported protocols: http,grpc")
+	protocols := fs.String("protocols", "http", "Supported protocols: http,grpc (grpc requires a .proto IDL)")
 	withConfig := fs.Bool("config", false, "Generate config")
 	configMode := fs.String("config-mode", "", "Generated config mode: file, hybrid, remote")
 	remoteProvider := fs.String("remote-provider", "", "Generated remote config provider: consul")
 	withDocs := fs.Bool("docs", true, "Generate docs")
 	withTests := fs.Bool("tests", false, "Generate tests")
-	withModel := fs.Bool("model", false, "Generate model")
-	withDB := fs.Bool("db", false, "Include DB init in main")
+	withModel := fs.Bool("model", false, "Generate model (requires a gorm-tagged type or -from-db)")
+	withDB := fs.Bool("db", false, "Include DB init in main (requires model output)")
 	driver := fs.String("driver", "mysql", "Database driver")
 	withOpenAPI := fs.Bool("openapi", true, "Generate OpenAPI 3.1, JSON Schema, Swagger UI, and TypeScript SDK")
 	withInteraction := fs.Bool("interaction", false, "Generate AI interaction runtime and MCP endpoint")
@@ -165,6 +165,20 @@ func (c config) validate() error {
 	if c.fromDB && strings.TrimSpace(c.dbDSN) == "" {
 		return fmt.Errorf("-from-db requires -dsn")
 	}
+	// gRPC is a protobuf contract: the generated transport registers with
+	// pb.Register<Service>Server and the SDK calls pb.New<Service>Client, both
+	// of which only a .proto file produces. A Go IDL or a database schema has
+	// Go structs, not messages, so a project generated from them with gRPC
+	// could not compile. This is the supported entry point, so the combination
+	// is refused here, before anything is parsed or written.
+	if c.withGRPC {
+		if c.fromDB {
+			return fmt.Errorf("gRPC output requires a protobuf contract: -from-db has no service contract or wire types; pass a .proto IDL with -protocols http,grpc instead")
+		}
+		if !strings.HasSuffix(strings.ToLower(strings.TrimSpace(c.idlPath)), ".proto") {
+			return fmt.Errorf("gRPC output requires a .proto IDL: %q is not a protobuf contract, and Go structs are not protobuf messages; generate from a .proto file with -protocols http,grpc (see MICROGEN.md, Protobuf)", c.idlPath)
+		}
+	}
 	return c.generatorOptions("", "").Normalize().Validate()
 }
 
@@ -193,6 +207,15 @@ func main() {
 	}
 	if err != nil {
 		log.Fatal(err)
+	}
+	// Model and repository output is built per message that carries gorm tags.
+	// Asking for it on a contract without one would write imports for packages
+	// that stay empty, and the project would not compile. The check is here
+	// rather than in the generator because extend refresh may legitimately
+	// transition a project to a contract with no models: it warns about the
+	// artifacts it no longer produces instead of refusing.
+	if (cfg.withModel || cfg.withDB) && !ir.HasModels(project) {
+		log.Fatal("model/database output requires at least one model type: no message in this contract carries gorm tags; use a Go IDL struct with gorm tags, -from-db, or omit -model/-db (a .proto contract has no database model)")
 	}
 
 	if cfg.serviceName == "" && len(project.Services) > 0 {

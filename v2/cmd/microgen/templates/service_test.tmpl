@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"{{.ImportPath}}/service/{{.Service.PackageName}}"
-	idl "{{.ImportPath}}"
+	idl "{{if eq .Source "proto"}}{{.ImportPath}}/pb{{else}}{{.ImportPath}}{{end}}"
 )
 
 // isScaffoldError reports whether err is the scaffold's own "not

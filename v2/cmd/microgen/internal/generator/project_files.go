@@ -137,7 +137,10 @@ func (g *Generator) generateReadme(ctx generationContext) error {
 		WithOpenAPI:     g.config.WithOpenAPI,
 		WithInteraction: g.config.WithInteraction,
 		WithConfig:      g.config.WithConfig,
+		WithModel:       g.config.WithModel,
+		WithTests:       g.config.WithTests,
 		WithDB:          g.config.WithDB,
+		WithGRPC:        g.config.WithGRPC,
 		ConfigMode:      g.config.ConfigMode,
 		RemoteProvider:  g.config.RemoteProvider,
 	}

@@ -46,6 +46,23 @@ func TestUnaryMethods(t *testing.T) {
 	}
 }
 
+func TestHasModels(t *testing.T) {
+	if HasModels(nil) {
+		t.Fatal("nil project: HasModels = true, want false")
+	}
+	if HasModels(&Project{}) {
+		t.Fatal("empty project: HasModels = true, want false")
+	}
+	plain := &Project{Messages: []*Message{{Name: "Request"}, nil}}
+	if HasModels(plain) {
+		t.Fatal("messages without gorm tags: HasModels = true, want false")
+	}
+	withModel := &Project{Messages: []*Message{{Name: "Request"}, {Name: "User", HasGormTags: true}}}
+	if !HasModels(withModel) {
+		t.Fatal("a message with gorm tags: HasModels = false, want true")
+	}
+}
+
 func methodNames(methods []*Method) []string {
 	names := make([]string, 0, len(methods))
 	for _, method := range methods {

@@ -4,13 +4,29 @@ Generated with `go-kit microgen`. This README is written once and never overwrit
 
 ## Project Map
 
-- `.microgen/manifest.json` is the versioned project identity and generator-owned artifact contract.
-- `idl.go` is the generated source contract snapshot when the project was generated from Go IDL.
-- `pb/` contains generated proto contracts when gRPC/proto output is enabled.
-- `service/<name>/service.go` is the primary user-owned business logic file.
-- `endpoint/<name>/custom_chain.go` is the user-owned middleware hook file.
-- `cmd/custom_routes.go` is the user-owned custom HTTP route hook file.
-- `cmd/generated_*.go`, `endpoint/<name>/generated_chain.go`, `model/generated_*.go`, `repository/generated_*.go`, `sdk/`, `client/`, and `docs/` are generator-owned outputs.
+Every directory has one job, and the second word says who owns it:
+
+- `cmd/` — the process entry point and route wiring. `main.go` and `custom_routes.go` are user-owned; `generated_*.go` is the generator's.
+- `service/<name>/` — business logic. `service.go` is user-owned; `generated_repos.go` is the generator's.
+- `endpoint/<name>/` — the transport-neutral endpoints and their middleware chain. `custom_chain.go` is user-owned; `endpoints.go` and `generated_chain.go` are the generator's.
+- `transport/<name>/` — the HTTP{{if .WithGRPC}} and gRPC{{end}} handlers, generator-owned.
+{{- if .WithModel}}
+- `model/` and `repository/` — the GORM models and their repositories, generator-owned.
+{{- end}}
+{{- if .WithConfig}}
+- `config/` — configuration types, the `file`/`environment` loader, and the `custom.go` hook. `config.yaml` and `custom.go` are user-owned.
+{{- end}}
+- `sdk/<name>sdk/` — the generated typed client; `client/<name>/demo.go` is a runnable example that calls every method.
+{{- if .WithOpenAPI}}
+- `docs/` — the OpenAPI 3.1 and JSON Schema contracts plus embedded Swagger UI; `sdk/typescript/` is the generated Fetch client.
+{{- end}}
+{{- if .WithTests}}
+- `test/` — generated end-to-end tests; put your own tests beside the package they test.
+{{- end}}
+- `.microgen/manifest.json` — the project identity and the list of generator-owned artifacts.
+- `.ai/PROJECT_GUIDE.md` — the agent-facing map and workflow.
+
+{{if .IsProtoInput}}`pb/` holds the proto contracts; review them and generate the Go stubs with the `protoc` command in Quick Start before building. The source contract is the `.proto` file you passed to microgen.{{else}}`idl.go` is the source contract snapshot; `pb/` holds the proto contracts when gRPC output is enabled.{{end}} Generated files are rewritten on every run; user-owned files are written once and never touched again.
 
 For existing projects, run `microgen extend -check -out .` before changing generated seams. It validates the manifest against the filesystem, and extend refuses mutations while drift is present.
 

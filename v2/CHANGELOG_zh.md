@@ -17,6 +17,24 @@
 
 ### 变更
 
+- `microgen -protocols http,grpc` 现在要求 `.proto` IDL。此前用 Go IDL 或
+  `-from-db` 会写出一份无法编译的项目：生成的传输层通过
+  `pb.Register<Service>Server` 注册，Go SDK 调用 `pb.New<Service>Client`，
+  而这两个符号都不存在——Go struct 不是 protobuf message。CLI 现在在解析前就
+  拒绝该组合并点名可用的输入；`make gen-grpc`/`gen-full` 改为从新增的
+  `examples/usersvc/userservice.proto` 生成，`-h` 里的 `-protocols` 也写明了
+  这一点。
+- `microgen -model`/`-db` 现在要求存在模型类型。契约里没有带 `gorm` tag 的
+  message（`.proto` 契约，或没有 tag 的 Go IDL）时，此前会写出导入 `model` 与
+  `repository` 这两个空包的 runtime 与服务接线，项目无法编译。CLI 在解析后
+  拒绝，并点名替代方案：带 `gorm` tag 的 Go IDL 结构体、`-from-db`，或不加
+  这两个参数。extend refresh 不变：契约去掉最后一个模型时仍然只警告过时产物，
+  不拒绝。
+- 生成项目 README 的 Project Map 现在按实际生成的特性列出每个目录——
+  `transport/`、`config/`、`model/`+`repository/`、`test/`、`docs/`、
+  `sdk/`+`client/`、`.microgen/`、`.ai/`——并标明归属，读者仅凭目录就能了解
+  模块布局。README 只写一次，已有项目不会刷新。
+
 - JSON 构造函数族原本是"同一个调用 × 调用方之间的差异"，现在差异是值，多余的
   名字被删除。`transport/http/server` 里九个
   `NewJSONServer`/`NewTypedJSONServer`/`NewJSONEndpoint` 构造函数（及其
@@ -55,6 +73,8 @@
 
 ### 新增
 
+- `examples/usersvc/userservice.proto` 是现有 Go IDL 示例的 protobuf 孪生，
+  文档中的 gRPC 工作流从此有可直接使用的契约。
 - `grpc.TraceparentStreamClientInterceptor` 在流式客户端调用上传播 W3C
   trace context（`grpc.traceparent-stream-client`），补上此前只有 unary
   与服务端流式拦截器的不对称；无 trace 的 context 仍不发明 trace。
@@ -66,6 +86,11 @@
 
 ### 修复
 
+- 生成项目的 `.ai/PROJECT_GUIDE.md` 在同时启用 config 与 OpenAPI 时，会把
+  `GET /debug/routes` 这一条挤到上一行 `sdk/typescript/client.ts` 后面；现在
+  恢复为两条独立条目。
+- 生成测试模板对所有源都从 module 根导入 `idl`，导致用 `-tests` 生成的
+  proto 项目无法编译（它的类型在 `pb`）；现在与其他模板使用同一套导入选择。
 - `AccessLogMiddleware` 此前只从入站 header 读 `trace_id`，于是在续接过 trace
   的链内写出的 access 行命名的是远程父而非本节点，且从不携带 `span_id`。
   现在优先从续接过的请求 context 读 `trace_id`/`span_id`，裸挂载时回退到可解析

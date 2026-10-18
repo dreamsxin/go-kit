@@ -2204,6 +2204,45 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## 里程碑 29（完成）：生成的项目读得懂，也编译得过
+
+范围：把生成项目当作 agent 的工作面来审计——每种源模式生成的项目能否构建、
+测试，并且仅凭目录就能理解？——并修掉审计发现的问题。
+
+工作包：
+
+1. **每一条有文档的生成路径都产出可编译的项目。** 逐模式构建生成结果时发现两种
+   组合会写出没有包能提供的导入：Go IDL 配 `-protocols http,grpc`（传输层注册
+   `pb.Register<Service>Server`、SDK 调用 `pb.New<Service>Client`，而 `.go` IDL
+   不产生这两个符号），以及在没有 `gorm` tag message 的契约上使用
+   `-model`/`-db`（runtime 导入的 `model` 与 `repository` 始终为空）。两者现在
+   都在 CLI 处被拒绝并点名可用的输入或参数；extend refresh 保持宽容路径，因为
+   契约确实可能去掉最后一个模型。
+2. **目录就是地图。** 生成的 README 现在按实际特性列出每个目录及归属；agent
+   guide 的端点列表不再把两条挤成一条；测试模板对 proto 源使用与其他模板一致的
+   `pb` 导入。
+3. **有可直接使用的 gRPC 契约。** `examples/usersvc/userservice.proto` 是 Go IDL
+   示例的 protobuf 孪生，gRPC 相关 make 目标从它生成。
+
+刻意推迟，记录在案以免被当成疏漏：
+
+- Go IDL 的 JSON-over-gRPC 仍未实现，也不再暗示可用。它需要为每个服务生成
+  `grpc.ServiceDesc`、把服务端与客户端的 codec 选择接进生成的 runtime、替换 Go
+  SDK 里的 protobuf stub 客户端，并回答"不会 JSON codec 的非 Go 客户端怎么办"。
+  在它存在之前，gRPC 只走 protobuf——这也是 gRPC 服务唯一可互操作的定义。
+- 审计覆盖生成项目及其文档命令，没有覆盖 agent 端到端修改生成项目
+  （extend append-service、编译、运行）；那条环有测试，但没有记录的走查。
+
+验收：
+
+```bash
+go test ./cmd/microgen/... -count=1
+go -C ./tools test . -run 'TestMicrogen(IDLContractIntegration|ProtoIntegration|FromDBIntegration)' -count=1
+```
+
+并手工构建每种源模式一个项目：Go IDL 的 HTTP、proto 经 `protoc` 的 HTTP+gRPC、
+SQLite 的 from-db。
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

@@ -34,20 +34,21 @@ var generatedProjectLayout = reviewedList{
 // the snapshot rather than failing it, and the next `make update-snapshots`
 // blesses the smaller set.
 //
-// One list, generated with every path-affecting flag on, is the upper bound of
-// the layout. Turning a feature off removes paths from it, which is subtraction
-// this list already describes; the combination below is the one the
-// documentation shows.
+// Two runs, every path-affecting flag on, are the upper bound of the layout:
+// gRPC is a protobuf contract and model output needs a gorm-tagged Go IDL, so no
+// single source mode can carry both. Turning a feature off removes paths from
+// the union, which is subtraction this list already describes.
 func TestGeneratedLayout(t *testing.T) {
 	root := goKitRoot(t)
-	outDir := generatedProjectDir(t, "gen_layout")
 
-	idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-	cmd := microgenCommand(t,
-		"-idl", idlFile,
-		"-out", outDir,
+	// The HTTP project carries the database and interaction output.
+	httpDir := generatedProjectDir(t, "gen_layout_http")
+	httpIDL := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
+	httpCmd := microgenCommand(t,
+		"-idl", httpIDL,
+		"-out", httpDir,
 		"-import", "example.com/gen_layout",
-		"-protocols", "http,grpc",
+		"-protocols", "http",
 		"-openapi",
 		"-config",
 		"-model",
@@ -55,11 +56,28 @@ func TestGeneratedLayout(t *testing.T) {
 		"-tests",
 		"-interaction",
 	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("microgen failed: %v\n%s", err, out)
+	if out, err := httpCmd.CombinedOutput(); err != nil {
+		t.Fatalf("microgen HTTP run failed: %v\n%s", err, out)
 	}
 
-	generated := generatedFilePaths(t, outDir)
+	// The gRPC project carries the protobuf artifacts.
+	grpcDir := generatedProjectDir(t, "gen_layout_grpc")
+	grpcIDL := filepath.Join(root, "tools", "testdata", "service.proto")
+	grpcCmd := microgenCommand(t,
+		"-idl", grpcIDL,
+		"-out", grpcDir,
+		"-import", "example.com/gen_layout_grpc",
+		"-protocols", "http,grpc",
+		"-openapi",
+		"-config",
+		"-tests",
+		"-interaction",
+	)
+	if out, err := grpcCmd.CombinedOutput(); err != nil {
+		t.Fatalf("microgen gRPC run failed: %v\n%s", err, out)
+	}
+
+	generated := unionPaths(generatedFilePaths(t, httpDir), generatedFilePaths(t, grpcDir))
 	if len(generated) < 20 {
 		// A generator that silently stopped writing would otherwise leave this
 		// test comparing two short lists and passing.
@@ -67,6 +85,23 @@ func TestGeneratedLayout(t *testing.T) {
 			len(generated), strings.Join(generated, "\n"))
 	}
 	generatedProjectLayout.assert(t, generated, *updateGeneratedLayout)
+}
+
+// unionPaths merges path lists and returns them sorted with duplicates removed.
+func unionPaths(lists ...[]string) []string {
+	seen := make(map[string]struct{})
+	var union []string
+	for _, list := range lists {
+		for _, path := range list {
+			if _, ok := seen[path]; ok {
+				continue
+			}
+			seen[path] = struct{}{}
+			union = append(union, path)
+		}
+	}
+	sort.Strings(union)
+	return union
 }
 
 // generatedFilePaths lists every file below root as a slash-separated relative

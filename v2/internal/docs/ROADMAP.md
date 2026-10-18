@@ -2848,6 +2848,52 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## Milestone 29 (Complete): A Generated Project Can Be Read, And It Builds
+
+Scope: audit the generated project as an agent's working surface — can a project
+generated from each source mode be built, tested, and understood from its
+directory alone? — and close what the audit found.
+
+Work packages:
+
+1. **Every documented generation path produces a compiling project.** Building
+   the output of each source mode found two combinations that wrote imports no
+   package could satisfy: `-protocols http,grpc` from a Go IDL (the transport
+   registered `pb.Register<Service>Server` and the SDK called
+   `pb.New<Service>Client`, neither of which a `.go` IDL produces), and
+   `-model`/`-db` on a contract with no `gorm`-tagged message (the runtime
+   imported `model` and `repository`, which stayed empty). Both are refused at
+   the CLI with the input or flag that works; extend refresh keeps its tolerant
+   path because a contract may legitimately drop its last model.
+2. **The directory is the map.** The generated README now names every directory
+   and its owner, gated on the features generated; the agent guide's endpoint
+   list no longer merges two bullets; the test template imports the `pb`
+   package for proto sources like the other templates already did.
+3. **A gRPC contract to start from.** `examples/usersvc/userservice.proto` is the
+   protobuf twin of the Go IDL example, and the gRPC make targets build from it.
+
+Deliberately deferred, recorded so it is not mistaken for an oversight:
+
+- JSON-over-gRPC for Go IDL remains unimplemented rather than implied. It would
+  need a generated `grpc.ServiceDesc` per service, a server and client codec
+  choice wired into the generated runtime, a replacement for the protobuf stub
+  client in the Go SDK, and a decision about non-Go clients that cannot speak
+  the JSON codec. Until that exists, gRPC is protobuf-only, which is also the
+  only interoperable definition of a gRPC service.
+- The audit covered generated projects and their documented commands. It did not
+  cover an agent editing a generated project end-to-end (extend append-service,
+  compile, run); that loop has tests but no recorded walkthrough.
+
+Acceptance:
+
+```bash
+go test ./cmd/microgen/... -count=1
+go -C ./tools test . -run 'TestMicrogen(IDLContractIntegration|ProtoIntegration|FromDBIntegration)' -count=1
+```
+
+and a manual build of one project per source mode: HTTP from Go IDL, HTTP+gRPC
+from proto after `protoc`, and from-db from SQLite.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

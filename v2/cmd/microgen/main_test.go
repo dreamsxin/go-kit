@@ -67,12 +67,45 @@ func TestConfigValidate(t *testing.T) {
 		{config{fromDB: false, idlPath: "test.go", withConfig: true, configMode: "file", remoteProvider: "consul"}, false},
 		{config{fromDB: false, idlPath: "test.go", withConfig: false, configMode: "hybrid"}, false},
 		{config{fromDB: false, idlPath: "test.go", dbDriver: "oracle"}, false},
+		// gRPC is a protobuf contract. A Go IDL or a database schema has Go
+		// structs, so the generated transport and SDK could not compile; the
+		// combination is refused at the entry point instead of written out.
+		{config{fromDB: false, idlPath: "test.go", withGRPC: true}, false},
+		{config{fromDB: true, dbDSN: "user:pass@tcp(localhost:3306)/shop", withGRPC: true}, false},
+		{config{fromDB: false, idlPath: "test.proto", withGRPC: true}, true},
+		{config{fromDB: false, idlPath: "TEST.PROTO", withGRPC: true}, true},
 	}
 	for i, c := range cases {
 		err := c.cfg.validate()
 		if (err == nil) != c.pass {
 			t.Errorf("case %d: validate() error = %v, want pass = %v", i, err, c.pass)
 		}
+	}
+}
+
+func TestConfigValidate_GRPCRequiresProtoIDL(t *testing.T) {
+	cases := []struct {
+		name string
+		cfg  config
+	}{
+		{name: "go idl", cfg: config{idlPath: "service.go", withGRPC: true}},
+		{name: "database", cfg: config{fromDB: true, dbDSN: "user:pass@tcp(localhost:3306)/shop", withGRPC: true}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.cfg.validate()
+			if err == nil || !strings.Contains(err.Error(), "gRPC output requires") {
+				t.Fatalf("validate() error = %v, want gRPC-requires-proto guidance", err)
+			}
+			if !strings.Contains(err.Error(), ".proto") {
+				t.Fatalf("validate() error = %v, want it to name .proto as the input", err)
+			}
+		})
+	}
+
+	proto := config{idlPath: "service.proto", withGRPC: true}
+	if err := proto.validate(); err != nil {
+		t.Fatalf("validate() with a .proto IDL = %v, want nil", err)
 	}
 }
 

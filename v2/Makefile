@@ -11,6 +11,9 @@
 
 # Default variables, overridable from the command line.
 IDL         ?= ./examples/usersvc/idl.go
+# gRPC needs protobuf wire types, so the gRPC targets start from the proto twin
+# of the same UserService contract.
+PROTO_IDL   ?= ./examples/usersvc/userservice.proto
 OUT         ?= ./generated
 IMPORT      ?= github.com/example/myapp
 DB_DRIVER   ?= sqlite
@@ -172,32 +175,29 @@ gen-http: install-microgen
 		-import $(IMPORT) \
 		-protocols http
 
-## gen-grpc: generate HTTP + gRPC service with model/repository/OpenAPI
+## gen-grpc: generate HTTP + gRPC service with config/OpenAPI
+##
+## The contract is protobuf, so there is no database model to derive: model and
+## repository output needs gorm-tagged structs from a Go IDL or -from-db.
 gen-grpc: install-microgen
-	@echo ">>> Generating HTTP+gRPC service from $(IDL) -> $(OUT)"
+	@echo ">>> Generating HTTP+gRPC service from $(PROTO_IDL) -> $(OUT)"
 	@$(MICROGEN) \
-		-idl    $(IDL) \
+		-idl    $(PROTO_IDL) \
 		-out    $(OUT) \
 		-import $(IMPORT) \
 		-protocols http,grpc \
 		-config \
-		-model \
-		-db \
-		-driver $(DB_DRIVER) \
 		-openapi
 
-## gen-full: generate HTTP + gRPC + model + OpenAPI + tests
+## gen-full: generate HTTP + gRPC + config + OpenAPI + tests
 gen-full: install-microgen
-	@echo ">>> Generating full service from $(IDL) -> $(OUT)"
+	@echo ">>> Generating full service from $(PROTO_IDL) -> $(OUT)"
 	@$(MICROGEN) \
-		-idl      $(IDL) \
+		-idl      $(PROTO_IDL) \
 		-out      $(OUT) \
 		-import   $(IMPORT) \
 		-protocols http,grpc \
 		-config   \
-		-model \
-		-db \
-		-driver $(DB_DRIVER) \
 		-openapi \
 		-tests
 

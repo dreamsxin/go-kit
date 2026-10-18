@@ -1,4 +1,4 @@
-﻿# microgen 用户指南
+# microgen 用户指南
 
 [English](MICROGEN.md) | 简体中文
 
@@ -34,8 +34,8 @@ go install github.com/dreamsxin/go-kit/v2/cmd/microgen@latest
 
 | 来源 | 命令形式 | 结果 |
 | --- | --- | --- |
-| Go 接口和结构体 | `microgen -idl idl.go ...` | HTTP、可选 gRPC、客户端、SDK、契约文件 |
-| Protobuf | `microgen -idl service.proto ...` | 生成 proto 传输和客户端 |
+| Go 接口和结构体 | `microgen -idl idl.go ...` | HTTP 传输、客户端、SDK、契约文件 |
+| Protobuf | `microgen -idl service.proto ...` | HTTP 与 gRPC 传输、客户端、SDK、契约文件 |
 | 已有数据库 | `microgen -from-db -driver ... -dsn ...` | 模型、仓库和服务骨架 |
 
 OpenAPI 输出默认开启——每个生成项目都会应答机器可读契约、Swagger UI 与
@@ -77,6 +77,15 @@ microgen -idl idl.go -out ./service -import example.com/service
 方法映射到统一 IR；HTTP、客户端、SDK、OpenAPI 3.1、JSON Schema 2020-12
 以及可选 MCP 工具都由这份 IR 驱动。
 
+Go IDL 是 HTTP 源模式。gRPC 是 protobuf 契约——它的消息、服务注册与客户端
+stub 都由 `protoc` 生成——因此对 `.go` IDL 指定 `-protocols http,grpc` 会被
+拒绝，而不是写出一份无法编译的项目（Go struct 不是 protobuf message）。需要
+gRPC 时使用 [Protobuf](#protobuf) 源。
+
+模型与仓库输出（`-model`、`-db`）需要一个模型类型：带 `gorm` tag 的 Go IDL
+结构体，或 `-from-db`。契约里没有这样的类型同样会被拒绝：生成的 runtime 会
+导入空包。
+
 ### Protobuf
 
 ```bash
@@ -86,6 +95,9 @@ microgen \
   -import example.com/service \
   -protocols http,grpc
 ```
+
+Protobuf 是 gRPC 源模式：同一份契约产出 HTTP 传输、gRPC 传输、两个 SDK 与
+契约文件。
 
 先审查 `pb/` 下的生成文件，再用生成 README 中写明的 `protoc` 命令生成
 Go stub。支持的一元与流式 gRPC 形态同样来自解析后的契约。
@@ -119,14 +131,14 @@ microgen \
 | `-out` | 输出目录 |
 | `-import` | 生成的 Go module 路径 |
 | `-service` | 生成的服务名；默认取契约中的第一个服务 |
-| `-protocols` | `http` 或 `http,grpc` |
+| `-protocols` | `http` 或 `http,grpc`；`grpc` 需要 `.proto` IDL |
 | `-prefix` | 两种表面的路由前缀：HTTP 路径，与 proto 包名的开头段（gRPC 完整方法路径） |
 | `-config` | 生成配置支持，默认 `false` |
 | `-config-mode` | `file`、`hybrid` 或 `remote` |
 | `-remote-provider` | 远程配置提供方；当前支持 `consul` |
-| `-db` | 生成数据库运行时接线，默认 `false` |
+| `-db` | 生成数据库运行时接线，默认 `false`；需要模型输出 |
 | `-driver` | `-from-db` 与 `-db` 的数据库驱动，默认 `mysql` |
-| `-model` | 生成 model/repository 输出，默认 `false` |
+| `-model` | 生成 model/repository 输出，默认 `false`；需要带 `gorm` tag 的类型或 `-from-db` |
 | `-docs` | 生成项目文档，默认 `true` |
 | `-tests` | 生成项目测试 |
 | `-interaction` | 生成交互运行时与 `/mcp` 端点 |
