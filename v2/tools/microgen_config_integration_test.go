@@ -335,21 +335,50 @@ func main() {
 	// into the wrong target, or read from a struct the loader no longer merges,
 	// would satisfy the documentation gate and still do nothing in production.
 	t.Run("IDL_Config_EveryDocumentedEnvironmentKeyIsApplied", func(t *testing.T) {
-		outDir := generatedProjectDir(t, "gen_idl_env_config")
-
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-		if out, err := microgenCommand(t,
-			"-idl", idlFile,
-			"-out", outDir,
-			"-import", "example.com/gen_idl_env_config",
-			"-protocols", "http,grpc",
-			"-config",
-			"-config-mode", "hybrid",
-			"-remote-provider", "consul",
-			"-db",
-			"-docs=false",
-		).CombinedOutput(); err != nil {
-			t.Fatalf("microgen env-config fixture failed: %v\n%s", err, out)
+		protoFile := filepath.Join(root, "tools", "testdata", "service.proto")
+
+		// gRPC needs a protobuf contract and the database surface needs a
+		// gorm-tagged Go IDL, so no single generated project carries both any
+		// more. Every documented key is still proved to reach its field, across
+		// two projects whose printed values are merged.
+		type configProject struct {
+			outDir     string
+			importPath string
+			args       []string
+		}
+		projects := []configProject{
+			{
+				outDir:     generatedProjectDir(t, "gen_idl_env_config"),
+				importPath: "example.com/gen_idl_env_config",
+				args: []string{
+					"-idl", idlFile,
+					"-protocols", "http",
+					"-config",
+					"-config-mode", "hybrid",
+					"-remote-provider", "consul",
+					"-db",
+					"-docs=false",
+					"-openapi=false",
+				},
+			},
+			{
+				outDir:     generatedProjectDir(t, "gen_proto_env_config"),
+				importPath: "example.com/gen_proto_env_config",
+				args: []string{
+					"-idl", protoFile,
+					"-protocols", "http,grpc",
+					"-config",
+					"-docs=false",
+					"-openapi=false",
+				},
+			},
+		}
+		for _, project := range projects {
+			args := append([]string{"-out", project.outDir, "-import", project.importPath}, project.args...)
+			if out, err := microgenCommand(t, args...).CombinedOutput(); err != nil {
+				t.Fatalf("microgen env-config fixture failed: %v\n%s", err, out)
+			}
 		}
 
 		// Every value differs from the generated default, which the baseline run
@@ -387,9 +416,10 @@ func main() {
 			{"APP_REMOTE_FALLBACK_TO_LOCAL", "false"},
 		}
 
-		fields := map[string]string{
+		// The database and serving keys are declared by the Go IDL project; the
+		// gRPC key only exists in the protobuf project.
+		idldbFields := map[string]string{
 			"APP_HTTP_ADDR":                 "Server.HTTPAddr",
-			"APP_GRPC_ADDR":                 "Server.GRPCAddr",
 			"APP_READ_TIMEOUT":              "Server.ReadTimeout",
 			"APP_READ_HEADER_TIMEOUT":       "Server.ReadHeaderTimeout",
 			"APP_WRITE_TIMEOUT":             "Server.WriteTimeout",
@@ -418,6 +448,14 @@ func main() {
 			"APP_REMOTE_TIMEOUT":            "Remote.Timeout",
 			"APP_REMOTE_FALLBACK_TO_LOCAL":  "Remote.FallbackToLocal",
 		}
+		protoFields := map[string]string{"APP_GRPC_ADDR": "Server.GRPCAddr"}
+		fields := make(map[string]string, len(idldbFields)+len(protoFields))
+		for key, field := range idldbFields {
+			fields[key] = field
+		}
+		for key, field := range protoFields {
+			fields[key] = field
+		}
 
 		covered := make([]string, 0, len(overrides))
 		for _, override := range overrides {
@@ -433,7 +471,7 @@ func main() {
 		if uncovered, unknown := listDifference(documentedEnvironmentKeys(string(docs)), covered); len(uncovered) > 0 || len(unknown) > 0 {
 			if len(uncovered) > 0 {
 				t.Errorf("this case does not set: %s\n\nA documented key nothing sets is a key that "+
-					"may never have reached its field.", strings.Join(uncovered, " "))
+					"may have never reached its field.", strings.Join(uncovered, " "))
 			}
 			if len(unknown) > 0 {
 				t.Errorf("this case sets keys the documentation does not list: %s", strings.Join(unknown, " "))
@@ -441,21 +479,32 @@ func main() {
 			t.FailNow()
 		}
 
-		probeDir, err := os.MkdirTemp(outDir, ".envconfigprobe-")
-		if err != nil {
-			t.Fatal(err)
+		clean := make([]string, 0, len(os.Environ()))
+		for _, entry := range os.Environ() {
+			if !strings.HasPrefix(entry, "APP_") {
+				clean = append(clean, entry)
+			}
 		}
-		defer os.RemoveAll(probeDir)
-		var prints strings.Builder
-		for _, key := range covered {
-			fmt.Fprintf(&prints, "\tfmt.Printf(\"%s=%%v\\n\", cfg.%s)\n", key, fields[key])
+		withOverrides := make([]string, 0, len(overrides))
+		for _, override := range overrides {
+			withOverrides = append(withOverrides, override[0]+"="+override[1])
 		}
-		probeSource := `package main
+
+		probe := func(project configProject, printFields map[string]string, env []string) map[string]string {
+			probeDir, err := os.MkdirTemp(project.outDir, ".envconfigprobe-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var prints strings.Builder
+			for key, field := range printFields {
+				fmt.Fprintf(&prints, "\tfmt.Printf(\"%s=%%v\\n\", cfg.%s)\n", key, field)
+			}
+			probeSource := `package main
 
 import (
 	"fmt"
 
-	"example.com/gen_idl_env_config/config"
+	"` + project.importPath + `/config"
 )
 
 func main() {
@@ -465,21 +514,18 @@ func main() {
 	}
 ` + prints.String() + `}
 `
-		if err := os.WriteFile(filepath.Join(probeDir, "main.go"), []byte(probeSource), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		probeRel, err := filepath.Rel(outDir, probeDir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		probePkg := "./" + filepath.ToSlash(probeRel)
-
-		runProbe := func(env []string) map[string]string {
-			probe := exec.Command("go", "run", "-mod=mod", probePkg)
-			probe.Dir = outDir
-			probe.Env = env
+			if err := os.WriteFile(filepath.Join(probeDir, "main.go"), []byte(probeSource), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			probeRel, err := filepath.Rel(project.outDir, probeDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			run := exec.Command("go", "run", "-mod=mod", "./"+filepath.ToSlash(probeRel))
+			run.Dir = project.outDir
+			run.Env = env
 			values := map[string]string{}
-			for _, line := range strings.Split(runCommand(t, probe), "\n") {
+			for _, line := range strings.Split(runCommand(t, run), "\n") {
 				if key, value, ok := strings.Cut(strings.TrimSpace(line), "="); ok {
 					values[key] = value
 				}
@@ -487,20 +533,22 @@ func main() {
 			return values
 		}
 
-		clean := make([]string, 0, len(os.Environ()))
-		for _, entry := range os.Environ() {
-			if !strings.HasPrefix(entry, "APP_") {
-				clean = append(clean, entry)
+		mergedProbe := func(env []string) map[string]string {
+			values := map[string]string{}
+			for i, project := range projects {
+				printFields := idldbFields
+				if i > 0 {
+					printFields = protoFields
+				}
+				for key, value := range probe(project, printFields, env) {
+					values[key] = value
+				}
 			}
+			return values
 		}
-		defaults := runProbe(clean)
-		applied := runProbe(append(append([]string{}, clean...), func() []string {
-			set := make([]string, 0, len(overrides))
-			for _, override := range overrides {
-				set = append(set, override[0]+"="+override[1])
-			}
-			return set
-		}()...))
+
+		defaults := mergedProbe(clean)
+		applied := mergedProbe(append(append([]string{}, clean...), withOverrides...))
 
 		for _, override := range overrides {
 			key, want := override[0], override[1]
@@ -515,40 +563,56 @@ func main() {
 	})
 
 	// The subtest above runs one flag against validation. This one covers the rest
-	// of them by shape, because only a project generated with every optional
-	// surface declares them all: -auto-migrate used to be written back after
-	// cfg.Validate(), so a value that flag introduced was never validated.
+	// of them by shape. No single source mode declares every flag any more — the
+	// database flag comes from a Go IDL project and the gRPC flag from a protobuf
+	// one — so both generated mains are checked, and each must write its own
+	// flags back before cfg.Validate(): -auto-migrate used to be written back
+	// after it, so a value that flag introduced was never validated.
 	t.Run("IDL_Config_GeneratedMainValidatesAfterEveryFlagWriteBack", func(t *testing.T) {
-		outDir := generatedProjectDir(t, "gen_idl_flag_order")
-
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
-		if out, err := microgenCommand(t,
-			"-idl", idlFile,
-			"-out", outDir,
-			"-import", "example.com/gen_idl_flag_order",
-			"-protocols", "http,grpc",
-			"-config",
-			"-db",
-			"-docs=false",
-		).CombinedOutput(); err != nil {
-			t.Fatalf("microgen flag-order fixture failed: %v\n%s", err, out)
+		protoFile := filepath.Join(root, "tools", "testdata", "service.proto")
+		checks := []struct {
+			name          string
+			outDir        string
+			importPath    string
+			args          []string
+			minWriteBacks int
+		}{
+			{
+				name:          "go idl with database",
+				outDir:        generatedProjectDir(t, "gen_idl_flag_order"),
+				importPath:    "example.com/gen_idl_flag_order",
+				args:          []string{"-idl", idlFile, "-protocols", "http", "-config", "-db", "-docs=false", "-openapi=false"},
+				minWriteBacks: 3, // -http.addr, -db.dsn, -auto-migrate
+			},
+			{
+				name:          "protobuf with grpc",
+				outDir:        generatedProjectDir(t, "gen_proto_flag_order"),
+				importPath:    "example.com/gen_proto_flag_order",
+				args:          []string{"-idl", protoFile, "-protocols", "http,grpc", "-config", "-docs=false", "-openapi=false"},
+				minWriteBacks: 2, // -http.addr, -grpc.addr
+			},
 		}
+		for _, check := range checks {
+			args := append([]string{"-out", check.outDir, "-import", check.importPath}, check.args...)
+			if out, err := microgenCommand(t, args...).CombinedOutput(); err != nil {
+				t.Fatalf("%s fixture failed: %v\n%s", check.name, err, out)
+			}
 
-		main := readFile(t, filepath.Join(outDir, "cmd", "main.go"))
-		validate := strings.Index(main, "cfg.Validate()")
-		if validate < 0 {
-			t.Fatal("the generated main does not call cfg.Validate(), so the documented final stage is missing")
-		}
-		writeBacks := flagWriteBackPattern.FindAllStringIndex(main, -1)
-		if len(writeBacks) < 4 {
-			// -http.addr, -grpc.addr, -db.dsn and -auto-migrate all write back in
-			// this fixture; fewer means the parse no longer sees them.
-			t.Fatalf("found only %d flag write-backs in the generated main, so its shape changed", len(writeBacks))
-		}
-		for _, at := range writeBacks {
-			if at[0] > validate {
-				t.Errorf("%q runs after cfg.Validate(), so the value that flag introduces is never validated",
-					strings.TrimSpace(main[at[0]:at[1]]))
+			main := readFile(t, filepath.Join(check.outDir, "cmd", "main.go"))
+			validate := strings.Index(main, "cfg.Validate()")
+			if validate < 0 {
+				t.Fatalf("%s: the generated main does not call cfg.Validate(), so the documented final stage is missing", check.name)
+			}
+			writeBacks := flagWriteBackPattern.FindAllStringIndex(main, -1)
+			if len(writeBacks) < check.minWriteBacks {
+				t.Fatalf("%s: found only %d flag write-backs, want at least %d", check.name, len(writeBacks), check.minWriteBacks)
+			}
+			for _, at := range writeBacks {
+				if at[0] > validate {
+					t.Errorf("%s: %q runs after cfg.Validate(), so the value that flag introduces is never validated",
+						check.name, strings.TrimSpace(main[at[0]:at[1]]))
+				}
 			}
 		}
 	})
