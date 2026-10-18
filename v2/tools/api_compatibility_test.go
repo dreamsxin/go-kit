@@ -149,6 +149,18 @@ var deliberateBreaks = []string{
 	"transport/http/server: removed: func NewTypedJSONServerWithBodyLimit",
 	"transport/http/server: removed: func NewTypedJSONServerWithMiddleware",
 	"transport/http/server: removed: func NewTypedJSONServer",
+	// Resilience moved out of endpoint into endpoint/resilience
+	// (CHANGELOG [Unreleased]). The types, their constructors and the
+	// Builder shorthands are the whole removed surface; the rejection
+	// sentinels, RetryAfterError and the Clock stay in endpoint because
+	// transports read them as contracts.
+	"endpoint: removed: const ",
+	"endpoint: removed: func Builder.With",
+	"endpoint: removed: func CircuitBreaker.",
+	"endpoint: removed: func KeyedRateLimiterFuncs.",
+	"endpoint: removed: func RateLimiterFuncs.",
+	"endpoint: removed: func ",
+	"endpoint: removed: type ",
 }
 
 // TestAPICompatibilityClassifier proves the classifier reports what it claims,

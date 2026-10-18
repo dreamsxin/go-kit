@@ -33,6 +33,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/endpoint/resilience"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -71,14 +72,14 @@ func main() {
 
 	// NewJSONEndpoint wires business logic + middleware + HTTP: the endpoint
 	// carries its chain, the JSON server only owns the wire.
-	breaker := endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(3))
+	breaker := resilience.NewCircuitBreaker(resilience.WithBreakerFailureThreshold(3))
 	limiter := newFixedRateLimiter(100)
 	ep := endpoint.NewBuilder(endpoint.TypedEndpoint[HelloRequest, HelloResponse](hello).Wrap()).
 		WithMetrics(&metrics).
 		WithErrorHandling("hello").
 		WithTimeout(5 * time.Second).
 		Use(breaker.Middleware()).
-		Use(endpoint.RateLimitMiddleware(limiter)).
+		Use(resilience.RateLimitMiddleware(limiter)).
 		Build()
 	handler := httpserver.NewJSONEndpoint[HelloRequest](
 		ep,

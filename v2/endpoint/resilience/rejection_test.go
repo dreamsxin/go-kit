@@ -1,4 +1,4 @@
-package endpoint_test
+package resilience_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/endpoint/resilience"
 )
 
 // The endpoint package does not import apperror, so its errors implement the
@@ -68,12 +69,12 @@ func TestNewRetryAfterErrorSkipsUselessWrapping(t *testing.T) {
 }
 
 func TestOpenBreakerReportsRetryAfter(t *testing.T) {
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(1),
-		endpoint.WithBreakerOpenTimeout(time.Minute),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(1),
+		resilience.WithBreakerOpenTimeout(time.Minute),
 	)
 	failing := func(context.Context, any) (any, error) { return nil, errors.New("boom") }
-	ep := endpoint.NewBuilder(failing).WithCircuitBreaker(breaker).Build()
+	ep := endpoint.NewBuilder(failing).Use(breaker.Middleware()).Build()
 
 	if _, err := ep(context.Background(), nil); err == nil {
 		t.Fatal("first call should fail and trip the breaker")
@@ -100,7 +101,7 @@ func (retryAfterLimiter) Wait(context.Context) error  { return nil }
 func (l retryAfterLimiter) RetryAfter() time.Duration { return l.after }
 
 func TestRateLimitMiddlewareForwardsLimiterRetryAfter(t *testing.T) {
-	ep := endpoint.RateLimitMiddleware(retryAfterLimiter{after: 2 * time.Second})(
+	ep := resilience.RateLimitMiddleware(retryAfterLimiter{after: 2 * time.Second})(
 		func(context.Context, any) (any, error) { return "ok", nil },
 	)
 
@@ -118,8 +119,8 @@ func TestRateLimitMiddlewareForwardsLimiterRetryAfter(t *testing.T) {
 }
 
 func TestRateLimitMiddlewareWithoutRetryAfterStaysBare(t *testing.T) {
-	limiter := endpoint.RateLimiterFuncs{AllowFn: func() bool { return false }}
-	ep := endpoint.RateLimitMiddleware(limiter)(
+	limiter := resilience.RateLimiterFuncs{AllowFn: func() bool { return false }}
+	ep := resilience.RateLimitMiddleware(limiter)(
 		func(context.Context, any) (any, error) { return "ok", nil },
 	)
 

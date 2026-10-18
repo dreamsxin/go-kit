@@ -1,6 +1,8 @@
-package endpoint
+package resilience
 
 import (
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+
 	"context"
 	"errors"
 	"math/rand/v2"
@@ -27,7 +29,7 @@ type RetryOption func(*retrySettings)
 type retrySettings struct {
 	backoff   func(attempt int) time.Duration
 	retryable func(error) bool
-	clock     Clock
+	clock     endpoint.Clock
 }
 
 // WithRetryClock replaces the clock the backoff wait is measured against. A nil
@@ -35,11 +37,14 @@ type retrySettings struct {
 // sleeping through it:
 //
 //	clock := endpoint.NewManualClock(time.Unix(0, 0))
-//	ep := endpoint.NewBuilder(call).WithRetry(3, endpoint.WithRetryClock(clock)).Build()
+//	ep := endpoint.NewBuilder(call).Use(RetryMiddleware(3, WithRetryClock(clock))).Build()
 //
-// Stable: endpoint.retry-clock — the wait between attempts comes from the configured clock, so a test advances it instead of sleeping.
+// Stable: resilience.retry-clock — the wait between attempts comes from the configured clock, so a test advances it instead of sleeping.
 // Covered by: TestRetryMiddlewareWaitsOnTheConfiguredClock
-func WithRetryClock(clock Clock) RetryOption {
+//
+// Stable: resilience.clock-nil-is-wall-clock — a nil Clock means the wall clock, so a service that ignores this seam behaves exactly as before.
+// Covered by: TestNilClockIsTheWallClock
+func WithRetryClock(clock endpoint.Clock) RetryOption {
 	return func(s *retrySettings) {
 		if clock != nil {
 			s.clock = clock
@@ -72,8 +77,8 @@ func WithRetryable(retryable func(error) bool) RetryOption {
 //
 //  1. context cancellation and deadlines are never retried, because the caller
 //     already gave up
-//  2. local admission-control rejections (ErrCircuitOpen, ErrBulkheadFull,
-//     ErrBackpressure, ErrRateLimited) are never retried, because an immediate
+//  2. local admission-control rejections (endpoint.ErrCircuitOpen, endpoint.ErrBulkheadFull,
+//     endpoint.ErrBackpressure, endpoint.ErrRateLimited) are never retried, because an immediate
 //     repeat would be rejected again and only add load
 //  3. an error that implements the optional contract interface{ Retryable() bool }
 //     decides for itself; transport client errors such as
@@ -95,8 +100,8 @@ func DefaultRetryable(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
-	if errors.Is(err, ErrCircuitOpen) || errors.Is(err, ErrBulkheadFull) ||
-		errors.Is(err, ErrBackpressure) || errors.Is(err, ErrRateLimited) {
+	if errors.Is(err, endpoint.ErrCircuitOpen) || errors.Is(err, endpoint.ErrBulkheadFull) ||
+		errors.Is(err, endpoint.ErrBackpressure) || errors.Is(err, endpoint.ErrRateLimited) {
 		return false
 	}
 	var classified interface{ Retryable() bool }
@@ -147,17 +152,17 @@ func defaultRetryBackoff(attempt int) time.Duration {
 // The default classifier is DefaultRetryable and the default schedule is
 // exponential backoff with full jitter. Use WithRetryable and
 // WithRetryBackoff to replace either one. When the error reports a retry hint
-// through RetryAfterReporter, that hint wins over the schedule, capped by
+// through endpoint.RetryAfterReporter, that hint wins over the schedule, capped by
 // MaxRetryAfterHint.
 //
 // Place it inside a circuit breaker so repeated failures still trip the
 // breaker once, not once per attempt:
 //
 //	ep := endpoint.NewBuilder(callDependency).
-//	    WithCircuitBreaker(breaker).
-//	    WithRetry(3).
+//	    Use(NewCircuitBreaker().Middleware()).
+//	    Use(RetryMiddleware(3)).
 //	    Build()
-func RetryMiddleware(maxAttempts int, options ...RetryOption) Middleware {
+func RetryMiddleware(maxAttempts int, options ...RetryOption) endpoint.Middleware {
 	settings := retrySettings{
 		backoff:   defaultRetryBackoff,
 		retryable: DefaultRetryable,
@@ -171,10 +176,10 @@ func RetryMiddleware(maxAttempts int, options ...RetryOption) Middleware {
 		maxAttempts = 1
 	}
 	if settings.clock == nil {
-		settings.clock = SystemClock()
+		settings.clock = endpoint.SystemClock()
 	}
 
-	return func(next Endpoint) Endpoint {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			var (
 				response any
@@ -198,7 +203,7 @@ func RetryMiddleware(maxAttempts int, options ...RetryOption) Middleware {
 // RetryAfterError) over the local schedule, so the peer that knows when it will
 // be ready decides the wait. Hints are capped by MaxRetryAfterHint.
 func retryDelay(err error, backoff func(attempt int) time.Duration, attempt int) time.Duration {
-	var reporter RetryAfterReporter
+	var reporter endpoint.RetryAfterReporter
 	if errors.As(err, &reporter) {
 		if after := reporter.RetryAfter(); after > 0 {
 			if after > MaxRetryAfterHint {
@@ -212,7 +217,7 @@ func retryDelay(err error, backoff func(attempt int) time.Duration, attempt int)
 
 // waitBeforeRetry waits for delay on clock unless the context finishes first, in
 // which case it reports the context error so the caller stops retrying.
-func waitBeforeRetry(ctx context.Context, clock Clock, delay time.Duration) error {
+func waitBeforeRetry(ctx context.Context, clock endpoint.Clock, delay time.Duration) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -227,9 +232,4 @@ func waitBeforeRetry(ctx context.Context, clock Clock, delay time.Duration) erro
 	case <-timer.C():
 		return nil
 	}
-}
-
-// WithRetry appends a RetryMiddleware to the Builder.
-func (b *Builder) WithRetry(maxAttempts int, options ...RetryOption) *Builder {
-	return b.UseNamed("retry", RetryMiddleware(maxAttempts, options...))
 }

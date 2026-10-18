@@ -1,4 +1,4 @@
-# 自定义
+﻿# 自定义
 
 [English](customization.md) | 简体中文
 
@@ -178,7 +178,7 @@ svc, err := kit.NewHTTP(":8080",
 
 | 与内置映射组合 | `server.HTTPStatusForError` / `HTTPStatusForErrorKind` | 自定义编码器 |
 | 在测试里决定现在几点 | `endpoint.Clock` 配 `endpoint.NewManualClock`；nil 表示真实时间 | 装配处／测试 |
-| 不睡觉地测一套重试节奏 | `endpoint.WithRetryClock` | endpoint builder |
+| 不睡觉地测一套重试节奏 | `resilience.WithRetryClock` | endpoint builder |
 | 在测试里让 CSRF token 过期 | `httpsecurity.CSRFConfig.Clock`（结构化，任何带 `Now` 的值） | 装配处／测试 |
 
 

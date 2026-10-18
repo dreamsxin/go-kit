@@ -35,6 +35,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/endpoint/resilience"
 	"github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -112,9 +113,9 @@ func main() {
 	defer logger.Sync() //nolint:errcheck
 
 	// ── Middleware components ─────────────────────────────────────────────────
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(3),
-		endpoint.WithBreakerOpenTimeout(5*time.Second),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(3),
+		resilience.WithBreakerOpenTimeout(5*time.Second),
 	)
 	limiter := newFixedRateLimiter(100) // 100 requests per second, burst of 100
 
@@ -126,7 +127,7 @@ func main() {
 		Use(logIntent(logger)).
 		Use(endpoint.TimeoutMiddleware(5 * time.Second)).
 		Use(breaker.Middleware()).
-		Use(endpoint.RateLimitMiddleware(limiter)).
+		Use(resilience.RateLimitMiddleware(limiter)).
 		Build()
 
 	// ── HTTP handlers ─────────────────────────────────────────────────────────

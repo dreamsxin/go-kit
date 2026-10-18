@@ -1,4 +1,4 @@
-# Examples
+﻿# Examples
 English | [简体中文](README_zh.md)
 
 A guided tour of the go-kit framework, from simplest to most complete.
@@ -81,8 +81,8 @@ ep := endpoint.NewBuilder(base).
     WithMetrics(&metrics).
     WithErrorHandling("hello").
     Use(endpoint.TimeoutMiddleware(5 * time.Second)).
-    Use(endpoint.NewCircuitBreaker().Middleware()).
-    Use(endpoint.RateLimitMiddleware(limiter)).
+    Use(resilience.NewCircuitBreaker().Middleware()).
+    Use(resilience.RateLimitMiddleware(limiter)).
     Build()
 ```
 

@@ -1,4 +1,4 @@
-package endpoint_test
+package resilience_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/endpoint/resilience"
 )
 
 // keyedBuckets is a per-key allowance for the tests: each key gets its own
@@ -44,7 +45,7 @@ func keyFromRequest(_ context.Context, request any) string {
 
 func TestKeyedRateLimitMiddlewareLimitsEachKeySeparately(t *testing.T) {
 	buckets := &keyedBuckets{remaining: map[string]int{"tenant-a": 1, "tenant-b": 1}}
-	ep := endpoint.KeyedRateLimitMiddleware(buckets, keyFromRequest)(endpoint.Nop)
+	ep := resilience.KeyedRateLimitMiddleware(buckets, keyFromRequest)(endpoint.Nop)
 
 	if _, err := ep(context.Background(), "tenant-a"); err != nil {
 		t.Fatalf("first call for tenant-a: %v", err)
@@ -60,7 +61,7 @@ func TestKeyedRateLimitMiddlewareLimitsEachKeySeparately(t *testing.T) {
 
 func TestKeyedRateLimitMiddlewareLimitsAnUnidentifiedCaller(t *testing.T) {
 	buckets := &keyedBuckets{remaining: map[string]int{"": 1}}
-	ep := endpoint.KeyedRateLimitMiddleware(buckets, func(context.Context, any) string { return "" })(endpoint.Nop)
+	ep := resilience.KeyedRateLimitMiddleware(buckets, func(context.Context, any) string { return "" })(endpoint.Nop)
 
 	if _, err := ep(context.Background(), nil); err != nil {
 		t.Fatalf("first unidentified call: %v", err)
@@ -77,7 +78,7 @@ func TestKeyedRateLimitMiddlewarePrefersThePerKeyRetryHint(t *testing.T) {
 		after:     map[string]time.Duration{"tenant-a": 3 * time.Second},
 		fallback:  30 * time.Second,
 	}
-	ep := endpoint.KeyedRateLimitMiddleware(buckets, keyFromRequest)(endpoint.Nop)
+	ep := resilience.KeyedRateLimitMiddleware(buckets, keyFromRequest)(endpoint.Nop)
 
 	_, err := ep(context.Background(), "tenant-a")
 	var reporter endpoint.RetryAfterReporter
@@ -91,7 +92,7 @@ func TestKeyedRateLimitMiddlewarePrefersThePerKeyRetryHint(t *testing.T) {
 
 func TestKeyedRateLimitMiddlewareFallsBackToTheUnkeyedHint(t *testing.T) {
 	buckets := &keyedBuckets{remaining: map[string]int{}, fallback: 30 * time.Second}
-	ep := endpoint.KeyedRateLimitMiddleware(buckets, keyFromRequest)(endpoint.Nop)
+	ep := resilience.KeyedRateLimitMiddleware(buckets, keyFromRequest)(endpoint.Nop)
 
 	_, err := ep(context.Background(), "tenant-a")
 	var reporter endpoint.RetryAfterReporter
@@ -105,7 +106,7 @@ func TestKeyedRateLimitMiddlewareFallsBackToTheUnkeyedHint(t *testing.T) {
 
 func TestDelayKeyedRateLimitMiddlewareWaitsUnderTheRequestKey(t *testing.T) {
 	buckets := &keyedBuckets{remaining: map[string]int{}}
-	ep := endpoint.DelayKeyedRateLimitMiddleware(buckets, keyFromRequest)(endpoint.Nop)
+	ep := resilience.DelayKeyedRateLimitMiddleware(buckets, keyFromRequest)(endpoint.Nop)
 
 	if _, err := ep(context.Background(), "tenant-a"); err != nil {
 		t.Fatalf("call: %v", err)
@@ -116,10 +117,10 @@ func TestDelayKeyedRateLimitMiddlewareWaitsUnderTheRequestKey(t *testing.T) {
 }
 
 func TestDelayKeyedRateLimitMiddlewareReturnsTheWaitError(t *testing.T) {
-	limiter := endpoint.KeyedRateLimiterFuncs{
+	limiter := resilience.KeyedRateLimiterFuncs{
 		WaitKeyFn: func(ctx context.Context, _ string) error { return context.Canceled },
 	}
-	ep := endpoint.DelayKeyedRateLimitMiddleware(limiter, keyFromRequest)(endpoint.Nop)
+	ep := resilience.DelayKeyedRateLimitMiddleware(limiter, keyFromRequest)(endpoint.Nop)
 
 	if _, err := ep(context.Background(), "tenant-a"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
@@ -127,7 +128,7 @@ func TestDelayKeyedRateLimitMiddlewareReturnsTheWaitError(t *testing.T) {
 }
 
 func TestKeyedRateLimiterFuncsWithNilFieldsAllows(t *testing.T) {
-	var limiter endpoint.KeyedRateLimiterFuncs
+	var limiter resilience.KeyedRateLimiterFuncs
 	if !limiter.AllowKey(context.Background(), "k") {
 		t.Fatal("AllowKey with a nil field should allow")
 	}
@@ -138,13 +139,13 @@ func TestKeyedRateLimiterFuncsWithNilFieldsAllows(t *testing.T) {
 
 func TestKeyedRateLimitMiddlewarePanicsOnMisassembly(t *testing.T) {
 	cases := map[string]func(){
-		"nil limiter": func() { endpoint.KeyedRateLimitMiddleware(nil, keyFromRequest) },
-		"nil key":     func() { endpoint.KeyedRateLimitMiddleware(endpoint.KeyedRateLimiterFuncs{}, nil) },
+		"nil limiter": func() { resilience.KeyedRateLimitMiddleware(nil, keyFromRequest) },
+		"nil key":     func() { resilience.KeyedRateLimitMiddleware(resilience.KeyedRateLimiterFuncs{}, nil) },
 		"nil limiter delayed": func() {
-			endpoint.DelayKeyedRateLimitMiddleware(nil, keyFromRequest)
+			resilience.DelayKeyedRateLimitMiddleware(nil, keyFromRequest)
 		},
 		"nil key delayed": func() {
-			endpoint.DelayKeyedRateLimitMiddleware(endpoint.KeyedRateLimiterFuncs{}, nil)
+			resilience.DelayKeyedRateLimitMiddleware(resilience.KeyedRateLimiterFuncs{}, nil)
 		},
 	}
 	for name, build := range cases {
@@ -159,10 +160,10 @@ func TestKeyedRateLimitMiddlewarePanicsOnMisassembly(t *testing.T) {
 	}
 }
 
-func TestBuilderInstallsTheKeyedRateLimit(t *testing.T) {
+func TestKeyedRateLimitMiddlewareInstalls(t *testing.T) {
 	buckets := &keyedBuckets{remaining: map[string]int{"tenant-a": 1}}
 	ep := endpoint.NewBuilder(endpoint.Nop).
-		WithKeyedRateLimit(buckets, keyFromRequest).
+		Use(resilience.KeyedRateLimitMiddleware(buckets, keyFromRequest)).
 		Build()
 
 	if _, err := ep(context.Background(), "tenant-a"); err != nil {

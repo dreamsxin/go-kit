@@ -22,14 +22,10 @@ stable/consul.meta-merge
 stable/consul.registrar-errors
 stable/consul.service-meta-is-instance-metadata
 stable/consul.tags-and-filter
-stable/endpoint.clock-nil-is-wall-clock
-stable/endpoint.keyed-rate-limit
-stable/endpoint.keyed-rate-limit-shares-one-bucket
 stable/endpoint.manual-clock-advance-fires-due-timers
 stable/endpoint.manual-clock-stop-releases-wait
 stable/endpoint.metrics-clock
 stable/endpoint.operation-intent
-stable/endpoint.retry-clock
 stable/endpoint.trace-id-derives-from-context
 stable/endpointer.cache-carries-metadata
 stable/endpointer.cache-close
@@ -183,6 +179,10 @@ stable/microgen.route-override
 stable/openapi.security-scheme
 stable/otel.metrics-agree-with-the-exposition
 stable/otel.traceparent-bridged
+stable/resilience.clock-nil-is-wall-clock
+stable/resilience.keyed-rate-limit
+stable/resilience.keyed-rate-limit-shares-one-bucket
+stable/resilience.retry-clock
 stable/sd.client-invalid-balancer-releases-resources
 stable/sd.client-retry-timing-is-configurable
 stable/sd.feedback-ejection-cap-holds-under-concurrency

@@ -1,4 +1,4 @@
-# 中间件
+﻿# 中间件
 
 [English](middleware.md) | 简体中文
 
@@ -113,7 +113,7 @@ ep := endpoint.NewBuilder(createUser).
 进程级限流。同时实现了 `KeyedRetryAfterReporter` 的 `KeyedRateLimiter` 能给出按 key 的
 `Retry-After`；当所有 key 的补充速率相同时，不带 key 的 `RetryAfterReporter` 依然有效。
 
-`CircuitBreaker` 本身不是 `Middleware`：用 `endpoint.NewCircuitBreaker()` 构造一次，
+`CircuitBreaker` 本身不是 `Middleware`：用 `resilience.NewCircuitBreaker()` 构造一次，
 装上 `breaker.Middleware()`，并保留 `*CircuitBreaker` 以便调用 `State()`。
 
 默认按连续失败触发，这只能抓住彻底挂掉的依赖。常见情况是依赖只有一部分请求失败，
@@ -121,10 +121,10 @@ ep := endpoint.NewBuilder(createUser).
 `WithBreakerSlowCallThreshold`：
 
 ```go
-breaker := endpoint.NewCircuitBreaker(
-    endpoint.WithBreakerMaxErrorRate(0.5),              // 窗口内失败超过一半
-    endpoint.WithBreakerMinSamples(20),                 // ……且窗口里已有 20 次调用
-    endpoint.WithBreakerSlowCallThreshold(2*time.Second),
+breaker := resilience.NewCircuitBreaker(
+    resilience.WithBreakerMaxErrorRate(0.5),              // 窗口内失败超过一半
+    resilience.WithBreakerMinSamples(20),                 // ……且窗口里已有 20 次调用
+    resilience.WithBreakerSlowCallThreshold(2*time.Second),
 )
 ```
 

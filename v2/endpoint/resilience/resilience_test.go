@@ -1,4 +1,4 @@
-package endpoint_test
+package resilience_test
 
 import (
 	"context"
@@ -9,12 +9,13 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/endpoint/resilience"
 )
 
 func TestCircuitBreaker_OpensAfterThresholdAndRejects(t *testing.T) {
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(2),
-		endpoint.WithBreakerOpenTimeout(time.Hour),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(2),
+		resilience.WithBreakerOpenTimeout(time.Hour),
 	)
 	down := func(context.Context, any) (any, error) { return nil, errors.New("down") }
 	ep := breaker.Middleware()(down)
@@ -24,7 +25,7 @@ func TestCircuitBreaker_OpensAfterThresholdAndRejects(t *testing.T) {
 			t.Fatalf("call %d should fail", i)
 		}
 	}
-	if got := breaker.State(); got != endpoint.BreakerOpen {
+	if got := breaker.State(); got != resilience.BreakerOpen {
 		t.Fatalf("state: got %v, want open", got)
 	}
 
@@ -35,9 +36,9 @@ func TestCircuitBreaker_OpensAfterThresholdAndRejects(t *testing.T) {
 }
 
 func TestCircuitBreaker_ProbeHalfOpenAndClose(t *testing.T) {
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(1),
-		endpoint.WithBreakerOpenTimeout(10*time.Millisecond),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(1),
+		resilience.WithBreakerOpenTimeout(10*time.Millisecond),
 	)
 	callCount := 0
 	ep := breaker.Middleware()(func(context.Context, any) (any, error) {
@@ -49,7 +50,7 @@ func TestCircuitBreaker_ProbeHalfOpenAndClose(t *testing.T) {
 	})
 
 	_, _ = ep(context.Background(), nil)
-	if breaker.State() != endpoint.BreakerOpen {
+	if breaker.State() != resilience.BreakerOpen {
 		t.Fatal("breaker should open after one failure")
 	}
 
@@ -64,16 +65,16 @@ func TestCircuitBreaker_ProbeHalfOpenAndClose(t *testing.T) {
 	if _, err := ep(context.Background(), nil); err != nil {
 		t.Fatalf("probe should pass and succeed: %v", err)
 	}
-	if breaker.State() != endpoint.BreakerClosed {
+	if breaker.State() != resilience.BreakerClosed {
 		t.Fatalf("state: got %v, want closed", breaker.State())
 	}
 }
 
 func TestCircuitBreaker_HonorsSuccessThreshold(t *testing.T) {
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(1),
-		endpoint.WithBreakerSuccessThreshold(3),
-		endpoint.WithBreakerOpenTimeout(10*time.Millisecond),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(1),
+		resilience.WithBreakerSuccessThreshold(3),
+		resilience.WithBreakerOpenTimeout(10*time.Millisecond),
 	)
 	fail := true
 	ep := breaker.Middleware()(func(context.Context, any) (any, error) {
@@ -84,7 +85,7 @@ func TestCircuitBreaker_HonorsSuccessThreshold(t *testing.T) {
 	})
 
 	_, _ = ep(context.Background(), nil)
-	if breaker.State() != endpoint.BreakerOpen {
+	if breaker.State() != resilience.BreakerOpen {
 		t.Fatal("breaker should open after one failure")
 	}
 	fail = false
@@ -95,7 +96,7 @@ func TestCircuitBreaker_HonorsSuccessThreshold(t *testing.T) {
 		if _, err := ep(context.Background(), nil); err != nil {
 			t.Fatalf("probe %d should pass: %v", probe, err)
 		}
-		if got := breaker.State(); got != endpoint.BreakerHalfOpen {
+		if got := breaker.State(); got != resilience.BreakerHalfOpen {
 			t.Fatalf("after %d of 3 successes: got %v, want half-open", probe, got)
 		}
 	}
@@ -103,13 +104,13 @@ func TestCircuitBreaker_HonorsSuccessThreshold(t *testing.T) {
 	if _, err := ep(context.Background(), nil); err != nil {
 		t.Fatalf("third probe should pass: %v", err)
 	}
-	if got := breaker.State(); got != endpoint.BreakerClosed {
+	if got := breaker.State(); got != resilience.BreakerClosed {
 		t.Fatalf("after 3 successes: got %v, want closed", got)
 	}
 }
 
 func TestCircuitBreaker_DoesNotCountCallerCancellation(t *testing.T) {
-	breaker := endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(1))
+	breaker := resilience.NewCircuitBreaker(resilience.WithBreakerFailureThreshold(1))
 	base := func(ctx context.Context, _ any) (any, error) { return nil, ctx.Err() }
 	ep := breaker.Middleware()(base)
 
@@ -118,7 +119,7 @@ func TestCircuitBreaker_DoesNotCountCallerCancellation(t *testing.T) {
 	if _, err := ep(ctx, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v, want context.Canceled", err)
 	}
-	if got := breaker.State(); got != endpoint.BreakerClosed {
+	if got := breaker.State(); got != resilience.BreakerClosed {
 		t.Fatalf("state after caller cancellation: got %v, want closed", got)
 	}
 }
@@ -127,12 +128,12 @@ func TestCircuitBreaker_DoesNotCountCallerCancellation(t *testing.T) {
 // other call never produces a run long enough to trip it, so without a rate
 // check the breaker would leave it in service forever.
 func TestCircuitBreaker_TripsOnFailureRateWithoutAConsecutiveRun(t *testing.T) {
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(5), // unreachable: runs are 1 long
-		endpoint.WithBreakerMaxErrorRate(0.4),
-		endpoint.WithBreakerWindowSize(10),
-		endpoint.WithBreakerMinSamples(4),
-		endpoint.WithBreakerOpenTimeout(time.Hour),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(5), // unreachable: runs are 1 long
+		resilience.WithBreakerMaxErrorRate(0.4),
+		resilience.WithBreakerWindowSize(10),
+		resilience.WithBreakerMinSamples(4),
+		resilience.WithBreakerOpenTimeout(time.Hour),
 	)
 	call := 0
 	ep := breaker.Middleware()(func(context.Context, any) (any, error) {
@@ -147,7 +148,7 @@ func TestCircuitBreaker_TripsOnFailureRateWithoutAConsecutiveRun(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		_, _ = ep(context.Background(), nil)
 	}
-	if got := breaker.State(); got != endpoint.BreakerClosed {
+	if got := breaker.State(); got != resilience.BreakerClosed {
 		t.Fatalf("state with 3 samples: got %v, want closed until MinSamples is met", got)
 	}
 
@@ -155,7 +156,7 @@ func TestCircuitBreaker_TripsOnFailureRateWithoutAConsecutiveRun(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		_, _ = ep(context.Background(), nil)
 	}
-	if got := breaker.State(); got != endpoint.BreakerOpen {
+	if got := breaker.State(); got != resilience.BreakerOpen {
 		t.Fatalf("state with 3 failures in 5: got %v, want open", got)
 	}
 	if _, err := ep(context.Background(), nil); !errors.Is(err, endpoint.ErrCircuitOpen) {
@@ -165,11 +166,11 @@ func TestCircuitBreaker_TripsOnFailureRateWithoutAConsecutiveRun(t *testing.T) {
 
 // MinSamples exists so a quiet endpoint cannot be opened by its first bad call.
 func TestCircuitBreaker_MinSamplesGatesTheRateCheck(t *testing.T) {
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(100),
-		endpoint.WithBreakerMaxErrorRate(0.1),
-		endpoint.WithBreakerWindowSize(50),
-		endpoint.WithBreakerMinSamples(10),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(100),
+		resilience.WithBreakerMaxErrorRate(0.1),
+		resilience.WithBreakerWindowSize(50),
+		resilience.WithBreakerMinSamples(10),
 	)
 	ep := breaker.Middleware()(func(context.Context, any) (any, error) {
 		return nil, errors.New("down")
@@ -178,7 +179,7 @@ func TestCircuitBreaker_MinSamplesGatesTheRateCheck(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		_, _ = ep(context.Background(), nil)
 	}
-	if got := breaker.State(); got != endpoint.BreakerClosed {
+	if got := breaker.State(); got != resilience.BreakerClosed {
 		t.Fatalf("state after 3 of 10 required samples: got %v, want closed", got)
 	}
 }
@@ -186,10 +187,10 @@ func TestCircuitBreaker_MinSamplesGatesTheRateCheck(t *testing.T) {
 // A dependency answering slowly is not healthy: it holds the caller's
 // goroutines and spends its budget, so a slow success counts as a failure.
 func TestCircuitBreaker_CountsSlowSuccessesAsFailures(t *testing.T) {
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(2),
-		endpoint.WithBreakerSlowCallThreshold(5*time.Millisecond),
-		endpoint.WithBreakerOpenTimeout(time.Hour),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(2),
+		resilience.WithBreakerSlowCallThreshold(5*time.Millisecond),
+		resilience.WithBreakerOpenTimeout(time.Hour),
 	)
 	ep := breaker.Middleware()(func(context.Context, any) (any, error) {
 		time.Sleep(20 * time.Millisecond)
@@ -201,7 +202,7 @@ func TestCircuitBreaker_CountsSlowSuccessesAsFailures(t *testing.T) {
 			t.Fatalf("slow call %d should still succeed: %v", i, err)
 		}
 	}
-	if got := breaker.State(); got != endpoint.BreakerOpen {
+	if got := breaker.State(); got != resilience.BreakerOpen {
 		t.Fatalf("state after two slow successes: got %v, want open", got)
 	}
 }
@@ -210,10 +211,10 @@ func TestCircuitBreaker_CountsSlowSuccessesAsFailures(t *testing.T) {
 // observed regardless of who owned the budget: the dependency did not answer
 // inside the threshold, and that is worth recording.
 func TestCircuitBreaker_SlowCallCountsEvenWhenTheErrorIsExcluded(t *testing.T) {
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(1),
-		endpoint.WithBreakerSlowCallThreshold(5*time.Millisecond),
-		endpoint.WithBreakerOpenTimeout(time.Hour),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(1),
+		resilience.WithBreakerSlowCallThreshold(5*time.Millisecond),
+		resilience.WithBreakerOpenTimeout(time.Hour),
 	)
 	ep := breaker.Middleware()(func(ctx context.Context, _ any) (any, error) {
 		time.Sleep(20 * time.Millisecond)
@@ -225,7 +226,7 @@ func TestCircuitBreaker_SlowCallCountsEvenWhenTheErrorIsExcluded(t *testing.T) {
 	if _, err := ep(ctx, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v, want context.Canceled", err)
 	}
-	if got := breaker.State(); got != endpoint.BreakerOpen {
+	if got := breaker.State(); got != resilience.BreakerOpen {
 		t.Fatalf("state after a slow cancelled call: got %v, want open", got)
 	}
 }
@@ -234,12 +235,12 @@ func TestCircuitBreaker_SlowCallCountsEvenWhenTheErrorIsExcluded(t *testing.T) {
 // has since stopped talking to. Keeping them would re-trip the circuit on the
 // first failure after recovery, however healthy the dependency had become.
 func TestCircuitBreaker_ForgetsTheWindowAfterRecovery(t *testing.T) {
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(100),
-		endpoint.WithBreakerMaxErrorRate(0.4),
-		endpoint.WithBreakerWindowSize(10),
-		endpoint.WithBreakerMinSamples(4),
-		endpoint.WithBreakerOpenTimeout(10*time.Millisecond),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(100),
+		resilience.WithBreakerMaxErrorRate(0.4),
+		resilience.WithBreakerWindowSize(10),
+		resilience.WithBreakerMinSamples(4),
+		resilience.WithBreakerOpenTimeout(10*time.Millisecond),
 	)
 	fail := true
 	call := 0
@@ -254,7 +255,7 @@ func TestCircuitBreaker_ForgetsTheWindowAfterRecovery(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		_, _ = ep(context.Background(), nil)
 	}
-	if got := breaker.State(); got != endpoint.BreakerOpen {
+	if got := breaker.State(); got != resilience.BreakerOpen {
 		t.Fatalf("state after the rate was exceeded: got %v, want open", got)
 	}
 
@@ -263,14 +264,14 @@ func TestCircuitBreaker_ForgetsTheWindowAfterRecovery(t *testing.T) {
 	if _, err := ep(context.Background(), nil); err != nil {
 		t.Fatalf("probe should pass: %v", err)
 	}
-	if got := breaker.State(); got != endpoint.BreakerClosed {
+	if got := breaker.State(); got != resilience.BreakerClosed {
 		t.Fatalf("state after a successful probe: got %v, want closed", got)
 	}
 
 	// One failure against an empty window is one sample, not a rate.
 	fail, call = true, 1
 	_, _ = ep(context.Background(), nil)
-	if got := breaker.State(); got != endpoint.BreakerClosed {
+	if got := breaker.State(); got != resilience.BreakerClosed {
 		t.Fatalf("state after one failure post-recovery: got %v, want closed", got)
 	}
 }
@@ -278,12 +279,12 @@ func TestCircuitBreaker_ForgetsTheWindowAfterRecovery(t *testing.T) {
 // A rate can never exceed 1, so a threshold of 1 would arm a check that never
 // fires. It means "every call in the window failed" instead.
 func TestCircuitBreaker_MaxErrorRateOfOneMeansEveryCall(t *testing.T) {
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(100),
-		endpoint.WithBreakerMaxErrorRate(1),
-		endpoint.WithBreakerWindowSize(4),
-		endpoint.WithBreakerMinSamples(4),
-		endpoint.WithBreakerOpenTimeout(time.Hour),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(100),
+		resilience.WithBreakerMaxErrorRate(1),
+		resilience.WithBreakerWindowSize(4),
+		resilience.WithBreakerMinSamples(4),
+		resilience.WithBreakerOpenTimeout(time.Hour),
 	)
 	ep := breaker.Middleware()(func(context.Context, any) (any, error) {
 		return nil, errors.New("down")
@@ -292,7 +293,7 @@ func TestCircuitBreaker_MaxErrorRateOfOneMeansEveryCall(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		_, _ = ep(context.Background(), nil)
 	}
-	if got := breaker.State(); got != endpoint.BreakerOpen {
+	if got := breaker.State(); got != resilience.BreakerOpen {
 		t.Fatalf("state after a fully failing window: got %v, want open", got)
 	}
 }
@@ -335,10 +336,10 @@ func TestRecoveryMiddlewareProtectsAgainstPanickingPanicHandler(t *testing.T) {
 }
 
 func TestCircuitBreaker_ProbeFailureReopensAndResetsSuccesses(t *testing.T) {
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(1),
-		endpoint.WithBreakerSuccessThreshold(2),
-		endpoint.WithBreakerOpenTimeout(10*time.Millisecond),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(1),
+		resilience.WithBreakerSuccessThreshold(2),
+		resilience.WithBreakerOpenTimeout(10*time.Millisecond),
 	)
 	fail := true
 	ep := breaker.Middleware()(func(context.Context, any) (any, error) {
@@ -361,7 +362,7 @@ func TestCircuitBreaker_ProbeFailureReopensAndResetsSuccesses(t *testing.T) {
 	if _, err := ep(context.Background(), nil); err == nil {
 		t.Fatal("second probe should fail")
 	}
-	if got := breaker.State(); got != endpoint.BreakerOpen {
+	if got := breaker.State(); got != resilience.BreakerOpen {
 		t.Fatalf("state: got %v, want open", got)
 	}
 
@@ -370,39 +371,39 @@ func TestCircuitBreaker_ProbeFailureReopensAndResetsSuccesses(t *testing.T) {
 	if _, err := ep(context.Background(), nil); err != nil {
 		t.Fatalf("probe after reopen should pass: %v", err)
 	}
-	if got := breaker.State(); got != endpoint.BreakerHalfOpen {
+	if got := breaker.State(); got != resilience.BreakerHalfOpen {
 		t.Fatalf("success count must restart from zero, got %v", got)
 	}
 }
 
 func TestNewCircuitBreaker_NonPositiveSettingsUseDefaults(t *testing.T) {
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(0),
-		endpoint.WithBreakerSuccessThreshold(-1),
-		endpoint.WithBreakerOpenTimeout(0),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(0),
+		resilience.WithBreakerSuccessThreshold(-1),
+		resilience.WithBreakerOpenTimeout(0),
 	)
 	down := func(context.Context, any) (any, error) { return nil, errors.New("down") }
 	ep := breaker.Middleware()(down)
 
 	// The default threshold is 5, so four failures must not trip the breaker.
-	for i := 0; i < endpoint.DefaultBreakerFailureThreshold-1; i++ {
+	for i := 0; i < resilience.DefaultBreakerFailureThreshold-1; i++ {
 		_, _ = ep(context.Background(), nil)
 	}
-	if got := breaker.State(); got != endpoint.BreakerClosed {
-		t.Fatalf("state after %d failures: got %v, want closed", endpoint.DefaultBreakerFailureThreshold-1, got)
+	if got := breaker.State(); got != resilience.BreakerClosed {
+		t.Fatalf("state after %d failures: got %v, want closed", resilience.DefaultBreakerFailureThreshold-1, got)
 	}
 	_, _ = ep(context.Background(), nil)
-	if got := breaker.State(); got != endpoint.BreakerOpen {
-		t.Fatalf("state after %d failures: got %v, want open", endpoint.DefaultBreakerFailureThreshold, got)
+	if got := breaker.State(); got != resilience.BreakerOpen {
+		t.Fatalf("state after %d failures: got %v, want open", resilience.DefaultBreakerFailureThreshold, got)
 	}
 }
 
 func TestRateLimitMiddleware_RejectsOverLimit(t *testing.T) {
 	calls := 0
-	limiter := endpoint.RateLimiterFuncs{
+	limiter := resilience.RateLimiterFuncs{
 		AllowFn: func() bool { return calls == 0 },
 	}
-	ep := endpoint.RateLimitMiddleware(limiter)(
+	ep := resilience.RateLimitMiddleware(limiter)(
 		func(context.Context, any) (any, error) { calls++; return "ok", nil },
 	)
 
@@ -418,7 +419,7 @@ func TestRateLimitMiddleware_RejectsOverLimit(t *testing.T) {
 }
 
 func TestDelayRateLimitMiddleware_WaitsAndAbortsOnCancel(t *testing.T) {
-	limiter := endpoint.RateLimiterFuncs{
+	limiter := resilience.RateLimiterFuncs{
 		WaitFn: func(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
@@ -428,7 +429,7 @@ func TestDelayRateLimitMiddleware_WaitsAndAbortsOnCancel(t *testing.T) {
 			}
 		},
 	}
-	ep := endpoint.DelayRateLimitMiddleware(limiter)(
+	ep := resilience.DelayRateLimitMiddleware(limiter)(
 		func(context.Context, any) (any, error) { return "ok", nil },
 	)
 
@@ -466,7 +467,7 @@ func TestBulkheadMiddleware_ReportsTheCallerContextThatEndedTheWait(t *testing.T
 		<-release
 		return "ok", nil
 	}
-	ep := endpoint.NewBuilder(base).WithBulkhead(1, nil).Build()
+	ep := endpoint.NewBuilder(base).Use(resilience.BulkheadMiddleware(1, nil)).Build()
 
 	go func() { _, _ = ep(context.Background(), "first") }()
 	<-occupied
@@ -501,7 +502,7 @@ func TestBulkheadMiddleware_ClassifiesCancellationAsCanceled(t *testing.T) {
 		<-release
 		return "ok", nil
 	}
-	ep := endpoint.NewBuilder(base).WithBulkhead(1, nil).Build()
+	ep := endpoint.NewBuilder(base).Use(resilience.BulkheadMiddleware(1, nil)).Build()
 
 	go func() { _, _ = ep(context.Background(), "first") }()
 	<-occupied
@@ -523,7 +524,7 @@ func TestBulkheadMiddleware_ClassifiesCancellationAsCanceled(t *testing.T) {
 func TestFallback_AnswersWhenPrimaryFails(t *testing.T) {
 	primary := func(context.Context, any) (any, error) { return nil, errors.New("dependency down") }
 	ep := endpoint.NewBuilder(primary).
-		WithFallback(func(context.Context, any) (any, error) { return "cached", nil }).
+		Use(resilience.Fallback(func(context.Context, any) (any, error) { return "cached", nil })).
 		Build()
 
 	resp, err := ep(context.Background(), nil)
@@ -540,10 +541,10 @@ func TestFallback_SkippedWhenContextIsDone(t *testing.T) {
 	fallbackCalls := 0
 	ep := endpoint.NewBuilder(
 		func(context.Context, any) (any, error) { return nil, primaryErr },
-	).WithFallback(func(context.Context, any) (any, error) {
+	).Use(resilience.Fallback(func(context.Context, any) (any, error) {
 		fallbackCalls++
 		return "cached", nil
-	}).Build()
+	})).Build()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -562,9 +563,9 @@ func TestFallback_JoinsBothErrorsWhenFallbackFails(t *testing.T) {
 	fallbackErr := errors.New("cache miss")
 	ep := endpoint.NewBuilder(
 		func(context.Context, any) (any, error) { return nil, primaryErr },
-	).WithFallback(func(context.Context, any) (any, error) {
+	).Use(resilience.Fallback(func(context.Context, any) (any, error) {
 		return nil, fallbackErr
-	}).Build()
+	})).Build()
 
 	_, err := ep(context.Background(), nil)
 	if !errors.Is(err, primaryErr) {
@@ -578,10 +579,10 @@ func TestFallback_JoinsBothErrorsWhenFallbackFails(t *testing.T) {
 func TestMiddlewareConstructorsRejectNilDependencies(t *testing.T) {
 	cases := map[string]func(){
 		"metrics":          func() { endpoint.MetricsMiddleware(nil) },
-		"rate limit":       func() { endpoint.RateLimitMiddleware(nil) },
-		"delay rate limit": func() { endpoint.DelayRateLimitMiddleware(nil) },
-		"fallback":         func() { endpoint.Fallback(nil) },
-		"in-flight":        func() { endpoint.InFlightMiddleware(1, nil) },
+		"rate limit":       func() { resilience.RateLimitMiddleware(nil) },
+		"delay rate limit": func() { resilience.DelayRateLimitMiddleware(nil) },
+		"fallback":         func() { resilience.Fallback(nil) },
+		"in-flight":        func() { resilience.InFlightMiddleware(1, nil) },
 	}
 	for name, construct := range cases {
 		t.Run(name, func(t *testing.T) {

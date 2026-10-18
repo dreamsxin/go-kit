@@ -1,6 +1,8 @@
-package endpoint
+package resilience
 
 import (
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+
 	"context"
 	"time"
 )
@@ -14,8 +16,8 @@ import (
 // KeyedRateLimiter when the limit belongs to a caller rather than to the
 // service.
 //
-// A RateLimiter may also implement RetryAfterReporter. RateLimitMiddleware
-// then attaches the reported delay to ErrRateLimited so transports can emit a
+// A RateLimiter may also implement endpoint.RetryAfterReporter. RateLimitMiddleware
+// then attaches the reported delay to endpoint.ErrRateLimited so transports can emit a
 // Retry-After hint.
 type RateLimiter interface {
 	// Allow reports whether a request may proceed immediately.
@@ -47,7 +49,7 @@ func (f RateLimiterFuncs) Wait(ctx context.Context) error {
 	return f.WaitFn(ctx)
 }
 
-// RateLimitMiddleware rejects requests over the limit with ErrRateLimited.
+// RateLimitMiddleware rejects requests over the limit with endpoint.ErrRateLimited.
 // Use DelayRateLimitMiddleware when over-limit requests should wait for a
 // token instead of failing.
 //
@@ -57,15 +59,15 @@ func (f RateLimiterFuncs) Wait(ctx context.Context) error {
 // Example:
 //
 //	limiter := ratelimit.New(20) // application-owned bucket
-//	ep = endpoint.NewBuilder(createUser).Use(endpoint.RateLimitMiddleware(limiter)).Build()
-func RateLimitMiddleware(limit RateLimiter) Middleware {
+//	ep = endpoint.NewBuilder(createUser).Use(RateLimitMiddleware(limiter)).Build()
+func RateLimitMiddleware(limit RateLimiter) endpoint.Middleware {
 	if limit == nil {
 		panic("endpoint: rate limiter cannot be nil")
 	}
-	return func(next Endpoint) Endpoint {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			if !limit.Allow() {
-				return nil, withReportedRetryAfter(ErrRateLimited, limit)
+				return nil, withReportedRetryAfter(endpoint.ErrRateLimited, limit)
 			}
 			return next(ctx, request)
 		}
@@ -75,11 +77,11 @@ func RateLimitMiddleware(limit RateLimiter) Middleware {
 // DelayRateLimitMiddleware throttles requests over the limit by waiting for
 // the limiter; context cancellation aborts the wait. It panics when limit is
 // nil.
-func DelayRateLimitMiddleware(limit RateLimiter) Middleware {
+func DelayRateLimitMiddleware(limit RateLimiter) endpoint.Middleware {
 	if limit == nil {
 		panic("endpoint: rate limiter cannot be nil")
 	}
-	return func(next Endpoint) Endpoint {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			if err := limit.Wait(ctx); err != nil {
 				return nil, err
@@ -87,16 +89,6 @@ func DelayRateLimitMiddleware(limit RateLimiter) Middleware {
 			return next(ctx, request)
 		}
 	}
-}
-
-// WithRateLimit appends a RateLimitMiddleware to the Builder.
-func (b *Builder) WithRateLimit(limit RateLimiter) *Builder {
-	return b.UseNamed("rate_limit", RateLimitMiddleware(limit))
-}
-
-// WithDelayRateLimit appends a DelayRateLimitMiddleware to the Builder.
-func (b *Builder) WithDelayRateLimit(limit RateLimiter) *Builder {
-	return b.UseNamed("delay_rate_limit", DelayRateLimitMiddleware(limit))
 }
 
 // KeyedRateLimiter admits or delays requests per key, so one caller cannot
@@ -109,7 +101,7 @@ func (b *Builder) WithDelayRateLimit(limit RateLimiter) *Builder {
 // must not be able to claim otherwise by ignoring an argument.
 //
 // A KeyedRateLimiter may also implement KeyedRetryAfterReporter, or the unkeyed
-// RetryAfterReporter when every key shares a refill rate.
+// endpoint.RetryAfterReporter when every key shares a refill rate.
 type KeyedRateLimiter interface {
 	// AllowKey reports whether a request under key may proceed immediately.
 	AllowKey(ctx context.Context, key string) bool
@@ -120,7 +112,7 @@ type KeyedRateLimiter interface {
 
 // KeyedRetryAfterReporter is the optional contract a KeyedRateLimiter
 // implements to report how long the caller behind one key should wait. The
-// keyed middleware prefers it over the unkeyed RetryAfterReporter.
+// keyed middleware prefers it over the unkeyed endpoint.RetryAfterReporter.
 type KeyedRetryAfterReporter interface {
 	// RetryAfterForKey reports the wait for key. A non-positive value means
 	// the delay is unknown and no hint is emitted.
@@ -162,7 +154,7 @@ func (f KeyedRateLimiterFuncs) WaitKey(ctx context.Context, key string) error {
 }
 
 // KeyedRateLimitMiddleware rejects requests over the limit for their own key
-// with ErrRateLimited. Use DelayKeyedRateLimitMiddleware when over-limit
+// with endpoint.ErrRateLimited. Use DelayKeyedRateLimitMiddleware when over-limit
 // requests should wait for a token instead of failing.
 //
 // It panics when limit or key is nil, so misassembly fails at startup rather
@@ -177,23 +169,23 @@ func (f KeyedRateLimiterFuncs) WaitKey(ctx context.Context, key string) error {
 //	    }).
 //	    Build()
 //
-// Stable: endpoint.keyed-rate-limit — a keyed limiter is consulted per request key, so one caller's excess cannot reject another's request.
+// Stable: resilience.keyed-rate-limit — a keyed limiter is consulted per request key, so one caller's excess cannot reject another's request.
 // Covered by: TestKeyedRateLimitMiddlewareLimitsEachKeySeparately
 //
-// Stable: endpoint.keyed-rate-limit-shares-one-bucket — a request whose key is empty is limited under the empty key, never exempted.
+// Stable: resilience.keyed-rate-limit-shares-one-bucket — a request whose key is empty is limited under the empty key, never exempted.
 // Covered by: TestKeyedRateLimitMiddlewareLimitsAnUnidentifiedCaller
-func KeyedRateLimitMiddleware(limit KeyedRateLimiter, key RateLimitKeyFunc) Middleware {
+func KeyedRateLimitMiddleware(limit KeyedRateLimiter, key RateLimitKeyFunc) endpoint.Middleware {
 	if limit == nil {
 		panic("endpoint: keyed rate limiter cannot be nil")
 	}
 	if key == nil {
 		panic("endpoint: keyed rate limit key function cannot be nil")
 	}
-	return func(next Endpoint) Endpoint {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			k := key(ctx, request)
 			if !limit.AllowKey(ctx, k) {
-				return nil, withKeyedRetryAfter(ErrRateLimited, limit, k)
+				return nil, withKeyedRetryAfter(endpoint.ErrRateLimited, limit, k)
 			}
 			return next(ctx, request)
 		}
@@ -203,14 +195,14 @@ func KeyedRateLimitMiddleware(limit KeyedRateLimiter, key RateLimitKeyFunc) Midd
 // DelayKeyedRateLimitMiddleware throttles requests over the limit for their own
 // key by waiting for the limiter; context cancellation aborts the wait. It
 // panics when limit or key is nil.
-func DelayKeyedRateLimitMiddleware(limit KeyedRateLimiter, key RateLimitKeyFunc) Middleware {
+func DelayKeyedRateLimitMiddleware(limit KeyedRateLimiter, key RateLimitKeyFunc) endpoint.Middleware {
 	if limit == nil {
 		panic("endpoint: keyed rate limiter cannot be nil")
 	}
 	if key == nil {
 		panic("endpoint: keyed rate limit key function cannot be nil")
 	}
-	return func(next Endpoint) Endpoint {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			if err := limit.WaitKey(ctx, key(ctx, request)); err != nil {
 				return nil, err
@@ -220,24 +212,13 @@ func DelayKeyedRateLimitMiddleware(limit KeyedRateLimiter, key RateLimitKeyFunc)
 	}
 }
 
-// WithKeyedRateLimit appends a KeyedRateLimitMiddleware to the Builder.
-func (b *Builder) WithKeyedRateLimit(limit KeyedRateLimiter, key RateLimitKeyFunc) *Builder {
-	return b.UseNamed("keyed_rate_limit", KeyedRateLimitMiddleware(limit, key))
-}
-
-// WithDelayKeyedRateLimit appends a DelayKeyedRateLimitMiddleware to the
-// Builder.
-func (b *Builder) WithDelayKeyedRateLimit(limit KeyedRateLimiter, key RateLimitKeyFunc) *Builder {
-	return b.UseNamed("delay_keyed_rate_limit", DelayKeyedRateLimitMiddleware(limit, key))
-}
-
 // withKeyedRetryAfter prefers the per-key hint and falls back to the limiter's
 // unkeyed one, so a limiter with one refill rate for every key does not have to
 // implement both.
 func withKeyedRetryAfter(err error, limit KeyedRateLimiter, key string) error {
 	if reporter, ok := limit.(KeyedRetryAfterReporter); ok {
 		if after := reporter.RetryAfterForKey(key); after > 0 {
-			return NewRetryAfterError(err, after)
+			return endpoint.NewRetryAfterError(err, after)
 		}
 	}
 	return withReportedRetryAfter(err, limit)

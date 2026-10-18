@@ -1,4 +1,4 @@
-# endpoint（端点）
+﻿# endpoint（端点）
 
 [English](README.md) | 简体中文
 
@@ -90,7 +90,7 @@ ep := endpoint.NewBuilder(base).
     WithRecording("POST /users", &metrics).
     WithErrorHandling("CreateUser").
     WithTimeout(5 * time.Second).
-    WithCircuitBreaker(endpoint.NewCircuitBreaker()).
+    WithCircuitBreaker(resilience.NewCircuitBreaker()).
     WithRateLimit(limiter).
     Build()
 
@@ -210,7 +210,7 @@ var ep endpoint.TypedEndpoint[HelloReq, HelloResp] =
 typed := endpoint.Unwrap[HelloReq, HelloResp](
     endpoint.NewTypedBuilder(ep).
         WithTimeout(5 * time.Second).
-        Use(endpoint.NewCircuitBreaker().Middleware()).
+        Use(resilience.NewCircuitBreaker().Middleware()).
         Build(),
 )
 ```

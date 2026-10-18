@@ -12,6 +12,7 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/endpoint/resilience"
 	httpclient "github.com/dreamsxin/go-kit/v2/transport/http/client"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
@@ -333,7 +334,7 @@ func TestClientEndpointRetriesTransientStatusWithSharedMiddleware(t *testing.T) 
 	if err != nil {
 		t.Fatalf("NewJSONClient: %v", err)
 	}
-	ep := endpoint.NewBuilder(call).WithRetry(3, endpoint.WithRetryBackoff(func(int) time.Duration { return 0 })).Build()
+	ep := endpoint.NewBuilder(call).Use(resilience.RetryMiddleware(3, resilience.WithRetryBackoff(func(int) time.Duration { return 0 }))).Build()
 
 	resp, err := ep(context.Background(), echoReq{Message: "hi"})
 	if err != nil {
@@ -359,7 +360,7 @@ func TestClientEndpointDoesNotRetryClientError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewJSONClient: %v", err)
 	}
-	ep := endpoint.NewBuilder(call).WithRetry(3, endpoint.WithRetryBackoff(func(int) time.Duration { return 0 })).Build()
+	ep := endpoint.NewBuilder(call).Use(resilience.RetryMiddleware(3, resilience.WithRetryBackoff(func(int) time.Duration { return 0 }))).Build()
 
 	if _, err := ep(context.Background(), echoReq{Message: "hi"}); err == nil {
 		t.Fatal("expected an error")

@@ -181,7 +181,7 @@ func (m *Metrics) Observe(_ context.Context, obs Observation) {
 //
 //	ep := endpoint.NewBuilder(createUser).
 //	    WithRecording("POST /users", promRecorder, &metrics).
-//	    WithRateLimit(limiter).
+//	    Use(resilience.RateLimitMiddleware(limiter)).
 //	    Build()
 //
 // It panics when a recorder is nil so misassembly fails at startup rather than

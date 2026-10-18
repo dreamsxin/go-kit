@@ -1,6 +1,8 @@
-package endpoint
+package resilience
 
 import (
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+
 	"context"
 	"errors"
 	"sync"
@@ -142,14 +144,14 @@ func WithBreakerSlowCallThreshold(d time.Duration) BreakerOption {
 }
 
 // CircuitBreaker is a dependency-free endpoint circuit breaker middleware.
-// It rejects calls while open with ErrCircuitOpen; the half-open state lets a
+// It rejects calls while open with endpoint.ErrCircuitOpen; the half-open state lets a
 // single probe through at a time until SuccessThreshold consecutive probes
 // succeed. Timeouts and cancellations of the caller are unchanged; the breaker
 // observes only endpoint errors and call durations.
 //
 // Example:
 //
-//	breaker := endpoint.NewCircuitBreaker(
+//	breaker := NewCircuitBreaker(
 //	    endpoint.WithBreakerMaxErrorRate(0.5),
 //	    endpoint.WithBreakerSlowCallThreshold(2*time.Second),
 //	)
@@ -231,8 +233,8 @@ func (cb *CircuitBreaker) rateArmed() bool {
 }
 
 // Middleware returns the endpoint middleware that enforces the breaker.
-func (cb *CircuitBreaker) Middleware() Middleware {
-	return func(next Endpoint) Endpoint {
+func (cb *CircuitBreaker) Middleware() endpoint.Middleware {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			if err := cb.beforeRequest(); err != nil {
 				return nil, err
@@ -250,15 +252,6 @@ func (cb *CircuitBreaker) State() BreakerState {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 	return cb.state
-}
-
-// WithCircuitBreaker appends breaker.Middleware to the Builder. It panics when
-// breaker is nil so misassembly fails at startup.
-func (b *Builder) WithCircuitBreaker(breaker *CircuitBreaker) *Builder {
-	if breaker == nil {
-		panic("endpoint: circuit breaker cannot be nil")
-	}
-	return b.UseNamed("circuit_breaker", breaker.Middleware())
 }
 
 func (cb *CircuitBreaker) beforeRequest() error {
@@ -279,20 +272,20 @@ func (cb *CircuitBreaker) beforeRequest() error {
 		return nil
 	case BreakerHalfOpen:
 		if cb.probeInFlight {
-			return ErrCircuitOpen
+			return endpoint.ErrCircuitOpen
 		}
 		cb.probeInFlight = true
 		return nil
 	default:
-		return ErrCircuitOpen
+		return endpoint.ErrCircuitOpen
 	}
 }
 
-// openRejection reports ErrCircuitOpen with the time left in the open window,
+// openRejection reports endpoint.ErrCircuitOpen with the time left in the open window,
 // so transports can emit a Retry-After hint. The caller must hold cb.mu.
 func (cb *CircuitBreaker) openRejection() error {
 	remaining := cb.settings.OpenTimeout - cb.now().Sub(cb.openedAt)
-	return NewRetryAfterError(ErrCircuitOpen, remaining)
+	return endpoint.NewRetryAfterError(endpoint.ErrCircuitOpen, remaining)
 }
 
 // afterRequest records one outcome. elapsed is measured around the wrapped

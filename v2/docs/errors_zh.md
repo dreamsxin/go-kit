@@ -1,4 +1,4 @@
-# 错误处理
+﻿# 错误处理
 
 [English](errors.md) | 简体中文
 
@@ -121,7 +121,7 @@ status 上附加 `google.rpc.RetryInfo`。熔断器在开窗期内拒绝时会�
 的 `RateLimiter` 的延迟会被附加到 `ErrRateLimited` 上。
 
 `RetryMiddleware` 反向读取同一契约：错误带提示时，该提示取代本地退避计划，并以
-`endpoint.MaxRetryAfterHint` 封顶，避免恶意对端把没有自带 deadline 的调用方长
+`resilience.MaxRetryAfterHint` 封顶，避免恶意对端把没有自带 deadline 的调用方长
 时间挂住。
 
 ### 客户端分类

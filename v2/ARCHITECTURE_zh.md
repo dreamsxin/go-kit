@@ -63,7 +63,9 @@ Transport request
 ### `endpoint`
 
 `endpoint` 定义与传输无关的请求函数，以及标准库中间件组合、超时与指标。
-供应商相关的日志保持为显式适配器。内存限流器与熔断器位于 `endpoint`，通过结构化契约替换策略实现。
+供应商相关的日志保持为显式适配器。内存限流器与熔断器位于 `endpoint/resilience`，
+在它所使用的词汇表之上单独成包：只用 `Endpoint`、`Middleware` 与 `Chain` 的应用
+不会编译一个它从未配置过的熔断器。
 
 `Recorder` 是指标扩展点：`RecordingMiddleware` 把每次调用的 `Observation`
 （操作名、耗时、错误）交给它，任何后端桥接都只是该接口的一个实现。`Metrics`
@@ -167,8 +169,8 @@ Endpoint 中间件与 HTTP 中间件刻意区分：
 通过 `kit.WithEndpointMiddleware` 安装的 endpoint 中间件作用于经
 `HandleJSON` 或 `HandleJSONEndpoint` 注册的路由。原生 handler 只接收
 显式安装的 HTTP 中间件。持有依赖的适配器（如 Zap、令牌桶）
-由应用创建并通过这个通用选项传入。熔断与限流已内置于核心 `endpoint`
-包，不持有第三方依赖。
+由应用创建并通过这个通用选项传入。熔断与限流已内置于 `endpoint/resilience`，
+不持有第三方依赖。
 
 `kit.WithHTTPMiddleware` 是标准 `http.Handler` 中间件的显式全服务器
 边界。它包装健康检查、JSON endpoint、原生 HTTP 与生成路由，但不把 HTTP
@@ -234,6 +236,7 @@ module 的依赖元数据仍包含这些可选依赖。
 | 边界 | 包 | 职责 |
 | --- | --- | --- |
 | 请求契约 | `endpoint`、`apperror`、`transport` | 请求函数、中间件、分类、错误报告 |
+| 韧性 | `endpoint/resilience` | 重试、熔断、限流、背压、bulkhead 与 fallback 中间件；只导入 `endpoint`，不导入 module 内其他包 |
 | 进程健康 | `health` | 本地存活/就绪检查与 HTTP 探针挂载 |
 | HTTP 协议 | `transport/http` 及其 `server`、`client`，`security/http` | 协议编解码、传播与 HTTP 策略 |
 | 服务发现 | `sd` 及其子包 | 快照、连接所有权、选择、重试、远端健康和反馈 |

@@ -1,8 +1,6 @@
 package endpoint
 
 import (
-	"context"
-	"errors"
 	"time"
 )
 
@@ -64,41 +62,6 @@ type RetryAfterReporter interface {
 	RetryAfter() time.Duration
 }
 
-// shedWaitError reports a call that gave up waiting for admission because its
-// own context ended, not because the service refused it.
-//
-// The distinction is the whole point: it classifies as the context error, so a
-// caller timeout stays a timeout (HTTP 504) and a client disconnect stays a
-// disconnect (HTTP 499) instead of being relabeled as load shedding (503). The
-// shed sentinel stays reachable through errors.Is, so saturation is still
-// visible in logs and metrics.
-type shedWaitError struct {
-	cause error // the context error that ended the wait
-	shed  error // the sentinel of the gate that was full, e.g. ErrBulkheadFull
-	kind  string
-}
-
-// newShedWaitError classifies cause, the context error that ended a wait at the
-// gate reported by shed.
-func newShedWaitError(cause, shed error) error {
-	kind := kindDeadlineExceeded
-	if errors.Is(cause, context.Canceled) {
-		kind = kindCanceled
-	}
-	return &shedWaitError{cause: cause, shed: shed, kind: kind}
-}
-
-func (e *shedWaitError) Error() string {
-	return e.shed.Error() + ": " + e.cause.Error()
-}
-
-// Unwrap exposes both the context error and the shed sentinel, so errors.Is
-// matches context.DeadlineExceeded and ErrBulkheadFull alike.
-func (e *shedWaitError) Unwrap() []error { return []error{e.cause, e.shed} }
-
-// ErrorKindName classifies the failure as the caller's timeout or cancellation.
-func (e *shedWaitError) ErrorKindName() string { return e.kind }
-
 // RetryAfterError annotates an error with a retry delay without changing its
 // identity: errors.Is and errors.As still see the wrapped error, including its
 // classification.
@@ -125,13 +88,3 @@ func (e *RetryAfterError) Unwrap() error { return e.Err }
 
 // RetryAfter implements RetryAfterReporter.
 func (e *RetryAfterError) RetryAfter() time.Duration { return e.After }
-
-// withReportedRetryAfter attaches source's retry hint to err when source knows
-// one.
-func withReportedRetryAfter(err error, source any) error {
-	reporter, ok := source.(RetryAfterReporter)
-	if !ok {
-		return err
-	}
-	return NewRetryAfterError(err, reporter.RetryAfter())
-}

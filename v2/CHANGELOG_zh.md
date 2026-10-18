@@ -35,6 +35,18 @@
   弃用拼写 `kit.JSON`、`kit.JSONTyped`、`kit.NewJSONTypedHandler` 与
   `kit.HTTP.HandleSSE` 已删除。评审过的 API 快照相应减少六十个声明；已有调用点
   需要补上新参数或选项。
+- 韧性能力离开 `endpoint`，迁入 `endpoint/resilience`。重试、熔断、限流、背压、bulkhead
+  与 fallback 现在位于它们所用词汇表之上的一层，`endpoint` 保留 `Endpoint`、
+  `Middleware`、`Chain`、时钟、指标、关联信息、校验与错误契约，只用这些的应用不会
+  编译一个它从未配置过的熔断器。拒绝哨兵（`ErrRateLimited`、`ErrBackpressure`、
+  `ErrBulkheadFull`、`ErrCircuitOpen`）、`RetryAfterError`、`RetryAfterReporter`
+  与 `KeyedRetryAfterReporter` 留在 `endpoint`，因为传输层把它们当作状态码与
+  `Retry-After` 头的契约来读。`Builder` 移除了 `WithRetry`、`WithCircuitBreaker`、
+  `WithRateLimit`、`WithKeyedRateLimit`、`WithDelayRateLimit`、
+  `WithDelayKeyedRateLimit`、`WithBackpressure`、`WithBulkhead` 与 `WithFallback`
+  快捷方法；用 `Use(resilience.X(...))` 按同样顺序组合同样的中间件。迁移后的行为
+  承诺改入 `resilience.` 命名空间，`resilience.clock-nil-is-wall-clock` 随证明它的
+  重试测试一起迁移。
 - Zap 日志中间件现在与 slog 适配器使用同一套记录字段：
   `operation`/`duration`/`success`，以及 context 中存在时的 `trace_id`、
   `span_id`、`request_id`（`zap.record-fields`）；失败与 panic 以 Error

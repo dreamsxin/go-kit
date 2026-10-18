@@ -1,6 +1,6 @@
 // Package retry calls a balancer repeatedly until one attempt succeeds.
 //
-// It differs from endpoint.RetryMiddleware in what it retries. That middleware
+// It differs from resilience.RetryMiddleware in what it retries. That middleware
 // repeats the same endpoint, which is the right thing when a single dependency
 // might be briefly unwell. This package picks again for every attempt, so
 // a later attempt can land on another instance. Re-picking does not exclude the
@@ -153,7 +153,7 @@ type Classifier func(error) bool
 
 // Retry attempts a call up to maxAttempts times within timeout.
 //
-// A maxAttempts below 1 is clamped to 1, as in endpoint.RetryMiddleware: the
+// A maxAttempts below 1 is clamped to 1, as in resilience.RetryMiddleware: the
 // call still runs once, because a retry policy is not a way to skip the call.
 func Retry(maxAttempts int, timeout time.Duration, balancer sd.Balancer) endpoint.Endpoint {
 	return New(balancer, WithMaxAttempts(maxAttempts), WithTimeout(timeout))

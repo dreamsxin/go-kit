@@ -53,6 +53,210 @@ type Kinder interface {
 
 ## github.com/dreamsxin/go-kit/v2/endpoint
 package endpoint // import "github.com/dreamsxin/go-kit/v2/endpoint"
+VARIABLES
+var (
+	ErrBackpressure error = &rejectionError{
+		message: "too many concurrent requests",
+		kind:    kindUnavailable,
+	}
+	ErrBulkheadFull error = &rejectionError{
+		message: "bulkhead full",
+		kind:    kindUnavailable,
+	}
+	ErrCircuitOpen error = &rejectionError{
+		message: "circuit breaker open",
+		kind:    kindUnavailable,
+	}
+	ErrRateLimited error = &rejectionError{
+		message: "rate limit exceeded",
+		kind:    kindResourceExhausted,
+	}
+)
+FUNCTIONS
+func ContinueIncomingTrace(ctx context.Context) context.Context
+func DefaultPanicHandler(context.Context, any, any) error
+func NewRetryAfterError(err error, after time.Duration) error
+func Nop(context.Context, any) (any, error)
+func RequestIDFromContext(ctx context.Context) string
+func ResponseError(response any) error
+func WithIncomingTraceContext(ctx context.Context, tc TraceContext) context.Context
+func WithOperationIntent(ctx context.Context, intent OperationIntent) context.Context
+func WithRequestID(ctx context.Context, id string) context.Context
+func WithTraceContext(ctx context.Context, tc TraceContext) context.Context
+func WithTraceID(ctx context.Context, id TraceID) context.Context
+TYPES
+type Builder struct {
+	// Has unexported fields.
+}
+func NewBuilder(base Endpoint) *Builder
+func NewTypedBuilder[Req, Resp any](te TypedEndpoint[Req, Resp]) *Builder
+func (b *Builder) Build() Endpoint
+func (b *Builder) Describe() []string
+func (b *Builder) Use(m Middleware) *Builder
+func (b *Builder) UseNamed(label string, m Middleware) *Builder
+func (b *Builder) WithErrorHandling(operation string) *Builder
+func (b *Builder) WithFailer() *Builder
+func (b *Builder) WithMetrics(m *Metrics) *Builder
+func (b *Builder) WithRecording(operation string, recorders ...Recorder) *Builder
+func (b *Builder) WithRecovery(handler PanicHandler) *Builder
+func (b *Builder) WithTimeout(d time.Duration) *Builder
+func (b *Builder) WithTracing() *Builder
+func (b *Builder) WithValidation() *Builder
+type Clock interface {
+	// Now reports the current time.
+	Now() time.Time
+	// NewTimer starts one wait of length d. A non-positive d is due
+	// immediately.
+	NewTimer(d time.Duration) Timer
+}
+func SystemClock() Clock
+type Endpoint func(ctx context.Context, request any) (response any, err error)
+type ErrorWrapper struct {
+	Operation string
+	Err       error
+}
+func (e *ErrorWrapper) Error() string
+func (e *ErrorWrapper) Unwrap() error
+type Failer interface {
+	Failed() error
+}
+type FieldError struct {
+	Field  string
+	Reason string
+}
+func (e FieldError) Error() string
+type ManualClock struct {
+	// Has unexported fields.
+}
+func NewManualClock(at time.Time) *ManualClock
+func (c *ManualClock) Advance(d time.Duration)
+func (c *ManualClock) NewTimer(d time.Duration) Timer
+func (c *ManualClock) Now() time.Time
+func (c *ManualClock) Pending() int
+func (c *ManualClock) Set(at time.Time)
+type Metrics struct {
+	// Clock decides the LastRequestTime a snapshot reports. A nil Clock means
+	// the wall clock, so the zero value stays usable; set it to a ManualClock
+	// to assert on the timestamp instead of tolerating it.
+	//
+	// It is not consulted for durations. Observation.Duration is how long real
+	// work actually took, measured by whoever called the endpoint — a clock
+	// that could shorten it would make a recorder report something untrue
+	// about the system.
+	//
+	// Stable: endpoint.metrics-clock — the timestamp a snapshot reports comes from the configured clock; recorded durations are measured, never decided.
+	// Covered by: TestMetricsObserveUsesTheConfiguredClock
+	Clock Clock
+	// Has unexported fields.
+}
+func (m *Metrics) Observe(_ context.Context, obs Observation)
+func (m *Metrics) Operations() []string
+func (m *Metrics) Snapshot() MetricsSnapshot
+func (m *Metrics) SnapshotFor(operation string) MetricsSnapshot
+type MetricsSnapshot struct {
+	RequestCount    int64
+	ErrorCount      int64
+	SuccessCount    int64
+	TotalDuration   time.Duration
+	LastRequestTime time.Time
+}
+func (m MetricsSnapshot) AverageDuration() time.Duration
+type Middleware func(Endpoint) Endpoint
+func Chain(outer Middleware, others ...Middleware) Middleware
+func ErrorHandlingMiddleware(operation string) Middleware
+func FailerMiddleware() Middleware
+func MetricsMiddleware(metrics *Metrics) Middleware
+func RecordingMiddleware(operation string, recorders ...Recorder) Middleware
+func RecoveryMiddleware(handler PanicHandler) Middleware
+func TimeoutMiddleware(d time.Duration) Middleware
+func TracingMiddleware() Middleware
+func ValidationMiddleware() Middleware
+type Observation struct {
+	// Operation names the endpoint, for example the route pattern. It is the
+	// label dimension a metrics backend groups by. Empty means unlabeled.
+	Operation string
+	// Duration is how long the call took, including the middleware inside the
+	// recording middleware.
+	Duration time.Duration
+	// Err is the endpoint error, or nil on success.
+	Err error
+}
+type OperationIntent struct {
+	// Purpose states why this operation is happening, in words an operator
+	// reading a log line can act on, for example "load task for status
+	// transition". Empty means no purpose was declared.
+	Purpose string
+	// AuditReason states why this operation may change state, in words an
+	// audit record can carry, for example "customer requested address
+	// correction". Empty means no audit reason was declared.
+	AuditReason string
+}
+func OperationIntentFromContext(ctx context.Context) OperationIntent
+type PanicHandler func(ctx context.Context, request any, recovered any) error
+type Recorder interface {
+	Observe(ctx context.Context, obs Observation)
+}
+type RecorderFunc func(ctx context.Context, obs Observation)
+func (f RecorderFunc) Observe(ctx context.Context, obs Observation)
+type RetryAfterError struct {
+	// Err is the wrapped error.
+	Err error
+	// After is the wait before a retry may succeed.
+	After time.Duration
+}
+func (e *RetryAfterError) Error() string
+func (e *RetryAfterError) RetryAfter() time.Duration
+func (e *RetryAfterError) Unwrap() error
+type RetryAfterReporter interface {
+	// RetryAfter reports the wait before a retry may succeed. A non-positive
+	// value means the delay is unknown and no hint is emitted.
+	RetryAfter() time.Duration
+}
+type SpanID string
+func SpanIDFromContext(ctx context.Context) SpanID
+type Timer interface {
+	// C receives once when the wait is due.
+	C() <-chan time.Time
+	// Stop cancels the wait, reporting whether it was still pending.
+	Stop() bool
+}
+type TraceContext struct {
+	TraceID string
+	SpanID  string
+	Flags   string
+}
+func NewTraceContext() TraceContext
+func ParseTraceparent(header string) (TraceContext, bool)
+func TraceContextFromContext(ctx context.Context) TraceContext
+func (tc TraceContext) String() string
+func (tc TraceContext) Valid() bool
+type TraceID string
+func TraceIDFromContext(ctx context.Context) TraceID
+type TypeAssertError struct {
+	// Got is the value that failed the assertion.
+	Got any
+	// Want is the type the endpoint expected. It records a type rather than a
+	// zero value so interface and pointer targets still report a usable name.
+	Want reflect.Type
+}
+func NewTypeAssertError[Want any](got any) *TypeAssertError
+func (e *TypeAssertError) Error() string
+type TypedEndpoint[Req, Resp any] func(ctx context.Context, req Req) (Resp, error)
+func Unwrap[Req, Resp any](ep Endpoint) TypedEndpoint[Req, Resp]
+func (te TypedEndpoint[Req, Resp]) Wrap() Endpoint
+type Validatable interface {
+	Validate() error
+}
+type ValidationError struct {
+	Fields []FieldError
+}
+func NewValidationError(field, reason string) *ValidationError
+func (e *ValidationError) Add(field, reason string) *ValidationError
+func (e *ValidationError) Error() string
+func (e *ValidationError) ErrorKindName() string
+
+## github.com/dreamsxin/go-kit/v2/endpoint/resilience
+package resilience // import "github.com/dreamsxin/go-kit/v2/endpoint/resilience"
 CONSTANTS
 const (
 	DefaultBreakerFailureThreshold = 5
@@ -76,38 +280,17 @@ const (
 	// caller that has no deadline of its own.
 	MaxRetryAfterHint = 30 * time.Second
 )
-VARIABLES
-var (
-	ErrBackpressure error = &rejectionError{
-		message: "too many concurrent requests",
-		kind:    kindUnavailable,
-	}
-	ErrBulkheadFull error = &rejectionError{
-		message: "bulkhead full",
-		kind:    kindUnavailable,
-	}
-	ErrCircuitOpen error = &rejectionError{
-		message: "circuit breaker open",
-		kind:    kindUnavailable,
-	}
-	ErrRateLimited error = &rejectionError{
-		message: "rate limit exceeded",
-		kind:    kindResourceExhausted,
-	}
-)
 FUNCTIONS
-func ContinueIncomingTrace(ctx context.Context) context.Context
-func DefaultPanicHandler(context.Context, any, any) error
+func BackpressureMiddleware(max int64) endpoint.Middleware
+func BulkheadMiddleware(maxPerKey int, key func(request any) string) endpoint.Middleware
 func DefaultRetryable(err error) bool
-func NewRetryAfterError(err error, after time.Duration) error
-func Nop(context.Context, any) (any, error)
-func RequestIDFromContext(ctx context.Context) string
-func ResponseError(response any) error
-func WithIncomingTraceContext(ctx context.Context, tc TraceContext) context.Context
-func WithOperationIntent(ctx context.Context, intent OperationIntent) context.Context
-func WithRequestID(ctx context.Context, id string) context.Context
-func WithTraceContext(ctx context.Context, tc TraceContext) context.Context
-func WithTraceID(ctx context.Context, id TraceID) context.Context
+func DelayKeyedRateLimitMiddleware(limit KeyedRateLimiter, key RateLimitKeyFunc) endpoint.Middleware
+func DelayRateLimitMiddleware(limit RateLimiter) endpoint.Middleware
+func Fallback(fallback endpoint.Endpoint) endpoint.Middleware
+func InFlightMiddleware(max int64, counter *int64) endpoint.Middleware
+func KeyedRateLimitMiddleware(limit KeyedRateLimiter, key RateLimitKeyFunc) endpoint.Middleware
+func RateLimitMiddleware(limit RateLimiter) endpoint.Middleware
+func RetryMiddleware(maxAttempts int, options ...RetryOption) endpoint.Middleware
 TYPES
 type BreakerOption func(*BreakerSettings)
 func WithBreakerFailurePredicate(predicate func(error) bool) BreakerOption
@@ -174,61 +357,12 @@ const (
 	// BreakerHalfOpen lets one probe request through to test recovery.
 	BreakerHalfOpen
 )
-type Builder struct {
-	// Has unexported fields.
-}
-func NewBuilder(base Endpoint) *Builder
-func NewTypedBuilder[Req, Resp any](te TypedEndpoint[Req, Resp]) *Builder
-func (b *Builder) Build() Endpoint
-func (b *Builder) Describe() []string
-func (b *Builder) Use(m Middleware) *Builder
-func (b *Builder) UseNamed(label string, m Middleware) *Builder
-func (b *Builder) WithBackpressure(max int64) *Builder
-func (b *Builder) WithBulkhead(maxPerKey int, key func(request any) string) *Builder
-func (b *Builder) WithCircuitBreaker(breaker *CircuitBreaker) *Builder
-func (b *Builder) WithDelayKeyedRateLimit(limit KeyedRateLimiter, key RateLimitKeyFunc) *Builder
-func (b *Builder) WithDelayRateLimit(limit RateLimiter) *Builder
-func (b *Builder) WithErrorHandling(operation string) *Builder
-func (b *Builder) WithFailer() *Builder
-func (b *Builder) WithFallback(fallback Endpoint) *Builder
-func (b *Builder) WithKeyedRateLimit(limit KeyedRateLimiter, key RateLimitKeyFunc) *Builder
-func (b *Builder) WithMetrics(m *Metrics) *Builder
-func (b *Builder) WithRateLimit(limit RateLimiter) *Builder
-func (b *Builder) WithRecording(operation string, recorders ...Recorder) *Builder
-func (b *Builder) WithRecovery(handler PanicHandler) *Builder
-func (b *Builder) WithRetry(maxAttempts int, options ...RetryOption) *Builder
-func (b *Builder) WithTimeout(d time.Duration) *Builder
-func (b *Builder) WithTracing() *Builder
-func (b *Builder) WithValidation() *Builder
 type CircuitBreaker struct {
 	// Has unexported fields.
 }
 func NewCircuitBreaker(options ...BreakerOption) *CircuitBreaker
-func (cb *CircuitBreaker) Middleware() Middleware
+func (cb *CircuitBreaker) Middleware() endpoint.Middleware
 func (cb *CircuitBreaker) State() BreakerState
-type Clock interface {
-	// Now reports the current time.
-	Now() time.Time
-	// NewTimer starts one wait of length d. A non-positive d is due
-	// immediately.
-	NewTimer(d time.Duration) Timer
-}
-func SystemClock() Clock
-type Endpoint func(ctx context.Context, request any) (response any, err error)
-type ErrorWrapper struct {
-	Operation string
-	Err       error
-}
-func (e *ErrorWrapper) Error() string
-func (e *ErrorWrapper) Unwrap() error
-type Failer interface {
-	Failed() error
-}
-type FieldError struct {
-	Field  string
-	Reason string
-}
-func (e FieldError) Error() string
 type KeyedRateLimiter interface {
 	// AllowKey reports whether a request under key may proceed immediately.
 	AllowKey(ctx context.Context, key string) bool
@@ -247,83 +381,6 @@ type KeyedRetryAfterReporter interface {
 	// the delay is unknown and no hint is emitted.
 	RetryAfterForKey(key string) time.Duration
 }
-type ManualClock struct {
-	// Has unexported fields.
-}
-func NewManualClock(at time.Time) *ManualClock
-func (c *ManualClock) Advance(d time.Duration)
-func (c *ManualClock) NewTimer(d time.Duration) Timer
-func (c *ManualClock) Now() time.Time
-func (c *ManualClock) Pending() int
-func (c *ManualClock) Set(at time.Time)
-type Metrics struct {
-	// Clock decides the LastRequestTime a snapshot reports. A nil Clock means
-	// the wall clock, so the zero value stays usable; set it to a ManualClock
-	// to assert on the timestamp instead of tolerating it.
-	//
-	// It is not consulted for durations. Observation.Duration is how long real
-	// work actually took, measured by whoever called the endpoint — a clock
-	// that could shorten it would make a recorder report something untrue
-	// about the system.
-	//
-	// Stable: endpoint.metrics-clock — the timestamp a snapshot reports comes from the configured clock; recorded durations are measured, never decided.
-	// Covered by: TestMetricsObserveUsesTheConfiguredClock
-	Clock Clock
-	// Has unexported fields.
-}
-func (m *Metrics) Observe(_ context.Context, obs Observation)
-func (m *Metrics) Operations() []string
-func (m *Metrics) Snapshot() MetricsSnapshot
-func (m *Metrics) SnapshotFor(operation string) MetricsSnapshot
-type MetricsSnapshot struct {
-	RequestCount    int64
-	ErrorCount      int64
-	SuccessCount    int64
-	TotalDuration   time.Duration
-	LastRequestTime time.Time
-}
-func (m MetricsSnapshot) AverageDuration() time.Duration
-type Middleware func(Endpoint) Endpoint
-func BackpressureMiddleware(max int64) Middleware
-func BulkheadMiddleware(maxPerKey int, key func(request any) string) Middleware
-func Chain(outer Middleware, others ...Middleware) Middleware
-func DelayKeyedRateLimitMiddleware(limit KeyedRateLimiter, key RateLimitKeyFunc) Middleware
-func DelayRateLimitMiddleware(limit RateLimiter) Middleware
-func ErrorHandlingMiddleware(operation string) Middleware
-func FailerMiddleware() Middleware
-func Fallback(fallback Endpoint) Middleware
-func InFlightMiddleware(max int64, counter *int64) Middleware
-func KeyedRateLimitMiddleware(limit KeyedRateLimiter, key RateLimitKeyFunc) Middleware
-func MetricsMiddleware(metrics *Metrics) Middleware
-func RateLimitMiddleware(limit RateLimiter) Middleware
-func RecordingMiddleware(operation string, recorders ...Recorder) Middleware
-func RecoveryMiddleware(handler PanicHandler) Middleware
-func RetryMiddleware(maxAttempts int, options ...RetryOption) Middleware
-func TimeoutMiddleware(d time.Duration) Middleware
-func TracingMiddleware() Middleware
-func ValidationMiddleware() Middleware
-type Observation struct {
-	// Operation names the endpoint, for example the route pattern. It is the
-	// label dimension a metrics backend groups by. Empty means unlabeled.
-	Operation string
-	// Duration is how long the call took, including the middleware inside the
-	// recording middleware.
-	Duration time.Duration
-	// Err is the endpoint error, or nil on success.
-	Err error
-}
-type OperationIntent struct {
-	// Purpose states why this operation is happening, in words an operator
-	// reading a log line can act on, for example "load task for status
-	// transition". Empty means no purpose was declared.
-	Purpose string
-	// AuditReason states why this operation may change state, in words an
-	// audit record can carry, for example "customer requested address
-	// correction". Empty means no audit reason was declared.
-	AuditReason string
-}
-func OperationIntentFromContext(ctx context.Context) OperationIntent
-type PanicHandler func(ctx context.Context, request any, recovered any) error
 type RateLimitKeyFunc func(ctx context.Context, request any) string
 type RateLimiter interface {
 	// Allow reports whether a request may proceed immediately.
@@ -337,71 +394,10 @@ type RateLimiterFuncs struct {
 }
 func (f RateLimiterFuncs) Allow() bool
 func (f RateLimiterFuncs) Wait(ctx context.Context) error
-type Recorder interface {
-	Observe(ctx context.Context, obs Observation)
-}
-type RecorderFunc func(ctx context.Context, obs Observation)
-func (f RecorderFunc) Observe(ctx context.Context, obs Observation)
-type RetryAfterError struct {
-	// Err is the wrapped error.
-	Err error
-	// After is the wait before a retry may succeed.
-	After time.Duration
-}
-func (e *RetryAfterError) Error() string
-func (e *RetryAfterError) RetryAfter() time.Duration
-func (e *RetryAfterError) Unwrap() error
-type RetryAfterReporter interface {
-	// RetryAfter reports the wait before a retry may succeed. A non-positive
-	// value means the delay is unknown and no hint is emitted.
-	RetryAfter() time.Duration
-}
 type RetryOption func(*retrySettings)
 func WithRetryBackoff(backoff func(attempt int) time.Duration) RetryOption
-func WithRetryClock(clock Clock) RetryOption
+func WithRetryClock(clock endpoint.Clock) RetryOption
 func WithRetryable(retryable func(error) bool) RetryOption
-type SpanID string
-func SpanIDFromContext(ctx context.Context) SpanID
-type Timer interface {
-	// C receives once when the wait is due.
-	C() <-chan time.Time
-	// Stop cancels the wait, reporting whether it was still pending.
-	Stop() bool
-}
-type TraceContext struct {
-	TraceID string
-	SpanID  string
-	Flags   string
-}
-func NewTraceContext() TraceContext
-func ParseTraceparent(header string) (TraceContext, bool)
-func TraceContextFromContext(ctx context.Context) TraceContext
-func (tc TraceContext) String() string
-func (tc TraceContext) Valid() bool
-type TraceID string
-func TraceIDFromContext(ctx context.Context) TraceID
-type TypeAssertError struct {
-	// Got is the value that failed the assertion.
-	Got any
-	// Want is the type the endpoint expected. It records a type rather than a
-	// zero value so interface and pointer targets still report a usable name.
-	Want reflect.Type
-}
-func NewTypeAssertError[Want any](got any) *TypeAssertError
-func (e *TypeAssertError) Error() string
-type TypedEndpoint[Req, Resp any] func(ctx context.Context, req Req) (Resp, error)
-func Unwrap[Req, Resp any](ep Endpoint) TypedEndpoint[Req, Resp]
-func (te TypedEndpoint[Req, Resp]) Wrap() Endpoint
-type Validatable interface {
-	Validate() error
-}
-type ValidationError struct {
-	Fields []FieldError
-}
-func NewValidationError(field, reason string) *ValidationError
-func (e *ValidationError) Add(field, reason string) *ValidationError
-func (e *ValidationError) Error() string
-func (e *ValidationError) ErrorKindName() string
 
 ## github.com/dreamsxin/go-kit/v2/health
 package health // import "github.com/dreamsxin/go-kit/v2/health"

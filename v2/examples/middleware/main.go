@@ -6,9 +6,9 @@
 //   - endpoint.TimeoutMiddleware
 //   - endpoint.MetricsMiddleware
 //   - endpoint.ErrorHandlingMiddleware
-//   - endpoint.NewCircuitBreaker — open after consecutive failures, probe to recover
-//   - endpoint.RateLimitMiddleware     — reject immediately when over limit
-//   - endpoint.DelayRateLimitMiddleware — wait for a token (respects ctx deadline)
+//   - resilience.NewCircuitBreaker — open after consecutive failures, probe to recover
+//   - resilience.RateLimitMiddleware     — reject immediately when over limit
+//   - resilience.DelayRateLimitMiddleware — wait for a token (respects ctx deadline)
 //
 // All middleware lives in the core endpoint package; no third-party modules
 // are required.
@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/endpoint/resilience"
 )
 
 // ── Failer response ───────────────────────────────────────────────────────────
@@ -167,10 +168,10 @@ func main() {
 	fmt.Printf("  timeout triggered: %v\n", err)
 
 	// ── 6. CircuitBreaker ─────────────────────────────────────────────────────
-	fmt.Println("\n=== 6. endpoint.NewCircuitBreaker ===")
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(3),
-		endpoint.WithBreakerOpenTimeout(10*time.Second),
+	fmt.Println("\n=== 6. resilience.NewCircuitBreaker ===")
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(3),
+		resilience.WithBreakerOpenTimeout(10*time.Second),
 	)
 	alwaysFail := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 		return nil, errors.New("backend down")
@@ -182,10 +183,10 @@ func main() {
 	}
 
 	// ── 7. RateLimitMiddleware ────────────────────────────────────────────────
-	fmt.Println("\n=== 7. endpoint.RateLimitMiddleware ===")
+	fmt.Println("\n=== 7. resilience.RateLimitMiddleware ===")
 	// burst=2: first 2 succeed, then rejected immediately
 	lim := newDemoRateLimiter(2)
-	errLimEp := endpoint.RateLimitMiddleware(lim)(endpoint.Nop)
+	errLimEp := resilience.RateLimitMiddleware(lim)(endpoint.Nop)
 	for i := 0; i < 4; i++ {
 		_, err := errLimEp(context.Background(), nil)
 		if err != nil {
@@ -196,10 +197,10 @@ func main() {
 	}
 
 	// ── 8. DelayRateLimitMiddleware ───────────────────────────────────────────
-	fmt.Println("\n=== 8. endpoint.DelayRateLimitMiddleware ===")
+	fmt.Println("\n=== 8. resilience.DelayRateLimitMiddleware ===")
 	// 1 token/second: first call instant, second must wait
 	delayLim := newDemoRateLimiter(1)
-	delayEp := endpoint.DelayRateLimitMiddleware(delayLim)(endpoint.Nop)
+	delayEp := resilience.DelayRateLimitMiddleware(delayLim)(endpoint.Nop)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()

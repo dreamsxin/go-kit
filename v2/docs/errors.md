@@ -1,4 +1,4 @@
-# Error Handling
+﻿# Error Handling
 
 English | [简体中文](errors_zh.md)
 
@@ -133,7 +133,7 @@ that implements `RetryAfterReporter` has its delay attached to
 
 `RetryMiddleware` reads the same contract in the other direction: when the
 failure reports a hint, that hint replaces the local backoff schedule, capped by
-`endpoint.MaxRetryAfterHint` so a hostile peer cannot park a caller that has no
+`resilience.MaxRetryAfterHint` so a hostile peer cannot park a caller that has no
 deadline of its own.
 
 ### Client-side classification

@@ -39,6 +39,21 @@ English | [简体中文](CHANGELOG_zh.md)
   spellings `kit.JSON`, `kit.JSONTyped`, `kit.NewJSONTypedHandler`, and
   `kit.HTTP.HandleSSE` are removed. The reviewed API snapshot shrank by
   sixty declarations; existing call sites need the new argument or option.
+- Resilience left `endpoint` for `endpoint/resilience`. Retry, circuit breaking,
+  rate limiting, backpressure, bulkhead and fallback now live one package above
+  the vocabulary they use, so `endpoint` keeps `Endpoint`, `Middleware`, `Chain`,
+  the clock, metrics, correlation, validation and the error contracts, and an
+  application that wants only those does not compile a breaker it never
+  configured. The rejection sentinels (`ErrRateLimited`, `ErrBackpressure`,
+  `ErrBulkheadFull`, `ErrCircuitOpen`), `RetryAfterError`,
+  `RetryAfterReporter` and `KeyedRetryAfterReporter` stay in `endpoint`, because
+  transports read them as the contract for status and `Retry-After` headers.
+  `Builder` lost its `WithRetry`, `WithCircuitBreaker`, `WithRateLimit`,
+  `WithKeyedRateLimit`, `WithDelayRateLimit`, `WithDelayKeyedRateLimit`,
+  `WithBackpressure`, `WithBulkhead` and `WithFallback` shorthands; compose the
+  same middleware with `Use(resilience.X(...))`, in the same order. The moved
+  behaviour markers were renamed into the `resilience.` namespace, and
+  `resilience.clock-nil-is-wall-clock` moved with the retry test that proves it.
 - The Zap logging middleware now speaks the same record schema as the slog
   adapter: `operation`/`duration`/`success` plus `trace_id`, `span_id` and
   `request_id` when the context carries them (`zap.record-fields`), and a

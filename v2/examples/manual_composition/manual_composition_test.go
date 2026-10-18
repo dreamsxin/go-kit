@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/endpoint/resilience"
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
@@ -20,8 +21,8 @@ func newManualCompositionServer(t *testing.T) (*httptest.Server, *endpoint.Metri
 		WithMetrics(&metrics).
 		WithErrorHandling("hello").
 		WithTimeout(5 * time.Second).
-		Use(endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(3)).Middleware()).
-		Use(endpoint.RateLimitMiddleware(newFixedRateLimiter(100))).
+		Use(resilience.NewCircuitBreaker(resilience.WithBreakerFailureThreshold(3)).Middleware()).
+		Use(resilience.RateLimitMiddleware(newFixedRateLimiter(100))).
 		Build()
 	handler := httpserver.NewJSONEndpoint[HelloRequest](
 		ep,

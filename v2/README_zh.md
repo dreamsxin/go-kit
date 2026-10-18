@@ -1,4 +1,4 @@
-# go-kit v2
+﻿# go-kit v2
 
 [![Go Version](https://img.shields.io/badge/go-1.26.0+-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
@@ -234,12 +234,12 @@ func main() {
 带第三方依赖的 endpoint middleware 由应用显式装配。熔断与限流已内置于 `endpoint`，不持有第三方依赖：
 
 ```go
-breaker := endpoint.NewCircuitBreaker(
-	endpoint.WithBreakerFailureThreshold(5),
+breaker := resilience.NewCircuitBreaker(
+	resilience.WithBreakerFailureThreshold(5),
 )
 svc, err := kit.NewHTTP(":8080", kit.WithEndpointMiddleware(
 	breaker.Middleware(),
-	endpoint.RateLimitMiddleware(limiter), // limiter 实现 endpoint.RateLimiter
+	resilience.RateLimitMiddleware(limiter), // limiter 实现 resilience.RateLimiter
 ))
 ```
 

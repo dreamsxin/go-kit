@@ -73,14 +73,6 @@ func TestBuilder_WithTracing(t *testing.T) {
 	}
 }
 
-func TestBuilder_WithBackpressure(t *testing.T) {
-	ep := endpoint.NewBuilder(endpoint.Nop).WithBackpressure(1).Build()
-	// First call should succeed
-	if _, err := ep(context.Background(), nil); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestParseTraceparent(t *testing.T) {
 	valid := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 	tc, ok := endpoint.ParseTraceparent(valid)

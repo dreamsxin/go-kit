@@ -71,7 +71,9 @@ few lines of endpoint wiring.
 `endpoint` defines the transport-independent request function and standard
 library middleware composition, timeout, and metrics. Provider-specific
 logging remains in explicit adapters. In-memory rate limiters and circuit
-breakers live in `endpoint`, with structural contracts for replacement policies.
+breakers live in `endpoint/resilience`, one package above the vocabulary it
+uses, so an application that wants only `Endpoint`, `Middleware` and `Chain`
+does not compile a breaker it never configured.
 
 `Recorder` is the metrics extension point: `RecordingMiddleware` hands every
 call an `Observation` (operation, duration, error), and any backend bridge is an
@@ -196,7 +198,7 @@ routes registered through `HandleJSON` or `HandleJSONEndpoint`. Raw handlers
 receive only explicitly installed HTTP middleware. Dependency-owning adapters
 such as Zap or token buckets are created by the application and
 passed through this generic option. Circuit breaking and rate limiting are
-built into the core `endpoint` package and hold no third-party dependencies.
+built into `endpoint/resilience` and hold no third-party dependencies.
 
 `kit.WithHTTPMiddleware` is the explicit whole-server boundary for standard
 `http.Handler` middleware. It wraps health, JSON endpoint, raw HTTP, and
@@ -271,6 +273,7 @@ The module's dependency metadata still includes those optional dependencies.
 | Boundary | Packages | Responsibility |
 | --- | --- | --- |
 | Request contracts | `endpoint`, `apperror`, `transport` | Request functions, middleware, classification, error reporting |
+| Resilience | `endpoint/resilience` | Retry, circuit breaking, rate limiting, backpressure, bulkhead and fallback middleware; imports `endpoint` and nothing else from the module |
 | Process health | `health` | Local liveness/readiness evaluation and HTTP probe mounting |
 | HTTP protocol | `transport/http`, its `server` and `client`, `security/http` | Protocol encoding, propagation, HTTP policy |
 | Discovery | `sd` and its subpackages | Snapshots, connection ownership, selection, retry, remote health and feedback |

@@ -1,4 +1,4 @@
-# go-kit v2
+﻿# go-kit v2
 
 [![Go Version](https://img.shields.io/badge/go-1.26.0+-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.txt)
@@ -252,12 +252,12 @@ breaking and rate limiting are built into `endpoint` and hold no third-party
 dependencies:
 
 ```go
-breaker := endpoint.NewCircuitBreaker(
-	endpoint.WithBreakerFailureThreshold(5),
+breaker := resilience.NewCircuitBreaker(
+	resilience.WithBreakerFailureThreshold(5),
 )
 svc, err := kit.NewHTTP(":8080", kit.WithEndpointMiddleware(
 	breaker.Middleware(),
-	endpoint.RateLimitMiddleware(limiter), // limiter implements endpoint.RateLimiter
+	resilience.RateLimitMiddleware(limiter), // limiter implements resilience.RateLimiter
 ))
 ```
 

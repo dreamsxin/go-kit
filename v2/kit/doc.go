@@ -84,8 +84,8 @@
 //
 //	http, err := kit.NewHTTP(":8080",
 //	    kit.WithEndpointMiddleware(
-//	        endpoint.RateLimitMiddleware(limiter),
-//	        endpoint.NewCircuitBreaker().Middleware(),
+//	        resilience.RateLimitMiddleware(limiter),
+//	        resilience.NewCircuitBreaker().Middleware(),
 //	        slogadapter.LoggingMiddleware(logger, "request"),
 //	    ),
 //	    kit.WithTimeout(5*time.Second),

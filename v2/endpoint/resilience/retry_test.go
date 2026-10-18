@@ -1,4 +1,4 @@
-package endpoint_test
+package resilience_test
 
 import (
 	"context"
@@ -8,10 +8,11 @@ import (
 
 	"github.com/dreamsxin/go-kit/v2/apperror"
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/endpoint/resilience"
 )
 
 // noBackoff removes the wait so retry tests stay fast and deterministic.
-var noBackoff = endpoint.WithRetryBackoff(func(int) time.Duration { return 0 })
+var noBackoff = resilience.WithRetryBackoff(func(int) time.Duration { return 0 })
 
 func TestRetryMiddlewareRetriesUnavailableUntilSuccess(t *testing.T) {
 	calls := 0
@@ -22,7 +23,7 @@ func TestRetryMiddlewareRetriesUnavailableUntilSuccess(t *testing.T) {
 		}
 		return "ok", nil
 	}
-	ep := endpoint.NewBuilder(flaky).WithRetry(3, noBackoff).Build()
+	ep := endpoint.NewBuilder(flaky).Use(resilience.RetryMiddleware(3, noBackoff)).Build()
 
 	resp, err := ep(context.Background(), nil)
 	if err != nil {
@@ -42,7 +43,7 @@ func TestRetryMiddlewareStopsAtMaxAttempts(t *testing.T) {
 		calls++
 		return nil, apperror.Unavailable("dep.down", "dependency unavailable")
 	}
-	ep := endpoint.RetryMiddleware(2, noBackoff)(always)
+	ep := resilience.RetryMiddleware(2, noBackoff)(always)
 
 	if _, err := ep(context.Background(), nil); err == nil {
 		t.Fatal("want the last error, got nil")
@@ -69,7 +70,7 @@ func TestRetryMiddlewareDoesNotRetryNonTransientErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
-			ep := endpoint.RetryMiddleware(3, noBackoff)(
+			ep := resilience.RetryMiddleware(3, noBackoff)(
 				func(context.Context, any) (any, error) { calls++; return nil, tc.err },
 			)
 			if _, err := ep(context.Background(), nil); !errors.Is(err, tc.err) {
@@ -85,7 +86,7 @@ func TestRetryMiddlewareDoesNotRetryNonTransientErrors(t *testing.T) {
 func TestRetryMiddlewareHonorsCustomClassifier(t *testing.T) {
 	sentinel := errors.New("retry me")
 	calls := 0
-	ep := endpoint.RetryMiddleware(3, noBackoff, endpoint.WithRetryable(func(err error) bool {
+	ep := resilience.RetryMiddleware(3, noBackoff, resilience.WithRetryable(func(err error) bool {
 		return errors.Is(err, sentinel)
 	}))(func(context.Context, any) (any, error) { calls++; return nil, sentinel })
 
@@ -100,7 +101,7 @@ func TestRetryMiddlewareHonorsCustomClassifier(t *testing.T) {
 func TestRetryMiddlewareStopsWhenContextIsDone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	calls := 0
-	ep := endpoint.RetryMiddleware(5, endpoint.WithRetryBackoff(func(int) time.Duration {
+	ep := resilience.RetryMiddleware(5, resilience.WithRetryBackoff(func(int) time.Duration {
 		return time.Hour
 	}))(func(context.Context, any) (any, error) {
 		calls++
@@ -118,7 +119,7 @@ func TestRetryMiddlewareStopsWhenContextIsDone(t *testing.T) {
 
 func TestRetryMiddlewareSingleAttemptDisablesRetrying(t *testing.T) {
 	calls := 0
-	ep := endpoint.RetryMiddleware(0)(
+	ep := resilience.RetryMiddleware(0)(
 		func(context.Context, any) (any, error) {
 			calls++
 			return nil, apperror.Unavailable("dep.down", "dependency unavailable")
@@ -134,7 +135,7 @@ func TestRetryMiddlewareSingleAttemptDisablesRetrying(t *testing.T) {
 }
 
 func TestDefaultRetryableIgnoresNil(t *testing.T) {
-	if endpoint.DefaultRetryable(nil) {
+	if resilience.DefaultRetryable(nil) {
 		t.Error("nil error must not be retryable")
 	}
 }
@@ -161,7 +162,7 @@ func TestDefaultRetryableHonorsSelfClassification(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := endpoint.DefaultRetryable(tc.err); got != tc.want {
+			if got := resilience.DefaultRetryable(tc.err); got != tc.want {
 				t.Errorf("DefaultRetryable = %v, want %v", got, tc.want)
 			}
 		})
@@ -171,7 +172,7 @@ func TestDefaultRetryableHonorsSelfClassification(t *testing.T) {
 // A local rejection still wins over self-classification, so a tripped breaker
 // is never hammered by a client error that calls itself retryable.
 func TestDefaultRetryableRejectionsOutrankSelfClassification(t *testing.T) {
-	if endpoint.DefaultRetryable(endpoint.NewRetryAfterError(endpoint.ErrCircuitOpen, time.Second)) {
+	if resilience.DefaultRetryable(endpoint.NewRetryAfterError(endpoint.ErrCircuitOpen, time.Second)) {
 		t.Error("an open circuit must not be retryable")
 	}
 }
@@ -187,8 +188,8 @@ func (e retryAfterError) Retryable() bool           { return true }
 func TestRetryMiddlewarePrefersReportedRetryAfterOverBackoff(t *testing.T) {
 	var waits []time.Duration
 	calls := 0
-	ep := endpoint.RetryMiddleware(2,
-		endpoint.WithRetryBackoff(func(int) time.Duration {
+	ep := resilience.RetryMiddleware(2,
+		resilience.WithRetryBackoff(func(int) time.Duration {
 			waits = append(waits, time.Hour)
 			return time.Hour
 		}),
@@ -213,7 +214,7 @@ func TestRetryMiddlewareCapsReportedRetryAfter(t *testing.T) {
 	defer cancel()
 	calls := 0
 	start := time.Now()
-	ep := endpoint.RetryMiddleware(2, noBackoff)(func(context.Context, any) (any, error) {
+	ep := resilience.RetryMiddleware(2, noBackoff)(func(context.Context, any) (any, error) {
 		calls++
 		return nil, retryAfterError{after: 24 * time.Hour}
 	})
@@ -226,7 +227,7 @@ func TestRetryMiddlewareCapsReportedRetryAfter(t *testing.T) {
 	}
 	// The context ends the wait; without the cap a hostile hint could also park
 	// a caller that has no deadline at all.
-	if elapsed := time.Since(start); elapsed > endpoint.MaxRetryAfterHint {
-		t.Errorf("waited %v, want at most %v", elapsed, endpoint.MaxRetryAfterHint)
+	if elapsed := time.Since(start); elapsed > resilience.MaxRetryAfterHint {
+		t.Errorf("waited %v, want at most %v", elapsed, resilience.MaxRetryAfterHint)
 	}
 }

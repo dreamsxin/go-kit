@@ -1,4 +1,4 @@
-# 测试
+﻿# 测试
 
 [English](testing.md) | 简体中文
 
@@ -90,7 +90,7 @@ if !errors.Is(err, endpoint.ErrRateLimited) {
 clock := endpoint.NewManualClock(time.Unix(0, 0))
 
 ep := endpoint.NewBuilder(callDependency).
-    WithRetry(3, endpoint.WithRetryClock(clock)).
+    WithRetry(3, resilience.WithRetryClock(clock)).
     Build()
 
 done := make(chan error, 1)
@@ -111,7 +111,7 @@ clock.Advance(time.Hour) // 一小时的退避瞬间走完
 
 今天已有的接缝：
 
-- `endpoint.WithRetryClock`——重试尝试之间的等待。
+- `resilience.WithRetryClock`——重试尝试之间的等待。
 - `sd/retry.WithClock` 配合 `retry.New`——服务发现实例之间的重试退避，配合 `WithBackoff` 指定精确时间表。
   `WithTimeout` 仍为真实 context 截止时间，冻结测试时钟不会关闭调用预算。
 - `sd/client.WithRetryClock` 配合 `client.NewEndpoint`——从高层发现装配配置同一个退避时钟，时间表由

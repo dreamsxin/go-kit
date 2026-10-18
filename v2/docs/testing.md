@@ -1,4 +1,4 @@
-# Testing
+﻿# Testing
 
 English | [简体中文](testing_zh.md)
 
@@ -94,7 +94,7 @@ nil clock means the wall clock — so a service that does not care writes nothin
 clock := endpoint.NewManualClock(time.Unix(0, 0))
 
 ep := endpoint.NewBuilder(callDependency).
-	WithRetry(3, endpoint.WithRetryClock(clock)).
+	WithRetry(3, resilience.WithRetryClock(clock)).
 	Build()
 
 done := make(chan error, 1)
@@ -118,7 +118,7 @@ deadline. `Stop` returns false once a timer has fired or already been stopped.
 
 The seams that exist today:
 
-- `endpoint.WithRetryClock` — the wait between retry attempts.
+- `resilience.WithRetryClock` — the wait between retry attempts.
 - `sd/retry.WithClock` with `retry.New` — backoff across discovered instances;
   pair it with `WithBackoff` for an exact schedule. `WithTimeout` remains a real
   context deadline, so a frozen test clock cannot disable the call budget.

@@ -1,4 +1,4 @@
-# Middleware
+﻿# Middleware
 
 English | [简体中文](middleware_zh.md)
 
@@ -132,7 +132,7 @@ a per-key `Retry-After`; the unkeyed `RetryAfterReporter` still works when every
 key shares a refill rate.
 
 `CircuitBreaker` is not itself a `Middleware`: construct it once with
-`endpoint.NewCircuitBreaker()` and install `breaker.Middleware()`, keeping the
+`resilience.NewCircuitBreaker()` and install `breaker.Middleware()`, keeping the
 `*CircuitBreaker` for `State()`.
 
 The default trips on consecutive failures, which only catches a dependency that
@@ -141,10 +141,10 @@ failing part of the time — and `WithBreakerSlowCallThreshold` when slow is as 
 as failed:
 
 ```go
-breaker := endpoint.NewCircuitBreaker(
-    endpoint.WithBreakerMaxErrorRate(0.5),              // over half of the window
-    endpoint.WithBreakerMinSamples(20),                 // ...once 20 calls are in it
-    endpoint.WithBreakerSlowCallThreshold(2*time.Second),
+breaker := resilience.NewCircuitBreaker(
+    resilience.WithBreakerMaxErrorRate(0.5),              // over half of the window
+    resilience.WithBreakerMinSamples(20),                 // ...once 20 calls are in it
+    resilience.WithBreakerSlowCallThreshold(2*time.Second),
 )
 ```
 

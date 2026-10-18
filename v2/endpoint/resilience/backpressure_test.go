@@ -1,4 +1,4 @@
-package endpoint_test
+package resilience_test
 
 import (
 	"context"
@@ -9,10 +9,11 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/endpoint/resilience"
 )
 
 func TestBackpressureMiddleware_AllowsUnderLimit(t *testing.T) {
-	ep := endpoint.BackpressureMiddleware(5)(endpoint.Nop)
+	ep := resilience.BackpressureMiddleware(5)(endpoint.Nop)
 	for i := 0; i < 5; i++ {
 		if _, err := ep(context.Background(), nil); err != nil {
 			t.Fatalf("call %d: unexpected error: %v", i, err)
@@ -28,7 +29,7 @@ func TestBackpressureMiddleware_RejectsOverLimit(t *testing.T) {
 		return nil, nil
 	})
 
-	ep := endpoint.BackpressureMiddleware(2)(slow)
+	ep := resilience.BackpressureMiddleware(2)(slow)
 
 	var wg sync.WaitGroup
 	errs := make(chan error, 10)
@@ -69,7 +70,7 @@ func TestInFlightMiddleware_TracksCount(t *testing.T) {
 		return nil, nil
 	})
 
-	ep := endpoint.InFlightMiddleware(10, &inflight)(slow)
+	ep := resilience.InFlightMiddleware(10, &inflight)(slow)
 
 	done := make(chan struct{})
 	go func() {

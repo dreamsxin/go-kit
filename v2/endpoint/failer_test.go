@@ -51,22 +51,8 @@ func TestResponseErrorIgnoresNonFailers(t *testing.T) {
 }
 
 // With the breaker outside it, the converted failure is what trips the breaker.
-func TestFailerMiddlewareFeedsTheBreaker(t *testing.T) {
-	base := Endpoint(func(context.Context, any) (any, error) {
-		return carriedFailure{err: errBusiness}, nil
-	})
-	ep := NewBuilder(base).
-		WithCircuitBreaker(NewCircuitBreaker(WithBreakerFailureThreshold(1))).
-		WithFailer().
-		Build()
-
-	if _, err := ep(context.Background(), nil); !errors.Is(err, errBusiness) {
-		t.Fatalf("first call error = %v, want the carried failure", err)
-	}
-	if _, err := ep(context.Background(), nil); !errors.Is(err, ErrCircuitOpen) {
-		t.Fatalf("second call error = %v, want the breaker to be open", err)
-	}
-}
+// The breaker lives in endpoint/resilience, so the test that pins the pairing
+// lives there too; this file keeps the middleware's own contract.
 
 // context.WithTimeout(ctx, 0) yields an already expired context, so an unset
 // timeout must mean no timeout instead of a guaranteed failure.
@@ -83,21 +69,5 @@ func TestTimeoutMiddlewareTreatsNonPositiveAsNoDeadline(t *testing.T) {
 		if hadDeadline {
 			t.Fatalf("d = %v: the endpoint should see no deadline", d)
 		}
-	}
-}
-
-// An unset concurrency limit must not reject every request.
-func TestBackpressureMiddlewareClampsNonPositiveLimit(t *testing.T) {
-	ep := BackpressureMiddleware(0)(Nop)
-	if _, err := ep(context.Background(), nil); err != nil {
-		t.Fatalf("err = %v, want the single permitted call to pass", err)
-	}
-}
-
-func TestInFlightMiddlewareClampsNonPositiveLimit(t *testing.T) {
-	var inflight int64
-	ep := InFlightMiddleware(0, &inflight)(Nop)
-	if _, err := ep(context.Background(), nil); err != nil {
-		t.Fatalf("err = %v, want the single permitted call to pass", err)
 	}
 }

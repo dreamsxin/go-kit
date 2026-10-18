@@ -1,4 +1,4 @@
-# microgen User Guide
+﻿# microgen User Guide
 English | [简体中文](MICROGEN_zh.md)
 
 `microgen` generates runnable Go services from a contract. It is the recommended
@@ -478,14 +478,14 @@ The hook wraps every endpoint of the service, inside the component's chain:
 
 ```go
 func applyCustomMiddleware(ep endpoint.Endpoint, logger *slog.Logger, cfg MiddlewareConfig, name string) endpoint.Endpoint {
-	ep = endpoint.NewCircuitBreaker().Middleware()(ep)
-	ep = endpoint.RateLimitMiddleware(limiter)(ep)
+	ep = resilience.NewCircuitBreaker().Middleware()(ep)
+	ep = resilience.RateLimitMiddleware(limiter)(ep)
 	return ep
 }
 ```
 
 The rate limiter itself is application-owned — anything with `Allow()` and
-`Wait(ctx)` satisfies `endpoint.RateLimiter`, and `golang.org/x/time/rate`'s
+`Wait(ctx)` satisfies `resilience.RateLimiter`, and `golang.org/x/time/rate`'s
 `Limiter` does out of the box:
 
 ```go

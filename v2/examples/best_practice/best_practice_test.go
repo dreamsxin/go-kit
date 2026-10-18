@@ -11,15 +11,16 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/endpoint/resilience"
 	"github.com/dreamsxin/go-kit/v2/transport/http/server"
 )
 
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
-	breaker := endpoint.NewCircuitBreaker(
-		endpoint.WithBreakerFailureThreshold(3),
-		endpoint.WithBreakerOpenTimeout(5*time.Second),
+	breaker := resilience.NewCircuitBreaker(
+		resilience.WithBreakerFailureThreshold(3),
+		resilience.WithBreakerOpenTimeout(5*time.Second),
 	)
 	limiter := newFixedRateLimiter(100)
 
@@ -29,7 +30,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 		WithErrorHandling("hello").
 		Use(endpoint.TimeoutMiddleware(5 * time.Second)).
 		Use(breaker.Middleware()).
-		Use(endpoint.RateLimitMiddleware(limiter)).
+		Use(resilience.RateLimitMiddleware(limiter)).
 		Build()
 
 	mux := http.NewServeMux()
@@ -156,7 +157,7 @@ func TestHTTP_MetricsEndpoint(t *testing.T) {
 func TestRateLimit_Rejected(t *testing.T) {
 	// burst=1: second call is rejected
 	limiter := newFixedRateLimiter(1)
-	ep := endpoint.RateLimitMiddleware(limiter)(endpoint.Nop)
+	ep := resilience.RateLimitMiddleware(limiter)(endpoint.Nop)
 
 	ep(context.Background(), nil) //nolint:errcheck — consumes token
 	_, err := ep(context.Background(), nil)
@@ -166,7 +167,7 @@ func TestRateLimit_Rejected(t *testing.T) {
 }
 
 func TestCircuitBreaker_Opens(t *testing.T) {
-	cb := endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(2))
+	cb := resilience.NewCircuitBreaker(resilience.WithBreakerFailureThreshold(2))
 	alwaysFail := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 		return nil, errors.New("fail")
 	})

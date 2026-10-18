@@ -18,9 +18,6 @@ import (
 // schedule, a token expiry and a session TTL are all decisions a service makes
 // from the clock, and a test that cannot move the clock has to sleep — which
 // makes the test slow when it passes and flaky when the machine is loaded.
-//
-// Stable: endpoint.clock-nil-is-wall-clock — a nil Clock means the wall clock, so a service that ignores this seam behaves exactly as before.
-// Covered by: TestNilClockIsTheWallClock
 type Clock interface {
 	// Now reports the current time.
 	Now() time.Time
@@ -74,7 +71,7 @@ func (t systemTimer) Stop() bool { return t.timer.Stop() }
 //
 //	clock := endpoint.NewManualClock(time.Unix(0, 0))
 //	ep := endpoint.NewBuilder(call).
-//	    WithRetry(3, endpoint.WithRetryClock(clock)).
+//	    Use(resilience.RetryMiddleware(3, resilience.WithRetryClock(clock))).
 //	    Build()
 //	go ep(ctx, request)
 //	clock.Advance(50 * time.Millisecond) // the first backoff step elapses
@@ -169,8 +166,8 @@ type manualTimer struct {
 
 func (t *manualTimer) C() <-chan time.Time { return t.channel }
 
-// Stable: endpoint.manual-clock-stop-releases-wait — stopping a manual timer removes it from Pending immediately without advancing time, including when a retry is cancelled; concurrent Stop and Advance complete a timer only once.
-// Covered by: TestManualClockStopReleasesPendingTimersWithoutAdvancing, TestRetryCancellationReleasesManualClockWait, TestManualClockConcurrentStopAndAdvance
+// Stable: endpoint.manual-clock-stop-releases-wait — stopping a manual timer removes it from Pending immediately without advancing time; concurrent Stop and Advance complete a timer only once.
+// Covered by: TestManualClockStopReleasesPendingTimersWithoutAdvancing, TestManualClockConcurrentStopAndAdvance
 func (t *manualTimer) Stop() bool {
 	t.clock.mu.Lock()
 	defer t.clock.mu.Unlock()

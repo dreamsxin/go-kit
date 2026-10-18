@@ -1,13 +1,15 @@
-package endpoint
+package resilience
 
 import (
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+
 	"context"
 	"sync/atomic"
 )
 
-// BackpressureMiddleware returns a Middleware that limits the number of
+// BackpressureMiddleware returns a endpoint.Middleware that limits the number of
 // concurrent in-flight requests to max.  When the limit is reached, new
-// requests are rejected immediately with ErrBackpressure.
+// requests are rejected immediately with endpoint.ErrBackpressure.
 //
 // This is essential for large-scale systems to prevent cascading failures
 // when a downstream service slows down.
@@ -18,27 +20,22 @@ import (
 // Example:
 //
 //	// Allow at most 100 concurrent requests
-//	ep = endpoint.BackpressureMiddleware(100)(ep)
-func BackpressureMiddleware(max int64) Middleware {
+//	ep = BackpressureMiddleware(100)(ep)
+func BackpressureMiddleware(max int64) endpoint.Middleware {
 	if max < 1 {
 		max = 1
 	}
 	var inflight int64
-	return func(next Endpoint) Endpoint {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			cur := atomic.AddInt64(&inflight, 1)
 			defer atomic.AddInt64(&inflight, -1)
 			if cur > max {
-				return nil, ErrBackpressure
+				return nil, endpoint.ErrBackpressure
 			}
 			return next(ctx, request)
 		}
 	}
-}
-
-// WithBackpressure appends a BackpressureMiddleware to the Builder.
-func (b *Builder) WithBackpressure(max int64) *Builder {
-	return b.UseNamed("backpressure", BackpressureMiddleware(max))
 }
 
 // InFlightMiddleware is like BackpressureMiddleware but also exposes the
@@ -53,19 +50,19 @@ func (b *Builder) WithBackpressure(max int64) *Builder {
 //	var inflight int64
 //	ep = endpoint.InFlightMiddleware(100, &inflight)(ep)
 //	// inflight is updated atomically on every call
-func InFlightMiddleware(max int64, counter *int64) Middleware {
+func InFlightMiddleware(max int64, counter *int64) endpoint.Middleware {
 	if counter == nil {
 		panic("endpoint: in-flight counter cannot be nil")
 	}
 	if max < 1 {
 		max = 1
 	}
-	return func(next Endpoint) Endpoint {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			cur := atomic.AddInt64(counter, 1)
 			defer atomic.AddInt64(counter, -1)
 			if cur > max {
-				return nil, ErrBackpressure
+				return nil, endpoint.ErrBackpressure
 			}
 			return next(ctx, request)
 		}

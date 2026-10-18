@@ -5,6 +5,7 @@ github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/generator
 github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/ir
 github.com/dreamsxin/go-kit/v2/cmd/microgen/internal/parser
 github.com/dreamsxin/go-kit/v2/endpoint
+github.com/dreamsxin/go-kit/v2/endpoint/resilience
 github.com/dreamsxin/go-kit/v2/health
 github.com/dreamsxin/go-kit/v2/integrations/consul
 github.com/dreamsxin/go-kit/v2/integrations/etcd

@@ -1,4 +1,4 @@
-# microgen 用户指南
+﻿# microgen 用户指南
 
 [English](MICROGEN.md) | 简体中文
 
@@ -436,14 +436,14 @@ microgen \
 
 ```go
 func applyCustomMiddleware(ep endpoint.Endpoint, logger *slog.Logger, cfg MiddlewareConfig, name string) endpoint.Endpoint {
-	ep = endpoint.NewCircuitBreaker().Middleware()(ep)
-	ep = endpoint.RateLimitMiddleware(limiter)(ep)
+	ep = resilience.NewCircuitBreaker().Middleware()(ep)
+	ep = resilience.RateLimitMiddleware(limiter)(ep)
 	return ep
 }
 ```
 
 限流器本身归应用所有——任何具备 `Allow()` 与 `Wait(ctx)` 的类型都满足
-`endpoint.RateLimiter`，`golang.org/x/time/rate` 的 `Limiter` 开箱即满足：
+`resilience.RateLimiter`，`golang.org/x/time/rate` 的 `Limiter` 开箱即满足：
 
 ```go
 var limiter = rate.NewLimiter(rate.Every(100*time.Millisecond), 20)

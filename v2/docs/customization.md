@@ -1,4 +1,4 @@
-# Customization
+﻿# Customization
 
 English | [简体中文](customization_zh.md)
 
@@ -193,7 +193,7 @@ decision guide:
 | Same envelope on every JSON route | `kit.WithJSONServerOptions` | assembly |
 | Compose with the built-in mapping | `server.HTTPStatusForError` / `HTTPStatusForErrorKind` | custom encoders |
 | Decide what time it is in a test | `endpoint.Clock` + `endpoint.NewManualClock`; nil means the wall clock | assembly / tests |
-| Test a retry schedule without sleeping | `endpoint.WithRetryClock` | endpoint builder |
+| Test a retry schedule without sleeping | `resilience.WithRetryClock` | endpoint builder |
 | Expire a CSRF token in a test | `httpsecurity.CSRFConfig.Clock` (structural, any `Now` method) | assembly / tests |
 
 

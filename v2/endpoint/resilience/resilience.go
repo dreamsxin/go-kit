@@ -1,12 +1,14 @@
-package endpoint
+package resilience
 
 import (
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+
 	"context"
 	"errors"
 	"sync"
 )
 
-// Fallback returns a Middleware that answers with the fallback endpoint when
+// Fallback returns a endpoint.Middleware that answers with the fallback endpoint when
 // the wrapped endpoint fails. Successful calls never touch the fallback.
 //
 // Use it to degrade gracefully instead of propagating a dependency failure:
@@ -27,13 +29,13 @@ import (
 // Example:
 //
 //	ep := endpoint.NewBuilder(recommend).
-//	    WithFallback(defaultRecommendations).
+//	    Use(Fallback(defaultRecommendations)).
 //	    Build()
-func Fallback(fallback Endpoint) Middleware {
+func Fallback(fallback endpoint.Endpoint) endpoint.Middleware {
 	if fallback == nil {
 		panic("endpoint: fallback endpoint cannot be nil")
 	}
-	return func(next Endpoint) Endpoint {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			resp, err := next(ctx, request)
 			if err == nil {
@@ -51,11 +53,6 @@ func Fallback(fallback Endpoint) Middleware {
 	}
 }
 
-// WithFallback appends a Fallback middleware to the Builder.
-func (b *Builder) WithFallback(fallback Endpoint) *Builder {
-	return b.UseNamed("fallback", Fallback(fallback))
-}
-
 // BulkheadMiddleware limits concurrent requests per resource key, so one
 // slow tenant or dependency cannot consume the concurrency budget of the
 // others. Unlike BackpressureMiddleware, which counts globally, each key
@@ -70,17 +67,17 @@ func (b *Builder) WithFallback(fallback Endpoint) *Builder {
 // a queue, not an immediate shed, so saturation shows up as latency until the
 // caller's context ends. When it does, the error classifies as that context
 // error — a caller timeout stays a timeout (HTTP 504), a disconnect stays a
-// disconnect (499) — and wraps ErrBulkheadFull, so errors.Is still reports the
+// disconnect (499) — and wraps endpoint.ErrBulkheadFull, so errors.Is still reports the
 // saturation that caused the wait.
 //
 // Example:
 //
 //	ep := endpoint.NewBuilder(callDependency).
-//	    WithBulkhead(20, func(req any) string {
+//	    Use(BulkheadMiddleware(20, func(req any) string {
 //	        return req.(Request).TenantID
-//	    }).
+//	    })).
 //	    Build()
-func BulkheadMiddleware(maxPerKey int, key func(request any) string) Middleware {
+func BulkheadMiddleware(maxPerKey int, key func(request any) string) endpoint.Middleware {
 	if maxPerKey < 1 {
 		maxPerKey = 1
 	}
@@ -107,7 +104,7 @@ func BulkheadMiddleware(maxPerKey int, key func(request any) string) Middleware 
 		return pool
 	}
 
-	return func(next Endpoint) Endpoint {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request any) (any, error) {
 			pool := poolFor(request)
 			select {
@@ -116,16 +113,11 @@ func BulkheadMiddleware(maxPerKey int, key func(request any) string) Middleware 
 			case <-ctx.Done():
 				// The caller's context ended the wait, so the failure is its
 				// timeout or cancellation, not load shedding. Reporting
-				// ErrBulkheadFull alone turned every caller timeout into a 503;
+				// endpoint.ErrBulkheadFull alone turned every caller timeout into a 503;
 				// it stays wrapped for logs and metrics.
-				return nil, newShedWaitError(ctx.Err(), ErrBulkheadFull)
+				return nil, newShedWaitError(ctx.Err(), endpoint.ErrBulkheadFull)
 			}
 			return next(ctx, request)
 		}
 	}
-}
-
-// WithBulkhead appends a BulkheadMiddleware to the Builder.
-func (b *Builder) WithBulkhead(maxPerKey int, key func(request any) string) *Builder {
-	return b.UseNamed("bulkhead", BulkheadMiddleware(maxPerKey, key))
 }

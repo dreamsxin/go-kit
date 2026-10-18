@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dreamsxin/go-kit/v2/endpoint"
+	"github.com/dreamsxin/go-kit/v2/endpoint/resilience"
 )
 
 func TestDivide_Success(t *testing.T) {
@@ -126,7 +127,7 @@ func TestTimeoutMiddleware_Triggers(t *testing.T) {
 }
 
 func TestCircuitBreaker_OpensAfterFailures(t *testing.T) {
-	cb := endpoint.NewCircuitBreaker(endpoint.WithBreakerFailureThreshold(3))
+	cb := resilience.NewCircuitBreaker(resilience.WithBreakerFailureThreshold(3))
 	alwaysFail := endpoint.Endpoint(func(_ context.Context, _ any) (any, error) {
 		return nil, errors.New("backend down")
 	})
@@ -144,7 +145,7 @@ func TestCircuitBreaker_OpensAfterFailures(t *testing.T) {
 func TestErroringLimiter_AllowsThenRejects(t *testing.T) {
 	// burst=2: first 2 succeed, then rejected
 	lim := newDemoRateLimiter(2)
-	ep := endpoint.RateLimitMiddleware(lim)(endpoint.Nop)
+	ep := resilience.RateLimitMiddleware(lim)(endpoint.Nop)
 
 	for i := 0; i < 2; i++ {
 		if _, err := ep(context.Background(), nil); err != nil {
@@ -159,7 +160,7 @@ func TestErroringLimiter_AllowsThenRejects(t *testing.T) {
 
 func TestDelayingLimiter_ContextDeadline(t *testing.T) {
 	delayLim := newDemoRateLimiter(1)
-	ep := endpoint.DelayRateLimitMiddleware(delayLim)(endpoint.Nop)
+	ep := resilience.DelayRateLimitMiddleware(delayLim)(endpoint.Nop)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
