@@ -238,6 +238,15 @@ main creates signal context
 Startup errors must be synchronous when possible. A service instance cannot be
 started twice or restarted after shutdown.
 
+Assembly can be split into modules. `kit.WithModules` accepts values implementing
+`kit.Module`: `Host.Init` runs every `Register` first, then `Init` in the order
+`Requires` declares, both with the context `Run` owns, so initialization is
+cancelled with the run. Modules come before components — a dependency is ready
+when handlers are installed — and a failed `Init` means no listener ever opens.
+The order depends on the module set and not on declaration order: modules that
+require nothing are ordered by name. An invalid graph (unnamed, duplicated,
+unknown requirement, cycle) is rejected by `NewHost`.
+
 Components may implement `kit.NamedLifecycle` to attach a stable name to
 startup, asynchronous failure, and shutdown diagnostics, `kit.ReadinessProvider`
 to bridge asynchronous warm-up into the `/readyz` and `/health` readiness checks,
@@ -261,7 +270,10 @@ Prefer, in order:
 4. Change core contracts only when the behavior is broadly required.
 
 Avoid global registries, hidden goroutines, package-level process control, and
-framework branches for one application.
+framework branches for one application. `kit.Registry` is not covered by that
+rule: it belongs to one `Host`, dies with it, and two Hosts in one process
+cannot see each other. What the rule forbids is the package-level singleton,
+which makes both tests and multiple instances impossible to isolate.
 
 ## Module Dependency Layers
 

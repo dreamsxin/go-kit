@@ -2910,6 +2910,62 @@ go -C ./tools test . -run 'TestMicrogen(IDLContractIntegration|ProtoIntegration|
 and a manual build of one project per source mode: HTTP from Go IDL, HTTP+gRPC
 from proto after `protoc`, and from-db from SQLite.
 
+## Milestone 30 (complete): Slots Before Parts
+
+Origin: a review against a mature application platform's server side — an
+instance-owned registry, two-phase plugin loading, dependency-ordered startup.
+The framework had made "how one request finishes safely" complete while leaving
+"how one capability gets into the process" to `main`: `Host` accepted only
+`Lifecycle`, with no registry, no dependency declaration and no two-phase
+initialization. Every capability that follows — a resource surface, a policy, a
+migration runner — would otherwise invent its own assembly, and the first one
+written becomes the standard by default.
+
+Landed:
+
+- **Two-phase initialization.** Every `Register` runs before any `Init`, and
+  `Init` then runs in dependency order. A module can therefore use a value
+  published by a module that initializes after it — the only reason the two
+  phases exist, and the thing a single pass cannot do.
+- **The order is declared and reproducible.** `Requires` supplies the edges;
+  modules that require nothing are ordered by name rather than by declaration,
+  so the same set attached in 100 different orders produces one startup
+  sequence, and two deployments' startup logs are comparable.
+- **An invalid graph fails at construction.** An empty name, a duplicate, an
+  unknown requirement, a self-cycle and a multi-module cycle are all rejected by
+  `NewHost`, and a cycle names the whole path instead of leaving the reader to
+  reconstruct it from `Requires` implementations.
+- **The registry has an owner.** `kit.Registry` belongs to one `Host` and dies
+  with it; two Hosts in one process cannot see each other. Duplicate, empty and
+  nil publications are errors rather than overwrites, because an overwrite makes
+  the outcome depend on startup order. This clarifies the boundary in
+  `ARCHITECTURE.md`: what is ruled out is the package-level singleton.
+- **A failed initialization is terminal.** `Run` returns it and no component
+  starts; a later `Init` returns the same error instead of retrying, because a
+  retry would publish duplicate values and run half of startup twice.
+- **Hand-assembled startup has a diagnostic.** Calling `Start` without `Init`
+  names the requirement rather than silently skipping initialization.
+
+Deliberately not done:
+
+- Modules carrying `Lifecycle`. Components stay attached through
+  `WithLifecycle`, so "who binds first, who leaves discovery first" remains one
+  readable declaration instead of being scattered inside modules.
+- Enabling or disabling modules at runtime. The set is fixed when the Host is
+  built.
+- `init()` self-registration. It is hidden global state, and it makes tests
+  impossible to isolate.
+- Configuration sugar at the module level. Values travel through the registry
+  with their keys and types written out.
+
+Acceptance:
+
+```bash
+go test ./kit -run 'TestModule|TestRegistry|TestGet' -count=1
+go -C ./tools test . -run 'TestStableProtocolBehaviour|TestPublicAPISurfaceSnapshot' -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,vet,tidy
+```
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

@@ -6,6 +6,17 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Added
 
+- `kit` can be assembled from modules. `kit.WithModules` accepts values
+  implementing `kit.Module`: every `Register` runs before any `Init`, and both
+  phases run in an order derived from `Requires` and — for modules that require
+  nothing — from the module name, so the same set always starts the same way
+  whatever order it was declared in. Both phases run with `Run`'s context, so
+  initialization is cancellable and a failure leaves no listener open. A nil,
+  unnamed, duplicated or unknown module, and a dependency cycle (reported as a
+  path, `a -> c -> b -> a`), are rejected by `NewHost`. `Host.Init` is
+  idempotent and a failure is terminal. `kit.Registry` belongs to one `Host` and
+  dies with it, which is what separates it from the package-level registries
+  `ARCHITECTURE.md` rules out.
 - `examples/usersvc/userservice.proto` is the protobuf twin of the existing Go
   IDL example, so the documented gRPC workflow has a contract to start from.
 

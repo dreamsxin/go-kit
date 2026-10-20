@@ -1212,6 +1212,7 @@ var ErrShutdownIncomplete = errors.New("kit: graceful shutdown did not finish")
 FUNCTIONS
 func DefaultProbePaths() health.Paths
 func DefaultRequestIDValidator(id string) bool
+func Get[T any](r *Registry, name string) (T, error)
 func HandleJSON[Req, Resp any](
 	r Router,
 	pattern string,
@@ -1293,18 +1294,32 @@ func NewHost(opts ...HostOption) (*Host, error)
 func (h *Host) Drain(ctx context.Context) error
 func (h *Host) Draining() bool
 func (h *Host) Errors() <-chan error
+func (h *Host) Init(ctx context.Context) error
 func (h *Host) Run(ctx context.Context) error
 func (h *Host) Shutdown(ctx context.Context) error
 func (h *Host) Start() error
 type HostOption func(*Host) error
 func WithDrainDelay(delay time.Duration) HostOption
 func WithLifecycle(components ...Lifecycle) HostOption
+func WithModules(modules ...Module) HostOption
 func WithRegistrar(registrar sd.Registrar, options ...RegistrarOption) HostOption
 func WithShutdownTimeout(timeout time.Duration) HostOption
 type Lifecycle interface {
 	Start() error
 	Errors() <-chan error
 	Shutdown(context.Context) error
+}
+type Module interface {
+	Name() string
+}
+type ModuleDependencies interface {
+	Requires() []string
+}
+type ModuleInitializer interface {
+	Init(context.Context, *Registry) error
+}
+type ModuleRegistrar interface {
+	Register(*Registry) error
 }
 type NamedLifecycle interface {
 	Lifecycle
@@ -1339,6 +1354,13 @@ type ReadinessSink interface {
 }
 type RegistrarOption func(*registrarLifecycle)
 func WithRegistrarName(name string) RegistrarOption
+type Registry struct {
+	// Has unexported fields.
+}
+func NewRegistry() *Registry
+func (r *Registry) Lookup(name string) (any, bool)
+func (r *Registry) Names() []string
+func (r *Registry) Provide(name string, value any) error
 type RequestIDValidator = transporthttp.RequestIDValidator
 type RouteOption func(*routeOptions)
 func RouteBodyLimit(maxBodyBytes int64) RouteOption

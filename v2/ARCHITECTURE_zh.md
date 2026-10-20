@@ -205,6 +205,13 @@ main creates signal context
 
 启动错误应尽可能同步返回。服务实例不能被启动两次，停机后也不能重启。
 
+装配可以拆成模块。`kit.WithModules` 接受实现 `kit.Module` 的值：`Host.Init`
+先把全体模块的 `Register` 跑完，再按 `Requires` 给出的依赖顺序逐个 `Init`，
+两次都用 `Run` 持有的 context，因此初始化随 run 取消。模块先于组件启动——处理器
+安装时依赖已经就绪——而一次失败的 `Init` 意味着任何监听器都不会打开。顺序只
+取决于模块集合，不取决于声明顺序：无依赖的模块按名字排序。无效的图（未命名、
+重名、依赖不存在、依赖环）在 `NewHost` 就被拒绝。
+
 组件可以实现 `kit.NamedLifecycle`，为启动、异步故障与停机诊断提供稳定
 名称；实现 `kit.ReadinessProvider` 可把异步预热桥接到 `/readyz` 与
 `/health` 的就绪检查；实现 `kit.Draining` 则会在任何 shutdown 之前被告知
@@ -225,7 +232,9 @@ endpoint/endpointer 资源再停止其 Instancer，然后关闭传输与进程�
 4. 仅当行为被广泛需要时才修改核心契约。
 
 避免全局注册表、隐藏 goroutine、包级进程控制，以及为单一应用加入框架
-分支。
+分支。`kit.Registry` 不属于这条禁令：它属于一个 `Host` 实例、随 `Host` 死亡，
+进程内两个 `Host` 互相看不见。被禁止的是包级单例，因为它让测试与多实例都无法
+隔离。
 
 ## 模块依赖层级
 

@@ -29,6 +29,17 @@ type Host struct {
 	shutdownTimeout time.Duration
 	drainDelay      time.Duration
 
+	modules     []Module
+	moduleOrder []int
+	registry    *Registry
+
+	// initMu serializes Init. The initialized flag and its error live under mu,
+	// which Init only holds to read and publish that state — never while module
+	// code runs, so a module cannot deadlock against a Host method.
+	initMu   sync.Mutex
+	initDone bool
+	initErr  error
+
 	mu       sync.Mutex
 	started  bool
 	stopped  bool
@@ -51,6 +62,9 @@ func NewHost(opts ...HostOption) (*Host, error) {
 		if err := option(h); err != nil {
 			return nil, fmt.Errorf("kit: apply host option %d: %w", i, err)
 		}
+	}
+	if err := h.initModules(); err != nil {
+		return nil, err
 	}
 	h.serveErrors = make(chan error, len(h.components)+1)
 	if err := h.bridgeReadiness(); err != nil {
@@ -135,6 +149,10 @@ type ReadinessSink interface {
 // Run starts the attached components and blocks until ctx is cancelled or a
 // component fails. Signal handling belongs to the calling main package.
 //
+// Modules initialize first, in dependency order, using the same context: a
+// module that blocks on a connection is cancelled with the run, and nothing is
+// started when one of them fails.
+//
 // Stopping is a sequence: Run announces the stop with Drain, waits the configured
 // drain delay, and only then shuts components down. The announcement and the
 // teardown each get their own shutdown timeout, so the worst case is the drain
@@ -143,6 +161,9 @@ type ReadinessSink interface {
 func (h *Host) Run(ctx context.Context) error {
 	if ctx == nil {
 		return fmt.Errorf("kit: nil run context")
+	}
+	if err := h.Init(ctx); err != nil {
+		return err
 	}
 	if err := h.Start(); err != nil {
 		return err
@@ -178,9 +199,16 @@ func (h *Host) Run(ctx context.Context) error {
 
 // Start starts all attached components in the background. Component startup
 // failures are returned directly.
+//
+// A Host with modules must be initialized first. Run does it for you; a caller
+// that starts the Host by hand calls Init, because initialization needs the
+// context that a run owns and Start has none to give.
 func (h *Host) Start() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if len(h.modules) > 0 && !h.initDone {
+		return fmt.Errorf("kit: host has %d modules that are not initialized; call Init before Start", len(h.modules))
+	}
 	if h.started {
 		return fmt.Errorf("kit: host already started")
 	}

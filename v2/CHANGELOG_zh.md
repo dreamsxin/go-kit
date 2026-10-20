@@ -6,6 +6,15 @@
 
 ### 变更
 
+- `kit` 现在可以用模块装配。`kit.WithModules` 接受实现了 `kit.Module` 的值：
+  `Register` 对全体模块先跑完，`Init` 才按 `Requires` 的依赖顺序逐个执行，
+  两次都由 `Run` 用同一个上下文驱动，因此初始化可以被取消，失败时任何监听器都
+  不会打开。顺序只取决于模块集合、不取决于声明顺序——无依赖的模块按名字排序
+  作为平局裁决——所以同一组模块的两次部署启动日志可以直接比对。空名、重名、
+  依赖不存在、自环与多节点环都在 `NewHost` 被拒绝，环报出完整路径
+  （`a -> c -> b -> a`）。`Host.Init` 幂等；失败是终态，后续调用返回同一个
+  错误，因为重试会重复发布值并把启动跑两遍。`kit.Registry` 属于一个 `Host`
+  实例并随它死亡，这不是 `ARCHITECTURE.md` 禁止的全局注册表。
 - `microgen -protocols http,grpc` 现在要求 `.proto` IDL。此前用 Go IDL 或
   `-from-db` 会写出一份无法编译的项目：生成的传输层通过
   `pb.Register<Service>Server` 注册，Go SDK 调用 `pb.New<Service>Client`，

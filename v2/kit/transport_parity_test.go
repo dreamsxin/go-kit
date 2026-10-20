@@ -44,13 +44,17 @@ var transportContracts = map[string]struct {
 	bothTransports bool
 	reason         string
 }{
-	"Lifecycle":         {true, "a component a Host can start and stop"},
-	"Draining":          {true, "the announcement has to reach every server, or a stream never learns"},
-	"ReadinessSink":     {true, "each transport serves readiness in its own protocol: /readyz, grpc.health.v1"},
-	"NamedLifecycle":    {false, "diagnostics, not a contract: kit/grpc.Component is named by its type in Host output"},
-	"ReadinessProvider": {false, "implemented by application components with warm-up, not by transports"},
-	"CertificateSource": {false, "implemented by the deployment, not by a transport: it answers where a certificate comes from, and only the HTTP listener terminates TLS here"},
-	"Router":            {false, "HTTP route registration: it joins a pattern onto the HTTP mux, and a gRPC service registers on the grpc.Server instead"},
+	"Lifecycle":          {true, "a component a Host can start and stop"},
+	"Draining":           {true, "the announcement has to reach every server, or a stream never learns"},
+	"ReadinessSink":      {true, "each transport serves readiness in its own protocol: /readyz, grpc.health.v1"},
+	"NamedLifecycle":     {false, "diagnostics, not a contract: kit/grpc.Component is named by its type in Host output"},
+	"ReadinessProvider":  {false, "implemented by application components with warm-up, not by transports"},
+	"CertificateSource":  {false, "implemented by the deployment, not by a transport: it answers where a certificate comes from, and only the HTTP listener terminates TLS here"},
+	"Router":             {false, "HTTP route registration: it joins a pattern onto the HTTP mux, and a gRPC service registers on the grpc.Server instead"},
+	"Module":             {false, "an assembly unit in main, not a serving component: a transport is attached to the Host, it does not bring its own wiring"},
+	"ModuleDependencies": {false, "ordering between modules in main; no transport has a module it must start after"},
+	"ModuleRegistrar":    {false, "the Host's first startup phase: a transport publishes nothing into the registry"},
+	"ModuleInitializer":  {false, "the Host's second startup phase: a transport is started by Host.Start, not by module Init"},
 }
 
 func TestEveryKitContractIsClassifiedForBothTransports(t *testing.T) {
