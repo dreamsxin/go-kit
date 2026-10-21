@@ -2295,6 +2295,26 @@ go -C ./tools test . -run 'TestStableProtocolBehaviour|TestPublicAPISurfaceSnaps
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,vet,tidy
 ```
 
+## 发现：等待不是同步
+
+CI 上 `TestShutdownStaysGracefulWhenHandlersFinish` 偶发失败，报「in-flight request
+status = 0, want 200」。断言没有错，布置错了：测试用 `time.Sleep(10ms)` 假定请求已
+经到达服务端，而 `HTTP.Shutdown` 的第一件事就是关监听器。机器有负载时拨号还没完成，
+连接被拒，`status` 就是 0——测试把「没连上」读成了「被中断」，于是失败指向的是宽限期，
+而真正的原因是测试自己的时序假设。
+
+用一个临时探针把 CI 的条件注入进来即可复现：把 `http.DefaultTransport` 的
+`DialContext` 延迟 50ms，这个测试立刻以同一条消息失败。因此这不是断言过时，也不是
+组件行为的问题，而是测试用时间代替了信号。
+
+规则：**要断言的状态必须由一个可观察事件建立，不能用 sleep。** 三个关闭相关的测试
+现在都等 handler 真正进入（`inFlight <- struct{}{}`）之后再宣布停止；修复后在同样的
+50ms 慢拨号下通过，`-count=20` 与 `-race -count=3` 稳定。
+
+刻意不改：`TestHostRunsHTTPComponentEndToEnd` 里那句 `time.Sleep(50ms)` 注释写着
+「等监听器起来」，但它取消之后不断言任何与监听器有关的事，早取消也不会失败——它不
+建立前置状态，只是装饰。改掉它属于顺手改代码，不属于让某个性质变真。
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

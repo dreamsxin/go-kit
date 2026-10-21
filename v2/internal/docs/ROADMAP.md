@@ -2966,6 +2966,32 @@ go -C ./tools test . -run 'TestStableProtocolBehaviour|TestPublicAPISurfaceSnaps
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,vet,tidy
 ```
 
+## Finding: A Wait Is Not A Synchronization
+
+`TestShutdownStaysGracefulWhenHandlersFinish` failed intermittently in CI with
+"in-flight request status = 0, want 200". The assertion was right; the arrangement
+was not. The test used `time.Sleep(10ms)` to assume a request had reached the
+server, and the first thing `HTTP.Shutdown` does is close the listener. On a loaded
+machine the dial had not finished, the connection was refused, and `status` came
+back 0 — the test read "never connected" as "was interrupted", so the failure
+pointed at the grace period while the cause was the test's own timing assumption.
+
+The CI condition reproduces on demand: delaying `DialContext` on
+`http.DefaultTransport` by 50ms makes that test fail with the same message. So the
+expectation was not stale and the component was not wrong; the test used time where
+it needed a signal.
+
+Rule: **a precondition is established by an observable event, never by a sleep.**
+All three shutdown tests now wait for the handler to actually enter before
+announcing the stop. With the same 50ms slow dial the fixed tests pass, and they
+stay green under `-count=20` and `-race -count=3`.
+
+Deliberately unchanged: the `time.Sleep(50ms)` in
+`TestHostRunsHTTPComponentEndToEnd` is commented "let the listener come up", but the
+test asserts nothing about the listener afterwards and cannot fail if the cancel
+lands earlier. It establishes no precondition — it is decoration. Removing it would
+be tidying code, not making a property true.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

@@ -20,8 +20,10 @@ import (
 func TestStoppingClosesWhenTheComponentDrains(t *testing.T) {
 	component := kit.MustNewHTTP("127.0.0.1:0")
 
+	running := make(chan struct{}, 1)
 	observed := make(chan bool, 1)
 	component.HandleFunc("GET /stream", func(w http.ResponseWriter, r *http.Request) {
+		running <- struct{}{}
 		select {
 		case <-kit.Stopping(r.Context()):
 			observed <- true
@@ -39,8 +41,11 @@ func TestStoppingClosesWhenTheComponentDrains(t *testing.T) {
 	}()
 
 	host := kit.MustNewHost(kit.WithLifecycle(component))
-	// Give the handler a moment to reach its select before the announcement.
-	time.Sleep(50 * time.Millisecond)
+	// Drain is announced while the handler is inside its select, which is the
+	// situation the test is about. A sleep would make that a guess: the handler
+	// goroutine is only scheduled once; a loaded machine can take longer than
+	// the sleep, and the announcement would then arrive before it ever ran.
+	<-running
 	if err := host.Drain(context.Background()); err != nil {
 		t.Fatalf("Drain: %v", err)
 	}
@@ -81,7 +86,9 @@ func TestStoppingIsNilOutsideAKitServer(t *testing.T) {
 // Shutdown reports success.
 func TestShutdownStaysGracefulWhenHandlersFinish(t *testing.T) {
 	component := kit.MustNewHTTP("127.0.0.1:0")
+	inFlight := make(chan struct{}, 1)
 	component.HandleFunc("GET /quick", func(w http.ResponseWriter, r *http.Request) {
+		inFlight <- struct{}{}
 		time.Sleep(20 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	})
@@ -99,7 +106,15 @@ func TestShutdownStaysGracefulWhenHandlersFinish(t *testing.T) {
 		defer resp.Body.Close()
 		done <- resp.StatusCode
 	}()
-	time.Sleep(10 * time.Millisecond)
+	// Wait for the handler to be running rather than for a fixed delay: Shutdown
+	// closes the listener immediately, so a request that is still dialing when
+	// it starts is refused, and the status would read 0 for a reason that has
+	// nothing to do with the grace period this test is about.
+	select {
+	case <-inFlight:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the request never reached the handler")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -121,9 +136,11 @@ func TestShutdownClosesWhatTheGracePeriodLeftOpen(t *testing.T) {
 
 	cancelled := make(chan struct{}, 1)
 	release := make(chan struct{})
+	inFlight := make(chan struct{}, 1)
 	component.HandleFunc("GET /stubborn", func(w http.ResponseWriter, r *http.Request) {
 		// Deliberately watches nothing until its context is cancelled, which is
 		// what an unconditional stream or a blocked upstream call looks like.
+		inFlight <- struct{}{}
 		select {
 		case <-r.Context().Done():
 			cancelled <- struct{}{}
@@ -144,7 +161,15 @@ func TestShutdownClosesWhatTheGracePeriodLeftOpen(t *testing.T) {
 		}
 		requested <- err
 	}()
-	time.Sleep(100 * time.Millisecond)
+	// Same reason as TestShutdownStaysGracefulWhenHandlersFinish: the budget is
+	// only meaningful once a request is actually in flight. With a request that
+	// never arrived, Shutdown would find nothing to interrupt, return nil, and
+	// the failure would be reported against the budget instead of the client.
+	select {
+	case <-inFlight:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the request never reached the handler")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer cancel()
