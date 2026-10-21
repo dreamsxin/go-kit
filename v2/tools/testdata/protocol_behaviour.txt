@@ -115,6 +115,7 @@ stable/http.typed-json-client
 stable/httpclient.no-invented-deadline
 stable/httpclient.pool-is-ours
 stable/httpclient.traceparent-by-default
+stable/kit.custom-decoder-keeps-chain
 stable/kit.deregister-before-close
 stable/kit.drain-delay
 stable/kit.drain-notification
@@ -188,6 +189,7 @@ stable/resource.filter-dialect
 stable/resource.filter-semantics
 stable/resource.params-merge
 stable/resource.repository-contract
+stable/rest.route-table
 stable/sd.client-invalid-balancer-releases-resources
 stable/sd.client-retry-timing-is-configurable
 stable/sd.feedback-ejection-cap-holds-under-concurrency

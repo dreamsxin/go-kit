@@ -2992,7 +2992,7 @@ test asserts nothing about the listener afterwards and cannot fail if the cancel
 lands earlier. It establishes no precondition — it is decoration. Removing it would
 be tidying code, not making a property true.
 
-## Milestone 31 (In Progress): A Resource Layer, Starting With The Vocabulary
+## Milestone 31 (Complete): A Resource Layer, From Condition To Route
 
 Source: the third gap from the same platform review — the framework has no query
 abstraction, `Filter` exists only as struct tags scattered through generated code,
@@ -3083,6 +3083,44 @@ Landed (second package: the engine):
   false, create returning the storage row, destroy skipping the reindex — each
   one made its test fail.
 
+Landed (third package: routing):
+
+- **A route is a value, not a registration.** `resource/rest`'s `Route` is only
+  `Pattern`, `Endpoint` and `Decode`, and `Routes` returns a table. The same table
+  mounts on a component through `kit.HandleEndpoint` — keeping the endpoint
+  middleware, the recorders and the JSON server options — and on a plain mux
+  through `Route.Handler()`. The two answer byte for byte the same, and a test
+  compares them.
+- **`kit.HandleEndpoint` is what this step forced.** `HandleJSONEndpoint` takes
+  one request struct, and a resource request carries its condition in the query
+  string and its record in the body; no type describes both. Assembling an
+  `http.Handler` by hand silently skips the endpoint chain — a rate limiter that
+  does not cover resource routes is discovered on the day it matters — so the
+  addition is the same registration path with a replaced decoder, not a second
+  path.
+- **Aggregates use the `{name}:aggregate` suffix.** A wildcard fills a whole
+  segment, so `/products/aggregate` would shadow the record whose identifier is
+  `aggregate`; a suffix cannot, and it matches the spelling NocoBase uses.
+- **A parameter a route does not read is refused, not ignored.**
+  `rest.parameter_not_allowed`. A dropped filter answers a broader question, and
+  a broader answer is indistinguishable from an authorization failure at the call
+  site — the same rule as "never narrow silently" in the AST layer.
+- **The body keeps integer precision.** It is read as one JSON value and decoded
+  again with `UseNumber`, so 9007199254740993 is not rounded to its neighbour on
+  the way in. A test sends that number and checks it survives both storage and
+  the response.
+- **Writes are checked twice at the edge.** Names and types against the schema,
+  then fields against the write mask; outside the mask is a 403 that names the
+  field. The repository checks again because the contract is its, but an adapter
+  that forgot would still be stopped here.
+- **Five key properties were mutation-checked.** A sort ignoring the minus, an
+  empty projection read as "no opinion", a route ignoring parameters it does not
+  read, a body decode that rounds large integers, and the layer order moved ahead
+  of the client — each made its test fail. The layer-order mutation was not
+  caught at first because the mutation script itself was wrong (it ran the loop
+  twice); fixed, it failed immediately. "The mutation was missed" is a reason to
+  suspect the mutation first.
+
 Deliberately not done (this package):
 
 - **Runtime operator registration.** It is an injection surface.
@@ -3093,17 +3131,22 @@ Deliberately not done (this package):
   cannot expand it returns `Unimplemented` rather than records that silently lack
   the relation.
 - **No SQL in this package.** Translation belongs to whoever owns the storage.
+- **No `PUT`.** A replace needs the schema to state which fields are required; it
+  does not, and a replace that invents a zero value for an omitted column is data
+  loss with a 200 on top.
+- **No composite keys in a path.** One segment names one value; `Routes` refuses a
+  composite key rather than addressing half a record.
 
-Next work package (not started): routing. `resource.New(...)` returns
-`[]endpoint.Endpoint`, registered through `kit.HandleJSONEndpoint`, with
-`GET /{res}:query` served by `Aggregate`. The judgement is unchanged: a resource
-route must produce the same log fields as a hand-written one, or it is a second
-stack.
+All three packages serve one judgement: a resource route must not become a second
+stack. The first makes a condition something a policy and an audit log can touch,
+the second makes every merge narrow, and the third makes the mounting style
+irrelevant to the answer.
 
-Acceptance (green for the first two packages):
+Acceptance (green for all three packages):
 
 ```bash
-go test ./resource/... -count=1
+go test ./resource/... ./kit -count=1
+go test ./resource/rest -run 'TestResourceRouteAnswersTheSame|TestResourceRoutesKeepTheEndpointChain' -count=1
 go test ./transport/http -run 'TestResourcePage|TestResourceWindow' -count=1
 go -C ./tools test . -run 'TestStableProtocolBehaviour|TestPublicAPISurfaceSnapshot|TestArchitectureDependencyGates' -count=1
 ```

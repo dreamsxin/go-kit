@@ -96,6 +96,22 @@ func TestArchitectureDependencyGates(t *testing.T) {
 			allowedExact: []string{coreModulePath + "/apperror", coreModulePath + "/resource"},
 		},
 		{
+			// The HTTP binding is the one package above the vocabulary that
+			// knows both the query contract and a transport. It is separate from
+			// resource for exactly that reason: a consumer that only wants the
+			// contract does not pull in the HTTP server, and this package cannot
+			// reach the assembly layer that mounts it.
+			name:    "resource rest binding",
+			pattern: "./resource/rest",
+			allowedExact: []string{
+				coreModulePath + "/apperror",
+				coreModulePath + "/endpoint",
+				coreModulePath + "/resource",
+				coreModulePath + "/transport/http",
+				coreModulePath + "/transport/http/server",
+			},
+		},
+		{
 			name:         "slog observability",
 			pattern:      "./observability/slog",
 			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/transport"},

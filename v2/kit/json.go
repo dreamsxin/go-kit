@@ -142,6 +142,59 @@ func HandleJSONEndpoint[Req any](
 	ep endpoint.Endpoint,
 	options ...RouteOption,
 ) {
+	handleEndpoint(r, pattern, ep, func(settings routeOptions) httpserver.DecodeRequestFunc {
+		return typedRequestDecoder[Req](httpserver.StrictJSONDecodeOptions(settings.maxBodyBytes))
+	}, options...)
+}
+
+// HandleEndpoint registers an endpoint with its own request decoder on an HTTP
+// component, keeping every property the component installs: the endpoint
+// middleware chain, the recorders, the component's JSON server options, and the
+// route's own options.
+//
+// It exists for a route whose request is not one struct — a resource route that
+// reads its filter from the query string and its body from the same request, a
+// protocol adapter that decodes a media type this package does not know. The
+// alternative was to assemble an http.Handler by hand, which silently skips the
+// endpoint chain; that trade is invisible until the day a rate limiter or a
+// recorder turns out not to cover the route.
+//
+// The decoder is the only thing the caller owns. It returns the value the
+// endpoint receives and an error, and an error it returns is encoded exactly as
+// a decoded-then-refused request is: the same JSON error body and the same
+// status the transport would produce.
+//
+// RouteBodyLimit does not apply here: a body limit is a property of a decoder,
+// and this route brought its own. A caller that wants one enforces it in the
+// decoder it passes; a resource route does so through rest.WithMaxBodyBytes.
+//
+// Stable: kit.custom-decoder-keeps-chain — a route registered with its own decoder keeps the component's endpoint middleware, recorders and error encoder.
+// Covered by: TestHandleEndpointKeepsTheEndpointChain, TestHandleEndpointEncodesDecoderErrors
+func HandleEndpoint(
+	r Router,
+	pattern string,
+	ep endpoint.Endpoint,
+	decode httpserver.DecodeRequestFunc,
+	options ...RouteOption,
+) {
+	if decode == nil {
+		panic("kit: request decoder cannot be nil")
+	}
+	handleEndpoint(r, pattern, ep, func(routeOptions) httpserver.DecodeRequestFunc {
+		return decode
+	}, options...)
+}
+
+// handleEndpoint is the one registration path the two public entry points share,
+// so a custom decoder cannot end up with a different middleware order, a
+// different error encoder, or a different set of route options than a typed one.
+func handleEndpoint(
+	r Router,
+	pattern string,
+	ep endpoint.Endpoint,
+	decoder func(routeOptions) httpserver.DecodeRequestFunc,
+	options ...RouteOption,
+) {
 	h := r.component()
 	pattern = r.routePattern(pattern)
 	if h == nil {
@@ -158,7 +211,7 @@ func HandleJSONEndpoint[Req any](
 		ep = mw(ep)
 	}
 	ep = h.applyEndpointMiddleware(pattern, ep)
-	handler := newTypedJSONHandler[Req](ep, h, settings)
+	handler := newJSONHandler(ep, decoder(settings), h, settings)
 	handler = wrapHTTPMiddleware(r.routerHTTPMiddleware(), handler)
 	h.mux.Handle(pattern, h.withHTTPContext(handler))
 }
@@ -171,19 +224,30 @@ func wrapHTTPMiddleware(middleware []func(http.Handler) http.Handler, handler ht
 	return handler
 }
 
-// newTypedJSONHandler assembles the HTTP transport of a typed JSON route:
-// the component's decode strictness and body limit, the request filled from
-// the request itself (see typedRequestDecoder), the shared JSON response
-// encoder, the default error encoder, then the component's JSON server
-// options, then the route's — the same order the transport packages
-// assemble by hand, so a per-route option can still override a component one.
+// newTypedJSONHandler assembles the HTTP transport of a typed JSON route. The
+// decoding rule is the only thing the typed path adds; everything after it is
+// newJSONHandler, so a typed route and one with a custom decoder cannot drift
+// in their error encoding or their server options.
 func newTypedJSONHandler[Req any](
 	ep endpoint.Endpoint,
 	h *HTTP,
 	settings routeOptions,
 ) http.Handler {
+	return newJSONHandler(ep, typedRequestDecoder[Req](httpserver.StrictJSONDecodeOptions(settings.maxBodyBytes)), h, settings)
+}
+
+// newJSONHandler assembles the HTTP transport of one route: the component's
+// JSON server options, then the route's — the same order the transport
+// packages assemble by hand, so a per-route option can still override a
+// component one. The decoder is the only per-route difference, because it is
+// the only part a route may need to replace.
+func newJSONHandler(
+	ep endpoint.Endpoint,
+	decode httpserver.DecodeRequestFunc,
+	h *HTTP,
+	settings routeOptions,
+) http.Handler {
 	routeOptions := append([]httpserver.ServerOption{httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder)}, h.jsonServerOptions...)
 	routeOptions = append(routeOptions, settings.server...)
-	decoder := typedRequestDecoder[Req](httpserver.StrictJSONDecodeOptions(settings.maxBodyBytes))
-	return httpserver.NewServer(ep, decoder, httpserver.EncodeJSONResponse, routeOptions...)
+	return httpserver.NewServer(ep, decode, httpserver.EncodeJSONResponse, routeOptions...)
 }

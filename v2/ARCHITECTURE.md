@@ -56,9 +56,10 @@ transport packages and mounts into a Host through the provider-neutral
 
 - `kit.NewHTTP` and `kit.NewHost` validate configuration and return errors.
 - `Host.Run(ctx)` follows a caller-owned context.
-- `kit.HandleJSON` and `kit.HandleJSONEndpoint` preserve
-  endpoint middleware; request and response types are inferred from the
-  handler, and per-route differences are `kit.RouteOption` values.
+- `kit.HandleJSON`, `kit.HandleJSONEndpoint` and `kit.HandleEndpoint`
+  preserve endpoint middleware; request and response types are inferred from
+  the handler, a route that needs its own request decoder supplies one, and
+  per-route differences are `kit.RouteOption` values.
 - `HTTP.Handle` and `HTTP.HandleFunc` are raw HTTP escape hatches.
 - `kit/grpc` is an optional lifecycle component and is not imported by core
   `kit`.
@@ -194,7 +195,8 @@ Endpoint middleware and HTTP middleware are intentionally different:
 - HTTP middleware sees methods, paths, headers, status codes, and byte streams.
 
 Endpoint middleware installed through `kit.WithEndpointMiddleware` applies to
-routes registered through `HandleJSON` or `HandleJSONEndpoint`. Raw handlers
+routes registered through `HandleJSON`, `HandleJSONEndpoint` or
+`HandleEndpoint`. Raw handlers
 receive only explicitly installed HTTP middleware. Dependency-owning adapters
 such as Zap or token buckets are created by the application and
 passed through this generic option. Circuit breaking and rate limiting are

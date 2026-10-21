@@ -52,9 +52,9 @@ Transport request
 
 - `kit.NewHTTP` 与 `kit.NewHost` 校验配置并返回错误。
 - `Host.Run(ctx)` 跟随调用方持有的 context。
-- `kit.HandleJSON` 与 `kit.HandleJSONEndpoint`
-  保留 endpoint 中间件；请求与响应类型由 handler 推断，逐路由差异用
-  `kit.RouteOption` 表达。
+- `kit.HandleJSON`、`kit.HandleJSONEndpoint` 与 `kit.HandleEndpoint`
+  保留 endpoint 中间件；请求与响应类型由 handler 推断，需要自带解码器的路由
+  直接传入解码器，逐路由差异用 `kit.RouteOption` 表达。
 - `HTTP.Handle` 和 `HTTP.HandleFunc` 是原生 HTTP 逃生口。
 - `kit/grpc` 是可选的生命周期组件，核心 `kit` 不导入它。
 
@@ -167,7 +167,7 @@ Endpoint 中间件与 HTTP 中间件刻意区分：
 - HTTP 中间件看到的是方法、路径、头部、状态码与字节流。
 
 通过 `kit.WithEndpointMiddleware` 安装的 endpoint 中间件作用于经
-`HandleJSON` 或 `HandleJSONEndpoint` 注册的路由。原生 handler 只接收
+`HandleJSON`、`HandleJSONEndpoint` 或 `HandleEndpoint` 注册的路由。原生 handler 只接收
 显式安装的 HTTP 中间件。持有依赖的适配器（如 Zap、令牌桶）
 由应用创建并通过这个通用选项传入。熔断与限流已内置于 `endpoint/resilience`，
 不持有第三方依赖。

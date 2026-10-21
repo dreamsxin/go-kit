@@ -17,7 +17,13 @@
 //     lives here; the implementation lives with whoever owns the data, so this
 //     package never pulls a driver into a consumer's build. resource/memory is
 //     the reference implementation.
+//   - Collection ties the three together: a name, a schema, a set of primary key
+//     fields and a repository. It is what a transport mounts and what an
+//     endpoint addresses, and it is a value rather than a registry entry — two
+//     collections over one table with different schemas are two values an
+//     application can hold at once.
 //
 // See README.md for the operator table, the dialect clients send, and the merge
-// table.
+// table. resource/rest is the HTTP binding, kept separate so a consumer that
+// only wants the vocabulary does not build an HTTP server.
 package resource

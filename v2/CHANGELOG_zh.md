@@ -31,6 +31,23 @@
   unknown 变成 true，所以「除 X 之外」不会返回没有该字段的记录。`Schema` 新增
   `Readable` 与 `Project`，默认投影由声明产生，`SELECT *` 也带不出只写列。新增
   `resource/memory`，作为契约的参考实现与所有适配器的语义基准。
+- 新增 `resource.Collection` 与 `resource/rest`：前者把名字、schema、主键字段与仓储
+  收成一份声明（值，不是注册表条目），后者把这份声明变成六条 HTTP 路由。路由是值
+  ——`Pattern`、`Endpoint`、`Decode`——所以同一张表既能挂到 kit 组件，也能挂到普通
+  `http.ServeMux`：`kit.HandleEndpoint` 新建一条端点加自定义解码器的注册路径，保留
+  组件的端点中间件、记录器与 JSON 服务端选项；`Route.Handler()` 给出裸 handler，
+  两者响应逐字节相同。路由表是 `GET/POST {prefix}/{name}`、
+  `GET {prefix}/{name}:aggregate`、`GET/PATCH/DELETE {prefix}/{name}/{id}`；聚合用
+  后缀而不是 `/aggregate`，因为通配符占满整个路径段，后缀才不会遮住标识为
+  `aggregate` 的记录。参数 `filter`（可重复，合取）、`sort`、`fields`、`append`、
+  `page`/`size` 与聚合的 `function`/`field`/`group_by`；路由不读的参数以
+  `rest.parameter_not_allowed` 拒绝而不是忽略——被丢掉的过滤条件回答的是更宽的
+  问题。请求体以 `UseNumber` 解码，超过 2^53 的整数原样到达；字段先按 schema 校验
+  名称与类型，再按写入掩码检查，掩码之外是 403 而不是丢弃。列限制对每个回答都成立：
+  写入返回的是投影后的记录，聚合被限制的列返回 `rest.aggregate_field_not_allowed`
+  ——求和或分组一个列，泄露的正是列出它所能泄露的东西。`rest.WithLayer` 是鉴权
+  接入的接缝：层拿到上下文与动作（含 `destroy`），返回约束，由 `MergeParams` 保证
+  客户端的参数无法放宽它。
 - `kit` 现在可以用模块装配。`kit.WithModules` 接受实现了 `kit.Module` 的值：
   `Register` 对全体模块先跑完，`Init` 才按 `Requires` 的依赖顺序逐个执行，
   两次都由 `Run` 用同一个上下文驱动，因此初始化可以被取消，失败时任何监听器都

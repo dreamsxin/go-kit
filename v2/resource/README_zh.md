@@ -143,6 +143,23 @@ type Params struct {
 `[]string{}` 这种有歧义的写法宁可什么也不允许。当两个白名单都是投影时，
 `MergeParams` 返回 `resource.fields_disjoint`（拒绝），而不是返回没有字段的记录。
 
+## 一个集合就是那份声明
+
+```go
+collection, err := resource.NewCollection("products", schema, store, "id")
+```
+
+名字、schema、主键字段、仓储。它是值，不是注册表条目：同一张表上两套不同 schema 的
+集合，就是应用可以同时持有的两个值——给一个客户端更窄的面，给另一个更宽的面。
+
+构造函数的重点是校验：不是路径段的名字、不是字段的主键、nil 仓储，各自产出一个后续
+层无法修补的东西。绕过构造函数写出来的值可以用 `Collection.Validate` 检查，每个传输
+层都会检查。
+
+`KeyFromText` 把一个路径段变成键，并在字段自己的域里完成转换：整数键按整数解析，
+解析不了的值是指名字段的 invalid-argument 错误，绝不是零值——一个悄悄变成 0 的标识符
+指向的是另一条记录。
+
 ## 仓储契约
 
 ```go

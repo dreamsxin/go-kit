@@ -157,6 +157,27 @@ everything instead of permitting everything. When the two whitelists are
 projections, `MergeParams` reports `resource.fields_disjoint` rather than
 returning records with no fields at all.
 
+## A collection is the declaration
+
+```go
+collection, err := resource.NewCollection("products", schema, store, "id")
+```
+
+Name, schema, primary key fields, repository. It is a value, not a registry
+entry, so two collections over one table with different schemas are two values an
+application can hold at once — a narrower surface for one client and a wider one
+for another.
+
+Validation is the point of the constructor: a name that is not a path segment, a
+primary key that is not a field, a nil repository each produce something a later
+layer cannot repair. A value reached by a struct literal can be checked with
+`Collection.Validate`, and every transport does.
+
+`KeyFromText` turns one path segment into a key, in the field's own domain: an
+integer key parses as an integer, and a value that does not parse is an
+invalid-argument error naming the field, never a zero value — an identifier that
+quietly became 0 addresses a different record.
+
 ## The repository contract
 
 ```go

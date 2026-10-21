@@ -1213,6 +1213,13 @@ FUNCTIONS
 func DefaultProbePaths() health.Paths
 func DefaultRequestIDValidator(id string) bool
 func Get[T any](r *Registry, name string) (T, error)
+func HandleEndpoint(
+	r Router,
+	pattern string,
+	ep endpoint.Endpoint,
+	decode httpserver.DecodeRequestFunc,
+	options ...RouteOption,
+)
 func HandleJSON[Req, Resp any](
 	r Router,
 	pattern string,
@@ -1608,6 +1615,23 @@ type AggregateRow struct {
 	// sum, float64 for an average, and the field's own type for a min or max.
 	Value any `json:"value"`
 }
+type Collection struct {
+	// Name is the path segment the collection answers to. It is not the table
+	// name: an application may expose `products` over `t_product_v3` without
+	// the URL saying so.
+	Name string
+	// Schema declares the fields.
+	Schema Schema
+	// Primary names the fields that identify exactly one record, in the
+	// order they appear in a key.
+	Primary []string
+	// Repository is the storage the collection reads and writes.
+	Repository Repository
+}
+func NewCollection(name string, schema Schema, repository Repository, primary ...string) (Collection, error)
+func (c Collection) Key(value any) (Key, error)
+func (c Collection) KeyFromText(text string) (Key, error)
+func (c Collection) Validate() error
 type Field struct {
 	// Name is the field's name in the JSON document and in a filter.
 	Name string
@@ -1838,6 +1862,43 @@ func (s *Store) Destroy(ctx context.Context, key resource.Key) error
 func (s *Store) Get(ctx context.Context, key resource.Key) (resource.Record, error)
 func (s *Store) List(ctx context.Context, query resource.Query) (resource.Page, error)
 func (s *Store) Update(ctx context.Context, key resource.Key, patch resource.Record, mask resource.WriteMask) (resource.Record, error)
+
+## github.com/dreamsxin/go-kit/v2/resource/rest
+package rest // import "github.com/dreamsxin/go-kit/v2/resource/rest"
+TYPES
+type Action string
+const (
+	// ActionList reads a filtered, sorted, projected window of records.
+	ActionList Action = "list"
+	// ActionGet reads one record.
+	ActionGet Action = "get"
+	// ActionCreate stores a new record.
+	ActionCreate Action = "create"
+	// ActionUpdate changes the fields a patch names.
+	ActionUpdate Action = "update"
+	// ActionDestroy removes one record.
+	ActionDestroy Action = "destroy"
+	// ActionAggregate computes one figure over the records a filter selects.
+	ActionAggregate Action = "aggregate"
+)
+type Layer func(ctx context.Context, action Action) (resource.Params, error)
+type Option func(*settings)
+func WithDefaults(params resource.Params) Option
+func WithLayer(layers ...Layer) Option
+func WithMaxBodyBytes(maxBodyBytes int64) Option
+func WithPrefix(prefix string) Option
+type Route struct {
+	// Pattern is a method-qualified pattern such as "GET /products/{id}". It
+	// is valid for net/http's ServeMux and for a kit component, which uses
+	// one.
+	Pattern string
+	// Endpoint is the business call the route makes.
+	Endpoint endpoint.Endpoint
+	// Decode reads the request into the value Endpoint receives.
+	Decode httpserver.DecodeRequestFunc
+}
+func Routes(collection resource.Collection, options ...Option) ([]Route, error)
+func (r Route) Handler() http.Handler
 
 ## github.com/dreamsxin/go-kit/v2/sd
 package sd // import "github.com/dreamsxin/go-kit/v2/sd"

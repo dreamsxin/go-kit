@@ -2315,7 +2315,7 @@ status = 0, want 200」。断言没有错，布置错了：测试用 `time.Sleep
 「等监听器起来」，但它取消之后不断言任何与监听器有关的事，早取消也不会失败——它不
 建立前置状态，只是装饰。改掉它属于顺手改代码，不属于让某个性质变真。
 
-## 里程碑 31（进行中）：资源层，先定查询词汇
+## 里程碑 31（已完成）：资源层，从条件到路由
 
 来源：同一个应用平台评审里的第 3 个缺口——框架没有查询抽象，`Filter` 只以
 struct tag 的形式散落在生成代码里，于是权限只能做「有角色/没角色」两档，无法改写
@@ -2376,6 +2376,32 @@ struct tag 的形式散落在生成代码里，于是权限只能做「有角色
   改成求交、把 unknown 当 false、让 create 返回存储行、让 destroy 跳过重建索引——
   每一处都让对应用例失败。
 
+已落地（第三段：路由）：
+
+- **路由是值，不是注册动作。** `resource/rest` 的 `Route` 只有 `Pattern`、
+  `Endpoint`、`Decode`，`Routes` 返回一张表。于是同一张表既能经
+  `kit.HandleEndpoint` 挂到组件上（保留端点中间件、记录器与 JSON 服务端选项），
+  也能经 `Route.Handler()` 挂到普通 `mux`。两者响应逐字节相同，有测试直接比对。
+- **`kit.HandleEndpoint` 是这一步逼出来的。** 原来的 `HandleJSONEndpoint` 只接受
+  一个结构体请求，资源请求的过滤条件在查询串里、记录在请求体里，没有类型能同时
+  描述两者。手搓 `http.Handler` 会静默跳过端点中间件——限流器不覆盖资源路由这件事
+  要到出事那天才会被发现，所以新增的是同一条注册路径加一个解码器，而不是第二条路。
+- **聚合用后缀 `{name}:aggregate`。** 通配符占满整个路径段，所以 `/products/aggregate`
+  会遮住标识为 `aggregate` 的记录；后缀不会，而且和 NocoBase 的拼写一致。
+- **路由不读的参数被拒绝，不被忽略。** `rest.parameter_not_allowed`。被丢掉的过滤
+  条件回答的是更宽的问题，而更宽的回答在调用方看来与鉴权失败无法区分——这条规则和
+  AST 那一层的「绝不静默收窄」是同一条。
+- **请求体保留整数精度。** 先读成一个 JSON 值，再用 `UseNumber` 解码，所以
+  9007199254740993 不会在进入时被舍成相邻的偶数。有一个用例发送这个数并检查存储
+  与响应里都还是它。
+- **写入在边缘检查两次。** 名称与类型按 schema 校验，之后按写入掩码检查；掩码之外
+  是 403 且指名字段。仓储会再检查一次，因为契约归它；但适配器漏掉时，边缘这一次
+  仍然拦得住。
+- **五处关键性质做过变异验证。** 排序忽略减号、空投影当成「没意见」、路由忽略不读
+  的参数、请求体解码舍入大整数、层序排到客户端之前——每一处都让对应用例失败。
+  其中层序那条第一次没被抓到，因为我的变异脚本自己写错了（循环跑了两遍）；修正后
+  立刻失败，这条也说明「变异没被抓住」首先该怀疑变异本身。
+
 刻意不做（本段）：
 
 - **运行期注册操作符。** 它等于开一个注入面。
@@ -2384,15 +2410,19 @@ struct tag 的形式散落在生成代码里，于是权限只能做「有角色
 - **关联过滤与展开。** `posts.comments` 不是第一版的过滤路径；`Appends` 会被携带
   与求并，实现不了展开的仓储返回 `Unimplemented`，而不是返回静默缺少关联的记录。
 - **本包不含 SQL。** 翻译由拥有存储的一侧负责。
+- **`PUT`。** 整体替换需要 schema 声明哪些字段必填，它没有；给缺失列编一个零值再
+  覆盖是带 200 的数据丢失。
+- **路径里的复合主键。** 一个路径段命名一个值，`Routes` 直接拒绝复合主键，而不是
+  只寻址半条记录。
 
-下一段（第三段，未开始）：路由。`resource.New(...)` 返回 `[]endpoint.Endpoint`，
-经 `kit.HandleJSONEndpoint` 注册；`GET /{res}:query` 走 `Aggregate`。判据仍是那条：
-资源路由的日志与手写路由逐字段相同，否则它就是第二套栈。
+三段合起来的判据都指向同一件事：资源路由不能成为第二套栈。第一段保证条件可被
+权限层与审计层碰，第二段保证合并只会收窄，第三段保证挂载方式不改变答案。
 
-验收（前两段已通过）：
+验收（三段均已通过）：
 
 ```bash
-go test ./resource/... -count=1
+go test ./resource/... ./kit -count=1
+go test ./resource/rest -run 'TestResourceRouteAnswersTheSame|TestResourceRoutesKeepTheEndpointChain' -count=1
 go test ./transport/http -run 'TestResourcePage|TestResourceWindow' -count=1
 go -C ./tools test . -run 'TestStableProtocolBehaviour|TestPublicAPISurfaceSnapshot|TestArchitectureDependencyGates' -count=1
 ```

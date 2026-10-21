@@ -45,6 +45,31 @@ English | [简体中文](CHANGELOG_zh.md)
   from the declarations and a `SELECT *` cannot return a write-only column.
   `resource/memory` is the reference implementation and the semantic oracle for
   every future adapter.
+- `resource.Collection` and `resource/rest` turn a declaration into routes. A
+  collection gathers a name, a schema, the fields that identify a record and a
+  repository, as a value rather than a registry entry; the HTTP binding turns it
+  into six routes. A route is a value — pattern, endpoint, decoder — so one table
+  mounts on a kit component and on a plain `http.ServeMux` alike:
+  `kit.HandleEndpoint` is the new registration path for an endpoint with its own
+  decoder, keeping the component's endpoint middleware, recorders and JSON server
+  options, while `Route.Handler()` gives a bare handler. Both answer byte for
+  byte the same. The table is `GET`/`POST {prefix}/{name}`,
+  `GET {prefix}/{name}:aggregate`, and `GET`/`PATCH`/`DELETE {prefix}/{name}/{id}`;
+  the aggregate route is a suffix rather than `/aggregate`, because a wildcard
+  fills a whole segment and a suffix cannot shadow the record whose identifier is
+  `aggregate`. Parameters are `filter` (repeatable, conjunctive), `sort`,
+  `fields`, `append`, `page`/`size`, and `function`/`field`/`group_by` for an
+  aggregate; a parameter a route does not read is refused with
+  `rest.parameter_not_allowed`, never ignored, because a dropped filter answers a
+  broader question. Bodies decode with `UseNumber`, so an integer beyond 2^53
+  arrives exactly as sent; names and types are checked against the schema and
+  then against the write mask, which refuses with 403 instead of dropping a
+  field. A column restriction holds on every answer: a write returns the record
+  projected, and an aggregate over a restricted column is
+  `rest.aggregate_field_not_allowed`, because summing or grouping a column
+  reveals what listing it would. `rest.WithLayer` is the seam authorization plugs into: a layer sees the
+  context and the action — `destroy` included — and returns constraints that
+  `MergeParams` guarantees no client parameter can widen.
 - `kit` can be assembled from modules. `kit.WithModules` accepts values
   implementing `kit.Module`: every `Register` runs before any `Init`, and both
   phases run in an order derived from `Requires` and — for modules that require
