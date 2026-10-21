@@ -12,6 +12,7 @@ import (
 // RecordingMiddleware, so every current generated project looked metrics-less
 // and extend re-appended the middleware.
 func TestDetectGeneratedMiddlewaresSeesCurrentMetricsString(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	endpointDir := filepath.Join(dir, "endpoint", "userservice")
 	if err := os.MkdirAll(endpointDir, 0o755); err != nil {
@@ -52,6 +53,7 @@ func generatedMiddlewareChain() []endpoint.Middleware {
 // generated before the rename detectable, so extend does not duplicate the
 // older MetricsMiddleware either.
 func TestDetectGeneratedMiddlewaresStillRecognizesTheOldString(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	endpointDir := filepath.Join(dir, "endpoint", "userservice")
 	if err := os.MkdirAll(endpointDir, 0o755); err != nil {

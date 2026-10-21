@@ -24,6 +24,7 @@ func TestMicrogenConfigIntegration(t *testing.T) {
 	root := filepath.Dir(cwd)
 
 	t.Run("IDL_Config_CustomHooksAreUserOwned", func(t *testing.T) {
+		t.Parallel()
 		outDir := generatedProjectDir(t, "gen_idl_custom_config")
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
 		generateArgs := []string{
@@ -123,6 +124,7 @@ func main() {
 	})
 
 	t.Run("IDL_Config_RemoteConsul_UsesRemoteAndFallsBackToLocal", func(t *testing.T) {
+		t.Parallel()
 		outDir := generatedProjectDir(t, "gen_idl_remote_config")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
@@ -235,6 +237,7 @@ func main() {
 	})
 
 	t.Run("IDL_Config_RemoteConsul_StrictModeFailsWithoutFallback", func(t *testing.T) {
+		t.Parallel()
 		outDir := generatedProjectDir(t, "gen_idl_remote_config_strict")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
@@ -273,6 +276,7 @@ func main() {
 	// in the config package, so this case runs the built binary instead of a
 	// probe calling config.Load.
 	t.Run("IDL_Config_FlagsOverrideEnvAndAreValidatedAfterwards", func(t *testing.T) {
+		t.Parallel()
 		outDir := generatedProjectDir(t, "gen_idl_flag_config")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
@@ -335,6 +339,7 @@ func main() {
 	// into the wrong target, or read from a struct the loader no longer merges,
 	// would satisfy the documentation gate and still do nothing in production.
 	t.Run("IDL_Config_EveryDocumentedEnvironmentKeyIsApplied", func(t *testing.T) {
+		t.Parallel()
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
 		protoFile := filepath.Join(root, "tools", "testdata", "service.proto")
 
@@ -569,6 +574,7 @@ func main() {
 	// flags back before cfg.Validate(): -auto-migrate used to be written back
 	// after it, so a value that flag introduced was never validated.
 	t.Run("IDL_Config_GeneratedMainValidatesAfterEveryFlagWriteBack", func(t *testing.T) {
+		t.Parallel()
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
 		protoFile := filepath.Join(root, "tools", "testdata", "service.proto")
 		checks := []struct {

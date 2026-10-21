@@ -12,6 +12,7 @@ import (
 )
 
 func TestGenerateIR_WritesDeterministicProjectManifest(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 	idlPath := filepath.Join("..", "parser", "testdata", "basic.go")
@@ -95,6 +96,7 @@ func TestGenerateIR_WritesDeterministicProjectManifest(t *testing.T) {
 }
 
 func TestScanExistingProject_ReportsManifestArtifactDrift(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 	gen := mustNewGenerator(t, generator.Options{
@@ -120,6 +122,7 @@ func TestScanExistingProject_ReportsManifestArtifactDrift(t *testing.T) {
 }
 
 func TestScanExistingProject_RejectsManifestModuleMismatch(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 	gen := mustNewGenerator(t, generator.Options{
@@ -149,6 +152,7 @@ func TestScanExistingProject_RejectsManifestModuleMismatch(t *testing.T) {
 }
 
 func TestScanExistingProject_RejectsInvalidManifestServiceName(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 	gen := mustNewGenerator(t, generator.Options{
@@ -178,6 +182,7 @@ func TestScanExistingProject_RejectsInvalidManifestServiceName(t *testing.T) {
 }
 
 func TestApplyAppendMiddleware_RejectsManifestDrift(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 	gen := mustNewGenerator(t, generator.Options{

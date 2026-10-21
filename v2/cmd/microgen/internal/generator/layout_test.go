@@ -7,6 +7,7 @@ import (
 )
 
 func TestProjectLayoutRequiredDirs(t *testing.T) {
+	t.Parallel()
 	layout := newProjectLayout("out")
 	services := []*serviceView{
 		{ServiceName: "UserService"},
@@ -45,6 +46,7 @@ func TestProjectLayoutRequiredDirs(t *testing.T) {
 }
 
 func TestProjectLayoutArtifactPaths(t *testing.T) {
+	t.Parallel()
 	layout := newProjectLayout("out")
 
 	if got, want := layout.docsEmbed(), filepath.Join("out", "docs", "docs.go"); got != want {

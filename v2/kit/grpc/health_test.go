@@ -180,14 +180,19 @@ func TestHealthWatchStopsPollingWhenTheLastWatcherLeaves(t *testing.T) {
 	if _, err := stream.Recv(); err != nil {
 		t.Fatalf("first message: %v", err)
 	}
-	time.Sleep(3 * HealthWatchInterval)
+	// The first message proves the poller started, so one interval is enough
+	// before cancelling; the two waits after it give the poller a tick to notice
+	// the watcher left and a second tick to prove it then stopped evaluating.
+	// Waiting three intervals each time cost nine seconds to establish the same
+	// three facts.
+	time.Sleep(HealthWatchInterval)
 	cancel()
 
-	// Give the poller a couple of intervals to notice the watcher is gone, then
-	// check it has stopped evaluating.
-	time.Sleep(3 * HealthWatchInterval)
+	// Give the poller a tick to notice the watcher is gone, then check it has
+	// stopped evaluating.
+	time.Sleep(2 * HealthWatchInterval)
 	settled := evaluations.Load()
-	time.Sleep(3 * HealthWatchInterval)
+	time.Sleep(2 * HealthWatchInterval)
 	if grown := evaluations.Load() - settled; grown != 0 {
 		t.Errorf("readiness was evaluated %d more times after the last watcher left", grown)
 	}

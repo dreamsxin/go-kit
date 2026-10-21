@@ -44,14 +44,17 @@ func TestPublicAPISurfaceSnapshot(t *testing.T) {
 		t.Fatalf("Getwd: %v", err)
 	}
 	root := filepath.Dir(cwd)
-	packages := publicRuntimePackages(t, root)
+	declarations := reviewedDeclarations(t, root)
 
 	var snapshot strings.Builder
 	snapshot.WriteString(apiSurfaceHeader + "\n")
-	for _, pkg := range packages {
-		doc := commandOutput(t, pkg.root, "go", "doc", "-all", pkg.importPath)
-		declarations := declarationsOnly(normalizeCommandOutput(doc))
-		fmt.Fprintf(&snapshot, "\n%s%s\n%s", apiSurfaceSectionPrefix, pkg.importPath, declarations)
+	importPaths := make([]string, 0, len(declarations))
+	for importPath := range declarations {
+		importPaths = append(importPaths, importPath)
+	}
+	sort.Strings(importPaths)
+	for _, importPath := range importPaths {
+		fmt.Fprintf(&snapshot, "\n%s%s\n%s", apiSurfaceSectionPrefix, importPath, declarations[importPath])
 	}
 
 	snapshotPath := filepath.Join(cwd, "testdata", "api_surface.txt")
@@ -212,34 +215,6 @@ func isDeclarationLine(line string) bool {
 	// Section headers such as TYPES, CONSTANTS, FUNCTIONS, VARIABLES. Keeping
 	// them means a symbol moving between sections is still a visible change.
 	return line != "" && line == strings.ToUpper(line) && !strings.ContainsAny(line, " \t")
-}
-
-type publicPackage struct {
-	root       string
-	importPath string
-}
-
-// publicRuntimePackages lists the packages whose exported surface is reviewed.
-//
-// Everything ships from one module now, so the list comes from one go list. The
-// microgen tree is excluded: it is a command, and its behaviour is pinned by the
-// generator contract tests rather than by a doc snapshot.
-func publicRuntimePackages(t *testing.T, root string) []publicPackage {
-	t.Helper()
-	const microgenPrefix = "github.com/dreamsxin/go-kit/v2/cmd/microgen"
-
-	output := commandOutput(t, root, "go", "list", "./...")
-	var packages []publicPackage
-	for _, importPath := range strings.Fields(string(output)) {
-		if importPath == microgenPrefix || strings.HasPrefix(importPath, microgenPrefix+"/") {
-			continue
-		}
-		packages = append(packages, publicPackage{root: root, importPath: importPath})
-	}
-	sort.Slice(packages, func(i, j int) bool {
-		return packages[i].importPath < packages[j].importPath
-	})
-	return packages
 }
 
 func commandOutput(t *testing.T, dir, name string, args ...string) []byte {

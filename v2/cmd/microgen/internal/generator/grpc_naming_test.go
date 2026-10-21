@@ -9,6 +9,7 @@ import (
 // prefix's segments become the proto package's leading segments, and a
 // segment protoc would reject is refused at generation time.
 func TestGRPCProtoPackage(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name        string
 		routePrefix string
@@ -50,6 +51,7 @@ func TestGRPCProtoPackage(t *testing.T) {
 // so a prefix that would produce an invalid proto package is refused before
 // anything is generated.
 func TestValidateRoutePrefix(t *testing.T) {
+	t.Parallel()
 	for _, broken := range []string{"/API", "/v1-api", "/1api"} {
 		if err := validateRoutePrefix(broken); err == nil {
 			t.Errorf("validateRoutePrefix(%q) = nil, want a refusal", broken)

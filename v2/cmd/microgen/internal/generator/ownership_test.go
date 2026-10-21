@@ -15,6 +15,7 @@ import (
 // writes once and never touches again carries none. A new template that skips
 // its marker fails here, and so does a scaffold that wrongly claims one.
 func TestGenerateFull_OwnershipMarkers(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 

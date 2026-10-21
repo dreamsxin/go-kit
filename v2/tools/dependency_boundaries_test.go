@@ -1,7 +1,10 @@
 package tools_test
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -218,15 +221,29 @@ func TestComponentsDoNotDependOnAssembly(t *testing.T) {
 		return false
 	}
 
-	packages := strings.Fields(string(commandOutput(t, root, "go", "list", "./...")))
-	for _, pkg := range packages {
-		if isAssembly(pkg) || !strings.HasPrefix(pkg, coreModulePath) {
+	// One go list answers the question for every package at once. Asking it per
+	// package — a second go command for each of forty — cost thirty seconds to
+	// read a graph this call already returns. -deps reports the full transitive
+	// closure; the one entry the per-package form had that this one does not is
+	// the package itself, which this loop skips as a candidate anyway.
+	decoder := json.NewDecoder(bytes.NewReader(commandOutput(t, root, "go", "list", "-deps", "-json", "./...")))
+	for {
+		var pkg struct {
+			ImportPath string
+			Deps       []string
+			DepOnly    bool
+		}
+		if err := decoder.Decode(&pkg); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			t.Fatalf("decode go list output: %v", err)
+		}
+		if pkg.DepOnly || isAssembly(pkg.ImportPath) || !strings.HasPrefix(pkg.ImportPath, coreModulePath) {
 			continue
 		}
-		deps := strings.Fields(string(commandOutput(t, root, "go", "list", "-deps", pkg)))
-		for _, dep := range deps {
+		for _, dep := range pkg.Deps {
 			if isAssembly(dep) {
-				t.Errorf("component %s depends on assembly package %s", pkg, dep)
+				t.Errorf("component %s depends on assembly package %s", pkg.ImportPath, dep)
 			}
 		}
 	}

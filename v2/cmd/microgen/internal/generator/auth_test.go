@@ -72,6 +72,7 @@ func generateAuthedProject(t *testing.T) string {
 // hook exists in the user-owned service file with a fail-closed default, and
 // the unsecured method is untouched.
 func TestGeneratedTransportEnforcesDeclaredAuth(t *testing.T) {
+	t.Parallel()
 	root := generateAuthedProject(t)
 	endpoints := readFile(t, filepath.Join(root, "endpoint", "authedservice", "endpoints.go"))
 	if !strings.Contains(endpoints, `svc.EnforceAuth(ep, "Secured", []string{})`) {

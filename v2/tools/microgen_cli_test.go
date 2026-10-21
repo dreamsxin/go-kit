@@ -1,10 +1,13 @@
 package tools_test
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -19,11 +22,73 @@ import (
 func microgenCommand(t *testing.T, args ...string) *exec.Cmd {
 	t.Helper()
 	root := goKitRoot(t)
-	commandArgs := append([]string{"run", "./cmd/microgen"}, args...)
-	cmd := exec.Command("go", commandArgs...)
+	cmd := exec.Command(microgenBinary(t), args...)
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "MICROGEN_GO_KIT_ROOT="+filepath.ToSlash(root))
 	return cmd
+}
+
+// microgenBuild is the generator compiled once for the whole test binary.
+type microgenBuildState struct {
+	once   sync.Once
+	path   string
+	dir    string
+	reason error
+}
+
+var microgenBuild microgenBuildState
+
+// microgenBinary builds the generator once and returns the executable.
+//
+// Every call used to be `go run ./cmd/microgen`, which links a fresh executable
+// each time — about two seconds with a warm build cache, and this suite invokes
+// the generator forty times. The generator keeps nothing between runs: the tree
+// it reads in is MICROGEN_GO_KIT_ROOT and its working directory, both of which
+// still differ per caller. One build therefore serves all of them, and the
+// callers that need to invoke it twice from one case stop paying twice as well.
+func microgenBinary(t *testing.T) string {
+	t.Helper()
+	microgenBuild.once.Do(func() {
+		cwd, err := os.Getwd()
+		if err != nil {
+			microgenBuild.reason = fmt.Errorf("Getwd: %w", err)
+			return
+		}
+		root := filepath.Dir(cwd)
+		dir, err := os.MkdirTemp("", "go-kit-microgen-")
+		if err != nil {
+			microgenBuild.reason = fmt.Errorf("create generator build directory: %w", err)
+			return
+		}
+		microgenBuild.dir = dir
+		binary := filepath.Join(dir, "microgen")
+		if runtime.GOOS == "windows" {
+			binary += ".exe"
+		}
+		build := exec.Command("go", "build", "-o", binary, "./cmd/microgen")
+		build.Dir = root
+		build.Env = os.Environ()
+		if out, err := build.CombinedOutput(); err != nil {
+			microgenBuild.reason = fmt.Errorf("build the generator: %w\n%s", err, out)
+			return
+		}
+		microgenBuild.path = binary
+	})
+	if microgenBuild.reason != nil {
+		t.Fatalf("%v", microgenBuild.reason)
+	}
+	return microgenBuild.path
+}
+
+// TestMain removes the shared generator build directory. It cannot be a
+// t.TempDir: the first caller's cleanup would delete the binary the rest of the
+// suite is still using.
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if microgenBuild.dir != "" {
+		_ = os.RemoveAll(microgenBuild.dir)
+	}
+	os.Exit(code)
 }
 
 // goKitRoot is the v2 module root, the parent of the tools module this test

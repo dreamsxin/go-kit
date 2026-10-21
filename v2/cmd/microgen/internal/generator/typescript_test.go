@@ -7,6 +7,7 @@ import (
 )
 
 func TestBuildTypeScriptSDKData(t *testing.T) {
+	t.Parallel()
 	user := &ir.Message{Name: "User", Fields: []*ir.Field{
 		{Name: "ID", JSONName: "id", GoType: "uint64", SchemaType: "integer", Required: true},
 	}}
@@ -83,6 +84,7 @@ func TestBuildTypeScriptSDKData(t *testing.T) {
 }
 
 func TestTypeScriptType(t *testing.T) {
+	t.Parallel()
 	names := map[string]struct{}{"User": {}}
 	cases := map[string]string{
 		"[]*User":          "Array<User>",
@@ -100,6 +102,7 @@ func TestTypeScriptType(t *testing.T) {
 }
 
 func TestLowerFirstPreservesInitialism(t *testing.T) {
+	t.Parallel()
 	if got := lowerFirst("URLService"); got != "urlService" {
 		t.Fatalf("lowerFirst(URLService) = %q", got)
 	}

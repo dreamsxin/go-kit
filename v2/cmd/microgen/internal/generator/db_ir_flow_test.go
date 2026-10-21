@@ -12,6 +12,7 @@ import (
 )
 
 func TestGenerateProject_FromDBIR_GeneratesArtifactsFromExplicitIR(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	schemas := []*dbschema.TableSchema{
 		{
@@ -55,6 +56,7 @@ func TestGenerateProject_FromDBIR_GeneratesArtifactsFromExplicitIR(t *testing.T)
 }
 
 func TestGenerateProject_FromDBIR_GeneratesModelArtifactsWithoutCompatParseResult(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := ir.FromTableSchemas([]*dbschema.TableSchema{
 		{
@@ -90,6 +92,7 @@ func TestGenerateProject_FromDBIR_GeneratesModelArtifactsWithoutCompatParseResul
 }
 
 func TestGenerateProject_FromGoIR_GeneratesArtifactsWithoutCompatParseResult(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	result, err := parser.ParseFull(filepath.Join("..", "parser", "testdata", "basic.go"))
 	if err != nil {
@@ -122,6 +125,7 @@ func TestGenerateProject_FromGoIR_GeneratesArtifactsWithoutCompatParseResult(t *
 }
 
 func TestGenerateProject_FromProtoIR_GeneratesProtoArtifactsWithoutCompatParseResult(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	protoPath := filepath.Join(t.TempDir(), "greeter.proto")
 	content := `
@@ -173,6 +177,7 @@ message HelloResponse {
 }
 
 func TestGenerateIR_FromGoIR_GeneratesArtifacts(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	result, err := parser.ParseFull(filepath.Join("..", "parser", "testdata", "basic.go"))
 	if err != nil {

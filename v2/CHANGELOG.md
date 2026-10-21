@@ -132,6 +132,35 @@ English | [简体中文](CHANGELOG_zh.md)
   each, gated on the features the project was generated with, so a reader can
   learn the module layout from the directory alone. The README is written once
   and is not refreshed for existing projects.
+- The release suite asserts exactly what it did and costs about half as much:
+  `make verify` fell from 8m21s to roughly 5m on a twelve-core machine. Every
+  saving came from removing duplicated work rather than from weakening a check.
+  The API-surface snapshot and the compatibility gate each walked forty packages
+  with one `go doc` process apiece — 117 seconds for the second one alone; they
+  now collect once per checkout, eight processes at a time, and share the read,
+  because they ask different questions of the same declarations. The
+  component-layering gate asked `go list -deps` once per package to read a
+  dependency graph that one `go list -deps -json ./...` already returns. The
+  example smoke tests bound fixed ports, which put them in the serial phase
+  ahead of every other test; a free port per case lets them overlap. The
+  generator's unit tests and the integration subtests declare `t.Parallel` —
+  each already owned its own temporary directory and a free port, so the only
+  thing serialising them was the absence of the declaration. One step was
+  deleted instead of sped up: a generated-proto build check reported failure
+  with `t.Logf`, so it cost seconds and could not fail its case.
+- The gate suite also stopped paying for the generator forty times over.
+  `go run ./cmd/microgen` links a fresh executable on every call — two seconds
+  with a warm build cache — and the tools tests invoke the generator forty
+  times, once or more per integration case. One build now serves the whole test
+  binary; the tree each call reads stays per-call, in `MICROGEN_GO_KIT_ROOT`
+  and in the command's working directory, so no case can observe another's
+  fixture. The two cases that had been building their own private copy for a
+  single extra invocation use the shared one as well.
+- The `standalone` release suite compiles the published module under
+  `GOWORK=off` instead of re-running its tests. The test suite already ran them;
+  what this gate exists to prove is that the module stands without the
+  workspace, and asserting the behaviour a second time said nothing about that
+  boundary.
 
 - The JSON constructor families were the same call multiplied by the
   differences between callers, so the differences are values now and the names

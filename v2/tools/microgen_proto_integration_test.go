@@ -18,6 +18,7 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 	}
 
 	t.Run("Proto", func(t *testing.T) {
+		t.Parallel()
 		outDir := generatedProjectDir(t, "gen_proto_integration")
 
 		protoFile := filepath.Join(cwd, "testdata", "service.proto")
@@ -58,15 +59,16 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 		validateGeneratedContracts(t, outDir)
 		assertGeneratedContractSnapshot(t, "proto", outDir)
 
-		// Build check for the generated code
-		buildCmd := exec.Command("go", "build", "./...")
-		buildCmd.Dir = outDir
-		if out, err := buildCmd.CombinedOutput(); err != nil {
-			t.Logf("Note: Generated proto code requires protoc, so full build might fail without it. Build output: %s", out)
-		}
+		// The build check that used to sit here reported a failure with
+		// t.Logf, so a project that did not compile stayed green. It also cost
+		// seconds to compile a tree this case had already read line by line.
+		// Proto_GRPC_GeneratedProject_BuildsAndServesRequests builds the same
+		// contract and fails on a build error, which is the only version of
+		// this assertion worth paying for.
 	})
 
 	t.Run("Proto_ComponentFlow_WhenProtocAvailable", func(t *testing.T) {
+		t.Parallel()
 		protoc, protocGenGo, protocGenGoGRPC := requireProtoToolchain(t)
 
 		outDir := generatedProjectDir(t, "gen_proto_component_flow")
@@ -118,6 +120,7 @@ func TestMicrogenProtoIntegration(t *testing.T) {
 	})
 
 	t.Run("Proto_Streaming_GeneratedProject_Builds", func(t *testing.T) {
+		t.Parallel()
 		protoc, protocGenGo, protocGenGoGRPC := requireProtoToolchain(t)
 
 		outDir := generatedProjectDir(t, "gen_proto_server_stream")
@@ -199,6 +202,7 @@ message UploadSummary { int32 count = 1; }
 	})
 
 	t.Run("Proto_GRPC_GeneratedProject_BuildsAndServesRequests", func(t *testing.T) {
+		t.Parallel()
 		protoc, protocGenGo, protocGenGoGRPC := requireProtoToolchain(t)
 
 		outDir := generatedProjectDir(t, "gen_proto_grpc_runtime")

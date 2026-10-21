@@ -19,6 +19,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	root := filepath.Dir(cwd)
 
 	t.Run("IDL_Extend_AppendService_PreservesExistingFilesAndServesNewRoute", func(t *testing.T) {
+		t.Parallel()
 		outDir := generatedProjectDir(t, "gen_idl_extend_append")
 
 		baseIDL := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
@@ -114,6 +115,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	})
 
 	t.Run("IDL_Extend_AppendModel_PreservesExistingHooksAndBuilds", func(t *testing.T) {
+		t.Parallel()
 		outDir := generatedProjectDir(t, "gen_idl_extend_append_model")
 
 		baseIDL := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
@@ -185,6 +187,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	})
 
 	t.Run("IDL_Extend_AppendMiddleware_PreservesCustomChainAndServesWrappedErrors", func(t *testing.T) {
+		t.Parallel()
 		outDir := generatedProjectDir(t, "gen_idl_extend_append_middleware")
 
 		baseIDL := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
@@ -266,6 +269,7 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	})
 
 	t.Run("IDL_Extend_Check_ReportsCompatibility", func(t *testing.T) {
+		t.Parallel()
 		outDir := generatedProjectDir(t, "gen_idl_extend_check")
 
 		idlFile := filepath.Join(root, "cmd", "microgen", "internal", "parser", "testdata", "basic.go")
@@ -309,16 +313,10 @@ func TestMicrogenExtendIntegration(t *testing.T) {
 	})
 
 	t.Run("IDL_Extend_Check_ReturnsExitCodes", func(t *testing.T) {
-		binName := "microgen_extend_check_bin"
-		if runtime.GOOS == "windows" {
-			binName += ".exe"
-		}
-		microgenBin := filepath.Join(t.TempDir(), binName)
-		buildMicrogenCmd := exec.Command("go", "build", "-o", microgenBin, "./cmd/microgen")
-		buildMicrogenCmd.Dir = root
-		if out, err := buildMicrogenCmd.CombinedOutput(); err != nil {
-			t.Fatalf("build microgen binary for exit-code test failed: %v\n%s", err, out)
-		}
+		t.Parallel()
+		// The shared binary, because this case only needs one that exists: what
+		// it asserts is the exit code, and every caller builds the same tree.
+		microgenBin := microgenBinary(t)
 
 		readyDir := generatedProjectDir(t, "gen_idl_extend_check_ready")
 

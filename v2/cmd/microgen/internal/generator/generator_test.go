@@ -120,6 +120,7 @@ func mustNewGenerator(t *testing.T, opts generator.Options) *generator.Generator
 // ─────────────────────────── generator.New ─────────────────────────────────
 
 func TestNew_DefaultDriver(t *testing.T) {
+	t.Parallel()
 	_, err := generator.New(generator.Options{
 		TemplateFS: testTemplateFS,
 		OutputDir:  t.TempDir(),
@@ -131,6 +132,7 @@ func TestNew_DefaultDriver(t *testing.T) {
 }
 
 func TestNew_WithDBRequiresDriver(t *testing.T) {
+	t.Parallel()
 	_, err := generator.New(generator.Options{
 		TemplateFS: testTemplateFS,
 		OutputDir:  t.TempDir(),
@@ -142,6 +144,7 @@ func TestNew_WithDBRequiresDriver(t *testing.T) {
 }
 
 func TestNew_UnsupportedDriver(t *testing.T) {
+	t.Parallel()
 	_, err := generator.New(generator.Options{
 		TemplateFS: testTemplateFS,
 		OutputDir:  t.TempDir(),
@@ -156,6 +159,7 @@ func TestNew_UnsupportedDriver(t *testing.T) {
 }
 
 func TestNew_AllSupportedDrivers(t *testing.T) {
+	t.Parallel()
 	drivers := []string{"sqlite", "mysql", "postgres", "sqlserver", "clickhouse"}
 	for _, d := range drivers {
 		d := d
@@ -173,6 +177,7 @@ func TestNew_AllSupportedDrivers(t *testing.T) {
 }
 
 func TestNew_GRPCProtocol(t *testing.T) {
+	t.Parallel()
 	outDir := t.TempDir()
 	project := parseIDLProject(t, "basic.go")
 
@@ -196,6 +201,7 @@ func TestNew_GRPCProtocol(t *testing.T) {
 // ─────────────────────────── 目录结构 ─────────────────────────────────────
 
 func TestGenerateFull_DirectoryStructure_HTTP(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -223,6 +229,7 @@ func TestGenerateFull_DirectoryStructure_HTTP(t *testing.T) {
 }
 
 func TestGenerateFull_DirectoryStructure_WithModel(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -243,6 +250,7 @@ func TestGenerateFull_DirectoryStructure_WithModel(t *testing.T) {
 }
 
 func TestGenerateFull_DirectoryStructure_WithTests(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -263,6 +271,7 @@ func TestGenerateFull_DirectoryStructure_WithTests(t *testing.T) {
 }
 
 func TestGenerateFull_DirectoryStructure_WithConfig(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -287,6 +296,7 @@ func TestGenerateFull_DirectoryStructure_WithConfig(t *testing.T) {
 }
 
 func TestGenerateFull_DirectoryStructure_WithDocs(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -305,6 +315,7 @@ func TestGenerateFull_DirectoryStructure_WithDocs(t *testing.T) {
 }
 
 func TestGenerateFull_DirectoryStructure_WithOpenAPI(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -331,6 +342,7 @@ func TestGenerateFull_DirectoryStructure_WithOpenAPI(t *testing.T) {
 // ─────────────────────────── 生成文件内容验证 ─────────────────────────────
 
 func TestGenerateFull_ServiceFile_Contents(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -356,6 +368,7 @@ func TestGenerateFull_ServiceFile_Contents(t *testing.T) {
 }
 
 func TestGenerateProject_ProtectsUserOwnedFilesOnRerun(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -404,6 +417,7 @@ func TestGenerateProject_ProtectsUserOwnedFilesOnRerun(t *testing.T) {
 }
 
 func TestGenerateFull_EndpointsFile_Contents(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -433,6 +447,7 @@ func TestGenerateFull_EndpointsFile_Contents(t *testing.T) {
 }
 
 func TestGenerateFull_TransportHTTP_Contents(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -462,6 +477,7 @@ func TestGenerateFull_TransportHTTP_Contents(t *testing.T) {
 }
 
 func TestGenerateFull_TransportGRPC_Contents(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -484,6 +500,7 @@ func TestGenerateFull_TransportGRPC_Contents(t *testing.T) {
 }
 
 func TestGenerateFull_ProtoFile_Contents(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -515,6 +532,7 @@ func TestGenerateFull_ProtoFile_Contents(t *testing.T) {
 }
 
 func TestGenerateFull_ProtoFile_ComplexTypeMappings(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLContentProject(t, `package complex
 
@@ -582,6 +600,7 @@ type EventService interface {
 }
 
 func TestGenerateFull_ModelFile_Contents(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -603,6 +622,7 @@ func TestGenerateFull_ModelFile_Contents(t *testing.T) {
 }
 
 func TestGenerateFull_RepositoryFile_Contents(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -629,6 +649,7 @@ func TestGenerateFull_RepositoryFile_Contents(t *testing.T) {
 }
 
 func TestGenerateFull_ClientDemo_Contents(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -652,6 +673,7 @@ func TestGenerateFull_ClientDemo_Contents(t *testing.T) {
 }
 
 func TestGenerateFull_ClientDemo_WithGRPC(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -675,6 +697,7 @@ func TestGenerateFull_ClientDemo_WithGRPC(t *testing.T) {
 // ─────────────────────────── main.go 生成 ─────────────────────────────────
 
 func TestGenerateFull_MainFile_HTTPOnly(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -697,6 +720,7 @@ func TestGenerateFull_MainFile_HTTPOnly(t *testing.T) {
 }
 
 func TestGenerateFull_MainFile_WithGRPC(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -719,6 +743,7 @@ func TestGenerateFull_MainFile_WithGRPC(t *testing.T) {
 }
 
 func TestGenerateFull_MainFile_WithDB(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -746,6 +771,7 @@ func TestGenerateFull_MainFile_WithDB(t *testing.T) {
 }
 
 func TestGenerateFull_MainFile_WithConfigUsesLoggingConfig(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -769,6 +795,7 @@ func TestGenerateFull_MainFile_WithConfigUsesLoggingConfig(t *testing.T) {
 // ─────────────────────────── go.mod 生成 ─────────────────────────────────
 
 func TestGenerateFull_GoMod_Created(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -799,6 +826,7 @@ func TestGenerateFull_GoMod_Created(t *testing.T) {
 }
 
 func TestGenerateFull_GoMod_WithModelRequiresGORM(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -818,6 +846,7 @@ func TestGenerateFull_GoMod_WithModelRequiresGORM(t *testing.T) {
 // gRPC ships in the same module as the rest of the framework, so enabling it
 // adds no requirement of its own.
 func TestGenerateFull_GoMod_WithGRPCRequiresGRPCIntegration(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -835,6 +864,7 @@ func TestGenerateFull_GoMod_WithGRPCRequiresGRPCIntegration(t *testing.T) {
 }
 
 func TestGenerateFull_GoMod_WithConfigUsesYAMLWithoutRemoteProviderBundle(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -855,6 +885,7 @@ func TestGenerateFull_GoMod_WithConfigUsesYAMLWithoutRemoteProviderBundle(t *tes
 }
 
 func TestOptionsNormalize_DerivesDefaults(t *testing.T) {
+	t.Parallel()
 	opt := generator.Options{
 		WithConfig: true,
 		Protocols:  []string{"http", " grpc "},
@@ -872,6 +903,7 @@ func TestOptionsNormalize_DerivesDefaults(t *testing.T) {
 }
 
 func TestNew_ConfigModeValidation(t *testing.T) {
+	t.Parallel()
 	_, err := generator.New(generator.Options{
 		TemplateFS: testTemplateFS,
 		OutputDir:  t.TempDir(),
@@ -884,6 +916,7 @@ func TestNew_ConfigModeValidation(t *testing.T) {
 }
 
 func TestNew_RemoteProviderValidation(t *testing.T) {
+	t.Parallel()
 	_, err := generator.New(generator.Options{
 		TemplateFS:     testTemplateFS,
 		OutputDir:      t.TempDir(),
@@ -897,6 +930,7 @@ func TestNew_RemoteProviderValidation(t *testing.T) {
 }
 
 func TestNew_RemoteModeRequiresProvider(t *testing.T) {
+	t.Parallel()
 	_, err := generator.New(generator.Options{
 		TemplateFS: testTemplateFS,
 		OutputDir:  t.TempDir(),
@@ -911,6 +945,7 @@ func TestNew_RemoteModeRequiresProvider(t *testing.T) {
 // TestGenerateFull_GoMod_ModuleUpdatedWhenMismatch 验证：go.mod 已存在但 module 名与 -import 不符时，
 // generator 只更新 module 行，其余内容（go 版本、require 块等）保持不变。
 func TestGenerateFull_GoMod_ModuleUpdatedWhenMismatch(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 
 	// Pre-write go.mod with a different module path.
@@ -937,6 +972,7 @@ func TestGenerateFull_GoMod_ModuleUpdatedWhenMismatch(t *testing.T) {
 // TestGenerateFull_GoMod_SkippedWhenModuleMatches 验证 go.mod 的 module 与 -import
 // 一致时，不修改文件内容，也不丢失用户自定义的 require。
 func TestGenerateFull_GoMod_SkippedWhenModuleMatches(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 
 	// 预先写入 go.mod，module 名与后续 ImportPath 相同
@@ -965,6 +1001,7 @@ func TestGenerateFull_GoMod_SkippedWhenModuleMatches(t *testing.T) {
 }
 
 func TestGenerateFull_NoImportPath_SkipsGoMod(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -985,6 +1022,7 @@ func TestGenerateFull_NoImportPath_SkipsGoMod(t *testing.T) {
 // ─────────────────────────── IDL 文件复制 ─────────────────────────────────
 
 func TestGenerateFull_IDLFileCopied(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	idlPath := filepath.Join("..", "parser", "testdata", "basic.go")
 	result, err := parser.ParseFull(idlPath)
@@ -1015,6 +1053,7 @@ func TestGenerateFull_IDLFileCopied(t *testing.T) {
 // ─────────────────────────── config.yaml ─────────────────────────────────
 
 func TestGenerateFull_ConfigYAML_HTTPOnly(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1043,6 +1082,7 @@ func TestGenerateFull_ConfigYAML_HTTPOnly(t *testing.T) {
 }
 
 func TestGenerateFull_ConfigYAML_HybridModeDefaults(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1066,6 +1106,7 @@ func TestGenerateFull_ConfigYAML_HybridModeDefaults(t *testing.T) {
 }
 
 func TestGenerateFull_ConfigYAML_RemoteModeDefaults(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1089,6 +1130,7 @@ func TestGenerateFull_ConfigYAML_RemoteModeDefaults(t *testing.T) {
 }
 
 func TestGenerateFull_ConfigYAML_WithGRPC(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1108,6 +1150,7 @@ func TestGenerateFull_ConfigYAML_WithGRPC(t *testing.T) {
 }
 
 func TestGenerateFull_ConfigYAML_WithDB(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1132,6 +1175,7 @@ func TestGenerateFull_ConfigYAML_WithDB(t *testing.T) {
 // ─────────────────────────── config/config.go ─────────────────────────────────
 
 func TestGenerateFull_ConfigCode_Generated(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1179,6 +1223,7 @@ func TestGenerateFull_ConfigCode_Generated(t *testing.T) {
 }
 
 func TestGenerateFull_ConfigCode_EnvOverrides(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1219,6 +1264,7 @@ func TestGenerateFull_ConfigCode_EnvOverrides(t *testing.T) {
 }
 
 func TestGenerateFull_ConfigCode_RemoteConfigDefaults(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1250,6 +1296,7 @@ func TestGenerateFull_ConfigCode_RemoteConfigDefaults(t *testing.T) {
 }
 
 func TestGenerateFull_ConfigCode_WithGRPC(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1270,6 +1317,7 @@ func TestGenerateFull_ConfigCode_WithGRPC(t *testing.T) {
 }
 
 func TestGenerateFull_ConfigCode_WithDB(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1294,6 +1342,7 @@ func TestGenerateFull_ConfigCode_WithDB(t *testing.T) {
 }
 
 func TestGenerateFull_ConfigCode_NotGeneratedWhenWithConfigFalse(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1328,6 +1377,7 @@ func TestGenerateFull_ConfigCode_NotGeneratedWhenWithConfigFalse(t *testing.T) {
 // ─────────────────────────── docs/docs.go ─────────────────────────────────
 
 func TestGenerateFull_OpenAPIEmbed_Contents(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1357,6 +1407,7 @@ func TestGenerateFull_OpenAPIEmbed_Contents(t *testing.T) {
 // ─────────────────────────── README.md 内容 ─────────────────────────────
 
 func TestGenerateFull_Readme_Contents(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1403,6 +1454,7 @@ func TestGenerateFull_Readme_Contents(t *testing.T) {
 }
 
 func TestGenerateFull_Readme_ConfigDefaults(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1428,6 +1480,7 @@ func TestGenerateFull_Readme_ConfigDefaults(t *testing.T) {
 }
 
 func TestGenerateFull_Readme_RemoteConfigMode(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1451,6 +1504,7 @@ func TestGenerateFull_Readme_RemoteConfigMode(t *testing.T) {
 }
 
 func TestGenerateFull_Readme_ProtoQuickStart(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	protoPath := filepath.Join(outDir, "service.proto")
 	if err := os.WriteFile(protoPath, []byte(`syntax = "proto3";
@@ -1501,6 +1555,7 @@ message CreateUserResponse {}
 // ─────────────────────────── 多服务 IDL ─────────────────────────────────
 
 func TestGenerateFull_Readme_MultiServiceEndpoints(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "multi.go")
 
@@ -1523,6 +1578,7 @@ func TestGenerateFull_Readme_MultiServiceEndpoints(t *testing.T) {
 }
 
 func TestGenerateFull_MultipleServices(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "multi.go")
 
@@ -1560,6 +1616,7 @@ func TestGenerateFull_MultipleServices(t *testing.T) {
 // ─────────────────────────── 仅有 Model（无 Service）─────────────────────
 
 func TestGenerateFull_NoServiceIDL_ModelStillGenerated(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "noservice.go")
 
@@ -1585,6 +1642,7 @@ func TestGenerateFull_NoServiceIDL_ModelStillGenerated(t *testing.T) {
 // ─────────────────────────── 各数据库驱动 DSN 验证 ─────────────────────
 
 func TestGenerateFull_DBDriverDSN(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		driver  string
 		wantDSN string
@@ -1625,6 +1683,7 @@ func TestGenerateFull_DBDriverDSN(t *testing.T) {
 // ─────────────────────────── PackageName 命名转换 ─────────────────────────
 
 func TestGenerateFull_PackageNameLowercased(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1652,6 +1711,7 @@ func TestGenerateFull_PackageNameLowercased(t *testing.T) {
 
 // The generated embed wrapper and OpenAPI document are one owned contract.
 func TestGenerateFull_OpenAPI_FullContent(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1694,6 +1754,7 @@ func TestGenerateFull_OpenAPI_FullContent(t *testing.T) {
 
 // The transport contains runtime adapters only; OpenAPI owns the description.
 func TestGenerateFull_OpenAPI_IsNotDuplicatedInTransport(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1726,6 +1787,7 @@ func TestGenerateFull_OpenAPI_IsNotDuplicatedInTransport(t *testing.T) {
 
 // Operations are generated from IR methods, including their HTTP verbs.
 func TestGenerateFull_OpenAPI_ContainsMethodOperations(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1756,6 +1818,7 @@ func TestGenerateFull_OpenAPI_ContainsMethodOperations(t *testing.T) {
 
 // The generated runtime serves the contract and configures Swagger UI as a viewer.
 func TestGenerateFull_OpenAPI_MainRoutes(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1790,6 +1853,7 @@ func TestGenerateFull_OpenAPI_MainRoutes(t *testing.T) {
 
 // main.go does not carry a second annotation-based API contract.
 func TestGenerateFull_OpenAPI_MainHasNoAnnotationContract(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1814,6 +1878,7 @@ func TestGenerateFull_OpenAPI_MainHasNoAnnotationContract(t *testing.T) {
 
 // Relative OpenAPI URLs do not require a generated host setting.
 func TestGenerateFull_OpenAPI_ConfigYAMLHasNoHost(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1835,6 +1900,7 @@ func TestGenerateFull_OpenAPI_ConfigYAMLHasNoHost(t *testing.T) {
 
 // Generated config code has no host override for OpenAPI.
 func TestGenerateFull_OpenAPI_ConfigCodeHasNoHost(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1856,6 +1922,7 @@ func TestGenerateFull_OpenAPI_ConfigCodeHasNoHost(t *testing.T) {
 
 // Reruns refresh generator-owned documentation instead of preserving stale output.
 func TestGenerateFull_OpenAPI_RerunRefreshesGeneratedDocs(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1897,6 +1964,7 @@ func TestGenerateFull_OpenAPI_RerunRefreshesGeneratedDocs(t *testing.T) {
 
 // Multi-service projects emit every unary operation into one OpenAPI document.
 func TestGenerateFull_OpenAPI_MultiServiceOperations(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "multi.go")
 
@@ -1925,6 +1993,7 @@ func TestGenerateFull_OpenAPI_MultiServiceOperations(t *testing.T) {
 
 // OpenAPI paths use the same configured service prefix as runtime routes.
 func TestGenerateFull_OpenAPI_RoutePrefix(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -1947,6 +2016,7 @@ func TestGenerateFull_OpenAPI_RoutePrefix(t *testing.T) {
 
 // Disabling OpenAPI output leaves no docs files or runtime documentation routes.
 func TestGenerateFull_OpenAPI_DisabledDoesNotGenerateDocs(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 

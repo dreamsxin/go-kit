@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"testing"
 )
 
@@ -38,14 +37,9 @@ type HelloService interface {
 		t.Fatalf("write readme smoke idl: %v", err)
 	}
 
-	binName := "microgen_readme_smoke"
-	if runtime.GOOS == "windows" {
-		binName += ".exe"
-	}
-	binPath := filepath.Join(t.TempDir(), binName)
-	buildMicrogenCmd := exec.Command("go", "build", "-o", binPath, "./cmd/microgen")
-	buildMicrogenCmd.Dir = root
-	runCommand(t, buildMicrogenCmd)
+	// The generator binary is shared with the rest of the suite: building this
+	// one case's own copy cost the same three seconds every other caller pays.
+	binPath := microgenBinary(t)
 
 	generateCmd := exec.Command(binPath,
 		"-idl", "idl.go",

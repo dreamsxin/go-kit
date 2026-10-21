@@ -8,6 +8,7 @@ import (
 )
 
 func TestGenerateFull_SDK(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -31,6 +32,7 @@ func TestGenerateFull_SDK(t *testing.T) {
 }
 
 func TestGenerateFull_ModelsAndHooks(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -51,6 +53,7 @@ func TestGenerateFull_ModelsAndHooks(t *testing.T) {
 }
 
 func TestGenerateFull_Interaction(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -92,6 +95,7 @@ func TestGenerateFull_Interaction(t *testing.T) {
 }
 
 func TestGenerateFull_NoInteraction(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 

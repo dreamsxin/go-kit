@@ -10,6 +10,7 @@ import (
 )
 
 func TestScanExistingProject_DetectsServicesOwnershipAndWarnings(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -67,6 +68,7 @@ func TestScanExistingProject_DetectsServicesOwnershipAndWarnings(t *testing.T) {
 }
 
 func TestScanExistingProject_DetectsAggregationPoints(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -111,6 +113,7 @@ func TestScanExistingProject_DetectsAggregationPoints(t *testing.T) {
 }
 
 func TestScanExistingProject_RejectsUnsupportedLayoutWithGuidance(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	if err := os.MkdirAll(filepath.Join(outDir, "cmd"), 0o755); err != nil {
 		t.Fatalf("MkdirAll(cmd): %v", err)
@@ -126,6 +129,7 @@ func TestScanExistingProject_RejectsUnsupportedLayoutWithGuidance(t *testing.T) 
 }
 
 func TestBuildAppendServicePlan_RejectsDuplicateService(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -154,6 +158,7 @@ func TestBuildAppendServicePlan_RejectsDuplicateService(t *testing.T) {
 }
 
 func TestBuildAppendServicePlan_RequiresAggregationFiles(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	base := parseIDLProject(t, "basic.go")
 	source := parseIDLProject(t, "multi.go")
@@ -199,6 +204,7 @@ func TestBuildAppendServicePlan_RequiresAggregationFiles(t *testing.T) {
 }
 
 func TestBuildAppendServicePlan_TargetNotFoundListsAvailableServices(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	base := parseIDLProject(t, "basic.go")
 
@@ -227,6 +233,7 @@ func TestBuildAppendServicePlan_TargetNotFoundListsAvailableServices(t *testing.
 }
 
 func TestApplyAppendService_RequiresFullCombinedContract(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	base := parseIDLProject(t, "basic.go")
 
@@ -267,6 +274,7 @@ type OrderService interface {
 }
 
 func TestApplyAppendService_RejectsProtoInput(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	base := parseIDLProject(t, "basic.go")
 
@@ -290,6 +298,7 @@ func TestApplyAppendService_RejectsProtoInput(t *testing.T) {
 }
 
 func TestBuildAppendServicePlan_ProducesDeterministicPlan(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	base := parseIDLProject(t, "basic.go")
 	source := parseIDLProject(t, "multi.go")
@@ -365,6 +374,7 @@ func TestBuildAppendServicePlan_ProducesDeterministicPlan(t *testing.T) {
 }
 
 func TestBuildAppendModelPlan_RejectsDuplicateModel(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -395,6 +405,7 @@ func TestBuildAppendModelPlan_RejectsDuplicateModel(t *testing.T) {
 }
 
 func TestBuildAppendModelPlan_ProducesDeterministicPlan(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	base := parseIDLProject(t, "basic.go")
 	source := parseIDLContentProject(t, appendModelCombinedIDL)
@@ -447,6 +458,7 @@ func TestBuildAppendModelPlan_ProducesDeterministicPlan(t *testing.T) {
 }
 
 func TestBuildAppendModelPlan_ReportsCompatibilitySeams(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	base := parseIDLProject(t, "basic.go")
 	source := parseIDLContentProject(t, appendModelCombinedIDL)
@@ -485,6 +497,7 @@ func TestBuildAppendModelPlan_ReportsCompatibilitySeams(t *testing.T) {
 }
 
 func TestApplyAppendModel_RequiresFullCombinedContract(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	base := parseIDLProject(t, "basic.go")
 
@@ -522,6 +535,7 @@ type Product struct {
 }
 
 func TestApplyAppendModel_WritesNewFilesAndPreservesExistingHooks(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	base := parseIDLProject(t, "basic.go")
 
@@ -568,6 +582,7 @@ func TestApplyAppendModel_WritesNewFilesAndPreservesExistingHooks(t *testing.T) 
 }
 
 func TestBuildAppendMiddlewarePlan_RejectsAlreadyPresentMiddleware(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -599,6 +614,7 @@ func TestBuildAppendMiddlewarePlan_RejectsAlreadyPresentMiddleware(t *testing.T)
 }
 
 func TestApplyAppendMiddleware_WritesGeneratedChainAndPreservesCustomChain(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -641,6 +657,7 @@ func TestApplyAppendMiddleware_WritesGeneratedChainAndPreservesCustomChain(t *te
 }
 
 func TestBuildAppendMiddlewarePlan_ReportsCompatibilitySeams(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -714,6 +731,7 @@ type UserService interface {
 `
 
 func TestApplyAppendService_WritesNewFilesAndPreservesExistingService(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	base := parseIDLProject(t, "basic.go")
 

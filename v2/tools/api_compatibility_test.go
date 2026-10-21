@@ -308,17 +308,10 @@ func TestAPICompatibilityClassifierReportsARemovedPackage(t *testing.T) {
 	}
 }
 
-// exportedSurface reads the declarations of every reviewed package under root,
-// keyed by import path.
-func exportedSurface(t *testing.T, root string) map[string]map[string]string {
-	t.Helper()
-	surface := map[string]map[string]string{}
-	for _, pkg := range publicRuntimePackages(t, root) {
-		doc := commandOutput(t, pkg.root, "go", "doc", "-all", pkg.importPath)
-		surface[pkg.importPath] = apiSymbols(declarationsOnly(normalizeCommandOutput(doc)))
-	}
-	return surface
-}
+// exportedSurface lives in api_surface_collect_test.go, next to the collection
+// both surface gates share: the snapshot asks whether a declaration changed and
+// this gate asks whether the change breaks a consumer, and both read the same
+// `go doc` output.
 
 // apiSymbols splits declaration text into one entry per exported symbol, keyed by
 // a stable name so a symbol that changed shape can be told from one that is gone.

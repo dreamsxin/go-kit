@@ -88,6 +88,7 @@ type HelloService interface {
 // method refreshes every generated surface that mentions it, while the
 // user's business logic survives untouched.
 func TestApplyRefreshUpdatesGeneratedArtifacts(t *testing.T) {
+	t.Parallel()
 	root := newTmpDir(t)
 	refreshFixture(t, root)
 
@@ -132,6 +133,7 @@ func TestApplyRefreshUpdatesGeneratedArtifacts(t *testing.T) {
 // model warns about the artifacts it no longer declares and leaves them in
 // place — deletion is a decision.
 func TestApplyRefreshReportsObsoleteArtifacts(t *testing.T) {
+	t.Parallel()
 	root := newTmpDir(t)
 
 	modelFixture := `package shop
@@ -190,6 +192,7 @@ type HelloService interface {
 // TestApplyRefreshRejectsNonGoSource: the refresh cannot regenerate from a
 // proto source, because the contract copy is a Go file.
 func TestApplyRefreshRejectsNonGoSource(t *testing.T) {
+	t.Parallel()
 	root := newTmpDir(t)
 	refreshFixture(t, root)
 

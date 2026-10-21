@@ -25,3 +25,5 @@ Thumbs.db
 # gate fixtures and tooling live in v2/tools; this root-level directory is not
 # a module and is never published. Anchored so v2/tools stays tracked.
 /tools/
+# Local agent workspace state
+.workbuddy/

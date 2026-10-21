@@ -75,6 +75,7 @@ message UploadSummary { int32 count = 1; }
 // ── Proto → HTTP 生成 ─────────────────────────────────────────────────────────
 
 func TestGenerateFull_FromProto_HTTPService(t *testing.T) {
+	t.Parallel()
 	outDir := t.TempDir()
 	project := parseProtoProject(t, greeterProto)
 
@@ -99,6 +100,7 @@ func TestGenerateFull_FromProto_HTTPService(t *testing.T) {
 }
 
 func TestGenerateFull_FromProto_ServiceContents(t *testing.T) {
+	t.Parallel()
 	outDir := t.TempDir()
 	project := parseProtoProject(t, greeterProto)
 
@@ -120,6 +122,7 @@ func TestGenerateFull_FromProto_ServiceContents(t *testing.T) {
 }
 
 func TestGenerateFull_FromProto_HTTPMethodInference(t *testing.T) {
+	t.Parallel()
 	outDir := t.TempDir()
 	project := parseProtoProject(t, greeterProto)
 
@@ -145,6 +148,7 @@ func TestGenerateFull_FromProto_HTTPMethodInference(t *testing.T) {
 // ── Proto → gRPC 生成 ─────────────────────────────────────────────────────────
 
 func TestGenerateFull_FromProto_GRPCTransport(t *testing.T) {
+	t.Parallel()
 	outDir := t.TempDir()
 	project := parseProtoProject(t, greeterProto)
 
@@ -170,6 +174,7 @@ func TestGenerateFull_FromProto_GRPCTransport(t *testing.T) {
 }
 
 func TestGenerateFull_FromProto_ProtoFileContents(t *testing.T) {
+	t.Parallel()
 	outDir := t.TempDir()
 	project := parseProtoProject(t, greeterProto)
 
@@ -197,6 +202,7 @@ func TestGenerateFull_FromProto_ProtoFileContents(t *testing.T) {
 }
 
 func TestGenerateFull_FromProto_ServerStreamContents(t *testing.T) {
+	t.Parallel()
 	outDir := t.TempDir()
 	project := parseProtoProject(t, chatStreamProto)
 
@@ -257,6 +263,7 @@ func TestGenerateFull_FromProto_ServerStreamContents(t *testing.T) {
 // ── WithTests 生成 ────────────────────────────────────────────────────────────
 
 func TestGenerateFull_WithTests_Contents(t *testing.T) {
+	t.Parallel()
 	outDir := t.TempDir()
 	project := parseIDLProject(t, "basic.go")
 
@@ -281,6 +288,7 @@ func TestGenerateFull_WithTests_Contents(t *testing.T) {
 // ── RoutePrefix ───────────────────────────────────────────────────────────────
 
 func TestGenerateFull_RoutePrefix_InGeneratedRoutes(t *testing.T) {
+	t.Parallel()
 	outDir := t.TempDir()
 	project := parseIDLProject(t, "basic.go")
 
@@ -301,6 +309,7 @@ func TestGenerateFull_RoutePrefix_InGeneratedRoutes(t *testing.T) {
 }
 
 func TestGenerateFull_RoutePrefix_WithLeadingSlash(t *testing.T) {
+	t.Parallel()
 	outDir := t.TempDir()
 	project := parseIDLProject(t, "basic.go")
 
@@ -323,6 +332,7 @@ func TestGenerateFull_RoutePrefix_WithLeadingSlash(t *testing.T) {
 // ── SDK 内容 ──────────────────────────────────────────────────────────────────
 
 func TestGenerateFull_SDK_Contents(t *testing.T) {
+	t.Parallel()
 	outDir := t.TempDir()
 	project := parseIDLProject(t, "basic.go")
 
@@ -345,6 +355,7 @@ func TestGenerateFull_SDK_Contents(t *testing.T) {
 }
 
 func TestGenerateFull_SDK_WithGRPC_Contents(t *testing.T) {
+	t.Parallel()
 	outDir := t.TempDir()
 	project := parseIDLProject(t, "basic.go")
 
@@ -367,6 +378,7 @@ func TestGenerateFull_SDK_WithGRPC_Contents(t *testing.T) {
 // ── toSnakeCase ───────────────────────────────────────────────────────────────
 
 func TestToSnakeCase_Generator(t *testing.T) {
+	t.Parallel()
 	// toSnakeCase is used internally; test via generated file names
 	// The generator uses it for package names (already tested via PackageNameLowercased)
 	// Test indirectly via multi-service generation

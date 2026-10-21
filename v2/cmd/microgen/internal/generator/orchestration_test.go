@@ -9,6 +9,7 @@ import (
 )
 
 func TestGenerateFull_CopiesGoIDLSource(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	idlPath := filepath.Join("..", "parser", "testdata", "basic.go")
 	project := parseIDLProject(t, "basic.go")
@@ -42,6 +43,7 @@ func TestGenerateFull_CopiesGoIDLSource(t *testing.T) {
 }
 
 func TestGenerateFull_DoesNotCopyProtoSourceAsIDLGo(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	protoPath := filepath.Join(outDir, "svc.proto")
 	if err := os.WriteFile(protoPath, []byte(greeterProto), 0o644); err != nil {
@@ -65,6 +67,7 @@ func TestGenerateFull_DoesNotCopyProtoSourceAsIDLGo(t *testing.T) {
 }
 
 func TestGenerateFull_GoMod_DoesNotUseReplaceForExternalTestdataPath(t *testing.T) {
+	t.Parallel()
 	base := filepath.Join(t.TempDir(), "testdata", "gen")
 	if err := os.MkdirAll(base, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
@@ -86,6 +89,7 @@ func TestGenerateFull_GoMod_DoesNotUseReplaceForExternalTestdataPath(t *testing.
 }
 
 func TestGenerateFull_RoutePrefix_AlignedAcrossArtifacts(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -108,6 +112,7 @@ func TestGenerateFull_RoutePrefix_AlignedAcrossArtifacts(t *testing.T) {
 }
 
 func TestGenerateFull_WithOpenAPI_GeneratesContractAtConventionalPath(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	project := parseIDLProject(t, "basic.go")
 
@@ -131,6 +136,7 @@ func TestGenerateFull_WithOpenAPI_GeneratesContractAtConventionalPath(t *testing
 }
 
 func TestGenerateFull_FromProtoGRPC_GeneratesConventionalProtoAndClientArtifacts(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	protoPath := filepath.Join(outDir, "svc.proto")
 	if err := os.WriteFile(protoPath, []byte(greeterProto), 0o644); err != nil {
@@ -157,6 +163,7 @@ func TestGenerateFull_FromProtoGRPC_GeneratesConventionalProtoAndClientArtifacts
 }
 
 func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	idlPath := filepath.Join("..", "parser", "testdata", "basic.go")
 	project := parseIDLProject(t, "basic.go")
@@ -219,6 +226,7 @@ func TestGenerateFull_FullFeatureSet_GeneratesArtifactsAcrossAllPhases(t *testin
 // classifyWrite, and the ErrDuplicated sentinel is the service's mapping
 // point to apperror.KindAlreadyExists — a 409, never a raw 500.
 func TestGenerateFull_DuplicateKeysClassifyToAlreadyExists(t *testing.T) {
+	t.Parallel()
 	outDir := newTmpDir(t)
 	idlPath := filepath.Join("..", "parser", "testdata", "basic.go")
 	project := parseIDLProject(t, "basic.go")

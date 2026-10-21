@@ -51,7 +51,13 @@ func main() {
 			// The published module is the root module, and it requires nothing
 			// from this repository, so leaving the workspace needs no tag to
 			// exist and no proxy round trip.
-			runForModules(publishableModules(root), []string{"GOWORK=off"}, "go", "test", "./...", "-count=1")
+			//
+			// It compiles rather than runs: the question is whether the module
+			// stands on its own without the workspace, and the test suite is
+			// already run in full by the test suite above. Running it a second
+			// time under GOWORK=off spent half a minute re-asserting what had
+			// just passed and said nothing new about the module boundary.
+			runForModules(publishableModules(root), []string{"GOWORK=off"}, "go", "test", "-run", "^$", "./...", "-count=1")
 		case "vet":
 			runForModules(maintained, nil, "go", "vet", "./...")
 		case "tidy":

@@ -18,13 +18,13 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// TestAllExamples builds and runs all examples to ensure they still work.
 // TestAllExamples builds and smoke-tests every example.
 //
-// It deliberately does not call t.Parallel: its cases bind fixed ports, so it
-// has to own the port space while it runs. Go schedules serial tests before
-// parallel ones, so this runs first and the rest of the suite overlaps after it.
-// Switching the cases to freeTCPAddr would let it join them.
+// Each case used to bind a fixed port and therefore could not call t.Parallel:
+// Go runs serial tests first, so this suite held the whole process for half a
+// minute before any other test started. A free port per case removes the
+// reason — every example already reads -http.addr — so the smoke tests now
+// overlap with the generator integration tests instead of preceding them.
 func TestAllExamples(t *testing.T) {
 	cwd, _ := os.Getwd()
 	root := filepath.Dir(cwd)
@@ -33,14 +33,12 @@ func TestAllExamples(t *testing.T) {
 	examples := []struct {
 		name       string
 		path       string
-		port       int
 		run        bool // whether to run and smoke test
 		smokeTests []smokeTest
 	}{
 		{
 			name: "quickstart",
 			path: "quickstart",
-			port: 8082,
 			run:  true,
 			smokeTests: []smokeTest{
 				{method: "POST", path: "/greet", body: `{"name":"world"}`, want: "Hello, world!"},
@@ -49,7 +47,6 @@ func TestAllExamples(t *testing.T) {
 		{
 			name: "manual_composition",
 			path: "manual_composition",
-			port: 8084,
 			run:  true,
 			smokeTests: []smokeTest{
 				{method: "POST", path: "/hello", body: `{"name":"world"}`, want: "Hello, world!"},
@@ -58,7 +55,6 @@ func TestAllExamples(t *testing.T) {
 		{
 			name: "best_practice",
 			path: "best_practice",
-			port: 8083,
 			run:  true,
 			smokeTests: []smokeTest{
 				{method: "POST", path: "/hello", body: `{"name":"Alice"}`, want: "Hello, Alice!"},
@@ -67,7 +63,6 @@ func TestAllExamples(t *testing.T) {
 		{
 			name: "auth",
 			path: "auth",
-			port: 8085,
 			run:  true,
 			smokeTests: []smokeTest{
 				{method: "POST", path: "/api/me", body: `{}`, wantStatus: http.StatusUnauthorized},
@@ -80,7 +75,6 @@ func TestAllExamples(t *testing.T) {
 		{
 			name: "envelope",
 			path: "envelope",
-			port: 8087,
 			run:  true,
 			smokeTests: []smokeTest{
 				{method: "POST", path: "/hello", body: `{"name":"smoke"}`, want: "Hello, smoke!"},
@@ -92,7 +86,6 @@ func TestAllExamples(t *testing.T) {
 		{
 			name: "customcodec",
 			path: "customcodec",
-			port: 8088,
 			run:  true,
 			smokeTests: []smokeTest{
 				{method: "POST", path: "/shout", body: "\x05smoke", rawContentType: "application/x-custom", rawBody: true, want: "HELLO, smoke!"},
@@ -103,7 +96,6 @@ func TestAllExamples(t *testing.T) {
 		{
 			name: "todosvc",
 			path: "todosvc",
-			port: 8086,
 			run:  true,
 			smokeTests: []smokeTest{
 				{method: "POST", path: "/todos", body: `{"title":"smoke test"}`, want: "smoke test"},
@@ -117,6 +109,7 @@ func TestAllExamples(t *testing.T) {
 
 	for _, tc := range examples {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			pkgPath := filepath.Join(examplesDir, tc.path)
 
 			// 1. Build check
@@ -138,9 +131,9 @@ func TestAllExamples(t *testing.T) {
 			}
 
 			// 2. Run and smoke test
-			t.Logf("Running %s on port %d...", tc.name, tc.port)
-			addr := fmt.Sprintf(":%d", tc.port)
-			baseURL := fmt.Sprintf("http://localhost:%d", tc.port)
+			addr := freeTCPAddr(t)
+			baseURL := "http://" + addr
+			t.Logf("Running %s on %s...", tc.name, addr)
 
 			runCmd := exec.Command(binPath)
 			runCmd.Args = append(runCmd.Args, "-http.addr="+addr)

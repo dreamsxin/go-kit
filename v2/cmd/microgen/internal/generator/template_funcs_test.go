@@ -14,6 +14,7 @@ import (
 // `Description: "a "user" record"` — valid Go syntax, which is why the
 // generator's own format check passed it through to fail in the user's build.
 func TestQuoteGoStringSurvivesHostileText(t *testing.T) {
+	t.Parallel()
 	for name, input := range map[string]string{
 		"double quote":    `Creates a "user" record.`,
 		"backslash":       `Path is C:\temp\x`,
@@ -43,6 +44,7 @@ func TestQuoteGoStringSurvivesHostileText(t *testing.T) {
 }
 
 func TestOneLineCommentFoldsEveryTerminator(t *testing.T) {
+	t.Parallel()
 	for name, input := range map[string]string{
 		"lf":   "first\nsecond",
 		"crlf": "first\r\nsecond",
@@ -64,6 +66,7 @@ func TestOneLineCommentFoldsEveryTerminator(t *testing.T) {
 // is a back-quoted literal, and neither a backtick nor a quote can be escaped
 // inside one.
 func TestStructTagValueCannotTerminateTheRawString(t *testing.T) {
+	t.Parallel()
 	got := structTagValue("we`ird\"name\nhere")
 	if strings.ContainsAny(got, "`\"\r\n") {
 		t.Fatalf("tag value can still break its literal: %q", got)
@@ -79,6 +82,7 @@ func TestStructTagValueCannotTerminateTheRawString(t *testing.T) {
 // TestTemplateSetRegistersTheEscapingHelpers guards against the previous state,
 // where the escaping machinery existed and nothing referenced it.
 func TestTemplateSetRegistersTheEscapingHelpers(t *testing.T) {
+	t.Parallel()
 	set := newTemplateSet()
 	for _, name := range []string{"quote", "comment", "tag"} {
 		if _, err := set.New(name + "-probe").Parse("{{" + name + ` "x"}}`); err != nil {
