@@ -6,6 +6,24 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Added
 
+- `resource` is the query vocabulary a resource route speaks. A filter is a
+  serializable tree (`resource.Filter`), not a string handed to a database
+  driver, because a string cannot be narrowed by a permission policy, compared in
+  an audit log, or replayed from a bug report. `ParseFilter` reads the dialect
+  clients send — `{"age":{"$gte":18,"$lt":65}}`, `$and`/`$or`/`$not`, `$in`,
+  `$dateRange`, `$empty` — visiting keys in sorted order, so one document always
+  produces one tree. `Filter.Validate(schema)` answers an undeclared field, an
+  unfilterable one, an operator that means nothing on the field's type, or an
+  operand of the wrong type with a `filter.*` code, and never narrows silently.
+  The operator set is closed: an application cannot register its own, because an
+  operator is a promise every adapter must keep and a policy layer must be able
+  to reason about. `And` performs exactly one simplification — dropping zero
+  operands — since merging by field or flattening a nested `and` is how a
+  constraint disappears; `Or` keeps an empty operand and validation rejects it,
+  because `or`'s identity is "match nothing" and dropping one would turn the
+  condition into "match everything". Trees are bounded at 32 levels and 256
+  nodes, and numbers travel as `json.Number`, so an identifier wider than 2^53
+  stays exact.
 - `kit` can be assembled from modules. `kit.WithModules` accepts values
   implementing `kit.Module`: every `Register` runs before any `Init`, and both
   phases run in an order derived from `Requires` and — for modules that require

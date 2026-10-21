@@ -76,6 +76,16 @@ func TestArchitectureDependencyGates(t *testing.T) {
 			allowedExact: []string{coreModulePath + "/apperror", coreModulePath + "/endpoint"},
 		},
 		{
+			// The query vocabulary is a contract, not an adapter: it defines what
+			// a filter means and what a field may declare, and leaves the storage
+			// to whoever owns it. apperror is the one dependency, because an
+			// unreadable condition has to reach the client as a 400 with a code
+			// rather than as a 500 from whichever adapter noticed it first.
+			name:         "resource",
+			pattern:      "./resource",
+			allowedExact: []string{coreModulePath + "/apperror"},
+		},
+		{
 			name:         "slog observability",
 			pattern:      "./observability/slog",
 			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/transport"},

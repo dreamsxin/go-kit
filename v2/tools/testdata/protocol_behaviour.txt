@@ -184,6 +184,7 @@ stable/resilience.clock-nil-is-wall-clock
 stable/resilience.keyed-rate-limit
 stable/resilience.keyed-rate-limit-shares-one-bucket
 stable/resilience.retry-clock
+stable/resource.filter-dialect
 stable/sd.client-invalid-balancer-releases-resources
 stable/sd.client-retry-timing-is-configurable
 stable/sd.feedback-ejection-cap-holds-under-concurrency

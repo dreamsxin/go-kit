@@ -1555,6 +1555,114 @@ type TelemetryConfig struct {
 	Signals Signals
 }
 
+## github.com/dreamsxin/go-kit/v2/resource
+package resource // import "github.com/dreamsxin/go-kit/v2/resource"
+TYPES
+type Field struct {
+	// Name is the field's name in the JSON document and in a filter.
+	Name string
+	// Type is its value domain.
+	Type FieldType
+	// Filterable allows the field in a comparison. A credential hash or an
+	// internal note is not filterable, because a filter on it turns "can I read
+	// this record" into "can I learn this value one query at a time".
+	Filterable bool
+	// Sortable allows the field in a sort. Sorting by a sensitive column leaks
+	// the same information more slowly.
+	Sortable bool
+	// Writable allows the field in a create or an update. It is false on a
+	// field built by NewField: writing is the capability a caller opts into,
+	// while reading a field it just declared is what the declaration meant.
+	Writable bool
+}
+func NewField(name string, kind FieldType) Field
+type FieldType string
+const (
+	// TypeString holds text. It is the only type OpLike and OpPrefix apply to.
+	TypeString FieldType = "string"
+	// TypeInt holds a signed integer. Values arrive as json.Number so an
+	// identifier beyond 2^53 survives the trip.
+	TypeInt FieldType = "int"
+	// TypeFloat holds a floating-point number.
+	TypeFloat FieldType = "float"
+	// TypeBool holds a boolean.
+	TypeBool FieldType = "bool"
+	// TypeTime holds an instant. Values arrive as RFC 3339 text.
+	TypeTime FieldType = "time"
+	// TypeJSON holds an opaque JSON document — a column a field type does not
+	// describe. Comparisons other than equality on it are rejected: ordering an
+	// arbitrary document is not a question a query can answer portably.
+	TypeJSON FieldType = "json"
+)
+type Filter struct {
+	// Op is the operator. The zero value means "no condition".
+	Op Op
+	// Field names the schema field a comparison applies to. Empty on a
+	// logical node.
+	Field string
+	// Value is the right-hand side of a comparison. Its Go type follows the
+	// field: a string for OpLike, a slice for OpIn and OpDateRange, and the
+	// field's own value — string, json.Number, bool — everywhere else.
+	Value any
+	// Children holds the operands of OpAnd, OpOr and OpNot, and is empty on a
+	// comparison.
+	Children []Filter
+}
+func And(filters ...Filter) Filter
+func Condition(field string, op Op, value any) Filter
+func Not(filter Filter) Filter
+func Or(filters ...Filter) Filter
+func ParseFilter(raw any) (Filter, error)
+func (f Filter) IsZero() bool
+func (f Filter) MarshalJSON() ([]byte, error)
+func (f *Filter) UnmarshalJSON(data []byte) error
+func (f Filter) Validate(schema Schema) error
+type Op string
+const (
+	// OpEq matches records whose field equals Value.
+	OpEq Op = "eq"
+	// OpNe matches records whose field differs from Value.
+	OpNe Op = "ne"
+	// OpIn matches records whose field is one of Value, a non-empty list.
+	OpIn Op = "in"
+	// OpNotIn matches records whose field is none of Value, a non-empty list.
+	OpNotIn Op = "nin"
+	// OpGt, OpGte, OpLt and OpLte order a field against Value. They are only
+	// valid on an ordered field type: string, int, float and time.
+	OpGt  Op = "gt"
+	OpGte Op = "gte"
+	OpLt  Op = "lt"
+	OpLte Op = "lte"
+	// OpLike matches a string field that contains Value. Value is a literal:
+	// "%" and "_" are the characters they look like, not wildcards. Wildcard
+	// syntax belongs to SQL, and a filter that means something different
+	// depending on which adapter runs it is worse than one that says less.
+	OpLike Op = "like"
+	// OpPrefix matches a string field that starts with Value.
+	OpPrefix Op = "prefix"
+	// OpDateRange matches a time field inside the half-open interval
+	// [Value[0], Value[1]): the start is included, the end is not, so two
+	// adjacent ranges never both match the record on their boundary.
+	OpDateRange Op = "dateRange"
+	// OpEmpty matches a field that is null or the empty string. No Value.
+	OpEmpty Op = "empty"
+	// OpNotEmpty is the negation of OpEmpty. No Value.
+	OpNotEmpty Op = "notEmpty"
+	// OpAnd matches a record that satisfies every child.
+	OpAnd Op = "and"
+	// OpOr matches a record that satisfies at least one child.
+	OpOr Op = "or"
+	// OpNot matches a record that does not satisfy its single child.
+	OpNot Op = "not"
+)
+type Schema struct {
+	// Has unexported fields.
+}
+func NewSchema(fields ...Field) (Schema, error)
+func (s Schema) Field(name string) (Field, bool)
+func (s Schema) Fields() []Field
+func (s Schema) Len() int
+
 ## github.com/dreamsxin/go-kit/v2/sd
 package sd // import "github.com/dreamsxin/go-kit/v2/sd"
 CONSTANTS

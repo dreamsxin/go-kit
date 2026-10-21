@@ -2992,6 +2992,73 @@ test asserts nothing about the listener afterwards and cannot fail if the cancel
 lands earlier. It establishes no precondition — it is decoration. Removing it would
 be tidying code, not making a property true.
 
+## Milestone 31 (In Progress): A Resource Layer, Starting With The Vocabulary
+
+Source: the third gap from the same platform review — the framework has no query
+abstraction, `Filter` exists only as struct tags scattered through generated code,
+and a permission layer can therefore only answer "has the role" or "does not". A
+resource layer is the fix, but its foundation is not routing: it is whether the
+condition itself can be reached by a policy.
+
+Landed (first work package: the AST):
+
+- **`resource.Filter` is a value, not a string.** A condition written as text
+  belongs to the driver that parses it, and nothing in between can add to it. A
+  condition written as a tree belongs to the framework, so a policy can `And` onto
+  it, an audit record can store it, and an error can point at
+  `children[1].children[0]`.
+- **The operator set is closed.** `eq`/`ne`/`in`/`nin`/`gt`/`gte`/`lt`/`lte`/
+  `like`/`prefix`/`dateRange`/`empty`/`notEmpty`, with `and`/`or`/`not` as
+  connectives. An application cannot register one: an operator is a promise every
+  adapter must keep, and a custom operator is a query fragment the policy layer
+  cannot reason about and the audit log cannot replay.
+- **`And` performs exactly one simplification: dropping zero operands.** Merging by
+  field, deduplicating, or flattening a nested `and` all make a constraint
+  disappear. `Or` is the mirror image: it keeps an empty operand and validation
+  rejects it, because `or`'s identity is "match nothing" and dropping one would
+  turn the condition into "match everything". Both have regression tests, and both
+  were verified by deliberately breaking the implementation and watching the test
+  fail.
+- **The canonical form is the tree itself.** `MarshalJSON` writes
+  `{"op":"and","children":[...]}`; the client dialect stays in `ParseFilter`. The
+  dialect spells one condition several ways, the canonical form spells it one way,
+  so two audit records can be compared by reading them.
+- **Parsing is deterministic.** Keys are visited in sorted order: the same document
+  parsed a hundred times yields the same tree byte for byte. Go's map iteration
+  would give a different operand order per call, and a log diff would then read as
+  a changed query.
+- **Validation is unforgiving.** An undeclared field, an unfilterable one, an
+  operator that means nothing on the field's type, or an operand of the wrong type
+  each carry a `filter.*` code. Dropping a condition silently makes the result set
+  larger, which is indistinguishable from a permission bug at the call site.
+- **The bounds are a property of the value.** 32 levels and 256 nodes apply to a
+  tree built in Go as well, because the adapter walks that same tree; a limit only
+  the parser enforces is a formality.
+- **Numbers do not lose precision.** Values travel as `json.Number`.
+  9007199254740993 is the smallest integer a float64 cannot hold, so a float64
+  decode would silently answer with the neighbouring record.
+
+Deliberately not done (this package):
+
+- **Runtime operator registration.** It is an injection surface.
+- **Cursor pagination.** Cursor semantics are keyset semantics, and a generic one
+  would impose a sort-key discipline this layer does not own.
+- **Association filters.** `posts.comments` is not a filter path in the first
+  version; relations belong to a projection parameter.
+
+Next work package (not started): the minimal `Repository` contract with
+`Query`/`Page`/`WriteMask`, parameter merging (filter AND only, fields intersect
+only, appends may union), the `resource/memory` reference implementation, and only
+then routing — which must register through `kit.HandleJSONEndpoint`, judged by a
+resource route producing the same log fields as a hand-written one.
+
+Acceptance (green for this package):
+
+```bash
+go test ./resource/... -count=1
+go -C ./tools test . -run 'TestStableProtocolBehaviour|TestPublicAPISurfaceSnapshot|TestArchitectureDependencyGates' -count=1
+```
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria
