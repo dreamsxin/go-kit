@@ -18,6 +18,19 @@
   `Or` 保留空操作数并由校验拒绝，因为「或」的单位元是「什么都不匹配」，丢掉空
   操作数会把整个条件变成「匹配一切」。树被限制在 32 层、256 个节点，数值以
   `json.Number` 承载，超过 2^53 的标识符不丢精度。
+- `resource` 补齐了资源层的后半段：请求、合并与仓储契约。`Params` 描述默认值、客户端、
+  策略三层的贡献，`MergeParams` 逐键合并且每条规则只会收窄——`Filter` 合取、`Fields`
+  求交、`Appends` 求并、`Sort` 覆盖、`Window` 取更小尺寸、`Writable` 白名单求交而黑名单
+  求并。`nil` 与非 nil 空切片是两个值：前者是「这一层没有意见」，后者是「一个也不允许」，
+  所以两个互不相交的白名单失败关闭，而不是塌缩成「无限制」；两个互不相交的投影返回
+  `resource.fields_disjoint`，而不是返回没有字段的记录。新增 `Repository` 契约
+  （`List`/`Get`/`Create`/`Update`/`Destroy`/`Aggregate`）与 `Record`、`Key`、
+  `WriteMask`、`Query`、`Page`、`AggregateQuery`；`Page` 的 JSON 与
+  `transport/http.PageResult` 完全同形，由传输层的一个测试逐字节钉住。`Matcher` 给出
+  过滤器的可执行语义，采用 SQL 三值逻辑：缺失字段上的比较是 unknown，`not` 不会把
+  unknown 变成 true，所以「除 X 之外」不会返回没有该字段的记录。`Schema` 新增
+  `Readable` 与 `Project`，默认投影由声明产生，`SELECT *` 也带不出只写列。新增
+  `resource/memory`，作为契约的参考实现与所有适配器的语义基准。
 - `kit` 现在可以用模块装配。`kit.WithModules` 接受实现了 `kit.Module` 的值：
   `Register` 对全体模块先跑完，`Init` 才按 `Requires` 的依赖顺序逐个执行，
   两次都由 `Run` 用同一个上下文驱动，因此初始化可以被取消，失败时任何监听器都

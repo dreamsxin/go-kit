@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type module struct {
@@ -33,8 +34,10 @@ func main() {
 	}
 
 	maintained := maintainedModules(root)
+	began := time.Now()
 	for _, suite := range suites {
 		fmt.Printf("\n>>> release suite: %s\n", suite)
+		started := time.Now()
 		switch suite {
 		case "fmt":
 			// Formatting used to be checked only by `make verify`, which means
@@ -58,7 +61,12 @@ func main() {
 		case "race":
 			runRace(root)
 		}
+		// Timing per suite, because "the release check is slow" is not
+		// actionable and "race takes seven minutes on Windows" is. A run that
+		// grew from four minutes to nine should say which suite grew.
+		fmt.Printf("<<< release suite: %s passed in %s\n", suite, time.Since(started).Round(100*time.Millisecond))
 	}
+	fmt.Printf("\nall %d release suites passed in %s\n", len(suites), time.Since(began).Round(100*time.Millisecond))
 }
 
 func parseSuites(value string) ([]string, error) {

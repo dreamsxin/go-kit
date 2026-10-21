@@ -86,6 +86,16 @@ func TestArchitectureDependencyGates(t *testing.T) {
 			allowedExact: []string{coreModulePath + "/apperror"},
 		},
 		{
+			// The reference store is where a query is actually applied, so it
+			// is the one package allowed to sit on the vocabulary. It gets no
+			// further allowance: a store that reached for the assembly layer
+			// would stop being usable from a test that wants a repository
+			// without a service.
+			name:         "resource memory store",
+			pattern:      "./resource/memory",
+			allowedExact: []string{coreModulePath + "/apperror", coreModulePath + "/resource"},
+		},
+		{
 			name:         "slog observability",
 			pattern:      "./observability/slog",
 			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/transport"},

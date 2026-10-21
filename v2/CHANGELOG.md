@@ -24,6 +24,27 @@ English | [简体中文](CHANGELOG_zh.md)
   condition into "match everything". Trees are bounded at 32 levels and 256
   nodes, and numbers travel as `json.Number`, so an identifier wider than 2^53
   stays exact.
+- `resource` now carries the other half of the resource layer: the request, the
+  merge, and the repository contract. `Params` describes one layer's
+  contribution — a default, a client, a policy — and `MergeParams` combines them
+  per key with one rule each, all of them narrowing: the filter conjuncts, the
+  projection intersects, `Appends` unions, `Sort` is overwritten, the window
+  takes the smaller size, and `Writable` intersects whitelists while unioning
+  blacklists. `nil` and an empty slice are different values: the first is a layer
+  with no opinion, the second a layer that allows none, so two disjoint
+  whitelists fail closed instead of collapsing into "unrestricted"; two disjoint
+  projections are `resource.fields_disjoint` rather than records with no fields.
+  `Repository` (`List`, `Get`, `Create`, `Update`, `Destroy`, `Aggregate`) is the
+  contract, with `Record`, `Key`, `WriteMask`, `Query`, `Page` and
+  `AggregateQuery`; `Page` serializes exactly as `transport/http.PageResult`
+  does, and a test in the transport pins the two payloads byte for byte.
+  `Matcher` is the executable semantics of a filter, using SQL's three-valued
+  logic: a comparison on a missing field is unknown, and `not` does not turn
+  unknown into true, so "everything except X" does not return records that have
+  no X. `Schema` gained `Readable` and `Project`, so the default projection comes
+  from the declarations and a `SELECT *` cannot return a write-only column.
+  `resource/memory` is the reference implementation and the semantic oracle for
+  every future adapter.
 - `kit` can be assembled from modules. `kit.WithModules` accepts values
   implementing `kit.Module`: every `Register` runs before any `Init`, and both
   phases run in an order derived from `Requires` and — for modules that require

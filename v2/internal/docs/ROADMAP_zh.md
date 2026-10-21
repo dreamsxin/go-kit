@@ -2349,22 +2349,51 @@ struct tag 的形式散落在生成代码里，于是权限只能做「有角色
 - **数值不丢精度。** 值以 `json.Number` 承载。9007199254740993 是 float64 装不下
   的最小整数，用 float64 解码会静默返回相邻记录。
 
+已落地（第二段：引擎）：
+
+- **`Repository` 契约在此，实现归存储方。** `List`/`Get`/`Create`/`Update`/
+  `Destroy`/`Aggregate`。接口在本包、实现随数据走，所以只用 HTTP 的服务不会被迫
+  编进一个数据库驱动；依赖门禁把这条边钉住了（`./resource/memory` 只许导入
+  `apperror` 与 `resource`）。
+- **参数合并是安全核心。** 三层的每个键只有一条规则：`Filter` 合取、`Fields` 求交、
+  `Appends` 求并、`Sort` 覆盖、`Window` 取更小尺寸、`Writable` 白名单求交而黑名单
+  求并。黑名单取并而不是取交，因为取交会让后一层把前一层禁止的字段放回来。
+- **`nil` 与非 nil 空切片是两个值。** 前者是「这一层没有意见」，后者是「一个也不
+  允许」。两个互不相交的白名单求交成空集，合并以 `resource.fields_disjoint` 拒绝；
+  把它塌缩成「无限制」正是这类代码最典型的失效方式。手写 `[]string{}` 这种有歧义的
+  写法也失败关闭。
+- **三值逻辑。** `Matcher` 是可执行的语义定义：缺失字段上的比较是 unknown，`not`
+  保持 unknown，所以「除 X 之外」不会返回没有 X 的记录。二值实现会多返回一批记录，
+  而 SQL 适配器不会——参考实现的意义就是让这种分歧在写适配器之前暴露出来。
+- **默认投影由声明产生。** `Field.Readable` 与 `Schema.Project` 让 `SELECT *` 也
+  带不出只写列；写到掩码之外是 403 且指名字段，不是静默剥离。
+- **`Page` 与传输层同形。** `{"items","total","page","size","has_next"}`，由
+  `transport/http` 中的一个测试逐字节比较，默认值与页大小上限一并钉住——两个包不能
+  互相导入，这是唯一能比较两者的位置。
+- **`resource/memory` 是基准。** 它证明契约可实现，也给后来每个适配器一个语义
+  oracle：同一查询在它与 SQL 适配器上必须选出同样的记录。
+- **六处关键性质做过变异验证。** 把「合取」改成「替换」、把投影改成求并、把黑名单
+  改成求交、把 unknown 当 false、让 create 返回存储行、让 destroy 跳过重建索引——
+  每一处都让对应用例失败。
+
 刻意不做（本段）：
 
 - **运行期注册操作符。** 它等于开一个注入面。
 - **游标分页。** 游标语义即 keyset 语义，通用实现会强加一套本层并不拥有的排序键
   纪律。
-- **关联字段过滤。** `posts.comments` 不是第一版的过滤路径，关联属于投影参数。
+- **关联过滤与展开。** `posts.comments` 不是第一版的过滤路径；`Appends` 会被携带
+  与求并，实现不了展开的仓储返回 `Unimplemented`，而不是返回静默缺少关联的记录。
+- **本包不含 SQL。** 翻译由拥有存储的一侧负责。
 
-下一段（未开始）：`Repository` 最小契约与 `Query`/`Page`/`WriteMask`、参数合并
-（filter 只能 AND、fields 只能求交、appends 可并集）、`resource/memory` 参考实现，
-最后才是路由——路由必须经 `kit.HandleJSONEndpoint` 注册，判据是一条资源路由的
-日志与手写路由逐字段相同。
+下一段（第三段，未开始）：路由。`resource.New(...)` 返回 `[]endpoint.Endpoint`，
+经 `kit.HandleJSONEndpoint` 注册；`GET /{res}:query` 走 `Aggregate`。判据仍是那条：
+资源路由的日志与手写路由逐字段相同，否则它就是第二套栈。
 
-验收（本段已通过）：
+验收（前两段已通过）：
 
 ```bash
 go test ./resource/... -count=1
+go test ./transport/http -run 'TestResourcePage|TestResourceWindow' -count=1
 go -C ./tools test . -run 'TestStableProtocolBehaviour|TestPublicAPISurfaceSnapshot|TestArchitectureDependencyGates' -count=1
 ```
 

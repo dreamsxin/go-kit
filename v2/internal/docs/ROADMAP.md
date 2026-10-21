@@ -3046,16 +3046,65 @@ Deliberately not done (this package):
 - **Association filters.** `posts.comments` is not a filter path in the first
   version; relations belong to a projection parameter.
 
-Next work package (not started): the minimal `Repository` contract with
-`Query`/`Page`/`WriteMask`, parameter merging (filter AND only, fields intersect
-only, appends may union), the `resource/memory` reference implementation, and only
-then routing — which must register through `kit.HandleJSONEndpoint`, judged by a
-resource route producing the same log fields as a hand-written one.
+Landed (second package: the engine):
 
-Acceptance (green for this package):
+- **The `Repository` contract is here; the implementation lives with the data.**
+  `List`/`Get`/`Create`/`Update`/`Destroy`/`Aggregate`. Keeping the interface in
+  this package is what stops an HTTP-only service from building a database
+  driver, and the dependency gate pins the edge: `./resource/memory` may import
+  `apperror` and `resource`, nothing else.
+- **Parameter merging is the security core.** One rule per key across three
+  layers: the filter conjuncts, fields intersect, appends union, sort is
+  overwritten, the window takes the smaller size, and the write mask intersects
+  whitelists while unioning blacklists. The deny lists union because
+  intersecting them would let a later layer re-permit what an earlier one forbade.
+- **`nil` and an empty slice are two values.** No opinion versus "none". Two
+  disjoint whitelists intersect to the empty one and the merge refuses with
+  `resource.fields_disjoint`; collapsing that to "unrestricted" is the canonical
+  way this kind of code fails. The ambiguous spelling — a hand-written
+  `[]string{}` — fails closed too.
+- **Three-valued logic.** `Matcher` is the executable definition: a comparison on
+  a missing field is unknown, `not` keeps it unknown, so "everything except X"
+  does not return records that have no X. A two-valued implementation returns
+  extra rows that a SQL adapter would not, and the point of the reference store
+  is to expose that disagreement before an adapter is written.
+- **The default projection comes from the declarations.** `Field.Readable` and
+  `Schema.Project` mean a `SELECT *` cannot return a write-only column, and a
+  write outside the mask is a 403 that names the field rather than a silent strip.
+- **`Page` matches the transport's shape.** `{"items","total","page","size",
+  "has_next"}`, compared byte for byte by a test in `transport/http` that also
+  pins the defaults and the size cap. The two packages cannot import each other,
+  so that test is the only place the shapes meet.
+- **`resource/memory` is the oracle.** It proves the contract is satisfiable and
+  gives every future adapter the semantics to reproduce: the same query must
+  select the same records.
+- **Six key properties were mutation-checked.** Conjunction replaced by
+  replacement, projection unioned, deny lists intersected, unknown treated as
+  false, create returning the storage row, destroy skipping the reindex — each
+  one made its test fail.
+
+Deliberately not done (this package):
+
+- **Runtime operator registration.** It is an injection surface.
+- **Cursor pagination.** Cursor semantics are keyset semantics, and a generic one
+  would impose a sort-key discipline this layer does not own.
+- **Association filters or expansions.** `posts.comments` is not a filter path in
+  the first version; `Appends` is carried and merged, and a repository that
+  cannot expand it returns `Unimplemented` rather than records that silently lack
+  the relation.
+- **No SQL in this package.** Translation belongs to whoever owns the storage.
+
+Next work package (not started): routing. `resource.New(...)` returns
+`[]endpoint.Endpoint`, registered through `kit.HandleJSONEndpoint`, with
+`GET /{res}:query` served by `Aggregate`. The judgement is unchanged: a resource
+route must produce the same log fields as a hand-written one, or it is a second
+stack.
+
+Acceptance (green for the first two packages):
 
 ```bash
 go test ./resource/... -count=1
+go test ./transport/http -run 'TestResourcePage|TestResourceWindow' -count=1
 go -C ./tools test . -run 'TestStableProtocolBehaviour|TestPublicAPISurfaceSnapshot|TestArchitectureDependencyGates' -count=1
 ```
 

@@ -2,8 +2,8 @@
 
 [English](README.md) | 简体中文
 
-`resource` 包是资源路由所说的查询词汇：一棵过滤树、校验它用的字段元数据，以及
-条件被存储时的规范形式。
+`resource` 包是资源路由所说的查询词汇：一棵过滤树、校验它用的字段元数据、条件被存储
+时的规范形式，以及前两者被交给的仓储契约。
 
 它存在的理由很具体：写成字符串的条件，权限层无法收窄、审计日志无法比对、缺陷
 报告无法重放。
@@ -94,6 +94,89 @@ type Filter struct {
 请求构造上千个条件的查询接口就是一个拒绝服务原语，而无界的深度是藏在鉴权后面
 的栈溢出。
 
+## 条件是什么意思
+
+`Matcher` 是可执行的定义，用的是 SQL 的三值逻辑：
+
+| 条件 | 没有该字段的记录 |
+| --- | --- |
+| `name == "ling"` | unknown |
+| `name != "ling"` | unknown |
+| `not(name == "ling")` | unknown |
+| `empty(name)` | true |
+
+只有答案为 true 的记录会被返回。第三行就是这套区分的全部理由：如果用二值逻辑，
+「除 ling 之外的全部」会把每一条没有 name 的记录也返回——那不是查询说的事，也不是
+数据库会给出的答案。
+
+比较前先归一化：驱动返回的 `int64`、请求解码出的 `json.Number`、应用代码里的 `int`，
+与 `3` 比较时相等。少了这一步的适配器会把「查 3」答成空结果。
+
+## 一个请求是三层
+
+```go
+type Params struct {
+    Filter   Filter
+    Sort     []Sort
+    Fields   []string   // nil：全部可读字段；空切片：一个也不要
+    Appends  []string
+    Window   Window
+    Writable WriteMask
+}
+```
+
+`MergeParams(defaults, client, policy)` 按顺序叠加。每个键只有一条规则，而且每条规则
+都只会收窄：
+
+| 键 | 规则 | 理由 |
+| --- | --- | --- |
+| `Filter` | 合取 | 客户端只能加条件，不能去掉策略的条件 |
+| `Fields` | 求交 | 客户端可以少要列，不能多要 |
+| `Appends` | 求并 | 展开关联是叠加，不携带权限 |
+| `Sort` | 覆盖 | 排序没有安全含义，后一层说了算 |
+| `Window` | 取更小的尺寸 | 页大小是唯一有拒绝服务含义的维度 |
+| `Writable` | 白名单求交、黑名单求并 | 这是唯一两种不会把某层拒绝的字段放行的运算 |
+
+`nil` 与非 nil 空切片在这里是两个值：`nil` 是「这一层没有意见」，非 nil 空切片是
+「这一层一个也不允许」。所以两个互不相交的白名单会求交成空集，也就是失败关闭。把它
+塌缩成「无限制」的合并，会用「全部列」去回答一个本该被拒绝的请求——这就是为什么手写
+`[]string{}` 这种有歧义的写法宁可什么也不允许。当两个白名单都是投影时，
+`MergeParams` 返回 `resource.fields_disjoint`（拒绝），而不是返回没有字段的记录。
+
+## 仓储契约
+
+```go
+type Repository interface {
+    List(ctx context.Context, query Query) (Page, error)
+    Get(ctx context.Context, key Key) (Record, error)
+    Create(ctx context.Context, record Record, mask WriteMask) (Record, error)
+    Update(ctx context.Context, key Key, patch Record, mask WriteMask) (Record, error)
+    Destroy(ctx context.Context, key Key) error
+    Aggregate(ctx context.Context, query AggregateQuery) (AggregateResult, error)
+}
+```
+
+接口归本包，实现归拥有存储的一侧——所以只用 HTTP 的服务不会被迫编进一个数据库驱动。
+每个实现都要兑现的约定：
+
+- 查询的每个子句都生效，过滤条件绝不被丢掉或放宽；
+- `Page.Total` 数的是命中的记录，不是窗口里的记录；
+- 响应是 schema 的投影，所以 `SELECT *` 也带不出只写列；
+- 记录不存在是 `NotFound`，空 key 是 `InvalidArgument`，写到掩码之外是
+  `PermissionDenied`，schema 没声明的字段是 `InvalidArgument`——一个都不静默丢弃。
+
+`Page` 序列化为 `{"items","total","page","size","has_next"}`，与
+`transport/http.PageResult` 完全同形。两个包不能互相导入，所以传输层里有一个测试逐
+字节比较两者的载荷，并把默认值与页大小上限钉在一起。
+
+## 参考实现
+
+`resource/memory` 用一个切片和一个键索引实现了这套接口。它不是生产存储——进程结束就
+全没了——但那不是它的用途：它证明契约可以被满足，并给后来每个适配器一个语义基准。
+同一个查询在它和 SQL 适配器上必须选出同样的记录，因为它实现的就是上面那套语义。
+
+它同时也是「不接数据库测路由、测策略」的夹具。
+
 ## 刻意不做
 
 - **运行期注册操作符。** 集合是封闭的；它表达不了的条件是 schema 问题。
@@ -101,5 +184,8 @@ type Filter struct {
   这样本包不会把驱动塞进每个使用者的依赖图。
 - **暂时不做游标分页。** 游标语义是 keyset 语义，通用实现会强加一套本层并不拥有
   的排序键纪律。
-- **不做关联字段过滤。** 第一版里 `posts.comments` 不是过滤路径；关联属于投影
-  参数。
+- **不做关联过滤与展开。** 第一版里 `posts.comments` 既不是过滤路径，也不实现展开；
+  `Appends` 会被携带和求并，而实现不了展开的仓储返回 `Unimplemented`，而不是返回
+  静默缺少关联的记录。
+- **写入不做静默剥离。** 掩码之外的字段是被拒绝而不是被丢弃：一个答 200 却存了别的
+  东西的 create，比一个答 403 的更糟。

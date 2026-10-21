@@ -1557,7 +1557,57 @@ type TelemetryConfig struct {
 
 ## github.com/dreamsxin/go-kit/v2/resource
 package resource // import "github.com/dreamsxin/go-kit/v2/resource"
+CONSTANTS
+const (
+	// DefaultPageNumber is the window used when the caller names none.
+	DefaultPageNumber = 1
+	// DefaultPageSize is the window size used when the caller names none.
+	DefaultPageSize = 20
+	// MaxPageSize bounds a requested window.
+	MaxPageSize = 100
+)
+FUNCTIONS
+func CompareValues(kind FieldType, left, right any) (int, error)
+func Match(filter Filter, record Record, schema Schema) (bool, error)
+func NormalizeValue(kind FieldType, value any) (any, error)
 TYPES
+type AggregateFunction string
+const (
+	// AggregateCount counts matching records, or records where Field is
+	// present when Field is given.
+	AggregateCount AggregateFunction = "count"
+	// AggregateSum adds a numeric field.
+	AggregateSum AggregateFunction = "sum"
+	// AggregateAverage averages a numeric field.
+	AggregateAverage AggregateFunction = "avg"
+	// AggregateMin returns the lowest value of an ordered field.
+	AggregateMin AggregateFunction = "min"
+	// AggregateMax returns the highest value of an ordered field.
+	AggregateMax AggregateFunction = "max"
+)
+type AggregateQuery struct {
+	// Function is the figure to compute.
+	Function AggregateFunction
+	// Field is the field it is computed over. AggregateCount may leave it
+	// empty to count records; every other function requires it.
+	Field string
+	// Filter selects the records. The zero Filter selects all of them.
+	Filter Filter
+	// GroupBy splits the records into groups, one per distinct combination.
+	GroupBy []string
+}
+func (q AggregateQuery) Validate(schema Schema) error
+type AggregateResult struct {
+	// Rows holds the groups. It is never nil.
+	Rows []AggregateRow `json:"rows"`
+}
+type AggregateRow struct {
+	// Group holds the group's field values, one entry per GroupBy field.
+	Group Record `json:"group"`
+	// Value is the computed figure: an int for a count, int64 or float64 for a
+	// sum, float64 for an average, and the field's own type for a min or max.
+	Value any `json:"value"`
+}
 type Field struct {
 	// Name is the field's name in the JSON document and in a filter.
 	Name string
@@ -1570,6 +1620,11 @@ type Field struct {
 	// Sortable allows the field in a sort. Sorting by a sensitive column leaks
 	// the same information more slowly.
 	Sortable bool
+	// Readable allows the field in a response, and is what the default
+	// projection is built from. A column that exists but must never leave the
+	// service — a credential hash, an internal note — is declared without it,
+	// so no response can carry it by accident.
+	Readable bool
 	// Writable allows the field in a create or an update. It is false on a
 	// field built by NewField: writing is the capability a caller opts into,
 	// while reading a field it just declared is what the declaration meant.
@@ -1617,6 +1672,15 @@ func (f Filter) IsZero() bool
 func (f Filter) MarshalJSON() ([]byte, error)
 func (f *Filter) UnmarshalJSON(data []byte) error
 func (f Filter) Validate(schema Schema) error
+type Key map[string]any
+func KeyOf(field string, value any) Key
+func (k Key) IsZero() bool
+func (k Key) Validate() error
+type Matcher struct {
+	// Has unexported fields.
+}
+func NewMatcher(filter Filter, schema Schema) (*Matcher, error)
+func (m *Matcher) Match(record Record) (bool, error)
 type Op string
 const (
 	// OpEq matches records whose field equals Value.
@@ -1655,6 +1719,76 @@ const (
 	// OpNot matches a record that does not satisfy its single child.
 	OpNot Op = "not"
 )
+type Page struct {
+	// Items holds the records in this window, never nil: an empty page marshals
+	// as [] rather than null, because a client that has to distinguish "no
+	// rows" from "no answer" will eventually get it wrong.
+	Items []Record `json:"items"`
+	// Total is how many records match the filter, before the window is applied.
+	Total int `json:"total"`
+	// Number is the 1-based page number this window represents.
+	Number int `json:"page"`
+	// Size is the window size that was applied.
+	Size int `json:"size"`
+	// HasNext reports whether records follow this window.
+	HasNext bool `json:"has_next"`
+}
+func NewPage(window Window, total int, items []Record) Page
+type Params struct {
+	// Filter selects records.
+	Filter Filter
+	// Sort orders the result; a layer that sets it replaces the earlier one.
+	Sort []Sort
+	// Fields projects the response; layers intersect.
+	Fields []string
+	// Appends names relations to expand; layers union.
+	Appends []string
+	// Window is the page to return; a layer can only lower the size.
+	Window Window
+	// Writable narrows which fields a write may name.
+	Writable WriteMask
+}
+func MergeParams(layers ...Params) (Params, error)
+func (p Params) Query() Query
+func (p Params) Validate(schema Schema) error
+type Query struct {
+	// Filter selects records. The zero Filter selects all of them.
+	Filter Filter
+	// Sort orders the result; empty leaves the order to the repository, which
+	// must then be stable across pages.
+	Sort []Sort
+	// Fields projects the response. nil means every readable field; a non-nil
+	// empty slice means none, which no request may ask for and which a merge
+	// reports as a denial instead.
+	Fields []string
+	// Appends names relations to expand. No repository in this version expands
+	// them, and one that cannot must say so rather than return records that
+	// silently lack the expansion. Merging unions this list.
+	Appends []string
+	// Window is the page to return. Zero means the default window.
+	Window Window
+}
+func (q Query) Validate(schema Schema) error
+type Record map[string]any
+func (r Record) Clone() Record
+func (r Record) FieldNames() []string
+type Repository interface {
+	// List returns the records a query selects, in its window and projection.
+	List(ctx context.Context, query Query) (Page, error)
+	// Get returns the record one key identifies.
+	Get(ctx context.Context, key Key) (Record, error)
+	// Create stores a new record and returns it as stored — with the key the
+	// repository assigned, if it assigns one.
+	Create(ctx context.Context, record Record, mask WriteMask) (Record, error)
+	// Update changes the fields a patch names and returns the stored record. A
+	// patch is partial: a field it does not mention keeps its value.
+	Update(ctx context.Context, key Key, patch Record, mask WriteMask) (Record, error)
+	// Destroy removes the record one key identifies.
+	Destroy(ctx context.Context, key Key) error
+	// Aggregate computes one figure over the records a filter selects,
+	// optionally grouped.
+	Aggregate(ctx context.Context, query AggregateQuery) (AggregateResult, error)
+}
 type Schema struct {
 	// Has unexported fields.
 }
@@ -1662,6 +1796,48 @@ func NewSchema(fields ...Field) (Schema, error)
 func (s Schema) Field(name string) (Field, bool)
 func (s Schema) Fields() []Field
 func (s Schema) Len() int
+func (s Schema) Project(record Record, fields []string) (Record, error)
+type Sort struct {
+	// Field names the schema field to order by.
+	Field string
+	// Descending reverses the order.
+	Descending bool
+}
+func Asc(field string) Sort
+func Desc(field string) Sort
+type Window struct {
+	// Number is the 1-based page number.
+	Number int
+	// Size is the number of records per page.
+	Size int
+}
+func DefaultWindow() Window
+func (w Window) Normalized() Window
+func (w Window) Offset() int64
+func (w Window) Validate() error
+type WriteMask struct {
+	// Allow lists the writable fields, or nil when this mask sets no whitelist.
+	Allow []string
+	// Deny lists the fields no layer may write, whatever a whitelist says.
+	Deny []string
+}
+func MergeWriteMasks(masks ...WriteMask) WriteMask
+func (m WriteMask) Allows(field string) bool
+func (m WriteMask) Check(record Record) error
+
+## github.com/dreamsxin/go-kit/v2/resource/memory
+package memory // import "github.com/dreamsxin/go-kit/v2/resource/memory"
+TYPES
+type Store struct {
+	// Has unexported fields.
+}
+func New(schema resource.Schema, primary ...string) (*Store, error)
+func (s *Store) Aggregate(ctx context.Context, query resource.AggregateQuery) (resource.AggregateResult, error)
+func (s *Store) Create(ctx context.Context, record resource.Record, mask resource.WriteMask) (resource.Record, error)
+func (s *Store) Destroy(ctx context.Context, key resource.Key) error
+func (s *Store) Get(ctx context.Context, key resource.Key) (resource.Record, error)
+func (s *Store) List(ctx context.Context, query resource.Query) (resource.Page, error)
+func (s *Store) Update(ctx context.Context, key resource.Key, patch resource.Record, mask resource.WriteMask) (resource.Record, error)
 
 ## github.com/dreamsxin/go-kit/v2/sd
 package sd // import "github.com/dreamsxin/go-kit/v2/sd"

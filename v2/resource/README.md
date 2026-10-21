@@ -3,8 +3,8 @@
 English | [简体中文](README_zh.md)
 
 The `resource` package is the query vocabulary of a resource route: a filter
-tree, the field metadata it is validated against, and the canonical form a
-condition is stored in.
+tree, the field metadata it is validated against, the canonical form a condition
+is stored in, and the repository contract those three are handed to.
 
 It exists because a condition written as a string cannot be narrowed by a
 permission policy, compared in an audit log, or replayed from a bug report.
@@ -102,6 +102,101 @@ Go: a request that will happily build a thousand-node condition is a
 denial-of-service primitive, and an unbounded depth is a stack overflow behind an
 authentication check.
 
+## What a filter means
+
+`Matcher` is the executable definition, and it uses SQL's three-valued logic:
+
+| condition | record without the field |
+| --- | --- |
+| `name == "ling"` | unknown |
+| `name != "ling"` | unknown |
+| `not(name == "ling")` | unknown |
+| `empty(name)` | true |
+
+A record is returned only when the answer is true. The third row is why the
+distinction is implemented at all: with two values, "everything except ling"
+would also return every record that has no name, which is not what the query
+says and not what a database would answer.
+
+Values are normalized before they are compared — `int64` from a driver,
+`json.Number` from a decoded request and `int` from application code all compare
+equal to `3`. An adapter that skips that step answers a query about 3 with no
+rows.
+
+## A request is three layers
+
+```go
+type Params struct {
+    Filter   Filter
+    Sort     []Sort
+    Fields   []string   // nil: every readable field; empty: none
+    Appends  []string
+    Window   Window
+    Writable WriteMask
+}
+```
+
+`MergeParams(defaults, client, policy)` applies the layers in order. Each key has
+one rule, and every rule narrows:
+
+| key | rule | why |
+| --- | --- | --- |
+| `Filter` | `and` | a client adds conditions; it cannot remove the policy's |
+| `Fields` | intersect | a client may ask for fewer columns, never for more |
+| `Appends` | union | expanding a relation is additive and carries no authority |
+| `Sort` | overwrite | ordering has no security meaning; the last layer decides |
+| `Window` | smallest size | page size is the only dimension of a denial of service |
+| `Writable` | whitelists intersect, blacklists union | the only two operations that cannot grant a field a layer refused |
+
+`nil` and the empty slice are different values here: `nil` is a layer with no
+opinion, an empty non-nil slice is a layer that allows none. Two disjoint
+whitelists therefore intersect to the empty one, which fails closed. A merge that
+collapsed it to "unrestricted" would answer a refused request with every column,
+which is why the ambiguous spelling — an empty literal written by hand — denies
+everything instead of permitting everything. When the two whitelists are
+projections, `MergeParams` reports `resource.fields_disjoint` rather than
+returning records with no fields at all.
+
+## The repository contract
+
+```go
+type Repository interface {
+    List(ctx context.Context, query Query) (Page, error)
+    Get(ctx context.Context, key Key) (Record, error)
+    Create(ctx context.Context, record Record, mask WriteMask) (Record, error)
+    Update(ctx context.Context, key Key, patch Record, mask WriteMask) (Record, error)
+    Destroy(ctx context.Context, key Key) error
+    Aggregate(ctx context.Context, query AggregateQuery) (AggregateResult, error)
+}
+```
+
+The interface belongs to this package and the implementation belongs to whoever
+owns the storage, so a service that only needs HTTP does not build a database
+driver. The obligations every implementation carries:
+
+- every clause of a query takes effect; a filter is never dropped or relaxed;
+- `Page.Total` counts the matches, not the records in the window;
+- a reply is the schema's projection, so a write-only column cannot escape
+  through a `SELECT *`;
+- a missing record is `NotFound`, an empty key is `InvalidArgument`, a write
+  outside the mask is `PermissionDenied`, and a field the schema does not declare
+  is `InvalidArgument` — none of them is dropped silently.
+
+`Page` serializes as `{"items","total","page","size","has_next"}`, the same shape
+`transport/http.PageResult` writes. The two packages cannot import each other, so
+a test in the transport compares the two payloads byte for byte and pins the
+defaults and the page-size cap together.
+
+## The reference store
+
+`resource/memory` implements the interface over a slice and a key index. It is
+not a production store — everything dies with the process — and that is not what
+it is for: it proves the contract can be satisfied, and it gives every future
+adapter an oracle. The same query run through it and through a SQL adapter must
+select the same records, because it implements the semantics above.
+
+It is also the fixture for testing a route or a policy without a database.
+
 ## Deliberate non-decisions
 
 - **No runtime operator registration.** The set is closed; a condition it cannot
@@ -111,5 +206,10 @@ authentication check.
   driver into every consumer.
 - **No cursor pagination yet.** Cursor semantics are keyset semantics, and a
   generic one would force a sort-key discipline this layer does not own.
-- **No association filters.** `posts.comments` is not a filter path in the first
-  version; relations belong to a projection parameter.
+- **No association filters or expansions.** `posts.comments` is neither a filter
+  path nor an implemented projection in this version; `Appends` is carried and
+  merged, and a repository that cannot expand it returns `Unimplemented` rather
+  than records that silently lack the relation.
+- **No silent strip on write.** A field outside the write mask is refused rather
+  than discarded: a create that answers 200 having stored something else is
+  worse than one that answers 403.

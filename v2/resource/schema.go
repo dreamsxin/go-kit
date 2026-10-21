@@ -1,12 +1,9 @@
 package resource
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/dreamsxin/go-kit/v2/apperror"
 )
@@ -53,15 +50,25 @@ type Field struct {
 	// Sortable allows the field in a sort. Sorting by a sensitive column leaks
 	// the same information more slowly.
 	Sortable bool
+	// Readable allows the field in a response, and is what the default
+	// projection is built from. A column that exists but must never leave the
+	// service — a credential hash, an internal note — is declared without it,
+	// so no response can carry it by accident.
+	Readable bool
 	// Writable allows the field in a create or an update. It is false on a
 	// field built by NewField: writing is the capability a caller opts into,
 	// while reading a field it just declared is what the declaration meant.
 	Writable bool
 }
 
-// NewField declares a field that may be filtered and sorted, and not written.
+// NewField declares a field that may be read, filtered and sorted, and not
+// written.
+//
+// Reading is what declaring a field means, so it is granted here. Writing is the
+// capability a caller opts into by setting Writable, because a field whose
+// writability was never considered must not become assignable.
 func NewField(name string, kind FieldType) Field {
-	return Field{Name: name, Type: kind, Filterable: true, Sortable: true}
+	return Field{Name: name, Type: kind, Filterable: true, Sortable: true, Readable: true}
 }
 
 // Schema is the set of fields a resource exposes, in declaration order.
@@ -119,6 +126,52 @@ func (s Schema) Fields() []Field {
 
 // Len reports how many fields the schema declares.
 func (s Schema) Len() int { return len(s.fields) }
+
+// Project narrows a record to the fields a caller may read.
+//
+// A nil fields argument means "whatever the schema allows", and that projection
+// is built from the declarations rather than from the record: a column the
+// schema marks unreadable is dropped even when the storage returned it, so no
+// response can carry one because a SELECT was written as `*`.
+//
+// A non-nil fields argument is a whitelist. A name the schema does not declare
+// is an error — it is a typo or a stale client, and answering it with an empty
+// object hides both. A declared but unreadable name is dropped instead: the
+// caller asked for a column it may not have, and the answer to "give me this
+// column" is not "here is the whole row".
+func (s Schema) Project(record Record, fields []string) (Record, error) {
+	projected := make(Record, len(record))
+	if fields == nil {
+		for _, field := range s.fields {
+			if !field.Readable {
+				continue
+			}
+			if value, present := record[field.Name]; present {
+				projected[field.Name] = value
+			}
+		}
+		return projected, nil
+	}
+	added := make(map[string]struct{}, len(fields))
+	for _, name := range fields {
+		field, ok := s.Field(name)
+		if !ok {
+			return nil, apperror.InvalidArgument("resource.unknown_field",
+				fmt.Sprintf("field %q is not part of this resource", name))
+		}
+		if !field.Readable {
+			continue
+		}
+		if _, duplicate := added[name]; duplicate {
+			continue
+		}
+		added[name] = struct{}{}
+		if value, present := record[name]; present {
+			projected[name] = value
+		}
+	}
+	return projected, nil
+}
 
 // Validate checks a filter against a schema: every named field exists, is
 // filterable, every operator applies to that field's type, and every operand has
@@ -224,118 +277,6 @@ func elements(value any) []any {
 		result = append(result, reflected.Index(i).Interface())
 	}
 	return result
-}
-
-// valueFits reports whether one operand belongs to a field's value domain.
-func valueFits(kind FieldType, value any) bool {
-	switch kind {
-	case TypeString:
-		_, ok := value.(string)
-		return ok
-	case TypeInt:
-		number, ok := numberOf(value)
-		if !ok {
-			return false
-		}
-		_, err := strconv.ParseInt(number.String(), 10, 64)
-		return err == nil
-	case TypeFloat:
-		number, ok := numberOf(value)
-		if !ok {
-			return false
-		}
-		_, err := strconv.ParseFloat(number.String(), 64)
-		return err == nil
-	case TypeBool:
-		_, ok := value.(bool)
-		return ok
-	case TypeTime:
-		switch typed := value.(type) {
-		case time.Time:
-			return true
-		case string:
-			_, err := time.Parse(time.RFC3339, typed)
-			return err == nil
-		default:
-			return false
-		}
-	case TypeJSON:
-		return value != nil
-	default:
-		return false
-	}
-}
-
-// numberOf accepts every numeric Go type a caller may hold and returns it as a
-// json.Number, which is how a parsed filter carries one.
-func numberOf(value any) (json.Number, bool) {
-	switch typed := value.(type) {
-	case json.Number:
-		return typed, true
-	case int:
-		return json.Number(strconv.FormatInt(int64(typed), 10)), true
-	case int8:
-		return json.Number(strconv.FormatInt(int64(typed), 10)), true
-	case int16:
-		return json.Number(strconv.FormatInt(int64(typed), 10)), true
-	case int32:
-		return json.Number(strconv.FormatInt(int64(typed), 10)), true
-	case int64:
-		return json.Number(strconv.FormatInt(typed, 10)), true
-	case uint:
-		return json.Number(strconv.FormatUint(uint64(typed), 10)), true
-	case uint8:
-		return json.Number(strconv.FormatUint(uint64(typed), 10)), true
-	case uint16:
-		return json.Number(strconv.FormatUint(uint64(typed), 10)), true
-	case uint32:
-		return json.Number(strconv.FormatUint(uint64(typed), 10)), true
-	case uint64:
-		return json.Number(strconv.FormatUint(typed, 10)), true
-	case float32:
-		return json.Number(strconv.FormatFloat(float64(typed), 'g', -1, 32)), true
-	case float64:
-		return json.Number(strconv.FormatFloat(typed, 'g', -1, 64)), true
-	default:
-		return "", false
-	}
-}
-
-// describeValue names the Go type an operand arrived as, so the error tells a
-// client what it sent rather than only what it should have sent.
-func describeValue(value any) string {
-	switch value.(type) {
-	case nil:
-		return "nothing"
-	case string:
-		return "a string"
-	case bool:
-		return "a boolean"
-	case json.Number:
-		return "a number"
-	default:
-		return fmt.Sprintf("%T", value)
-	}
-}
-
-func knownFieldType(kind FieldType) bool {
-	switch kind {
-	case TypeString, TypeInt, TypeFloat, TypeBool, TypeTime, TypeJSON:
-		return true
-	default:
-		return false
-	}
-}
-
-// orderedFieldType reports whether a field type has an order, which is what
-// gt/gte/lt/lte require.
-func orderedFieldType(kind FieldType) bool {
-	switch kind {
-	case TypeString, TypeInt, TypeFloat, TypeTime:
-		return true
-	default:
-		return false
-	}
 }
 
 // isLogical reports whether the operator takes children instead of a field.
