@@ -1799,16 +1799,16 @@ func (r Record) FieldNames() []string
 type Repository interface {
 	// List returns the records a query selects, in its window and projection.
 	List(ctx context.Context, query Query) (Page, error)
-	// Get returns the record one key identifies.
-	Get(ctx context.Context, key Key) (Record, error)
+	// Get returns the record the scope selects.
+	Get(ctx context.Context, scope Scope) (Record, error)
 	// Create stores a new record and returns it as stored — with the key the
 	// repository assigned, if it assigns one.
 	Create(ctx context.Context, record Record, mask WriteMask) (Record, error)
 	// Update changes the fields a patch names and returns the stored record. A
 	// patch is partial: a field it does not mention keeps its value.
-	Update(ctx context.Context, key Key, patch Record, mask WriteMask) (Record, error)
-	// Destroy removes the record one key identifies.
-	Destroy(ctx context.Context, key Key) error
+	Update(ctx context.Context, scope Scope, patch Record, mask WriteMask) (Record, error)
+	// Destroy removes the record the scope selects.
+	Destroy(ctx context.Context, scope Scope) error
 	// Aggregate computes one figure over the records a filter selects,
 	// optionally grouped.
 	Aggregate(ctx context.Context, query AggregateQuery) (AggregateResult, error)
@@ -1821,6 +1821,12 @@ func (s Schema) Field(name string) (Field, bool)
 func (s Schema) Fields() []Field
 func (s Schema) Len() int
 func (s Schema) Project(record Record, fields []string) (Record, error)
+type Scope struct {
+	// Key identifies the record.
+	Key Key
+	// Where selects the records the caller may reach.
+	Where Filter
+}
 type Sort struct {
 	// Field names the schema field to order by.
 	Field string
@@ -1858,10 +1864,10 @@ type Store struct {
 func New(schema resource.Schema, primary ...string) (*Store, error)
 func (s *Store) Aggregate(ctx context.Context, query resource.AggregateQuery) (resource.AggregateResult, error)
 func (s *Store) Create(ctx context.Context, record resource.Record, mask resource.WriteMask) (resource.Record, error)
-func (s *Store) Destroy(ctx context.Context, key resource.Key) error
-func (s *Store) Get(ctx context.Context, key resource.Key) (resource.Record, error)
+func (s *Store) Destroy(ctx context.Context, scope resource.Scope) error
+func (s *Store) Get(ctx context.Context, scope resource.Scope) (resource.Record, error)
 func (s *Store) List(ctx context.Context, query resource.Query) (resource.Page, error)
-func (s *Store) Update(ctx context.Context, key resource.Key, patch resource.Record, mask resource.WriteMask) (resource.Record, error)
+func (s *Store) Update(ctx context.Context, scope resource.Scope, patch resource.Record, mask resource.WriteMask) (resource.Record, error)
 
 ## github.com/dreamsxin/go-kit/v2/resource/rest
 package rest // import "github.com/dreamsxin/go-kit/v2/resource/rest"
@@ -1881,12 +1887,21 @@ const (
 	// ActionAggregate computes one figure over the records a filter selects.
 	ActionAggregate Action = "aggregate"
 )
-type Layer func(ctx context.Context, action Action) (resource.Params, error)
+type Decision struct {
+	// Has unexported fields.
+}
+func Allow(params resource.Params) Decision
+func Deny(reason string) Decision
+func (d Decision) Allowed() bool
+func (d Decision) Params() resource.Params
+func (d Decision) Reason() string
 type Option func(*settings)
 func WithDefaults(params resource.Params) Option
-func WithLayer(layers ...Layer) Option
 func WithMaxBodyBytes(maxBodyBytes int64) Option
+func WithOpenAccess() Option
+func WithPolicy(policies ...Policy) Option
 func WithPrefix(prefix string) Option
+type Policy func(ctx context.Context, action Action) (Decision, error)
 type Route struct {
 	// Pattern is a method-qualified pattern such as "GET /products/{id}". It
 	// is valid for net/http's ServeMux and for a kit component, which uses

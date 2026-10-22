@@ -38,6 +38,7 @@ import (
 {{if .WithOpenAPI}}	swaggerUI "github.com/swaggest/swgui/v5"
 	docs "{{$.ImportPath}}/docs"
 {{end}}{{if .WithInteraction}}	"github.com/dreamsxin/go-kit/v2/interaction/mcp"
+{{end}}{{if .WithResource}}	kitrest "github.com/dreamsxin/go-kit/v2/resource/rest"
 {{end}}{{if .WithConfig}}	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/observability/metrics"
 {{end}}	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
@@ -247,7 +248,7 @@ func main() {
 	// vocabulary in the resource package instead of by one endpoint per
 	// operation. It mounts under its own prefix, because a collection named after
 	// its table would answer the pattern a typed endpoint already answers.
-	if err := registerResourceRoutes(routes, repoDB, "{{.ResourcePrefix}}"); err != nil {
+	if err := registerResourceRoutes(routes, repoDB, "{{.ResourcePrefix}}", resourceAccess()...); err != nil {
 		logger.Error("resource routes", "error", err)
 		os.Exit(1)
 	}
@@ -546,5 +547,38 @@ func filterArgs(args []string, name string) []string {
 		}
 	}
 	return out
+}
+{{- end }}
+{{- if .WithResource }}
+
+// resourceAccess is the decision about who may use the declarative surface.
+//
+// Every generated table is mounted open: anybody who can reach this port may
+// list, read, create, change and delete any row. That is what the generator
+// ships, because it knows nothing about how your deployment authenticates a
+// request — and it is written here as a statement rather than left out as an
+// option nobody passed, so it is a line you can find, review and replace.
+//
+// Replace it before the service is reachable from anywhere you do not control:
+//
+//	func resourceAccess() []kitrest.Option {
+//		return []kitrest.Option{kitrest.WithPolicy(
+//			func(ctx context.Context, action kitrest.Action) (kitrest.Decision, error) {
+//				subject, ok := auth.Subject(ctx)
+//				if !ok {
+//					return kitrest.Decision{}, nil // the zero decision refuses
+//				}
+//				return kitrest.Allow(resource.Params{
+//					Filter: resource.Condition("owner_id", resource.OpEq, subject.ID),
+//				}), nil
+//			})}
+//	}
+//
+// A policy is a whitelist: an action it does not grant is refused. The condition
+// it returns travels to the storage in the same statement as the key, so a record
+// outside it is answered as missing rather than as somebody else's, and a create
+// is checked against it before it is stored.
+func resourceAccess() []kitrest.Option {
+	return []kitrest.Option{kitrest.WithOpenAccess()}
 }
 {{- end }}

@@ -125,12 +125,45 @@ func TestCreateRefusesADuplicateKey(t *testing.T) {
 // is what lets a transport answer 404 instead of an empty 200.
 func TestGetReportsNotFound(t *testing.T) {
 	store := newStore(t)
-	_, err := store.Get(context.Background(), resource.KeyOf("id", 404))
+	_, err := store.Get(context.Background(), resource.Scope{Key: resource.KeyOf("id", 404)})
 	if code := codeOf(err); code != "resource.record_not_found" {
 		t.Fatalf("Get = %v, want resource.record_not_found", err)
 	}
-	if _, err := store.Get(context.Background(), resource.Key{}); codeOf(err) != "resource.key_required" {
+	if _, err := store.Get(context.Background(), resource.Scope{Key: resource.Key{}}); codeOf(err) != "resource.key_required" {
 		t.Fatalf("Get with an empty key = %v, want resource.key_required", err)
+	}
+}
+
+// TestAScopeExcludesWhatTheConditionDoesNotSelect is the storage half of a
+// policy: a key is an address, so a record the condition excludes has to be
+// answered as missing. Answering "forbidden" would confirm that the record
+// exists, which is the part a caller outside the condition may not learn.
+func TestAScopeExcludesWhatTheConditionDoesNotSelect(t *testing.T) {
+	store := newStore(t)
+	seed(t, store)
+	ctx := context.Background()
+	active := resource.Condition("status", resource.OpEq, "active")
+
+	inside := resource.Scope{Key: resource.KeyOf("id", 1), Where: active}
+	if _, err := store.Get(ctx, inside); err != nil {
+		t.Fatalf("Get inside the condition: %v", err)
+	}
+	outside := resource.Scope{Key: resource.KeyOf("id", 3), Where: active}
+	if _, err := store.Get(ctx, outside); codeOf(err) != "resource.record_not_found" {
+		t.Fatalf("Get outside the condition = %v, want resource.record_not_found", err)
+	}
+	if _, err := store.Update(ctx, outside, resource.Record{"score": 9.0}, resource.WriteMask{}); codeOf(err) != "resource.record_not_found" {
+		t.Fatalf("Update outside the condition = %v, want resource.record_not_found", err)
+	}
+	if err := store.Destroy(ctx, outside); codeOf(err) != "resource.record_not_found" {
+		t.Fatalf("Destroy outside the condition = %v, want resource.record_not_found", err)
+	}
+	still, err := store.Get(ctx, resource.Scope{Key: resource.KeyOf("id", 3)})
+	if err != nil {
+		t.Fatalf("Get after the refusals: %v", err)
+	}
+	if still["score"] != 2.0 {
+		t.Fatalf("score = %v, want 2: a write outside the scope must not have happened", still["score"])
 	}
 }
 
@@ -232,7 +265,7 @@ func TestUpdateChangesOnlyThePatch(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	updated, err := store.Update(background, resource.KeyOf("id", 1), resource.Record{"status": "done"}, resource.WriteMask{})
+	updated, err := store.Update(background, resource.Scope{Key: resource.KeyOf("id", 1)}, resource.Record{"status": "done"}, resource.WriteMask{})
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
@@ -243,13 +276,13 @@ func TestUpdateChangesOnlyThePatch(t *testing.T) {
 		t.Fatalf("name = %v, want it untouched", updated["name"])
 	}
 
-	if _, err := store.Update(background, resource.KeyOf("id", 1), resource.Record{"id": 2}, resource.WriteMask{}); codeOf(err) != "resource.key_immutable" {
+	if _, err := store.Update(background, resource.Scope{Key: resource.KeyOf("id", 1)}, resource.Record{"id": 2}, resource.WriteMask{}); codeOf(err) != "resource.key_immutable" {
 		t.Fatalf("Update of the primary key = %v, want resource.key_immutable", err)
 	}
-	if _, err := store.Update(background, resource.KeyOf("id", 1), resource.Record{}, resource.WriteMask{}); codeOf(err) != "resource.patch_empty" {
+	if _, err := store.Update(background, resource.Scope{Key: resource.KeyOf("id", 1)}, resource.Record{}, resource.WriteMask{}); codeOf(err) != "resource.patch_empty" {
 		t.Fatalf("Update of nothing = %v, want resource.patch_empty", err)
 	}
-	if _, err := store.Update(background, resource.KeyOf("id", 99), resource.Record{"status": "done"}, resource.WriteMask{}); codeOf(err) != "resource.record_not_found" {
+	if _, err := store.Update(background, resource.Scope{Key: resource.KeyOf("id", 99)}, resource.Record{"status": "done"}, resource.WriteMask{}); codeOf(err) != "resource.record_not_found" {
 		t.Fatalf("Update of a missing record = %v, want resource.record_not_found", err)
 	}
 }
@@ -270,7 +303,7 @@ func TestWritesOutsideTheMaskAreRefused(t *testing.T) {
 	if _, err := store.Create(ctx, resource.Record{"name": "ling"}, resource.WriteMask{}); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	_, err = store.Update(ctx, resource.KeyOf("id", 1), resource.Record{"secret": "s9"}, mask)
+	_, err = store.Update(ctx, resource.Scope{Key: resource.KeyOf("id", 1)}, resource.Record{"secret": "s9"}, mask)
 	if code := codeOf(err); code != "resource.field_not_writable" {
 		t.Fatalf("Update outside the mask = %v, want resource.field_not_writable", err)
 	}
@@ -294,17 +327,17 @@ func TestDestroyReindexesTheRemainingRecords(t *testing.T) {
 	seed(t, store)
 	ctx := context.Background()
 
-	if err := store.Destroy(ctx, resource.KeyOf("id", 2)); err != nil {
+	if err := store.Destroy(ctx, resource.Scope{Key: resource.KeyOf("id", 2)}); err != nil {
 		t.Fatalf("Destroy: %v", err)
 	}
-	remaining, err := store.Get(ctx, resource.KeyOf("id", 3))
+	remaining, err := store.Get(ctx, resource.Scope{Key: resource.KeyOf("id", 3)})
 	if err != nil {
 		t.Fatalf("Get after a removal: %v", err)
 	}
 	if remaining["name"] != "yun" {
 		t.Fatalf("record 3 = %v, want yun", remaining)
 	}
-	if _, err := store.Get(ctx, resource.KeyOf("id", 2)); codeOf(err) != "resource.record_not_found" {
+	if _, err := store.Get(ctx, resource.Scope{Key: resource.KeyOf("id", 2)}); codeOf(err) != "resource.record_not_found" {
 		t.Fatalf("Get of the removed record = %v, want resource.record_not_found", err)
 	}
 	page, err := store.List(ctx, resource.Query{})
@@ -409,13 +442,13 @@ func TestStoreHandsOutCopies(t *testing.T) {
 	seed(t, store)
 	ctx := context.Background()
 
-	record, err := store.Get(ctx, resource.KeyOf("id", 1))
+	record, err := store.Get(ctx, resource.Scope{Key: resource.KeyOf("id", 1)})
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
 	record["name"] = "tampered"
 
-	again, err := store.Get(ctx, resource.KeyOf("id", 1))
+	again, err := store.Get(ctx, resource.Scope{Key: resource.KeyOf("id", 1)})
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}

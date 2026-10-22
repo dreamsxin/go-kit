@@ -28,22 +28,51 @@ import (
 //   - Errors are *apperror.Error values, so a transport can map them: a missing
 //     record is NotFound, a key that names nothing is InvalidArgument, a write
 //     outside the mask is PermissionDenied.
+//   - A Scope is applied as one condition. The record a Key names and the
+//     condition a caller was granted are the same question, so they are the
+//     same statement; answering one and then checking the other is a race
+//     between the check and the write.
 type Repository interface {
 	// List returns the records a query selects, in its window and projection.
 	List(ctx context.Context, query Query) (Page, error)
-	// Get returns the record one key identifies.
-	Get(ctx context.Context, key Key) (Record, error)
+	// Get returns the record the scope selects.
+	Get(ctx context.Context, scope Scope) (Record, error)
 	// Create stores a new record and returns it as stored — with the key the
 	// repository assigned, if it assigns one.
 	Create(ctx context.Context, record Record, mask WriteMask) (Record, error)
 	// Update changes the fields a patch names and returns the stored record. A
 	// patch is partial: a field it does not mention keeps its value.
-	Update(ctx context.Context, key Key, patch Record, mask WriteMask) (Record, error)
-	// Destroy removes the record one key identifies.
-	Destroy(ctx context.Context, key Key) error
+	Update(ctx context.Context, scope Scope, patch Record, mask WriteMask) (Record, error)
+	// Destroy removes the record the scope selects.
+	Destroy(ctx context.Context, scope Scope) error
 	// Aggregate computes one figure over the records a filter selects,
 	// optionally grouped.
 	Aggregate(ctx context.Context, query AggregateQuery) (AggregateResult, error)
+}
+
+// Scope is one record together with the condition it must satisfy to be
+// reached: a key is an address, not a permission.
+//
+// It exists because a policy states constraints about records, not about
+// identifiers. "Your own rows" is a condition, and a repository handed only the
+// key would look up somebody else's row correctly and hand it back. So the
+// condition travels with the key, and an implementation applies both in one
+// statement — a check followed by a write is a window in which the record can
+// change, and the window is exactly where an escalation lives.
+//
+// A record the key finds but the condition excludes is NotFound, never
+// PermissionDenied. "This exists but you may not see it" tells a caller the
+// shape of a table it cannot read, and a client that can tell the two answers
+// apart can enumerate what it is not allowed to reach.
+//
+// A zero Where narrows nothing. That is the correct value for a surface that
+// decided to answer everyone, and the wrong one everywhere else — which is why
+// the decision is made once, where the routes are mounted, rather than here.
+type Scope struct {
+	// Key identifies the record.
+	Key Key
+	// Where selects the records the caller may reach.
+	Where Filter
 }
 
 // AggregateFunction names a figure an aggregate query computes.

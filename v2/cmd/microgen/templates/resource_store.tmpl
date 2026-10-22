@@ -95,22 +95,22 @@ func (s resourceStore) List(ctx context.Context, query resource.Query) (resource
 	return resource.NewPage(window, int(total), recordsFromRows(rows)), nil
 }
 
-// Get returns the record one key identifies.
-func (s resourceStore) Get(ctx context.Context, key resource.Key) (resource.Record, error) {
-	if err := key.Validate(); err != nil {
+// Get returns the record the scope selects.
+func (s resourceStore) Get(ctx context.Context, scope resource.Scope) (resource.Record, error) {
+	if err := scope.Key.Validate(); err != nil {
 		return nil, err
 	}
-	condition, err := s.keyFilter(key)
+	condition, err := s.bounded(scope)
 	if err != nil {
 		return nil, err
 	}
-	scope := s.db.WithContext(ctx).Table(s.table).Where(condition)
+	db := s.db.WithContext(ctx).Table(s.table).Where(condition)
 	rows := []map[string]any{}
-	if err := scope.Select(s.projection(nil)).Limit(1).Find(&rows).Error; err != nil {
+	if err := db.Select(s.projection(nil)).Limit(1).Find(&rows).Error; err != nil {
 		return nil, s.storageError("read", err)
 	}
 	if len(rows) == 0 {
-		return nil, s.notFound(key)
+		return nil, s.notFound(scope.Key)
 	}
 	return resource.Record(rows[0]), nil
 }
@@ -143,12 +143,12 @@ func (s resourceStore) Create(ctx context.Context, record resource.Record, mask 
 	// The stored record is read back rather than echoed. A column with a
 	// database default, a trigger, or a type the driver coerced has a value the
 	// insert never carried, and the caller is entitled to see what was stored.
-	return s.Get(ctx, key)
+	return s.Get(ctx, resource.Scope{Key: key})
 }
 
 // Update changes the fields a patch names and returns the stored record.
-func (s resourceStore) Update(ctx context.Context, key resource.Key, patch resource.Record, mask resource.WriteMask) (resource.Record, error) {
-	if err := key.Validate(); err != nil {
+func (s resourceStore) Update(ctx context.Context, scope resource.Scope, patch resource.Record, mask resource.WriteMask) (resource.Record, error) {
+	if err := scope.Key.Validate(); err != nil {
 		return nil, err
 	}
 	if len(patch) == 0 {
@@ -174,7 +174,7 @@ func (s resourceStore) Update(ctx context.Context, key resource.Key, patch resou
 		}
 		values[name] = value
 	}
-	condition, err := s.keyFilter(key)
+	condition, err := s.bounded(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -185,18 +185,24 @@ func (s resourceStore) Update(ctx context.Context, key resource.Key, patch resou
 	// reports zero rows on every driver we target, exactly as a key that matches
 	// nothing does. Reading the record back distinguishes them, and a read after
 	// a write is also what makes the answer the stored one.
-	return s.Get(ctx, key)
+	//
+	// The read is by key and not by scope: the condition was already applied to
+	// the statement that changed the row, and applying it again afterwards would
+	// answer 404 to a request that has just been carried out — a patch that moves
+	// the row out of the condition is the schema's writable-mask decision, not a
+	// way for the write to become invisible after it happened.
+	return s.Get(ctx, resource.Scope{Key: scope.Key})
 }
 
-// Destroy removes the record one key identifies.
-func (s resourceStore) Destroy(ctx context.Context, key resource.Key) error {
-	if err := key.Validate(); err != nil {
+// Destroy removes the record the scope selects.
+func (s resourceStore) Destroy(ctx context.Context, scope resource.Scope) error {
+	if err := scope.Key.Validate(); err != nil {
 		return err
 	}
 	if s.remove == nil {
 		return s.unsupported("destroy")
 	}
-	condition, err := s.keyFilter(key)
+	condition, err := s.bounded(scope)
 	if err != nil {
 		return err
 	}
@@ -205,7 +211,7 @@ func (s resourceStore) Destroy(ctx context.Context, key resource.Key) error {
 		return s.writeError("destroy", err)
 	}
 	if removed == 0 {
-		return s.notFound(key)
+		return s.notFound(scope.Key)
 	}
 	return nil
 }
@@ -267,6 +273,30 @@ func (s resourceStore) scope(ctx context.Context, filter resource.Filter) (*gorm
 		return nil, err
 	}
 	return db.Where(condition), nil
+}
+
+// bounded is the condition that selects one scopable record: the key's row, and
+// only when the caller may reach it.
+//
+// The two become one condition rather than a lookup followed by a check. A check
+// after a read is a window in which the row can change between the two, and the
+// window is exactly where an escalation lives; a WHERE clause has no window. A
+// row that fails the condition is reported as missing, not as forbidden, because
+// "it exists but you may not see it" describes a table to someone who is not
+// allowed to read it.
+func (s resourceStore) bounded(scope resource.Scope) (clause.Expression, error) {
+	condition, err := s.keyFilter(scope.Key)
+	if err != nil {
+		return nil, err
+	}
+	if scope.Where.IsZero() {
+		return condition, nil
+	}
+	limit, err := s.condition(scope.Where)
+	if err != nil {
+		return nil, err
+	}
+	return clause.And(condition, limit), nil
 }
 
 // keyFilter turns a key into the condition that selects its record.

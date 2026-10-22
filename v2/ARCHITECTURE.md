@@ -83,9 +83,14 @@ which emits one over gorm into the project it generates. That direction is what
 keeps a service that only serves HTTP from building a driver because a query
 vocabulary mentioned SQL.
 
-`resource/rest` mounts a `Collection` as route values, and `rest.WithLayer` is
-the seam a policy plugs into: the layer returns `Params`, the merge guarantees it
-cannot be widened by anything the client sent.
+`resource/rest` mounts a `Collection` as route values, and `rest.WithPolicy` is
+where an application says who may use it: a policy answers with a `Decision`,
+which either grants a `Params` or refuses with a reason. The zero `Decision`
+refuses, and a collection mounted with no policy is refused by `Routes` — a
+surface that answers everybody is written down as `rest.WithOpenAccess`, because a
+default that grants everything is a default nobody chose. A grant's condition
+travels to storage with the key, as one `Scope`, so it selects single records and
+not only lists.
 
 ### `endpoint`
 

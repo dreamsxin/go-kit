@@ -6,7 +6,9 @@
 是一个值——模式、端点、解码器——挂在哪里由应用决定。
 
 ```go
-routes, err := rest.Routes(products)
+// WithOpenAccess 声明这个集合谁都能用；另一个答案是 WithPolicy，
+// 两样都不给的集合会被拒绝。
+routes, err := rest.Routes(products, rest.WithOpenAccess())
 if err != nil {
     return err
 }
@@ -74,21 +76,59 @@ for _, route := range routes {
 空请求体是空记录：create 依赖 schema 的默认值，patch 什么也不改。请求体不是对象
 是 `rest.body_not_an_object`。
 
-## 层与层的接缝
+## 谁能用
+
+一个集合要么带着一个决定挂载，要么挂不上：
 
 ```go
-rest.WithDefaults(resource.Params{Sort: []resource.Sort{resource.Asc("name")}})
-rest.WithLayer(func(ctx context.Context, action rest.Action) (resource.Params, error) {
-    return resource.Params{Filter: ownerFilter(ctx)}, nil
-})
+routes, err := rest.Routes(products, rest.WithPolicy(
+    func(ctx context.Context, action rest.Action) (rest.Decision, error) {
+        subject, ok := auth.Subject(ctx)
+        if !ok {
+            return rest.Decision{}, nil // 零值就是拒绝
+        }
+        switch action {
+        case rest.ActionList, rest.ActionGet, rest.ActionAggregate:
+            return rest.Allow(resource.Params{Filter: ownedBy(subject)}), nil
+        case rest.ActionCreate, rest.ActionUpdate:
+            return rest.Allow(resource.Params{
+                Filter:   ownedBy(subject),
+                Writable: resource.WriteMask{Deny: []string{"owner_id"}},
+            }), nil
+        default:
+            return rest.Deny("删除是管理员动作"), nil
+        }
+    }))
 ```
 
-一个请求是三层按同一个顺序合并出来的：资源自己的默认值、客户端要的、以及应用
-安装的每一个权威。`resource.MergeParams` 给每个键一条规则，每条规则都只收窄——
-过滤只能合取、投影只能求交、页大小只能变小。所以默认值可以被请求覆盖，策略不能。
+另一个答案是 `rest.WithOpenAccess()`——所有人、所有事。两样都不给的集合会被 `Routes`
+拒绝（`rest.access_required`），两样都给的会被同样拒绝（`rest.access_conflict`）：
+策略是白名单，开放是白名单的缺席，无论谁赢，另一行都不再描述这个进程的实际行为。
 
-`WithLayer` 就是鉴权接入的位置：层能拿到上下文与动作（包括 `destroy`），返回的是
-约束而不是「行/不行」。
+有三条性质值得写清楚，因为每一条都是这类代码出错的常见方式：
+
+- **`Decision` 的零值是拒绝。** 没写完的策略、漏了分支的 switch、从没被填过的值——
+  它们全都是沉默，而沉默必须等于「不行」。`rest.Allow(params)` 才是有人明确做出的
+  声明。
+- **装上策略就是关上了门。** 没有任何策略授予的动作会被拒绝
+  （`rest.action_not_allowed`），所以客户端能做什么等于策略允许什么，而不是
+  「全部减去有人记得禁止的那些」。多个策略就是多个权威——租户范围与角色——每一个
+  都必须放行，否则求并会让一个权威推翻另一个权威的拒绝。
+- **错误不是拒绝。** 拒绝是策略给出的答案；错误是策略给不出答案，它让请求以 500
+  停下，而不是藏在 403 后面耗掉一天。
+
+策略拿到的是上下文与动作（包括 `destroy`），拿不到记录：决定是一个条件，不是一次
+查看。这个条件随主键一起进存储，所以落在条件之外的 `get`、`update`、`delete` 答
+`resource.record_not_found`——与记录不存在同一个答案，因为「它存在但你不能看」等于
+把一张不允许读的表描述给了对方。create 反过来校验：要被存下的记录必须满足同一个
+条件，而记录没带的字段会让条件变成未知，于是以 `rest.constraint_unsatisfied` 拒绝。
+
+约束和其他层一样合并，排在资源默认值与客户端参数之后，`resource.MergeParams` 只
+收窄：过滤合取、投影求交、页大小变小。所以默认值可以被请求覆盖，策略的条件不能。
+
+不能变的条件就是 schema 标成不可写的字段：写掩码在每个适配器上都会拒绝它，这才是
+阻止一次 patch 把记录搬出被授予范围的手段。条件与主键由同一条 `WHERE` 回答，问的是
+这一行当下的样子——框架不去猜一次 patch 之后它会变成什么。
 
 ## 刻意不做
 
@@ -96,7 +136,10 @@ rest.WithLayer(func(ctx context.Context, action rest.Action) (resource.Params, e
   编一个零值再覆盖，是带着 200 的数据丢失。
 - **路径里不做复合主键。** 一个路径段命名一个值。主键有多个字段时 `Routes` 直接
   拒绝，而不是只寻址半条记录。
-- **不做鉴权。** 它只提供接缝，不做决定；那是策略层的职责。
+- **不做认证。** 它不知道调用者是谁：没有身份、没有角色、没有会话。它拥有的是
+  一个答案的形状——带约束的决定、默认拒绝、以及能走到存储的条件。
+- **不对记录做第二次鉴权。** 策略在请求执行前回答，依据是上下文与动作。「先取回来
+  再问一次」会是一个可能推翻第一次的决定，而第一次返回的条件本身已经在选记录了。
 - **不做游标分页与关联展开。** 这两件先是 `resource` 的决定，本包不会替它们发明
   写法。
 - **不提供中间件选项。** 中间件属于挂载路由的那一方。这里的选项在 kit 路径上会被

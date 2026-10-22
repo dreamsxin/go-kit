@@ -189,7 +189,9 @@ stable/resource.filter-dialect
 stable/resource.filter-semantics
 stable/resource.params-merge
 stable/resource.repository-contract
+stable/rest.decision-zero-refuses
 stable/rest.route-table
+stable/rest.scope-not-found
 stable/sd.client-invalid-balancer-releases-resources
 stable/sd.client-retry-timing-is-configurable
 stable/sd.feedback-ejection-cap-holds-under-concurrency

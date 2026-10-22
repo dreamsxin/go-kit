@@ -4,7 +4,7 @@
 // pattern, the endpoint, and the decoder that fills its request — so an
 // application mounts it on whatever it assembles with:
 //
-//	routes, err := rest.Routes(products)
+//	routes, err := rest.Routes(products, rest.WithOpenAccess())
 //	if err != nil {
 //		return err
 //	}
@@ -29,6 +29,11 @@
 // route — `function`, `field` and `group_by`. A parameter that does not apply
 // to a route is refused rather than ignored, because a filter that was silently
 // dropped answers a broader question than the one asked.
+//
+// Mounting is also where a collection says who may use it: WithPolicy installs
+// the authorities that decide, and WithOpenAccess states that there are none.
+// A collection mounted with neither is refused, because a default that answers
+// everybody is a default nobody chose.
 package rest
 
 import (
@@ -75,8 +80,8 @@ func (r Route) Handler() http.Handler {
 		httpserver.ServerErrorEncoder(httpserver.JSONErrorEncoder))
 }
 
-// Action names one operation a route performs, and is what a policy layer is
-// asked about.
+// Action names one operation a route performs, and is what a policy is asked
+// about.
 type Action string
 
 // The operations a collection exposes.
@@ -95,15 +100,6 @@ const (
 	ActionAggregate Action = "aggregate"
 )
 
-// Layer returns the parameters one authority adds to an operation.
-//
-// It runs after the client's parameters are read and is merged with them by
-// resource.MergeParams, so a layer can only narrow: another filter to satisfy,
-// fewer columns, a smaller page. That ordering is the reason this is a function
-// and not a pre-merged value — the layer needs to know which operation it is
-// answering before it can say what it allows.
-type Layer func(ctx context.Context, action Action) (resource.Params, error)
-
 // Option configures the routes a collection exposes.
 type Option func(*settings)
 
@@ -111,7 +107,8 @@ type settings struct {
 	prefix       string
 	maxBodyBytes int64
 	defaults     resource.Params
-	layers       []Layer
+	policies     []Policy
+	openAccess   bool
 }
 
 // WithPrefix mounts every route under a path prefix.
@@ -133,33 +130,23 @@ func WithMaxBodyBytes(maxBodyBytes int64) Option {
 	return func(s *settings) { s.maxBodyBytes = maxBodyBytes }
 }
 
-// WithDefaults sets the resource's own layer: the parameters that apply to every
-// request before the client's are merged in.
+// WithDefaults sets the resource's own parameters: what applies to every request
+// before the client's are merged in.
 //
 // It is where a default sort, a default page size smaller than the transport's,
 // or a resource-wide filter belongs. The client's parameters are merged after
-// it, so a default can be narrowed but not widened.
+// it, so a default can be narrowed by a request; a policy's cannot.
 func WithDefaults(params resource.Params) Option {
 	return func(s *settings) { s.defaults = params }
 }
 
-// WithLayer adds an authority whose parameters narrow every request.
-//
-// This is the seam a policy layer plugs into: the layer sees the action and the
-// context, returns a resource.Params, and the merge guarantees it cannot be
-// widened by anything the client sent. Several layers are applied in the order
-// given.
-func WithLayer(layers ...Layer) Option {
-	return func(s *settings) {
-		for _, layer := range layers {
-			if layer != nil {
-				s.layers = append(s.layers, layer)
-			}
-		}
-	}
-}
-
 // Routes returns the routes a collection exposes.
+//
+// A collection is mounted either with policies that decide who may do what, or
+// with an explicit statement that it answers everybody; a collection with
+// neither is refused. That refusal is the point: the interesting failure of a
+// permission model is not a policy that says no, it is a surface that was
+// mounted without one and answered yes.
 //
 // Stable: rest.route-table — a collection answers at {prefix}/{name} for list and create, {prefix}/{name}:aggregate for aggregates, and {prefix}/{name}/{id} for get, update and destroy.
 // Covered by: TestRoutesAreTheDocumentedTable, TestRoutesUnderAPrefix
@@ -216,6 +203,9 @@ func newBinding(collection resource.Collection, options ...Option) (*binding, er
 	if settings.maxBodyBytes <= 0 {
 		settings.maxBodyBytes = httpserver.DefaultMaxJSONBodyBytes
 	}
+	if err := settings.checkAccess(collection.Name); err != nil {
+		return nil, err
+	}
 
 	// The writable set is derived from the schema, not left open. A mask with
 	// no whitelist allows every field, and a repository that trusted it would
@@ -228,6 +218,27 @@ func newBinding(collection resource.Collection, options ...Option) (*binding, er
 		return nil, err
 	}
 	return &binding{collection: collection, settings: settings, defaults: defaults}, nil
+}
+
+// checkAccess requires a mounted collection to say who may use it.
+//
+// Two answers are possible and they are exclusive. Policies are a whitelist: the
+// surface answers exactly what they grant. WithOpenAccess is the opposite
+// statement — everybody, everything — and asking for both is a contradiction
+// rather than a precedence rule, because whichever won, the other would be a
+// line in the source that does not describe what the process does.
+func (s settings) checkAccess(name string) error {
+	if len(s.policies) > 0 && s.openAccess {
+		return apperror.InvalidArgument("rest.access_conflict",
+			fmt.Sprintf("collection %q is declared both with policies and with open access; a policy is a whitelist and open access is its absence, so only one of them can describe the surface",
+				name))
+	}
+	if len(s.policies) == 0 && !s.openAccess {
+		return apperror.InvalidArgument("rest.access_required",
+			fmt.Sprintf("collection %q is mounted with no policy and no open-access declaration; a surface that answers everybody says so with rest.WithOpenAccess, and one that answers somebody says so with rest.WithPolicy",
+				name))
+	}
+	return nil
 }
 
 // route assembles one route: the endpoint wrapped so the handler sees a typed

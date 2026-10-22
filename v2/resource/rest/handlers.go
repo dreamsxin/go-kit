@@ -24,8 +24,13 @@ func (b *binding) list(ctx context.Context, request *request) (any, error) {
 // The projection is applied here even though the repository applies the default
 // one: a caller may ask for fewer columns, and a repository that returned the
 // whole row would otherwise answer a narrower question with a wider record.
+//
+// The condition the policies granted goes to the repository with the key, so a
+// record outside them is answered as missing. Checking it here instead — fetch,
+// then compare — would leave a window between the two, and would also have to
+// decide what a refusal tells the caller about a row it may not see.
 func (b *binding) get(ctx context.Context, request *request) (any, error) {
-	record, err := b.collection.Repository.Get(ctx, request.key)
+	record, err := b.collection.Repository.Get(ctx, b.scope(request))
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +56,7 @@ func (b *binding) create(ctx context.Context, request *request) (any, error) {
 
 // update answers PATCH {collection}/{id} with the stored record.
 func (b *binding) update(ctx context.Context, request *request) (any, error) {
-	record, err := b.collection.Repository.Update(ctx, request.key, request.record, request.params.Writable)
+	record, err := b.collection.Repository.Update(ctx, b.scope(request), request.record, request.params.Writable)
 	if err != nil {
 		return nil, err
 	}
@@ -60,10 +65,22 @@ func (b *binding) update(ctx context.Context, request *request) (any, error) {
 
 // destroy answers DELETE {collection}/{id} with no content.
 func (b *binding) destroy(ctx context.Context, request *request) (any, error) {
-	if err := b.collection.Repository.Destroy(ctx, request.key); err != nil {
+	if err := b.collection.Repository.Destroy(ctx, b.scope(request)); err != nil {
 		return nil, err
 	}
 	return deleted{}, nil
+}
+
+// scope pairs the key the path named with the condition the policies granted.
+//
+// Both travel together because a key is an address and not a permission: a
+// repository asked for a record by key alone answers the question "does this row
+// exist", which is a question a caller outside the constraint has no right to.
+//
+// Stable: rest.scope-not-found — a record a policy's condition excludes answers resource.record_not_found, exactly as a record that does not exist does.
+// Covered by: TestAConditionSelectsTheRecordNotJustTheList
+func (b *binding) scope(request *request) resource.Scope {
+	return resource.Scope{Key: request.key, Where: request.params.Filter}
 }
 
 // aggregate answers GET {collection}:aggregate.

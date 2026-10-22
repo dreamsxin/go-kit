@@ -3214,6 +3214,106 @@ layer instead. The layer that masks it is usually the one whose own behaviour is
 already covered — the framework's projection was fine; the store's was never
 exercised.
 
+## Milestone 32 (Complete): A Policy Is A Constraint, And Silence Is A Refusal
+
+Source: the fourth gap from the same platform review, and the one the resource
+layer was built for. `rest.WithLayer` let an authority add parameters, so it could
+narrow — and it could not say no without constructing an `apperror` by hand.
+Worse, the layer's filter was merged into `Params` and then read by `List` alone:
+`get`, `update` and `destroy` reached the repository by key, so a policy that said
+"your own rows" answered every list correctly and handed back somebody else's row
+to anyone who knew an identifier. The seam was real; the constraint was decorative.
+
+Landed:
+
+- **A decision, not a bool.** `rest.Decision` is `rest.Allow(params)` or
+  `rest.Deny(reason)`, and a policy is a function returning one. A refusal carries
+  the reason into the 403 body; a grant carries the constraints that make it true.
+- **The zero value refuses.** An unfinished policy, a `switch` that falls through,
+  a value that was never filled in — every one of them is silence, and silence
+  means no. `rest.Allow` is a statement somebody made on purpose.
+- **Installing a policy closes the surface.** An action no policy grants is
+  `rest.action_not_allowed`; several policies are several authorities and all must
+  allow, because a union would let one overrule another's refusal. A policy that
+  returns an error stops the request as that error: an outage disguised as a 403
+  costs a day of investigation.
+- **A collection with no decision is refused.** `Routes` requires either policies
+  or `WithOpenAccess`, and refuses both at once (`rest.access_required`,
+  `rest.access_conflict`). A surface that answers everybody is now a line in the
+  source rather than the absence of one — which is also what makes it greppable.
+  The generated project writes it in a user-owned `resourceAccess()` in `cmd/main.go`,
+  because that file is the one place regeneration does not overwrite.
+- **The condition reaches the record.** `resource.Repository`'s `Get`, `Update`
+  and `Destroy` take a `resource.Scope` — key plus condition — and apply both as one
+  statement. A lookup followed by a check is a window in which the row can change,
+  and the window is where an escalation lives. A record the condition excludes is
+  `resource.record_not_found`, never `PermissionDenied`: "it exists but you may not
+  see it" describes a table to somebody who may not read it, one identifier at a
+  time.
+- **A create is checked against the record it stores.** The condition that selects
+  reads is evaluated against the row about to be written, so a caller cannot store
+  a row it would never be allowed to see. A field the record does not carry makes
+  the condition unknown, which refuses with `rest.constraint_unsatisfied`; a policy
+  that scopes a create has to scope it on a field the create states, because a
+  column a database default fills cannot be checked before the write.
+- **Both adapters answer a scope with a `WHERE` clause.** `resource/memory`
+  evaluates the condition against the stored record before any projection, and the
+  store `microgen -resource` emits ANDs it into the key condition. The generated
+  project's gate drives the typed endpoints and the resource surface against one
+  table in one process, so the two implementations are compared by behaviour rather
+  than by reading.
+
+Deliberately not done:
+
+- **No re-parenting guard in the framework.** A condition that must never move is
+  a field the schema marks unwritable, and the write mask already refuses it on
+  every adapter. A rule that guessed which patches are "moves" would disagree with
+  the SQL adapters, whose `WHERE` answers about the row as it stands.
+- **No deferred second pass.** A policy answers before the request runs, from the
+  context and the action; there is no "fetch, then ask again" hook. A second
+  decision that can contradict the first is a decision nobody can reason about, and
+  the condition the first one returned already selects the record.
+- **No `Policy` interface.** A policy owns one decision, holds no lifecycle, and
+  needs no state beyond the request context; a function is the whole of it.
+
+Mutation-checked, four for four: dropping `Where` in the handler's scope, treating
+silence as consent, skipping the create check, and ignoring the condition in the
+reference store each made its test fail. The first is the one that matters — it is
+the shape of the defect this milestone exists to close.
+
+Acceptance:
+
+```bash
+go test ./resource/... ./kit -count=1
+go -C ./tools test . -run 'TestGeneratedCRUDAgainstSQLite|TestStableProtocolBehaviour|TestPublicAPISurfaceSnapshot' -count=1
+```
+
+## Finding: A Generated Entry Point Is Verified By Running It
+
+The template change for this milestone added `resourceAccess()` to `cmd/main.go`
+and threaded its options into `registerResourceRoutes`. The first run of the
+generated-project gate failed before serving a single request:
+
+```
+panic: pattern "POST /user" ... conflicts with pattern "POST /user"
+```
+
+The edit had left `runtime.registerRoutes(routes)` in place while also adding it
+inside the new `{{if .WithResource}}` block, so every generated project with
+`-resource` registered its typed endpoints twice. Nothing in the source looked
+wrong: the block read top to bottom as a sequence of registrations, and the
+duplicate was two lines apart in a file of two hundred.
+
+Two facts made this a finding rather than an incident. The text assertions on
+`cmd/main.go` — the ones that exist precisely because a golden file cannot see a
+program — check that particular lines are present, and a line can be present twice.
+And no snapshot covers the entry point at all, so the duplicated call was invisible
+to every gate that reads source.
+
+Rule: **a generated entry point is verified by starting it.** A file that decides
+what runs has no meaningful textual invariant beyond "it compiles", and compiling is
+what the duplicate satisfied.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

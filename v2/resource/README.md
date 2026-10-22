@@ -183,19 +183,31 @@ quietly became 0 addresses a different record.
 ```go
 type Repository interface {
     List(ctx context.Context, query Query) (Page, error)
-    Get(ctx context.Context, key Key) (Record, error)
+    Get(ctx context.Context, scope Scope) (Record, error)
     Create(ctx context.Context, record Record, mask WriteMask) (Record, error)
-    Update(ctx context.Context, key Key, patch Record, mask WriteMask) (Record, error)
-    Destroy(ctx context.Context, key Key) error
+    Update(ctx context.Context, scope Scope, patch Record, mask WriteMask) (Record, error)
+    Destroy(ctx context.Context, scope Scope) error
     Aggregate(ctx context.Context, query AggregateQuery) (AggregateResult, error)
 }
 ```
+
+The three single-record operations take a `Scope` — a key together with the
+condition the caller was granted — and not a bare key. A key is an address, not a
+permission: `Get(ctx, key)` answers "does this row exist", which is the one
+question a caller outside its tenant must not be able to ask one identifier at a
+time. The condition and the key are applied as one statement, because a check
+followed by a write has a window in it, and the window is where an escalation
+lives. A record the condition excludes is `NotFound`, never `PermissionDenied`:
+"it exists but you may not see it" describes a table to somebody who is not
+allowed to read it.
 
 The interface belongs to this package and the implementation belongs to whoever
 owns the storage, so a service that only needs HTTP does not build a database
 driver. The obligations every implementation carries:
 
 - every clause of a query takes effect; a filter is never dropped or relaxed;
+- a scope's condition is applied with its key, and a record it excludes is
+  reported the same way a missing one is;
 - `Page.Total` counts the matches, not the records in the window;
 - a reply is the schema's projection, so a write-only column cannot escape
   through a `SELECT *`;

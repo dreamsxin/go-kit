@@ -29,7 +29,7 @@ func componentWithRoutes(t *testing.T, collection resource.Collection) (*kit.HTT
 				return next(ctx, request)
 			}
 		}))
-	routes, err := rest.Routes(collection)
+	routes, err := rest.Routes(collection, rest.WithOpenAccess())
 	if err != nil {
 		t.Fatalf("Routes: %v", err)
 	}

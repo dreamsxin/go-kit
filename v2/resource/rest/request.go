@@ -34,7 +34,7 @@ type request struct {
 var recognisedParams = []string{"filter", "sort", "fields", "append", "page", "size"}
 
 func (b *binding) decodeList(ctx context.Context, r *http.Request) (any, error) {
-	params, err := b.readParams(ctx, r, ActionList)
+	params, err := b.decide(ctx, r, ActionList)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (b *binding) decodeGet(ctx context.Context, r *http.Request) (any, error) {
 	if err := rejectParams(r.URL.Query(), ActionGet, "fields"); err != nil {
 		return nil, err
 	}
-	params, err := b.readParams(ctx, r, ActionGet)
+	params, err := b.decide(ctx, r, ActionGet)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func (b *binding) decodeWrite(ctx context.Context, r *http.Request, action Actio
 	if err := rejectParams(r.URL.Query(), action); err != nil {
 		return nil, err
 	}
-	params, err := b.readParams(ctx, r, action)
+	params, err := b.decide(ctx, r, action)
 	if err != nil {
 		return nil, err
 	}
@@ -85,6 +85,11 @@ func (b *binding) decodeWrite(ctx context.Context, r *http.Request, action Actio
 		return nil, err
 	}
 	request := &request{params: params, record: record}
+	if action == ActionCreate {
+		if err := b.admits(record, params.Filter); err != nil {
+			return nil, err
+		}
+	}
 	if action == ActionUpdate {
 		key, err := b.collection.KeyFromText(r.PathValue("id"))
 		if err != nil {
@@ -95,27 +100,56 @@ func (b *binding) decodeWrite(ctx context.Context, r *http.Request, action Actio
 	return request, nil
 }
 
+// admits reports whether a record a caller is storing satisfies the condition its
+// policies stated.
+//
+// A condition on a create is a condition on the row being created: "you may add
+// rows to tenant 7" is the same condition that lets you read tenant 7, evaluated
+// against what is about to be written. Without this the constraint would only
+// select reads, and a caller could store a row it would never be allowed to see.
+//
+// A field the record does not carry makes the condition unknown, which refuses.
+// That is the honest answer rather than a bug: a policy that scopes a create has
+// to scope it on a field the create states, because a column a database default
+// fills is a column the policy cannot check before the write.
+func (b *binding) admits(record resource.Record, condition resource.Filter) error {
+	if condition.IsZero() {
+		return nil
+	}
+	admitted, err := resource.Match(condition, record, b.collection.Schema)
+	if err != nil {
+		return err
+	}
+	if admitted {
+		return nil
+	}
+	return apperror.PermissionDenied("rest.constraint_unsatisfied",
+		"the record this request stores does not satisfy the condition its policy states, and a row that is not readable through this surface is not writable through it")
+}
+
 func (b *binding) decodeDestroy(ctx context.Context, r *http.Request) (any, error) {
 	if err := rejectParams(r.URL.Query(), ActionDestroy); err != nil {
 		return nil, err
 	}
-	// The params are not used by the operation, but the layers run for it:
-	// a policy that refuses a delete has to be asked about the delete.
-	if _, err := b.readParams(ctx, r, ActionDestroy); err != nil {
+	// The params are not read by the operation, but the decision is: the
+	// condition a policy grants a delete is what selects the record, and a
+	// delete that ignored it would remove a row the policy never reached.
+	params, err := b.decide(ctx, r, ActionDestroy)
+	if err != nil {
 		return nil, err
 	}
 	key, err := b.collection.KeyFromText(r.PathValue("id"))
 	if err != nil {
 		return nil, err
 	}
-	return &request{key: key}, nil
+	return &request{key: key, params: params}, nil
 }
 
 func (b *binding) decodeAggregate(ctx context.Context, r *http.Request) (any, error) {
 	if err := rejectParams(r.URL.Query(), ActionAggregate, "filter"); err != nil {
 		return nil, err
 	}
-	params, err := b.readParams(ctx, r, ActionAggregate)
+	params, err := b.decide(ctx, r, ActionAggregate)
 	if err != nil {
 		return nil, err
 	}
@@ -164,32 +198,9 @@ func restrictAggregateFields(query resource.AggregateQuery, allowed []string) er
 	return nil
 }
 
-// readParams assembles the three layers a read is made of, in the only order
-// that narrows: the resource's defaults, what the client asked for, then every
-// authority the application installed.
-func (b *binding) readParams(ctx context.Context, r *http.Request, action Action) (resource.Params, error) {
-	client, err := clientParams(r)
-	if err != nil {
-		return resource.Params{}, err
-	}
-	layers := make([]resource.Params, 0, len(b.settings.layers)+2)
-	layers = append(layers, b.defaults, client)
-	for _, layer := range b.settings.layers {
-		params, err := layer(ctx, action)
-		if err != nil {
-			return resource.Params{}, err
-		}
-		layers = append(layers, params)
-	}
-	merged, err := resource.MergeParams(layers...)
-	if err != nil {
-		return resource.Params{}, err
-	}
-	if err := merged.Validate(b.collection.Schema); err != nil {
-		return resource.Params{}, err
-	}
-	return merged, nil
-}
+// readParams assembles the layers a request is made of, in the only order that
+// narrows, and refuses the ones no policy granted. It lives in policy.go with the
+// decision type it exists to evaluate.
 
 // clientParams reads what the request itself asks for.
 func clientParams(r *http.Request) (resource.Params, error) {

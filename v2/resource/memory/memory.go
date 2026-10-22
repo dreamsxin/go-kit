@@ -119,17 +119,17 @@ func (s *Store) List(ctx context.Context, query resource.Query) (resource.Page, 
 	return resource.NewPage(window, len(matches), items), nil
 }
 
-// Get returns the record one key identifies.
-func (s *Store) Get(ctx context.Context, key resource.Key) (resource.Record, error) {
+// Get returns the record the scope selects.
+func (s *Store) Get(ctx context.Context, scope resource.Scope) (resource.Record, error) {
 	if err := contextFailure(ctx); err != nil {
 		return nil, err
 	}
-	if err := key.Validate(); err != nil {
+	if err := scope.Key.Validate(); err != nil {
 		return nil, err
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	position, err := s.lookup(key)
+	position, err := s.lookup(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -184,11 +184,17 @@ func (s *Store) Create(ctx context.Context, record resource.Record, mask resourc
 // The primary key may not be changed: identity is what a key names, so moving it
 // is a delete and a create, and allowing it here would let two records swap
 // identities while both are addressed by the key the caller still holds.
-func (s *Store) Update(ctx context.Context, key resource.Key, patch resource.Record, mask resource.WriteMask) (resource.Record, error) {
+//
+// The scope's condition selects the record to change, and it is evaluated
+// against the record as it stands. A patch that then moves the record out of that
+// condition is a write the schema's write mask has to refuse — a store cannot see
+// a policy, and inventing a rule here would disagree with every SQL adapter whose
+// WHERE clause answers the same question about the same row.
+func (s *Store) Update(ctx context.Context, scope resource.Scope, patch resource.Record, mask resource.WriteMask) (resource.Record, error) {
 	if err := contextFailure(ctx); err != nil {
 		return nil, err
 	}
-	if err := key.Validate(); err != nil {
+	if err := scope.Key.Validate(); err != nil {
 		return nil, err
 	}
 	if len(patch) == 0 {
@@ -210,7 +216,7 @@ func (s *Store) Update(ctx context.Context, key resource.Key, patch resource.Rec
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	position, err := s.lookup(key)
+	position, err := s.lookup(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -232,17 +238,17 @@ func (s *Store) Update(ctx context.Context, key resource.Key, patch resource.Rec
 	return s.schema.Project(updated, nil)
 }
 
-// Destroy removes the record one key identifies.
-func (s *Store) Destroy(ctx context.Context, key resource.Key) error {
+// Destroy removes the record the scope selects.
+func (s *Store) Destroy(ctx context.Context, scope resource.Scope) error {
 	if err := contextFailure(ctx); err != nil {
 		return err
 	}
-	if err := key.Validate(); err != nil {
+	if err := scope.Key.Validate(); err != nil {
 		return err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	position, err := s.lookup(key)
+	position, err := s.lookup(scope)
 	if err != nil {
 		return err
 	}
@@ -488,8 +494,19 @@ func (s *Store) assignKey(record resource.Record) error {
 	return nil
 }
 
-// lookup returns the position of the record a key identifies.
-func (s *Store) lookup(key resource.Key) (int, error) {
+// lookup returns the position of the record a scope selects.
+//
+// The key finds a row and the condition decides whether this caller may reach
+// it, and the second answer is NotFound rather than a refusal: a store that said
+// "forbidden" would let a client enumerate the rows it cannot see by asking
+// about identifiers one at a time.
+//
+// The condition is evaluated against the stored record, before any projection.
+// A caller's projection narrows what it is shown, never what it is allowed to
+// match on, so filtering a projected record would refuse rows the condition
+// accepts.
+func (s *Store) lookup(scope resource.Scope) (int, error) {
+	key := scope.Key
 	for _, name := range s.primary {
 		if _, ok := key[name]; !ok {
 			return 0, apperror.InvalidArgument("resource.key_incomplete",
@@ -502,10 +519,25 @@ func (s *Store) lookup(key resource.Key) (int, error) {
 	}
 	position, found := s.index[encoded]
 	if !found {
-		return 0, apperror.NotFound("resource.record_not_found",
-			"no record has that key")
+		return 0, notFound()
+	}
+	if scope.Where.IsZero() {
+		return position, nil
+	}
+	reached, err := resource.Match(scope.Where, s.records[position], s.schema)
+	if err != nil {
+		return 0, err
+	}
+	if !reached {
+		return 0, notFound()
 	}
 	return position, nil
+}
+
+// notFound is one answer for "the key names nothing" and "the condition excludes
+// it": two spellings would make the difference observable from outside.
+func notFound() error {
+	return apperror.NotFound("resource.record_not_found", "no record has that key")
 }
 
 // isPrimary reports whether a field belongs to the primary key.

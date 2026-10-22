@@ -58,16 +58,21 @@ func (g generatedServices) generatedRuntime() generatedRuntime {
 // table, under its own prefix so a collection cannot shadow the typed endpoint
 // that answers the same row.
 //
+// The access decision is not made here. resources/rest refuses to mount a
+// collection that was never told who may use it, so the answer arrives as an
+// option from the user-owned main.go — which is the file that can know what this
+// deployment's authentication puts in a request context.
+//
 // The routes are handlers rather than kit endpoints because this project builds
 // its own mux instead of a kit component; they still encode responses and errors
 // through the transport, so the wire answer does not depend on the mounting.
-func registerResourceRoutes(r httpserver.RouteRegistrar, db *repository.DB, prefix string) error {
+func registerResourceRoutes(r httpserver.RouteRegistrar, db *repository.DB, prefix string, options ...kitrest.Option) error {
 	collections, err := repository.ResourceCollections(db)
 	if err != nil {
 		return fmt.Errorf("declare resources: %w", err)
 	}
 	for _, collection := range collections {
-		routes, err := kitrest.Routes(collection, kitrest.WithPrefix(prefix))
+		routes, err := kitrest.Routes(collection, append([]kitrest.Option{kitrest.WithPrefix(prefix)}, options...)...)
 		if err != nil {
 			return fmt.Errorf("resource %q: %w", collection.Name, err)
 		}

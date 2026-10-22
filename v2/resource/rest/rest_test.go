@@ -74,7 +74,20 @@ func newCollection(t *testing.T) resource.Collection {
 
 // mount registers every route on a plain mux, which is the assembly that has no
 // component to lean on.
+//
+// It declares the surface open, because a collection with no decision is refused
+// and these tests are about what the routes answer rather than about who may ask.
+// A test that installs a policy uses mountWith instead: the two options
+// contradict each other by design.
 func mount(t *testing.T, collection resource.Collection, options ...rest.Option) http.Handler {
+	t.Helper()
+	open := append(append([]rest.Option(nil), options...), rest.WithOpenAccess())
+	return mountWith(t, collection, open...)
+}
+
+// mountWith mounts exactly what it is given, so a test can install a policy and
+// be refused by it.
+func mountWith(t *testing.T, collection resource.Collection, options ...rest.Option) http.Handler {
 	t.Helper()
 	routes, err := rest.Routes(collection, options...)
 	if err != nil {
@@ -85,6 +98,15 @@ func mount(t *testing.T, collection resource.Collection, options ...rest.Option)
 		mux.Handle(route.Pattern, route.Handler())
 	}
 	return mux
+}
+
+// allow is a policy that grants every action with the constraints given. It is
+// what a test installs when the subject under test is how the constraints are
+// merged rather than how the decision is made.
+func allow(params resource.Params) rest.Policy {
+	return func(context.Context, rest.Action) (rest.Decision, error) {
+		return rest.Allow(params), nil
+	}
 }
 
 type response struct {
@@ -129,7 +151,7 @@ func target(path string, values url.Values) string {
 // --- the route table --------------------------------------------------------
 
 func TestRoutesAreTheDocumentedTable(t *testing.T) {
-	routes, err := rest.Routes(newCollection(t))
+	routes, err := rest.Routes(newCollection(t), rest.WithOpenAccess())
 	if err != nil {
 		t.Fatalf("Routes: %v", err)
 	}
@@ -156,7 +178,7 @@ func TestRoutesAreTheDocumentedTable(t *testing.T) {
 }
 
 func TestRoutesUnderAPrefix(t *testing.T) {
-	routes, err := rest.Routes(newCollection(t), rest.WithPrefix("api/v1/"))
+	routes, err := rest.Routes(newCollection(t), rest.WithPrefix("api/v1/"), rest.WithOpenAccess())
 	if err != nil {
 		t.Fatalf("Routes: %v", err)
 	}
@@ -433,14 +455,12 @@ func TestAggregateNeedsAFunction(t *testing.T) {
 
 // --- the layer seam ---------------------------------------------------------
 
-// TestALayerNarrowsAndIsNeverWidenedByTheClient is the reason readParams merges
-// layers after the client: a policy that selects active rows and a client that
+// TestAPolicyNarrowsAndIsNeverWidenedByTheClient is the reason the merge runs the
+// policies after the client: a policy that selects active rows and a client that
 // asks for archived ones must intersect to nothing, not let either win.
-func TestALayerNarrowsAndIsNeverWidenedByTheClient(t *testing.T) {
-	onlyActive := func(context.Context, rest.Action) (resource.Params, error) {
-		return resource.Params{Filter: resource.Condition("status", resource.OpEq, "active")}, nil
-	}
-	handler := mount(t, newCollection(t), rest.WithLayer(onlyActive))
+func TestAPolicyNarrowsAndIsNeverWidenedByTheClient(t *testing.T) {
+	onlyActive := allow(resource.Params{Filter: resource.Condition("status", resource.OpEq, "active")})
+	handler := mountWith(t, newCollection(t), rest.WithPolicy(onlyActive))
 
 	everything := do(t, handler, http.MethodGet, "/products", "")
 	if total := everything.decoded["total"]; total != float64(2) {
@@ -452,11 +472,9 @@ func TestALayerNarrowsAndIsNeverWidenedByTheClient(t *testing.T) {
 	}
 }
 
-func TestALayerNarrowsTheWritableSet(t *testing.T) {
-	noStatus := func(context.Context, rest.Action) (resource.Params, error) {
-		return resource.Params{Writable: resource.WriteMask{Deny: []string{"status"}}}, nil
-	}
-	result := do(t, mount(t, newCollection(t), rest.WithLayer(noStatus)), http.MethodPost, "/products",
+func TestAPolicyNarrowsTheWritableSet(t *testing.T) {
+	noStatus := allow(resource.Params{Writable: resource.WriteMask{Deny: []string{"status"}}})
+	result := do(t, mountWith(t, newCollection(t), rest.WithPolicy(noStatus)), http.MethodPost, "/products",
 		`{"name":"delta","status":"active"}`)
 	if result.status != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403 (body %s)", result.status, result.body)
@@ -466,21 +484,17 @@ func TestALayerNarrowsTheWritableSet(t *testing.T) {
 	}
 }
 
-// TestALayerOutranksTheClientOnSortAndWindow pins the part of the merge order
-// that is not commutative: ordering is decided by the last layer, and the page
-// size by the smallest. A default comes before the client, an authority after
+// TestAPolicyOutranksTheClientOnSortAndWindow pins the part of the merge order
+// that is not commutative: ordering is decided by the last authority, and the
+// page size by the smallest. A default comes before the client, a policy after
 // it — so a resource default can be overridden by a request while a policy
 // cannot.
-func TestALayerOutranksTheClientOnSortAndWindow(t *testing.T) {
+func TestAPolicyOutranksTheClientOnSortAndWindow(t *testing.T) {
 	collection := newCollection(t)
 
-	byName := func(context.Context, rest.Action) (resource.Params, error) {
-		return resource.Params{Sort: []resource.Sort{resource.Asc("name")}}, nil
-	}
-	oneAtATime := func(context.Context, rest.Action) (resource.Params, error) {
-		return resource.Params{Window: resource.Window{Size: 1}}, nil
-	}
-	handler := mount(t, collection, rest.WithLayer(byName, oneAtATime))
+	byName := allow(resource.Params{Sort: []resource.Sort{resource.Asc("name")}})
+	oneAtATime := allow(resource.Params{Window: resource.Window{Size: 1}})
+	handler := mountWith(t, collection, rest.WithPolicy(byName, oneAtATime))
 
 	result := do(t, handler, http.MethodGet, "/products?sort=-price&size=100", "")
 	if result.status != http.StatusOK {
@@ -507,15 +521,13 @@ func TestALayerOutranksTheClientOnSortAndWindow(t *testing.T) {
 	}
 }
 
-// TestAProjectionLayerHoldsOnEveryAnswer pins the parts of a column restriction
+// TestAProjectionPolicyHoldsOnEveryAnswer pins the parts of a column restriction
 // that a list projection does not cover: the record a write returns, and the
 // figure an aggregate computes. Summing a column or grouping by it reveals what
 // listing it would, so a restricted column is refused there too.
 func TestAProjectionLayerHoldsOnEveryAnswer(t *testing.T) {
-	twoColumns := func(context.Context, rest.Action) (resource.Params, error) {
-		return resource.Params{Fields: []string{"id", "name"}}, nil
-	}
-	handler := mount(t, newCollection(t), rest.WithLayer(twoColumns))
+	twoColumns := allow(resource.Params{Fields: []string{"id", "name"}})
+	handler := mountWith(t, newCollection(t), rest.WithPolicy(twoColumns))
 
 	listed := do(t, handler, http.MethodGet, "/products", "")
 	items, _ := listed.decoded["items"].([]any)
@@ -538,10 +550,8 @@ func TestAProjectionLayerHoldsOnEveryAnswer(t *testing.T) {
 	// The identifier may itself be hidden from the body. The address is read
 	// before the projection, so hiding it does not make the record
 	// unaddressable.
-	nameOnly := func(context.Context, rest.Action) (resource.Params, error) {
-		return resource.Params{Fields: []string{"name"}}, nil
-	}
-	bare := do(t, mount(t, newCollection(t), rest.WithLayer(nameOnly)), http.MethodPost, "/products", `{"name":"epsilon"}`)
+	nameOnly := allow(resource.Params{Fields: []string{"name"}})
+	bare := do(t, mountWith(t, newCollection(t), rest.WithPolicy(nameOnly)), http.MethodPost, "/products", `{"name":"epsilon"}`)
 	if bare.status != http.StatusCreated {
 		t.Fatalf("status = %d, body = %s", bare.status, bare.body)
 	}
@@ -561,13 +571,13 @@ func TestAProjectionLayerHoldsOnEveryAnswer(t *testing.T) {
 	}
 }
 
-func TestALayerSeesWhichActionItIsAnswering(t *testing.T) {
+func TestAPolicySeesWhichActionItIsAnswering(t *testing.T) {
 	var seen []rest.Action
-	recorder := func(_ context.Context, action rest.Action) (resource.Params, error) {
+	recorder := func(_ context.Context, action rest.Action) (rest.Decision, error) {
 		seen = append(seen, action)
-		return resource.Params{}, nil
+		return rest.Allow(resource.Params{}), nil
 	}
-	handler := mount(t, newCollection(t), rest.WithLayer(recorder))
+	handler := mountWith(t, newCollection(t), rest.WithPolicy(recorder))
 	do(t, handler, http.MethodGet, "/products", "")
 	do(t, handler, http.MethodDelete, "/products/1", "")
 	want := []rest.Action{rest.ActionList, rest.ActionDestroy}

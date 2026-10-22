@@ -165,18 +165,26 @@ collection, err := resource.NewCollection("products", schema, store, "id")
 ```go
 type Repository interface {
     List(ctx context.Context, query Query) (Page, error)
-    Get(ctx context.Context, key Key) (Record, error)
+    Get(ctx context.Context, scope Scope) (Record, error)
     Create(ctx context.Context, record Record, mask WriteMask) (Record, error)
-    Update(ctx context.Context, key Key, patch Record, mask WriteMask) (Record, error)
-    Destroy(ctx context.Context, key Key) error
+    Update(ctx context.Context, scope Scope, patch Record, mask WriteMask) (Record, error)
+    Destroy(ctx context.Context, scope Scope) error
     Aggregate(ctx context.Context, query AggregateQuery) (AggregateResult, error)
 }
 ```
+
+三个单记录操作收的是 `Scope`——主键加上调用方被授予的条件——而不是一个光秃秃的
+主键。主键是地址，不是权限：`Get(ctx, key)` 回答的是「这一行存在吗」，而这恰恰是
+一个租户之外的调用方不能一个标识符一个标识符地问下去的问题。条件与主键作为同一条
+语句执行，因为「先检查再写」中间有一个窗口，而升级就住在这个窗口里。被条件排除的
+记录是 `NotFound`，绝不是 `PermissionDenied`：「它存在但你不能看」等于把一张不允许
+读的表描述给了对方。
 
 接口归本包，实现归拥有存储的一侧——所以只用 HTTP 的服务不会被迫编进一个数据库驱动。
 每个实现都要兑现的约定：
 
 - 查询的每个子句都生效，过滤条件绝不被丢掉或放宽；
+- scope 的条件与主键一起生效，被它排除的记录与不存在的记录报同一个结果；
 - `Page.Total` 数的是命中的记录，不是窗口里的记录；
 - 响应是 schema 的投影，所以 `SELECT *` 也带不出只写列；
 - 记录不存在是 `NotFound`，空 key 是 `InvalidArgument`，写到掩码之外是

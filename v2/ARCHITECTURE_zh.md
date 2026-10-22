@@ -72,8 +72,11 @@ Transport request
 适配器，或者 `microgen -resource` 在它生成的工程里产出的 gorm 版本。这个方向
 正是「只提供 HTTP 的服务不会因为一个查询词汇提到 SQL 就去编译一个驱动」的原因。
 
-`resource/rest` 把 `Collection` 挂成一组路由值，`rest.WithLayer` 则是策略接入
-的接缝：层返回 `Params`，合并保证它不会被客户端送来的任何东西放宽。
+`resource/rest` 把 `Collection` 挂成一组路由值，`rest.WithPolicy` 则是应用声明
+「谁能用」的地方：策略答一个 `Decision`，要么授予一组 `Params`，要么带理由拒绝。
+`Decision` 的零值是拒绝，而一个没有任何策略的集合会被 `Routes` 拒绝——回答所有人
+的接口要写成 `rest.WithOpenAccess`，因为「默认全放行」是个没人做过的决定。授予里
+的条件会随主键作为一个 `Scope` 一起进存储，所以它选的是单条记录，不只是列表。
 
 ### `endpoint`
 

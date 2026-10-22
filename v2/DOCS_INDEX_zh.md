@@ -40,6 +40,7 @@ API 参考；根目录指南负责生成、架构、生产部署和升级。
 | 提供或调用 HTTP | [transport README](transport/README_zh.md) |
 | 调用生成的服务 | [microgen 指南](MICROGEN_zh.md)、[路由](docs/routing_zh.md) |
 | 按过滤、排序、分页查询一张表 | [resource README](resource/README_zh.md)、[REST 绑定](resource/rest/README_zh.md) |
+| 决定谁能用资源接口 | [REST 绑定](resource/rest/README_zh.md#谁能用) |
 | 添加 gRPC | [transport README](transport/README_zh.md)、[gRPC README](integrations/grpc/README_zh.md) |
 | 添加自定义 body 或协议 | [自定义传输](docs/custom-transport_zh.md)、[transport README](transport/README_zh.md) |
 | 自定义错误和信封 | [错误处理](docs/errors_zh.md)、[自定义](docs/customization_zh.md) |

@@ -67,9 +67,39 @@ English | [简体中文](CHANGELOG_zh.md)
   field. A column restriction holds on every answer: a write returns the record
   projected, and an aggregate over a restricted column is
   `rest.aggregate_field_not_allowed`, because summing or grouping a column
-  reveals what listing it would. `rest.WithLayer` is the seam authorization plugs into: a layer sees the
-  context and the action — `destroy` included — and returns constraints that
-  `MergeParams` guarantees no client parameter can widen.
+  reveals what listing it would.
+- `rest.WithPolicy` is how a collection says who may use it, and a collection that
+  says nothing is refused. A policy answers with a `rest.Decision` —
+  `rest.Allow(params)` or `rest.Deny(reason)` — and the zero `Decision` refuses, so
+  an unfinished policy, a `switch` that falls through and a value that was never
+  filled in all mean no. Installing a policy closes the surface: an action no
+  policy grants is `rest.action_not_allowed`, several policies are several
+  authorities that must all allow (a union would let one overrule another's
+  refusal), and a policy returning an error stops the request as the error it is
+  rather than disguising an outage as a 403. `rest.WithOpenAccess()` is the other
+  answer — everybody, everything — and `Routes` refuses a collection with neither
+  option (`rest.access_required`) or with both (`rest.access_conflict`), because a
+  default that grants everything is a default nobody chose. `rest.WithLayer` is
+  gone: a layer could narrow and could not refuse, so the same function now returns
+  a decision.
+- A policy's condition reaches the record, not only the list. `Get`, `Update` and
+  `Destroy` on `resource.Repository` take a `resource.Scope` — the key together
+  with the condition the caller was granted — and apply both as one statement,
+  because a lookup followed by a check is a window in which the row can change. A
+  record the condition excludes answers `resource.record_not_found`, the same
+  answer a missing record gets, so a client cannot enumerate the rows it may not
+  see; a 403 there would confirm the row exists. A create is checked the other way
+  round: the record being stored must satisfy the same condition, and a field it
+  does not carry makes the condition unknown, which refuses with
+  `rest.constraint_unsatisfied` instead of storing a row that would never be
+  readable through the surface that stored it. `resource/memory` and the store
+  `microgen -resource` emits both answer a scope with a `WHERE` clause, and the
+  generated-project gate drives the typed endpoints and the resource surface
+  against one table in one process. A condition that must never move is a field
+  the schema marks unwritable: the write mask refuses it on every adapter, which is
+  where re-parenting a record out of a scope is stopped. A generated project's
+  `cmd/main.go` now states the decision in `resourceAccess()` — open access, with a
+  comment saying so — instead of leaving it to an option nobody passed.
 - `kit` can be assembled from modules. `kit.WithModules` accepts values
   implementing `kit.Module`: every `Register` runs before any `Init`, and both
   phases run in an order derived from `Requires` and — for modules that require

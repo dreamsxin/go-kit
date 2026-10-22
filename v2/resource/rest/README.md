@@ -7,7 +7,9 @@ stack: a route is a value — pattern, endpoint, decoder — and the application
 decides what surrounds it.
 
 ```go
-routes, err := rest.Routes(products)
+// WithOpenAccess says anybody may use this collection; WithPolicy is the other
+// answer, and a collection with neither is refused.
+routes, err := rest.Routes(products, rest.WithOpenAccess())
 if err != nil {
     return err
 }
@@ -82,23 +84,73 @@ An empty body is an empty record: a create relies on the schema's defaults and a
 patch changes nothing. A body that is not an object is
 `rest.body_not_an_object`.
 
-## The layer seam
+## Who may use it
+
+A collection is mounted with a decision, or it is refused:
 
 ```go
-rest.WithDefaults(resource.Params{Sort: []resource.Sort{resource.Asc("name")}})
-rest.WithLayer(func(ctx context.Context, action rest.Action) (resource.Params, error) {
-    return resource.Params{Filter: ownerFilter(ctx)}, nil
-})
+routes, err := rest.Routes(products, rest.WithPolicy(
+    func(ctx context.Context, action rest.Action) (rest.Decision, error) {
+        subject, ok := auth.Subject(ctx)
+        if !ok {
+            return rest.Decision{}, nil // the zero decision refuses
+        }
+        switch action {
+        case rest.ActionList, rest.ActionGet, rest.ActionAggregate:
+            return rest.Allow(resource.Params{Filter: ownedBy(subject)}), nil
+        case rest.ActionCreate, rest.ActionUpdate:
+            return rest.Allow(resource.Params{
+                Filter:   ownedBy(subject),
+                Writable: resource.WriteMask{Deny: []string{"owner_id"}},
+            }), nil
+        default:
+            return rest.Deny("deletes are an administrator action"), nil
+        }
+    }))
 ```
 
-A request is three layers merged in one order: the resource's defaults, what the
-client asked for, then every installed authority. `resource.MergeParams` gives
-each key one rule and every rule narrows — a filter only conjoins, a projection
-only intersects, a page size only shrinks. So a default can be overridden by a
-request, and a policy cannot.
+`rest.WithOpenAccess()` is the other answer — everybody, everything. A collection
+mounted with neither is refused by `Routes` (`rest.access_required`), and one
+mounted with both is refused too (`rest.access_conflict`): a policy is a whitelist
+and open access is its absence, so whichever won, the other line would not
+describe what the process does.
 
-`WithLayer` is where authorization plugs in: the layer sees the context and the
-action, including `destroy`, and returns constraints rather than a yes/no.
+Three properties are worth spelling out, because each is a way this kind of code
+goes wrong:
+
+- **The zero `Decision` refuses.** A policy somebody did not finish, a switch that
+  falls through, a value that was never filled in — every one of them is silence,
+  and silence means no. `rest.Allow(params)` is a statement somebody made on
+  purpose.
+- **Installing a policy closes the surface.** An action no policy grants is
+  refused with `rest.action_not_allowed`, so what a client may do is what the
+  policies allow rather than everything minus what somebody remembered to forbid.
+  Several policies are several authorities — a tenant scope and a role — and every
+  one must allow, because a union would let one authority overrule another's
+  refusal.
+- **An error is not a refusal.** A refusal is an answer the policy reached; an
+  error says it could not answer, and it stops the request as a 500 rather than
+  hiding behind a 403 for a day.
+
+A policy sees the context and the action, `destroy` included, and it does not see
+the record: the decision is a condition, not an inspection. That condition travels
+with the key into storage, so `get`, `update` and `delete` on a record outside it
+answer `resource.record_not_found` — the same answer as a record that does not
+exist, because "it exists but you may not see it" describes a table to somebody
+who may not read it. A create is checked the other way round: the record being
+stored must satisfy the same condition, and a field the record does not carry
+makes the condition unknown, which refuses with `rest.constraint_unsatisfied`.
+
+The constraints merge like every other layer, after the resource's defaults and
+after the client's parameters, and `resource.MergeParams` only narrows: a filter
+conjoins, a projection intersects, a page size shrinks. So a default can be
+overridden by a request, and a policy's condition cannot.
+
+A condition that must never move is a field the schema marks unwritable: the write
+mask refuses it on every adapter, which is what stops a patch from re-parenting a
+record out of the scope it was granted. The condition is answered by the same
+`WHERE` clause as the key, about the row as it stands — the framework does not
+guess what a patch is about to do to it.
 
 ## What this package deliberately does not do
 
@@ -108,8 +160,13 @@ action, including `destroy`, and returns constraints rather than a yes/no.
 - **No composite keys in a path.** One segment names one value. `Routes` refuses
   a collection whose primary key has several fields instead of addressing half a
   record.
-- **No authorization.** It offers the seam and stays out of the decision; the
-  policy layer owns that.
+- **No authentication.** It does not know who is calling: no identity, no roles,
+  no sessions. What it owns is the shape of an answer — a decision that carries
+  constraints, a default of refusal, and a condition that reaches storage.
+- **No second authorization pass over the record.** A policy answers before the
+  request runs, from the context and the action. A "fetch, then ask again" hook
+  would be a decision that can contradict the first one, and the condition the
+  first one returned is already what selects the record.
 - **No cursor pagination, no association expansion.** Both are `resource`
   decisions first; this package will not invent a spelling for them.
 - **No middleware option.** Middleware belongs to whatever mounts the route. An

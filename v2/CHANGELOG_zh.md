@@ -45,9 +45,29 @@
   问题。请求体以 `UseNumber` 解码，超过 2^53 的整数原样到达；字段先按 schema 校验
   名称与类型，再按写入掩码检查，掩码之外是 403 而不是丢弃。列限制对每个回答都成立：
   写入返回的是投影后的记录，聚合被限制的列返回 `rest.aggregate_field_not_allowed`
-  ——求和或分组一个列，泄露的正是列出它所能泄露的东西。`rest.WithLayer` 是鉴权
-  接入的接缝：层拿到上下文与动作（含 `destroy`），返回约束，由 `MergeParams` 保证
-  客户端的参数无法放宽它。
+  ——求和或分组一个列，泄露的正是列出它所能泄露的东西。
+- 新增 `rest.WithPolicy`：集合用来说明「谁能用」，什么也不说就挂不上。策略答一个
+  `rest.Decision`——`rest.Allow(params)` 或 `rest.Deny(reason)`——而 `Decision` 的
+  零值是拒绝，所以没写完的策略、漏了分支的 `switch`、从没被填过的值都等于「不行」。
+  装上策略就是关上了门：没有任何策略授予的动作返回 `rest.action_not_allowed`；
+  多个策略是多个权威，必须全部放行（求并会让一个权威推翻另一个的拒绝）；策略返回
+  错误时请求以错误本身停下，而不是把一次故障伪装成 403。另一个答案是
+  `rest.WithOpenAccess()`——所有人、所有事。两样都不给（`rest.access_required`）
+  或两样都给（`rest.access_conflict`）的集合会被 `Routes` 拒绝，因为「默认全放行」
+  是个没人做过的决定。`rest.WithLayer` 被删除：层只能收窄、不能拒绝，同一个函数
+  现在返回一个决定。
+- 策略的条件能到达单条记录，不只是列表。`resource.Repository` 的 `Get`、`Update`、
+  `Destroy` 收一个 `resource.Scope`——主键加上调用方被授予的条件——并把两者作为
+  同一条语句执行，因为「先查再检查」中间有一个窗口，窗口里那一行可以变。被条件
+  排除的记录答 `resource.record_not_found`，与记录不存在同一个答案，否则客户端可以
+  一个一个标识符地枚举它看不到的行；那里的 403 等于承认这行存在。create 反过来
+  校验：要存下的记录必须满足同一个条件，而记录没带的字段会让条件变成未知，于是以
+  `rest.constraint_unsatisfied` 拒绝，而不是存下一条在这个接口里永远读不出来的行。
+  `resource/memory` 与 `microgen -resource` 产出的存储都用 `WHERE` 回答 scope，
+  生成项目的门禁在同一个进程里对同一张表同时驱动类型化端点与资源面。不能变的条件
+  就是 schema 标成不可写的字段：写掩码在每个适配器上都会拒绝它，把记录搬出被授予
+  范围的动作就是在这里被挡住的。生成项目的 `cmd/main.go` 现在用 `resourceAccess()`
+  把决定写出来——开放访问，并附一句说明——而不是留成一个没人传的选项。
 - `kit` 现在可以用模块装配。`kit.WithModules` 接受实现了 `kit.Module` 的值：
   `Register` 对全体模块先跑完，`Init` 才按 `Requires` 的依赖顺序逐个执行，
   两次都由 `Run` 用同一个上下文驱动，因此初始化可以被取消，失败时任何监听器都

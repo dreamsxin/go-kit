@@ -43,6 +43,7 @@ generated source.
 | expose or call HTTP | [transport README](transport/README.md) |
 | call a generated service | [microgen guide](MICROGEN.md), [Routing](docs/routing.md) |
 | query a table by filter, sort and page | [resource README](resource/README.md), [REST binding](resource/rest/README.md) |
+| decide who may use a resource surface | [REST binding](resource/rest/README.md#who-may-use-it) |
 | add gRPC | [transport README](transport/README.md), [gRPC README](integrations/grpc/README.md) |
 | add a custom body or protocol | [Custom transports](docs/custom-transport.md), [transport README](transport/README.md) |
 | customize errors and envelopes | [Error handling](docs/errors.md), [Customization](docs/customization.md) |
