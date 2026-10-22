@@ -55,6 +55,7 @@ var transportContracts = map[string]struct {
 	"ModuleDependencies": {false, "ordering between modules in main; no transport has a module it must start after"},
 	"ModuleRegistrar":    {false, "the Host's first startup phase: a transport publishes nothing into the registry"},
 	"ModuleInitializer":  {false, "the Host's second startup phase: a transport is started by Host.Start, not by module Init"},
+	"ModuleShutdowner":   {false, "the Host's teardown phase, and its counterpart to Init: a transport releases what it holds in Shutdown, where the grace period is"},
 }
 
 func TestEveryKitContractIsClassifiedForBothTransports(t *testing.T) {

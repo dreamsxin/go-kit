@@ -2,6 +2,7 @@ package kit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -16,10 +17,10 @@ import (
 // not a dynamic plugin: the set is fixed when the Host is built, and every
 // module is a Go value the application compiled in.
 //
-// A module may also implement ModuleRegistrar, ModuleInitializer and
-// ModuleDependencies. An empty name, a duplicated name, a requirement on a
-// module that was not attached, and a dependency cycle are all rejected by
-// NewHost, before anything runs.
+// A module may also implement ModuleRegistrar, ModuleInitializer,
+// ModuleShutdowner and ModuleDependencies. An empty name, a duplicated name, a
+// requirement on a module that was not attached, and a dependency cycle are all
+// rejected by NewHost, before anything runs.
 type Module interface {
 	Name() string
 }
@@ -52,6 +53,25 @@ type ModuleRegistrar interface {
 // process in a state its handlers were not written for.
 type ModuleInitializer interface {
 	Init(context.Context, *Registry) error
+}
+
+// ModuleShutdowner is implemented by modules that acquire something which has
+// to be released — a connection pool, a lease, a file handle, a watcher.
+//
+// Shutdown runs after every lifecycle component has stopped, in reverse
+// initialization order. That ordering is the reason this interface exists at
+// all: handlers read the values modules published, so releasing a pool before
+// the server stops would fail the requests the drain was still finishing.
+//
+// Teardown mirrors initialization: a module with no Init phase acquired nothing,
+// one whose Init failed never claimed to hold anything, and one that did
+// initialize is released at most once however the process got here — a failed
+// Init, a failed Start, or a cancelled Run.
+//
+// An error is joined into the Host's result and does not stop the modules behind
+// it: whatever else acquired something still has to let go.
+type ModuleShutdowner interface {
+	Shutdown(context.Context, *Registry) error
 }
 
 // Registry holds the values modules publish during startup.
@@ -183,6 +203,22 @@ func WithModules(modules ...Module) HostOption {
 	}
 }
 
+// Registry returns the values the attached modules published.
+//
+// It is the other half of WithModules. A module can open a connection and
+// publish it, but the code that registers routes runs in main, outside any
+// module, and it needs the handle: without this accessor a published value is
+// only reachable by another module, which makes publication a private
+// conversation rather than a contract.
+//
+// Read it after Init. Before that the registry exists but is empty — a lookup
+// there reports a missing value, which is the answer to "I did not initialize
+// yet" that a caller can act on, rather than a nil dereference.
+//
+// Stable: kit.registry-is-readable — the values modules publish are readable by the assembling application through the Host's registry, not only by other modules.
+// Covered by: TestPublishedValueReachesTheAssemblingApplication
+func (h *Host) Registry() *Registry { return h.registry }
+
 // Init runs the two phases modules are attached for: every Register, then
 // every Init, both in dependency order.
 //
@@ -217,11 +253,12 @@ func (h *Host) Init(ctx context.Context) error {
 
 	// Module code runs without the diagnostic lock held: a module that reports
 	// progress through the Host would otherwise deadlock against its own startup.
-	initErr := h.initializeModules(ctx)
+	initialized, initErr := h.initializeModules(ctx)
 
 	h.mu.Lock()
 	h.initDone = true
 	h.initErr = initErr
+	h.initialized = initialized
 	h.mu.Unlock()
 	return initErr
 }
@@ -229,32 +266,72 @@ func (h *Host) Init(ctx context.Context) error {
 // initializeModules is the two-phase startup. It is called with initMu held and
 // runs module code without holding the diagnostic lock, so a module that calls
 // back into Host state cannot deadlock.
-func (h *Host) initializeModules(ctx context.Context) error {
+//
+// It returns the modules that finished Init, in initialization order, because
+// that is the set teardown has to walk backwards. A module whose Register ran and
+// whose Init failed is not in the list: it never claimed to hold anything.
+func (h *Host) initializeModules(ctx context.Context) ([]int, error) {
 	for _, index := range h.moduleOrder {
 		registrar, ok := h.modules[index].(ModuleRegistrar)
 		if !ok {
 			continue
 		}
 		if err := registrar.Register(h.registry); err != nil {
-			return fmt.Errorf("kit: register module %s: %w", h.modules[index].Name(), err)
+			return nil, fmt.Errorf("kit: register module %s: %w", h.modules[index].Name(), err)
 		}
 	}
+	initialized := make([]int, 0, len(h.moduleOrder))
 	for _, index := range h.moduleOrder {
 		initializer, ok := h.modules[index].(ModuleInitializer)
 		if !ok {
 			continue
 		}
 		if err := initializer.Init(ctx, h.registry); err != nil {
-			return fmt.Errorf("kit: initialize module %s: %w", h.modules[index].Name(), err)
+			return initialized, fmt.Errorf("kit: initialize module %s: %w", h.modules[index].Name(), err)
+		}
+		initialized = append(initialized, index)
+	}
+	return initialized, nil
+}
+
+// shutdownModules releases what the modules acquired, in reverse initialization
+// order. It runs once: the paths that reach it — a cancelled Run, a failed
+// startup, an explicit Shutdown — must not hand a pool back twice.
+func (h *Host) shutdownModules(ctx context.Context) error {
+	h.mu.Lock()
+	if h.modulesShutdown || len(h.initialized) == 0 {
+		h.modulesShutdown = true
+		h.mu.Unlock()
+		return nil
+	}
+	h.modulesShutdown = true
+	h.stopped = true
+	order := append([]int(nil), h.initialized...)
+	h.mu.Unlock()
+
+	var result error
+	for i := len(order) - 1; i >= 0; i-- {
+		index := order[i]
+		shutdowner, ok := h.modules[index].(ModuleShutdowner)
+		if !ok {
+			continue
+		}
+		if err := shutdowner.Shutdown(ctx, h.registry); err != nil {
+			result = errors.Join(result, fmt.Errorf("kit: shut down module %s: %w", h.modules[index].Name(), err))
 		}
 	}
-	return nil
+	return result
 }
 
 // initModules validates the module graph and prepares the registry. Errors
 // here are reported by NewHost, because a graph that cannot be ordered is a
 // build-time mistake that must not reach a listener.
+//
+// The registry is created whether or not modules are attached: Register,
+// Init and Shutdown all receive one, and Registry() answers the caller that
+// assembles the process. A nil registry would make each of those a special case.
 func (h *Host) initModules() error {
+	h.registry = NewRegistry()
 	if len(h.modules) == 0 {
 		return nil
 	}
@@ -263,7 +340,6 @@ func (h *Host) initModules() error {
 		return err
 	}
 	h.moduleOrder = order
-	h.registry = NewRegistry()
 	return nil
 }
 

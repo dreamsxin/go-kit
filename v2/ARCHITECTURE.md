@@ -274,6 +274,16 @@ The order depends on the module set and not on declaration order: modules that
 require nothing are ordered by name. An invalid graph (unnamed, duplicated,
 unknown requirement, cycle) is rejected by `NewHost`.
 
+A module that opens something implements `kit.ModuleShutdowner`. `Host.Shutdown`
+stops every component first and then releases the modules in reverse
+initialization order, because handlers read what the modules published: a pool
+closed before the listener stops fails the requests the drain was still finishing.
+A module whose `Init` never ran is not released, and a module is released at most
+once whatever path the process took to get here. `Host.Registry()` is how the
+assembling code reads what the modules published — the route registration in
+`main` runs outside any module, and without that accessor a published value is
+only addressable by another module.
+
 Components may implement `kit.NamedLifecycle` to attach a stable name to
 startup, asynchronous failure, and shutdown diagnostics, `kit.ReadinessProvider`
 to bridge asynchronous warm-up into the `/readyz` and `/health` readiness checks,

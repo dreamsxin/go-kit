@@ -1277,7 +1277,7 @@ func (h *HTTP) Drain(context.Context) error
 func (h *HTTP) Errors() <-chan error
 func (h *HTTP) Group(prefix string) *Group
 func (h *HTTP) Handle(pattern string, handler http.Handler)
-func (h *HTTP) HandleFunc(pattern string, fn http.HandlerFunc)
+func (h *HTTP) HandleFunc(pattern string, fn func(http.ResponseWriter, *http.Request))
 func (h *HTTP) Name() string
 func (h *HTTP) Probes() *health.Registry
 func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request)
@@ -1302,6 +1302,7 @@ func (h *Host) Drain(ctx context.Context) error
 func (h *Host) Draining() bool
 func (h *Host) Errors() <-chan error
 func (h *Host) Init(ctx context.Context) error
+func (h *Host) Registry() *Registry
 func (h *Host) Run(ctx context.Context) error
 func (h *Host) Shutdown(ctx context.Context) error
 func (h *Host) Start() error
@@ -1327,6 +1328,9 @@ type ModuleInitializer interface {
 }
 type ModuleRegistrar interface {
 	Register(*Registry) error
+}
+type ModuleShutdowner interface {
+	Shutdown(context.Context, *Registry) error
 }
 type NamedLifecycle interface {
 	Lifecycle

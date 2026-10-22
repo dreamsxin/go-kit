@@ -7,8 +7,8 @@ import (
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 
 {{- if .WithDB}}
-	"gorm.io/gorm"
 	"{{.ImportPath}}/model"
+	"{{.ImportPath}}/repository"
 {{- end}}
 {{- if .WithGRPC}}
 	"google.golang.org/grpc"
@@ -41,7 +41,12 @@ func (rt generatedRuntime) registerRoutes(r httpserver.RouteRegistrar) {
 
 
 {{- if .WithDB}}
-func (rt generatedRuntime) autoMigrate(db *gorm.DB) error {
+// autoMigrate brings the generated tables in line with the models.
+//
+// It takes the same handle the repositories use, so the migration and the queries
+// it prepares cannot be pointed at two different databases — which is what two
+// connection strings in one process looks like when it goes wrong.
+func (rt generatedRuntime) autoMigrate(db *repository.DB) error {
 	if db == nil {
 		return nil
 	}

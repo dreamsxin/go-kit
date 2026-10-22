@@ -712,10 +712,14 @@ func TestGenerateFull_MainFile_HTTPOnly(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
+	// The entry point builds components and hands them to a Host instead of
+	// opening a listener itself: one lifecycle for the process, not two.
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	mustContain(t, mainPath, "http.addr")
-	mustContain(t, mainPath, `net.Listen("tcp", *httpAddr)`)
-	mustContain(t, mainPath, "httpServer.Serve(httpListener)")
+	mustContain(t, mainPath, "kit.NewHTTP(*httpAddr")
+	mustContain(t, mainPath, "kit.WithLifecycle(components...)")
+	mustContain(t, mainPath, "host.Run(runContext)")
+	mustNotContain(t, mainPath, "&http.Server{")
 	mustNotContain(t, mainPath, `r.HandleFunc("GET /debug/routes"`)
 }
 
@@ -736,10 +740,15 @@ func TestGenerateFull_MainFile_WithGRPC(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
+	// The gRPC listener is the framework's component, registered on the same Host
+	// as the HTTP one, so the health service, the drain announcement and the
+	// graceful stop are not written out here a second time.
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
 	mustContain(t, mainPath, "grpc.addr")
-	mustContain(t, mainPath, "grpcStopped := make(chan struct{})")
-	mustContain(t, mainPath, "grpcServer.Stop()")
+	mustContain(t, mainPath, "kitgrpc.New(*grpcAddr")
+	mustContain(t, mainPath, "runtime.registerGRPCServices(grpcComponent.Server())")
+	mustNotContain(t, mainPath, "grpc.GracefulStop()")
+	mustNotContain(t, mainPath, "healthpb.RegisterHealthServer")
 }
 
 func TestGenerateFull_MainFile_WithDB(t *testing.T) {
@@ -759,13 +768,17 @@ func TestGenerateFull_MainFile_WithDB(t *testing.T) {
 		t.Fatalf("GenerateIR: %v", err)
 	}
 
+	// The connection is a module: it opens in Init, publishes its handle, and is
+	// closed in Shutdown, which the Host runs after every component has stopped.
 	mainPath := filepath.Join(outDir, "cmd", "main.go")
-	mustContain(t, mainPath, "gorm.Open")
+	mustContain(t, mainPath, "gorm.Open(mysql.Open(m.dsn)")
 	mustContain(t, mainPath, "db.dsn")
 	mustContain(t, mainPath, "auto-migrate")
 	mustContain(t, mainPath, "database migration skipped")
-	mustContain(t, mainPath, "redactDSN(*dsn)")
-	mustContain(t, mainPath, "defer sqlDB.Close()")
+	mustContain(t, mainPath, "redactDSN(m.dsn)")
+	mustContain(t, mainPath, "func (m *databaseModule) Shutdown(")
+	mustContain(t, mainPath, "m.pool.Close()")
+	mustContain(t, mainPath, "kit.Get[*repository.DB](host.Registry(), databaseRegistryKey)")
 	mustContain(t, mainPath, "func redactDSN(dsn string) string")
 	mustNotContain(t, mainPath, `dsn=%s]", "mysql", *dsn`)
 }

@@ -543,6 +543,26 @@ svc, err := kit.NewHTTP(*httpAddr,
 )
 ```
 
+That component is a lifecycle component, and the generated `cmd/main.go` hands it
+to a `kit.Host` along with the database module — so startup and shutdown are the
+framework's sequence, not a second copy of it:
+
+```go
+host, err := kit.NewHost(
+	kit.WithLifecycle(api),                                  // + kitgrpc.Component when grpc is on
+	kit.WithDrainDelay(cfg.Server.DrainDelay),
+	kit.WithShutdownTimeout(cfg.Server.GracefulShutdownTimeout),
+	kit.WithModules(database),                               // opens the pool in Init
+)
+```
+
+`host.Init` opens what the modules own before a listener binds; `host.Run` binds,
+serves, and on a signal fails readiness, waits the drain delay, and stops each
+component with a share of the budget. Adding your own component (a worker, a queue
+consumer) is one more `kit.WithLifecycle` value; adding a resource is a module
+implementing `kit.ModuleInitializer` and `kit.ModuleShutdowner`, whose published
+handle `main` reads back through `host.Registry()`.
+
 A failing readiness check turns `/readyz` to 503, which is what a load
 balancer removes the instance on. See [observability](docs/observability.md)
 for logs, traces, and the cardinality rules, and [service

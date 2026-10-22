@@ -1,14 +1,19 @@
 package main
 
-import "net/http"
+import httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 
 // registerCustomRoutes is the user-owned hook for project-specific HTTP routes.
 // Add handlers here; microgen will not overwrite this file on rerun.
 //
-// The hook is standard-library only: registrations write directly to the mux.
+// The hook takes the HTTP component's registrar, so a custom route is served,
+// recorded, and drained exactly like a generated one — and a pattern that collides
+// with a generated route fails at startup instead of being shadowed silently.
+// Standard-library handlers are all it needs: Handle and HandleFunc are the same
+// two methods a *http.ServeMux offers.
+//
 // To surface custom routes in /debug/routes and the startup route listing,
 // describe them in customRouteDescriptions.
-func registerCustomRoutes(r *http.ServeMux) {
+func registerCustomRoutes(r httpserver.RouteRegistrar) {
 	_ = r
 }
 

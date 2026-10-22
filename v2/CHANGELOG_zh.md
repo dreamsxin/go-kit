@@ -6,6 +6,18 @@
 
 ### 变更
 
+- 生成项目跑在一个生命周期上。`cmd/main.go` 构造一个 `kit.HTTP` 组件与一个
+  `kitgrpc.Component`，把数据库作为实现 `Init` 与 `Shutdown` 的模块挂上，然后
+  调用 `Host.Run`。从这里开始顺序是框架的：先让就绪失败，再按配置的 drain 延迟
+  把进程留够时间让路由层察觉，最后每个组件分到一段停机预算。被替换掉的，是同一
+  套顺序的手写副本——自己的 `&http.Server{}`、自己的就绪标志与探针处理器、自己
+  的 TLS 重载（与 `kit.CertificateFiles` 重复）、自己的 gRPC health 服务与优雅
+  停止——而副本正是两种行为开始分叉的地方。生成的路由注册到组件上，所以按路由
+  的指标来自 `kit.WithHTTPRecorder` 而不是 `DecorateRoutes` 包装；
+  `registerCustomRoutes` 收 `httpserver.RouteRegistrar` 而不是 `*http.ServeMux`，
+  这才让自定义路由与生成路由的冲突在启动时暴露，而不是被静默遮蔽。探针与 gRPC
+  health 服务都答框架的探针注册表，因此 `/readyz` 在进程宣告停止的那一刻就报出
+  正在 drain。
 - 新增 `resource` 包：资源路由的查询词汇。过滤条件是一个可序列化的树
   （`resource.Filter`），不是交给数据库驱动的字符串——因为字符串无法被权限层
   收窄、无法在审计日志里比对、也无法从缺陷报告重放。`ParseFilter` 接受客户端
@@ -169,6 +181,18 @@
   `-db=false`，启动二进制只为读 `/health`；这是生成的 gorm 层、生成的分页窗口，
   以及「唯一约束冲突 → 409」那条 `errors.Is` 分支第一次一起运行。它第一次跑
   就抓到了下面这个内省缺口。
+- 模块现在既可以被读取，也可以被收尾。`kit.Host.Registry()` 返回模块发布的值，
+  `main` 里注册路由的那部分代码正是靠它拿到模块打开的句柄；在此之前 `Provide`
+  出去的值只有另一个模块能取到，发布因此是一场私下对话而不是一份契约。
+  `kit.ModuleShutdowner` 是 `Init` 的另一端：`Host.Shutdown` 先停掉所有组件，
+  再按初始化的逆序释放模块——处理器读的是模块发布的值，在监听器停下之前关掉
+  连接池，失败的是 drain 还在收尾的那些请求。没有初始化过的模块不会被释放，
+  第二次 `Shutdown` 不会重复释放，`Run` 在 `Init` 阶段失败时也会把已经初始化
+  的部分释放掉，而不是留给进程退出。
+- `kit.HTTP.HandleFunc` 改收 `func(http.ResponseWriter, *http.Request)` 而不是
+  `http.HandlerFunc`——具名函数类型与它的底层类型在接口满足上是两个类型，改了
+  之后组件才是一个 `httpserver.RouteRegistrar`。调用方不受影响，因为两者可赋值；
+  变化在于生成的装配可以把组件本身交给路由注册函数。
 
 ### 修复
 

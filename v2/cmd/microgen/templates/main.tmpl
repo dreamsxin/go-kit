@@ -3,52 +3,79 @@
 package main
 
 import (
+{{- if .WithDB}}
+	"database/sql"
+{{- end}}
 	"context"
-{{if .WithConfig}}	"crypto/tls"
+{{- if .WithConfig}}
+	"crypto/tls"
 	"encoding/json"
-{{end}}
-
+{{- end}}
 	"flag"
+{{- if or .WithConfig .WithDB}}
 	"fmt"
+{{- end}}
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
-{{if .WithConfig}}	"strings"
-	"sync"
-{{end}}	"sync/atomic"
-
+	"strings"
 	"syscall"
 	"time"
 
-{{if .WithGRPC}}	"google.golang.org/grpc"
-	"google.golang.org/grpc/health"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-	transportgrpc "github.com/dreamsxin/go-kit/v2/integrations/grpc"
-{{end}}{{if and .WithGRPC .WithConfig}}	"google.golang.org/grpc/credentials"
+	"github.com/dreamsxin/go-kit/v2/kit"
+{{- if .WithGRPC}}
+	kitgrpc "github.com/dreamsxin/go-kit/v2/kit/grpc"
+{{- end}}
+{{- if .WithInteraction}}
+	"github.com/dreamsxin/go-kit/v2/interaction/mcp"
+{{- end}}
+{{- if .WithConfig}}
+	"github.com/dreamsxin/go-kit/v2/endpoint"
+{{- if and .WithGRPC .WithConfig}}
 	grpcserver "github.com/dreamsxin/go-kit/v2/integrations/grpc/server"
-	metricsgrpc "github.com/dreamsxin/go-kit/v2/observability/metrics/grpc"
-{{end}}
-
-{{if .WithDB}}	"{{.DBImportPkg}}"
-	"gorm.io/gorm"
-	"{{$.ImportPath}}/repository"
-{{end}}
-{{if .WithOpenAPI}}	swaggerUI "github.com/swaggest/swgui/v5"
-	docs "{{$.ImportPath}}/docs"
-{{end}}{{if .WithInteraction}}	"github.com/dreamsxin/go-kit/v2/interaction/mcp"
-{{end}}{{if .WithResource}}	kitrest "github.com/dreamsxin/go-kit/v2/resource/rest"
-{{end}}{{if .WithConfig}}	"github.com/dreamsxin/go-kit/v2/endpoint"
+{{- end}}
 	"github.com/dreamsxin/go-kit/v2/observability/metrics"
-{{end}}	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
-{{if .WithConfig}}	"{{$.ImportPath}}/config"
-{{end}})
+{{- if and .WithGRPC .WithConfig}}
+	metricsgrpc "github.com/dreamsxin/go-kit/v2/observability/metrics/grpc"
+{{- end}}
+{{- end}}
+{{- if .WithResource}}
+	kitrest "github.com/dreamsxin/go-kit/v2/resource/rest"
+{{- end}}
+{{- if .WithDB}}
+	"{{.DBImportPkg}}"
+	"gorm.io/gorm"
+{{- end}}
+{{- if .WithGRPC}}
+	"google.golang.org/grpc"
+{{- if .WithConfig}}
+	"google.golang.org/grpc/credentials"
+{{- end}}
+{{- end}}
+{{- if .WithOpenAPI}}
+	swaggerUI "github.com/swaggest/swgui/v5"
+{{- end}}
+{{- if .WithConfig}}
+	"{{.ImportPath}}/config"
+{{- end}}
+{{- if .WithDB}}
+	"{{.ImportPath}}/repository"
+{{- end}}
+{{- if .WithOpenAPI}}
+	docs "{{.ImportPath}}/docs"
+{{- end}}
+)
 
 
 func printBanner(logger *slog.Logger, httpAddr string, scheme string{{if .WithGRPC}}, grpcAddr string{{end}}, withOpenAPI bool{{if .WithInteraction}}, withInteraction bool{{end}}) {
-	base := scheme + "://localhost" + httpAddr
-	logger.Info("service started", "service", "{{range .Project.Services}}{{.Name}} {{end}}", "http", base)
+	// An address that is only a port (":8080") needs a host to become a URL; one
+	// that already names an interface is used as given.
+	base := scheme + "://" + httpAddr
+	if strings.HasPrefix(httpAddr, ":") {
+		base = scheme + "://localhost" + httpAddr
+	}
+	logger.Info("starting service", "service", "{{range .Project.Services}}{{.Name}} {{end}}", "http", base)
 	if withOpenAPI {
 		logger.Info("API documentation", "openapi", base+"/openapi.json", "schema", base+"/schema.json", "ui", base+"/swagger/")
 	}
@@ -57,6 +84,23 @@ func printBanner(logger *slog.Logger, httpAddr string, scheme string{{if .WithGR
 	}
 {{end}}{{if .WithGRPC}}	logger.Info("gRPC enabled", "address", grpcAddr)
 {{end}}	logger.Info("press Ctrl+C to stop")
+}
+
+
+// requestLogger writes one line per request.
+//
+// It is standard-library middleware installed through the component, which wraps
+// every route it serves — generated endpoints, custom handlers, and the probes.
+// How a deployment logs is not the framework's decision, so the shape of the line
+// lives here.
+func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			next.ServeHTTP(w, r)
+			logger.Info("HTTP request", "method", r.Method, "path", r.URL.Path, "duration", time.Since(start))
+		})
+	}
 }
 
 
@@ -95,7 +139,15 @@ func printAllRoutes(logger *slog.Logger, routes []generatedRouteEntry) {
 	return slog.New(handler), nil
 }
 
-{{end}}
+{{end}}// main assembles one process around one lifecycle.
+//
+// Every listener is a kit component, and the Host owns the sequence they run in:
+// startup binds or the process exits, readiness fails before anything is torn
+// down, the drain delay holds the process open while whatever routes traffic
+// notices, and each component then gets a share of the shutdown budget. That
+// sequence used to be written out here by hand, which is how a generated service
+// ended up with a second copy of a lifecycle the framework already owned — and
+// with two of them drifting apart.
 func main() {
 {{if .WithConfig}}	configPath := flag.String("config", "config/config.yaml", "path to config file")
 	flag.CommandLine.Parse(filterArgs(os.Args[1:], "-config"))
@@ -135,74 +187,174 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 {{end}}
+	// Signals belong to main. The Host is told to stop by cancelling this context
+	// and installs no handlers of its own, which is what keeps "what does Ctrl+C
+	// mean" in one place instead of split between a framework and an entry point.
+	// Module initialization uses the same context, so a pool that cannot connect is
+	// cancelled with the process rather than outliving it.
+	runContext, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignals()
 
-{{if .WithDB}}	db, err := gorm.Open({{.DBOpenCall}}, &gorm.Config{TranslateError: true})
-	if err != nil {
-		panic(fmt.Sprintf("FATAL: connect database failed: %v", err))
+	httpOptions := []kit.Option{
+		// A request ID is minted or adopted for every request, so a log line and a
+		// client's report can be joined.
+		kit.WithRequestID(),
+		kit.WithHTTPMiddleware(requestLogger(logger)),
+		kit.WithHTTPServerConfig(kit.HTTPServerConfig{
+{{- if .WithConfig}}
+			ReadTimeout:       cfg.Server.ReadTimeout,
+			ReadHeaderTimeout: cfg.Server.ReadHeaderTimeout,
+			WriteTimeout:      cfg.Server.WriteTimeout,
+{{- else}}
+			ReadTimeout:       15 * time.Second,
+			ReadHeaderTimeout: 5 * time.Second,
+{{- end}}
+			// Streaming-safe: no write deadline, so a long response is bounded by its
+			// own context rather than by the listener.
+			IdleTimeout:    60 * time.Second,
+			MaxHeaderBytes: 1 << 20,
+		}),
 	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		panic(fmt.Sprintf("FATAL: get database handle failed: %v", err))
+
+{{if .WithConfig}}
+	// TLS, when the deployment asked this process to terminate it. The pair is
+	// loaded before anything is served, so a wrong path or a mismatched key stops
+	// startup with the path in the message instead of becoming a handshake error in
+	// somebody else's client log.
+	//
+	// kit.CertificateFiles is what makes a renewal a signal rather than a deploy:
+	// the handshake asks it for the current pair, and SIGHUP tells it to re-read.
+	// Everything past a minimum version — cipher suites, client certificates — is
+	// policy; see PRODUCTION.md before choosing to terminate here at all.
+	var (
+		certificates *kit.CertificateFiles
+		tlsConfig    *tls.Config
+	)
+	if cfg.Server.TLSCertFile != "" {
+		loaded, certErr := kit.NewCertificateFiles(cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile)
+		if certErr != nil {
+			logger.Error("load tls certificate", "error", certErr)
+			os.Exit(1)
+		}
+		certificates = loaded
+		tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: certificates.Certificate}
+		httpOptions = append(httpOptions, kit.WithTLSConfig(tlsConfig))
 	}
-	defer sqlDB.Close() //nolint:errcheck
-{{if .WithConfig}}	sqlDB.SetMaxOpenConns(cfg.Database.MaxOpenConns)
-	sqlDB.SetMaxIdleConns(cfg.Database.MaxIdleConns)
-	sqlDB.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
-{{else}}	sqlDB.SetMaxOpenConns(20)
-	sqlDB.SetMaxIdleConns(5)
-	sqlDB.SetConnMaxLifetime(time.Hour)
-{{end}}
-	logger.Info("database connected", "driver", "{{.DBDriver}}", "dsn", redactDSN(*dsn))
 
-	repoDB := repository.NewDB(db)
+	// Per-route metrics, when the deployment asked for an endpoint to scrape. The
+	// component records each route under its own pattern, which is only possible at
+	// registration — middleware wrapped around a mux would record every request
+	// with an empty route. The probe routes are deliberately not recorded:
+	// orchestrator traffic is not application traffic.
+	var metricsCollector *endpoint.Metrics
+	if cfg.Server.MetricsPath != "" {
+		metricsCollector = &endpoint.Metrics{}
+		httpOptions = append(httpOptions, kit.WithHTTPRecorder(metrics.HTTPRecorder(metricsCollector)))
+	}
 {{end}}
 
+	api, err := kit.NewHTTP(*httpAddr, httpOptions...)
+	if err != nil {
+		logger.Error("http component", "error", err)
+		os.Exit(1)
+	}
+
+	components := []kit.Lifecycle{api}
+{{if .WithInteraction}}	// Attached after the HTTP component, because Shutdown runs in reverse
+	// attachment order: closing the MCP sessions is what lets the HTTP drain finish
+	// instead of spending its whole budget waiting for an open stream.
+	sessions := &sessionCloser{}
+	components = append(components, sessions)
+{{end}}{{if .WithGRPC}}	// The gRPC listener is a component too. It answers the same operational
+	// questions the HTTP one does — the standard health service reports the same
+	// readiness, and a stream is told when the process is going away — so both
+	// servers run under one startup and one stop sequence.
+	var grpcOptions []grpc.ServerOption
+{{if .WithConfig}}	if tlsConfig != nil {
+		grpcOptions = append(grpcOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
+	}
+	if metricsCollector != nil {
+		// The label is the full method name, which the service definition bounds.
+		grpcOptions = append(grpcOptions,
+			grpc.ChainUnaryInterceptor(grpcserver.RecordingUnaryInterceptor(metricsgrpc.Recorder(metricsCollector))),
+			grpc.ChainStreamInterceptor(grpcserver.RecordingStreamInterceptor(metricsgrpc.Recorder(metricsCollector))),
+		)
+	}
+{{end}}	grpcComponent, err := kitgrpc.New(*grpcAddr, grpcOptions...)
+	if err != nil {
+		logger.Error("grpc component", "error", err)
+		os.Exit(1)
+	}
+	components = append(components, grpcComponent)
+{{end}}
+{{if .WithConfig}}	drainDelay := cfg.Server.DrainDelay
+	shutdownTimeout := cfg.Server.GracefulShutdownTimeout
+{{else}}	drainDelay := time.Duration(0)
+	shutdownTimeout := 30 * time.Second
+{{end}}
+	hostOptions := []kit.HostOption{
+		kit.WithLifecycle(components...),
+		// The order these two configure is the whole point of the Host: readiness
+		// fails, the process waits long enough for whatever routes traffic to
+		// notice, and only then does anything stop.
+		kit.WithDrainDelay(drainDelay),
+		kit.WithShutdownTimeout(shutdownTimeout),
+	}
+{{if .WithDB}}	database := &databaseModule{
+		dsn:    *dsn,
+		logger: logger,
+{{if .WithConfig}}		maxOpenConns:    cfg.Database.MaxOpenConns,
+		maxIdleConns:    cfg.Database.MaxIdleConns,
+		connMaxLifetime: cfg.Database.ConnMaxLifetime,
+{{else}}		maxOpenConns:    20,
+		maxIdleConns:    5,
+		connMaxLifetime: time.Hour,
+{{end}}	}
+	hostOptions = append(hostOptions, kit.WithModules(database))
+{{end}}
+	host, err := kit.NewHost(hostOptions...)
+	if err != nil {
+		logger.Error("assemble host", "error", err)
+		os.Exit(1)
+	}
+
+	// Init runs before a listener binds, so a module that cannot open what it owns
+	// stops the process instead of surfacing as a 500 on the first request. Run
+	// initializes again, which is a no-op: this call is what lets the route
+	// registration below read the handles the modules published, and registration
+	// cannot wait until Run because Run blocks.
+	if err := host.Init(runContext); err != nil {
+		logger.Error("initialize", "error", err)
+		os.Exit(1)
+	}
+{{if .WithDB}}
+	// The handle comes back through the registry rather than a package-level
+	// variable: the module that opened the pool is the only thing that knows how,
+	// and this is the contract between them.
+	repoDB, err := kit.Get[*repository.DB](host.Registry(), databaseRegistryKey)
+	if err != nil {
+		logger.Error("read database handle", "error", err)
+		os.Exit(1)
+	}
+{{end}}
 {{if .WithDB}}	generated := initGeneratedServices(logger{{if .WithConfig}}, cfg{{end}}, repoDB)
 {{else}}	generated := initGeneratedServices(logger{{if .WithConfig}}, cfg{{end}})
 {{end}}	runtime := generated.generatedRuntime()
 
 {{if .WithInteraction}}	interactionRuntime := initInteractionRuntime(&generated)
 {{end}}
-
 {{if .WithDB}}	if {{if .WithConfig}}cfg.Database.AutoMigrate{{else}}*autoMigrate{{end}} {
-		if err := runtime.autoMigrate(db); err != nil {
-			panic(fmt.Sprintf("FATAL: auto migrate failed: %v", err))
+		if err := runtime.autoMigrate(repoDB); err != nil {
+			logger.Error("auto migrate", "error", err)
+			os.Exit(1)
 		}
 		logger.Info("database migration completed")
 	} else {
 		logger.Info("database migration skipped")
 	}
 {{end}}
-
-	var ready atomic.Bool
-	r := http.NewServeMux()
-
-	// Kubernetes-style probes, matching the routes kit.NewHTTP registers:
-	//   /livez  liveness  -- the process is up; restart the container if this fails
-	//   /readyz readiness -- the listeners are serving; take the pod out of the
-	//                        load balancer if this fails
-	//   /health both      -- the convenience route most tooling defaults to
-	// ready flips on once both listeners are up and off again at the first sign
-	// of shutdown, so a rolling deploy drains connections instead of dropping them.
-	healthHandler := func(requireReady bool) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			if requireReady && !ready.Load() {
-				w.WriteHeader(http.StatusServiceUnavailable)
-				fmt.Fprintln(w, `{"status":"not_ready","service":"{{range .Project.Services}}{{.Name}}{{end}}"}`)
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-			fmt.Fprintln(w, `{"status":"ok","service":"{{range .Project.Services}}{{.Name}}{{end}}"}`)
-		}
-	}
-	for pattern, requireReady := range map[string]bool{"/health": true, "/livez": false, "/readyz": true} {
-		handler := healthHandler(requireReady)
-		r.HandleFunc("GET "+pattern, handler)
-		r.HandleFunc("HEAD "+pattern, handler)
-	}
-
 {{if .WithInteraction}}	mcpHandler := mcp.NewStreamableHandler(interactionRuntime)
+	sessions.handler = mcpHandler
 	// A browser MCP client sends an Origin header, and an origin is only allowed
 	// when it is named here. The request's own Host is deliberately not trusted:
 	// it comes from the caller, so comparing Origin against it is what DNS
@@ -214,173 +366,49 @@ func main() {
 	// reverse proxy that overwrites it, or a network no browser can reach.
 	//
 	// Non-browser clients send no Origin and are served without any of this.
-	r.Handle("GET /mcp", mcpHandler)
-	r.Handle("POST /mcp", mcpHandler)
-	r.Handle("DELETE /mcp", mcpHandler)
+	api.Handle("GET /mcp", mcpHandler)
+	api.Handle("POST /mcp", mcpHandler)
+	api.Handle("DELETE /mcp", mcpHandler)
 {{end}}
-
-
-{{if .WithOpenAPI}}	r.HandleFunc("GET /openapi.json", docs.Handler)
-	r.HandleFunc("GET /schema.json", docs.SchemaHandler)
-	r.Handle("GET /swagger/", swaggerUI.New("{{range .Project.Services}}{{.Name}} {{end}}API", "/openapi.json", "/swagger/"))
+{{if .WithOpenAPI}}	api.HandleFunc("GET /openapi.json", docs.Handler)
+	api.HandleFunc("GET /schema.json", docs.SchemaHandler)
+	api.Handle("GET /swagger/", swaggerUI.New("{{range .Project.Services}}{{.Name}} {{end}}API", "/openapi.json", "/swagger/"))
 {{end}}
-
-	// Everything below registers through this value, so a decorator installed
-	// here covers every generated route — typed endpoints and resource routes
-	// alike — rather than only the ones that happen to be registered by name.
-	var routes httpserver.RouteRegistrar = r
-{{if .WithConfig}}	// Per-route metrics, when the deployment asked for an endpoint to scrape.
-	// Recording is installed at registration because that is the only place a
-	// handler and its route pattern are both in scope: middleware wrapped around
-	// the mux would record every request with an empty route.
-	var metricsCollector *endpoint.Metrics
-	if cfg.Server.MetricsPath != "" {
-		metricsCollector = &endpoint.Metrics{}
-
-		routes = httpserver.DecorateRoutes(r, httpserver.RecordingMiddleware(metrics.HTTPRecorder(metricsCollector)))
-		// Mounted on the mux directly, outside the decorator: a scrape reports on
-		// the service rather than on itself.
-		r.Handle("GET "+cfg.Server.MetricsPath, metrics.Handler(metricsCollector))
+{{if .WithConfig}}	if metricsCollector != nil {
+		// Mounted like any other route, on the same port: a scrape reports on the
+		// service rather than on itself, and putting it on a second listener is a
+		// deployment decision this file would only be guessing at.
+		api.Handle("GET "+cfg.Server.MetricsPath, metrics.Handler(metricsCollector))
 		logger.Info("metrics endpoint enabled", "path", cfg.Server.MetricsPath)
 	}
-{{end}}	runtime.registerRoutes(routes)
+{{end}}	// Everything below registers on the HTTP component, which is a
+	// httpserver.RouteRegistrar: a route added here is served, recorded, and
+	// drained like any other.
+	runtime.registerRoutes(api)
 {{if .WithResource}}	// The declarative surface: every generated table, addressed by the query
 	// vocabulary in the resource package instead of by one endpoint per
 	// operation. It mounts under its own prefix, because a collection named after
 	// its table would answer the pattern a typed endpoint already answers.
-	if err := registerResourceRoutes(routes, repoDB, "{{.ResourcePrefix}}", resourceAccess()...); err != nil {
+	if err := registerResourceRoutes(api, repoDB, "{{.ResourcePrefix}}", resourceAccess()...); err != nil {
 		logger.Error("resource routes", "error", err)
 		os.Exit(1)
 	}
-{{end}}	// Custom routes are registered on the mux itself: cmd/custom_routes.go is
-	// yours, and wrapping handlers you wrote is your call to make there.
-	registerCustomRoutes(r)
-
+{{end}}	registerCustomRoutes(api)
 
 {{if .WithConfig}}	if cfg.Debug.RoutesEnabled {
-		r.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		api.HandleFunc("GET /debug/routes", func(w http.ResponseWriter, req *http.Request) {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			_ = json.NewEncoder(w).Encode(generatedRouteEntries(runtime, {{if .WithOpenAPI}}true{{else}}false{{end}}, true{{if .WithInteraction}}, true{{end}}))
 		})
 	}
-{{end}}
 
-{{if .WithConfig}}	if cfg.Debug.PrintRoutes {
+	if cfg.Debug.PrintRoutes {
 		allRoutes := generatedRouteEntries(runtime, {{if .WithOpenAPI}}true{{else}}false{{end}}, cfg.Debug.RoutesEnabled{{if .WithInteraction}}, true{{end}})
 		printAllRoutes(logger, allRoutes)
 	}
 {{end}}
-
-	httpServer := &http.Server{
-		Addr:         *httpAddr,
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			start := time.Now()
-			r.ServeHTTP(w, req)
-			logger.Info("HTTP request", "method", req.Method, "path", req.URL.Path, "duration", time.Since(start))
-		}),
-{{if .WithConfig}}		ReadTimeout:  cfg.Server.ReadTimeout,
-		ReadHeaderTimeout: cfg.Server.ReadHeaderTimeout,
-		WriteTimeout: cfg.Server.WriteTimeout,
-{{else}}		ReadTimeout:       15 * time.Second,
-		ReadHeaderTimeout: 5 * time.Second,
-		WriteTimeout:      0,
-{{end}}		IdleTimeout:  60 * time.Second,
-	}
-	serverErr := make(chan error, 2)
-{{if .WithConfig}}	// TLS, when the deployment asked this process to terminate it. The pair is
-	// loaded before anything is served, so a wrong path or a mismatched key stops
-	// startup with the path in the message instead of becoming a handshake error in
-	// somebody else's client log. Everything past a minimum version — cipher
-	// suites, client certificates — is policy: build a tls.Config here if your
-	// deployment has requirements, and see PRODUCTION.md before choosing to
-	// terminate here at all.
-	//
-	// The certificate is asked for on every handshake, so a renewal is picked up by
-	// sending this process SIGHUP — no deploy, no restart. See reloadCertificates.
-	var certificates *certificateFiles
-	if cfg.Server.TLSCertFile != "" {
-		loaded, certErr := newCertificateFiles(cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile)
-		if certErr != nil {
-			panic(fmt.Sprintf("FATAL: %v", certErr))
-		}
-		certificates = loaded
-		httpServer.TLSConfig = &tls.Config{
-			MinVersion:     tls.VersionTLS12,
-			GetCertificate: certificates.certificate,
-		}
-	}
-{{end}}	httpListener, err := net.Listen("tcp", *httpAddr)
-
-
-	if err != nil {
-		panic(fmt.Sprintf("FATAL: HTTP listen: %v", err))
-	}
-	defer httpListener.Close() //nolint:errcheck
-
-{{if .WithGRPC}}	lis, err := net.Listen("tcp", *grpcAddr)
-	if err != nil {
-		panic(fmt.Sprintf("FATAL: gRPC listen: %v", err))
-	}
-	defer lis.Close() //nolint:errcheck
-	// The gRPC port answers the same operational questions the HTTP one does.
-	// Trace context is extracted without wiring; the same certificate pair secures
-	// both listeners; and the standard health service reports the readiness state
-	// the HTTP probes report, so a gRPC-only client has something to check.
-	grpcOptions := []grpc.ServerOption{
-		grpc.ChainUnaryInterceptor(transportgrpc.TraceparentUnaryServerInterceptor()),
-		grpc.ChainStreamInterceptor(transportgrpc.TraceparentStreamServerInterceptor()),
-	}
-{{if .WithConfig}}	if httpServer.TLSConfig != nil {
-		grpcOptions = append(grpcOptions, grpc.Creds(credentials.NewTLS(httpServer.TLSConfig)))
-	}
-	if metricsCollector != nil {
-		// The label is the full method name, which the service definition bounds.
-		grpcOptions = append(grpcOptions,
-			grpc.ChainUnaryInterceptor(grpcserver.RecordingUnaryInterceptor(metricsgrpc.Recorder(metricsCollector))),
-			grpc.ChainStreamInterceptor(grpcserver.RecordingStreamInterceptor(metricsgrpc.Recorder(metricsCollector))),
-		)
-	}
-{{end}}	grpcServer := grpc.NewServer(grpcOptions...)
-	grpcHealth := health.NewServer()
-	healthpb.RegisterHealthServer(grpcServer, grpcHealth)
-	grpcHealth.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
-	runtime.registerGRPCServices(grpcServer)
+{{if .WithGRPC}}	runtime.registerGRPCServices(grpcComponent.Server())
 {{end}}
-
-
-	go func() {
-		// ServeTLS with empty paths: the certificate is already in TLSConfig, and
-		// the file arguments are only read when it is not.
-		var serveErr error
-		if httpServer.TLSConfig != nil {
-			serveErr = httpServer.ServeTLS(httpListener, "", "")
-		} else {
-			serveErr = httpServer.Serve(httpListener)
-		}
-		if serveErr != nil && serveErr != http.ErrServerClosed {
-			serverErr <- fmt.Errorf("HTTP server: %w", serveErr)
-		}
-	}()
-
-
-{{if .WithGRPC}}
-	go func() {
-		if err := grpcServer.Serve(lis); err != nil && err != grpc.ErrServerStopped {
-			serverErr <- fmt.Errorf("gRPC server: %w", err)
-		}
-	}()
-{{end}}
-
-	ready.Store(true)
-	scheme := "http"
-	if httpServer.TLSConfig != nil {
-		scheme = "https"
-	}
-	printBanner(logger, *httpAddr, scheme{{if .WithGRPC}}, *grpcAddr{{end}}, {{if .WithOpenAPI}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}})
-
-
-	runContext, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stopSignals()
 {{if .WithConfig}}	if certificates != nil {
 		// A renewal is picked up on SIGHUP: the platform that replaced the files is
 		// what knows they changed, so it says when to look rather than this process
@@ -391,7 +419,7 @@ func main() {
 		defer signal.Stop(reloadSignal)
 		go func() {
 			for range reloadSignal {
-				if reloadErr := certificates.reload(); reloadErr != nil {
+				if reloadErr := certificates.Reload(); reloadErr != nil {
 					logger.Error("certificate reload failed; still serving the previous certificate", "err", reloadErr)
 					continue
 				}
@@ -399,86 +427,100 @@ func main() {
 			}
 		}()
 	}
-{{end}}	select {
-
-	case <-runContext.Done():
-		logger.Info("received shutdown signal")
-	case err := <-serverErr:
-		logger.Error("server stopped unexpectedly", "err", err)
+{{end}}
+	scheme := "http"
+	if api.ServesTLS() {
+		scheme = "https"
 	}
-	// Fail readiness first, so whatever routes traffic here stops sending new
-	// requests while the in-flight ones finish draining below.
-	ready.Store(false)
-{{if .WithGRPC}}	// The gRPC health service answers from its own state, so it has to be told
-	// too: a client checking grpc.health.v1 must see NOT_SERVING at the same
-	// moment /readyz starts failing.
-	grpcHealth.Shutdown()
-{{end}}	logger.Info("shutting down")
+	// The banner is printed before Run, which is where the listener binds: the
+	// address it names is the configured one, and a bind failure is Run's error one
+	// line later.
+	printBanner(logger, api.Addr(), scheme{{if .WithGRPC}}, *grpcAddr{{end}}, {{if .WithOpenAPI}}true{{else}}false{{end}}{{if .WithInteraction}}, true{{end}})
 
-
-{{if .WithConfig}}	// Then wait, if asked to. Failing readiness only helps once it has been read:
-	// a load balancer or registry refreshes on its own schedule, so closing the
-	// listener immediately fails requests that were already routed here.
-	if cfg.Server.DrainDelay > 0 {
-		logger.Info("draining", "delay", cfg.Server.DrainDelay)
-		time.Sleep(cfg.Server.DrainDelay)
+	if err := host.Run(runContext); err != nil {
+		logger.Error("server exited", "error", err)
+		os.Exit(1)
 	}
-
-	shutdownBudget := cfg.Server.GracefulShutdownTimeout
-	if shutdownBudget <= 0 {
-		shutdownBudget = 30 * time.Second
-	}
-{{else}}	shutdownBudget := 30 * time.Second
-{{end}}{{if .WithGRPC}}	ctx, cancel := context.WithTimeout(context.Background(), shutdownBudget/2)
-{{else}}	ctx, cancel := context.WithTimeout(context.Background(), shutdownBudget)
-{{end}}	defer cancel()
-
-
-{{if .WithInteraction}}	// MCP first: a session holds an open SSE stream, and httpServer.Shutdown
-	// waits for open connections. Closing the sessions is what lets that wait
-	// finish instead of burning the whole budget and falling through to Close.
-	if err := mcpHandler.Shutdown(ctx); err != nil {
-		logger.Error("MCP shutdown failed", "err", err)
-	}
-
-{{end}}	if err := httpServer.Shutdown(ctx); err != nil {
-
-		// The grace period is over and something is still holding a connection —
-		// a stream, a long poll, a handler that never watched its context. Close
-		// it: returning here would leave the process "stopped" with connections
-		// still open.
-		logger.Error("HTTP shutdown failed; closing remaining connections", "err", err)
-		if closeErr := httpServer.Close(); closeErr != nil {
-			logger.Error("HTTP close failed", "err", closeErr)
-		}
-	}
-
-{{if .WithGRPC}}	// Each server gets its own share of the budget rather than racing for one
-	// deadline: with a shared context, a slow HTTP drain leaves gRPC nothing.
-	grpcCtx, cancelGRPC := context.WithTimeout(context.Background(), shutdownBudget/2)
-	defer cancelGRPC()
-	grpcStopped := make(chan struct{})
-	go func() {
-		grpcServer.GracefulStop()
-		close(grpcStopped)
-	}()
-	select {
-	case <-grpcStopped:
-		logger.Info("gRPC stopped")
-	case <-grpcCtx.Done():
-		// Stop cannot preempt a GracefulStop that is still waiting on a handler:
-		// the graceful path holds the server's own mutex and Stop needs it. So ask
-		// for the hard stop without waiting for it — the process is on its way out,
-		// and blocking here is how a "graceful" shutdown becomes a hang.
-		go grpcServer.Stop()
-		logger.Error("gRPC graceful stop timed out", "err", grpcCtx.Err())
-	}
-
-{{end}}	logger.Info("server exited cleanly")
-
+	logger.Info("server exited cleanly")
 }
 
+{{- if .WithInteraction }}
+
+// sessionCloser closes MCP sessions before the HTTP component stops.
+//
+// A session holds an open SSE stream, and http.Server.Shutdown waits for open
+// connections: without this the drain would spend its whole budget on that stream
+// and then fall through to the hard close. It is a component rather than a line in
+// main because the Host is what owns the ordering, and components stop in reverse
+// attachment order.
+type sessionCloser struct {
+	handler *mcp.StreamableHandler
+}
+
+func (c *sessionCloser) Start() error         { return nil }
+func (c *sessionCloser) Errors() <-chan error { return nil }
+
+func (c *sessionCloser) Shutdown(ctx context.Context) error {
+	if c.handler == nil {
+		return nil
+	}
+	return c.handler.Shutdown(ctx)
+}
+{{- end }}
+
 {{- if .WithDB }}
+
+// databaseRegistryKey is the name the database module publishes its handle under.
+const databaseRegistryKey = "database"
+
+// databaseModule owns the connection pool.
+//
+// It is a module rather than a few lines in main because that is the shape the
+// Host gives a resource: Init runs before any component starts, so a pool that
+// cannot be opened stops the process before it accepts a request, and Shutdown
+// runs after every component has stopped, so no handler is mid-query when the
+// pool goes away. What it publishes is read back through the Host's registry,
+// which is how the code that registers routes gets the handle without a
+// package-level variable.
+type databaseModule struct {
+	dsn             string
+	maxOpenConns    int
+	maxIdleConns    int
+	connMaxLifetime time.Duration
+	logger          *slog.Logger
+
+	handle *repository.DB
+	pool   *sql.DB
+}
+
+func (m *databaseModule) Name() string { return "database" }
+
+func (m *databaseModule) Init(_ context.Context, registry *kit.Registry) error {
+	db, err := gorm.Open({{.DBOpener}}(m.dsn), &gorm.Config{TranslateError: true})
+	if err != nil {
+		return fmt.Errorf("connect database: %w", err)
+	}
+	pool, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("get database handle: %w", err)
+	}
+	pool.SetMaxOpenConns(m.maxOpenConns)
+	pool.SetMaxIdleConns(m.maxIdleConns)
+	pool.SetConnMaxLifetime(m.connMaxLifetime)
+	m.pool = pool
+	m.handle = repository.NewDB(db)
+	m.logger.Info("database connected", "driver", "{{.DBDriver}}", "dsn", redactDSN(m.dsn))
+	return registry.Provide(databaseRegistryKey, m.handle)
+}
+
+// Shutdown closes the pool. The Host calls it after every component has stopped,
+// so no handler is still holding a connection when it runs.
+func (m *databaseModule) Shutdown(context.Context, *kit.Registry) error {
+	if m.pool == nil {
+		return nil
+	}
+	return m.pool.Close()
+}
 
 func redactDSN(dsn string) string {
 	if dsn == "" {
@@ -486,48 +528,8 @@ func redactDSN(dsn string) string {
 	}
 	return "<redacted>"
 }
-
 {{- end }}
 {{- if .WithConfig }}
-
-// certificateFiles serves the TLS certificate from disk and can re-read it while the
-// process is running, which is what makes a renewal a signal rather than a deploy.
-//
-// certificate runs on the handshake path, so it returns the pair the last successful
-// reload left behind and never touches the filesystem. reload is the call that reads,
-// and a failure leaves the previous pair in place.
-type certificateFiles struct {
-	certFile string
-	keyFile  string
-
-	mu      sync.RWMutex
-	current *tls.Certificate
-}
-
-func newCertificateFiles(certFile, keyFile string) (*certificateFiles, error) {
-	files := &certificateFiles{certFile: certFile, keyFile: keyFile}
-	if err := files.reload(); err != nil {
-		return nil, err
-	}
-	return files, nil
-}
-
-func (f *certificateFiles) reload() error {
-	certificate, err := tls.LoadX509KeyPair(f.certFile, f.keyFile)
-	if err != nil {
-		return fmt.Errorf("load TLS certificate %s and key %s: %w", f.certFile, f.keyFile, err)
-	}
-	f.mu.Lock()
-	f.current = &certificate
-	f.mu.Unlock()
-	return nil
-}
-
-func (f *certificateFiles) certificate(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-	return f.current, nil
-}
 
 func filterArgs(args []string, name string) []string {
 

@@ -272,8 +272,13 @@ func (h *HTTP) Handle(pattern string, handler http.Handler) {
 }
 
 // HandleFunc registers a raw http.HandlerFunc.
-func (h *HTTP) HandleFunc(pattern string, fn http.HandlerFunc) {
-	h.Handle(pattern, fn)
+//
+// The parameter is the bare function type rather than http.HandlerFunc so the
+// component satisfies httpserver.RouteRegistrar, which is what generated
+// assemblies register their routes through. A caller passing an http.HandlerFunc
+// still compiles: the two types are assignable.
+func (h *HTTP) HandleFunc(pattern string, fn func(http.ResponseWriter, *http.Request)) {
+	h.Handle(pattern, http.HandlerFunc(fn))
 }
 
 // applyEndpointMiddleware wraps base with the component-level endpoint
@@ -367,3 +372,7 @@ func withHTTPContext(ctx context.Context, r *http.Request, w http.ResponseWriter
 var _ Lifecycle = (*HTTP)(nil)
 var _ NamedLifecycle = (*HTTP)(nil)
 var _ http.Handler = (*HTTP)(nil)
+
+// The component is the registrar a generated assembly hands its routes to, so the
+// two methods have to stay the ones that interface names.
+var _ httpserver.RouteRegistrar = (*HTTP)(nil)

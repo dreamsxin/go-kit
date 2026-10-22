@@ -33,6 +33,12 @@ type Host struct {
 	moduleOrder []int
 	registry    *Registry
 
+	// initialized is the modules that finished Init, in initialization order;
+	// teardown walks it backwards. It is read under mu, like every other
+	// lifecycle flag, and written once by Init.
+	initialized     []int
+	modulesShutdown bool
+
 	// initMu serializes Init. The initialized flag and its error live under mu,
 	// which Init only holds to read and publish that state — never while module
 	// code runs, so a module cannot deadlock against a Host method.
@@ -163,7 +169,14 @@ func (h *Host) Run(ctx context.Context) error {
 		return fmt.Errorf("kit: nil run context")
 	}
 	if err := h.Init(ctx); err != nil {
-		return err
+		// A startup that failed still has to hand back what it took: the modules
+		// that did initialize are holding a pool, a lease, or a file, and nothing
+		// else in the process will close them. Best effort, with the shutdown
+		// budget, because the init error is the one worth reporting.
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), h.shutdownTimeout)
+		cleanupErr := h.shutdownModules(cleanupCtx)
+		cancel()
+		return errors.Join(err, cleanupErr)
 	}
 	if err := h.Start(); err != nil {
 		return err
@@ -326,8 +339,13 @@ func lifecycleLabel(index int, component Lifecycle) string {
 }
 
 // Shutdown gracefully stops all attached components in reverse attachment
-// order. It announces the stop first, so readiness fails before any component is
-// torn down even when a caller skips Run's drain delay.
+// order, and then releases what the modules acquired. It announces the stop
+// first, so readiness fails before any component is torn down even when a caller
+// skips Run's drain delay.
+//
+// The two phases are ordered rather than merged: a component's handlers read the
+// values its modules published, so a pool released before the server stops would
+// fail the requests the drain was still finishing.
 func (h *Host) Shutdown(ctx context.Context) error {
 	if ctx == nil {
 		return fmt.Errorf("kit: nil shutdown context")
@@ -336,7 +354,7 @@ func (h *Host) Shutdown(ctx context.Context) error {
 	h.mu.Lock()
 	if !h.started {
 		h.mu.Unlock()
-		return drainErr
+		return errors.Join(drainErr, h.shutdownModules(ctx))
 	}
 	lifecycleDone := h.lifecycleDone
 	components := append([]Lifecycle(nil), h.components...)
@@ -344,14 +362,16 @@ func (h *Host) Shutdown(ctx context.Context) error {
 	h.stopped = true
 	h.mu.Unlock()
 
+	var componentErr error
 	if lifecycleDone != nil {
 		close(lifecycleDone)
 		// The watchers stop with the announcement, so the retained set is
 		// settled before any component is torn down and no late report races
 		// the record Run joins.
 		h.watchers.Wait()
+		componentErr = shutdownLifecycles(ctx, components)
 	}
-	return errors.Join(drainErr, shutdownLifecycles(ctx, components))
+	return errors.Join(drainErr, componentErr, h.shutdownModules(ctx))
 }
 
 // shutdownLifecycles stops components in reverse attachment order, giving each an

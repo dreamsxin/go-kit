@@ -497,6 +497,24 @@ svc, err := kit.NewHTTP(*httpAddr,
 )
 ```
 
+这个组件是一个生命周期组件，生成的 `cmd/main.go` 把它连同数据库模块一起交给
+`kit.Host`，所以启停是框架的顺序，而不是它的又一份副本：
+
+```go
+host, err := kit.NewHost(
+	kit.WithLifecycle(api),                                  // 开了 grpc 时再加 kitgrpc.Component
+	kit.WithDrainDelay(cfg.Server.DrainDelay),
+	kit.WithShutdownTimeout(cfg.Server.GracefulShutdownTimeout),
+	kit.WithModules(database),                               // 在 Init 里打开连接池
+)
+```
+
+`host.Init` 在监听器绑定之前打开模块拥有的东西；`host.Run` 绑定、服务，收到信号
+后先让就绪失败，等过 drain 延迟，再给每个组件一段停机预算。要加自己的组件（一个
+worker、一个队列消费者），就是再传一个 `kit.WithLifecycle`；要加一种资源，就是写
+一个实现 `kit.ModuleInitializer` 与 `kit.ModuleShutdowner` 的模块，它发布出去的
+句柄由 `main` 通过 `host.Registry()` 读回。
+
 就绪检查失败会把 `/readyz` 翻成 503——负载均衡器据此摘除实例。日志、追踪与基
 数规则见[可观测性](docs/observability_zh.md)；带重试与健康检查实例的下游调用见
 [服务发现](docs/service-discovery_zh.md)。

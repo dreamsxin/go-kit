@@ -125,6 +125,7 @@ stable/kit.http-drains
 stable/kit.module-order
 stable/kit.no-cleartext-http2
 stable/kit.per-route-body-limit
+stable/kit.registry-is-readable
 stable/kit.route-groups
 stable/kit.serve-errors-retained
 stable/kit.shutdown-budget-share

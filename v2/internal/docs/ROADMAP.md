@@ -3314,6 +3314,108 @@ Rule: **a generated entry point is verified by starting it.** A file that decide
 what runs has no meaningful textual invariant beyond "it compiles", and compiling is
 what the duplicate satisfied.
 
+## Milestone 33 (Complete): One Lifecycle, And A Module You Can Read
+
+Source: the first remaining gap from the platform review, and the one every other
+gap fed into. `kit.WithModules` had no caller outside `kit/`, and a generated
+project ran its own lifecycle beside the framework's: `&http.Server{}` built by
+hand, its own readiness flag and probe handlers, its own certificate reload, its
+own gRPC health server and graceful stop, and a shutdown sequence that re-derived
+what `kit.Host` already does. Two implementations of one sequence is not
+redundancy — it is a race between two definitions of "graceful" that nobody is
+comparing, decided per deployment by whichever one the process happens to reach
+first.
+
+Landed:
+
+- **The registry is readable.** `Host.Registry()` returns what the modules
+  published. Without it `Provide` was only addressable from another module, which
+  makes publication a private conversation rather than a contract — and the code
+  that registers routes, the part that actually needs the handle, runs in `main`
+  outside every module. The generated project reads its database handle back with
+  `kit.Get[*repository.DB](host.Registry(), "database")`, so both directions of
+  the seam are exercised by a project that ships.
+- **`ModuleShutdowner` is the other end of `Init`.** `Host.Shutdown` stops every
+  component first, then releases the modules in reverse initialization order: a
+  handler reads what its module published, so a pool closed before the listener
+  stops fails the requests the drain was still finishing. A module that never
+  initialized is not released; a module is released at most once however the
+  process got here; and a `Run` that fails in `Init` releases what did initialize
+  instead of leaving it to process exit — the teardown a failed startup needs and
+  that nothing owned before.
+- **The HTTP component is a `httpserver.RouteRegistrar`.** `HandleFunc` now takes
+  `func(http.ResponseWriter, *http.Request)` rather than `http.HandlerFunc`; a
+  named function type and its underlying type are different for interface
+  satisfaction, so the component could not be handed to the registrars generated
+  code produces. Callers are unaffected — the types are assignable — and a compile
+  assertion in `kit` keeps the two methods the ones the interface names.
+- **A generated project starts through the Host.** `cmd/main.go` builds a
+  `kit.HTTP` component and, when asked, a `kitgrpc.Component`; attaches the
+  database as a module; configures the drain delay and the shutdown budget from
+  the same config keys it always read; and calls `host.Init` before registering
+  routes and `host.Run` after. TLS comes from `kit.CertificateFiles` and
+  `WithTLSConfig`, so SIGHUP reloads the certificate through the framework's
+  per-handshake source instead of a copy of it. Probes come from the component's
+  health registry, so `/readyz` reports the drain the moment the process announces
+  it, and the gRPC health service answers the same registry.
+- **One import of the sequence, not two.** The generated `main` lost its
+  `&http.Server{}`, its `ready` flag, its three probe handlers, its
+  `certificateFiles` type, its gRPC `health.Server` and its hand-rolled
+  `GracefulStop` budget: roughly two hundred and fifty lines, replaced by about
+  forty that say which components exist and how they are configured.
+
+Deliberately not done:
+
+- **No `Host.Get(name)` reachable from handlers.** The registry is read once by
+  the assembling code, before `Run`, and passed as a value. A lookup available
+  inside a handler would be a global registry with a friendlier name, and it would
+  make the dependency invisible at the point where the handler is written.
+- **No discovery, no container.** The module set is fixed at `NewHost`. A
+  registration order decided at runtime is what makes a startup log stop being
+  comparable between two deployments.
+- **No `WithStartHook` for the banner.** Printing after `Start` would mean a second
+  startup callback beside component `Start`, and the address it prints is the
+  configured one either way. A bind failure is `Run`'s error, one line later.
+
+Mutation-checked, five for five: never running module teardown, tearing down in
+initialization order, leaking what a failed `Init` opened, releasing a module
+twice, and making the registry unreachable each turned its test red.
+
+Acceptance:
+
+```bash
+go test ./kit ./resource/... -count=1
+go -C ./tools test . -run 'TestGenerated|TestMicrogen|TestIntegration|TestIDL' -count=1
+```
+
+## Finding: A Template Fragment Inherits The Scope It Was Written In
+
+The database open call was a string built by the generator —
+`mysql.Open(*dsn)`, `sqlite.Open(*dsn)` — and it had always been rendered inside
+`main`, where `*dsn` is the flag. Moving the open into a module, which is where it
+belongs once the connection has a lifecycle, produced a generated project that did
+not compile:
+
+```
+cmd\main.go:217: undefined: dsn
+```
+
+Nothing in the template was wrong in isolation. `{{.DBOpenCall}}` was a correct
+expression; its correctness depended on a variable that existed three hundred
+lines away, and the dependency was invisible at both ends. The fix was to make the
+fragment name a function instead of a call — `mysql.Open`, `sqlite.Open` — and let
+the template supply the argument where the argument lives.
+
+Rule: **a template fragment carries an implicit environment, and moving it must
+move that environment too.** A fragment that spells out a variable name is a
+fragment that can only be rendered in one scope; pass the value, not the name.
+
+The same edit surfaced the smaller version of the problem: `fmt` was imported
+unconditionally and used only by the config logger and the database module, so
+every minimal project failed with `"fmt" imported and not used`. An import list in
+a template is a function of the feature set, not a constant — and the only gate
+that catches either mistake is the one that compiles the output.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

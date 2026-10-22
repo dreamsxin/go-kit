@@ -124,6 +124,12 @@ var deliberateBreaks = []string{
 	// v2's JSON entry points are one call per layer (CHANGELOG [Unreleased]).
 	// More specific entries come before the names they prefix, because the
 	// matcher stops at the first entry a problem contains.
+	// The HTTP component is the registrar a generated assembly hands its routes
+	// to, which it cannot be while HandleFunc takes http.HandlerFunc: the two
+	// function types are distinct for interface satisfaction. Callers are
+	// unaffected — the types are assignable — and the option only widened what
+	// accepts the component (CHANGELOG [Unreleased]).
+	"kit: changed: func HTTP.HandleFunc",
 	"kit: changed: func HandleJSON",
 	"kit: changed: func NewJSONHandler",
 	"kit: removed from func HandleJSONEndpoint: options ...httpserver.ServerOption",

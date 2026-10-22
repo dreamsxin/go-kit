@@ -150,6 +150,23 @@ English | [简体中文](CHANGELOG_zh.md)
   `TestGeneratedCRUDAgainstSQLite` drives both surfaces over one process and one
   table, and checks that a row deleted through a collection is gone from the
   endpoint that answers the same table.
+- Modules can now be read and released. `kit.Host.Registry()` returns the values
+  the attached modules published, which is what lets the part of `main` that
+  registers routes use a handle a module opened; without it `Provide` was only
+  addressable from another module, so publication was a private conversation
+  rather than a contract. `kit.ModuleShutdowner` is the other end of `Init`:
+  `Host.Shutdown` stops every component first and releases the modules in reverse
+  initialization order, because handlers read what the modules published and a pool
+  closed before the listener stops fails the requests the drain was still
+  finishing. A module that never initialized is not released, a second `Shutdown`
+  releases nothing twice, and a `Run` that fails in `Init` releases what did
+  initialize instead of leaving it to process exit.
+- `kit.HTTP.HandleFunc` takes `func(http.ResponseWriter, *http.Request)` rather
+  than `http.HandlerFunc`, which is what makes the component a
+  `httpserver.RouteRegistrar` — a named function type and its underlying type are
+  different for interface satisfaction. Callers are unaffected, because the two
+  types are assignable; the change is that a generated assembly can hand its route
+  registrars the component itself.
 
 ### Fixed
 
@@ -187,6 +204,22 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Changed
 
+- A generated project runs on one lifecycle. `cmd/main.go` builds a `kit.HTTP`
+  component and a `kitgrpc.Component`, attaches the database as a module that
+  implements `Init` and `Shutdown`, and calls `Host.Run`. From there the sequence
+  is the framework's: readiness fails before anything is torn down, the configured
+  drain delay holds the process open while whatever routes traffic notices, and
+  each component gets a share of the shutdown budget. What this replaces was a
+  second, hand-written copy of the same sequence — its own `&http.Server{}`, its
+  own readiness flag and probe handlers, its own TLS reload duplicating
+  `kit.CertificateFiles`, its own gRPC health server and graceful stop — and the
+  copy is where the two behaviours were going to drift apart. Generated routes
+  register on the component, so per-route metrics come from `kit.WithHTTPRecorder`
+  instead of a `DecorateRoutes` wrapper, and `registerCustomRoutes` takes a
+  `httpserver.RouteRegistrar` instead of a `*http.ServeMux`, which is what makes a
+  custom pattern collide with a generated one at startup rather than be shadowed.
+  The probes and the gRPC health service now answer from the framework's probe
+  registry, so `/readyz` reports the drain at the moment the process announces it.
 - `microgen -protocols http,grpc` now requires a `.proto` IDL. With a Go IDL or
   `-from-db` the command used to write a project that could not compile: the
   generated transport registered through `pb.Register<Service>Server` and the

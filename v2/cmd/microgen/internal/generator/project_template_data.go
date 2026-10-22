@@ -12,7 +12,7 @@ type mainTemplateData struct {
 	WithDB          bool
 	DBDriver        string
 	DBImportPkg     string
-	DBOpenCall      string
+	DBOpener        string
 	DBDefaultDSN    string
 	WithConfig      bool
 	WithGRPC        bool

@@ -456,3 +456,210 @@ func TestGetSeparatesMissingFromMistyped(t *testing.T) {
 		t.Fatalf("Get[int] = %d, %v; want 42, nil", value, err)
 	}
 }
+
+// closingModule adds the teardown phase to hookModule. It is a separate type so a
+// module that holds nothing is not silently a Shutdowner: a test that means to
+// assert the phase is missing would otherwise pass by doing nothing.
+type closingModule struct {
+	*hookModule
+	shutdown func(context.Context, *kit.Registry) error
+}
+
+func (m *closingModule) Shutdown(ctx context.Context, registry *kit.Registry) error {
+	if m.shutdown == nil {
+		return nil
+	}
+	return m.shutdown(ctx, registry)
+}
+
+// recordingComponent writes its stop into the same log the modules use, which is
+// what makes the ordering between the two phases visible in one sequence.
+type recordingComponent struct{ log *startLog }
+
+func (c *recordingComponent) Start() error         { return nil }
+func (c *recordingComponent) Errors() <-chan error { return nil }
+
+func (c *recordingComponent) Shutdown(context.Context) error {
+	c.log.add("stop:component")
+	return nil
+}
+
+// TestPublishedValueReachesTheAssemblingApplication is the promise
+// kit.registry-is-readable makes: a module can open something and publish it, and
+// the code in main that registers routes — which runs outside any module — can
+// read it.
+func TestPublishedValueReachesTheAssemblingApplication(t *testing.T) {
+	host, err := kit.NewHost(kit.WithModules(&hookModule{
+		name: "database",
+		init: func(_ context.Context, registry *kit.Registry) error {
+			return registry.Provide("database", "pool")
+		},
+	}))
+	if err != nil {
+		t.Fatalf("NewHost: %v", err)
+	}
+	if err := host.Init(context.Background()); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	handle, err := kit.Get[string](host.Registry(), "database")
+	if err != nil {
+		t.Fatalf("Get from the assembling application: %v", err)
+	}
+	if handle != "pool" {
+		t.Fatalf("handle = %q, want %q", handle, "pool")
+	}
+}
+
+// TestReadingBeforeInitReportsAMissingValue pins what the registry says to a
+// caller that read it too early. An empty registry answers "not provided", which
+// an application can act on; a nil registry would be a panic inside a handler.
+func TestReadingBeforeInitReportsAMissingValue(t *testing.T) {
+	host := kit.MustNewHost(kit.WithModules(&hookModule{name: "database"}))
+	if _, err := kit.Get[string](host.Registry(), "database"); err == nil {
+		t.Fatal("Get found a value before Init ran")
+	}
+}
+
+// TestModuleShutdownRunsAfterComponentsInReverseOrder pins the ordering that
+// makes the phase safe: handlers read what modules published, so a component's
+// Shutdown has to be done before a module hands its resource back, and modules
+// release in the opposite order to the one they acquired in.
+func TestModuleShutdownRunsAfterComponentsInReverseOrder(t *testing.T) {
+	log := &startLog{}
+	module := func(name string, requires ...string) kit.Module {
+		return &closingModule{
+			hookModule: &hookModule{
+				name:     name,
+				requires: requires,
+				init: func(context.Context, *kit.Registry) error {
+					log.add("init:" + name)
+					return nil
+				},
+			},
+			shutdown: func(context.Context, *kit.Registry) error {
+				log.add("close:" + name)
+				return nil
+			},
+		}
+	}
+	component := &recordingComponent{log: log}
+
+	host, err := kit.NewHost(
+		kit.WithLifecycle(component),
+		kit.WithModules(module("alpha"), module("beta", "alpha")),
+	)
+	if err != nil {
+		t.Fatalf("NewHost: %v", err)
+	}
+	if err := host.Init(context.Background()); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if err := host.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if err := host.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown: %v", err)
+	}
+
+	want := []string{"init:alpha", "init:beta", "stop:component", "close:beta", "close:alpha"}
+	if got := log.snapshot(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("events = %v, want %v", got, want)
+	}
+}
+
+// TestModuleShutdownErrorsAreJoinedAndDoNotStopTheRest checks that a module which
+// fails to let go is reported without stranding the modules behind it.
+func TestModuleShutdownErrorsAreJoinedAndDoNotStopTheRest(t *testing.T) {
+	failure := errors.New("pool is stuck")
+	var closed []string
+	module := func(name string, err error) kit.Module {
+		return &closingModule{
+			hookModule: &hookModule{name: name, init: func(context.Context, *kit.Registry) error { return nil }},
+			shutdown: func(context.Context, *kit.Registry) error {
+				closed = append(closed, name)
+				return err
+			},
+		}
+	}
+	host := kit.MustNewHost(kit.WithModules(
+		module("alpha", nil),
+		module("beta", failure),
+		module("gamma", nil),
+	))
+	if err := host.Init(context.Background()); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if err := host.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	err := host.Shutdown(context.Background())
+	if !errors.Is(err, failure) {
+		t.Fatalf("Shutdown error = %v, want it to wrap %v", err, failure)
+	}
+	if !strings.Contains(err.Error(), "shut down module beta") {
+		t.Fatalf("Shutdown error = %v, want it to name the module", err)
+	}
+	if want := []string{"gamma", "beta", "alpha"}; !reflect.DeepEqual(closed, want) {
+		t.Fatalf("modules closed in %v, want %v", closed, want)
+	}
+}
+
+// TestFailedInitReleasesWhatItAlreadyAcquired checks the startup path nothing
+// else covers: the module that opened the pool came first, the one behind it
+// failed, and the process exits without a listener. Without the teardown the
+// pool is closed only by process exit, which is not a plan.
+func TestFailedInitReleasesWhatItAlreadyAcquired(t *testing.T) {
+	failure := errors.New("schema is wrong")
+	var closed []string
+	host := kit.MustNewHost(kit.WithModules(
+		&closingModule{
+			hookModule: &hookModule{name: "database", init: func(context.Context, *kit.Registry) error { return nil }},
+			shutdown: func(context.Context, *kit.Registry) error {
+				closed = append(closed, "database")
+				return nil
+			},
+		},
+		&hookModule{
+			name:     "schema",
+			requires: []string{"database"},
+			init:     func(context.Context, *kit.Registry) error { return failure },
+		},
+	))
+	err := host.Run(context.Background())
+	if !errors.Is(err, failure) {
+		t.Fatalf("Run error = %v, want it to wrap %v", err, failure)
+	}
+	if want := []string{"database"}; !reflect.DeepEqual(closed, want) {
+		t.Fatalf("modules closed = %v, want %v", closed, want)
+	}
+}
+
+// TestModuleShutdownRunsOnce checks that the paths which all end in teardown — an
+// explicit Shutdown called twice, and the one Run already ran — do not hand a
+// pool back more than once.
+func TestModuleShutdownRunsOnce(t *testing.T) {
+	var closes int
+	module := &closingModule{
+		hookModule: &hookModule{name: "database", init: func(context.Context, *kit.Registry) error { return nil }},
+		shutdown: func(context.Context, *kit.Registry) error {
+			closes++
+			return nil
+		},
+	}
+	host := kit.MustNewHost(kit.WithModules(module))
+	if err := host.Init(context.Background()); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if err := host.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if err := host.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown: %v", err)
+	}
+	if err := host.Shutdown(context.Background()); err != nil {
+		t.Fatalf("second Shutdown: %v", err)
+	}
+	if closes != 1 {
+		t.Fatalf("module shut down %d times, want 1", closes)
+	}
+}

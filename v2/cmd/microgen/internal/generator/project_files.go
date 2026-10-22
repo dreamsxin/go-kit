@@ -20,7 +20,7 @@ func (g *Generator) generateMainFileFull(ctx generationContext) error {
 		WithDB:          g.config.WithDB,
 		DBDriver:        g.config.DBDriver,
 		DBImportPkg:     dbMeta.ImportPkg,
-		DBOpenCall:      dbMeta.OpenCall,
+		DBOpener:        dbMeta.Opener,
 		DBDefaultDSN:    dbMeta.DefaultDSN,
 		WithConfig:      g.config.WithConfig,
 		WithGRPC:        g.config.WithGRPC,

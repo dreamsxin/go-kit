@@ -113,9 +113,15 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 
 		customRoutes := `package main
 
-	import "net/http"
+	import (
+		"net/http"
 
-	func registerCustomRoutes(r *http.ServeMux) {
+		httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
+	)
+
+	// The hook takes the HTTP component's registrar; the component serves the
+	// route, records it, and drains it like any generated one.
+	func registerCustomRoutes(r httpserver.RouteRegistrar) {
 		r.HandleFunc("GET /custom/ping", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(204)
 		})
@@ -180,9 +186,15 @@ func TestMicrogenIDLContractIntegration(t *testing.T) {
 		customRoutesPath := filepath.Join(outDir, "cmd", "custom_routes.go")
 		customRoutes := `package main
 
-	import "net/http"
+	import (
+		"net/http"
 
-	func registerCustomRoutes(r *http.ServeMux) {
+		httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
+	)
+
+	// The hook takes the HTTP component's registrar; the component serves the
+	// route, records it, and drains it like any generated one.
+	func registerCustomRoutes(r httpserver.RouteRegistrar) {
 		r.HandleFunc("GET /custom/ping", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusNoContent)
 		})

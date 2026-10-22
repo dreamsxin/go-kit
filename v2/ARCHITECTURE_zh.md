@@ -230,6 +230,13 @@ main creates signal context
 取决于模块集合，不取决于声明顺序：无依赖的模块按名字排序。无效的图（未命名、
 重名、依赖不存在、依赖环）在 `NewHost` 就被拒绝。
 
+打开了东西的模块实现 `kit.ModuleShutdowner`。`Host.Shutdown` 先停掉所有组件，
+再按初始化的逆序释放模块——因为处理器读的是模块发布的值：在监听器停下之前关掉
+连接池，失败的是那些 drain 还在收尾的请求。`Init` 没跑过的模块不会被释放，而
+一个模块无论进程走的是哪条路径都只释放一次。`Host.Registry()` 是装配代码读取
+模块发布值的方式：`main` 里的路由注册在任何模块之外，没有这个访问器，发布出去
+的值只有另一个模块能拿到。
+
 组件可以实现 `kit.NamedLifecycle`，为启动、异步故障与停机诊断提供稳定
 名称；实现 `kit.ReadinessProvider` 可把异步预热桥接到 `/readyz` 与
 `/health` 的就绪检查；实现 `kit.Draining` 则会在任何 shutdown 之前被告知
