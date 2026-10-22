@@ -7,7 +7,7 @@
         deps tools \
         test-runtime test-microgen test-contracts test-docs test-examples \
         test-observability test-security test-api test-snapshots update-snapshots test-boundaries test-race test-fmt test-vet test-modules \
-        release-check-clean verify-published verify
+        fuzz release-check-clean verify-published verify
 
 # Default variables, overridable from the command line.
 IDL         ?= ./examples/usersvc/idl.go
@@ -23,6 +23,8 @@ SERVICE     ?= AppService
 HTTP_PORT   ?= :8080
 PROTO_DIR   ?= $(OUT)/pb
 VERSION     ?= v2.27.0
+# How long each fuzz target runs under `make fuzz`.
+FUZZTIME    ?= 30s
 
 MICROGEN    := $(shell go env GOPATH)/bin/microgen
 
@@ -96,6 +98,27 @@ update-snapshots:
 	@echo ">>> Refreshing the reviewed generated contract snapshots..."
 	@go -C ./tools test . -run TestMicrogen -count=1 -args -update-contract-snapshots
 	@echo ">>> Review the diff before committing: git diff -- v2/tools/testdata"
+
+## fuzz: run the parsers that read client bytes under a fuzzer
+##
+## `go test` replays each target's seed corpus, which is what `verify` runs and
+## what makes a found input a permanent gate. This target is the other half: it
+## lets the fuzzer grow new inputs. Point it at the packages whose parsing a
+## change touched, and give it longer than the default when the change is in a
+## parser rather than beside one.
+##
+## A crash is written to testdata/fuzz/<Target>/ and replayed by every later
+## `go test`, so commit the file: an input that broke the parser once is a
+## regression test from then on.
+fuzz:
+	@echo ">>> Fuzzing the filter dialect ($(FUZZTIME))..."
+	@go test ./resource -run '^$$' -fuzz '^FuzzParseFilter$$' -fuzztime $(FUZZTIME)
+	@echo ">>> Fuzzing the canonical filter form ($(FUZZTIME))..."
+	@go test ./resource -run '^$$' -fuzz '^FuzzFilterCanonicalForm$$' -fuzztime $(FUZZTIME)
+	@echo ">>> Fuzzing a query string into the list route ($(FUZZTIME))..."
+	@go test ./resource/rest -run '^$$' -fuzz '^FuzzQueryString$$' -fuzztime $(FUZZTIME)
+	@echo ">>> Fuzzing the parsed parameters of a list request ($(FUZZTIME))..."
+	@go test ./resource/rest -run '^$$' -fuzz '^FuzzListQuery$$' -fuzztime $(FUZZTIME)
 
 test-fmt:
 	@echo ">>> Verifying gofmt formatting..."

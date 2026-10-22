@@ -67,6 +67,15 @@ A parameter a route does not read is refused with
 broader question, and a broader answer is indistinguishable from an
 authorization failure at the call site.
 
+For the same reason the query string itself is read strictly. `Request.URL.Query`
+is `url.ParseQuery` with the error discarded — it keeps the pairs it could read
+and drops the rest — so `?filter=%zz` would arrive as a request with no filter and
+`?filter={"status":"active"};size=10`, a semicolon separator Go stopped accepting,
+would arrive with neither parameter. Both answer every record. A query string the
+URL parser cannot read in full is therefore refused with `rest.query_malformed`
+(`rest.query-malformed`), before any decoder reads half of it: a client that asked
+a narrower question is told so instead of being answered a wider one.
+
 A column restriction holds on every answer, not only on a list: a write returns
 the record projected, and an aggregate over a restricted column is refused with
 `rest.aggregate_field_not_allowed` — summing a column or grouping by it reveals
@@ -160,6 +169,10 @@ guess what a patch is about to do to it.
 - **No composite keys in a path.** One segment names one value. `Routes` refuses
   a collection whose primary key has several fields instead of addressing half a
   record.
+- **No leniency about a parameter it cannot read.** A query string the URL parser
+  rejects, a filter the dialect cannot express, a sort field the schema does not
+  have: all of them are refusals. Half-reading one is what turns a narrow question
+  into a wide answer, and the client cannot tell the difference.
 - **No authentication.** It does not know who is calling: no identity, no roles,
   no sessions. What it owns is the shape of an answer — a decision that carries
   constraints, a default of refusal, and a condition that reaches storage.

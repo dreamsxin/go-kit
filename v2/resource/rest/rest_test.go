@@ -19,8 +19,10 @@ import (
 
 // --- fixtures ---------------------------------------------------------------
 
-func productSchema(t *testing.T) resource.Schema {
-	t.Helper()
+// The fixtures take testing.TB, not *testing.T, because a fuzz target builds the
+// same collection once and then mutates one request at a time.
+func productSchema(tb testing.TB) resource.Schema {
+	tb.Helper()
 	id := resource.NewField("id", resource.TypeInt)
 	name := resource.NewField("name", resource.TypeString)
 	name.Writable = true
@@ -42,18 +44,18 @@ func productSchema(t *testing.T) resource.Schema {
 	secret.Writable = true
 	schema, err := resource.NewSchema(id, name, price, status, created, rank, secret)
 	if err != nil {
-		t.Fatalf("NewSchema: %v", err)
+		tb.Fatalf("NewSchema: %v", err)
 	}
 	return schema
 }
 
 // newCollection seeds three products: two active, one archived.
-func newCollection(t *testing.T) resource.Collection {
-	t.Helper()
-	schema := productSchema(t)
+func newCollection(tb testing.TB) resource.Collection {
+	tb.Helper()
+	schema := productSchema(tb)
 	store, err := memory.New(schema, "id")
 	if err != nil {
-		t.Fatalf("memory.New: %v", err)
+		tb.Fatalf("memory.New: %v", err)
 	}
 	seed := []resource.Record{
 		{"name": "alpha", "price": 10.0, "status": "active", "createdAt": time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), "secret": "s1"},
@@ -62,12 +64,12 @@ func newCollection(t *testing.T) resource.Collection {
 	}
 	for _, record := range seed {
 		if _, err := store.Create(context.Background(), record, resource.WriteMask{}); err != nil {
-			t.Fatalf("seed: %v", err)
+			tb.Fatalf("seed: %v", err)
 		}
 	}
 	collection, err := resource.NewCollection("products", schema, store, "id")
 	if err != nil {
-		t.Fatalf("NewCollection: %v", err)
+		tb.Fatalf("NewCollection: %v", err)
 	}
 	return collection
 }
@@ -79,19 +81,19 @@ func newCollection(t *testing.T) resource.Collection {
 // and these tests are about what the routes answer rather than about who may ask.
 // A test that installs a policy uses mountWith instead: the two options
 // contradict each other by design.
-func mount(t *testing.T, collection resource.Collection, options ...rest.Option) http.Handler {
-	t.Helper()
+func mount(tb testing.TB, collection resource.Collection, options ...rest.Option) http.Handler {
+	tb.Helper()
 	open := append(append([]rest.Option(nil), options...), rest.WithOpenAccess())
-	return mountWith(t, collection, open...)
+	return mountWith(tb, collection, open...)
 }
 
 // mountWith mounts exactly what it is given, so a test can install a policy and
 // be refused by it.
-func mountWith(t *testing.T, collection resource.Collection, options ...rest.Option) http.Handler {
-	t.Helper()
+func mountWith(tb testing.TB, collection resource.Collection, options ...rest.Option) http.Handler {
+	tb.Helper()
 	routes, err := rest.Routes(collection, options...)
 	if err != nil {
-		t.Fatalf("Routes: %v", err)
+		tb.Fatalf("Routes: %v", err)
 	}
 	mux := http.NewServeMux()
 	for _, route := range routes {
@@ -116,8 +118,8 @@ type response struct {
 	decoded map[string]any
 }
 
-func do(t *testing.T, handler http.Handler, method, target, body string) response {
-	t.Helper()
+func do(tb testing.TB, handler http.Handler, method, target, body string) response {
+	tb.Helper()
 	var reader io.Reader
 	if body != "" {
 		reader = strings.NewReader(body)
@@ -126,6 +128,22 @@ func do(t *testing.T, handler http.Handler, method, target, body string) respons
 	if body != "" {
 		request.Header.Set("Content-Type", "application/json")
 	}
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	result := response{status: recorder.Code, header: recorder.Header(), body: recorder.Body.Bytes()}
+	if len(result.body) > 0 {
+		_ = json.Unmarshal(result.body, &result.decoded)
+	}
+	return result
+}
+
+// doRaw sends a request with the query string exactly as it arrived on the wire,
+// which is the only way to reach the inputs httptest.NewRequest would refuse:
+// it parses the target itself, so a malformed escape never becomes a request.
+func doRaw(tb testing.TB, handler http.Handler, method, path, rawQuery string) response {
+	tb.Helper()
+	request := httptest.NewRequest(method, path, nil)
+	request.URL.RawQuery = rawQuery
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	result := response{status: recorder.Code, header: recorder.Header(), body: recorder.Body.Bytes()}
@@ -605,5 +623,50 @@ func TestTheWireShapeMatchesTheTransport(t *testing.T) {
 	}
 	if !bytes.Contains(result.body, []byte(`"has_next":true`)) {
 		t.Fatalf("body %s does not use the transport's field names", result.body)
+	}
+}
+
+// TestAMalformedQueryIsRefusedRatherThanHalfRead is the reason the routes read
+// the query string before anything reads the query string's parameters:
+// url.Values throws the parse error away and keeps the pairs it could read, so a
+// filter that arrived with a bad escape becomes no filter at all, and the answer
+// covers every record instead of the ones asked for.
+func TestAMalformedQueryIsRefusedRatherThanHalfRead(t *testing.T) {
+	handler := mount(t, newCollection(t))
+	cases := []struct{ name, rawQuery string }{
+		{"a bad escape in the filter", `filter=%zz`},
+		{"a semicolon separator, which Go stopped accepting", `filter={"status":"active"};size=10`},
+		{"a bad escape beside a parameter the route would read", `fields=id&%zz=1`},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			for _, route := range []struct{ method, path string }{
+				{http.MethodGet, "/products"},
+				{http.MethodGet, "/products:aggregate"},
+				{http.MethodGet, "/products/1"},
+				{http.MethodPost, "/products"},
+			} {
+				result := doRaw(t, handler, route.method, route.path, testCase.rawQuery)
+				if result.status != http.StatusBadRequest {
+					t.Fatalf("%s %s with %q answered %d, want 400: %s",
+						route.method, route.path, testCase.rawQuery, result.status, result.body)
+				}
+				if code := errorCode(t, result); code != "rest.query_malformed" {
+					t.Fatalf("%s %s with %q answered code %q, want rest.query_malformed",
+						route.method, route.path, testCase.rawQuery, code)
+				}
+			}
+		})
+	}
+
+	// The control: a query string that parses is answered with the rows its
+	// filter selects, so the refusal above is about the parse and not about
+	// refusing query parameters in general.
+	result := doRaw(t, handler, http.MethodGet, "/products", `filter=%7B%22status%22%3A%22active%22%7D&size=1`)
+	if result.status != http.StatusOK {
+		t.Fatalf("a readable query answered %d: %s", result.status, result.body)
+	}
+	if total, _ := result.decoded["total"].(float64); total != 2 {
+		t.Fatalf("total = %v, want 2: the filter selects the two active rows", result.decoded["total"])
 	}
 }

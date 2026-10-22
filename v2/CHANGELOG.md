@@ -167,6 +167,18 @@ English | [简体中文](CHANGELOG_zh.md)
   different for interface satisfaction. Callers are unaffected, because the two
   types are assignable; the change is that a generated assembly can hand its route
   registrars the component itself.
+- Four fuzz targets cover the two parsers that read text a client wrote:
+  `FuzzParseFilter` and `FuzzFilterCanonicalForm` in `resource`, and
+  `FuzzListQuery` and `FuzzQueryString` in `resource/rest`. Their seeds are the
+  documented examples plus a document on either side of each budget, so `go test`
+  — and therefore `make verify` — replays the dialect, both limits and the round
+  trip through the canonical form on every run, while `make fuzz` is the half that
+  lets the fuzzer grow new inputs. The assertions are the contracts and not the
+  implementation: a refusal is a classified invalid-argument error with a
+  `filter.*` code, an accepted tree is inside the limits the refusals advertise,
+  one document parses to one tree, and the canonical form is a fixed point. All
+  four survive a rewrite of either parser, which is what makes them a gate rather
+  than a description.
 
 ### Fixed
 
@@ -204,6 +216,18 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Changed
 
+- A query string that cannot be read in full is refused with
+  `rest.query_malformed` (`rest.query-malformed`) instead of being answered with
+  the parameters that happened to parse. `http.Request.URL.Query` is
+  `url.ParseQuery` with the error thrown away: it keeps the pairs it could read
+  and drops the rest. `?filter=%zz` therefore arrived at the resource surface as a
+  request with no filter and was answered with every record, and
+  `?filter={"status":"active"};size=10` — a semicolon separator, which Go stopped
+  accepting — arrived with neither parameter, so a client that asked for active
+  rows ten at a time was answered with all of them twenty at a time. The routes
+  check the query string where they are assembled, once, before any decoder reads
+  half of it. A client that sends a query the URL parser rejects now gets a 400
+  naming the parse failure; one that sends a well-formed query is unaffected.
 - A generated project runs on one lifecycle. `cmd/main.go` builds a `kit.HTTP`
   component and a `kitgrpc.Component`, attaches the database as a module that
   implements `Init` and `Shutdown`, and calls `Host.Run`. From there the sequence

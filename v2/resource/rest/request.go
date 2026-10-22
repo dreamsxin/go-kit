@@ -33,6 +33,49 @@ type request struct {
 // from an authorization failure at the call site.
 var recognisedParams = []string{"filter", "sort", "fields", "append", "page", "size"}
 
+// guardQuery wraps a decoder with the check every route shares: the query string
+// has to be readable in full before anything reads it.
+//
+// It is applied where the routes are assembled rather than in each decoder,
+// because "read the query" is not something a decoder opts into — the one that
+// forgets is the one whose parameters are dropped.
+func guardQuery(decode httpserver.DecodeRequestFunc) httpserver.DecodeRequestFunc {
+	return func(ctx context.Context, r *http.Request) (any, error) {
+		if err := requireReadableQuery(r); err != nil {
+			return nil, err
+		}
+		return decode(ctx, r)
+	}
+}
+
+// requireReadableQuery refuses a query string that cannot be parsed in full.
+//
+// http.Request.URL.Query is url.ParseQuery with the error thrown away: it keeps
+// the pairs it could read and drops the rest. "?filter=%zz" therefore arrives as
+// a request with no filter, and "?filter={"status":"active"};size=10" — a
+// semicolon separator, which Go stopped accepting — arrives with neither, so a
+// client that asked for active rows ten at a time is answered with every row
+// twenty at a time. That is precisely the failure this package refuses one layer
+// up: a filter that is dropped rather than refused answers a broader question.
+//
+// Stable: rest.query-malformed — a query string that cannot be read in full is refused with rest.query_malformed, never answered with the parameters that happened to parse.
+// Covered by: TestAMalformedQueryIsRefusedRatherThanHalfRead
+func requireReadableQuery(r *http.Request) error {
+	if r == nil || r.URL == nil {
+		return apperror.InvalidArgument("rest.query_malformed",
+			"the request carries no URL, so it has no parameters to read")
+	}
+	raw := r.URL.RawQuery
+	if raw == "" {
+		return nil
+	}
+	if _, err := url.ParseQuery(raw); err != nil {
+		return apperror.InvalidArgument("rest.query_malformed",
+			fmt.Sprintf("the query string cannot be read in full: %v; a parameter that is dropped rather than refused changes the question the request asks", err))
+	}
+	return nil
+}
+
 func (b *binding) decodeList(ctx context.Context, r *http.Request) (any, error) {
 	params, err := b.decide(ctx, r, ActionList)
 	if err != nil {

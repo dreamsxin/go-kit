@@ -243,6 +243,10 @@ func (s settings) checkAccess(name string) error {
 
 // route assembles one route: the endpoint wrapped so the handler sees a typed
 // request, and the decoder that produced it.
+//
+// The decoder is guarded here, in the one place every route passes through, so a
+// query string that cannot be read in full is refused before any decoder reads
+// half of it.
 func (b *binding) route(method, pattern string, action Action, decode httpserver.DecodeRequestFunc) Route {
 	ep := func(ctx context.Context, raw any) (any, error) {
 		request, ok := raw.(*request)
@@ -252,7 +256,7 @@ func (b *binding) route(method, pattern string, action Action, decode httpserver
 		}
 		return b.handle(ctx, action, request)
 	}
-	return Route{Pattern: method + " " + pattern, Endpoint: ep, Decode: decode}
+	return Route{Pattern: method + " " + pattern, Endpoint: ep, Decode: guardQuery(decode)}
 }
 
 // handle dispatches one decoded request to its operation.

@@ -6,6 +6,15 @@
 
 ### 变更
 
+- 读不完整的 query string 现在以 `rest.query_malformed`（`rest.query-malformed`）
+  拒绝，而不是拿「碰巧解析成功的那几个参数」作答。`http.Request.URL.Query` 就是
+  把错误丢掉的 `url.ParseQuery`：能读的键值对留下，读不了的丢掉。于是
+  `?filter=%zz` 到了资源接口上等于「没有 filter」，答回全部记录；
+  `?filter={"status":"active"};size=10`——分号分隔符，Go 已经不再接受——两个参数
+  一起消失，一个只想看 active、每页十条的客户端，拿到的是全部记录、每页二十条。
+  路由在装配的地方统一检查一次 query string，任何解码器都来不及读到一半。客户端
+  发来 URL 解析器拒绝的 query，现在得到 400 并指名解析失败的原因；发来合法 query
+  的客户端不受影响。
 - 生成项目跑在一个生命周期上。`cmd/main.go` 构造一个 `kit.HTTP` 组件与一个
   `kitgrpc.Component`，把数据库作为实现 `Init` 与 `Shutdown` 的模块挂上，然后
   调用 `Host.Run`。从这里开始顺序是框架的：先让就绪失败，再按配置的 drain 延迟
@@ -147,6 +156,14 @@
 
 ### 新增
 
+- 四个 fuzz 目标覆盖了两个读取客户端文本的解析器：`resource` 里的
+  `FuzzParseFilter`、`FuzzFilterCanonicalForm`，以及 `resource/rest` 里的
+  `FuzzListQuery`、`FuzzQueryString`。种子是文档里的示例，外加每个预算两侧各一个
+  文档，所以 `go test`（也就是 `make verify`）每次都会重放这套方言、两个上限，以及
+  规范形式的往返；`make fuzz` 是另一半，让 fuzzer 自己长出输入。断言写的是契约而
+  不是实现：拒绝是一个带 `filter.*` 码的、已分类的 invalid-argument 错误；被接受的
+  树在拒绝消息宣告的上限之内；一个文档只解析出一棵树；规范形式是不动点。两个解析器
+  随便重写，这四条都还成立——这才是门禁而不是描述。
 - `examples/usersvc/userservice.proto` 是现有 Go IDL 示例的 protobuf 孪生，
   文档中的 gRPC 工作流从此有可直接使用的契约。
 - `grpc.TraceparentStreamClientInterceptor` 在流式客户端调用上传播 W3C

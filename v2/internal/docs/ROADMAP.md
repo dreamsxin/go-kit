@@ -3416,6 +3416,93 @@ every minimal project failed with `"fmt" imported and not used`. An import list 
 a template is a function of the feature set, not a constant — and the only gate
 that catches either mistake is the one that compiles the output.
 
+## Milestone 34 (Complete): The Parsers Read Client Bytes, So They Get A Fuzzer
+
+Source: the last of the P1 gaps from the platform review. `ParseFilter` is the one
+function that turns an HTTP query parameter into a condition every adapter must
+honour, and it had no fuzz target at all — only hand-written tests over
+hand-written inputs, guarding limits (32 levels, 256 conditions) that were
+themselves hand-written constants.
+
+Landed:
+
+- **Four targets over two parsers.** `FuzzParseFilter` and
+  `FuzzFilterCanonicalForm` in `resource`; `FuzzListQuery` and `FuzzQueryString` in
+  `resource/rest`. The second pair drives the whole decode path — filter, sort,
+  projection, window, the aggregate route — rather than the parser alone, because
+  the parser is not the boundary a client reaches.
+- **The assertions are contracts, so a rewrite cannot break them.** A refusal is a
+  classified invalid-argument error with a `filter.*` code (a bare error there is a
+  500). An accepted tree is inside the limits the refusals advertise, measured by
+  an independent walk rather than by the parser's own counter. One document parses
+  to one tree. The canonical form is a fixed point. A route either succeeds or
+  refuses with a code, never answers 500 to a request a client can type — and a
+  projection is honoured exactly, so no parameter makes a column the schema marks
+  unreadable leave the service.
+- **The budgets are seeded from both sides**, a document at 255 conditions and one
+  at 257, one at 32 levels and one at 34. Without those, a removed check would only
+  fail under a fuzzer that happened to grow a document wide enough, which is the
+  same as not failing. With them, plain `go test` — and therefore `make verify` —
+  is the gate.
+- **`make fuzz` is the other half**, with `FUZZTIME` as its dial. A crash the
+  fuzzer finds is written to `testdata/fuzz/<Target>/`, where `go test` replays it
+  from then on; that is the mechanism by which a seed becomes a regression test,
+  and the reason the seeds live in code as well as in files.
+
+What the first three targets did: 5.6M executions on the filter dialect, 17.3M on
+the canonical form, 1.0M on the parsed parameters of a list request, and nothing.
+The defect came from asking a different question — not "can this parser be
+confused" but "what does a client's request become" — and three hand-written
+probes answered it in one request. The fourth target exists so the answer stays
+answered: its seed list is those three probes, and removing the fix turns plain
+`go test` red.
+
+Deliberately not done:
+
+- **No fuzzing inside `verify`.** A fuzz run's result depends on how long it ran,
+  and a green that means "nothing crashed in thirty seconds" is a green that
+  teaches the wrong lesson. The seeds run in `verify`; the search is a command a
+  maintainer chooses to run.
+- **No coverage threshold.** A number that is met by writing tests for the parts
+  that were easy to cover is a number that reports the wrong thing. The gaps this
+  package cares about are named by tests, not by a percentage.
+- **No third-party fuzz driver.** `go test -fuzz` ships with the toolchain, keeps
+  the corpus in the build cache, and writes a failure as a file the normal test run
+  replays. A second harness would be a second set of rules.
+
+Acceptance:
+
+```bash
+go test ./resource/... -count=1
+make fuzz FUZZTIME=30s
+```
+
+## Finding: A Parser Is Not Where A Query Gets Dropped
+
+Three targets over the parsers ran for minutes and twenty-four million executions
+and found nothing, which is worth reading carefully rather than filing under "no
+bugs": a small, total function over a bounded input space is exactly the shape a
+fuzzer does not break. What found the defect was a different question — not "can
+this parser be confused" but "what does a client's request become" — asked with
+three hand-written query strings, which took one request to answer.
+
+```
+GET /products?filter=%zz              -> 200, every record
+GET /products?filter={"status":"active"};size=10 -> 200, every record, 20 per page
+```
+
+`http.Request.URL.Query` is `url.ParseQuery` with the error discarded. It keeps
+the pairs it could read and drops the ones it could not. The filter was never
+dropped by the parser — it never reached the parser. The code that refuses a
+parameter a route does not read, and the code that refuses a filter the dialect
+cannot express, both sat one layer below the place where the parameter was
+disappearing, and both were correct.
+
+Rule: **fuzz the boundary the client reaches, not the function the boundary
+calls.** The dangerous layer is the one that decides what the next layer sees, and
+its failure mode is silence: it does not reject, it does not corrupt, it returns a
+smaller request that every layer below it handles perfectly.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

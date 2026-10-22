@@ -144,7 +144,10 @@ relative and must resolve on a case-sensitive filesystem.
 
 - Focused tests pass.
 - Relevant race tests pass.
-- `go test ./...` passes.
+- `go test ./...` passes, which also replays every fuzz seed.
+- A change in a parser was run under `make fuzz` for longer than its default; a
+  crash it writes to `testdata/fuzz/` is committed with the fix, so the input that
+  broke the parser once is replayed from then on.
 - `git diff --check` passes.
 - No temporary generated files remain.
 - Documentation links resolve.

@@ -126,7 +126,9 @@ go test ./tools -run TestPublicAPISurfaceSnapshot -count=1 \
 
 - 专项测试通过。
 - 相关竞态测试通过。
-- `go test ./...` 通过。
+- `go test ./...` 通过——它同时会重放每一个 fuzz 种子。
+- 改动涉及解析器时，用 `make fuzz` 跑得比默认时间更长；它写进 `testdata/fuzz/`
+  的崩溃要和修复一起提交，这样「弄坏过解析器一次」的输入从此每次都被重放。
 - `git diff --check` 通过。
 - 没有遗留临时生成文件。
 - 文档链接可解析。
