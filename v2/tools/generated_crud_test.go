@@ -86,11 +86,21 @@ func TestGeneratedCRUDAgainstSQLite(t *testing.T) {
 	serve := exec.Command(binPath, "-http.addr="+addr, "-db.dsn="+runPath, "-auto-migrate")
 	serve.Dir = dir
 	serve.Env = os.Environ()
+	// The process output is captured because a startup failure is otherwise
+	// reported as "the port never answered", which names the symptom and hides
+	// the cause.
+	var serveOutput bytes.Buffer
+	serve.Stdout = &serveOutput
+	serve.Stderr = &serveOutput
 	if err := serve.Start(); err != nil {
 		t.Fatalf("start generated project: %v", err)
 	}
 	defer killCmd(t, serve)
-	waitServer(t, baseURL+"/health")
+	exited := make(chan error, 1)
+	go func() { exited <- serve.Wait() }()
+	startupBegan := time.Now()
+	waitForGeneratedService(t, baseURL+"/health", exited, &serveOutput)
+	t.Logf("generated service answered /health in %s", time.Since(startupBegan).Round(10*time.Millisecond))
 
 	// 1. Create. The response is the generated DTO, not the model: a field
 	// missing here means the generator's mapping dropped it.
@@ -216,6 +226,33 @@ func TestGeneratedCRUDAgainstSQLite(t *testing.T) {
 	if got := jsonInt(t, remaining.body, "total"); got != 2 {
 		t.Errorf("GET /users after delete: total = %d, want 2", got)
 	}
+}
+
+// waitForGeneratedService waits for the readiness probe with a deadline that
+// survives a saturated suite, and fails fast when the process is gone. The
+// shared waitServer helper gives a process two seconds, which is right for an
+// example server and wrong here: this one opens a database and migrates a table
+// before it listens, while a dozen other packages are compiling in parallel.
+func waitForGeneratedService(t *testing.T, url string, exited <-chan error, output *bytes.Buffer) {
+	t.Helper()
+	deadline := time.Now().Add(60 * time.Second)
+	client := &http.Client{Timeout: 2 * time.Second}
+	for time.Now().Before(deadline) {
+		select {
+		case err := <-exited:
+			t.Fatalf("generated service exited before serving %s: %v\n%s", url, err, output.String())
+		default:
+		}
+		response, err := client.Get(url)
+		if err == nil {
+			response.Body.Close()
+			if response.StatusCode == http.StatusOK {
+				return
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("generated service did not serve %s within %s\n%s", url, 60*time.Second, output.String())
 }
 
 // requireCToolchain reports the missing capability rather than letting the
