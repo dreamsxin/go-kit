@@ -2427,6 +2427,38 @@ go test ./transport/http -run 'TestResourcePage|TestResourceWindow' -count=1
 go -C ./tools test . -run 'TestStableProtocolBehaviour|TestPublicAPISurfaceSnapshot|TestArchitectureDependencyGates' -count=1
 ```
 
+## 发现：生成的承诺，只有在生成出来的程序跑起来时才算守住
+
+第一个把生成服务接到真实数据库上跑的验收门（`tools/generated_crud_test.go`）
+第一次运行就失败了，但不在它瞄准的地方：它期待被拒绝的重复插入返回了 200。
+
+原因在断言下面一层。SQLite 把唯一性记在索引里，而不是 `PRAGMA table_info` 里，
+而 `sqliteIntrospector.columns` 只读列元数据——于是每个 UNIQUE 列进入生成模型时
+都没有 `uniqueIndex`。在空库上 `-auto-migrate` 随后建出的表与源 schema 不一致。
+仓储的 `ErrDuplicated` 分支、它映射到的 409、以及文档里「重复 → 409」这条行为，
+在生产之外全都不可达；生产里的真实 schema 仍然拦得住，所以问题不显形。
+
+套件里原有的任何测试都说不出这件事。其他生成项目用例全部带 `-db=false`；带
+`-db` 的只断言 `cmd/main.go` 的文本。生成器对自己运行时的承诺，一直只被阅读，
+从未被执行。
+
+规则：**生成代码里许下的承诺，只有在生成出来的程序跑起来时才算守住。** 生成器
+门禁断言的是从线上观察到的行为；源码快照不能替代它，因为产物可以完全自洽，
+却依然与它推导自的 schema 相矛盾。
+
+有意不改：生成的 `DELETE` 从 JSON 请求体里解码请求对象，所以不带请求体的
+`curl -X DELETE /user/1` 会得到 `400 bad_request.empty_body`。生成的 SDK 同样会
+发这个对象，客户端与服务端彼此一致；改掉它就等于改所有生成项目的线上契约，这是
+产品决定，而不是这道门禁职责内的缺陷。记在这里，是为了让它是被看见的选择，而
+不是被发现的意外。
+
+验收：
+
+```bash
+go test ./cmd/microgen/internal/dbschema -run TestSQLiteIntrospectionKeepsUniqueConstraints -count=1
+go -C ./tools test . -run TestGeneratedCRUDAgainstSQLite -count=1
+```
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

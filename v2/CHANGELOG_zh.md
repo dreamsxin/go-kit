@@ -123,8 +123,22 @@
 - 协议行为门禁现在会在某个稳定承诺只被函数顶层无条件 `t.Skip` 的测试
   覆盖时失败。带条件保护的 live/集成 skip 仍允许，只要该承诺还点名了一个
   在 CI 实际运行的测试。
+- 生成项目现在有一个「真的跑起来」的测试：`TestGeneratedCRUDAgainstSQLite`
+  从真实 schema 生成项目、补齐 microgen 留在用户自有服务文件里的五个桩、构建、
+  以进程方式启动，然后走完创建、读取、部分更新、分页、删除，以及删除之后的
+  404——全程 HTTP、真实 SQLite、经过生成的仓储。其他所有生成项目用例都带
+  `-db=false`，启动二进制只为读 `/health`；这是生成的 gorm 层、生成的分页窗口，
+  以及「唯一约束冲突 → 409」那条 `errors.Is` 分支第一次一起运行。它第一次跑
+  就抓到了下面这个内省缺口。
 
 ### 修复
+
+- `microgen -from-db -driver sqlite` 保留 UNIQUE 约束。SQLite 的唯一性记录在
+  索引里而不是 `PRAGMA table_info` 里，内省器此前只读列元数据，于是每个 UNIQUE
+  列进入生成模型时都没有 `uniqueIndex`。在空库上 `-auto-migrate` 随后建出的表
+  与源 schema 不一致——重复插入可以成功，仓储的 `ErrDuplicated` 分支在生产之外
+  不  可达，而生产里的真实 schema 仍然拦得住。把约束补回来，正是生成 CRUD 路径
+  可被测试的前提，也是它被发现的方式。
 
 - 生成项目的 `.ai/PROJECT_GUIDE.md` 在同时启用 config 与 OpenAPI 时，会把
   `GET /debug/routes` 这一条挤到上一行 `sdk/typescript/client.ts` 后面；现在

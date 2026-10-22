@@ -11,7 +11,7 @@ import (
 type User struct {
 	ID int `json:"id" gorm:"column:id;primaryKey;autoIncrement;type:INTEGER"`
 	Username string `json:"username" gorm:"column:username;not null;type:TEXT"`
-	Email string `json:"email" gorm:"column:email;not null;type:TEXT"`
+	Email string `json:"email" gorm:"column:email;not null;uniqueIndex;type:TEXT"`
 	CreatedAt *time.Time `json:"created_at" gorm:"column:created_at;type:DATETIME"`
 }
 

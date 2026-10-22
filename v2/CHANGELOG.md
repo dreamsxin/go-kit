@@ -83,8 +83,28 @@ English | [简体中文](CHANGELOG_zh.md)
   `ARCHITECTURE.md` rules out.
 - `examples/usersvc/userservice.proto` is the protobuf twin of the existing Go
   IDL example, so the documented gRPC workflow has a contract to start from.
+- A generated project now has a test that runs it: `TestGeneratedCRUDAgainstSQLite`
+  generates a project from a real schema, fills the five stubs microgen leaves
+  in the user-owned service file, builds it, starts it as a process, and drives
+  create, read, partial update, pagination, delete, and the 404 that follows a
+  delete — over HTTP, against SQLite, through the generated repository. Every
+  other generated-project test runs with `-db=false` and starts the binary only
+  to read `/health`, so this is the first time the generated gorm layer, the
+  generated pagination window, and the `errors.Is` branch that turns a unique
+  violation into 409 ran together. It found the SQLite introspection gap below
+  on its first run.
 
 ### Fixed
+
+- `microgen -from-db -driver sqlite` keeps UNIQUE constraints. SQLite reports
+  uniqueness through an index rather than through `PRAGMA table_info`, and the
+  introspector only read column metadata, so every UNIQUE column reached the
+  generated model without `uniqueIndex`. On a fresh database `-auto-migrate`
+  then built a table the source schema never had — duplicate inserts succeeded,
+  and the repository's `ErrDuplicated` branch was unreachable outside
+  production, where the real schema still enforced it. Reintroducing the
+  constraint is what makes the generated CRUD path testable at all, which is
+  how it was found.
 
 - The generated `.ai/PROJECT_GUIDE.md` ran the `GET /debug/routes` bullet into
   the preceding `sdk/typescript/client.ts` line whenever both config and

@@ -275,7 +275,6 @@ func (s *sqliteIntrospector) columns(db *sql.DB, table string) ([]ColumnInfo, er
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var cols []ColumnInfo
 	for rows.Next() {
@@ -286,6 +285,7 @@ func (s *sqliteIntrospector) columns(db *sql.DB, table string) ([]ColumnInfo, er
 			def                   sql.NullString
 		)
 		if err := rows.Scan(&cid, &name, &colType, &notNull, &def, &isPrimaryKey); err != nil {
+			rows.Close()
 			return nil, err
 		}
 		cols = append(cols, ColumnInfo{
@@ -297,7 +297,90 @@ func (s *sqliteIntrospector) columns(db *sql.DB, table string) ([]ColumnInfo, er
 			Default:    def.String,
 		})
 	}
-	return cols, rows.Err()
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+
+	// Uniqueness is not a column property in SQLite: it lives in an index, so
+	// table_info cannot report it. Reading it is not cosmetic — the generated
+	// model carries whatever this flag says, and a model without uniqueIndex
+	// makes -auto-migrate build a table the introspected schema never had.
+	unique, err := s.uniqueSingleColumns(db, table)
+	if err != nil {
+		return nil, err
+	}
+	for i := range cols {
+		if unique[cols[i].Name] {
+			cols[i].IsUnique = true
+		}
+	}
+	return cols, nil
+}
+
+// uniqueSingleColumns lists the columns covered by a single-column UNIQUE
+// constraint. A composite unique index is not a per-column property: no column
+// of it is unique on its own, so it is deliberately left out.
+func (s *sqliteIntrospector) uniqueSingleColumns(db *sql.DB, table string) (map[string]bool, error) {
+	rows, err := db.Query(fmt.Sprintf(`PRAGMA index_list(%q)`, table))
+	if err != nil {
+		return nil, err
+	}
+
+	var indexes []string
+	for rows.Next() {
+		var (
+			seq     int
+			name    string
+			unique  int
+			origin  string
+			partial int
+		)
+		if err := rows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		// The primary key appears here as an implicit index. Its column already
+		// carries primaryKey; marking it unique as well would state it twice.
+		if unique == 1 && origin != "pk" {
+			indexes = append(indexes, name)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+
+	columns := make(map[string]bool, len(indexes))
+	for _, index := range indexes {
+		info, err := db.Query(fmt.Sprintf(`PRAGMA index_info(%q)`, index))
+		if err != nil {
+			return nil, err
+		}
+		var names []string
+		for info.Next() {
+			var (
+				seqno, cid int
+				name       sql.NullString
+			)
+			if err := info.Scan(&seqno, &cid, &name); err != nil {
+				info.Close()
+				return nil, err
+			}
+			names = append(names, name.String)
+		}
+		if err := info.Err(); err != nil {
+			info.Close()
+			return nil, err
+		}
+		info.Close()
+		if len(names) == 1 {
+			columns[names[0]] = true
+		}
+	}
+	return columns, nil
 }
 
 // ─────────────────────────── SQL Server ───────────────────────────

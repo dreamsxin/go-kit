@@ -3151,6 +3151,44 @@ go test ./transport/http -run 'TestResourcePage|TestResourceWindow' -count=1
 go -C ./tools test . -run 'TestStableProtocolBehaviour|TestPublicAPISurfaceSnapshot|TestArchitectureDependencyGates' -count=1
 ```
 
+## Finding: A Generated Promise Is Kept Only When The Generated Program Runs
+
+The first acceptance gate that starts a generated service against a real database
+(`tools/generated_crud_test.go`) failed on its first run, and not where it was
+aimed: the duplicate insert it expected to be rejected returned 200.
+
+The cause sat one level below the assertion. SQLite records uniqueness in an
+index, not in `PRAGMA table_info`, and `sqliteIntrospector.columns` read only
+column metadata — so every UNIQUE column entered the generated model without
+`uniqueIndex`. On a fresh database `-auto-migrate` then built a table the source
+schema never had. The repository's `ErrDuplicated` branch, the 409 it maps to, and
+the documented "duplicate → 409" behaviour were unreachable everywhere except
+production, where the real schema still enforced the constraint.
+
+Nothing already in the suite could have said so. Every other generated-project
+test runs with `-db=false`; the ones that pass `-db` assert on the text of
+`cmd/main.go`. The generator's promises about its own runtime were being read,
+never executed.
+
+Rule: **a promise made in generated code is kept only when the generated program
+runs.** A generator gate asserts on behaviour observed through the wire; a
+snapshot of the source is not a substitute, because output can be perfectly
+self-consistent and still contradict the schema it was derived from.
+
+Deliberately unchanged: a generated `DELETE` decodes its request object from a
+JSON body, so `curl -X DELETE /user/1` with no body answers
+`400 bad_request.empty_body`. The generated SDK posts that object too, so client
+and server agree; changing it would alter the wire contract of every generated
+project, which is a product decision rather than a defect this gate was chartered
+to fix. It is recorded here so the choice is visible instead of discovered.
+
+Acceptance:
+
+```bash
+go test ./cmd/microgen/internal/dbschema -run TestSQLiteIntrospectionKeepsUniqueConstraints -count=1
+go -C ./tools test . -run TestGeneratedCRUDAgainstSQLite -count=1
+```
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria
