@@ -219,7 +219,10 @@ English | [简体中文](CHANGELOG_zh.md)
   `httpserver.RouteRegistrar` instead of a `*http.ServeMux`, which is what makes a
   custom pattern collide with a generated one at startup rather than be shadowed.
   The probes and the gRPC health service now answer from the framework's probe
-  registry, so `/readyz` reports the drain at the moment the process announces it.
+  registry, so `/readyz` reports the drain at the moment the process announces it —
+  and the body is that registry's (`health.report-shape`: `status`, optional
+  `requests`, `checks`) instead of the generated `{"status","service"}` line, so a
+  probe configuration that read `service` reads `checks` instead.
 - `microgen -protocols http,grpc` now requires a `.proto` IDL. With a Go IDL or
   `-from-db` the command used to write a project that could not compile: the
   generated transport registered through `pb.Register<Service>Server` and the

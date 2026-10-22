@@ -17,7 +17,9 @@
   `registerCustomRoutes` 收 `httpserver.RouteRegistrar` 而不是 `*http.ServeMux`，
   这才让自定义路由与生成路由的冲突在启动时暴露，而不是被静默遮蔽。探针与 gRPC
   health 服务都答框架的探针注册表，因此 `/readyz` 在进程宣告停止的那一刻就报出
-  正在 drain。
+  正在 drain——响应体也是那个注册表的形状（`health.report-shape`：`status`、可选
+  的 `requests`、`checks`），不再是生成的 `{"status","service"}` 那一行，所以读
+  `service` 的探针配置要改读 `checks`。
 - 新增 `resource` 包：资源路由的查询词汇。过滤条件是一个可序列化的树
   （`resource.Filter`），不是交给数据库驱动的字符串——因为字符串无法被权限层
   收窄、无法在审计日志里比对、也无法从缺陷报告重放。`ParseFilter` 接受客户端
