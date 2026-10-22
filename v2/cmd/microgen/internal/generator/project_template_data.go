@@ -18,6 +18,8 @@ type mainTemplateData struct {
 	WithGRPC        bool
 	WithOpenAPI     bool
 	WithInteraction bool
+	WithResource    bool
+	ResourcePrefix  string
 }
 
 type generatedRuntimeTemplateData struct {
@@ -48,6 +50,8 @@ type generatedRoutesTemplateData struct {
 	ImportPath     string
 	WithGRPC       bool
 	RoutePrefix    string
+	WithDB         bool
+	WithResource   bool
 }
 
 type customRoutesTemplateData struct {

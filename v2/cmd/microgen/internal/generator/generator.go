@@ -32,6 +32,7 @@ type Options struct {
 	DBDriver             string
 	WithOpenAPI          bool
 	WithInteraction      bool
+	WithResource         bool
 	IDLSrcPath           string
 	RoutePrefix          string
 	GeneratedMiddlewares []string

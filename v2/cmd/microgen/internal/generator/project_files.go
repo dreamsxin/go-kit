@@ -26,6 +26,8 @@ func (g *Generator) generateMainFileFull(ctx generationContext) error {
 		WithGRPC:        g.config.WithGRPC,
 		WithOpenAPI:     g.config.WithOpenAPI,
 		WithInteraction: g.config.WithInteraction,
+		WithResource:    g.config.WithResource,
+		ResourcePrefix:  resourcePrefix(g.config.RoutePrefix),
 	}
 	return g.executeTemplateIfAbsent("main.tmpl", g.layout.cmdMain(), data)
 }
@@ -66,6 +68,8 @@ func (g *Generator) generateGeneratedRoutesFile(ctx generationContext) error {
 		ImportPath:     g.config.ImportPath,
 		WithGRPC:       g.config.WithGRPC,
 		RoutePrefix:    g.config.RoutePrefix,
+		WithDB:         g.config.WithDB,
+		WithResource:   g.config.WithResource,
 	}
 	return g.executeTemplate("generated_routes.tmpl", g.layout.cmdGeneratedRoutes(), data)
 }

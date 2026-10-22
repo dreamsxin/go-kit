@@ -42,6 +42,7 @@ generated source.
 | define HTTP routes | [Routing](docs/routing.md), [transport README](transport/README.md) |
 | expose or call HTTP | [transport README](transport/README.md) |
 | call a generated service | [microgen guide](MICROGEN.md), [Routing](docs/routing.md) |
+| query a table by filter, sort and page | [resource README](resource/README.md), [REST binding](resource/rest/README.md) |
 | add gRPC | [transport README](transport/README.md), [gRPC README](integrations/grpc/README.md) |
 | add a custom body or protocol | [Custom transports](docs/custom-transport.md), [transport README](transport/README.md) |
 | customize errors and envelopes | [Error handling](docs/errors.md), [Customization](docs/customization.md) |

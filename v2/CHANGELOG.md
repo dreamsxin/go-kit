@@ -93,6 +93,33 @@ English | [简体中文](CHANGELOG_zh.md)
   generated pagination window, and the `errors.Is` branch that turns a unique
   violation into 409 ran together. It found the SQLite introspection gap below
   on its first run.
+- `microgen -resource` declares every generated table as a `resource.Collection`
+  and mounts its REST surface, so the resource layer is something a generated
+  project runs rather than something a package contains. The flag writes three
+  files into the generated `repository` package: the shared query translation,
+  one declaration per table, and the list the mounting code iterates. The
+  translation is the first `resource.Repository` over a real driver. Filters
+  become gorm predicates through the clause builders rather than SQL text, so an
+  identifier is quoted by the dialector and can only have reached a statement by
+  being declared in the schema; `$like` and `$prefix` compile to `LIKE` with an
+  explicit `ESCAPE '!'`, since a backslash is also the character MySQL reads
+  inside the literal and the statement the other two drivers accept is the one it
+  rejects; `$empty` reads as `IS NULL` on a non-text column and
+  `IS NULL OR = ''` on text, rather than comparing an integer to the empty
+  string; a window's offset is clamped rather than cast, because `int(MaxInt64)`
+  is negative on a 32-bit build and a negative offset means "from the top" to
+  gorm, which answers the first page to a client that asked for the last; and the
+  primary key is appended to every `ORDER BY` as a tiebreaker, so two pages sorted
+  by a repeating column can neither overlap nor skip a row. A projection narrows
+  the `SELECT` rather than only the response: a column that was never loaded
+  cannot be leaked by a later layer. Writes go through the typed model, because a
+  map insert cannot report the key the database assigned, and the stored record is
+  read back instead of echoed, so a column with a default or a trigger value is
+  answered as it was stored. A table whose primary key is composite, or absent, is
+  left out of the surface with the reason written into the generated file.
+  `TestGeneratedCRUDAgainstSQLite` drives both surfaces over one process and one
+  table, and checks that a row deleted through a collection is gone from the
+  endpoint that answers the same table.
 
 ### Fixed
 

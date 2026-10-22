@@ -118,6 +118,25 @@
 - `grpc.TraceparentStreamClientInterceptor` 在流式客户端调用上传播 W3C
   trace context（`grpc.traceparent-stream-client`），补上此前只有 unary
   与服务端流式拦截器的不对称；无 trace 的 context 仍不发明 trace。
+- `microgen -resource` 把生成的每张表声明为 `resource.Collection` 并挂上它的
+  REST 面，资源层由此成为「生成出来的程序真的在跑」的东西，而不只是「一个包里
+  有的东西」。开关往生成的 `repository` 包写三类文件：共用的查询翻译、每张表
+  一份声明、挂载代码遍历的那张清单。这份翻译是第一个跑在真实驱动上的
+  `resource.Repository`：过滤条件经 gorm 的 clause 构造器变成谓词而不是拼成
+  SQL 文本，标识符由 dialector 负责加引号，且它只能因为被声明在 schema 里才
+  抵达语句；`$like` 与 `$prefix` 编译成带显式 `ESCAPE '!'` 的 `LIKE`——反斜杠
+  同时也是 MySQL 在字面量内部读取的转义符，另外两个驱动接受的语句正是它拒绝
+  的那一条；`$empty` 在非文本列上读作 `IS NULL`，在文本列上读作
+  `IS NULL OR = ''`，而不是拿整数去和空串比较；窗口的偏移量做饱和而不是强制
+  转换，因为 32 位构建上 `int(MaxInt64)` 是负数，而 gorm 把负偏移读作「从头
+  开始」，会给一个要最后一页的客户端返回第一页；主键永远作为次序的最后一项
+  追加到 `ORDER BY`，按会重复的列排序时两页之间既不会重叠也不会漏行。投影在
+  `SELECT` 上就收窄，而不只是在响应上收窄：没有被读取的列，后面的层也泄漏不
+  出来。写操作走类型化模型，因为 map 插入无法回报数据库分配的键；写入后重新
+  读取而不是回显，所以带默认值或触发器赋值的列会按存下来的样子回答。主键为
+  复合、或干脆没有主键的表不进入这个面，理由写在生成文件里。
+  `TestGeneratedCRUDAgainstSQLite` 在同一个进程、同一张表上跑完两个面，并断言
+  通过集合删掉的行在回答同一张表的端点上也消失了。
 - 评审生成契约现在包含 `generated_chain.go`，每个新生成项目获得的中间件
   链成为签字快照的一部分，不再对契约门禁不可见。
 - 协议行为门禁现在会在某个稳定承诺只被函数顶层无条件 `t.Skip` 的测试

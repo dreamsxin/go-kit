@@ -145,6 +145,7 @@ opt-in through `-db`, and startup migration is disabled by default.
 | `-db` | Generate database runtime wiring, default `false`; requires model output |
 | `-driver` | Database driver for `-from-db` and `-db`, default `mysql` |
 | `-model` | Generate model/repository output, default `false`; requires a `gorm`-tagged type or `-from-db` |
+| `-resource` | Declare each generated table as a `resource.Collection` and mount its REST surface under `{prefix}/resources`, default `false`; requires `-db` |
 | `-docs` | Generate project documentation, default `true` |
 | `-tests` | Generate project tests |
 | `-interaction` | Generate interaction runtime and `/mcp` endpoint |

@@ -2,6 +2,12 @@
 package main
 
 import (
+{{- if .WithResource}}
+	"fmt"
+
+	"{{.ImportPath}}/repository"
+	kitrest "github.com/dreamsxin/go-kit/v2/resource/rest"
+{{- end}}
 	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
 {{- if .WithGRPC}}
 
@@ -45,3 +51,30 @@ func (g generatedServices) generatedRuntime() generatedRuntime {
 {{- end}}
 	return rt
 }
+
+{{- if .WithResource}}
+
+// registerResourceRoutes mounts the declarative surface for every generated
+// table, under its own prefix so a collection cannot shadow the typed endpoint
+// that answers the same row.
+//
+// The routes are handlers rather than kit endpoints because this project builds
+// its own mux instead of a kit component; they still encode responses and errors
+// through the transport, so the wire answer does not depend on the mounting.
+func registerResourceRoutes(r httpserver.RouteRegistrar, db *repository.DB, prefix string) error {
+	collections, err := repository.ResourceCollections(db)
+	if err != nil {
+		return fmt.Errorf("declare resources: %w", err)
+	}
+	for _, collection := range collections {
+		routes, err := kitrest.Routes(collection, kitrest.WithPrefix(prefix))
+		if err != nil {
+			return fmt.Errorf("resource %q: %w", collection.Name, err)
+		}
+		for _, route := range routes {
+			r.Handle(route.Pattern, route.Handler())
+		}
+	}
+	return nil
+}
+{{- end}}

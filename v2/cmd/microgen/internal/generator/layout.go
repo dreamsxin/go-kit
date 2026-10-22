@@ -66,6 +66,15 @@ func (l projectLayout) generatedModelFile(modelName string) string {
 func (l projectLayout) repositoryBaseFile() string {
 	return filepath.Join(l.root, "repository", "generated_base.go")
 }
+func (l projectLayout) resourceStoreFile() string {
+	return filepath.Join(l.root, "repository", "generated_resource_store.go")
+}
+func (l projectLayout) resourceFile(modelName string) string {
+	return filepath.Join(l.root, "repository", "generated_"+strings.ToLower(modelName)+"_resource.go")
+}
+func (l projectLayout) resourceCollectionsFile() string {
+	return filepath.Join(l.root, "repository", "generated_resource_collections.go")
+}
 func (l projectLayout) repositoryFile(modelName string) string {
 	return filepath.Join(l.root, "repository", "generated_"+strings.ToLower(modelName)+"_repository.go")
 }

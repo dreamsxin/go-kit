@@ -67,6 +67,26 @@ transport packages and mounts into a Host through the provider-neutral
 Application routes should not be moved to raw HTTP handlers merely to reduce a
 few lines of endpoint wiring.
 
+### `resource`
+
+`resource` is the query vocabulary a declarative route speaks, and it depends on
+nothing in this framework but `apperror`. A `Filter` is a tree rather than SQL
+text, because text cannot be narrowed by a policy, compared in an audit log, or
+replayed from a report; `Params` and `MergeParams` combine the layers a request
+is assembled from with one narrowing rule per key; `Collection` is a value that
+binds a name, a `Schema` and a `Repository` together, and nothing about it is
+registered globally.
+
+The package owns the contract and not the storage. `Repository` is implemented by
+whoever owns the database — an application's adapter, or `microgen -resource`,
+which emits one over gorm into the project it generates. That direction is what
+keeps a service that only serves HTTP from building a driver because a query
+vocabulary mentioned SQL.
+
+`resource/rest` mounts a `Collection` as route values, and `rest.WithLayer` is
+the seam a policy plugs into: the layer returns `Params`, the merge guarantees it
+cannot be widened by anything the client sent.
+
 ### `endpoint`
 
 `endpoint` defines the transport-independent request function and standard

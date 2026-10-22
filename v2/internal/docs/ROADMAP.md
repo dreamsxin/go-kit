@@ -3189,6 +3189,31 @@ go test ./cmd/microgen/internal/dbschema -run TestSQLiteIntrospectionKeepsUnique
 go -C ./tools test . -run TestGeneratedCRUDAgainstSQLite -count=1
 ```
 
+## Finding: A Second Projection Hides The First
+
+The gate for the generated resource surface was written, passed, and then
+mutation-tested the way everything else here is. Deleting the condition from the
+query translation turned it red. Making the projection ignore what the caller
+asked for did not.
+
+The mutation was real and the gate never saw it, because the single-record route
+projects twice: the store narrows its `SELECT`, and `binding.get` calls
+`Schema.Project` on what came back. Removing the first projection changes which
+columns are read and nothing about what the client sees, so from the wire the
+change is invisible — and a gate written against the wire is blind to it.
+
+That is not a reason to accept the body assertion. It is a reason to assert on
+the one route that hands the repository's answer back unmodified: a list returns
+`Page` straight through `binding.list`, so its records carry exactly the columns
+the statement named. The assertion moved there, and the same mutation now fails
+it.
+
+Rule: **when a mutation survives, first ask which layer would have to notice.**
+A property proven one layer above where it is implemented is proven for that
+layer instead. The layer that masks it is usually the one whose own behaviour is
+already covered — the framework's projection was fine; the store's was never
+exercised.
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

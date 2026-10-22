@@ -40,8 +40,8 @@ import (
 {{end}}{{if .WithInteraction}}	"github.com/dreamsxin/go-kit/v2/interaction/mcp"
 {{end}}{{if .WithConfig}}	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"github.com/dreamsxin/go-kit/v2/observability/metrics"
-	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
-	"{{$.ImportPath}}/config"
+{{end}}	httpserver "github.com/dreamsxin/go-kit/v2/transport/http/server"
+{{if .WithConfig}}	"{{$.ImportPath}}/config"
 {{end}})
 
 
@@ -224,11 +224,14 @@ func main() {
 	r.Handle("GET /swagger/", swaggerUI.New("{{range .Project.Services}}{{.Name}} {{end}}API", "/openapi.json", "/swagger/"))
 {{end}}
 
+	// Everything below registers through this value, so a decorator installed
+	// here covers every generated route — typed endpoints and resource routes
+	// alike — rather than only the ones that happen to be registered by name.
+	var routes httpserver.RouteRegistrar = r
 {{if .WithConfig}}	// Per-route metrics, when the deployment asked for an endpoint to scrape.
 	// Recording is installed at registration because that is the only place a
 	// handler and its route pattern are both in scope: middleware wrapped around
 	// the mux would record every request with an empty route.
-	var routes httpserver.RouteRegistrar = r
 	var metricsCollector *endpoint.Metrics
 	if cfg.Server.MetricsPath != "" {
 		metricsCollector = &endpoint.Metrics{}
@@ -239,8 +242,15 @@ func main() {
 		r.Handle("GET "+cfg.Server.MetricsPath, metrics.Handler(metricsCollector))
 		logger.Info("metrics endpoint enabled", "path", cfg.Server.MetricsPath)
 	}
-	runtime.registerRoutes(routes)
-{{else}}	runtime.registerRoutes(r)
+{{end}}	runtime.registerRoutes(routes)
+{{if .WithResource}}	// The declarative surface: every generated table, addressed by the query
+	// vocabulary in the resource package instead of by one endpoint per
+	// operation. It mounts under its own prefix, because a collection named after
+	// its table would answer the pattern a typed endpoint already answers.
+	if err := registerResourceRoutes(routes, repoDB, "{{.ResourcePrefix}}"); err != nil {
+		logger.Error("resource routes", "error", err)
+		os.Exit(1)
+	}
 {{end}}	// Custom routes are registered on the mux itself: cmd/custom_routes.go is
 	// yours, and wrapping handlers you wrote is your call to make there.
 	registerCustomRoutes(r)

@@ -60,6 +60,21 @@ Transport request
 
 不应仅为减少几行 endpoint 接线代码就把应用路由挪到原生 HTTP handler。
 
+### `resource`
+
+`resource` 是声明式路由所说的查询词汇，它除 `apperror` 之外不依赖本框架的任何
+包。`Filter` 是树而不是 SQL 文本——文本无法被策略收窄、无法在审计日志里比较、
+也无法从报告里回放；`Params` 与 `MergeParams` 用一个「只会收窄」的规则按维度
+合并请求的各层；`Collection` 是把名字、`Schema` 与 `Repository` 绑在一起的
+值，它没有任何一部分被全局注册。
+
+这个包拥有契约，不拥有存储。`Repository` 由拥有数据库的一方实现——应用自己的
+适配器，或者 `microgen -resource` 在它生成的工程里产出的 gorm 版本。这个方向
+正是「只提供 HTTP 的服务不会因为一个查询词汇提到 SQL 就去编译一个驱动」的原因。
+
+`resource/rest` 把 `Collection` 挂成一组路由值，`rest.WithLayer` 则是策略接入
+的接缝：层返回 `Params`，合并保证它不会被客户端送来的任何东西放宽。
+
 ### `endpoint`
 
 `endpoint` 定义与传输无关的请求函数，以及标准库中间件组合、超时与指标。

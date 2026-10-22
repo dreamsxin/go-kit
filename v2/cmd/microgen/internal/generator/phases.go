@@ -32,12 +32,12 @@ func (g *Generator) generateModelArtifacts(ctx generationContext) error {
 		return nil
 	}
 
-	var hasModels bool
+	var models []*modelView
 	for _, model := range ctx.models {
 		if !model.HasGormTags {
 			continue
 		}
-		hasModels = true
+		models = append(models, model)
 		if err := g.generateModelFile(model); err != nil {
 			return fmt.Errorf("generate model[%s] failed: %w", model.Name, err)
 		}
@@ -45,9 +45,15 @@ func (g *Generator) generateModelArtifacts(ctx generationContext) error {
 			return fmt.Errorf("generate repository[%s] failed: %w", model.Name, err)
 		}
 	}
-	if hasModels {
-		if err := g.generateRepositoryBaseFile(); err != nil {
-			return fmt.Errorf("generate repository base failed: %w", err)
+	if len(models) == 0 {
+		return nil
+	}
+	if err := g.generateRepositoryBaseFile(); err != nil {
+		return fmt.Errorf("generate repository base failed: %w", err)
+	}
+	if g.config.WithResource {
+		if err := g.generateResourceArtifacts(models); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -139,6 +139,7 @@ microgen \
 | `-db` | 生成数据库运行时接线，默认 `false`；需要模型输出 |
 | `-driver` | `-from-db` 与 `-db` 的数据库驱动，默认 `mysql` |
 | `-model` | 生成 model/repository 输出，默认 `false`；需要带 `gorm` tag 的类型或 `-from-db` |
+| `-resource` | 把每张生成的表声明为 `resource.Collection`，并在 `{prefix}/resources` 下挂载其 REST 面，默认 `false`；需要 `-db` |
 | `-docs` | 生成项目文档，默认 `true` |
 | `-tests` | 生成项目测试 |
 | `-interaction` | 生成交互运行时与 `/mcp` 端点 |

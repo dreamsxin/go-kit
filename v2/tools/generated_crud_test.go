@@ -60,6 +60,7 @@ func TestGeneratedCRUDAgainstSQLite(t *testing.T) {
 		"-out", dir,
 		"-import", importPath,
 		"-db",
+		"-resource",
 		"-config=false",
 		"-docs=false",
 		"-openapi=false",
@@ -226,6 +227,12 @@ func TestGeneratedCRUDAgainstSQLite(t *testing.T) {
 	if got := jsonInt(t, remaining.body, "total"); got != 2 {
 		t.Errorf("GET /users after delete: total = %d, want 2", got)
 	}
+
+	// 7. The declarative surface, over the same table and the same process.
+	// -resource makes microgen declare each table as a resource.Collection and
+	// mount its REST routes; this is the only gate that runs those routes
+	// against a driver, and the only one that checks both bindings see one table.
+	exerciseGeneratedResourceSurface(t, baseURL)
 }
 
 // waitForGeneratedService waits for the readiness probe with a deadline that
@@ -446,6 +453,7 @@ type generatedAPIResponse struct {
 	status int
 	body   map[string]any
 	raw    string
+	header http.Header
 }
 
 func callGeneratedAPI(t *testing.T, method, url string, payload any) generatedAPIResponse {
@@ -481,7 +489,7 @@ func callGeneratedAPI(t *testing.T, method, url string, payload any) generatedAP
 			t.Fatalf("%s %s: body is not JSON: %v\n%s", method, url, err, raw)
 		}
 	}
-	return generatedAPIResponse{status: response.StatusCode, body: body, raw: string(raw)}
+	return generatedAPIResponse{status: response.StatusCode, body: body, raw: string(raw), header: response.Header}
 }
 
 // jsonField walks nested objects. A missing key is reported as an empty value

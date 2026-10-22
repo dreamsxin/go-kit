@@ -45,6 +45,7 @@ type config struct {
 	dbDriver        string
 	withOpenAPI     bool
 	withInteraction bool
+	withResource    bool
 	serviceName     string
 	routePrefix     string
 	checkOnly       bool
@@ -94,6 +95,7 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 	driver := fs.String("driver", "mysql", "Database driver")
 	withOpenAPI := fs.Bool("openapi", true, "Generate OpenAPI 3.1, JSON Schema, Swagger UI, and TypeScript SDK")
 	withInteraction := fs.Bool("interaction", false, "Generate AI interaction runtime and MCP endpoint")
+	withResource := fs.Bool("resource", false, "Declare every generated table as a resource.Collection and mount its REST surface (requires -db)")
 	serviceName := fs.String("service", "", "Service name")
 	routePrefix := fs.String("prefix", "", "HTTP route prefix")
 	checkOnly := fs.Bool("check", false, "Scan an existing project and print extend compatibility without changing files")
@@ -131,6 +133,7 @@ func parseConfig(fs *flag.FlagSet, args []string) config {
 		dbDriver:        *driver,
 		withOpenAPI:     *withOpenAPI,
 		withInteraction: *withInteraction,
+		withResource:    *withResource,
 		serviceName:     *serviceName,
 		routePrefix:     *routePrefix,
 		checkOnly:       *checkOnly,
@@ -252,6 +255,7 @@ func (c config) generatorOptions(idlPath, serviceName string) generator.Options 
 		DBDriver:        c.dbDriver,
 		WithOpenAPI:     c.withOpenAPI,
 		WithInteraction: c.withInteraction,
+		WithResource:    c.withResource,
 		IDLSrcPath:      idlPath,
 		RoutePrefix:     c.routePrefix,
 	}

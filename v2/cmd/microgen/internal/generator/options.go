@@ -36,6 +36,13 @@ func (opt Options) Validate() error {
 	if opt.WithDB && opt.DBDriver == "" {
 		return fmt.Errorf("database generation requires a db driver")
 	}
+	// A resource surface is a storage binding: it needs models to declare and a
+	// database handle to read them through. Refusing the combination here keeps
+	// the generated project from referring to a repository package that was
+	// never written.
+	if opt.WithResource && !opt.WithDB {
+		return fmt.Errorf("-resource requires -db=true: the declarative surface answers queries through the generated repository")
+	}
 	if err := validateRoutePrefix(opt.RoutePrefix); err != nil {
 		return err
 	}
