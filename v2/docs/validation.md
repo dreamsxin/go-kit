@@ -1,0 +1,82 @@
+# Validation
+
+English | [简体中文](validation_zh.md)
+
+Two validation systems ship in the framework, and they answer different
+questions. This chapter says which to reach for, what each produces on the
+wire, and where the vocabulary is shared.
+
+## The short version
+
+| System | Package | Question it answers | Failure code |
+| --- | --- | --- | --- |
+| Struct tags | `validation` | does this decoded request satisfy the rules its fields declare? | `validation.<field>.<rule>` |
+| Interface | `endpoint` | does this request, as a whole, make sense to the business? | `bad_request.validation` |
+
+Both classify as `invalid_argument`, so both map to 400 over HTTP and
+`InvalidArgument` over gRPC. A client never has to distinguish them; a log
+reader does, and the code names the field.
+
+## Tag validation
+
+```go
+type CreateUserRequest struct {
+    Status string `json:"status" validate:"enum=active|suspended,default=active"`
+    Age    int    `json:"age"    validate:"min=0,max=150"`
+    Name   string `json:"name"   validate:"minLen=1,maxLen=64"`
+}
+```
+
+`validation.Middleware()` walks the request's `validate` tags and refuses a
+value that breaks one. The rule set is deliberately small — `enum`, `min`,
+`max`, `minLen`, `maxLen` — because every rule maps one-to-one onto a JSON
+Schema keyword: one tag drives the generated contract, the form a frontend
+builds from it, and the check the service runs. `default` is carried as a
+form-filling hint by the contract and is not enforced by validation. A
+`pattern` rule is deliberately absent: Go struct tags cannot carry
+backslashes reliably, and the patterns a form needs are full of them.
+
+A nil pointer field is absent — constraints do not run on it — because
+required-ness is the field's own business: a non-pointer field is already
+required in the generated contract.
+
+Wire it with `kit.WithEndpointMiddleware(validation.Middleware())`, or rely
+on the typed JSON routes and generated transports, which validate on their
+own.
+
+## Interface validation
+
+When a rule needs more than one field — "end must be after start", "exactly
+one of these" — the request implements `endpoint.Validatable`:
+
+```go
+func (r CreateBookingRequest) Validate() error {
+    if !r.End.After(r.Start) {
+        return endpoint.NewValidationError("end", "must be after start")
+    }
+    return nil
+}
+
+ep := endpoint.NewBuilder(createBooking).
+    WithValidation().
+    Build()
+```
+
+`endpoint.ValidationMiddleware()` calls `Validate()` before the endpoint
+runs and collects `endpoint.ValidationError` field errors. The transport
+encodes the failure as 400 with code `bad_request.validation` and the field
+list in the error body.
+
+## Which one, when
+
+- Prefer **tags** for single-field shape rules that the contract should
+  advertise: enums, ranges, lengths. The generated OpenAPI and JSON Schema
+  carry them to the client before it sends anything.
+- Prefer the **interface** for cross-field and business-adjacent rules the
+  contract cannot express.
+- The two compose: tags catch the shape, the interface catches the meaning,
+  and both run as endpoint middleware in either order.
+
+See the [`validation` package](../validation/validation.go) godoc for the
+exact tag grammar and [Error handling](errors.md) for how the codes reach
+each transport.

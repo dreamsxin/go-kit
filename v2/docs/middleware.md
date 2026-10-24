@@ -49,7 +49,7 @@ layer:
 | Concern | Service layer | Endpoint layer | Transport layer |
 | --- | --- | --- | --- |
 | Logging | stays clean; reads correlation IDs from the context | `slogadapter.LoggingMiddleware`, `integrations/zap`, or `slogadapter.NewTelemetry` | `server.AccessLogMiddleware` for protocol facts; `ServerErrorHandler` records failures |
-| Tracing | the context carries trace and request IDs | `TracingMiddleware` (W3C correlation), `oteladapter.TracingMiddleware` (spans) | `transporthttp.ExtractTraceparent` / `InjectTraceparent` header propagation |
+| Tracing | the context carries trace and request IDs | `TracingMiddleware` (W3C correlation), `oteladapter.TracingMiddleware` (spans) | extraction and injection are installed by default at every boundary; `transporthttp.ExtractTraceparent` / `InjectTraceparent` are for a hand-assembled one |
 | Metrics | — | `RecordingMiddleware` with any `Recorder` — `endpoint.Metrics` in memory, `oteladapter.NewMetrics` for OpenTelemetry | `httpserver.Recorder` / `grpcserver.Recorder` for route, status, and method; access-log status/bytes |
 | Errors | returns `apperror` classifications | `ErrorHandlingMiddleware` attaches the operation name; `ValidationMiddleware` short-circuits | `ErrorEncoder` maps kinds to statuses; `ErrorHandler` observes |
 

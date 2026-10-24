@@ -159,6 +159,15 @@ route — the only place the matched pattern exists.
 Skip `Setup` when the application owns its provider configuration; pass any
 `trace.Tracer` and `metric.Meter` instead, and keep shutdown yours.
 
+What the exported tree contains today: one span per endpoint invocation,
+parented in the inbound trace context, with errors and panics recorded. There
+are not yet spans at the transport boundary, on outbound calls, around
+database work, or per retry attempt, so even with a collector deployed the
+tree is depth one per service — the W3C correlation the core propagates is
+what joins the hops, not child spans. That coverage is recorded roadmap work;
+see the correlation section of [Architecture](../ARCHITECTURE.md) for the
+division of labour.
+
 ## Correlation And Cardinality
 
 - Enable `kit.WithRequestID()` for an `X-Request-ID` response header and the

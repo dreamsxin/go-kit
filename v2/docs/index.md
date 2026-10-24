@@ -25,6 +25,8 @@ the contracts.
 | add authentication or browser protections | [Auth tutorial](tutorial-auth.md) | [Security README](../security/http/README.md) |
 | add logs, metrics, or tracing | [Observability](observability.md) | [Production guide](../PRODUCTION.md) |
 | expose tools to AI clients | [MCP tutorial](tutorial-mcp.md) | [Interaction README](../interaction/README.md) |
+| expose a table as a resource route | [Resources](resources.md) | [`resource` README](../resource/README.md) |
+| validate a request | [Validation](validation.md) | [`validation` package](../validation/validation.go) |
 | deploy and operate a service | [Production guide](../PRODUCTION.md) | [Lifecycle](lifecycle.md), [Troubleshooting](troubleshooting.md) |
 | upgrade an existing project | [Changelog](../CHANGELOG.md) | [Production guide](../PRODUCTION.md) |
 
@@ -44,6 +46,10 @@ Read these in the order that matches your goal:
   errors are classified.
 - [Routing](routing.md): pattern syntax, the registration to reach for, path
   and query parameters, and route-shaping options.
+- [Resources](resources.md): filter trees, layered request params, the
+  repository contract, and the REST binding.
+- [Validation](validation.md): tag rules, the Validatable interface, and the
+  error vocabulary both produce.
 - [Middleware](middleware.md): composition, ordering, flow control, and the
   built-in catalog.
 - [Error handling](errors.md): classification, status mapping, and safe messages.
@@ -64,6 +70,7 @@ The detailed contracts live beside the implementation:
 
 - [`endpoint`](../endpoint/README.md)
 - [`transport`](../transport/README.md)
+- [`resource`](../resource/README.md), [`resource/rest`](../resource/rest/README.md)
 - [`health`](../health/README.md)
 - [`security`](../security/README.md)
 - [`kit/grpc`](routing.md#grpc-routes): the gRPC lifecycle component and its registration

@@ -58,6 +58,8 @@ go http.ListenAndServe(":8081", admin)
 
 报告体是 `{"status","requests"?,"checks":[...]}`——字段名是稳定契约
 （`health.report-shape`），空路径规则同理（`health.mount-skips-empty-path`）。
+报告状态是 `StatusOK` 或 `StatusUnavailable`；失败、超时或 panic 的检查携带
+`StatusError`，已导出为常量，探针工具可以与常量比较而不是写字面量。
 若需要在 `Mount` 之外使用，`Handler(scope)` 按作用域
 （`ScopeAll` / `ScopeLiveness` / `ScopeReadiness`）交出底层 handler。
 

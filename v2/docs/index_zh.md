@@ -22,6 +22,8 @@ godoc 查符号的精确契约。框架的实现不是阅读材料——契约�
 | 添加认证或浏览器安全 | [认证教程](tutorial-auth_zh.md) | [安全 README](../security/http/README_zh.md) |
 | 添加日志、指标或追踪 | [可观测性](observability_zh.md) | [生产指南](../PRODUCTION_zh.md) |
 | 向 AI 客户端提供工具 | [MCP 教程](tutorial-mcp_zh.md) | [Interaction README](../interaction/README_zh.md) |
+| 把一张表暴露成资源路由 | [资源](resources_zh.md) | [`resource` README](../resource/README_zh.md) |
+| 校验一个请求 | [校验](validation_zh.md) | [`validation` 包](../validation/validation.go) |
 | 部署和运维 | [生产指南](../PRODUCTION_zh.md) | [生命周期](lifecycle_zh.md)、[排障](troubleshooting_zh.md) |
 | 升级已有项目 | [变更记录](../CHANGELOG_zh.md) | [生产指南](../PRODUCTION_zh.md) |
 
@@ -39,6 +41,8 @@ godoc 查符号的精确契约。框架的实现不是阅读材料——契约�
 
 - [核心概念](concepts_zh.md)：分层、所有权、请求路径，以及错误在哪里被分类。
 - [路由](routing_zh.md)：模式语法、注册调用的选择、路径与查询参数，以及影响路由的选项。
+- [资源](resources_zh.md)：过滤树、分层请求参数、仓储契约与 REST 绑定。
+- [校验](validation_zh.md)：tag 规则、Validatable 接口，以及两者产出的错误词汇。
 - [中间件](middleware_zh.md)：组合、顺序、流控与内置目录。
 - [错误处理](errors_zh.md)：分类、状态映射和安全消息。
 - [生命周期](lifecycle_zh.md)：启动、停机、draining、健康检查和任务。
@@ -56,6 +60,7 @@ godoc 查符号的精确契约。框架的实现不是阅读材料——契约�
 
 - [`endpoint`](../endpoint/README_zh.md)
 - [`transport`](../transport/README_zh.md)
+- [`resource`](../resource/README_zh.md)、[`resource/rest`](../resource/rest/README_zh.md)
 - [`health`](../health/README_zh.md)
 - [`security`](../security/README_zh.md)
 - [`kit/grpc`](routing_zh.md#grpc-路由)：gRPC 生命周期组件及其注册方式

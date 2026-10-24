@@ -404,6 +404,7 @@ package health // import "github.com/dreamsxin/go-kit/v2/health"
 CONSTANTS
 const (
 	StatusOK          = "ok"
+	StatusError       = "error"
 	StatusUnavailable = "unavailable"
 )
 const DefaultTimeout = 2 * time.Second

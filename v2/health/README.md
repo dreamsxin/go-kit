@@ -64,7 +64,10 @@ go http.ListenAndServe(":8081", admin)
 
 The report body is `{"status","requests"?,"checks":[...]}` — its field names
 are a stable contract (`health.report-shape`), as is the empty-path rule
-(`health.mount-skips-empty-path`). `Handler(scope)` hands out the underlying
+(`health.mount-skips-empty-path`). The report status is `StatusOK` or
+`StatusUnavailable`; a check that failed, timed out or panicked carries
+`StatusError`, exported so probe tooling can compare against the constant
+instead of the literal. `Handler(scope)` hands out the underlying
 handler for a `ScopeAll` / `ScopeLiveness` / `ScopeReadiness` scope if you
 need it outside `Mount`.
 

@@ -216,3 +216,29 @@ func mustAdd(t *testing.T, err error) {
 		t.Fatalf("add check: %v", err)
 	}
 }
+
+// TestStatusConstantsAreTheWireValues pins the exported status constants to
+// the exact strings the report body has always carried, so a rename of the
+// constant cannot drift the JSON contract.
+func TestStatusConstantsAreTheWireValues(t *testing.T) {
+	if health.StatusOK != "ok" || health.StatusError != "error" || health.StatusUnavailable != "unavailable" {
+		t.Fatalf("status constants drifted: %q %q %q",
+			health.StatusOK, health.StatusError, health.StatusUnavailable)
+	}
+
+	registry := health.NewRegistry()
+	if err := registry.AddLiveness("failing", func(context.Context) error { return errors.New("down") }); err != nil {
+		t.Fatalf("add check: %v", err)
+	}
+	var report health.Report
+	body, err := json.Marshal(registry.Report(context.Background(), health.ScopeAll))
+	if err != nil {
+		t.Fatalf("marshal report: %v", err)
+	}
+	if err := json.Unmarshal(body, &report); err != nil {
+		t.Fatalf("unmarshal report: %v", err)
+	}
+	if len(report.Checks) != 1 || report.Checks[0].Status != health.StatusError {
+		t.Fatalf("a failed check carries %v, want the exported StatusError", report.Checks)
+	}
+}

@@ -46,11 +46,13 @@ const (
 	ScopeReadiness
 )
 
-// StatusOK and StatusUnavailable are the two values a report carries. A report
-// is unavailable when any check in its scope failed, timed out, panicked, or was
-// already running.
+// StatusOK, StatusError and StatusUnavailable are the values a report or a
+// check carries. A report is unavailable when any check in its scope failed,
+// timed out, panicked, or was already running; a check that itself failed
+// carries StatusError.
 const (
 	StatusOK          = "ok"
+	StatusError       = "error"
 	StatusUnavailable = "unavailable"
 )
 
@@ -308,7 +310,7 @@ func evaluate(ctx context.Context, checks []namedCheck, timeout time.Duration) (
 			}
 			for i := range results {
 				if !completed[i] {
-					results[i].Status = "error"
+					results[i].Status = StatusError
 					results[i].Error = message(checksCtx, checksCtx.Err())
 				}
 			}
@@ -328,7 +330,7 @@ func apply(ctx context.Context, result *CheckResult, err error) {
 	if err == nil {
 		return
 	}
-	result.Status = "error"
+	result.Status = StatusError
 	result.Error = message(ctx, err)
 }
 

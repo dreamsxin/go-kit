@@ -145,6 +145,12 @@ ep := endpoint.NewBuilder(createUser).
 应用自己管理 provider 配置时可以跳过 `Setup`：传入任意 `trace.Tracer` 与
 `metric.Meter`，关闭仍归你。
 
+今天导出的树里有什么：每次 endpoint 调用一个 span，以入站 trace context 为父，
+错误与 panic 都有记录。传输边界、出站调用、数据库操作、重试 attempt 尚无
+span，所以即使部署了 collector，每个服务的树也只有一层深度——把各跳连起来的
+是核心传播的 W3C 关联，不是子 span。覆盖面是路线图已记录的工作；分工见
+[架构文档](../ARCHITECTURE_zh.md)的关联一节。
+
 ## 关联与基数
 
 - 启用 `kit.WithRequestID()`，响应会带 `X-Request-ID`，端点日志使用同一个 ID。
