@@ -30,9 +30,6 @@ import (
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 {{if .WithGRPC}}
 	"google.golang.org/grpc"
-{{- if .UnaryMethods}}
-	"github.com/dreamsxin/go-kit/v2/endpoint"
-{{- end}}
 {{- if or .UnaryMethods .ServerStreamMethods .ClientStreamMethods .BidiStreamMethods}}
 	svcTransport "{{.ImportPath}}/transport/{{.Service.ServiceName | lower}}"
 {{- end}}
@@ -386,15 +383,19 @@ func (c *httpClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl
 
 {{if .WithGRPC}}
 type grpcClient struct {
-{{range .UnaryMethods}}	{{.Name | lower}} endpoint.Endpoint
+{{range .UnaryMethods}}	{{.Name | lower}} svcTransport.TypedGRPC{{.Name}}Client
 {{end}}	client idl.{{.Service.ServiceName}}Client
 }
 
 {{range .UnaryMethods}}
 func (c *grpcClient) {{.Name}}(ctx context.Context, req idl.{{.InputName}}) (idl.{{.OutputName}}, error) {
-	// A middleware or codec that returns another type is a diagnosable error
-	// here, not a panic in the caller's request path.
-	return endpoint.Unwrap[idl.{{.InputName}}, idl.{{.OutputName}}](c.{{.Name | lower}})(ctx, req)
+	// The typed client returns the proto response directly; a value the
+	// middleware chain could not have touched needs no unwrap.
+	resp, err := c.{{.Name | lower}}.Invoke(ctx, &req)
+	if err != nil {
+		return idl.{{.OutputName}}{}, err
+	}
+	return *resp, nil
 }
 {{end}}
 {{range .ServerStreamMethods}}

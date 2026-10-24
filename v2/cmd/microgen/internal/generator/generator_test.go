@@ -501,6 +501,10 @@ func TestGenerateFull_TransportGRPC_Contents(t *testing.T) {
 	grpcPath := filepath.Join(outDir, "transport", "userservice", "transport_grpc.go")
 	mustContain(t, grpcPath, "NewGRPCServer")
 	mustContain(t, grpcPath, "NewGRPCCreateUserClient")
+	// The generated unary client is the typed one: no encode/decode pair,
+	// no endpoint.Endpoint return.
+	mustContain(t, grpcPath, "grpcclient.NewTypedClient")
+	mustNotContain(t, grpcPath, "EncodeGRPCCreateUserRequest")
 	mustContain(t, grpcPath, "decodeGRPCCreateUserRequest")
 }
 

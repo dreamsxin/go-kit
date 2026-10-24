@@ -508,7 +508,7 @@ func main() {
 	defer conn.Close()
 
 	createUser := genTransport.NewGRPCCreateUserClient(conn)
-	_, err = createUser(context.Background(), idl.CreateUserRequest{
+	_, err = createUser.Invoke(context.Background(), &idl.CreateUserRequest{
 		Name:  "grpc-e2e",
 		Email: "grpc-e2e@example.com",
 	})

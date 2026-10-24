@@ -99,16 +99,22 @@ func RegisterGRPCServer(s *grpc.Server, service streamService, endpoints genendp
 }
 
 {{range .UnaryMethods}}
-func NewGRPC{{.Name}}Client(conn *grpc.ClientConn, options ...grpcclient.ClientOption) endpoint.Endpoint {
-	return grpcclient.NewClient(
+// TypedGRPC{{.Name}}Client is the typed client for this one unary method:
+// an alias so callers spell the field, not the generics.
+type TypedGRPC{{.Name}}Client = *grpcclient.TypedClient[*idl.{{.InputName}}, *idl.{{.OutputName}}]
+
+// NewGRPC{{.Name}}Client returns the typed gRPC client for one unary
+// method: Invoke sends the proto request and returns the proto response,
+// with the default traceparent injection and the option surface of the
+// untyped client. There is no encode/decode pair — the proto messages go
+// to the wire as they are.
+func NewGRPC{{.Name}}Client(conn *grpc.ClientConn, options ...grpcclient.ClientOption) TypedGRPC{{.Name}}Client {
+	return grpcclient.NewTypedClient[*idl.{{.InputName}}, *idl.{{.OutputName}}](
 		conn,
 		"{{$.GRPCService}}",
 		"{{.Name}}",
-		EncodeGRPC{{.Name}}Request,
-		DecodeGRPC{{.Name}}Response,
-		&idl.{{.OutputName}}{},
 		options...,
-	).Endpoint()
+	)
 }
 {{end}}
 {{range .ServerStreamMethods}}
@@ -152,21 +158,5 @@ func encodeGRPC{{.Name}}Response(_ context.Context, response any) (any, error) {
 		return nil, endpoint.NewTypeAssertError[idl.{{.OutputName}}](response)
 	}
 	return &resp, nil
-}
-
-func EncodeGRPC{{.Name}}Request(_ context.Context, request any) (any, error) {
-	req, ok := request.(idl.{{.InputName}})
-	if !ok {
-		return nil, endpoint.NewTypeAssertError[idl.{{.InputName}}](request)
-	}
-	return &req, nil
-}
-
-func DecodeGRPC{{.Name}}Response(_ context.Context, grpcReply any) (any, error) {
-	resp, ok := grpcReply.(*idl.{{.OutputName}})
-	if !ok {
-		return nil, endpoint.NewTypeAssertError[*idl.{{.OutputName}}](grpcReply)
-	}
-	return *resp, nil
 }
 {{end}}

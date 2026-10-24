@@ -29,7 +29,6 @@ import (
 	transporthttp "github.com/dreamsxin/go-kit/v2/transport/http"
 
 	svcTransport "example.com/gen_proto_integration/transport/userservice"
-	"github.com/dreamsxin/go-kit/v2/endpoint"
 	"google.golang.org/grpc"
 
 	idl "example.com/gen_proto_integration/pb"
@@ -351,19 +350,27 @@ func (c *httpClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) 
 // ─────────────────────────── gRPC implementation ──────────────────────────────
 
 type grpcClient struct {
-	getuser    endpoint.Endpoint
-	createuser endpoint.Endpoint
+	getuser    svcTransport.TypedGRPCGetUserClient
+	createuser svcTransport.TypedGRPCCreateUserClient
 	client     idl.UserServiceClient
 }
 
 func (c *grpcClient) GetUser(ctx context.Context, req idl.GetUserRequest) (idl.GetUserResponse, error) {
-	// A middleware or codec that returns another type is a diagnosable error
-	// here, not a panic in the caller's request path.
-	return endpoint.Unwrap[idl.GetUserRequest, idl.GetUserResponse](c.getuser)(ctx, req)
+	// The typed client returns the proto response directly; a value the
+	// middleware chain could not have touched needs no unwrap.
+	resp, err := c.getuser.Invoke(ctx, &req)
+	if err != nil {
+		return idl.GetUserResponse{}, err
+	}
+	return *resp, nil
 }
 
 func (c *grpcClient) CreateUser(ctx context.Context, req idl.CreateUserRequest) (idl.CreateUserResponse, error) {
-	// A middleware or codec that returns another type is a diagnosable error
-	// here, not a panic in the caller's request path.
-	return endpoint.Unwrap[idl.CreateUserRequest, idl.CreateUserResponse](c.createuser)(ctx, req)
+	// The typed client returns the proto response directly; a value the
+	// middleware chain could not have touched needs no unwrap.
+	resp, err := c.createuser.Invoke(ctx, &req)
+	if err != nil {
+		return idl.CreateUserResponse{}, err
+	}
+	return *resp, nil
 }
