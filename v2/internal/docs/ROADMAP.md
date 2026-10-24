@@ -160,6 +160,11 @@ reader worse than the copy does.
   one, and the reviewed API snapshot records the change.
 - Add only capabilities that are reusable across unrelated services. Optional
   integrations stay outside the core dependency path.
+- Adopt a steady release cadence — one minor every four to six weeks while
+  milestones continue, patches only for user-visible defects, docs-only and
+  tools-only changes untagged — and keep the adoption ledger
+  (`internal/docs/ADOPTION.md`) honest: every external claim cites something
+  the repository shows.
 
 ## Completed Foundation / 已完成基础
 
