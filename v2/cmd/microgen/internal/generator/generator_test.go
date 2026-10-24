@@ -468,6 +468,11 @@ func TestGenerateFull_TransportHTTP_Contents(t *testing.T) {
 	mustContain(t, httpPath, "DefaultMaxJSONBodyBytes")
 	mustContain(t, httpPath, "JSONDecodeError")
 	mustContain(t, httpPath, "transporthttp.DecodeQueryRequest")
+	// The generated decode honors the contract's default keyword: fill
+	// before check, so a form's pre-filled default passes the same field's
+	// rules on the server.
+	mustContain(t, httpPath, "validation.Defaults(&req)")
+	mustContain(t, httpPath, "validation.Validate(req)")
 	mustContain(t, httpPath, "*http.ServeMux")
 	mustNotContain(t, httpPath, "github.com/gorilla/mux")
 	mustNotContain(t, httpPath, "reflect.Value")
@@ -827,7 +832,7 @@ func TestGenerateFull_GoMod_Created(t *testing.T) {
 	mustExist(t, goModPath)
 	mustContain(t, goModPath, "module example.com/myproject")
 	mustContain(t, goModPath, "go 1.26.0")
-	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2 v2.27.0")
+	mustContain(t, goModPath, "github.com/dreamsxin/go-kit/v2 v2.28.0")
 	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/circuitbreaker")
 	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/ratelimit")
 	mustNotContain(t, goModPath, "github.com/dreamsxin/go-kit/v2/integrations/zap")

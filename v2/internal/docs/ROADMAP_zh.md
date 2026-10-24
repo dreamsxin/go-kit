@@ -2706,6 +2706,47 @@ GET /products?filter={"status":"active"};size=10 -> 200，全部记录，每页 
 决定「下一层看到什么」的那一层，而它的失败方式是沉默：它不拒绝、不损坏，它交出一个更小
 的请求，下面每一层都处理得完美无缺。
 
+## 里程碑 31（已完成）：先填默认，后做检查，死面退场
+
+2.28.0 候选。设计前先调研了 Go 生态如何在"改写入参"与"校验入参"之间划线——
+go-playground 把它拆成两个库（mold 负责收敛、validator 负责校验，按
+decode → conform → validate 组合）——本里程碑把 `default=` tag 从纯文档注解
+变成服务端行为，并移除了架构早已否定的那一块 API 面。
+
+落地：
+
+- `validation.Defaults(&req)` 填充每个携带 `default=` 且值为零值的字段（字符串
+  原样、数字与布尔解析、nil 指针分配）；`validation.DefaultsMiddleware()` 以
+  endpoint 中间件形式做同样的事，路由递给链的是值时填充解码副本。零值与未设置
+  是同一件事——JSON 无法发送未设置的非指针字段——这一边界写在承诺声明旁边。
+  `Validate` 仍然永不填充：检查与改写保持两个步骤，这正是填充可被选择加入、
+  可被评审的原因。
+- 生成的传输层兑现契约：解码器先填充后校验，OpenAPI 文档向表单展示的
+  `default` 关键字由服务端一并兑现。它不是 `-append-middleware` 选项——生成
+  项目的校验在解码器里、endpoint 链之外，中间件缝隙是错的位置——对没有
+  `default=` tag 的模型它是零成本 no-op。坏掉的默认值在首次使用时 panic，与
+  畸形 tag 同类。
+- `transport/http.PopulateRequestContext` 与其十四个请求头 context 键移除。
+  评审曾标记该死面违背架构的 context 规范（请求头——含 Authorization——被复制
+  进 context 供任意层读取）；此次移除确认零调用方，保留仍在使用的响应键。按
+  兼容性门禁的轮换规则记入发布该版本的 `deliberateBreaks`。
+- `grpc.StatusError` 更名为 `grpc.GRPCStatusError` 并保留废弃类型别名，两个
+  传输层的脱敏错误包装从此都以所包装的协议命名，与 `client.HTTPStatusError`
+  对齐。
+
+有意的不决策，记录在此以免被重新提出：两套校验错误码词汇保持分离。tag 失败
+应答 `validation.<field>.<rule>`，接口失败应答 `bad_request.validation`；两种
+拼写都是已声明的稳定行为，统一它们等于为外观一致撤回承诺。共享的是分类
+（`invalid_argument` → 400/InvalidArgument），以及现在专门记录这一区分的章节。
+
+验收：
+
+```bash
+go test ./validation/... ./cmd/microgen/... -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

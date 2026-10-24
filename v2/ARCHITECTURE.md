@@ -415,7 +415,7 @@ tracing dependency:
 
 ## Stability
 
-`v2.27.0` is the current released contract. It establishes the reviewed package
+`v2.28.0` is the candidate on `main`. It establishes the reviewed package
 graph, lifecycle ownership, transport error model, and generated project layout
 captured by the release manifest and API snapshot. This release gives each layer
 one JSON entry point with its differences as options, moves retry, circuit

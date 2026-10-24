@@ -233,6 +233,8 @@ stable/slog.record-span-id
 stable/slog.telemetry-order
 stable/slog.telemetry-signals
 stable/transport.default-error-handler
+stable/validation.default-fill
+stable/validation.defaults-middleware
 stable/validation.tag-semantics
 stable/zap.error-handler-nil-logger
 stable/zap.middleware-transparency

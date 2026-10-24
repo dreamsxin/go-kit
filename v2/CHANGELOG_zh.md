@@ -2,6 +2,32 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [2.28.0] - 发布候选
+
+### 新增
+
+- `validation.Defaults(&req)` 与 `validation.DefaultsMiddleware()` 在服务端兑现
+  契约的 `default=` 关键字：值为零值且携带 `default=` 的字段在运行自身规则之前
+  被填充为默认值（字符串原样、数字与布尔解析、nil 指针分配）
+  （`validation.default-fill`、`validation.defaults-middleware`）。生成的传输层
+  在解码器里先填充再校验，OpenAPI 文档对表单做出的承诺由服务端一并兑现。
+  零值与未设置是同一件事——JSON 无法发送未设置的非指针字段——且 `Validate`
+  本身永不填充。
+
+### 移除
+
+- `transport/http.PopulateRequestContext` 与其十四个请求头 `ContextKey*`
+  常量已删除。该函数把请求头——包括 Authorization——复制进 context 供任意层
+  读取，违背"协议对象留在传输层"的架构规则，且仓库中无任何调用方。需要请求头
+  的 `RequestFunc` 直接读递给它的 `*http.Request`；响应键
+  （`ContextKeyResponseHeaders`、`ContextKeyResponseSize`）保留。
+
+### 变更
+
+- `grpc.StatusError` 更名为 `grpc.GRPCStatusError`，与其 HTTP 对应物
+  `client.HTTPStatusError` 一样点名协议。废弃的类型别名让旧名继续编译；别名
+  最迟在兼容性冻结时移除。
+
 ## [2.27.0] - 2026-10-24
 
 ### 变更

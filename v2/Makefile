@@ -22,7 +22,7 @@ DB_NAME     ?=
 SERVICE     ?= AppService
 HTTP_PORT   ?= :8080
 PROTO_DIR   ?= $(OUT)/pb
-VERSION     ?= v2.27.0
+VERSION     ?= v2.28.0
 # How long each fuzz target runs under `make fuzz`.
 FUZZTIME    ?= 30s
 

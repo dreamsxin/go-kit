@@ -2,6 +2,37 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [2.28.0] - Release Candidate
+
+### Added
+
+- `validation.Defaults(&req)` and `validation.DefaultsMiddleware()` honor the
+  contract's `default=` keyword on the server: a field whose value is the
+  zero value is filled with the tagged default (strings verbatim, numbers and
+  bools parsed, a nil pointer allocated) before the field's own rules run
+  (`validation.default-fill`, `validation.defaults-middleware`). A generated
+  transport fills in its decoder, before checking, so the promise the
+  OpenAPI document makes to a form is kept by the service too. Zero value
+  and absent value are the same thing — JSON cannot send an unset
+  non-pointer field — and `Validate` itself never fills.
+
+### Removed
+
+- `transport/http.PopulateRequestContext` and its fourteen request-header
+  `ContextKey*` constants are gone. The function copied request headers —
+  the Authorization header included — into the context for any layer to
+  read, against the architecture's rule that protocol objects stay in the
+  transport layer, and nothing in the repository called it. A `RequestFunc`
+  that needs a header reads the `*http.Request` it is handed; the response
+  keys (`ContextKeyResponseHeaders`, `ContextKeyResponseSize`) stay.
+
+### Changed
+
+- `grpc.StatusError` is now `grpc.GRPCStatusError`, naming the protocol the
+  way its HTTP counterpart `client.HTTPStatusError` does. A deprecated type
+  alias keeps the old name compiling; it goes away no earlier than the
+  compatibility freeze.
+
 ## [2.27.0] - 2026-10-24
 
 ### Added

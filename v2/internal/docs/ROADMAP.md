@@ -3503,6 +3503,60 @@ calls.** The dangerous layer is the one that decides what the next layer sees, a
 its failure mode is silence: it does not reject, it does not corrupt, it returns a
 smaller request that every layer below it handles perfectly.
 
+## Milestone 31 (Complete): Defaults Before Checks, Dead Surface Gone
+
+The 2.28.0 candidate. Researched against how the wider Go ecosystem draws
+the line between mutating input and checking it — go-playground splits it
+across two libraries (mold conforms, validator validates, composed as
+decode → conform → validate) — this milestone turns the `default=` tag
+from a documentation-only annotation into a server-side behavior, and
+removes the one piece of API surface the architecture had already ruled
+out.
+
+Landed:
+
+- `validation.Defaults(&req)` fills every zero-valued field carrying
+  `default=` (strings verbatim, numbers and bools parsed, a nil pointer
+  allocated); `validation.DefaultsMiddleware()` is the same as endpoint
+  middleware, filling a decoded copy when a route hands the chain a value.
+  Zero value and absent value are the same thing — JSON cannot send an
+  unset non-pointer field — and that boundary is documented where the
+  promise is declared. `Validate` still never fills: checking and mutating
+  stay separate steps, which is what makes the fill opt-in and reviewable.
+- Generated transports honor the contract: the decoder fills before the
+  checks, so the `default` keyword the OpenAPI document advertises to a
+  form is kept by the service. It is not an `-append-middleware` option —
+  validation in a generated project runs in the decoder, outside the
+  endpoint chain, so a middleware seam was the wrong place — and it is a
+  no-op for a model without `default=` tags. A broken default panics at
+  first use, the same class of failure as a malformed tag.
+- `transport/http.PopulateRequestContext` and its fourteen request-header
+  context keys are removed. The audit had flagged the surface as dead and
+  contrary to the architecture's context conventions (request headers,
+  the Authorization header included, copied into the context for any layer
+  to read); the removal confirms zero callers and keeps the live response
+  keys. Recorded in `deliberateBreaks` for the release that ships it, per
+  the compatibility gate's rotation rule.
+- `grpc.StatusError` is renamed `grpc.GRPCStatusError` with a deprecated
+  type alias, so both transports name their redacting error wrapper after
+  the protocol it wraps, matching `client.HTTPStatusError`.
+
+Deliberate non-decision, recorded so it is not re-proposed: the two
+validation error-code vocabularies stay separate. Tag failures answer with
+`validation.<field>.<rule>`, interface failures with
+`bad_request.validation`; each spelling is a declared stable behavior, so
+unifying them would withdraw a promise for a cosmetic gain. What is shared
+is the classification (`invalid_argument` → 400/InvalidArgument) and now a
+chapter that documents the split.
+
+Acceptance:
+
+```bash
+go test ./validation/... ./cmd/microgen/... -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

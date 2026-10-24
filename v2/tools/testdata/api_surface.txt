@@ -575,19 +575,20 @@ func TraceparentStreamServerInterceptor() grpc.StreamServerInterceptor
 func TraceparentUnaryClientInterceptor() grpc.UnaryClientInterceptor
 func TraceparentUnaryServerInterceptor() grpc.UnaryServerInterceptor
 TYPES
-type StatusError struct {
+type GRPCStatusError struct {
 	// Has unexported fields.
 }
-func (e *StatusError) Code() codes.Code
-func (e *StatusError) Error() string
-func (e *StatusError) ErrorCode() string
-func (e *StatusError) ErrorDomain() string
-func (e *StatusError) ErrorKindName() string
-func (e *StatusError) GRPCStatus() *status.Status
-func (e *StatusError) PublicMessage() string
-func (e *StatusError) RetryAfter() time.Duration
-func (e *StatusError) Retryable() bool
-func (e *StatusError) Unwrap() error
+func (e *GRPCStatusError) Code() codes.Code
+func (e *GRPCStatusError) Error() string
+func (e *GRPCStatusError) ErrorCode() string
+func (e *GRPCStatusError) ErrorDomain() string
+func (e *GRPCStatusError) ErrorKindName() string
+func (e *GRPCStatusError) GRPCStatus() *status.Status
+func (e *GRPCStatusError) PublicMessage() string
+func (e *GRPCStatusError) RetryAfter() time.Duration
+func (e *GRPCStatusError) Retryable() bool
+func (e *GRPCStatusError) Unwrap() error
+type StatusError = GRPCStatusError
 
 ## github.com/dreamsxin/go-kit/v2/integrations/grpc/client
 package client // import "github.com/dreamsxin/go-kit/v2/integrations/grpc/client"
@@ -2510,34 +2511,8 @@ const (
 const MaxRequestIDLength = 128
 const RequestIDHeader = "X-Request-ID"
 const (
-	// Its value is r.Method.
-	ContextKeyRequestMethod contextKey = iota
-	// Its value is r.RequestURI.
-	ContextKeyRequestURI
-	// Its value is r.URL.Path.
-	ContextKeyRequestPath
-	// Its value is r.Proto.
-	ContextKeyRequestProto
-	// Its value is r.Host.
-	ContextKeyRequestHost
-	// Its value is r.RemoteAddr.
-	ContextKeyRequestRemoteAddr
-	// Its value is r.Header.Get("X-Forwarded-For").
-	ContextKeyRequestXForwardedFor
-	// Its value is r.Header.Get("X-Forwarded-Proto").
-	ContextKeyRequestXForwardedProto
-	// Its value is r.Header.Get("Authorization").
-	ContextKeyRequestAuthorization
-	// Its value is r.Header.Get("Referer").
-	ContextKeyRequestReferer
-	// Its value is r.Header.Get("User-Agent").
-	ContextKeyRequestUserAgent
-	// Its value is r.Header.Get("X-Request-Id").
-	ContextKeyRequestXRequestID
-	// Its value is r.Header.Get("Accept").
-	ContextKeyRequestAccept
 	// Its value is of type http.Header
-	ContextKeyResponseHeaders
+	ContextKeyResponseHeaders contextKey = iota
 	// Its value is of type int64.
 	ContextKeyResponseSize
 )
@@ -2552,7 +2527,6 @@ func ExtractRequestID(ctx context.Context, r *http.Request) context.Context
 func ExtractTraceparent(ctx context.Context, r *http.Request) context.Context
 func InjectTraceparent(ctx context.Context, r *http.Request) context.Context
 func NewRequestID() string
-func PopulateRequestContext(ctx context.Context, r *http.Request) context.Context
 func RequestID(r *http.Request, validator RequestIDValidator) string
 func RequestIDExtractor(validator RequestIDValidator) func(context.Context, *http.Request) context.Context
 func ValidRequestID(validator RequestIDValidator, id string) bool
@@ -2909,6 +2883,8 @@ func (e UnsupportedMediaTypeError) StatusCode() int
 ## github.com/dreamsxin/go-kit/v2/validation
 package validation // import "github.com/dreamsxin/go-kit/v2/validation"
 FUNCTIONS
+func Defaults(value any) error
+func DefaultsMiddleware() endpoint.Middleware
 func Middleware() endpoint.Middleware
 func Validate(value any) error
 TYPES
