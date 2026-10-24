@@ -150,6 +150,15 @@ func TestAgentGuideNamesEveryVersionBearingFile(t *testing.T) {
 			if entry.Name() == "node_modules" || entry.Name() == ".git" {
 				return filepath.SkipDir
 			}
+			if relative, relErr := filepath.Rel(root, path); relErr == nil &&
+				relative == filepath.Join("tools", "testdata") {
+				// Fixtures, reference stores and the framework-comparison
+				// harness live here. None of them is a file a release
+				// bumps: the harness pins the framework with a local
+				// replace, and nothing else in the directory carries a
+				// version a candidate must move.
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if strings.HasSuffix(entry.Name(), ".md") {
