@@ -52,11 +52,16 @@ go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,
 go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-tags
 ```
 
-Run it on any tree. The `tidy` suite runs `go mod tidy` in every maintained
-module, compares `go.mod` and `go.sum` with their previous contents, and puts the
-files back, so it reports an untidy module without requiring a clean worktree —
-including on the change you are about to commit. The `race` suite needs cgo and
-therefore a C toolchain on `PATH`.
+The suites run on any tree — the `tidy` suite runs `go mod tidy` in every
+maintained module, compares `go.mod` and `go.sum` with their previous contents,
+and puts the files back, so it reports an untidy module without requiring a
+clean worktree, including on the change you are about to commit — but
+`releasecheck` refuses a dirty scope: run the full pair from a commit. The
+`race` suite needs cgo and therefore a C toolchain on `PATH`. On Windows, a
+checkout older than `.gitattributes`, or a flipped `core.autocrlf`, can show
+every Go file as unformatted and every untouched snapshot as modified; the
+committed bytes are LF, so renormalize the worktree from `HEAD` or re-clone
+before diagnosing a formatting failure.
 
 While iterating, the focused targets are cheaper: `make test-runtime`,
 `make test-microgen`, `make test-contracts`, `make test-snapshots`,
@@ -73,6 +78,12 @@ is not a credential`, not `fix(v2): change validateOrigin`. The body says what w
 wrong, why that was wrong, and what you verified — the diff already says what
 changed. When the fix is a regression this repository shipped, say so.
 
+A deliberate break carries two more entries: the removed or changed surface goes
+into `deliberateBreaks` in `v2/tools/api_compatibility_test.go`, spelled the way
+the compatibility gate reports it, with the changelog entry named beside it. The
+entries leave with the release that ships the break — from that tag the shape is
+the baseline and a stale entry fails the gate.
+
 Write the message to a file and use `git commit -F`. A multi-line body passed
 through `-m` loses its formatting in PowerShell.
 
@@ -86,6 +97,13 @@ why.
 A gate you add has to be able to fail. Make it fail deliberately once, read the
 message you wrote, then undo it — a gate whose failure nobody has seen is a gate
 whose shape nobody knows.
+
+Rerun a failing test in isolation before diagnosing it: the full parallel suite
+is load a single test never sees, and a test about ports, readiness waits, or
+scheduling can fail there and pass alone. An isolated green rerun means the
+test was measuring the machine, not the code: pre-fill its inputs, pin its
+ports, wait for readiness instead of sleeping, so a rerun measures the code
+rather than lucking into a green blip.
 
 ## Snapshots, and the one rule about them
 
@@ -163,10 +181,14 @@ The procedure and what may not be worked around are in
 3. `git tag -a vX.Y.Z -m "go-kit vX.Y.Z"` and push the tag.
 4. `make verify-published` — resolves the version through the public proxy. Do not
    substitute `GOPROXY=direct`, a local `replace`, or the presence of a local tag:
-   none of them show that the module was published.
+   none of them show that the module was published. On a machine whose network
+   cannot reach the proxy, the `v2-published` workflow that runs on the tag is
+   the same evidence — do not approximate it locally.
 5. Record it: manifest phase `released` with the date, both changelog headings
-   dated, all status sentences above updated, and the milestone marked complete
-   in both `v2/internal/docs/ROADMAP.md` and `v2/internal/docs/ROADMAP_zh.md`.
+   dated, all status sentences above updated, the `deliberateBreaks` entries the
+   release ships removed (a stale entry fails the gate and says so), and the
+   milestone marked complete in both `v2/internal/docs/ROADMAP.md` and
+   `v2/internal/docs/ROADMAP_zh.md`.
 
 A change confined to `v2/tools` or to documentation gets no tag. The published
 module would be byte-identical, and a version that says otherwise is a lie a

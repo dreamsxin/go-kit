@@ -45,9 +45,13 @@ go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,
 go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -check-tags
 ```
 
-任何树上都能跑。`tidy` 这一档会在每个受维护的 module 里执行 `go mod tidy`，
-把 `go.mod` 与 `go.sum` 和原内容比较后再恢复，因此能在未提交的树上报告 module
-不整洁——包括你正要提交的那一份。`race` 需要 cgo，也就是 `PATH` 上要有 C 工具链。
+各档在任何树上都能跑——`tidy` 这一档会在每个受维护的 module 里执行
+`go mod tidy`，把 `go.mod` 与 `go.sum` 和原内容比较后再恢复，因此能在未提交的
+树上报告 module 不整洁（包括你正要提交的那一份）——但 `releasecheck` 拒绝脏的
+scope：成对的命令要在一次提交上跑。`race` 需要 cgo，也就是 `PATH` 上要有 C 工具链。
+在 Windows 上，一份早于 `.gitattributes` 的检出、或翻转过的 `core.autocrlf`，会让
+每个 Go 文件显示为未格式化、每个未动过的快照显示为已修改；提交的字节本来就是
+LF，先从 `HEAD` 重新规范化工作树或重新 clone，再去诊断格式化失败。
 
 迭代过程中用更省时间的定向目标：`make test-runtime`、`make test-microgen`、
 `make test-contracts`、`make test-snapshots`、`make test-boundaries`。
@@ -61,6 +65,11 @@ go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -c
 `fix(v2): change validateOrigin`。正文写清哪里错了、为什么那是错的、以及你验证了什么——
 改了什么 diff 自己会说。如果这处修的是本仓库自己引入的回归，就直接写明。
 
+一次有意的破坏还要多两条记录：被移除或变更的面按兼容性门禁报告的拼写写进
+`v2/tools/api_compatibility_test.go` 的 `deliberateBreaks`，旁边写上对应的 changelog
+条目。这些条目随发布该破坏的版本一起离开——从那个 tag 起，新的形状就是基线，
+一条过期条目会让门禁失败。
+
 把信息写进一个文件，然后 `git commit -F`。多行正文通过 `-m` 传，在 PowerShell 下会丢掉格式。
 
 ## 门禁挡住你的时候
@@ -70,6 +79,11 @@ go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -c
 
 你新增的门禁必须有能力失败。故意让它失败一次，读一遍你自己写的失败信息，然后撤销——一道
 没人见过它失败的门禁，是一道没人知道形状的门禁。
+
+先隔离复跑，再去诊断一个失败的测试：完整并行套件带来的负载是单个测试从不见过的，
+一个关于端口、就绪等待或调度的测试可能在其中失败、单独又通过。隔离复跑变绿，说明
+刚才量的是机器而不是代码——把测试改成确定性的（预填输入、固定端口、等就绪而不是
+sleep），而不是靠重试把它刷成一次绿色的侥幸。
 
 ## 快照，以及关于它们的唯一一条规则
 
@@ -134,8 +148,11 @@ go -C ./tools run ./releasecheck -scope .. -manifest ../RELEASE_MANIFEST.json -c
 2. `make release-check-clean`——phase 是 `candidate` 且 tag 尚不存在。
 3. `git tag -a vX.Y.Z -m "go-kit vX.Y.Z"`，并推送这个 tag。
 4. `make verify-published`——通过公共代理解析这个版本。不要用 `GOPROXY=direct`、本地
-   `replace`、或"本地 tag 已存在"来替代它：这三者都不能说明 module 已经发布。
+   `replace`、或"本地 tag 已存在"来替代它：这三者都不能说明 module 已经发布。在你
+   的机器根本到不了代理的网络里，随 tag 运行的 `v2-published` 工作流就是同一份
+   证据——不要在本地近似它。
 5. 记录：manifest 的 phase 改为 `released` 并写上日期，两份 changelog 标题写上日期，更新上列所有状态句，
+   删掉本次发布所带走的 `deliberateBreaks` 条目（过期条目会让门禁失败并说明这一点），
    在 `v2/internal/docs/ROADMAP.md` 和 `v2/internal/docs/ROADMAP_zh.md` 中把里程碑标记为完成。
 
 只落在 `v2/tools` 或文档里的改动不打 tag。发布出去的 module 会逐字节相同，而一个说得不一样的
