@@ -120,54 +120,14 @@ func TestAPICompatibilityWithLastRelease(t *testing.T) {
 // removed when v2.25.0 was tagged, because from that tag the Router shape is
 // the baseline and the entries match nothing. New entries appear only when a
 // future candidate deliberately breaks the surface.
-var deliberateBreaks = []string{
-	// v2's JSON entry points are one call per layer (CHANGELOG [Unreleased]).
-	// More specific entries come before the names they prefix, because the
-	// matcher stops at the first entry a problem contains.
-	// The HTTP component is the registrar a generated assembly hands its routes
-	// to, which it cannot be while HandleFunc takes http.HandlerFunc: the two
-	// function types are distinct for interface satisfaction. Callers are
-	// unaffected — the types are assignable — and the option only widened what
-	// accepts the component (CHANGELOG [Unreleased]).
-	"kit: changed: func HTTP.HandleFunc",
-	"kit: changed: func HandleJSON",
-	"kit: changed: func NewJSONHandler",
-	"kit: removed from func HandleJSONEndpoint: options ...httpserver.ServerOption",
-	"kit: removed: func HTTP.HandleSSE",
-	"kit: removed: func HandleJSONEndpointWithBodyLimit",
-	"kit: removed: func HandleJSONTypedWithBodyLimit",
-	"kit: removed: func HandleJSONTypedWithMiddleware",
-	"kit: removed: func HandleJSONTyped",
-	"kit: removed: func HandleJSONWithMiddleware",
-	"kit: removed: func JSONTyped",
-	"kit: removed: func JSON",
-	"kit: removed: func NewJSONTypedHandler",
-	"transport/http/client: removed: func NewJSONClientWithMaxResponseBodyBytes",
-	"transport/http/client: removed: func NewJSONClientWithTimeout",
-	"transport/http/client: removed: func NewJSONClient",
-	"transport/http/client: removed: func NewTypedJSONClientWithMaxResponseBodyBytes",
-	"transport/http/client: removed: func NewTypedJSONClient",
-	"transport/http/server: removed: func NewJSONEndpointWithBodyLimit",
-	"transport/http/server: removed: func NewJSONEndpointWithDecodeOptions",
-	"transport/http/server: removed: func NewJSONServerWithBodyLimit",
-	"transport/http/server: removed: func NewJSONServerWithMiddleware",
-	"transport/http/server: removed: func NewJSONServer",
-	"transport/http/server: removed: func NewTypedJSONServerWithBodyLimit",
-	"transport/http/server: removed: func NewTypedJSONServerWithMiddleware",
-	"transport/http/server: removed: func NewTypedJSONServer",
-	// Resilience moved out of endpoint into endpoint/resilience
-	// (CHANGELOG [Unreleased]). The types, their constructors and the
-	// Builder shorthands are the whole removed surface; the rejection
-	// sentinels, RetryAfterError and the Clock stay in endpoint because
-	// transports read them as contracts.
-	"endpoint: removed: const ",
-	"endpoint: removed: func Builder.With",
-	"endpoint: removed: func CircuitBreaker.",
-	"endpoint: removed: func KeyedRateLimiterFuncs.",
-	"endpoint: removed: func RateLimiterFuncs.",
-	"endpoint: removed: func ",
-	"endpoint: removed: type ",
-}
+// deliberateBreaks names the API breaks since the previous release tag that
+// are intentional, spelled the way incompatibleChanges reports them. Each
+// entry leaves with the release that ships it: the v2.24.0 Router breaks were
+// removed when v2.25.0 was tagged, and the v2.26.x JSON entry-point and
+// resilience breaks left when v2.27.0 was tagged, because from that tag those
+// shapes are the baseline and the entries match nothing. New entries appear
+// only when a future candidate deliberately breaks the surface.
+var deliberateBreaks = []string{}
 
 // TestAPICompatibilityClassifier proves the classifier reports what it claims,
 // on inputs written here rather than on the real surface — the real surface is
