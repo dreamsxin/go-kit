@@ -17,6 +17,7 @@ after dropping the `./examples/` prefix.
 | `best_practice/` | Production patterns: metrics, circuit breaker, rate limit, graceful shutdown | `go run ./examples/best_practice` |
 | `middleware/` | Endpoint middleware: Chain, Builder, Failer, Timeout, CircuitBreaker, RateLimit, DelayRateLimit | `go run ./examples/middleware` |
 | `httpclient/` | HTTP client: NewJSON/NewTypedJSON, ClientBefore/After/Finalizer, SetClient | `go run ./examples/httpclient` |
+| `tracingtree/` | The span tree one request exports: SERVER span, endpoint span, CLIENT span, printed as a tree by a hand-written exporter | `go run ./examples/tracingtree` |
 | `auth/` | Application-owned authentication and authorization middleware: Bearer keys, 401/403 via apperror, public health routes | `go run ./examples/auth` |
 | `envelope/` | Transport-level response assembly: envelope and error format defined once via `kit.WithJSONServerOptions` | `go run ./examples/envelope` |
 | `customcodec/` | Custom body format over HTTP: RawBodyCodec, format-matched error encoder | `go run ./examples/customcodec` |

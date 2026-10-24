@@ -16,6 +16,7 @@
 | `best_practice/` | 生产级模式：指标、熔断器、限流、优雅关闭 | `go run ./examples/best_practice` |
 | `middleware/` | endpoint 中间件：Chain、Builder、Failer、Timeout、CircuitBreaker、RateLimit、DelayRateLimit | `go run ./examples/middleware` |
 | `httpclient/` | HTTP 客户端：NewJSON/NewTypedJSON、ClientBefore/After/Finalizer、SetClient | `go run ./examples/httpclient` |
+| `tracingtree/` | 一次请求导出的 span 树：SERVER span、endpoint span、CLIENT span，由手写的导出器打印成树 | `go run ./examples/tracingtree` |
 | `auth/` | 应用自有的认证与授权中间件：Bearer 密钥、通过 apperror 返回 401/403、公开的健康检查路由 | `go run ./examples/auth` |
 | `envelope/` | 传输层响应组装：通过 `kit.WithJSONServerOptions` 一次定义信封与错误格式 | `go run ./examples/envelope` |
 | `customcodec/` | HTTP 上的自定义 body 格式：RawBodyCodec、同格式错误编码器 | `go run ./examples/customcodec` |

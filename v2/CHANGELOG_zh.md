@@ -6,6 +6,9 @@
 
 ### 新增
 
+- `examples/tracingtree` 用一次请求穿过完整栈——SERVER span、endpoint
+  span、CLIENT span——并打印导出的树，用一个二十行的手写内存导出器把
+  "provider 归应用"的故事摆到眼前。
 - gRPC 传输获得与 HTTP 相同的可观测一对：`oteladapter.GRPCServerSpanInterceptor`
   为每个 unary RPC 启动一个 SERVER span，按 RPC 约定命名
   `package.Service/Method`，携带 `rpc.system.name`、`rpc.service`、

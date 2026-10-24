@@ -17,6 +17,10 @@ English | [简体中文](CHANGELOG_zh.md)
   `endpoint.Unwrap`, and the per-method exported encode/decode pair the
   untyped client needed is gone from the generated transport (the server
   keeps its own). The contract snapshots record the change.
+- `examples/tracingtree` runs one request through the full stack — SERVER
+  span, endpoint span, CLIENT span — and prints the tree it exported, using
+  a hand-written in-memory exporter that makes the application-owned
+  provider story visible in twenty lines.
 - The gRPC transport gets the same observability pair as HTTP:
   `oteladapter.GRPCServerSpanInterceptor` starts one SERVER span per unary
   RPC named `package.Service/Method` with `rpc.system.name`, `rpc.service`,

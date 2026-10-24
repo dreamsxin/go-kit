@@ -2,6 +2,7 @@ package tools_test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -162,6 +163,13 @@ func TestAgentGuideNamesEveryVersionBearingFile(t *testing.T) {
 			return nil
 		}
 		if strings.HasSuffix(entry.Name(), ".md") {
+			return nil
+		}
+		// Files git ignores are not files a release bumps: a binary built
+		// locally embeds the module version, and demanding it be named in
+		// the checklist points the next reader at build output rather than
+		// at a file anyone edits.
+		if ignored := ignoredByGit(repoRoot, path); ignored {
 			return nil
 		}
 		data, err := os.ReadFile(path)
@@ -363,6 +371,14 @@ func declaredFunctionNames(t *testing.T, root string) map[string]struct{} {
 		t.Fatal("found no function declarations under v2: the scan is broken, not the guide")
 	}
 	return names
+}
+
+// ignoredByGit reports whether path is ignored by the repository's ignore
+// rules, resolved from the repository root so the walk's location does not
+// matter.
+func ignoredByGit(repoRoot, path string) bool {
+	cmd := exec.Command("git", "-C", repoRoot, "check-ignore", "-q", path)
+	return cmd.Run() == nil
 }
 
 func readTextFile(t *testing.T, path string) string {

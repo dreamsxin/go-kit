@@ -145,7 +145,9 @@ ep := endpoint.NewBuilder(createUser).
 应用自己管理 provider 配置时可以跳过 `Setup`：传入任意 `trace.Tracer` 与
 `metric.Meter`，关闭仍归你。
 
-今天导出的树：每个入站请求一个 SERVER span（`oteladapter.HTTPServerMiddleware`
+今天导出的树——[`examples/tracingtree`](../examples/tracingtree/README_zh.md)
+用一次请求穿过整个栈并打印它产出的树——是：每个入站请求一个 SERVER
+span（`oteladapter.HTTPServerMiddleware`
 包住整个服务器，名为 `GET /route`），其下是 endpoint span，每次出站调用一个
 CLIENT span（`oteladapter.NewRoundTripper` 包住任意 `http.RoundTripper`，同时注入
 trace context）。gRPC 服务经 `oteladapter.GRPCServerSpanInterceptor` 与

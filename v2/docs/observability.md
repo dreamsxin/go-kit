@@ -159,7 +159,9 @@ route — the only place the matched pattern exists.
 Skip `Setup` when the application owns its provider configuration; pass any
 `trace.Tracer` and `metric.Meter` instead, and keep shutdown yours.
 
-The exported tree today: a SERVER span per inbound request
+The exported tree today — [`examples/tracingtree`](../examples/tracingtree/README.md)
+runs one request through the whole stack and prints the tree it produced —
+is: a SERVER span per inbound request
 (`oteladapter.HTTPServerMiddleware` around the whole server, named
 `GET /route`), the endpoint span beneath it, and a CLIENT span per outbound
 call (`oteladapter.NewRoundTripper` around any `http.RoundTripper`, which
