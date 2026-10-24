@@ -28,9 +28,15 @@ type CreateUserRequest struct {
 `validation.Middleware()` 遍历请求的 `validate` tag，拒绝违反任一规则的值。规则
 集刻意很小——`enum`、`min`、`max`、`minLen`、`maxLen`——因为每条规则与一个
 JSON Schema 关键字一一对应：一个 tag 同时驱动生成的契约、前端据此构建的表单、
-服务端运行的检查。`default` 由契约作为表单预填提示携带，校验不执行它。
-`pattern` 规则刻意缺席：Go 结构体 tag 无法可靠携带反斜杠，而表单需要的正则
-满是反斜杠。
+服务端运行的检查。`pattern` 规则刻意缺席：Go 结构体 tag 无法可靠携带反斜杠，而
+表单需要的正则满是反斜杠。
+
+`default=` 是契约里"表单预填什么"的注解，服务端有两个可选机制兑现它：
+`validation.Defaults(&req)` 填充每个携带 `default=` 且当前为零值的字段（零值与
+未设置是同一件事——JSON 无法发送一个未设置的非指针字段）；
+`validation.DefaultsMiddleware()` 以 endpoint 中间件的形式做同样的事，路由递给
+链的是值时填充解码副本。把它接在 `validation.Middleware()` 之前；生成的传输层
+在解码器里先填充再校验。`Validate` 本身永不填充——检查与改写始终是两个步骤。
 
 nil 指针字段视为缺席——约束不在其上运行——因为"是否必填"是字段自己的事：
 非指针字段在生成的契约里本就是必填。
@@ -66,6 +72,10 @@ ep := endpoint.NewBuilder(createBooking).
   Schema 会在客户端发送之前就把规则交给它。
 - 契约表达不了的**跨字段与业务侧规则**用接口。
 - 两者可组合：tag 管形状，接口管语义，都作为 endpoint 中间件运行，顺序不限。
+- 两套错误码命名空间是刻意分离的——tag 失败点名违反的规则，接口失败经
+  `bad_request.validation` 上报——但两者都归类为 `invalid_argument`，都落地为
+  400。统一错误码等于撤回一条已文档化的稳定承诺，换来的只是外观一致；这个
+  区分本身就是文档化的契约。
 
 精确的 tag 文法见 [`validation` 包](../validation/validation.go) godoc；错误码
 如何到达每种传输见[错误处理](errors_zh.md)。

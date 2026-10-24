@@ -137,6 +137,9 @@ func decodeGRPC{{.Name}}Request(_ context.Context, grpcReq any) (any, error) {
 	if !ok {
 		return nil, endpoint.NewTypeAssertError[*idl.{{.InputName}}](grpcReq)
 	}
+	if err := validation.Defaults(req); err != nil {
+		return nil, err
+	}
 	if err := validation.Validate(*req); err != nil {
 		return nil, err
 	}

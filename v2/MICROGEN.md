@@ -287,8 +287,11 @@ The generated transports validate each decoded request and answer a violation
 with 400 and a code naming the field and the rule
 (`validation.username.minLen`); a typed kit route enforces the same tags
 through the same package, so a hand-assembled service and a generated one
-reject the same request with the same error. `default` is a form hint the
-contract carries — nothing enforces it. Projects generated from a database
+reject the same request with the same error. `default` is the hint the
+contract carries to a form, and the generated decoder honors it: a field the
+client left at its zero value is filled with the tagged default before the
+check runs, so the promise the OpenAPI document makes is kept on the server
+too. Hand-built services opt in with `validation.DefaultsMiddleware`. Projects generated from a database
 derive the constraints from the DDL itself: a `varchar(n)` column bounds its
 string, and an `enum(...)` column lists its values, with no tag to write — and
 the written contract copy (`idl.go`) carries the same `validate` tags, so the

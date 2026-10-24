@@ -31,10 +31,19 @@ type CreateUserRequest struct {
 value that breaks one. The rule set is deliberately small — `enum`, `min`,
 `max`, `minLen`, `maxLen` — because every rule maps one-to-one onto a JSON
 Schema keyword: one tag drives the generated contract, the form a frontend
-builds from it, and the check the service runs. `default` is carried as a
-form-filling hint by the contract and is not enforced by validation. A
-`pattern` rule is deliberately absent: Go struct tags cannot carry
-backslashes reliably, and the patterns a form needs are full of them.
+builds from it, and the check the service runs. A `pattern` rule is
+deliberately absent: Go struct tags cannot carry backslashes reliably, and
+the patterns a form needs are full of them.
+
+`default=` is the contract's annotation for what a form pre-fills, and two
+opt-in mechanisms honor it on the server: `validation.Defaults(&req)` fills
+every zero-valued field carrying `default=` (a zero value and an absent
+value are the same thing — JSON cannot send an unset non-pointer field), and
+`validation.DefaultsMiddleware()` does the same as endpoint middleware,
+filling a decoded copy when the route hands the chain a value. Wire the
+middleware before `validation.Middleware()`; a generated transport fills in
+its decoder, before checking. `Validate` itself never fills — checking and
+mutating stay separate steps.
 
 A nil pointer field is absent — constraints do not run on it — because
 required-ness is the field's own business: a non-pointer field is already
@@ -76,6 +85,11 @@ list in the error body.
   contract cannot express.
 - The two compose: tags catch the shape, the interface catches the meaning,
   and both run as endpoint middleware in either order.
+- The code namespaces are deliberately separate — a tag failure names the
+  rule it broke, an interface failure reports through
+  `bad_request.validation` — while both classify as `invalid_argument` and
+  land as 400. Unifying the codes would withdraw a documented stable
+  promise for a cosmetic gain; the distinction is the documented contract.
 
 See the [`validation` package](../validation/validation.go) godoc for the
 exact tag grammar and [Error handling](errors.md) for how the codes reach

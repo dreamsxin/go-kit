@@ -85,6 +85,13 @@ func decode{{.Name}}Request(_ context.Context, r *http.Request) (any, error) {
 		return nil, err
 	}
 {{- end}}
+	// The contract's default keyword is a promise to the form that pre-fills
+	// it; the service honors the same promise. Defaults is a no-op for a
+	// model without default= tags, and a broken default panics here — the
+	// same first-use failure a malformed tag gets.
+	if err := validation.Defaults(&req); err != nil {
+		return nil, err
+	}
 	if err := validation.Validate(req); err != nil {
 		return nil, err
 	}

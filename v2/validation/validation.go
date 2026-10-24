@@ -11,9 +11,10 @@
 //
 // enum lists the allowed values, separated by |. min and max bound numeric
 // fields. minLen and maxLen bound the length of strings, slices, and maps.
-// default is a form-filling hint carried by the contract; validation does not
-// enforce it, because a default is what a form pre-fills, not what a server
-// assumes. A pattern rule is deliberately absent from the subset: Go struct
+// default is a form-filling hint carried by the contract; Validate never
+// enforces it — checking and mutating are separate steps — and the
+// opt-in Defaults / DefaultsMiddleware pair applies it on the server. A
+// pattern rule is deliberately absent from the subset: Go struct
 // tags cannot carry backslashes reliably (reflect's tag conventions consume
 // them as escapes), and the patterns a form needs are full of them. A pointer
 // field that is nil is absent — constraints do not run on
@@ -317,4 +318,129 @@ func hasLength(v reflect.Value) bool {
 
 func trimFloat(f float64) string {
 	return strconv.FormatFloat(f, 'f', -1, 64)
+}
+
+// Defaults fills every field whose validate tag carries default= and whose
+// current value is the zero value, mutating a pointer in place. A string
+// field becomes the default text, numbers and bools parse the default, and a
+// nil pointer field is allocated and set. A default that cannot apply to the
+// field's type is a broken tag and fails the same way a malformed rule does —
+// loudly, at first use. Nested structs are out of scope, matching Validate:
+// fill the inner value through its own call.
+//
+// A zero value and an absent value are the same thing here — JSON has no way
+// to send an unset non-pointer field, and a client that explicitly sent 0 or
+// "" gets the default. That is the semantics the contract's default keyword
+// has always advertised to forms; this applies it on the server.
+//
+// Stable: validation.default-fill — Defaults fills a field carrying default=
+// when its value is the zero value, and leaves every other field untouched.
+// Covered by: TestDefaultsFillsZeroValues, TestDefaultsLeavesSetValues,
+// TestDefaultsAllocatesNilPointer, TestDefaultsRejectsTypeMismatchedDefault
+func Defaults(value any) error {
+	rv := reflect.ValueOf(value)
+	for rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return nil
+		}
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return nil
+	}
+	for _, rule := range rulesFor(rv.Type()) {
+		if !rule.cons.HasDefault {
+			continue
+		}
+		fv := rv.Field(rule.index)
+		if !fv.IsZero() {
+			continue
+		}
+		if err := setDefault(fv, rule.cons.Default); err != nil {
+			panic(fmt.Sprintf("validation: %s.%s: default %q: %v", rv.Type(), rule.name, rule.cons.Default, err))
+		}
+	}
+	return nil
+}
+
+func setDefault(fv reflect.Value, text string) error {
+	if fv.Kind() == reflect.Pointer {
+		if fv.IsNil() {
+			fv.Set(reflect.New(fv.Type().Elem()))
+		}
+		fv = fv.Elem()
+	}
+	switch fv.Kind() {
+	case reflect.String:
+		fv.SetString(text)
+	case reflect.Bool:
+		b, err := strconv.ParseBool(text)
+		if err != nil {
+			return fmt.Errorf("not a bool: %w", err)
+		}
+		fv.SetBool(b)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		n, err := strconv.ParseInt(text, 10, 64)
+		if err != nil {
+			return fmt.Errorf("not an integer: %w", err)
+		}
+		if fv.OverflowInt(n) {
+			return fmt.Errorf("%d overflows %s", n, fv.Kind())
+		}
+		fv.SetInt(n)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		n, err := strconv.ParseUint(text, 10, 64)
+		if err != nil {
+			return fmt.Errorf("not an unsigned integer: %w", err)
+		}
+		if fv.OverflowUint(n) {
+			return fmt.Errorf("%d overflows %s", n, fv.Kind())
+		}
+		fv.SetUint(n)
+	case reflect.Float32, reflect.Float64:
+		f, err := strconv.ParseFloat(text, 64)
+		if err != nil {
+			return fmt.Errorf("not a number: %w", err)
+		}
+		fv.SetFloat(f)
+	default:
+		return fmt.Errorf("defaults apply to string, number and bool fields, not %s", fv.Kind())
+	}
+	return nil
+}
+
+// DefaultsMiddleware returns endpoint middleware that applies the default=
+// rules to each request before it continues, so the endpoint and the
+// validation middleware see the filled value. A decoded pointer is filled in
+// place; a struct value cannot be mutated, so the filled copy replaces it on
+// the way in — the middleware may replace the request, which is why filling
+// is a separate, opt-in middleware and never part of Validate.
+//
+// Wire it before validation.Middleware: a default is meant to satisfy the
+// rules the same field carries, and the contract's default keyword is what a
+// form pre-fills.
+//
+// Stable: validation.defaults-middleware — the middleware fills default=
+// fields of zero value on the request the endpoint receives, before
+// validation runs.
+// Covered by: TestDefaultsMiddlewareFillsTypedRequest
+func DefaultsMiddleware() endpoint.Middleware {
+	return func(next endpoint.Endpoint) endpoint.Endpoint {
+		return func(ctx context.Context, request any) (any, error) {
+			switch rv := reflect.ValueOf(request); {
+			case rv.Kind() == reflect.Pointer && rv.Elem().Kind() == reflect.Struct:
+				if err := Defaults(request); err != nil {
+					return nil, err
+				}
+			case rv.Kind() == reflect.Struct:
+				filled := reflect.New(rv.Type())
+				filled.Elem().Set(rv)
+				if err := Defaults(filled.Interface()); err != nil {
+					return nil, err
+				}
+				request = filled.Elem().Interface()
+			}
+			return next(ctx, request)
+		}
+	}
 }
