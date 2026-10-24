@@ -180,6 +180,8 @@ stable/metrics.label-cardinality
 stable/metrics.series-are-per-operation
 stable/microgen.route-override
 stable/openapi.security-scheme
+stable/otel.http-client-span
+stable/otel.http-server-span
 stable/otel.metrics-agree-with-the-exposition
 stable/otel.traceparent-bridged
 stable/resilience.clock-nil-is-wall-clock

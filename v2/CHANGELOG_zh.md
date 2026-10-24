@@ -6,6 +6,16 @@
 
 ### 新增
 
+- OpenTelemetry 适配器开始在传输边界开 span：`oteladapter.HTTPServerMiddleware`
+  包住整个服务器，每个请求一个 SERVER span——mux 命中时名为 `GET /route`，携带
+  `http.request.method`、`url.scheme`、`url.path`、`http.response.status_code`，
+  仅 5xx 标记 Error（`otel.http-server-span`）；`oteladapter.NewRoundTripper`
+  包住任意 `http.RoundTripper`，每次出站调用一个 CLIENT span，携带
+  `server.address`、`server.port`、`url.full`，经全局 propagator 注入 trace
+  context，传输错误与 4xx/5xx 标记 Error（`otel.http-client-span`）。加上
+  endpoint span，一次请求如今是三层树；数据库与重试 attempt span 仍是路线图
+  工作。
+
 - `validation.Defaults(&req)` 与 `validation.DefaultsMiddleware()` 在服务端兑现
   契约的 `default=` 关键字：值为零值且携带 `default=` 的字段在运行自身规则之前
   被填充为默认值（字符串原样、数字与布尔解析、nil 指针分配）

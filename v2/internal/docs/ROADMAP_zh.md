@@ -2747,6 +2747,36 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## 里程碑 32（已完成）：边界 span
+
+里程碑 28 曾把单层深的 span 树记录为有意延后；本候选关闭了其中"让一次请求成为
+一棵树"的那一半。按立项调研过的 HTTP 语义约定实现（span 名 `{method} {route}`，
+route 取自 mux 匹配、绝不用 URI 路径；入站 SERVER、出站 CLIENT；状态标记只按
+约定放置），适配器新增两条接缝：
+
+- `oteladapter.HTTPServerMiddleware` 配 `kit.WithHTTPMiddleware`：每个请求一个
+  SERVER span，名字在 span 开始前就由 ServeMux 解析出的路由给出——中间件在 mux
+  之外，分发的副本不可见，于是直接问 mux 本身——携带全部必需属性，状态规则
+  遵循约定。
+- `oteladapter.NewRoundTripper` 包住任意 `http.RoundTripper`：每次出站调用一个
+  CLIENT span，携带约定的必需属性，经 Setup 安装的全局 propagator 注入 trace
+  context，传输错误与 4xx/5xx 标记 Error。
+
+客户端接缝与核心既有的注入组合：RoundTripper 注入 OpenTelemetry context，框架
+注入它铸出的 W3C 关联，里程碑 28 的桥接让两者指向同一条 trace。测试断言三层
+树：server span、endpoint span、client span，同一条 trace。
+
+仍延后：数据库与重试 attempt span、逐事件 SSE span、gRPC 传输 span（gRPC 的接缝
+是拦截器而非 RoundTripper）、以及 otel gRPC 指标适配器。
+
+验收：
+
+```bash
+go test ./observability/otel -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

@@ -6,6 +6,19 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Added
 
+- The OpenTelemetry adapter starts spans at the transport boundary:
+  `oteladapter.HTTPServerMiddleware` wraps a whole server and starts one
+  SERVER span per request — named `GET /route` when the mux matched, carrying
+  `http.request.method`, `url.scheme`, `url.path`,
+  `http.response.status_code`, with only 5xx marked Error
+  (`otel.http-server-span`) — and `oteladapter.NewRoundTripper` wraps any
+  `http.RoundTripper` to start one CLIENT span per outbound call with
+  `server.address`, `server.port` and `url.full`, inject the trace context
+  through the global propagator, and mark transport errors and 4xx/5xx as
+  Error (`otel.http-client-span`). Together with the endpoint span a request
+  is now a three-level tree; database and retry-attempt spans remain
+  roadmap work.
+
 - `validation.Defaults(&req)` and `validation.DefaultsMiddleware()` honor the
   contract's `default=` keyword on the server: a field whose value is the
   zero value is filled with the tagged default (strings verbatim, numbers and

@@ -3557,6 +3557,43 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## Milestone 32 (Complete): The Boundary Spans
+
+Milestone 28 recorded the depth-one span tree as a deliberate deferral; this
+candidate closes the half of it that makes a request a tree. Following the
+HTTP semantic conventions researched when the work was scoped (span name
+`{method} {route}` with the route from the mux match and never the URI path;
+SERVER for inbound, CLIENT for outbound; status Error only where the
+conventions put it), the adapter gains two seams:
+
+- `oteladapter.HTTPServerMiddleware` for `kit.WithHTTPMiddleware`: one
+  SERVER span per request, named from the route the ServeMux resolves
+  before the span starts — outside the mux the dispatched copy is not
+  visible, so the middleware asks the mux itself — carrying the required
+  attributes, and honoring the conventions' status rules.
+- `oteladapter.NewRoundTripper` around any `http.RoundTripper`: one CLIENT
+  span per outbound call with the conventions' required attributes, trace
+  context injected through the global propagator Setup installed, and
+  Error status on transport errors and 4xx/5xx.
+
+The client seam composes with the injection the core already does: the
+RoundTripper injects the OpenTelemetry context, the framework injects the
+W3C correlation it minted, and milestone 28's bridge makes the two name
+one trace. A test asserts the three-level tree: server span, endpoint span,
+client span, one trace.
+
+Still deferred: database and retry-attempt spans, per-event SSE spans,
+gRPC transport spans (the gRPC seam wants interceptors, not a
+RoundTripper), and an otel gRPC metrics adapter.
+
+Acceptance:
+
+```bash
+go test ./observability/otel -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

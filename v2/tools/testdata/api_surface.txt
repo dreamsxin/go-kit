@@ -1429,6 +1429,8 @@ package oteladapter // import "github.com/dreamsxin/go-kit/v2/observability/otel
 CONSTANTS
 const AllSignals = SignalTraces | SignalMetrics
 FUNCTIONS
+func HTTPServerMiddleware(tracer trace.Tracer, options ...TraceOption) func(http.Handler) http.Handler
+func NewRoundTripper(tracer trace.Tracer, base http.RoundTripper) http.RoundTripper
 func TracingMiddleware(tracer trace.Tracer, operation string, options ...TraceOption) endpoint.Middleware
 TYPES
 type Config struct {

@@ -332,10 +332,10 @@ sd/health -> sd/instance
 - 内置层输出每调用一行的平铺记录（slog、Zap），携带 `operation`、`duration`、
   `success`、`trace_id`、`span_id`、`request_id`。这是关联，不是 span 树：核心层
   永不建模父子 span。
-- 真正的 span 属于可选的 `observability/otel` 适配器，它在 endpoint 边界开 span，
-  并把框架 trace context 桥接为 OpenTelemetry 父节点、再反向桥回。传输边界、出站
-  调用、数据库与重试 attempt 的 span 仍是路线图记录的后续工作；在它们补齐前，
-  即使部署了 collector，导出的树也只有一层深度。
+- 真正的 span 属于可选的 `observability/otel` 适配器：整个服务器外的每个入站
+  请求一个 SERVER span、endpoint span、以及经其 RoundTripper 包装的每次出站 HTTP
+  调用一个 CLIENT span，框架 trace context 与 OpenTelemetry 父节点双向桥接。
+  数据库与重试 attempt 的 span 仍是路线图记录的后续工作。
 
 ## 上下文传递规范
 

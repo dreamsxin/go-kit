@@ -159,14 +159,14 @@ route — the only place the matched pattern exists.
 Skip `Setup` when the application owns its provider configuration; pass any
 `trace.Tracer` and `metric.Meter` instead, and keep shutdown yours.
 
-What the exported tree contains today: one span per endpoint invocation,
-parented in the inbound trace context, with errors and panics recorded. There
-are not yet spans at the transport boundary, on outbound calls, around
-database work, or per retry attempt, so even with a collector deployed the
-tree is depth one per service — the W3C correlation the core propagates is
-what joins the hops, not child spans. That coverage is recorded roadmap work;
-see the correlation section of [Architecture](../ARCHITECTURE.md) for the
-division of labour.
+The exported tree today: a SERVER span per inbound request
+(`oteladapter.HTTPServerMiddleware` around the whole server, named
+`GET /route`), the endpoint span beneath it, and a CLIENT span per outbound
+call (`oteladapter.NewRoundTripper` around any `http.RoundTripper`, which
+also injects the trace context). Database work and retry attempts are not
+spans yet — recorded roadmap work; see the correlation section of
+[Architecture](../ARCHITECTURE.md) for the division of labour. Server-side,
+only 5xx marks the span Error; on the client, 4xx and 5xx do.
 
 ## Correlation And Cardinality
 

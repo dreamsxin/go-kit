@@ -395,11 +395,12 @@ tracing dependency:
   `operation`, `duration`, `success`, `trace_id`, `span_id` and `request_id`.
   That is correlation, not a span tree: the core never models parent/child
   spans.
-- Actual spans live in the optional `observability/otel` adapter, which starts
-  a span at the endpoint boundary and bridges a framework trace context to an
-  OpenTelemetry parent and back. Transport, outbound-call, database and
-  retry-attempt spans remain follow-up work recorded in the roadmap; without
-  them the exported tree is depth one even with a collector deployed.
+- Actual spans live in the optional `observability/otel` adapter: a SERVER
+  span per inbound request around the whole server, the endpoint span, and a
+  CLIENT span per outbound HTTP call through its RoundTripper wrapper, with
+  the framework trace context bridged to an OpenTelemetry parent and back.
+  Database and retry-attempt spans remain follow-up work recorded in the
+  roadmap.
 
 ## Context Conventions
 
