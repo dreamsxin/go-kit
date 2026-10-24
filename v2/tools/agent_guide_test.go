@@ -204,8 +204,21 @@ func withoutComments(name, text string) string {
 		if at := strings.Index(line, marker); at >= 0 {
 			lines[i] = line[:at]
 		}
+		if isModuleRequirement(name, lines[i]) && !strings.Contains(lines[i], "dreamsxin/go-kit") {
+			lines[i] = ""
+		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// isModuleRequirement reports whether a line states a module with a version,
+// the shape `some/module/path vX.Y.Z(...)` found in go.mod and go.sum files.
+func isModuleRequirement(name, line string) bool {
+	if !strings.HasSuffix(name, ".mod") && !strings.HasSuffix(name, ".sum") {
+		return false
+	}
+	fields := strings.Fields(strings.TrimSpace(line))
+	return len(fields) >= 2 && strings.Contains(fields[0], "/") && strings.HasPrefix(fields[1], "v")
 }
 
 type guideReferences struct {
