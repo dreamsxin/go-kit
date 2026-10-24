@@ -162,9 +162,7 @@ registration, which is what makes it readable.
   classified (413/415) like every other error.
 - **File downloads**: `server.WriteAttachment(w, name, body)` sets the
   disposition headers.
-- **Request context**: `transporthttp.PopulateRequestContext` copies method,
-  URI, and header fields into the context for handlers that must not touch
-  the request directly. Request IDs trust no caller by default: an inbound
+- **Request IDs**: request IDs trust no caller by default: an inbound
   `X-Request-ID` longer than `transporthttp.MaxRequestIDLength` or failing
   `kit.WithRequestIDValidator` is replaced with a fresh one.
 

@@ -8,7 +8,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// StatusError adds the framework's transport-neutral classification to a gRPC
+// GRPCStatusError adds the framework's transport-neutral classification to a gRPC
 // status error, so a gRPC client endpoint composes with the same middleware as
 // a server endpoint: retry, circuit breaking, logging, and the HTTP error
 // encoders all read the same contracts.
@@ -23,7 +23,7 @@ import (
 //	if _, err := call(ctx, req); err != nil {
 //	    return apperror.WrapCause(apperror.KindUnavailable, "upstream.users", err)
 //	}
-type StatusError struct {
+type GRPCStatusError struct {
 	err    error
 	st     *status.Status
 	code   string
@@ -31,7 +31,14 @@ type StatusError struct {
 	after  time.Duration
 }
 
-// ClassifyError wraps a gRPC status error in a StatusError. Errors that carry
+// StatusError is the former name of GRPCStatusError, kept so existing code
+// keeps compiling; the HTTP-side counterpart is client.HTTPStatusError.
+//
+// Deprecated: use GRPCStatusError, whose name names the protocol the way its
+// HTTP counterpart does.
+type StatusError = GRPCStatusError
+
+// ClassifyError wraps a gRPC status error in a GRPCStatusError. Errors that carry
 // no gRPC status, including nil, are returned unchanged.
 func ClassifyError(err error) error {
 	if err == nil {
@@ -42,23 +49,23 @@ func ClassifyError(err error) error {
 		return err
 	}
 	code, domain, after := detailsFromStatus(st)
-	return &StatusError{err: err, st: st, code: code, domain: domain, after: after}
+	return &GRPCStatusError{err: err, st: st, code: code, domain: domain, after: after}
 }
 
-func (e *StatusError) Error() string { return e.err.Error() }
+func (e *GRPCStatusError) Error() string { return e.err.Error() }
 
 // Unwrap returns the original gRPC error.
-func (e *StatusError) Unwrap() error { return e.err }
+func (e *GRPCStatusError) Unwrap() error { return e.err }
 
 // GRPCStatus keeps status.FromError and status.Code working on the wrapper.
-func (e *StatusError) GRPCStatus() *status.Status { return e.st }
+func (e *GRPCStatusError) GRPCStatus() *status.Status { return e.st }
 
 // Code reports the gRPC code of the underlying status.
-func (e *StatusError) Code() codes.Code { return e.st.Code() }
+func (e *GRPCStatusError) Code() codes.Code { return e.st.Code() }
 
 // ErrorKindName implements the minimal apperror.KindNamer contract, mapping the
 // gRPC code to the transport-neutral kind name.
-func (e *StatusError) ErrorKindName() string { return KindNameForCode(e.st.Code()) }
+func (e *GRPCStatusError) ErrorKindName() string { return KindNameForCode(e.st.Code()) }
 
 // PublicMessage reports the message a server may forward to its own clients:
 // the upstream code, never the upstream description.
@@ -68,7 +75,7 @@ func (e *StatusError) ErrorKindName() string { return KindNameForCode(e.st.Code(
 // fall back to err.Error() below 500, so an upstream NotFound's message would
 // land verbatim in the downstream response body. This mirrors
 // client.HTTPStatusError, so a gRPC hop and an HTTP hop redact the same way.
-func (e *StatusError) PublicMessage() string {
+func (e *GRPCStatusError) PublicMessage() string {
 	if e == nil {
 		return ""
 	}
@@ -76,21 +83,21 @@ func (e *StatusError) PublicMessage() string {
 }
 
 // Retryable reports whether the code marks a transient failure.
-func (e *StatusError) Retryable() bool { return Retryable(e.err) }
+func (e *GRPCStatusError) Retryable() bool { return Retryable(e.err) }
 
 // ErrorCode implements the stable machine-readable code contract by reading the
 // google.rpc.ErrorInfo reason the server-side encoder attaches. It is empty when
 // the server sent none. Relaying it keeps the application code intact across a
 // gRPC hop and across a gRPC-to-HTTP hop, where it becomes the body's "code".
-func (e *StatusError) ErrorCode() string { return e.code }
+func (e *GRPCStatusError) ErrorCode() string { return e.code }
 
 // ErrorDomain reports the google.rpc.ErrorInfo domain, the grouping that owns
 // the code. It is empty when the server sent none.
-func (e *StatusError) ErrorDomain() string { return e.domain }
+func (e *GRPCStatusError) ErrorDomain() string { return e.domain }
 
 // RetryAfter reports the delay from the google.rpc.RetryInfo status detail, the
 // canonical gRPC retry hint. It is 0 when the server sent none.
-func (e *StatusError) RetryAfter() time.Duration { return e.after }
+func (e *GRPCStatusError) RetryAfter() time.Duration { return e.after }
 
 // detailsFromStatus reads the canonical error details the framework emits:
 // ErrorInfo carries the stable application code and its domain, RetryInfo the
@@ -150,4 +157,4 @@ func KindNameForCode(code codes.Code) string {
 	}
 }
 
-var _ error = (*StatusError)(nil)
+var _ error = (*GRPCStatusError)(nil)

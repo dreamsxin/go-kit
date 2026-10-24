@@ -90,7 +90,7 @@ call := grpcclient.NewClient(
 
 ## 错误分类与重试
 
-客户端会把每次失败的 `Invoke` 包装为 `grpc.StatusError`。它仍然是 gRPC 错误——
+客户端会把每次失败的 `Invoke` 包装为 `grpc.GRPCStatusError`。它仍然是 gRPC 错误——
 `status.FromError` 与 `status.Code` 照常可用——并补上框架契约：`ErrorKindName`
 把状态码映射为传输无关的 kind（`grpc.KindNameForCode`，即
 `grpcserver.CodeForErrorKind` 的逆映射），`Retryable` 报告该码是否瞬时，

@@ -138,10 +138,9 @@ api.UseHTTPMiddleware(requestAuditor)                      // HTTP 层
   `server.MultipartLimits`；超限与错误媒体类型的失败和其他错误一样带着分类到达
   （413/415）。
 - **文件下载**：`server.WriteAttachment(w, name, body)` 设置 disposition 头。
-- **请求 context**：`transporthttp.PopulateRequestContext` 把方法、URI、header
-  字段复制进 context，供不便直接触碰请求的 handler 使用。请求 ID 默认不信任调用
-  方：入站 `X-Request-ID` 超过 `transporthttp.MaxRequestIDLength` 或未通过
-  `kit.WithRequestIDValidator` 时会被替换为新生成的。
+- **请求 ID**：请求 ID 默认不信任调用方：入站 `X-Request-ID` 超过
+  `transporthttp.MaxRequestIDLength` 或未通过 `kit.WithRequestIDValidator`
+  时会被替换为新生成的。
 
 ## 影响每条路由的选项
 

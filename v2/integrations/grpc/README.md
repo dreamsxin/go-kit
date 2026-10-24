@@ -96,7 +96,7 @@ runs for observability.
 
 ## Error Classification And Retry
 
-The client wraps every failed `Invoke` in `grpc.StatusError`. It stays a gRPC
+The client wraps every failed `Invoke` in `grpc.GRPCStatusError`. It stays a gRPC
 error — `status.FromError` and `status.Code` keep working — and adds the
 framework contracts: `ErrorKindName` maps the code to a transport-neutral kind
 (`grpc.KindNameForCode`, the inverse of `grpcserver.CodeForErrorKind`), `Retryable`
