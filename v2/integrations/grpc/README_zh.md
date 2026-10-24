@@ -90,6 +90,10 @@ call := grpcclient.NewClient(
 
 ## 错误分类与重试
 
+当 unary 调用的 proto 类型已知时，`grpcclient.NewTypedClient[Req, Resp]` 去掉了
+`any`：`Invoke(ctx, req)` 直接返回响应消息，选项、traceparent 默认值与错误分类
+都和非 typed 客户端一致。
+
 客户端会把每次失败的 `Invoke` 包装为 `grpc.GRPCStatusError`。它仍然是 gRPC 错误——
 `status.FromError` 与 `status.Code` 照常可用——并补上框架契约：`ErrorKindName`
 把状态码映射为传输无关的 kind（`grpc.KindNameForCode`，即

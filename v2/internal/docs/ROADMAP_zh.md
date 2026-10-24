@@ -2781,6 +2781,35 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## 里程碑 33（已完成）：门禁如今看守的对称性
+
+评审留下的机械性事项，因同一主题并作一组落地：此前只被看了一半的面，如今有了
+自己的看守者。
+
+- `grpcclient.NewTypedClient[Req, Resp]` 给 unary RPC 带来 HTTP 侧自
+  `NewTypedJSONClient` 起就有的类型安全调用：Invoke 直接返回 proto 响应，无
+  `any`，无 `endpoint.Unwrap`。它内嵌非 typed 客户端以复用选项表面与默认
+  traceparent 注入。本发布中生成的客户端保持包装器形状；在
+  `transport_grpc.tmpl` 中采纳 typed client 是一处模板改动加契约快照刷新，
+  已排入下个 minor，让两者作为一次受评审的变更落地。
+- 依赖边界矩阵新增七行（grpc transport/client/server、zap、otel、validation、
+  kit/grpc）——每个已发布包都有了正向白名单，otel 适配器的 OpenTelemetry 树
+  被限定在需要它的适配器内。一次探针 import 验证了行会咬人。
+- 双语配对规则长了牙：配对现在必须匹配标题结构（围栏代码块之外的层级序列），
+  而不只是存在。CHANGELOG 与 ROADMAP 作为历史豁免。门禁的最初几轮先抓到了
+  它自身的缺陷——一次路径被拼接两次，一次豁免因配对路径是绝对路径而从未
+  命中——按仓库规矩，两个失败都在门禁变绿之前被读过。
+- 候选清单门禁跳过 `tools/testdata`：其中的对比 harness 用本地 replace 钉住
+  框架，依赖版本与下一个发布号撞车属于噪声，而不是需要人工 bump 的文件。
+
+验收：
+
+```bash
+go test ./integrations/grpc/... -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

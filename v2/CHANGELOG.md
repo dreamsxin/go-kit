@@ -6,6 +6,14 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Added
 
+- `grpcclient.NewTypedClient[Req, Resp]` carries a unary RPC's proto types in
+  the Go type system: `Invoke` takes the request message and returns a freshly
+  allocated response message — no `endpoint.Endpoint`'s `any`, no
+  `endpoint.Unwrap` at the call site (`grpc.typed-client`). It embeds the
+  untyped client, so the option surface and the default traceparent
+  injection are identical, and transport failures classify the same way.
+  Generated clients adopt it in a following minor so the template change
+  lands as one reviewed snapshot.
 - The OpenTelemetry adapter starts spans at the transport boundary:
   `oteladapter.HTTPServerMiddleware` wraps a whole server and starts one
   SERVER span per request — named `GET /route` when the mux matched, carrying

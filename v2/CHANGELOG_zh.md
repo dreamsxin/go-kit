@@ -6,6 +6,13 @@
 
 ### 新增
 
+- `grpcclient.NewTypedClient[Req, Resp]` 把一次 unary RPC 的 proto 类型收进 Go
+  类型系统：`Invoke` 接收请求消息、返回新分配的响应消息——不再碰
+  `endpoint.Endpoint` 的 `any`，调用点也不再写 `endpoint.Unwrap`
+  （`grpc.typed-client`）。它内嵌非 typed 客户端，选项表面与默认 traceparent
+  注入完全一致，传输失败的分类方式也相同。生成的客户端将在后续 minor 采用它，
+  让模板变更作为一次受评审的快照落地。
+
 - OpenTelemetry 适配器开始在传输边界开 span：`oteladapter.HTTPServerMiddleware`
   包住整个服务器，每个请求一个 SERVER span——mux 命中时名为 `GET /route`，携带
   `http.request.method`、`url.scheme`、`url.path`、`http.response.status_code`，

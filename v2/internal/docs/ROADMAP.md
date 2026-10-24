@@ -3599,6 +3599,42 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## Milestone 33 (Complete): Symmetry The Gates Now Watch
+
+The audit's remaining mechanical asks, landed together because they share
+one theme: surfaces that were only half-watched now have their watcher.
+
+- `grpcclient.NewTypedClient[Req, Resp]` gives a unary RPC the same
+  type-safe call the HTTP side has had since `NewTypedJSONClient`: Invoke
+  returns the proto response, no `any`, no `endpoint.Unwrap`. It embeds the
+  untyped client for its option surface and default traceparent injection.
+  Generated clients keep the wrapper shape this release; adopting the typed
+  client in `transport_grpc.tmpl` is a one-template change plus contract
+  snapshot refresh, queued for the next minor so the two land as one
+  reviewed change.
+- The dependency-boundary matrix grew seven rows (grpc transport/client/
+  server, zap, otel, validation, kit/grpc) — every published package now
+  has a forward allowlist, and the otel adapter's OpenTelemetry tree is
+  scoped to the adapter that needs it. A probe import verified a row
+  bites.
+- The bilingual pairing rule gained teeth: pairs must now match heading
+  structure (the level sequence outside fenced blocks), not merely exist.
+  CHANGELOG and ROADMAP are exempt as history. The gate's first runs
+  caught their own bugs - a path joined twice, then an exemption that
+  never matched because pair paths were absolute - and both failures were
+  read before the gate went green, per the house rule.
+- The candidate-checklist gate skips `tools/testdata`, whose comparison
+  harness pins the framework with a local replace; a dependency version
+  colliding with the next release number is noise, not a file to bump.
+
+Acceptance:
+
+```bash
+go test ./integrations/grpc/... -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

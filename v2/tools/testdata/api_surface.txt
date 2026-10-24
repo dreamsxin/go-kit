@@ -617,6 +617,16 @@ type FinalizerFunc func(ctx context.Context, err error)
 type RequestFunc func(context.Context, *metadata.MD) context.Context
 func SetRequestHeader(key, val string) RequestFunc
 type ResponseFunc func(ctx context.Context, header metadata.MD, trailer metadata.MD) context.Context
+type TypedClient[Req, Resp proto.Message] struct {
+	*Client
+	// Has unexported fields.
+}
+func NewTypedClient[Req, Resp proto.Message](
+	cc *grpc.ClientConn,
+	serviceName string,
+	method string,
+	options ...ClientOption,
+func (c *TypedClient[Req, Resp]) Invoke(ctx context.Context, request Req) (response Resp, err error)
 
 ## github.com/dreamsxin/go-kit/v2/integrations/grpc/server
 package server // import "github.com/dreamsxin/go-kit/v2/integrations/grpc/server"

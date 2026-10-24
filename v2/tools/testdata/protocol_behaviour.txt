@@ -57,6 +57,7 @@ stable/grpc.health-watch
 stable/grpc.recording-method-label
 stable/grpc.shutdown-ends
 stable/grpc.traceparent-stream-client
+stable/grpc.typed-client
 stable/health.check-in-progress
 stable/health.checks-added-after-mount
 stable/health.default-paths

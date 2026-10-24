@@ -132,6 +132,53 @@ func TestArchitectureDependencyGates(t *testing.T) {
 			allowedTrees: []string{coreModulePath + "/transport"},
 		},
 		{
+			// The gRPC transport adapter speaks to endpoint, apperror and the
+			// neutral transport contracts, and to grpc itself - nothing else
+			// in the module.
+			name:         "grpc transport",
+			pattern:      "./integrations/grpc",
+			allowedExact: []string{coreModulePath + "/endpoint"},
+			allowedTrees: []string{"google.golang.org/grpc", "google.golang.org/genproto"},
+		},
+		{
+			name:         "grpc client",
+			pattern:      "./integrations/grpc/client",
+			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/integrations/grpc"},
+			allowedTrees: []string{"google.golang.org/grpc", "google.golang.org/protobuf"},
+		},
+		{
+			name:         "grpc server",
+			pattern:      "./integrations/grpc/server",
+			allowedExact: []string{coreModulePath + "/apperror", coreModulePath + "/endpoint", coreModulePath + "/integrations/grpc", coreModulePath + "/transport"},
+			allowedTrees: []string{"google.golang.org/grpc", "google.golang.org/genproto", "google.golang.org/protobuf"},
+		},
+		{
+			name:         "zap adapter",
+			pattern:      "./integrations/zap",
+			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/transport"},
+			allowedTrees: []string{"go.uber.org/zap"},
+		},
+		{
+			name:         "otel adapter",
+			pattern:      "./observability/otel",
+			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/transport/http/server"},
+			allowedTrees: []string{"go.opentelemetry.io/otel"},
+		},
+		{
+			name:         "validation",
+			pattern:      "./validation",
+			allowedExact: []string{coreModulePath + "/apperror", coreModulePath + "/endpoint"},
+		},
+		{
+			// kit/grpc is assembly, like kit: it wires the gRPC adapter and
+			// the Host lifecycle together, and the assembly may reach the
+			// component it assembles.
+			name:         "kit grpc",
+			pattern:      "./kit/grpc",
+			allowedExact: []string{coreModulePath + "/health", coreModulePath + "/integrations/grpc", coreModulePath + "/kit"},
+			allowedTrees: []string{"google.golang.org/grpc"},
+		},
+		{
 			// The gRPC bridge is its own package for exactly this gate's sake: the
 			// exposition above must not drag the gRPC libraries into an HTTP-only
 			// service that only wanted to be scraped. A service that speaks gRPC

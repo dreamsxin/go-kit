@@ -96,6 +96,11 @@ runs for observability.
 
 ## Error Classification And Retry
 
+For a unary call whose proto types are known, `grpcclient.NewTypedClient[Req, Resp]`
+removes the `any`: `Invoke(ctx, req)` returns the response message directly,
+with the same options, traceparent default, and error classification as the
+untyped client.
+
 The client wraps every failed `Invoke` in `grpc.GRPCStatusError`. It stays a gRPC
 error — `status.FromError` and `status.Code` keep working — and adds the
 framework contracts: `ErrorKindName` maps the code to a transport-neutral kind
