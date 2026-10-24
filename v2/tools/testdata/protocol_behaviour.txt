@@ -181,6 +181,9 @@ stable/metrics.label-cardinality
 stable/metrics.series-are-per-operation
 stable/microgen.route-override
 stable/openapi.security-scheme
+stable/otel.grpc-client-span
+stable/otel.grpc-metrics-agree-with-the-recorder
+stable/otel.grpc-server-span
 stable/otel.http-client-span
 stable/otel.http-server-span
 stable/otel.metrics-agree-with-the-exposition

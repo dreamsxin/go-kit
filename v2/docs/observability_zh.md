@@ -148,9 +148,12 @@ ep := endpoint.NewBuilder(createUser).
 今天导出的树：每个入站请求一个 SERVER span（`oteladapter.HTTPServerMiddleware`
 包住整个服务器，名为 `GET /route`），其下是 endpoint span，每次出站调用一个
 CLIENT span（`oteladapter.NewRoundTripper` 包住任意 `http.RoundTripper`，同时注入
-trace context）。数据库操作与重试 attempt 还不是 span——路线图已记录；分工见
-[架构文档](../ARCHITECTURE_zh.md)的关联一节。服务端只有 5xx 将 span 标为
-Error；客户端 4xx 与 5xx 都标。
+trace context）。gRPC 服务经 `oteladapter.GRPCServerSpanInterceptor` 与
+`GRPCClientSpanInterceptor` 获得同样的一对，按 RPC 约定命名
+`package.Service/Method`；`oteladapter.NewGRPCMetrics` 为传输层的记录拦截器记录
+`rpc.server.call.duration`。数据库操作与重试 attempt 还不是 span——路线图已
+记录；分工见[架构文档](../ARCHITECTURE_zh.md)的关联一节。服务端只有 5xx 将
+span 标为 Error；客户端 4xx 与 5xx 都标。
 
 ## 关联与基数
 

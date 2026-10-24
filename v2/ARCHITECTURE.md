@@ -397,10 +397,10 @@ tracing dependency:
   spans.
 - Actual spans live in the optional `observability/otel` adapter: a SERVER
   span per inbound request around the whole server, the endpoint span, and a
-  CLIENT span per outbound HTTP call through its RoundTripper wrapper, with
-  the framework trace context bridged to an OpenTelemetry parent and back.
-  Database and retry-attempt spans remain follow-up work recorded in the
-  roadmap.
+  CLIENT span per outbound call — HTTP through its RoundTripper wrapper,
+  gRPC through its unary interceptors — with the framework trace context
+  bridged to an OpenTelemetry parent and back. Database and retry-attempt
+  spans remain follow-up work recorded in the roadmap.
 
 ## Context Conventions
 

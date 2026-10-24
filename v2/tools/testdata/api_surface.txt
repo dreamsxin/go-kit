@@ -1439,6 +1439,8 @@ package oteladapter // import "github.com/dreamsxin/go-kit/v2/observability/otel
 CONSTANTS
 const AllSignals = SignalTraces | SignalMetrics
 FUNCTIONS
+func GRPCClientSpanInterceptor(tracer trace.Tracer) grpc.UnaryClientInterceptor
+func GRPCServerSpanInterceptor(tracer trace.Tracer) grpc.UnaryServerInterceptor
 func HTTPServerMiddleware(tracer trace.Tracer, options ...TraceOption) func(http.Handler) http.Handler
 func NewRoundTripper(tracer trace.Tracer, base http.RoundTripper) http.RoundTripper
 func TracingMiddleware(tracer trace.Tracer, operation string, options ...TraceOption) endpoint.Middleware
@@ -1484,6 +1486,11 @@ type Config struct {
 	// serves.
 	MetricReader sdkmetric.Reader
 }
+type GRPCMetrics struct {
+	// Has unexported fields.
+}
+func NewGRPCMetrics(meter metric.Meter) (*GRPCMetrics, error)
+func (m *GRPCMetrics) ObserveGRPC(ctx context.Context, obs grpcserver.Observation)
 type HTTPMetrics struct {
 	// Has unexported fields.
 }

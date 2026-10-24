@@ -333,9 +333,10 @@ sd/health -> sd/instance
   `success`、`trace_id`、`span_id`、`request_id`。这是关联，不是 span 树：核心层
   永不建模父子 span。
 - 真正的 span 属于可选的 `observability/otel` 适配器：整个服务器外的每个入站
-  请求一个 SERVER span、endpoint span、以及经其 RoundTripper 包装的每次出站 HTTP
-  调用一个 CLIENT span，框架 trace context 与 OpenTelemetry 父节点双向桥接。
-  数据库与重试 attempt 的 span 仍是路线图记录的后续工作。
+  请求一个 SERVER span、endpoint span、以及每次出站调用一个 CLIENT span——HTTP
+  经其 RoundTripper 包装、gRPC 经其 unary 拦截器——框架 trace context 与
+  OpenTelemetry 父节点双向桥接。数据库与重试 attempt 的 span 仍是路线图记录的
+  后续工作。
 
 ## 上下文传递规范
 

@@ -2810,6 +2810,41 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## 里程碑 34（已完成）：树的 gRPC 一半
+
+里程碑 32 关闭了传输 span 的 HTTP 一半；本里程碑关闭 gRPC 一半，以及它留下的
+指标不对称。
+
+- `oteladapter.GRPCServerSpanInterceptor` 为每个 unary RPC 启动一个 SERVER
+  span，按 RPC 约定以完整方法名命名（rpc.system.name、rpc.service、
+  rpc.method；每个 span 携带 rpc.grpc.status_code，任何非 OK code 标记
+  Error）。它与 traceparent 提取器同链，因此 span 位于框架提取的远程父之下、
+  endpoint span 之上——从调用方的 header 到导出的树是一条 trace。
+- `oteladapter.GRPCClientSpanInterceptor` 是同名同属性规则下的 CLIENT 侧，
+  与传输层默认的 traceparent 注入组合：两者读的都是活跃 context。
+- `oteladapter.NewGRPCMetrics` 在约定的 rpc.server.call.duration 直方图上实现
+  `grpcserver.Recorder`，携带方法、系统、状态码与流标记。有了它，gRPC 传输
+  可以经 OTel push 而不再只能被 scrape——里程碑 28 延后清单里记录的不对称。
+  对拍测试把一条 Observation 同时喂给本适配器与内置 exposition，各自恰好
+  计一次。
+
+测试备忘，因它耗掉一个下午而记录：拦截器用桩 handler/invoker 直接调用的方式
+测试，与传输层自己的拦截器测试同风格。bufconn 往返最初表现得像服务端拦截器
+从未运行——handler 执行了、client span 记录了、服务端 span 零个——而对该假设
+的每一轮插桩都返回互相矛盾的计数。与其发布一个测量调度器的测试，不如把夹具
+改为确定性桩；树性质通过在调用 context 里启动父 span、断言 CLIENT span 是
+其子来钉住——这正是 wire 上经 traceparent 桥接发生的事。
+
+仍延后：数据库与重试 attempt span、逐事件 SSE span。
+
+验收：
+
+```bash
+go test ./observability/otel -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

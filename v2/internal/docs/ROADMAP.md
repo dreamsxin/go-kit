@@ -3635,6 +3635,48 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## Milestone 34 (Complete): The gRPC Half Of The Tree
+
+Milestone 32 closed the HTTP half of the transport spans; this closes the
+gRPC half and the metrics asymmetry it left behind.
+
+- `oteladapter.GRPCServerSpanInterceptor` starts one SERVER span per unary
+  RPC named after the full method, per the RPC conventions (rpc.system.name,
+  rpc.service, rpc.method; rpc.grpc.status_code on every span, Error on any
+  non-OK code). It chains beside the traceparent extractor, so the span
+  sits under the framework-extracted remote parent and above the endpoint
+  span — one trace from the caller's header to the exported tree.
+- `oteladapter.GRPCClientSpanInterceptor` is the CLIENT side under the same
+  name and attributes, and composes with the transport's default
+  traceparent injection: both read the active context.
+- `oteladapter.NewGRPCMetrics` implements `grpcserver.Recorder` over the
+  conventions' rpc.server.call.duration histogram, carrying method, system,
+  status code and a stream marker. With it, the gRPC transport can push
+  through OTel instead of only being scraped — the asymmetry recorded in
+  milestone 28's deferrals. The agreement test feeds one Observation to
+  both this adapter and the built-in exposition and counts each once.
+
+Testing note, recorded because it cost an afternoon: the interceptors are
+exercised by direct invocation with stub handlers/invokers, the way the
+transport's own interceptor tests work. A bufconn round-trip first looked
+like the server interceptor never ran — handler executed, client span
+recorded, zero server spans — and every instrumentation of that hypothesis
+returned contradictory counts. Rather than ship a test that measures the
+scheduler, the fixtures became deterministic stubs; the tree property is
+pinned by starting a parent span in the call context and asserting the
+CLIENT span is its child, which is exactly what the wire does through the
+traceparent bridge.
+
+Still deferred: database and retry-attempt spans, per-event SSE spans.
+
+Acceptance:
+
+```bash
+go test ./observability/otel -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

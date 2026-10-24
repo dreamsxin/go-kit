@@ -14,6 +14,16 @@ English | [简体中文](CHANGELOG_zh.md)
   injection are identical, and transport failures classify the same way.
   Generated clients adopt it in a following minor so the template change
   lands as one reviewed snapshot.
+- The gRPC transport gets the same observability pair as HTTP:
+  `oteladapter.GRPCServerSpanInterceptor` starts one SERVER span per unary
+  RPC named `package.Service/Method` with `rpc.system.name`, `rpc.service`,
+  `rpc.method` and `rpc.grpc.status_code`, Error on any non-OK code
+  (`otel.grpc-server-span`); `GRPCClientSpanInterceptor` is the CLIENT side
+  under the same name (`otel.grpc-client-span`); and `NewGRPCMetrics`
+  records `rpc.server.call.duration` for the transport's recording
+  interceptors, agreeing with the built-in exposition by test
+  (`otel.grpc-metrics-agree-with-the-recorder`) — the gRPC transport can
+  now push through OTel instead of only being scraped.
 - The OpenTelemetry adapter starts spans at the transport boundary:
   `oteladapter.HTTPServerMiddleware` wraps a whole server and starts one
   SERVER span per request — named `GET /route` when the mux matched, carrying

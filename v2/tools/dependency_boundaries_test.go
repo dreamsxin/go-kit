@@ -159,10 +159,15 @@ func TestArchitectureDependencyGates(t *testing.T) {
 			allowedTrees: []string{"go.uber.org/zap"},
 		},
 		{
+			// The adapter speaks gRPC twice: its OTLP exporters already
+			// depend on the gRPC libraries, and its span interceptors and
+			// Recorder implementation serve the gRPC transport's own
+			// contracts. An otel user pays for grpc either way; an HTTP-only
+			// service that skips this adapter pays for neither.
 			name:         "otel adapter",
 			pattern:      "./observability/otel",
-			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/transport/http/server"},
-			allowedTrees: []string{"go.opentelemetry.io/otel"},
+			allowedExact: []string{coreModulePath + "/endpoint", coreModulePath + "/integrations/grpc/server", coreModulePath + "/transport/http/server"},
+			allowedTrees: []string{"go.opentelemetry.io/otel", "google.golang.org/grpc", "google.golang.org/protobuf"},
 		},
 		{
 			name:         "validation",

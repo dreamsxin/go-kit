@@ -163,8 +163,12 @@ The exported tree today: a SERVER span per inbound request
 (`oteladapter.HTTPServerMiddleware` around the whole server, named
 `GET /route`), the endpoint span beneath it, and a CLIENT span per outbound
 call (`oteladapter.NewRoundTripper` around any `http.RoundTripper`, which
-also injects the trace context). Database work and retry attempts are not
-spans yet — recorded roadmap work; see the correlation section of
+also injects the trace context). A gRPC service gets the same pair through
+`oteladapter.GRPCServerSpanInterceptor` and `GRPCClientSpanInterceptor`,
+named `package.Service/Method` per the RPC conventions, and
+`oteladapter.NewGRPCMetrics` records `rpc.server.call.duration` for the
+transport's recording interceptors. Database work and retry attempts are
+not spans yet — recorded roadmap work; see the correlation section of
 [Architecture](../ARCHITECTURE.md) for the division of labour. Server-side,
 only 5xx marks the span Error; on the client, 4xx and 5xx do.
 

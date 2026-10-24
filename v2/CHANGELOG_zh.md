@@ -6,6 +6,15 @@
 
 ### 新增
 
+- gRPC 传输获得与 HTTP 相同的可观测一对：`oteladapter.GRPCServerSpanInterceptor`
+  为每个 unary RPC 启动一个 SERVER span，按 RPC 约定命名
+  `package.Service/Method`，携带 `rpc.system.name`、`rpc.service`、
+  `rpc.method`、`rpc.grpc.status_code`，任何非 OK code 标记 Error
+  （`otel.grpc-server-span`）；`GRPCClientSpanInterceptor` 是同名规则下的
+  CLIENT 侧（`otel.grpc-client-span`）；`NewGRPCMetrics` 为传输层的记录拦截器
+  记录 `rpc.server.call.duration`，与内置 exposition 经测试对拍一致
+  （`otel.grpc-metrics-agree-with-the-recorder`）——gRPC 传输从此可以经
+  OTel push，而不再只能被 scrape。
 - `grpcclient.NewTypedClient[Req, Resp]` 把一次 unary RPC 的 proto 类型收进 Go
   类型系统：`Invoke` 接收请求消息、返回新分配的响应消息——不再碰
   `endpoint.Endpoint` 的 `any`，调用点也不再写 `endpoint.Unwrap`
