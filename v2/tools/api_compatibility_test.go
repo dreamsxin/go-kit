@@ -127,28 +127,13 @@ func TestAPICompatibilityWithLastRelease(t *testing.T) {
 // resilience breaks left when v2.27.0 was tagged, because from that tag those
 // shapes are the baseline and the entries match nothing. New entries appear
 // only when a future candidate deliberately breaks the surface.
-var deliberateBreaks = []string{
-	// v2.28.0 removes the go-kit request-header context surface
-	// (CHANGELOG [Unreleased]): PopulateRequestContext copied request
-	// headers — credentials included — into the context for any layer to
-	// read, against the architecture's context conventions, and nothing in
-	// the repository called it. The response keys stay; a RequestFunc that
-	// needs a request header reads the *http.Request it is handed.
-	"github.com/dreamsxin/go-kit/v2/transport/http: removed: const ContextKeyRequest",
-	"github.com/dreamsxin/go-kit/v2/transport/http: removed: func PopulateRequestContext",
-	// The response keys move to their own const block, so their unexported
-	// ordinal changes; the keys exist only to carry values between the
-	// client's finalizer and the application's ResponseFunc within one
-	// build, and nothing persists them.
-	"github.com/dreamsxin/go-kit/v2/transport/http: changed: const ContextKeyResponseHeaders",
-	// v2.28.0 renames grpc.StatusError to grpc.GRPCStatusError. The old
-	// name stays as a deprecated type alias, so `var e *grpc.StatusError =
-	// grpc.ClassifyError(...)` still compiles; go doc nevertheless renders
-	// the methods under the concrete type, which the classifier reads as a
-	// change plus removals. The entries leave when v2.28.0 is tagged.
-	"github.com/dreamsxin/go-kit/v2/integrations/grpc: changed: type StatusError",
-	"github.com/dreamsxin/go-kit/v2/integrations/grpc: removed: func StatusError.",
-}
+// deliberateBreaks names the API breaks since the previous release tag that
+// are intentional, spelled the way incompatibleChanges reports them. Each
+// entry leaves with the release that ships it: the request-header context
+// removal and the StatusError rename shipped with v2.28.0, so from that tag
+// those shapes are the baseline and their entries match nothing. New entries
+// appear only when a future candidate deliberately breaks the surface.
+var deliberateBreaks = []string{}
 
 // TestAPICompatibilityClassifier proves the classifier reports what it claims,
 // on inputs written here rather than on the real surface — the real surface is
