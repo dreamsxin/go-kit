@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"net"
-	"strings"
 	"testing"
 
 	"google.golang.org/grpc"
