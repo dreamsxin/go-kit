@@ -280,6 +280,12 @@ func ContinueIncomingTrace(ctx context.Context) context.Context {
 	case values.traceID != "":
 		values.trace = TraceContext{TraceID: string(values.traceID), SpanID: newSpanID(), Flags: "00"}
 		if !values.trace.Valid() {
+			// A non-W3C string keeps its published semantics — it stays
+			// what TraceIDFromContext reports for logging — while the
+			// propagated trace is minted fresh, because a string that is
+			// not a W3C trace ID cannot be one. The two identifiers
+			// diverging in that one case is the documented cost of the
+			// compatibility entrance, recorded in the roadmap.
 			values.trace = NewTraceContext()
 		}
 	default:

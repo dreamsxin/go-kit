@@ -2,7 +2,6 @@ package validation_test
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 
@@ -44,14 +43,14 @@ func TestDefaultsFillsZeroValues(t *testing.T) {
 
 func TestDefaultsLeavesSetValues(t *testing.T) {
 	icon := "custom.png"
-	req := &defaultsRequest{Name: "app", Status: "suspended", Replicas: 5, Shared: true, Ratio: 0.9, Icon: &icon}
+	req := &defaultsRequest{Name: "app", Status: "suspended", Replicas: 5, Shared: true, Ratio: 0.9, Icon: &icon, NoRule: "untouched"}
 	if err := validation.Defaults(req); err != nil {
 		t.Fatalf("Defaults: %v", err)
 	}
 	if req.Status != "suspended" || req.Replicas != 5 || !req.Shared || req.Ratio != 0.9 || *req.Icon != "custom.png" {
 		t.Fatalf("an explicitly set value was overwritten: %+v", req)
 	}
-	if req.NoRule != "" {
+	if req.NoRule != "untouched" {
 		t.Fatal("fields without default= must not be touched")
 	}
 }
@@ -119,9 +118,14 @@ func TestDefaultsMiddlewareFillsTypedRequest(t *testing.T) {
 		t.Fatalf("pointer request was not filled in place: %+v", ptr)
 	}
 
-	// A non-struct request passes untouched.
+	// A non-struct request passes untouched, and the endpoint sees the
+	// same value.
+	before := len(seen)
 	if _, err := ep(context.Background(), "hello"); err != nil {
 		t.Fatalf("string request: %v", err)
+	}
+	if got, _ := seen[len(seen)-1].(string); len(seen) != before+1 || got != "hello" {
+		t.Fatalf("endpoint received %#v, want the untouched string", seen[len(seen)-1])
 	}
 }
 
@@ -136,5 +140,17 @@ func TestValidationIgnoresDefaultsStillHoldsForValidate(t *testing.T) {
 	if !strings.Contains(err.Error(), "status must be one of") {
 		t.Fatalf("error = %v, want it to name the field", err)
 	}
-	_ = errors.Is
+}
+
+// TestDefaultsNeedsAPointer pins the misuse failure: a struct value is not
+// addressable, and the panic names the type instead of letting reflect fail
+// deep inside with no field names.
+func TestDefaultsNeedsAPointer(t *testing.T) {
+	defer func() {
+		recovered, ok := recover().(string)
+		if !ok || !strings.Contains(recovered, "needs a pointer") {
+			t.Fatalf("recover = %v, want the pointer message", recover())
+		}
+	}()
+	_ = validation.Defaults(defaultsRequest{Name: "x"})
 }

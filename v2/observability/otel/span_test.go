@@ -2,6 +2,7 @@ package oteladapter_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -208,14 +209,24 @@ func TestRoundTripperMarksErrorsAndInjects(t *testing.T) {
 func TestServerAndClientSpansFormATree(t *testing.T) {
 	tracer, recorder := newRecordingTracer(t)
 
-	var clientTransport = oteladapter.NewRoundTripper(tracer, http.DefaultTransport)
+	// A stub transport keeps the tree assertion inside the process: a
+	// real transport would hand the test the machine's DNS and the
+	// network's failures, which is not what the tree depends on.
+	stub := roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Body:       io.NopCloser(strings.NewReader("relayed")),
+			Header:     make(http.Header),
+			Request:    request,
+		}, nil
+	})
+	clientTransport := oteladapter.NewRoundTripper(tracer, stub)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		request, _ := http.NewRequestWithContext(r.Context(), http.MethodGet, "https://example.com/relays", nil)
+		request, _ := http.NewRequestWithContext(r.Context(), http.MethodGet, "https://upstream.internal/relays", nil)
 		_, _ = clientTransport.RoundTrip(request)
 		w.WriteHeader(http.StatusOK)
 	})
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
 
 	served := oteladapter.HTTPServerMiddleware(tracer)(handler)
 	served.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/forward", nil))
@@ -240,4 +251,11 @@ func TestServerAndClientSpansFormATree(t *testing.T) {
 	if clientSpan.SpanContext().TraceID() != serverSpan.SpanContext().TraceID() {
 		t.Fatal("the two spans do not share a trace")
 	}
+}
+
+// roundTripperFunc adapts a function to http.RoundTripper for stubs.
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
 }

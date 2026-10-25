@@ -52,6 +52,7 @@ generated source.
 | add logs, metrics, or tracing | [Observability](docs/observability.md) |
 | expose MCP tools | [MCP tutorial](docs/tutorial-mcp.md), [interaction README](interaction/README.md) |
 | validate a request | [Validation](docs/validation.md) |
+| compare frameworks on numbers | [Benchmarks](docs/benchmarks.md) |
 | test a service | [Testing](docs/testing.md) |
 | diagnose a failure | [Troubleshooting](docs/troubleshooting.md) |
 | configure a generated project | [Configuration](docs/configuration.md), [microgen guide](MICROGEN.md) |

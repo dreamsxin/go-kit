@@ -21,7 +21,7 @@ as a side effect and now needs to be shown, not just told.
 
 - **awesome-go** — the primary list. Submission is a PR to
   `avelino/awesome-go` adding one line under Microservices:
-  `- [go-kit](https://github.com/dreamsxin/go-kit) - A standard library for microservices: service/endpoint/transport layering, endpoint middleware, HTTP and gRPC adapters, service discovery, MCP support, and a contract-driven generator.`
+  `- [go-kit](https://github.com/dreamsxin/go-kit) - A component-oriented Go service framework: service/endpoint/transport layering, endpoint middleware, HTTP and gRPC adapters, service discovery, MCP support, and a contract-driven generator.`
 
   Its acceptance bar is a documented, maintained, demonstrably useful
   repository: this repository's docs book, runnable examples, CI on two
@@ -39,8 +39,11 @@ as a side effect and now needs to be shown, not just told.
 
 Credibility compounds through a visible history of small, kept releases:
 
-- one minor release every 4-6 weeks while the roadmap has milestones;
-  each names its milestone and its deliberate non-decisions;
+- minors ship as milestones complete, at least one a month while the
+  roadmap has work — the pre-cadence history (five minors in sixteen days
+  while the framework was being assembled) is not the pattern being
+  promised; each release names its milestone and its deliberate
+  non-decisions;
 - patch releases only for defects a user could hit — doc-only and
   tools-only changes get no tag (the release guide's rule);
 - the changelog stays user-facing: what changed, who pays, what to do;

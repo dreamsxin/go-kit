@@ -20,7 +20,7 @@ English | [简体中文](CHANGELOG_zh.md)
 - `examples/tracingtree` runs one request through the full stack — SERVER
   span, endpoint span, CLIENT span — and prints the tree it exported, using
   a hand-written in-memory exporter that makes the application-owned
-  provider story visible in twenty lines.
+  provider story visible.
 - The gRPC transport gets the same observability pair as HTTP:
   `oteladapter.GRPCServerSpanInterceptor` starts one SERVER span per unary
   RPC named `package.Service/Method` with `rpc.system.name`, `rpc.service`,
@@ -56,7 +56,7 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Removed
 
-- `transport/http.PopulateRequestContext` and its fourteen request-header
+- `transport/http.PopulateRequestContext` and its thirteen request-header
   `ContextKey*` constants are gone. The function copied request headers —
   the Authorization header included — into the context for any layer to
   read, against the architecture's rule that protocol objects stay in the

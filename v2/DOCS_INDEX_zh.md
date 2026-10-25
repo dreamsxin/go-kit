@@ -49,6 +49,7 @@ API 参考；根目录指南负责生成、架构、生产部署和升级。
 | 添加日志、指标或追踪 | [可观测性](docs/observability_zh.md) |
 | 提供 MCP 工具 | [MCP 教程](docs/tutorial-mcp_zh.md)、[interaction README](interaction/README_zh.md) |
 | 校验一个请求 | [校验](docs/validation_zh.md) |
+| 用数字比较框架 | [基准](docs/benchmarks_zh.md) |
 | 测试服务 | [测试](docs/testing_zh.md) |
 | 排查故障 | [排障](docs/troubleshooting_zh.md) |
 | 配置生成项目 | [配置](docs/configuration_zh.md)、[microgen 指南](MICROGEN_zh.md) |

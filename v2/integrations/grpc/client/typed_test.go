@@ -136,7 +136,9 @@ func TestTypedClientInjectsTraceparent(t *testing.T) {
 	if _, err := client.Invoke(traced, &emptypb.Empty{}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if !strings.HasPrefix(fixture.traceparent, "00-") {
-		t.Fatalf("server saw traceparent %q, want the injected context", fixture.traceparent)
+	// The exact value: the injection continues the context's trace, and a
+	// prefix check could not tell that from minting a fresh one.
+	if want := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"; fixture.traceparent != want {
+		t.Fatalf("server saw traceparent %q, want %q", fixture.traceparent, want)
 	}
 }

@@ -53,6 +53,10 @@ func GRPCServerSpanInterceptor(tracer trace.Tracer) grpc.UnaryServerInterceptor 
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (any, error) {
+		// The framework's extractor put a W3C TraceContext in the context,
+		// not an OpenTelemetry span; bridge it so the server span continues
+		// the caller's trace rather than starting a fresh root.
+		ctx = bridgeFrameworkTraceContext(ctx)
 		ctx, span := tracer.Start(ctx, info.FullMethod,
 			trace.WithSpanKind(trace.SpanKindServer),
 			trace.WithAttributes(grpcSpanAttributes(info.FullMethod)...),
@@ -92,6 +96,10 @@ func GRPCClientSpanInterceptor(tracer trace.Tracer) grpc.UnaryClientInterceptor 
 			trace.WithAttributes(grpcSpanAttributes(method)...),
 		)
 		defer span.End()
+		// The transport's traceparent injector reads the framework
+		// correlation, not the OpenTelemetry span; publish the span's
+		// identity so the header this call sends names the span above.
+		ctx = installSpanCorrelation(ctx, span)
 
 		err := invoker(ctx, method, req, reply, cc, opts...)
 		applyGRPCStatus(span, err)
@@ -121,11 +129,14 @@ func applyGRPCStatus(span trace.Span, err error) {
 // values — the split falls back to the whole string as the service — because
 // the set of methods is fixed by the service definition, not by traffic.
 func grpcSpanAttributes(fullMethod string) []attribute.KeyValue {
-	service, method := splitFullMethod(fullMethod)
+	service, _ := splitFullMethod(fullMethod)
 	return []attribute.KeyValue{
 		attribute.String(attrRPCSystemName, "grpc"),
 		attribute.String(attrRPCService, service),
-		attribute.String(attrRPCMethod, method),
+		// rpc.method is the fully-qualified logical name under the
+		// conventions, so two services' same-named methods stay separate
+		// series; the bare name is the service attribute's business.
+		attribute.String(attrRPCMethod, strings.TrimPrefix(fullMethod, "/")),
 	}
 }
 
@@ -176,9 +187,8 @@ func (m *GRPCMetrics) ObserveGRPC(ctx context.Context, obs grpcserver.Observatio
 	if m == nil {
 		return
 	}
-	_, method := splitFullMethod(obs.Method)
 	m.duration.Record(ctx, obs.Duration.Seconds(), rpcconv.SystemNameGRPC,
-		m.duration.AttrMethod(method),
+		m.duration.AttrMethod(strings.TrimPrefix(obs.Method, "/")),
 		m.duration.AttrResponseStatusCode(obs.Code.String()),
 		attribute.Bool("rpc.stream", obs.Stream),
 	)

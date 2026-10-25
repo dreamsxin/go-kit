@@ -348,6 +348,13 @@ func Defaults(value any) error {
 	if rv.Kind() != reflect.Struct {
 		return nil
 	}
+	if !rv.CanSet() {
+		// A struct value is not addressable, so there is nothing to fill:
+		// say so with the type, rather than letting reflect fail deep
+		// inside with no field names. DefaultsMiddleware makes the copy;
+		// a direct caller passes a pointer.
+		panic(fmt.Sprintf("validation: Defaults needs a pointer to a struct, got %s", rv.Type()))
+	}
 	for _, rule := range rulesFor(rv.Type()) {
 		if !rule.cons.HasDefault {
 			continue

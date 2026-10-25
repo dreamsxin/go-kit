@@ -9,7 +9,8 @@
 ## 方法论
 
 一条 JSON POST 路由（入 `{"name","count"}`，出 `{"echo","double"}`），每个参比者
-各一个进程，一条 keep-alive 连接按服务器应答速度打满，丢弃响应体。`go test -bench`
+各起一个服务（同一测试进程内），一条 keep-alive 连接按服务器应答速度打满，丢弃
+响应体。`go test -bench`
 报告 ns/op、B/op 与 allocs/op；下面的数字是 `-benchtime=2s` 的运行。没有 TLS、
 没有超过一段话的请求体、没有连接抖动——那些量的是传输层和客户端，不是框架，而且
 选哪个框架也改变不了它们。
@@ -19,7 +20,7 @@
 `examples/benchmark`，同一进程内运行：
 
 ```bash
-go -C examples test ./benchmark -bench . -benchmem -benchtime=2s
+go -C v2/examples test ./benchmark -bench . -benchmem -benchtime=2s
 ```
 
 | 路由 | ns/op | B/op | allocs/op |
@@ -51,7 +52,7 @@ GOWORK=off go test -bench . -benchmem -benchtime=2s
 | gin | 93,148 | 9,341 | 95 |
 | echo | 91,719 | 9,396 | 95 |
 
-读法：这条路由上 kit 比路由器框架贵 5–6%，五者都在平台的 ~11% 之内。Windows
+读法：这条路由上 kit 比路由器框架贵 5–7%，五者都在平台的 ~11% 之内。Windows
 loopback 上传输层占主导；绝对数字随机器漂移，可复现的是排序。任何承诺比这更精确
 的框架基准都是营销，包括我们的。
 

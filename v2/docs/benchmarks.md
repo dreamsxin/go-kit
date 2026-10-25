@@ -23,7 +23,7 @@ choice rarely changes them.
 `examples/benchmark`, run in one process:
 
 ```bash
-go -C examples test ./benchmark -bench . -benchmem -benchtime=2s
+go -C v2/examples test ./benchmark -bench . -benchmem -benchtime=2s
 ```
 
 | route | ns/op | B/op | allocs/op |
@@ -58,7 +58,7 @@ Same route, same machine (Intel i5-10400F, Windows, loopback, go1.26.0):
 | gin | 93,148 | 9,341 | 95 |
 | echo | 91,719 | 9,396 | 95 |
 
-Read: kit costs 5–6% over the router frameworks on this route, all five
+Read: kit costs 5–7% over the router frameworks on this route, all five
 within ~11% of the platform. On loopback Windows the transport dominates;
 absolute numbers move with the machine, the ordering is what reproduces.
 Treat any framework benchmark that promises more precision than that as

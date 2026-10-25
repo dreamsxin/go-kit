@@ -129,8 +129,16 @@ func TestBilingualPairsKeepTheSectionStructure(t *testing.T) {
 			continue // a missing half is the existence gate's finding
 		}
 		scanned++
-		enLevels := headingLevels(filepath.Join(root, filepath.FromSlash(pair[0])))
-		zhLevels := headingLevels(filepath.Join(root, filepath.FromSlash(pair[1])))
+		enPath := filepath.Join(root, filepath.FromSlash(pair[0]))
+		zhPath := filepath.Join(root, filepath.FromSlash(pair[1]))
+		enLevels, err := headingLevels(enPath)
+		if err != nil {
+			t.Fatalf("read %s: %v", pair[0], err)
+		}
+		zhLevels, err := headingLevels(zhPath)
+		if err != nil {
+			t.Fatalf("read %s: %v", pair[1], err)
+		}
 		if slices.Equal(enLevels, zhLevels) {
 			continue
 		}
@@ -146,13 +154,15 @@ func TestBilingualPairsKeepTheSectionStructure(t *testing.T) {
 
 // headingLevels lists the ATX heading depths of a markdown file, skipping
 // fenced code blocks where a # is a comment.
-func headingLevels(path string) []int {
+func headingLevels(path string) ([]int, error) {
 	var levels []int
 	fenced := false
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil
+		return nil, err
 	}
+	// Depth 1 headings are excluded on purpose: a document has exactly one,
+	// its title, and the pairing gate compares story structure beneath it.
 	for _, line := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
@@ -167,5 +177,5 @@ func headingLevels(path string) []int {
 			levels = append(levels, depth)
 		}
 	}
-	return levels
+	return levels, nil
 }

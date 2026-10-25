@@ -46,6 +46,8 @@ Read these in the order that matches your goal:
   errors are classified.
 - [Routing](routing.md): pattern syntax, the registration to reach for, path
   and query parameters, and route-shaping options.
+- [Benchmarks](benchmarks.md): what the framework costs over the platform,
+  how that compares with other frameworks, and the methodology behind both.
 - [Resources](resources.md): filter trees, layered request params, the
   repository contract, and the REST binding.
 - [Validation](validation.md): tag rules, the Validatable interface, and the

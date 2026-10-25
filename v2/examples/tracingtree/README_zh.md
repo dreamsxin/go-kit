@@ -26,6 +26,6 @@ trace 5ca10c5f1068fcf96b2a7d46848656e3
 go run ./examples/tracingtree
 ```
 
-打印树的导出器是刻意手写的：provider、导出器及其关闭归应用所有，二十行是能
+打印树的导出器是刻意手写的：provider、导出器及其关闭归应用所有，几十行是能
 看清形状的最小导出器。部署时把它换成指向 collector 的 `oteladapter.Setup`
 即可——见[可观测性一章](../../docs/observability_zh.md)。

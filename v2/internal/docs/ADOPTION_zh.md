@@ -16,7 +16,7 @@ star，是多年社区采用的积累。star 是采用的结果，不是写代�
 
 - **awesome-go** —— 首要收录列表。提交是向 `avelino/awesome-go` 发 PR，在
   Microservices 下加一行：
-  `- [go-kit](https://github.com/dreamsxin/go-kit) - A standard library for microservices: service/endpoint/transport layering, endpoint middleware, HTTP and gRPC adapters, service discovery, MCP support, and a contract-driven generator.`
+  `- [go-kit](https://github.com/dreamsxin/go-kit) - A component-oriented Go service framework: service/endpoint/transport layering, endpoint middleware, HTTP and gRPC adapters, service discovery, MCP support, and a contract-driven generator.`
 
   它的收录门槛是文档化、在维护、可证明有用：本仓库的手册、可运行示例、双操作
   系统 CI、以及被评审的承诺门禁就是这份证据。PR 描述应链接 `docs/index.md`、
@@ -31,8 +31,9 @@ star，是多年社区采用的积累。star 是采用的结果，不是写代�
 
 可信度靠一份可见的、小步兑现的发布历史复利：
 
-- 路线图还有里程碑期间，每 4-6 周一个 minor 发布；每次发布点名它的里程碑与
-  有意的不决策；
+- minor 随里程碑完成而发布，路线图有工作期间每月至少一个——此前的历史
+  （框架组装期的十六天五个 minor）不是这里承诺的模式；每次发布点名它的
+  里程碑与有意的不决策；
 - patch 发布只为用户可能遇到的缺陷——纯文档与纯 tools 的改动不打 tag（发布
   指南的规则）；
 - changelog 保持面向用户：改了什么、谁付账、该做什么；

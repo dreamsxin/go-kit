@@ -268,7 +268,7 @@ type CreateUserRequest struct {
 服务与生成服务以同样的错误拒绝同样的请求。`default` 是契约带给表单的提示，生成
 的解码器会兑现它：客户端留在零值的字段在校验前被填充为 tag 默认值，OpenAPI 文档
 做出的承诺在服务端同样成立。手写服务用 `validation.DefaultsMiddleware` 选择加入。
-何东西都不执行它。从数据库生成的项目直接从 DDL 推导约束：`varchar(n)` 列界定字
+从数据库生成的项目直接从 DDL 推导约束：`varchar(n)` 列界定字
 符串长度，`enum(...)` 列列出取值，无需写任何 tag。从数据库生成的项目的契约副本（`idl.go`）携带同样的 `validate`
 tag——extend 循环、契约与服务三者保持一致。`.proto` 源以同样方式从
 protovalidate 字段选项推导——`string.min_len`/`max_len`、数值 `gte`/`lte` 与

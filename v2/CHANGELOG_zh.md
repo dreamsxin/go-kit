@@ -7,7 +7,7 @@
 ### 新增
 
 - `examples/tracingtree` 用一次请求穿过完整栈——SERVER span、endpoint
-  span、CLIENT span——并打印导出的树，用一个二十行的手写内存导出器把
+  span、CLIENT span——并打印导出的树，用一个手写的内存导出器把
   "provider 归应用"的故事摆到眼前。
 - gRPC 传输获得与 HTTP 相同的可观测一对：`oteladapter.GRPCServerSpanInterceptor`
   为每个 unary RPC 启动一个 SERVER span，按 RPC 约定命名
@@ -47,7 +47,7 @@
 
 ### 移除
 
-- `transport/http.PopulateRequestContext` 与其十四个请求头 `ContextKey*`
+- `transport/http.PopulateRequestContext` 与其十三个请求头 `ContextKey*`
   常量已删除。该函数把请求头——包括 Authorization——复制进 context 供任意层
   读取，违背"协议对象留在传输层"的架构规则，且仓库中无任何调用方。需要请求头
   的 `RequestFunc` 直接读递给它的 `*http.Request`；响应键

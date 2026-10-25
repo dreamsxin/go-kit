@@ -1,6 +1,11 @@
 package oteladapter
 
 import (
+	"bufio"
+	"errors"
+	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -46,18 +51,24 @@ func HTTPServerMiddleware(tracer trace.Tracer, options ...TraceOption) func(http
 			method := canonicalMethod(r.Method)
 			attrs := []attribute.KeyValue{
 				semconv.HTTPRequestMethodKey.String(method),
-				semconv.URLScheme(r.URL.Scheme),
+				// The URL of a server-side request carries no scheme —
+				// net/http fills only path and query — so the scheme comes
+				// from the transport that received it.
+				semconv.URLScheme(schemeOf(r)),
 				semconv.URLPath(r.URL.Path),
 			}
 			// A ServeMux hands its matched pattern to the handler it
 			// dispatches to, on a copy of the request — the middleware
 			// sits outside that. Resolve the route here instead, so the
 			// span carries its full name from creation (which is what
-			// sampling decisions see).
+			// sampling decisions see). A pattern Handler returns for a
+			// request it would redirect — /products onto /products/, a
+			// cleaned path — is the target path, not a registration, and a
+			// URI path is never a span name; those fall back to the method.
 			route := ""
 			name := method
 			if mux, ok := next.(*http.ServeMux); ok {
-				if _, pattern := mux.Handler(r); pattern != "" {
+				if handler, pattern := mux.Handler(r); pattern != "" && !isMuxRedirect(handler) {
 					// Handler spells the pattern with its method when it
 					// declares one; the name takes that whole shape, and
 					// the route attribute keeps the path only.
@@ -134,9 +145,15 @@ func (t roundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
 	)
 	defer span.End()
 
+	// RoundTrip must not modify the request it is handed: a caller retrying
+	// with the same *http.Request would otherwise re-send the first
+	// attempt's traceparent — attaching the retry to a dead trace — and a
+	// shared request is a data race on the header map. The clone is the
+	// upstream otelhttp transport's own rule.
+	request = request.Clone(ctx)
 	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(request.Header))
 
-	response, err := t.base.RoundTrip(request.WithContext(ctx))
+	response, err := t.base.RoundTrip(request)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "")
@@ -171,8 +188,11 @@ func errorTypeName(err error) string {
 	return "_OTHER"
 }
 
-// spanResponseWriter captures the status code a handler answered with and
-// forwards Flush so a stream through the span middleware stays a stream.
+// spanResponseWriter captures the status code a handler answered with,
+// defaulting to the implicit 200 of a handler that only writes, and
+// forwards the optional interfaces a handler may assert — Flush for
+// streams, Hijack for protocol upgrades, ReaderFrom for sendfile — so the
+// span middleware is transparent to everything but the span.
 type spanResponseWriter struct {
 	http.ResponseWriter
 	code  int
@@ -188,7 +208,12 @@ func (w *spanResponseWriter) WriteHeader(code int) {
 }
 
 func (w *spanResponseWriter) Write(p []byte) (int, error) {
-	w.wrote = true
+	if !w.wrote {
+		// net/http answers 200 when the handler never says otherwise; the
+		// span must record what the client saw, not the zero value.
+		w.code = http.StatusOK
+		w.wrote = true
+	}
 	return w.ResponseWriter.Write(p)
 }
 
@@ -196,4 +221,50 @@ func (w *spanResponseWriter) Flush() {
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
+}
+
+// Hijack keeps protocol upgrades working through the middleware.
+func (w *spanResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("oteladapter: response writer cannot hijack")
+	}
+	if !w.wrote {
+		w.code = http.StatusSwitchingProtocols
+		w.wrote = true
+	}
+	return h.Hijack()
+}
+
+// ReadFrom keeps the io.ReaderFrom fast path (sendfile) through the
+// middleware where the underlying writer has it.
+func (w *spanResponseWriter) ReadFrom(r io.Reader) (int64, error) {
+	if !w.wrote {
+		w.code = http.StatusOK
+		w.wrote = true
+	}
+	if rf, ok := w.ResponseWriter.(io.ReaderFrom); ok {
+		return rf.ReadFrom(r)
+	}
+	return io.Copy(onlyWriter{w}, r)
+}
+
+type onlyWriter struct{ w *spanResponseWriter }
+
+func (o onlyWriter) Write(p []byte) (int, error) { return o.w.Write(p) }
+
+// schemeOf reports the URL scheme of a server-side request: the request's
+// URL carries none, so the transport that received it decides.
+func schemeOf(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
+	}
+	return "http"
+}
+
+// isMuxRedirect reports whether the ServeMux answered with its own redirect
+// — the trailing-slash and cleaned-path cases — whose "pattern" is the
+// redirect target rather than a registered route.
+func isMuxRedirect(handler http.Handler) bool {
+	return strings.Contains(fmt.Sprintf("%T", handler), "redirectHandler")
 }

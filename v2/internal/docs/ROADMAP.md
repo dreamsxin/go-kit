@@ -3677,6 +3677,73 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## Milestone 35 (Complete): The Pre-Release Audit
+
+Three adversarial passes over everything v2.27.0 added — runtime code,
+test quality, documentation truth — before tagging v2.28.0. The findings
+and their dispositions:
+
+Fixed in code:
+
+- The otel HTTP server span recorded `http.response.status_code=0` for a
+  handler that only writes (the implicit 200 the platform answers), and its
+  response writer forwarded none of the optional interfaces — a hijacking
+  handler failed through the middleware. The writer now defaults the code
+  to 200, records 101 for a hijack, and forwards Flusher, Hijacker and
+  ReaderFrom.
+- The RoundTripper injected the trace context into the caller's request
+  headers, against the RoundTripper contract: a retried request re-sent a
+  dead attempt's traceparent. It clones the request first, as upstream
+  otelhttp does.
+- `url.scheme` was recorded from a field a server-side request never
+  carries; it comes from the transport now. A ServeMux redirect's target
+  path was adopted as a span name; redirects fall back to the method.
+- The gRPC span interceptors did not do what their comments promised: the
+  server span started from a fresh root because nothing bridged the
+  framework-extracted context, and the client span never published its
+  identity, so the transport's default traceparent injector sent nothing.
+  The server bridges, the client installs its correlation, and two chained
+  tests pin the wiring — the direct-invocation tests that passed while the
+  promises were false are the argument for them.
+- gRPC span and metric method attributes carry the fully-qualified name the
+  conventions define, so two services' same-named methods are separate
+  series.
+- `validation.Defaults` on a struct value panicked deep in reflect with no
+  field names; it now names the type and the pointer requirement.
+
+Fixed in tests and gates:
+
+- The span-tree test reached a real network through the default transport;
+  a stub RoundTripper keeps it in-process and deterministic.
+- The typed-client injection test asserted a prefix; it asserts the exact
+  header now, which is the difference between continuing a trace and
+  minting one.
+- The bilingual structure gate failed silently when a file could not be
+  read (two nils compare equal); reads now fail the gate.
+- The candidate-checklist gate's git-ignore check ran a subprocess per
+  file; it runs only for files that actually carry the version now.
+
+Considered and rejected, recorded so it is not re-proposed: keeping a
+non-W3C `WithTraceID` string alongside a minted trace (the audit called
+the divergence a tear). The string still winning is the published
+compatibility semantic, pinned by test; the divergence in that one case is
+the documented cost of the entrance.
+
+Documentation corrections: a Chinese fragment left in MICROGEN, "fourteen"
+constants where thirteen were removed, benchmark reproduction commands
+that assumed different working directories, the benchmarks chapter
+missing from both indexes, a cost range that under-reported one framework,
+an exporter sold as twenty lines at twice that, and the adoption ledger's
+cadence sentence replaced with one the repository can keep.
+
+Acceptance:
+
+```bash
+go test ./... -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

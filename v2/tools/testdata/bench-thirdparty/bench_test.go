@@ -1,6 +1,7 @@
 // Package benchthirdparty compares the same JSON POST route across the
-// frameworks a Go service realistically picks between, one process per
-// benchmark, over one keep-alive connection each. It is deliberately not
+// frameworks a Go service realistically picks between — each benchmark
+// starts its own server in this one test process — over one keep-alive
+// connection each. It is deliberately not
 // part of the release: its dependencies are the heaviest in the workspace,
 // and its numbers belong in docs/benchmarks.md with the environment spelled
 // out. Run it with:

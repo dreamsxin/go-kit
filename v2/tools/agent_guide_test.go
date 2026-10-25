@@ -165,18 +165,19 @@ func TestAgentGuideNamesEveryVersionBearingFile(t *testing.T) {
 		if strings.HasSuffix(entry.Name(), ".md") {
 			return nil
 		}
-		// Files git ignores are not files a release bumps: a binary built
-		// locally embeds the module version, and demanding it be named in
-		// the checklist points the next reader at build output rather than
-		// at a file anyone edits.
-		if ignored := ignoredByGit(repoRoot, path); ignored {
-			return nil
-		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
 		if !strings.Contains(withoutComments(entry.Name(), string(data)), version) {
+			return nil
+		}
+		// Files git ignores are not files a release bumps: a binary built
+		// locally embeds the module version, and demanding it be named in
+		// the checklist points the next reader at build output rather than
+		// at a file anyone edits. Checked after the version match so the
+		// git subprocess runs only for carriers, not for every file.
+		if ignoredByGit(repoRoot, path) {
 			return nil
 		}
 		relative, err := filepath.Rel(repoRoot, path)

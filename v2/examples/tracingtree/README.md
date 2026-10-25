@@ -29,7 +29,7 @@ go run ./examples/tracingtree
 ```
 
 The exporter that prints the tree is hand-written on purpose: providers,
-exporters and their shutdown belong to the application, and twenty lines is
+exporters and their shutdown belong to the application, and a few dozen lines is
 the smallest exporter that shows the shape. A deployment replaces it with
 `oteladapter.Setup` pointed at a collector — see the
 [observability chapter](../../docs/observability.md).

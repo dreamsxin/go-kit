@@ -2845,6 +2845,57 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## 里程碑 35（已完成）：发布前审计
+
+对 v2.27.0 之后新增的全部内容——运行时代码、测试质量、文档真实性——的三轮
+对抗性审查，在打 v2.28.0 之前完成。发现与处置：
+
+代码修复：
+
+- otel HTTP 服务端 span 对只写不调 WriteHeader 的 handler 记录
+  `http.response.status_code=0`（平台隐式应答的 200 丢失），且其响应 writer
+  不透传任何可选接口——做协议升级的 handler 经此中间件直接失败。writer 现在
+  默认记 200、hijack 记 101，并透传 Flusher、Hijacker、ReaderFrom。
+- RoundTripper 把 trace context 注进调用方的请求头，违反 RoundTripper 契约：
+  重试的请求会重发已死 attempt 的 traceparent。现在先克隆请求，与上游
+  otelhttp 一致。
+- `url.scheme` 记的是一个服务端请求永远为空的字段；改由传输判定。ServeMux
+  重定向的目标路径曾被当作 span 名；重定向回退为方法名。
+- gRPC span 拦截器没有兑现注释的承诺：服务端 span 因无人桥接框架提取的
+  context 而从全新根开始，客户端 span 从不发布自身身份，传输层默认的
+  traceparent 注入器因此什么都不发。服务端现在桥接、客户端现在安装关联值，
+  两个链式测试钉住接线——在承诺为假时也全绿的直接调用式测试正是补它们的
+  理由。
+- gRPC span 与指标的 method 属性携带约定定义的全限定名，两个服务的同名方法
+  不再并入同一条序列。
+- `validation.Defaults` 收到 struct 值时在 reflect 深处 panic 且无字段名；现在
+  点名类型与指针要求。
+
+测试与门禁修复：
+
+- span 树测试经默认传输真实外呼；stub RoundTripper 让它留在进程内、确定。
+- typed client 注入测试只断言前缀；现在断言完整 header——那是"继续一条
+  trace"与"新铸一条"的区别。
+- 双语结构门禁在读文件失败时静默通过（两个 nil 相等）；读失败现在直接失败。
+- 候选清单门禁的 git 忽略检查逐文件起子进程；现在只对真正携带版本号的文件
+  运行。
+
+考虑过并拒绝，记录在此以免重提：审计把"非 W3C 的 WithTraceID 字符串与新铸
+trace 并存"称为撕裂。字符串仍然生效是已发布的兼容语义、有测试钉住；该情形
+下的分岔是这一兼容入口被文档化的代价。
+
+文档更正：MICROGEN 中文残留半句、"十四个"实为十三个常量、基准复现命令假设
+互相矛盾的工作目录、基准章缺席两套索引、开销区间低报了一个框架、导出器行数
+报了一半、以及采用台账的节奏句换成仓库守得住的一句。
+
+验收：
+
+```bash
+go test ./... -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

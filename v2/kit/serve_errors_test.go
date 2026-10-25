@@ -104,14 +104,16 @@ func TestRunJoinsServeErrorsArrivingDuringDrain(t *testing.T) {
 	host := kit.MustNewHost(
 		kit.WithLifecycle(component),
 		kit.WithShutdownTimeout(time.Second),
-		kit.WithDrainDelay(100*time.Millisecond),
+		kit.WithDrainDelay(500*time.Millisecond),
 	)
 
 	done := make(chan error, 1)
 	go func() { done <- host.Run(context.Background()) }()
 	component.errors <- errors.New("first failure")
-	// Give Run a moment to wake and enter the drain window; if it has not,
-	// the report is still retained and the assertion below holds regardless.
+	// Give Run a moment to wake and enter the drain window; the delay is
+	// wide so a slow scheduler still lands the send inside it. If Run has
+	// not woken yet, the report is still retained and the assertion below
+	// holds regardless.
 	time.Sleep(30 * time.Millisecond)
 	component.errors <- errors.New("failure during drain")
 
