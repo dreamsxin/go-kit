@@ -231,3 +231,37 @@ func TestRetryMiddlewareCapsReportedRetryAfter(t *testing.T) {
 		t.Errorf("waited %v, want at most %v", elapsed, resilience.MaxRetryAfterHint)
 	}
 }
+
+// TestRetryAdvancesTheSpanPerAttempt pins the correlation property: every
+// attempt the retry makes runs on its own span ID, so downstream records
+// attribute to attempt N; the trace and the request ID stay one operation's.
+func TestRetryAdvancesTheSpanPerAttempt(t *testing.T) {
+	type spanRecord struct {
+		span    endpoint.SpanID
+		attempt int
+	}
+	var seen []spanRecord
+	fail := errors.New("flaky")
+	ep := resilience.RetryMiddleware(3, noBackoff, resilience.WithRetryable(func(error) bool { return true }))(func(ctx context.Context, _ any) (any, error) {
+		seen = append(seen, spanRecord{
+			span:    endpoint.SpanIDFromContext(ctx),
+			attempt: len(seen) + 1,
+		})
+		if len(seen) < 3 {
+			return nil, fail
+		}
+		return "ok", nil
+	})
+
+	response, err := ep(endpoint.ContinueIncomingTrace(context.Background()), nil)
+	if err != nil || response != "ok" {
+		t.Fatalf("response=%v err=%v", response, err)
+	}
+	if len(seen) != 3 {
+		t.Fatalf("attempts = %d, want 3", len(seen))
+	}
+	ids := map[endpoint.SpanID]bool{seen[0].span: true, seen[1].span: true, seen[2].span: true}
+	if len(ids) != 3 {
+		t.Fatalf("attempts shared span IDs: %v", seen)
+	}
+}

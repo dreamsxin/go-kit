@@ -186,7 +186,11 @@ func RetryMiddleware(maxAttempts int, options ...RetryOption) endpoint.Middlewar
 				err      error
 			)
 			for attempt := 1; ; attempt++ {
-				response, err = next(ctx, request)
+				// Each attempt speaks to the wire on its own: a fresh
+				// span ID in the correlation makes attempt N attributable
+				// in every downstream record, while the trace and the
+				// request ID stay one operation's.
+				response, err = next(endpoint.NextAttempt(ctx), request)
 				if err == nil || attempt >= maxAttempts || !settings.retryable(err) {
 					return response, err
 				}

@@ -2,6 +2,24 @@
 
 English | [简体中文](CHANGELOG_zh.md)
 
+## [Unreleased]
+
+### Added
+
+- Streaming gRPC RPCs get the same spans the unary pair already starts:
+  `oteladapter.GRPCServerStreamSpanInterceptor` (one SERVER span named
+  `package.Service/Method`, its lifetime the stream's, Error on any non-OK
+  code, handler receiving the span context) and
+  `oteladapter.GRPCClientStreamSpanInterceptor` (the CLIENT side, publishing
+  its identity so the transport's default traceparent injection names it)
+  (`otel.grpc-server-stream-span`, `otel.grpc-client-stream-span`).
+- `endpoint.NextAttempt(ctx)` mints a fresh span ID for one retry attempt of
+  a span this node owns — trace ID, flags and request ID stay one
+  operation's — and is a no-op on a remote-parent context
+  (`endpoint.next-attempt-span`). `resilience.RetryMiddleware` wires it in,
+  so attempt N is attributable in every downstream record instead of
+  sharing one span with the first try.
+
 ## [2.28.0] - 2026-10-25
 
 ### Added

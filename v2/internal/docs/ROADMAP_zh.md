@@ -2896,6 +2896,32 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## 里程碑 36（已完成）：流与尝试
+
+里程碑 34 延后清单上、关联层无需新依赖即可关闭的最后两项：
+
+- 流式 gRPC RPC 获得 span：`GRPCServerStreamSpanInterceptor`（span 的生存期
+  即流的生存期，任何非 OK code 标记 Error，handler 经包装流收到 span
+  context）与 `GRPCClientStreamSpanInterceptor`（发布自身身份使传输层默认
+  traceparent 注入指向它——与 unary 对相同的组合，通过捕获注入器放上
+  wire 的内容钉住）。
+- `endpoint.NextAttempt` 与重试中间件的接线：每次 attempt 铸新 span ID，
+  而 trace ID、flags 与 request ID 仍是同一操作的。评审曾称平铺日志回放
+  缺口被低估；本次在关联层不引入 OpenTelemetry 的情况下关闭它——正是设计
+  立场所画的边界。在远程父 context 上它是 no-op——重试不得替换调用方的
+  span。
+
+仍延后，如今是真正的剩余项：数据库 span（需要驱动或 ORM 钩子接缝，等真实
+部署提出）与逐事件 SSE span。
+
+验收：
+
+```bash
+go test ./endpoint/... ./observability/otel -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

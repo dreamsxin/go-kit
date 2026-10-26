@@ -255,6 +255,31 @@ func TracingMiddleware() Middleware {
 	}
 }
 
+// NextAttempt mints a fresh span ID for one retry attempt of the current
+// operation, keeping the trace ID, flags and request ID. It is a no-op
+// unless the context carries a span this node started — a remote parent's
+// span ID is the caller's, not something a retry may replace — so wiring it
+// into a retry loop is safe for every position in the chain.
+//
+// Downstream services and flat log records carry the span ID, so per-attempt
+// IDs are what make attempt N attributable in a replay: without this, every
+// attempt of one operation logs the same span and only timestamps tell them
+// apart.
+//
+// Stable: endpoint.next-attempt-span — NextAttempt mints a new span ID for
+// a span this node owns and leaves trace ID, flags and request ID
+// unchanged; on a remote-parent context it does nothing.
+// Covered by: TestNextAttemptMintsPerCall, TestNextAttemptNoopForRemoteParent,
+// TestNextAttemptKeepsRequestID
+func NextAttempt(ctx context.Context) context.Context {
+	values := correlationFromContext(ctx)
+	if !values.spanOwned || !values.trace.Valid() {
+		return ctx
+	}
+	values.trace.SpanID = newSpanID()
+	return withCorrelation(ctx, values)
+}
+
 // ContinueIncomingTrace advances the correlation for one operation on this
 // node: a valid trace context keeps its trace ID and flags and receives a
 // freshly minted span ID; a bare WithTraceID value is bridged into a W3C

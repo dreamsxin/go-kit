@@ -3744,6 +3744,36 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## Milestone 36 (Complete): Streams And Attempts
+
+The last two items on milestone 34's deferral list that the correlation
+layer can close without new dependencies:
+
+- Streaming gRPC RPCs get spans: `GRPCServerStreamSpanInterceptor` (the
+  span's lifetime is the stream's, Error on any non-OK code, handler
+  receiving the span context through a wrapped stream) and
+  `GRPCClientStreamSpanInterceptor` (publishing its identity so the
+  transport's default traceparent injection names it — the same
+  composition the unary pair has, pinned by capturing what the injector
+  puts on the wire).
+- `endpoint.NextAttempt` and the retry middleware's wiring: every attempt
+  mints a fresh span ID while trace ID, flags and request ID stay one
+  operation's. The audit called the flat-log replay gap underrated; this
+  closes it without OpenTelemetry in the correlation layer, exactly the
+  boundary the design stance draws. On a remote-parent context it does
+  nothing — a retry may not replace the caller's span.
+
+Still deferred, now the true remainder: database spans (a driver or ORM
+hook seam, waiting on a real deployment asking) and per-event SSE spans.
+
+Acceptance:
+
+```bash
+go test ./endpoint/... ./observability/otel -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

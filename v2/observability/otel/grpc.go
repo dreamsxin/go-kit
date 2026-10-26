@@ -197,3 +197,80 @@ func (m *GRPCMetrics) ObserveGRPC(ctx context.Context, obs grpcserver.Observatio
 type errNilMeter struct{}
 
 func (errNilMeter) Error() string { return "oteladapter: meter is nil" }
+
+// GRPCServerStreamSpanInterceptor returns a SERVER interceptor that starts
+// one span per streaming RPC, named after the full method. The span's
+// lifetime is the stream's whole lifetime — a different quantity from a
+// unary latency, which is why the two shapes never share a series — and the
+// conventions' status rule applies when the handler returns: the status code
+// is an attribute, any non-OK code marks the span Error.
+//
+// Stable: otel.grpc-server-stream-span — the interceptor starts one SERVER
+// span per streaming RPC named package.Service/Method with the RPC
+// attributes, its lifetime the stream's, Error on any non-OK code.
+// Covered by: TestGRPCServerStreamSpanCoversTheStreamLifetime
+func GRPCServerStreamSpanInterceptor(tracer trace.Tracer) grpc.StreamServerInterceptor {
+	if tracer == nil {
+		tracer = otel.Tracer(instrumentationName)
+	}
+	return func(
+		server any,
+		stream grpc.ServerStream,
+		info *grpc.StreamServerInfo,
+		handler grpc.StreamHandler,
+	) error {
+		ctx, span := tracer.Start(bridgeFrameworkTraceContext(stream.Context()), info.FullMethod,
+			trace.WithSpanKind(trace.SpanKindServer),
+			trace.WithAttributes(grpcSpanAttributes(info.FullMethod)...),
+		)
+		defer span.End()
+
+		err := handler(server, wrappedServerStream{ServerStream: stream, ctx: ctx})
+		applyGRPCStatus(span, err)
+		return err
+	}
+}
+
+// GRPCClientStreamSpanInterceptor returns a CLIENT interceptor that starts
+// one span per streaming call, publishing its identity as the framework
+// correlation so the transport's default traceparent injection names this
+// span — the same composition the unary pair has.
+//
+// Stable: otel.grpc-client-stream-span — the interceptor starts one CLIENT
+// span per streaming call named package.Service/Method with the RPC
+// attributes, Error on any non-OK code, publishing its identity to the
+// correlation.
+// Covered by: TestGRPCClientStreamSpanPublishesItsIdentity
+func GRPCClientStreamSpanInterceptor(tracer trace.Tracer) grpc.StreamClientInterceptor {
+	if tracer == nil {
+		tracer = otel.Tracer(instrumentationName)
+	}
+	return func(
+		ctx context.Context,
+		desc *grpc.StreamDesc,
+		cc *grpc.ClientConn,
+		method string,
+		streamer grpc.Streamer,
+		opts ...grpc.CallOption,
+	) (grpc.ClientStream, error) {
+		ctx, span := tracer.Start(ctx, method,
+			trace.WithSpanKind(trace.SpanKindClient),
+			trace.WithAttributes(grpcSpanAttributes(method)...),
+		)
+		defer span.End()
+		ctx = installSpanCorrelation(ctx, span)
+
+		clientStream, err := streamer(ctx, desc, cc, method, opts...)
+		applyGRPCStatus(span, err)
+		return clientStream, err
+	}
+}
+
+// wrappedServerStream carries the span context down to the handler, the way
+// the transport's own stream interceptors do.
+type wrappedServerStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (s wrappedServerStream) Context() context.Context { return s.ctx }

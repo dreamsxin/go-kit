@@ -252,3 +252,48 @@ func TestTracingMiddleware_BridgesLegacyTraceID(t *testing.T) {
 		t.Errorf("legacy trace ID should bridge into a trace context: %+v", got)
 	}
 }
+
+func TestNextAttemptMintsPerCall(t *testing.T) {
+	ctx := endpoint.ContinueIncomingTrace(context.Background())
+	first := endpoint.SpanIDFromContext(ctx)
+
+	again := endpoint.NextAttempt(ctx)
+	second := endpoint.SpanIDFromContext(again)
+
+	if first == "" || second == "" {
+		t.Fatalf("span IDs empty: %q %q", first, second)
+	}
+	if first == second {
+		t.Fatalf("span ID did not advance: %q twice", first)
+	}
+	if endpoint.TraceIDFromContext(again) != endpoint.TraceIDFromContext(ctx) {
+		t.Fatal("trace ID changed across attempts")
+	}
+	if endpoint.RequestIDFromContext(again) != endpoint.RequestIDFromContext(ctx) {
+		t.Fatal("request ID changed across attempts")
+	}
+}
+
+func TestNextAttemptNoopForRemoteParent(t *testing.T) {
+	inbound := endpoint.TraceContext{
+		TraceID: "4bf92f3577b34da6a3ce929d0e0e4736",
+		SpanID:  "00f067aa0ba902b7",
+		Flags:   "01",
+	}
+	ctx := endpoint.WithIncomingTraceContext(context.Background(), inbound)
+
+	if endpoint.NextAttempt(ctx) != ctx {
+		t.Fatal("NextAttempt mutated a context whose span is the caller's")
+	}
+}
+
+func TestNextAttemptKeepsRequestID(t *testing.T) {
+	ctx := endpoint.WithRequestID(
+		endpoint.ContinueIncomingTrace(context.Background()), "req-9")
+	if endpoint.NextAttempt(ctx) == ctx {
+		t.Fatal("expected the span to advance")
+	}
+	if endpoint.RequestIDFromContext(ctx) != "req-9" {
+		t.Fatal("request ID was lost")
+	}
+}

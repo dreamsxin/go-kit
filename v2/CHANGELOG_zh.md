@@ -2,6 +2,23 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## [Unreleased]
+
+### 新增
+
+- 流式 gRPC RPC 获得与 unary 对已有的相同 span：
+  `oteladapter.GRPCServerStreamSpanInterceptor`（每个流式 RPC 一个 SERVER
+  span，名为 `package.Service/Method`，生命周期即流的生存期，任何非 OK code
+  标记 Error，handler 收到 span context）与
+  `oteladapter.GRPCClientStreamSpanInterceptor`（CLIENT 侧，发布自身身份使
+  传输层默认 traceparent 注入指向它）（`otel.grpc-server-stream-span`、
+  `otel.grpc-client-stream-span`）。
+- `endpoint.NextAttempt(ctx)` 为本节点拥有的 span 的一个重试 attempt 铸新
+  span ID——trace ID、flags 与 request ID 仍是同一操作的——在远程父 context
+  上是 no-op（`endpoint.next-attempt-span`）。`resilience.RetryMiddleware`
+  已接线，attempt N 在每条下游记录中可归因，不再与第一次尝试共用一个
+  span。
+
 ## [2.28.0] - 2026-10-25
 
 ### 新增
