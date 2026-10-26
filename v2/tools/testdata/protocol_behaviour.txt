@@ -25,6 +25,7 @@ stable/consul.tags-and-filter
 stable/endpoint.manual-clock-advance-fires-due-timers
 stable/endpoint.manual-clock-stop-releases-wait
 stable/endpoint.metrics-clock
+stable/endpoint.next-attempt-span
 stable/endpoint.operation-intent
 stable/endpoint.trace-id-derives-from-context
 stable/endpointer.cache-carries-metadata
@@ -182,8 +183,10 @@ stable/metrics.series-are-per-operation
 stable/microgen.route-override
 stable/openapi.security-scheme
 stable/otel.grpc-client-span
+stable/otel.grpc-client-stream-span
 stable/otel.grpc-metrics-agree-with-the-recorder
 stable/otel.grpc-server-span
+stable/otel.grpc-server-stream-span
 stable/otel.http-client-span
 stable/otel.http-server-span
 stable/otel.metrics-agree-with-the-exposition

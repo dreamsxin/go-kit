@@ -3,7 +3,7 @@ module github.com/dreamsxin/go-kit-examples/v2
 go 1.26.0
 
 require (
-	github.com/dreamsxin/go-kit/v2 v2.28.0
+	github.com/dreamsxin/go-kit/v2 v2.29.0
 	github.com/hashicorp/consul/api v1.33.7
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/sdk v1.43.0

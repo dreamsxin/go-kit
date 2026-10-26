@@ -76,6 +76,7 @@ FUNCTIONS
 func ContinueIncomingTrace(ctx context.Context) context.Context
 func DefaultPanicHandler(context.Context, any, any) error
 func NewRetryAfterError(err error, after time.Duration) error
+func NextAttempt(ctx context.Context) context.Context
 func Nop(context.Context, any) (any, error)
 func RequestIDFromContext(ctx context.Context) string
 func ResponseError(response any) error
@@ -1440,7 +1441,9 @@ CONSTANTS
 const AllSignals = SignalTraces | SignalMetrics
 FUNCTIONS
 func GRPCClientSpanInterceptor(tracer trace.Tracer) grpc.UnaryClientInterceptor
+func GRPCClientStreamSpanInterceptor(tracer trace.Tracer) grpc.StreamClientInterceptor
 func GRPCServerSpanInterceptor(tracer trace.Tracer) grpc.UnaryServerInterceptor
+func GRPCServerStreamSpanInterceptor(tracer trace.Tracer) grpc.StreamServerInterceptor
 func HTTPServerMiddleware(tracer trace.Tracer, options ...TraceOption) func(http.Handler) http.Handler
 func NewRoundTripper(tracer trace.Tracer, base http.RoundTripper) http.RoundTripper
 func TracingMiddleware(tracer trace.Tracer, operation string, options ...TraceOption) endpoint.Middleware
