@@ -3761,7 +3761,10 @@ layer can close without new dependencies:
   operation's. The audit called the flat-log replay gap underrated; this
   closes it without OpenTelemetry in the correlation layer, exactly the
   boundary the design stance draws. On a remote-parent context it does
-  nothing — a retry may not replace the caller's span.
+  nothing — a retry may not replace the caller's span. The
+  discovery-level retry follows in the same release: `sd/retry`'s loop
+  attempts mint per attempt too (`sd.retry-attempt-span`), so whichever
+  layer retries, attempt N is attributable downstream.
 
 Still deferred, now the true remainder: database spans (a driver or ORM
 hook seam, waiting on a real deployment asking) and per-event SSE spans.

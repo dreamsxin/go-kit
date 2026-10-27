@@ -354,6 +354,15 @@ type attemptResult struct {
 }
 
 func call(ctx context.Context, balancer sd.Balancer, request any, results chan<- attemptResult) {
+	// One attempt runs on its own span: NextAttempt mints a fresh span ID
+	// (a no-op when the context carries only a remote parent), so a retry's
+	// downstream records attribute to this attempt instead of sharing the
+	// first one's. Trace ID, flags and request ID stay the operation's.
+	//
+	// Stable: sd.retry-attempt-span — every loop attempt runs on a span ID
+	// minted for that attempt, with the trace and request IDs unchanged.
+	// Covered by: TestRetryAdvancesTheSpanPerAttempt
+	ctx = endpoint.NextAttempt(ctx)
 	started := time.Now()
 	picked, err := balancer.Pick(ctx, request)
 	if err != nil {

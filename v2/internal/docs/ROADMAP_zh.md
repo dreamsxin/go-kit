@@ -2909,7 +2909,9 @@ go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,
   而 trace ID、flags 与 request ID 仍是同一操作的。评审曾称平铺日志回放
   缺口被低估；本次在关联层不引入 OpenTelemetry 的情况下关闭它——正是设计
   立场所画的边界。在远程父 context 上它是 no-op——重试不得替换调用方的
-  span。
+  span。发现级重试在同一发布中跟进：`sd/retry` 的循环 attempt 同样逐
+  attempt 铸造（`sd.retry-attempt-span`），于是无论哪一层重试，attempt N
+  在下游都可归因。
 
 仍延后，如今是真正的剩余项：数据库 span（需要驱动或 ORM 钩子接缝，等真实
 部署提出）与逐事件 SSE span。

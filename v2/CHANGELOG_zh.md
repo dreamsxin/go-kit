@@ -6,6 +6,11 @@
 
 ### 新增
 
+- 发现级重试加入"每 attempt 一个 span"规则：`sd/retry` 的循环 attempt 在为该
+  attempt 铸造的 span ID 上运行（`sd.retry-attempt-span`），trace 与 request ID
+  保持不变——与上一发布中 endpoint 级重试中间件已具有的关联相同，于是无论哪一层
+  重试，被重试的调用在每条下游记录中都可归因到 attempt N。
+
 - 流式 gRPC RPC 获得与 unary 对已有的相同 span：
   `oteladapter.GRPCServerStreamSpanInterceptor`（每个流式 RPC 一个 SERVER
   span，名为 `package.Service/Method`，生命周期即流的生存期，任何非 OK code

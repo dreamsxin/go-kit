@@ -7,6 +7,7 @@ import (
 	"io"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -643,5 +644,69 @@ func TestRetry_DispatchesNoAttemptOnceTheBudgetIsSpent(t *testing.T) {
 	case <-lb.dispatched:
 		t.Fatal("an attempt was dispatched for a call that was already over")
 	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+// TestRetryAdvancesTheSpanPerAttempt pins sd.retry-attempt-span: every loop
+// attempt runs on a span ID minted for that attempt — the trace ID stays the
+// operation's — so downstream records attribute to attempt N instead of all
+// attempts sharing the first one's span.
+func TestRetryAdvancesTheSpanPerAttempt(t *testing.T) {
+	type seen struct {
+		span    endpoint.SpanID
+		trace   endpoint.TraceID
+		attempt int
+	}
+	var mu sync.Mutex
+	var records []seen
+	attempts := 0
+	f := endpointer.Factory(func(_ sd.Instance) (endpoint.Endpoint, io.Closer, error) {
+		ep := endpoint.Endpoint(func(ctx context.Context, _ any) (any, error) {
+			mu.Lock()
+			attempts++
+			records = append(records, seen{
+				span:    endpoint.SpanIDFromContext(ctx),
+				trace:   endpoint.TraceIDFromContext(ctx),
+				attempt: attempts,
+			})
+			mu.Unlock()
+			if attempts < 3 {
+				return nil, transientError{fmt.Errorf("attempt %d failed", attempts)}
+			}
+			return "success", nil
+		})
+		return ep, io.NopCloser(nil), nil
+	})
+	lb := newBalancer(t, f)
+	ep := retry.Retry(5, time.Second, lb)
+
+	ctx := endpoint.ContinueIncomingTrace(context.Background())
+	resp, err := ep(ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp != "success" {
+		t.Errorf("got %v, want success", resp)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(records) != 3 {
+		t.Fatalf("attempts recorded = %d, want 3", len(records))
+	}
+	ids := map[endpoint.SpanID]bool{}
+	traces := map[endpoint.TraceID]bool{}
+	for _, r := range records {
+		ids[r.span] = true
+		traces[r.trace] = true
+		if r.span == "" || r.trace == "" {
+			t.Fatalf("attempt %d ran without correlation: %+v", r.attempt, r)
+		}
+	}
+	if len(ids) != 3 {
+		t.Fatalf("attempts shared span IDs: %+v", records)
+	}
+	if len(traces) != 1 {
+		t.Fatalf("trace IDs diverged across attempts: %+v", records)
 	}
 }

@@ -6,6 +6,13 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Added
 
+- The discovery-level retry joins the span-per-attempt rule:
+  `sd/retry`'s loop attempts run on span IDs minted for that attempt
+  (`sd.retry-attempt-span`), with the trace and request IDs unchanged —
+  the same correlation the endpoint-level retry middleware has had since
+  the previous release, so a retried call is attributable to attempt N in
+  every downstream record whichever layer retries it.
+
 - Streaming gRPC RPCs get the same spans the unary pair already starts:
   `oteladapter.GRPCServerStreamSpanInterceptor` (one SERVER span named
   `package.Service/Method`, its lifetime the stream's, Error on any non-OK
