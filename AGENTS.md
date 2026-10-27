@@ -13,6 +13,10 @@ repeating them.
 - Workspace-only, never tagged: `v2/tools` (the gates and the release tooling),
   `v2/examples`, `v2/tools/contractcheck`. A second publishable module fails a
   gate.
+- Cross-framework comparison code lives in `v2/tools/testdata/bench-thirdparty`
+  — its own go.mod (gin/echo/chi, local replace), never published, exempt from
+  the module and dependency gates. A new framework dependency belongs there,
+  not in any shipped module.
 - The gates live in their own module, so they are not run by `go test ./...` from
   `v2`. Run them with `go -C ./v2/tools test ./...`.
 
@@ -147,7 +151,10 @@ name its gate there too, because a test counts them.
 
 ## Where writing goes
 
-Every document is a pair: `X.md` has `X_zh.md`. Record behaviour changes in
+Every document is a pair: `X.md` has `X_zh.md`, and the pairing is checked
+twice — both files must exist, and outside fenced code blocks their heading
+structure must match (a section in one language and not the other fails the
+gate; CHANGELOG and ROADMAP are exempt as history). Record behaviour changes in
 `v2/CHANGELOG.md`, plans and findings in `v2/internal/docs/ROADMAP.md`. Do not add
 a new top-level markdown file for something those own, and do not write a
 summary-of-work document nobody asked for.

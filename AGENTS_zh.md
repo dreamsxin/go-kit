@@ -11,6 +11,9 @@
   provider 与适配器都从它发布。
 - 只在 workspace 里、永不打 tag：`v2/tools`（门禁与发布工具）、`v2/examples`、
   `v2/tools/contractcheck`。多出第二个可发布 module 会让门禁失败。
+- 跨框架对比代码在 `v2/tools/testdata/bench-thirdparty`——自带 go.mod
+  （gin/echo/chi，本地 replace），从不发布，豁免于 module 与依赖门禁。新增
+  框架依赖放那里，不放任何发布的 module。
 - 门禁在自己的 module 里，所以从 `v2` 跑 `go test ./...` 跑不到它们。用
   `go -C ./v2/tools test ./...`。
 
@@ -120,7 +123,9 @@ sleep），而不是靠重试把它刷成一次绿色的侥幸。
 
 ## 写下来的东西放哪
 
-每份文档都是一对：`X.md` 有 `X_zh.md`。行为变化记进 `v2/CHANGELOG.md`，计划与发现记进
+每份文档都是一对：`X.md` 有 `X_zh.md`，且配对被检查两次——两个文件都得存在，并且
+在围栏代码块之外，两者的标题结构必须一致（一侧有而另一侧没有的章节会让门禁失败；
+CHANGELOG 与 ROADMAP 作为历史豁免）。行为变化记进 `v2/CHANGELOG.md`，计划与发现记进
 `v2/internal/docs/ROADMAP.md`。不要为了这些文档已经拥有的内容在顶层新建 markdown 文件，
 也不要写没人要求的"工作总结"文档。
 
