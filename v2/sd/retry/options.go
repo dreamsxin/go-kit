@@ -16,11 +16,28 @@ type settings struct {
 	classifier  Classifier
 	clock       endpoint.Clock
 	backoff     func(attempt int) time.Duration
+	hedgeDelay  time.Duration
+}
+
+// WithHedging enables hedged dispatch: the first attempt goes out at once,
+// and if no success has arrived after delay, another attempt is dispatched —
+// a fresh balancer Pick, so under a spreading strategy it lands on another
+// instance. The first success wins and the losing attempts are abandoned
+// with the call's context; a fast failure dispatches the next hedge at once.
+// The total attempt cap (WithMaxAttempts) still bounds how many go on the
+// wire, the hedge replaces the backoff schedule, and idempotency remains the
+// caller's to guarantee, as with retries. Hedging needs a budget of at least
+// two attempts; with one, it is inert.
+func WithHedging(delay time.Duration) Option {
+	return func(s *settings) {
+		s.hedgeDelay = delay
+	}
 }
 
 // WithMaxAttempts bounds total attempts, including the first. The default is
 // one; values below one also mean one. The cap still applies when a callback
-// asks to keep trying.
+// asks to keep trying — and with hedging enabled it bounds how many copies of
+// the request go on the wire.
 func WithMaxAttempts(attempts int) Option {
 	return func(s *settings) { s.maxAttempts = max(1, attempts) }
 }

@@ -6,6 +6,12 @@
 
 ### 新增
 
+- 发现级重试支持对冲派发：`retry.WithHedging(delay)` 立即发出第一个
+  attempt，延迟内没有成功就再派发一个——重新 Pick，分散策略下落在另一个
+  实例上；快速失败则立即派发下一个。首个成功胜出，落败的 attempt 随调用的
+  context 结束；总 attempt 上限仍然约束 wire 上的数量，对冲取代退避调度表
+  （`sd.hedging`，由用手动时钟驱动对冲延迟而非 sleep 的测试钉住）。幂等性
+  仍由调用方保证。
 - 发现级重试加入"每 attempt 一个 span"规则：`sd/retry` 的循环 attempt 在为该
   attempt 铸造的 span ID 上运行（`sd.retry-attempt-span`），trace 与 request ID
   保持不变——与上一发布中 endpoint 级重试中间件已具有的关联相同，于是无论哪一层

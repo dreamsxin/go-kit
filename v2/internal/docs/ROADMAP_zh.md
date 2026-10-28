@@ -2924,6 +2924,31 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## 里程碑 37（已完成）：对冲派发
+
+对照两份参考设计——gRPC 的请求对冲（对冲延迟、attempt 上限、首胜取消败者、
+快速失败立即对冲、每份副本不同后端）与 failsafe-go 的 HedgePolicy（最大对冲
+数、从观测 p95 得出的动态延迟、取消条件、预算）——发现级重试以
+`retry.WithHedging(delay)` 获得对冲派发。
+
+本仓库自身规则迫使的两处适配：总 attempt 上限（`WithMaxAttempts`）约束
+fan-out 而不是单独的对冲数，因为这个上限已经承载了幂等性对话；对冲延迟走
+注入的时钟，测试推进它而不是 sleep；并且每次对冲经串行循环使用的同一条
+NextAttempt 路径铸造自己的 span，attempt 归因与逐 attempt 关联在重叠之下
+依然成立。对冲取代退避调度表——延迟本身就是调度表——回调的停止决定会让
+在途对冲随调用的 context 一起放弃。
+
+仍延后：从观测延迟百分位得出的动态对冲延迟（failsafe-go 的 p95 形态——等有
+部署产出百分位再做）、跨调用的对冲预算、逐事件 SSE span。
+
+验收：
+
+```bash
+go test ./sd/retry -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## 维护规则
 
 - 只在里程碑范围、顺序或验收标准变化时更新本文件。

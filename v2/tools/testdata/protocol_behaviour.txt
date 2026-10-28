@@ -208,6 +208,7 @@ stable/sd.client-retry-timing-is-configurable
 stable/sd.feedback-ejection-cap-holds-under-concurrency
 stable/sd.health-a-flap-does-not-resurrect-a-failing-instance
 stable/sd.health-probes-preserve-discovery-errors
+stable/sd.hedging
 stable/sd.instance-dynamic-values-are-safe
 stable/sd.instance-subscribers-are-never-left-behind-state
 stable/sd.retry-attempt-span

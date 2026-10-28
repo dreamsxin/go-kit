@@ -3777,6 +3777,38 @@ go -C ./tools test ./... -count=1
 go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
 ```
 
+## Milestone 37 (Complete): Hedged Dispatch
+
+Researched against the two reference designs — gRPC's request hedging
+(hedge delay, attempts capped, first success wins, losers canceled, fast
+failures hedge at once, a different backend per copy) and failsafe-go's
+HedgePolicy (max hedges, dynamic delay from observed p95, cancel
+conditions, budgets) — the discovery-level retry gains hedged dispatch as
+`retry.WithHedging(delay)`.
+
+The adaptations this codebase's own rules forced: the total attempt cap
+(`WithMaxAttempts`) bounds the fan-out rather than a separate hedge
+count, because that cap already carries the idempotency conversation;
+the hedge delay runs on the injected clock, so tests advance it instead
+of sleeping; and every hedge mints its own span through the same
+NextAttempt path the serial loop uses, so attempt attribution and the
+per-attempt correlation survive the overlap. Hedging replaces the backoff
+schedule — the delay is the schedule — and a stop decision from the
+callback abandons in-flight hedges with the call's context.
+
+Still deferred: a dynamic hedge delay from observed latency percentiles
+(the failsafe-go p95 shape — worth doing once there are deployments
+producing percentiles), a cross-call hedge budget, and per-event SSE
+spans.
+
+Acceptance:
+
+```bash
+go test ./sd/retry -count=1
+go -C ./tools test ./... -count=1
+go -C ./tools run ./releaseverify -root .. -suites fmt,test,standalone,vet,tidy,race
+```
+
 ## Maintenance Rules / 维护规则
 
 - Update this file only when milestone scope, order, or acceptance criteria

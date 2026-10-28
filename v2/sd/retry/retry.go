@@ -226,6 +226,9 @@ func New(balancer sd.Balancer, options ...Option) endpoint.Endpoint {
 			return retryOnce(callContext, &settings, balancer, request)
 		}
 	}
+	if settings.hedgeDelay > 0 {
+		return hedgedEndpoint(&settings, balancer)
+	}
 
 	return func(ctx context.Context, request any) (any, error) {
 		// Cancellable either way: returning must stop the attempt goroutines
@@ -303,6 +306,106 @@ func New(balancer sd.Balancer, options ...Option) endpoint.Endpoint {
 				}
 				if settings.backoff == nil {
 					delay = backoff.Next(delay)
+				}
+			}
+		}
+	}
+}
+
+// hedgedEndpoint runs attempts in overlapping flight: the first goes out at
+// once, and each time the hedge delay passes without a success, another
+// attempt is dispatched on a fresh Pick — under a spreading strategy, on
+// another instance. The first success wins and the losing attempts end with
+// the call's context; a fast failure dispatches the next attempt at once.
+// The total attempt cap bounds the fan-out, and the callback and classifier
+// keep their serial-loop meaning: a stop decision abandons the in-flight
+// attempts (idempotency is the caller's to guarantee, as documented on New).
+//
+// Stable: sd.hedging — with hedging enabled, the first attempt is dispatched
+// immediately, a further attempt is dispatched after the hedge delay without
+// a success or immediately after a failure, the first success wins and the
+// remaining attempts are abandoned, and the total attempt cap bounds the
+// fan-out.
+// Covered by: TestHedgeDispatchesAfterTheDelay, TestHedgeFastFailureDispatchesAtOnce,
+// TestHedgeFirstSuccessWins, TestHedgingRespectsTheAttemptCap
+func hedgedEndpoint(settings *settings, balancer sd.Balancer) endpoint.Endpoint {
+	return func(ctx context.Context, request any) (any, error) {
+		callContext, cancel := callBudget(ctx, settings.timeout)
+		defer cancel()
+
+		resultChannel := make(chan attemptResult, 1)
+		result := Error{}
+		var (
+			dispatched int
+			inFlight   int
+			timer      endpoint.Timer
+		)
+
+		dispatch := func() {
+			dispatched++
+			inFlight++
+			go call(callContext, balancer, request, resultChannel)
+		}
+		// The hedge timer is the schedule: armed after every dispatch, so
+		// hedges keep firing delay apart while capacity remains. Stopped
+		// before the loop leaves; the deferred cancel ends the wire work
+		// the timer was waiting to start.
+		arm := func() {
+			if timer != nil {
+				timer.Stop()
+			}
+			timer = settings.clock.NewTimer(settings.hedgeDelay)
+		}
+
+		dispatch()
+		arm()
+
+		for {
+			select {
+			case <-callContext.Done():
+				// The same success-outranks-the-deadline rule the serial
+				// loop keeps: a result delivered in the same instant as
+				// the budget expiring is only discarded when it failed.
+				if completed, delivered := delivered(resultChannel); delivered && completed.err == nil {
+					return completed.response, nil
+				}
+				return nil, budgetError(result, callContext.Err())
+			case <-timer.C():
+				if dispatched < settings.maxAttempts {
+					dispatch()
+					arm()
+					continue
+				}
+				// The cap is reached: disarm and wait the in-flight
+				// attempts out.
+				timer.Stop()
+				timer = nil
+			case completed := <-resultChannel:
+				inFlight--
+				result.Attempts = append(result.Attempts, attemptOf(completed))
+				if completed.err == nil {
+					return completed.response, nil
+				}
+				keepTrying, replacement := settings.callback(dispatched, completed.err)
+				received := completed.err
+				if replacement != nil {
+					received = replacement
+				}
+				if !keepTrying || !settings.classifier(received) {
+					return nil, result
+				}
+				// A fast failure dispatches the next attempt at once —
+				// the delay exists to spread copies of a slow request,
+				// not to wait on one that already answered. Without
+				// capacity, an in-flight hedge may still win; only when
+				// nothing is flying does the failure end the call.
+				if dispatched < settings.maxAttempts {
+					dispatch()
+					arm()
+					continue
+				}
+				if inFlight == 0 {
+					return nil, result
 				}
 			}
 		}

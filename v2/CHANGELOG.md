@@ -6,6 +6,15 @@ English | [简体中文](CHANGELOG_zh.md)
 
 ### Added
 
+- Hedged dispatch comes to the discovery-level retry:
+  `retry.WithHedging(delay)` sends the first attempt at once and dispatches a
+  further attempt — a fresh Pick, so under a spreading strategy on another
+  instance — when no success has arrived after the delay, or immediately
+  after a fast failure. The first success wins and the losing attempts end
+  with the call's context; the total attempt cap bounds the fan-out, and the
+  hedge replaces the backoff schedule (`sd.hedging`, pinned by tests that
+  drive the hedge delay through a manual clock instead of sleeping).
+  Idempotency remains the caller's to guarantee.
 - The discovery-level retry joins the span-per-attempt rule:
   `sd/retry`'s loop attempts run on span IDs minted for that attempt
   (`sd.retry-attempt-span`), with the trace and request IDs unchanged —

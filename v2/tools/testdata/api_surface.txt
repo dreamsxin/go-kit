@@ -2310,6 +2310,7 @@ func WithAttemptCallback(callback Callback) Option
 func WithBackoff(backoff func(attempt int) time.Duration) Option
 func WithClock(clock endpoint.Clock) Option
 func WithErrorClassifier(classifier Classifier) Option
+func WithHedging(delay time.Duration) Option
 func WithMaxAttempts(attempts int) Option
 func WithTimeout(timeout time.Duration) Option
 
