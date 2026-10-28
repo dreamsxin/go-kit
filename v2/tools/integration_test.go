@@ -912,15 +912,28 @@ INSERT INTO users (username, email) VALUES ('seed-user', 'seed@example.com');
 }
 
 func waitServer(t *testing.T, url string) {
-	for i := 0; i < 20; i++ {
+	t.Helper()
+	// A generous deadline, not a fixed poll count: under the full parallel
+	// suite a generated service's cold start competes with every other
+	// build, and a budget that measures machine load fails or passes on
+	// scheduling. Fifteen seconds bounds a genuine startup defect while
+	// letting a loaded runner through.
+	deadline := time.Now().Add(15 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
 		resp, err := http.Get(url)
-		if err == nil && resp.StatusCode == http.StatusOK {
+		if err == nil {
 			resp.Body.Close()
-			return
+			if resp.StatusCode == http.StatusOK {
+				return
+			}
+			lastErr = fmt.Errorf("status %d", resp.StatusCode)
+		} else {
+			lastErr = err
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	t.Fatalf("server at %s failed to start in time", url)
+	t.Fatalf("server at %s failed to start in time: %v", url, lastErr)
 }
 
 func freeTCPAddr(t *testing.T) string {
